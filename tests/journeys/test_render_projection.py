@@ -123,7 +123,9 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
             "files": [
                 {
                     "path": "gateway/limits.py",
-                    "kind": "patch",
+                    "operation": "modify",
+                    "hunkCount": 1,
+                    "binary": False,
                     "additions": 4,
                     "deletions": 2,
                     "patch": patch,

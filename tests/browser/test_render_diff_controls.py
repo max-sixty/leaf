@@ -5,6 +5,7 @@ from html import escape
 import pytest
 from leaf import data as data_model
 from leaf.render_checks import one_frame, rendered
+from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
 from render_harness import (
     consume_browser_errors,
@@ -61,23 +62,13 @@ def test_an_expanded_diff_file_can_retry_its_failed_chunk_in_place(browser, serv
     data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
-        {
-            "files": [
-                {
-                    "path": "config.py",
-                    "kind": "patch",
-                    "additions": 1,
-                    "deletions": 1,
-                    "patch": """diff --git a/config.py b/config.py
+        patch_manifest("""diff --git a/config.py b/config.py
 --- a/config.py
 +++ b/config.py
 @@ -1 +1 @@
 -enabled = False
 +enabled = True
-""",
-                }
-            ]
-        },
+"""),
     )
     page = open_page(browser, url)
     attempts = []

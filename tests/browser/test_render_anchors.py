@@ -1785,7 +1785,9 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
 
     pierre_bad = page.evaluate(
         """async (langs) => {
-          const { parsePatchFiles, preloadDiffHTML } =
+          const { parsePatchFiles } =
+            await window.__lfRuntimeImport('/vendor/pierre-parser.esm.js');
+          const { preloadDiffHTML } =
             await window.__lfRuntimeImport('/vendor/pierre-diffs.esm.js');
           const { themeName } =
             await window.__lfRuntimeImport('/vendor/syntax.esm.js');
@@ -2356,7 +2358,7 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
     result = page.evaluate("""async () => {
       const host = document.querySelector('#mixed-rename-diff');
       const shadow = host.shadowRoot;
-      const renames = [...(shadow?.querySelectorAll('.lf-diff-rename') ?? [])];
+      const renames = [...(shadow?.querySelectorAll('.lf-diff-metadata') ?? [])];
       const rename = renames[0];
       const quotedRename = renames[1];
       const bomRename = renames[2];
@@ -4924,7 +4926,9 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
             "files": [
                 {
                     "path": "app.py",
-                    "kind": "patch",
+                    "operation": "modify",
+                    "hunkCount": 1,
+                    "binary": False,
                     "additions": 1,
                     "deletions": 1,
                     "patch": """diff --git a/app.py b/app.py
@@ -5209,7 +5213,9 @@ TWO_FILE_MANIFEST = {
     "files": [
         {
             "path": "first.py",
-            "kind": "patch",
+            "operation": "modify",
+            "hunkCount": 1,
+            "binary": False,
             "additions": 1,
             "deletions": 1,
             "patch": """diff --git a/first.py b/first.py
@@ -5222,7 +5228,9 @@ TWO_FILE_MANIFEST = {
         },
         {
             "path": "second.py",
-            "kind": "patch",
+            "operation": "modify",
+            "hunkCount": 1,
+            "binary": False,
             "additions": 1,
             "deletions": 1,
             "patch": """diff --git a/second.py b/second.py
@@ -5412,7 +5420,9 @@ def test_a_deferred_diff_tracks_each_write_and_retries_a_failed_file(browser, se
             "files": [
                 {
                     "path": path,
-                    "kind": "patch",
+                    "operation": "modify",
+                    "hunkCount": 1,
+                    "binary": False,
                     "additions": 1,
                     "deletions": 1,
                     "patch": f"""diff --git a/{path} b/{path}
@@ -5483,7 +5493,9 @@ def test_a_deferred_load_keeps_the_manifest_source_revision(browser, serve):
         "files": [
             {
                 "path": "app.py",
-                "kind": "patch",
+                "operation": "modify",
+                "hunkCount": 1,
+                "binary": False,
                 "additions": 1,
                 "deletions": 1,
                 "patch": original,
@@ -5582,7 +5594,9 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
             "files": [
                 {
                     "path": "second.py",
-                    "kind": "patch",
+                    "operation": "modify",
+                    "hunkCount": 1,
+                    "binary": False,
                     "additions": 1,
                     "deletions": 1,
                     "patch": """diff --git a/second.py b/second.py
@@ -5871,3 +5885,259 @@ def test_every_mark_the_layer_paints_on_words_is_seen_against_the_paper(browser,
                 f"unmarked control is at {control:.0%}. A marked passage whose only signal "
                 f"is its wash is one the user never learns is marked. All: {seen}"
             )
+
+
+@pytest.mark.parametrize("manifest", [False, True])
+@pytest.mark.parametrize("mobile", [False, True])
+def test_a_diff_shows_native_file_metadata_without_empty_disclosures(
+    browser, serve, manifest, mobile
+):
+    """Inline and deferred evidence preserve native operations at reading widths."""
+    source = """diff --git a/app.js b/app.js
+old mode 100644
+new mode 100755
+--- a/app.js
++++ b/app.js
+@@ -1 +1 @@
+-const value = 1;
++const value = 2;
+diff --git a/old-name.js b/new-name.js
+similarity index 100%
+rename from old-name.js
+rename to new-name.js
+diff --git "a/old\\tname.js" "b/new\\tname.js"
+similarity index 100%
+rename from "old\\tname.js"
+rename to "new\\tname.js"
+diff --git "a/\\357\\273\\277old.js" "b/\\357\\273\\277new.js"
+similarity index 100%
+rename from "\\357\\273\\277old.js"
+rename to "\\357\\273\\277new.js"
+diff --git a/mode.sh b/mode.sh
+old mode 100644
+new mode 100755
+diff --git a/binary.dat b/binary.dat
+index 1111111..2222222 100644
+Binary files a/binary.dat and b/binary.dat differ
+diff --git a/original.js b/copy.js
+similarity index 100%
+copy from original.js
+copy to copy.js
+diff --git a/original.js b/edited-copy.js
+similarity index 75%
+copy from original.js
+copy to edited-copy.js
+--- a/original.js
++++ b/edited-copy.js
+@@ -1 +1 @@
+-const original = 1;
++const copied = 2;
+diff --git a/added-empty b/added-empty
+new file mode 100644
+index 0000000..e69de29
+diff --git a/deleted-empty b/deleted-empty
+deleted file mode 100644
+index e69de29..0000000
+diff --git a/type-change b/type-change
+deleted file mode 100644
+--- a/type-change
++++ /dev/null
+@@ -1 +0,0 @@
+-before
+diff --git a/type-change b/type-change
+new file mode 120000
+--- /dev/null
++++ b/type-change
+@@ -0,0 +1 @@
++target
+\\ No newline at end of file
+diff --git a/reverse-type b/reverse-type
+deleted file mode 120000
+--- a/reverse-type
++++ /dev/null
+@@ -1 +0,0 @@
+-target
+\\ No newline at end of file
+diff --git a/reverse-type b/reverse-type
+new file mode 100644
+--- /dev/null
++++ b/reverse-type
+@@ -0,0 +1 @@
++after
+diff --git a/same-type-text b/same-type-text
+deleted file mode 100644
+--- a/same-type-text
++++ /dev/null
+@@ -1 +0,0 @@
+-target
+\\ No newline at end of file
+diff --git a/same-type-text b/same-type-text
+new file mode 120000
+--- /dev/null
++++ b/same-type-text
+@@ -0,0 +1 @@
++target
+\\ No newline at end of file
+diff --git a/binary-type b/binary-type
+deleted file mode 100644
+index ac46f4c6762c926aeadd5b94702c2041e45f63c9..0000000000000000000000000000000000000000
+GIT binary patch
+literal 0
+HcmV?d00001
+
+literal 9
+Qcmd1LNnuFJ$xq?}01v?e=>Px#
+
+diff --git a/binary-type b/binary-type
+new file mode 120000
+--- /dev/null
++++ b/binary-type
+@@ -0,0 +1 @@
++binary-target
+\\ No newline at end of file"""
+    authored = leaf_page(
+        "Native Git changes",
+        '<h1 id="changes">Changes</h1><lf-diff id="mixed-rename-diff"><pre>'
+        + ("" if manifest else escape(source))
+        + "</pre></lf-diff>",
+    )
+    if manifest:
+        authored = authored.replace(
+            'id="mixed-rename-diff"', 'id="mixed-rename-diff" source="native-patch"'
+        )
+    url = serve(authored)
+    if manifest:
+        data_model.cmd_data_set(serve.page_dir, "native-patch", patch_manifest(source))
+    context = browser.new_context(
+        viewport={"width": 390 if mobile else 1280, "height": 900}, has_touch=mobile
+    )
+    deferred = []
+    context.on(
+        "request",
+        lambda request: (
+            deferred.append(request.url) if "/api/deferred?" in request.url else None
+        ),
+    )
+    page = open_page(browser, url, context=context)
+    result = page.evaluate("""async () => {
+      const host = document.querySelector('#mixed-rename-diff');
+      const shadow = host.shadowRoot;
+      const renames = [...(shadow?.querySelectorAll('.lf-diff-metadata') ?? [])];
+      const rename = renames[0];
+      const quotedRename = renames[1];
+      const bomRename = renames[2];
+      const { says, wrote } = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      return {
+        rendered: host.classList.contains('lf-rendered'),
+        error: host.querySelector('.lf-error')?.firstChild?.textContent ?? null,
+        details: shadow?.querySelectorAll('details').length ?? 0,
+        diffs: shadow?.querySelectorAll('pre[data-diff]').length ?? 0,
+        renameCount: renames.length,
+        evidence: [...shadow.querySelectorAll(".lf-diff-evidence")].map(node => node.textContent),
+        metadata: renames.slice(3).map(node => node.querySelector('.lf-diff-stat').textContent),
+        copied: [...shadow.querySelectorAll('summary')].find(node => node.textContent.includes('edited-copy.js'))?.textContent.includes('copied'),
+        overflow: shadow.host.scrollWidth > shadow.host.clientWidth,
+        pathsVisible: [...shadow.querySelectorAll('summary .lf-diff-base')].every(node => node.getBoundingClientRect().width > 1),
+        metadataLines: renames.reduce((total, node) => total + node.querySelectorAll('[data-line]').length, 0),
+        from: rename?.querySelector('.lf-diff-source-path')?.textContent ?? null,
+        to: rename?.querySelector('.lf-diff-destination-path')?.textContent ?? null,
+        stat: rename?.querySelector('.lf-diff-stat')?.textContent ?? null,
+        generated: rename?.dataset.lfGen === '1',
+        saidOverride: rename?.hasAttribute('data-lf-said') ?? null,
+        quotedFrom:
+          quotedRename?.querySelector('.lf-diff-source-path')?.textContent ?? null,
+        quotedTo: quotedRename?.querySelector('.lf-diff-destination-path')?.textContent ?? null,
+        bomFrom: bomRename?.querySelector('.lf-diff-source-path')?.textContent ?? null,
+        bomTo: bomRename?.querySelector('.lf-diff-destination-path')?.textContent ?? null,
+        lines: [...(shadow?.querySelectorAll('[data-line]') ?? [])]
+          .map(line => line.textContent),
+        saysRename: says(document).includes('old-name.js → new-name.js'),
+        wroteRename: wrote(document).includes('old-name.js → new-name.js'),
+      };
+    }""")
+    assert result == {
+        "rendered": True,
+        "error": None,
+        "details": 6,
+        "diffs": 6,
+        "renameCount": 8,
+        "evidence": [
+            "mode 100644 → 100755",
+            "mode 100644 → 120000",
+            "mode 120000 → 100644",
+            "mode 100644 → 120000",
+            "binary content · mode 100644 → 120000",
+        ],
+        "metadata": [
+            "mode 100644 → 100755",
+            "binary content",
+            "copied",
+            "added · mode 100644",
+            "deleted · mode 100644",
+        ],
+        "copied": True,
+        "overflow": False,
+        "pathsVisible": True,
+        "metadataLines": 0,
+        "from": "old-name.js",
+        "to": "new-name.js",
+        "stat": "renamed",
+        "generated": True,
+        "saidOverride": False,
+        "quotedFrom": "old\tname.js",
+        "quotedTo": "new\tname.js",
+        "bomFrom": "\ufeffold.js",
+        "bomTo": "\ufeffnew.js",
+        "lines": [
+            "const value = 1;",
+            "const value = 2;",
+            "const original = 1;",
+            "const copied = 2;",
+            "before",
+            "target",
+            "target",
+            "after",
+            "target",
+            "target",
+            "binary-target",
+        ],
+        "saysRename": True,
+        "wroteRename": False,
+    }
+
+    assert len(deferred) == (14 if manifest else 0), deferred
+    for path, side, text in [
+        ("type-change", "old", "before"),
+        ("type-change", "new", "target"),
+        ("reverse-type", "old", "target"),
+        ("reverse-type", "new", "after"),
+        ("same-type-text", "old", "target"),
+        ("same-type-text", "new", "target"),
+    ]:
+        key = json.dumps([path, side, 1], separators=(",", ":"))
+        line = page.locator(f"lf-diff [data-lf-datum='{key}']")
+        expect(line).to_have_text(text)
+        expect(line).to_have_attribute("data-lf-datum-label", f"{path} · {side} line 1")
+        comment = page.get_by_role(
+            "button", name=f"Comment on {path} · {side} line 1", exact=True
+        )
+        if mobile:
+            comment.tap()
+        else:
+            line.hover()
+            comment.click()
+        outlet = page.locator(
+            f"lf-diff .lf-diff-thread-outlet[data-lf-thread-datum='{key}']"
+        )
+        expect(outlet.locator(".lf-fab-input")).to_be_focused()
+        page.keyboard.press("Escape")
+        assert (
+            page.locator("lf-diff").evaluate(
+                "(diff, key) => diff.lfDataDatum(JSON.stringify(key)).textContent.trim()",
+                [path, "source", side, 1],
+            )
+            == text
+        )
+        expect(
+            page.locator(f'lf-diff [data-lf-datum=\'["{path}","file"]\']')
+        ).to_have_count(1)

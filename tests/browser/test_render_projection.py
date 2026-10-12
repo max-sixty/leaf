@@ -593,7 +593,10 @@ def test_diff_coordinates_keep_identity_separate_from_source_navigation(browser,
     assert resolved(["app.py", "new", 20]) == '["app.py","both",5,20]'
 
 
-def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(browser, serve):
+@pytest.mark.parametrize("manifest", [False, True])
+def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(
+    browser, serve, manifest
+):
     """Old source b.py and durable destination b.py identify different rename rows."""
     url = serve(
         leaf_page(
@@ -616,7 +619,9 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(browser,
         "diff --git a/a.py b/a.py\nnew file mode 100644\n"
         "--- /dev/null\n+++ b/a.py\n@@ -0,0 +1 @@\n+new_a()\n"
     )
-    data_model.cmd_data_set(serve.page_dir, "patch-data", patch_manifest(patch))
+    data_model.cmd_data_set(
+        serve.page_dir, "patch-data", patch_manifest(patch) if manifest else patch
+    )
     data_model.cmd_data_set(
         serve.page_dir,
         "calls-data",
@@ -665,7 +670,7 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(browser,
     data_model.cmd_data_set(
         serve.page_dir,
         "patch-data",
-        patch_manifest(long_preimage),
+        patch_manifest(long_preimage) if manifest else long_preimage,
     )
     told(page)
     expect(header).to_contain_text("legacy/very/long/original.py → c.py")
@@ -680,7 +685,7 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(browser,
     data_model.cmd_data_set(
         serve.page_dir,
         "patch-data",
-        patch_manifest(ambiguous),
+        patch_manifest(ambiguous) if manifest else ambiguous,
     )
     told(page)
     expect(header).to_contain_text("a.py → c.py")
@@ -704,6 +709,55 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(browser,
         )
         == "removed_b()"
     )
+
+    # Copies share a preimage without owning its identity. A modified original and
+    # two destinations cannot silently redirect an old-source link to the first copy.
+    def copied(destination):
+        return (
+            f"diff --git a/a.py b/{destination}\n"
+            f"similarity index 50%\ncopy from a.py\ncopy to {destination}\n"
+            f"--- a/a.py\n+++ b/{destination}\n"
+            f"@@ -1,2 +1,2 @@\n context()\n-removed_a()\n+copied_{destination[0]}()\n"
+        )
+
+    original = (
+        "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n"
+        "@@ -1,2 +1,2 @@\n context()\n-removed_a()\n+changed_a()\n"
+    )
+    for copy_patch in (original + copied("b.py"), copied("b.py") + copied("c.py")):
+        data_model.cmd_data_set(
+            serve.page_dir,
+            "patch-data",
+            patch_manifest(copy_patch) if manifest else copy_patch,
+        )
+        told(page)
+        links.nth(1).click()
+        expect(page.locator(".lf-live")).to_have_text(
+            "a.py:2 is not present in the exact patch"
+        )
+        assert page.locator("#patch").evaluate(
+            "(diff, key) => diff.lfDataDatum(JSON.stringify(key)) === null",
+            ["a.py", "source", "old", 2],
+        )
+        assert (
+            page.locator("#patch").evaluate(
+                "(diff, key) => diff.lfDataDatum(JSON.stringify(key)).textContent.trim()",
+                ["b.py", "old", 2],
+            )
+            == "removed_a()"
+        )
+        page.get_by_role("button", name="Comment on b.py", exact=True).click()
+        expect(page.locator("#lf-composer-quote")).to_contain_text("§ b.py · file")
+        page.keyboard.press("Escape")
+
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "patch-data",
+        patch_manifest(copied("b.py")) if manifest else copied("b.py"),
+    )
+    told(page)
+    links.nth(1).click()
+    expect(page.locator('#patch [data-lf-datum=\'["b.py","old",2]\']')).to_be_focused()
 
 
 def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
@@ -1367,7 +1421,9 @@ def test_a_large_diff_filters_and_navigates_lazy_files(browser, serve):
         "files": [
             {
                 "path": path,
-                "kind": "patch",
+                "operation": "modify",
+                "hunkCount": 1,
+                "binary": False,
                 "additions": 1,
                 "deletions": 1,
                 "patch": f"""diff --git a/{path} b/{path}

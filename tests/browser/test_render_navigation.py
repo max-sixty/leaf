@@ -12568,7 +12568,9 @@ def test_restore_selection_failed_datum_hydration_leaves_history_untouched(
             "files": [
                 {
                     "path": "app.py",
-                    "kind": "patch",
+                    "operation": "modify",
+                    "hunkCount": 1,
+                    "binary": False,
                     "additions": 1,
                     "deletions": 1,
                     "patch": patch.replace("amber", "violet"),

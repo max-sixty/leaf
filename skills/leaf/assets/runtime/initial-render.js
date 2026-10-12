@@ -12,3 +12,5 @@ export const restoreInitialSource = (root) => coordinator(root).restoreSource(ro
 // What the author wrote: the early coordinator restores original widget sources
 // before copying and takes off its marks and delivery's placeholders (version.js).
 export const unmarkedCopy = (node) => coordinator(node).authoredCopy(node);
+export const fragmentId = (fragment) =>
+  document.documentElement.lfInitial.fragmentId(fragment);

@@ -107,11 +107,6 @@ export const runtimeResource = (path) => {
   return resource + located.hash;
 };
 
-// The shown document is the live active revision, which speaks by its own label.
-const showsActive = () =>
-  readApplication().document.live &&
-  runtime.currentRevision === runtime.active?.revision;
-
 export const runtime = {
   get active() {
     return readApplication().authoritative?.active ?? null;
@@ -119,8 +114,17 @@ export const runtime = {
   get browser() {
     return readApplication().authoritative?.browser ?? null;
   },
+  // Whether the document shows the active revision. Activation only moves forward
+  // (the publisher refuses an answer whose active revision went back), so a document
+  // showing any other revision is behind it: an older pin, or a tab the agent has
+  // since revised.
+  get showsActive() {
+    return (
+      runtime.active !== null && runtime.currentRevision === runtime.active.revision
+    );
+  },
   get currentLabel() {
-    return showsActive()
+    return readApplication().document.live && runtime.showsActive
       ? runtime.active.label
       : runtime.currentStamp === null
         ? null
@@ -130,7 +134,7 @@ export const runtime = {
     return readApplication().document.revision;
   },
   get currentStamp() {
-    return showsActive()
+    return readApplication().document.live && runtime.showsActive
       ? runtime.active.version
       : (readApplication().document.stamp ?? null);
   },

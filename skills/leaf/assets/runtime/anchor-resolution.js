@@ -60,6 +60,7 @@ import {
   addressableWord,
   ownName,
 } from "./addressable-names.js";
+import { fragmentId } from "./initial-render.js";
 
 // Anchors are durable coordinates, so every route that can mint one begins only after
 // replay has reconciled the authored document. The presentation root owns the writer.
@@ -91,6 +92,25 @@ export const projectedDatum = (source, key) => {
   const matches = currentDatums(source, key);
   return matches.length === 1 ? matches[0] : null;
 };
+
+// What an anchor's datum is called: the label its projection gave the element drawn
+// for it, found as resolution finds it, or for a datum its lazy widget has not drawn,
+// what that widget calls it (`lfDatumLabel`), so a thread on a line of a closed file
+// is named as its row would be.
+export function datumLabel(anchor) {
+  if (!anchor?.datum) return "";
+  const source = sectionOf(anchor);
+  const datums = currentDatums(
+    source,
+    anchor.datum,
+    anchor.identity ?? null,
+    anchor.source ?? null,
+  );
+  const label = datums.length
+    ? datums.length === 1 && datums[0].dataset.lfDatumLabel
+    : source?.lfDatumLabel?.(anchor.datum);
+  return typeof label === "string" ? label.trim() : "";
+}
 
 function suppliedDatum(source, key) {
   const supplied = source?.lfDataDatum?.(key);
@@ -785,17 +805,6 @@ export function resolveAnchor(anchor) {
     place: controlFace ? face : annotationAt(segments[0].node),
     segments,
   });
-}
-
-// One fragment reading serves message hrefs and location.hash. Malformed escapes retain
-// their literal characters rather than making a durable reference unreadable.
-export function fragmentId(fragment) {
-  const raw = fragment.slice(1);
-  try {
-    return decodeURIComponent(raw);
-  } catch {
-    return raw;
-  }
 }
 
 // The page element a fragment names: the anchor `{section}` it spells, resolved as every

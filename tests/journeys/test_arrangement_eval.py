@@ -341,3 +341,12 @@ def test_reveal_opens_the_named_item_though_its_words_show_elsewhere(tmp_path):
             "opened"
         )
         assert view.locator("details").get_attribute("open") is not None
+        # The button, not its row; and an unmarked toggle already open stays open.
+        view.set_content(
+            '<p>Sam Okafor</p><ul><li>ESC-4110 <button onclick="t.hidden=!t.hidden">'
+            'ESC-4110</button></li></ul><div id="t" hidden>Route to Sam Okafor.</div>'
+        )
+        reveal(view, "ESC-4110", "Route to Sam", arrangement_plain.settle)
+        assert view.locator("#t").is_visible()
+        reveal(view, "ESC-4110", "Route to Sam", arrangement_plain.settle)
+        assert view.locator("#t").is_visible()

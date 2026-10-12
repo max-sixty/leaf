@@ -139,18 +139,28 @@ def shows(page: Page, pattern: str) -> bool:
 
 def reveal(page: Page, target: str, pattern: str, settled=settle) -> str:
     """Open the item `target` names, as a reader opens a ticket from a queue: click
-    the first drawn control naming it, unless the control says its item is already
-    open, and the next ones until words matching `pattern` are drawn. The words
-    may also be drawn elsewhere, such as in a summary, so the item is opened
-    whether or not they are. Return `opened` once they are drawn, or `hidden`."""
+    the first drawn control naming it, the innermost where one holds another, as a
+    reader presses the button rather than its row, unless the control says its
+    item is already open, and the next ones until words matching `pattern` are
+    drawn. The words may also be drawn elsewhere, such as in a summary, so the
+    item is opened whether or not they are; a click that hides them is undone,
+    since it closed an item that was open. Return `opened` once they are drawn,
+    or `hidden`."""
     openers = page.locator(OPENERS).filter(has_text=target)
-    for n in range(min(openers.count(), 6)):
-        opener = openers.nth(n)
+    # The innermost controls: those holding no other control that names the item.
+    innermost = openers.filter(has_not=page.locator(OPENERS).filter(has_text=target))
+    for n in range(min(innermost.count(), 6)):
+        opener = innermost.nth(n)
         if not opener.is_visible():
             continue
         if not opener.evaluate(OPEN):
+            shown = shows(page, pattern)
             opener.click()
             settled(page)
+            if shown and not shows(page, pattern):
+                opener.click()
+                settled(page)
+                return "opened"
         if shows(page, pattern):
             return "opened"
     return "opened" if shows(page, pattern) else "hidden"

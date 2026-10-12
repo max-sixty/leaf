@@ -399,7 +399,7 @@ keeps its own test says why beside it. Rows marked *lint* are enforced in
 | Make a list of nodes, some already placed, a parent's children | `dom-children.js` `setChildren` |
 | Whether a control takes typed letters | `focus.js` `typesText`, `takesLetters` |
 | Which keys move a caret, and whether a key is Select All | `control-selectors.js` `CARET_KEYS`, `selectsAll` |
-| A hint map's walk and choose rows | `keyboard/hints.js` `walkRows` |
+| A hint map's walk and choose rows | `keyboard/hints.js` `createHintSession`, its session's walkRows |
 | Which focused control counts as the user's place: shown, and not under a stuck box | `user-place.js` `focusedInView` |
 | Whether a click came from the keyboard | `pointer.js` `pressIsKeyboardActivation` |
 | Whether a press is the plain one a control claims: primary button, no modifier | `pointer.js` `plainPress` |

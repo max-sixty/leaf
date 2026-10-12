@@ -2742,9 +2742,19 @@ def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
     absolutely or fixed, or floated clear of the column — so this needs no vocabulary
     of its own and nothing has to be declared to it. That is what keeps the two theme
     rules honest: the next claimant that forgets one is a refusal with a name on it
-    rather than a page somebody eventually notices is drawn over its own controls."""
+    rather than a page somebody eventually notices is drawn over its own controls.
+
+    The page's own frame is the same place: a wide widget is measured against the box
+    that frames it, and everything else on the page is excused by a scroll container
+    above it. Asked in that order, the excuse ate the measurement: a board scrolls, so
+    every card on every board was excused from the one reading that applies to what it
+    holds, and a diagram drawn 332px across the next column passed the gate that
+    exists to name it. So a board in a frame of the page's own that scrolls is named
+    too."""
+    framed = FRAMED_SCROLLER_PAGE[FRAMED_SCROLLER_PAGE.index("<div id='own-frame'") :]
+    framed = framed[: framed.index("</lf-board></div>") + len("</lf-board></div>")]
     failures = render_gate_model.render_version(
-        browser, serve(OWN_MARGIN_FURNITURE)
+        browser, serve(OWN_MARGIN_FURNITURE.replace("</main>", framed + "</main>"))
     ).failures
 
     assert [
@@ -2756,6 +2766,12 @@ def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
     )
     assert not [f for f in failures if "own-rail" in f and "past the column" in f], (
         "the furniture itself was named for standing where it was put"
+    )
+    assert [
+        f for f in failures if "<lf-board id=framed>" in f and "<div id=own-frame>" in f
+    ], (
+        "the gate said nothing about a wide widget escaping a frame that scrolls: "
+        f"{failures}"
     )
 
 
@@ -3014,30 +3030,6 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
         "the diagram crossed the right edge of the box the page drew for it, so a "
         "project declaring the frame does not get the room held in: diagram out to "
         f"{boxes['inOwnBox']['right']:.0f}, box ends at {boxes['ownBox']['right']:.0f}"
-    )
-
-
-def test_the_render_gate_names_a_wide_widget_that_escapes_a_frame_that_scrolls(
-    browser, serve
-):
-    """A wide widget is measured against the box that frames it, and everything else on
-    the page is excused by a scroll container above it — a box inside one is drawn only
-    as far as the scroller reaches, so it cannot spill onto the page. Asked in that order,
-    the excuse ate the measurement: a board scrolls, so every card on every board was
-    excused from the one reading that applies to what it holds, and a diagram drawn 332px
-    across the next column passed the gate that exists to name it.
-
-    The frame here is the page's own, because a project's box is what no theme rule can
-    reach — the same place the margin-furniture gate above stands."""
-    failures = render_gate_model.render_version(
-        browser, serve(FRAMED_SCROLLER_PAGE)
-    ).failures
-
-    assert [
-        f for f in failures if "<lf-board id=framed>" in f and "<div id=own-frame>" in f
-    ], (
-        "the gate said nothing about a wide widget escaping a frame that scrolls: "
-        f"{failures}"
     )
 
 

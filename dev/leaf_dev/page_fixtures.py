@@ -90,8 +90,13 @@ def example_media() -> Path:
 
 
 def media_source(source: Path) -> Path:
+    """A page's own `media/`, else its layer's. A page in this checkout with no layer
+    of its own, such as a test fixture, shares the example catalog's media, as it
+    shares its packages; a page outside the checkout keeps only its own."""
     media = source.parent / "media"
     manifest = source_manifest(source)
+    if manifest is None and source.resolve().is_relative_to(ROOT):
+        manifest = DEFAULT_PACKAGES
     if media.is_dir() or manifest is None:
         return media
     return layer_media(manifest) or media

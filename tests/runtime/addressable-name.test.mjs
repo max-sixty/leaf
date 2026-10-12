@@ -19,8 +19,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 
-import { addressableLabel, addressableName } from "/runtime/anchor-resolution.js";
-import { renderSaid } from "/runtime/presentation.js";
+import { addressableLabel, addressableName } from "/runtime/addressable-names.js";
+import { renderSaid } from "/runtime/declared-words.js";
 import { registry } from "/runtime/registry.js";
 
 // The cases the server's `gesture_words.element_name` answers too.

@@ -145,7 +145,7 @@ def shift_watch_source():
             (
                 'import { WORKS } from "./skills/leaf/assets/runtime/control-selectors.js";'
                 'import { clippingAxes } from "./skills/leaf/assets/runtime/rect.js";'
-                'import { elementAxes, scrollAxes } from "./skills/leaf/assets/runtime/geometry.js";'
+                'import { elementAxes, scrollAxes } from "./skills/leaf/assets/runtime/element-frame.js";'
                 'import { shadowHost, upFrom, renderedParent } from "./skills/leaf/assets/runtime/shadow.js";'
                 "process.stdout.write(JSON.stringify([WORKS,...[clippingAxes,shadowHost,upFrom,renderedParent,elementAxes,scrollAxes].map(fn=>fn.toString())]));"
             ),
@@ -1228,7 +1228,8 @@ _TEST = None
 
 
 def watches_shifts(test):
-    """Unmarked tests watch shifts; surveyed journeys in a marked tier opt in.
+    """Unmarked tests watch shifts, whatever tier their cost runs them in; surveyed
+    journeys marked with a tier opt in.
 
     This selection does not lift the watcher's first-presentation exemption.
     """

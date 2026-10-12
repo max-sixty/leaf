@@ -401,7 +401,7 @@ def test_native_frames_resolve_css_positions_in_supported_engines(
         ),
     )
     results = page.evaluate("""async () => {
-      const {elementFrame} = await import('/runtime/geometry.js');
+      const {elementFrame} = await import('/runtime/element-frame.js');
       const image = document.querySelector('#pixels');
       await image.decode();
       const readings = [];

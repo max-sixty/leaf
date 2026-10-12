@@ -264,10 +264,9 @@ INLINE_CASE_PAGE = leaf_page(
       before="/media/051bee487bfb5d13.png" after="/media/a99a1b63048502d0.png"></lf-shot>
     <details id="ro-numbers"><summary>What it costs</summary>
       <p id="ro-cost">One join, 40ms at the list's own volume.</p></details>
-    <lf-ask id="ro-note-decision"><h3>How should the note read?</h3>
     <lf-draft id="ro-note"><pre>
 Run status now shows on the run list itself.
-</pre></lf-draft></lf-ask>
+</pre></lf-draft>
     <p id="ro-column-p">A failure reads off the list instead of costing a click.</p>
   </lf-option>
   <lf-option id="ro-leave"><strong>Leave it</strong>

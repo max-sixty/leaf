@@ -1,6 +1,6 @@
 /* This module owns registry loading, pre-upgrade passage fences, dynamic widget
  * imports, and initial presentation. */
-import { dress, watchExternalLinks } from "./presentation.js";
+import { paintDeclaredWords, watchExternalLinks } from "./declared-words.js";
 import { watchCodeBlocks } from "./code-copy.js";
 import { reachScrollers } from "./reach.js";
 import { adoptRegistry, registry, tagsDeclaring } from "./registry.js";
@@ -188,7 +188,7 @@ export async function importWidgets(scope) {
 }
 
 // The upgrade lifecycle for the whole authored body, at startup: read it while it is
-// still what its author wrote, import what its tags declare, and dress it.
+// still what its author wrote, import what its tags declare, and paint its declared words.
 async function installDocument(scope) {
   const presentation = attachApplicationPresentation("document:installation", scope);
   try {
@@ -245,7 +245,7 @@ export async function patchDocument(scope, patch) {
 // before any module could turn that input into presentation. `presented` is the wait
 // each caller owes: the whole application at startup, the widgets it brought for a patch.
 async function settle(presentation, scope, arrived, presented) {
-  await presentation.present(scope, Promise.all(arrived.map(dress)));
+  await presentation.present(scope, Promise.all(arrived.map(paintDeclaredWords)));
   await presented();
   reachScrollers(scope);
 }

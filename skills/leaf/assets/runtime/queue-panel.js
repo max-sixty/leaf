@@ -41,7 +41,7 @@ import {
   addressableLabel,
   addressableName,
   addressableWord,
-} from "./anchor-resolution.js";
+} from "./addressable-names.js";
 import {
   queueBtn,
   queueList,

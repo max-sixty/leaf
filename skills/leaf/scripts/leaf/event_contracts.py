@@ -8,7 +8,7 @@ This module selects each kind's gates. Their implementations stay with their
 domains: undo in `events` and widget meaning in `event_meaning`.
 """
 
-from leaf.event_log import EventRefused, new_event_id
+from leaf.event_log import APPEND_STAMPED, EventRefused, new_event_id
 from leaf.event_meaning import (
     AdmissionReadings,
     admit_widget_event,
@@ -52,12 +52,6 @@ from leaf.work import widget_seat_error
 from leaf.work_reading import WorkReading
 from leaf.workflows import obligation_reading
 
-# The envelope the append lease itself assigns. Admission validates the complete
-# record, so pre-admission shape checks supply representative envelope fields.
-# Semantic admission allocates the real identity before folding the candidate.
-# A caller supplying an envelope field is held to the contract's reading of it.
-APPEND_STAMPED = {"id": "pending", "ts": "pending", "seq": 1}
-
 
 def event_record_error(contract: dict, event: dict):
     """The first complaint from one event kind's stored-record contract."""
@@ -87,11 +81,11 @@ def command_record_schema(contract: dict) -> dict:
 def browser_command_error(contract: dict, event: dict):
     """The first complaint from what a browser client is allowed to post.
 
-    A command is not yet a record: the server owns the envelope, the author, and
-    every field admission derives. This reads the record contract with those
-    fields supplied or lifted, beside the kind's own browser assertions — which
-    are narrower than the record, because the fields a reply carries from the
-    CLI are not a tab's to send."""
+    A command is not yet a record: the server owns the envelope, the author (which
+    the endpoint has already stamped), and every field admission derives. This
+    reads the record contract with those fields supplied or lifted, beside the
+    kind's own browser assertions — which are narrower than the record, because the
+    fields a reply carries from the CLI are not a tab's to send."""
     return schema_error(
         {
             "allOf": [
@@ -99,11 +93,7 @@ def browser_command_error(contract: dict, event: dict):
                 contract["browser"],
             ]
         },
-        {
-            **event,
-            **APPEND_STAMPED,
-            "author": "page" if event.get("kind") == "error" else "user",
-        },
+        {**event, **APPEND_STAMPED},
     )
 
 
@@ -859,20 +849,23 @@ def admitted_event(view, events: list, event: dict) -> dict:
     return event
 
 
-def append_admitted(page, event: dict, *, view=None) -> dict:
-    """Admit one event and append it, under the page transaction's log lease.
+def append_admitted(page, event: dict, *, view=None) -> tuple[dict, bool]:
+    """Admit one event and append it, under the page transaction's log lease; the
+    record, and whether this call appended it.
 
     The one door. `page` is an open `service.PageTransaction`, whose lease makes
     every decision here one transaction: the standing log the gates read, the
     meaning derived from it, and the write. A refusal raises `EventRefused` with
-    what to do about it — `contract_writer` turns that into a CLI exit and the
-    browser endpoint into a final 400.
+    what to do about it, which the CLI presents as an error and the browser
+    endpoint answers as a final 400. An `attempt` the log already holds returns that record unappended,
+    or raises `AttemptConflict` when it names another payload.
     """
     # Ahead of the gates, not only ahead of the write: a retry asks for the event
     # its attempt already carried, and the page it was admitted against may since
-    # have moved past admitting it.
+    # have moved past admitting it. Content and time play no part: an intentional
+    # later identical message has a fresh attempt and is a second event.
     if accepted := page.matching_attempt(event):
-        return accepted
+        return accepted, False
     try:
         layer = layer_metadata(page.page_dir)
     except RegistryError:
@@ -881,8 +874,9 @@ def append_admitted(page, event: dict, *, view=None) -> dict:
         layer = None
     if layer is not None and (refusal := foreign_event_contract(page.page_dir, layer)):
         raise EventRefused(refusal)
-    return page._append_record(
+    record = page._append_record(
         admitted_event(
             view if view is not None else PageView(page.page_dir), page.events, event
         )
     )
+    return record, True

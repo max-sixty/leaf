@@ -7,7 +7,8 @@
  * The optional renderer loads at the first preview, outside page presentation.
  */
 import { leafSurface } from "../passages.js";
-import { elementBorderFrame, paintClips } from "../geometry.js";
+import { elementBorderFrame } from "../element-frame.js";
+import { paintClips } from "../geometry.js";
 import { nextRender } from "../rendering.js";
 import { renderedParent, under } from "../shadow.js";
 import { drawingGeometry } from "./drawing-geometry.js";

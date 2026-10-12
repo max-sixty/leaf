@@ -369,6 +369,15 @@ on 2026-10-07.
 
 ### Development velocity
 
+- **Make test tiering much simpler.** Cost tiers went in as a stopgap to cut the
+  suite's cost quickly: a test's tier is the later of its `main`/`nightly` marks and
+  the tier its measured CI cost names in `tests/cost_tiers.json` (307 KB), with a
+  `landing` pin, a `leaf-dev cost-tiers` refresh, and a junit property to feed it
+  (`dev/leaf_dev/cost_tiers.py`). That is three encodings of one decision, and a
+  test's tier is invisible where the test is written. Find one encoding a reader can
+  see beside the test, likely by making browser tests cheap enough that fewer need
+  moving, and by decoupling shift watching from tier marks
+  (`render_harness.watches_shifts`), which is what kept these tiers out of source.
 - **Check what handing over on chosen tests costs.** Since 2026-10-04 a handover runs
   the tests the agent picks for its change, and the broad selection runs only at
   landing (`tests/AGENTS.md`, "Run what the change needs"). Before that, 25 of the
@@ -551,7 +560,7 @@ Revisit these when their stated trigger becomes real; they are not an active que
   if hosted delivery becomes a product priority; the App Server protocol is
   already shared.
 - **Make a leaf.page dispatch survive its container.** The Worker acknowledges an
-  accepted event and hands its Codex turn to `waitUntil` (`worker/src/index.ts`,
+  accepted event and hands its Codex turn to `waitUntil` (`worker/src/agent.ts`,
   `dispatchAgentTask`). Nothing records the event and turn identity in the
   container's Durable Object, and nothing recovers a dispatch whose container
   disappears or outlives the `waitUntil` window. Trigger: a hosted answer lost that

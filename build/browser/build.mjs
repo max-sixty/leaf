@@ -8,8 +8,10 @@
  * without writing them. This module owns its source root, outputs, and their layer
  * paths, and writes and checks every other committed Node-built output beside them:
  * the initial renderers (`build/initial.mjs`), the stylesheets (`build/styles.mjs`),
- * and the runtime's copy of the registry's drawing schema (`drawingSchema` below).
- * Leaf installation, vendoring, activation, and export never invoke this tool.
+ * the modules generated from the registry (`build/registry.mjs`), and the
+ * third-party bundles (`build/vendor.mjs`). The layer's `vendor/` and each package's
+ * hold nothing else, so a file there that no build writes is stale. Leaf
+ * installation, vendoring, activation, and export never invoke this tool.
  *
  * Each TypeScript module compiles to one JavaScript module, its types blanked to
  * whitespace, so every line keeps its source line number and two branches conflict
@@ -22,15 +24,11 @@
  * development checkout requests and nothing else.
  *
  * The framework's third-party packages are minified builds from the lock and the
- * adaptations below. `vendor/lit.js` is the page's one copy of Lit: every public Lit
- * module in one namespace, shaped like Lit's own `lit-all` bundle, where the
- * static-html tags are renamed `staticHtml`, `staticSvg`, and `staticMathml` so they
- * do not shadow the ordinary ones. The framework imports Lit from it, and so does
- * the Web Awesome bundle (`build/webawesome/build.mjs`), so a page registers one
- * LitElement, one template cache, and one version. Signals are the framework's own
- * and sit inside its directory. `shipped.mjs` decides whether each output's imports
- * resolve on every page and writes the notices for the packages that reached them,
- * as it does for every bundle `build/vendor.py` makes.
+ * adaptations below. `vendor/lit.js` is the page's one copy of Lit (`build/lit.mjs`);
+ * the framework imports Lit from it, as Web Awesome's bundle does. Signals are the
+ * framework's own and sit inside its directory. `shipped.mjs` decides whether each
+ * output's imports resolve on every page and writes the notices for the packages
+ * that reached them, as it does for every vendored bundle.
  */
 import { readFile, readdir, mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -41,7 +39,10 @@ import { transformSync } from "amaro";
 import { build } from "esbuild";
 import { eventTypes } from "./event-types.mjs";
 import { initialOutputs } from "../initial.mjs";
+import { litNamespace, litPath } from "../lit.mjs";
+import { registryOutputs } from "../registry.mjs";
 import { styleOutputs } from "../styles.mjs";
+import { adapt, seam, vendorOutputs } from "../vendor.mjs";
 import { bundledPackages, checkModule, licenseNotices } from "./shipped.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
@@ -56,7 +57,7 @@ export const inFramework = (layerPath) =>
   layerPath === facade || layerPath.startsWith(`${frameworkDirectory}/`);
 /** The layer path each package the framework imports is vendored at. */
 const packages = {
-  lit: "vendor/lit.js",
+  lit: litPath,
   "@preact/signals-core": `${frameworkDirectory}/signals-core.js`,
 };
 
@@ -119,103 +120,68 @@ function compileModule(text, source) {
 }
 
 /**
- * Build `lit.js` from Lit's published exports.
+ * Build `lit.js` (`build/lit.mjs`), adapting the locked published modules in memory.
  *
- * Star exports would make static-html's tags ambiguous with the ordinary ones and
- * drop both, so that module is exported by name instead; the polyfill module patches
- * browsers older than any Leaf supports.
+ * Backport lit/lit#5218 while 3.3.0 avoids the repeat marker leak (#5298). Route
+ * keyed and child-part insertions, and the root marker, through
+ * `runtime/dom-move.js`, preserving native state during moves and bypassing named
+ * form properties.
  */
-function litModule(lit) {
-  const stars = Object.keys(lit.exports)
-    .filter(
-      (subpath) => !["./static-html.js", "./polyfill-support.js"].includes(subpath),
-    )
-    .map((subpath) => `export * from "lit${subpath.slice(1)}";`);
-  const contents = [
-    ...stars,
-    'export { html as staticHtml, svg as staticSvg, mathml as staticMathml, literal, unsafeStatic, withStatic } from "lit/static-html.js";',
-  ].join("\n");
-  return {
-    name: "leaf-lit",
-    setup(build) {
-      build.onResolve({ filter: /^leaf:lit$/ }, () => ({
-        path: "lit",
-        namespace: "leaf-lit",
-      }));
-      build.onLoad({ filter: /.*/, namespace: "leaf-lit" }, () => ({
-        contents,
-        resolveDir: root,
-      }));
-      // Backport lit/lit#5218 while 3.3.0 avoids the repeat marker leak (#5298).
-      // Adapt the pinned published file in memory, leaving node_modules untouched.
-      build.onLoad(
-        { filter: /[/\\]lit-html[/\\]directives[/\\]ref\.js$/ },
-        async ({ path: source }) => {
-          let contents = await readFile(source, "utf8");
-          for (const [before, after] of [
-            ["e&&void 0!==this.G&&this.rt(void 0)", "e&&this.rt(void 0)"],
-            [
-              "rt(t){if(this.isConnected",
-              "rt(t){if(void 0===this.G)return;if(this.isConnected",
-            ],
-          ]) {
-            if (contents.split(before).length !== 2)
-              throw new Error(`Lit ref seam changed: ${source}: ${before}`);
-            contents = contents.replace(before, after);
-          }
-          return { contents, resolveDir: path.dirname(source) };
-        },
-      );
-      // Preserve native state during keyed and child-part moves. Adapt the locked
-      // published files in memory and fail if either upstream insertion seam changes.
-      build.onLoad(
-        { filter: /[/\\]lit-html[/\\](?:lit-html|directive-helpers)\.js$/ },
-        async ({ path: source }) => {
-          const original =
-            path.basename(source) === "lit-html.js"
-              ? "this._$AA.parentNode.insertBefore(t,this._$AB)"
-              : "e.insertBefore(o,l)";
-          const replacement =
-            path.basename(source) === "lit-html.js"
-              ? "leafMove(this._$AA.parentNode,t,this._$AB)"
-              : "leafMove(e,o,l)";
-          let contents = await readFile(source, "utf8");
-          if (contents.split(original).length !== 2)
-            throw new Error(`Lit move seam changed: ${source}: ${original}`);
-          contents = contents.replace(original, replacement);
-          // The root marker is new, but must also bypass named form properties.
-          if (path.basename(source) === "lit-html.js") {
-            const marker = "i.insertBefore(l(),t)";
-            if (contents.split(marker).length !== 2)
-              throw new Error(`Lit root marker seam changed: ${source}`);
-            contents = contents.replace(marker, "leafMove(i,l(),t)");
-          }
-          return {
-            contents:
-              'import {move as leafMove} from "/runtime/dom-move.js";\n' + contents,
-            resolveDir: path.dirname(source),
-          };
-        },
-      );
-    },
-  };
-}
-
-// The schema admission holds a comment's drawing to, as a module the runtime's own
-// validator reads its bounds from (`runtime/composing/drawing-record.js`), so a bound
-// changes in registry.json alone.
-async function drawingSchema() {
-  const registry = JSON.parse(
-    await readFile(path.join(root, assets, "registry.json"), "utf8"),
-  );
-  const schema = registry.$events.kinds.comment.record.properties.drawing;
+async function litModule() {
+  const contents = await litNamespace();
+  const move = 'import {move as leafMove} from "/runtime/dom-move.js";\n';
   return [
-    `${assets}/runtime/composing/drawing-schema.js`,
-    Buffer.from(
-      "// Generated by build/browser/build.mjs from registry.json's comment drawing.\n" +
-        "// prettier-ignore\n" +
-        `export const drawingSchema = ${JSON.stringify(schema)};\n`,
-    ),
+    {
+      name: "leaf-lit",
+      setup(build) {
+        build.onResolve({ filter: /^leaf:lit$/ }, () => ({
+          path: "lit",
+          namespace: "leaf-lit",
+        }));
+        build.onLoad({ filter: /.*/, namespace: "leaf-lit" }, () => ({
+          contents,
+          resolveDir: root,
+        }));
+      },
+    },
+    adapt([
+      {
+        file: /[/\\]lit-html[/\\]directives[/\\]ref\.js$/,
+        edit: (source) =>
+          seam(
+            seam(
+              source,
+              "e&&void 0!==this.G&&this.rt(void 0)",
+              "e&&this.rt(void 0)",
+              "Lit ref",
+            ),
+            "rt(t){if(this.isConnected",
+            "rt(t){if(void 0===this.G)return;if(this.isConnected",
+            "Lit ref",
+          ),
+      },
+      {
+        file: /[/\\]lit-html[/\\]lit-html\.js$/,
+        edit: (source) =>
+          move +
+          seam(
+            seam(
+              source,
+              "this._$AA.parentNode.insertBefore(t,this._$AB)",
+              "leafMove(this._$AA.parentNode,t,this._$AB)",
+              "Lit move",
+            ),
+            "i.insertBefore(l(),t)",
+            "leafMove(i,l(),t)",
+            "Lit root marker",
+          ),
+      },
+      {
+        file: /[/\\]lit-html[/\\]directive-helpers\.js$/,
+        edit: (source) =>
+          move + seam(source, "e.insertBefore(o,l)", "leafMove(e,o,l)", "Lit move"),
+      },
+    ]),
   ];
 }
 
@@ -251,9 +217,6 @@ export async function buildOutputs() {
     pending.push(...imports);
   }
 
-  const lit = JSON.parse(
-    await readFile(path.join(root, "node_modules/lit/package.json"), "utf8"),
-  );
   const result = await build({
     absWorkingDir: root,
     entryPoints: Object.fromEntries(
@@ -263,7 +226,7 @@ export async function buildOutputs() {
       ]),
     ),
     outdir: `${assets}/vendor`,
-    plugins: [litModule(lit)],
+    plugins: await litModule(),
     external: ["/runtime/dom-move.js"],
     platform: "browser",
     format: "esm",
@@ -291,24 +254,48 @@ export async function buildOutputs() {
     `${assets}/vendor/browser-runtime.LICENSES.txt`,
     Buffer.from(licenseNotices("browser-runtime", packageRoots)),
   );
-  for (const [name, bytes] of await initialOutputs()) outputs.set(name, bytes);
-  for (const [name, bytes] of await styleOutputs()) outputs.set(name, bytes);
-  outputs.set(...(await drawingSchema()));
+  for (const producer of [initialOutputs, styleOutputs, registryOutputs, vendorOutputs])
+    for (const [name, bytes] of await producer()) outputs.set(name, bytes);
   return outputs;
 }
 
+const missing = (error) => {
+  if (error.code !== "ENOENT") throw error;
+  return [];
+};
+
+/**
+ * The directories this build owns whole: the layer's `vendor/` and each package's.
+ * Every file in them is an output, so one the build no longer writes is stale.
+ */
+async function vendorDirectories(directory) {
+  const packages = "skills/leaf/packages";
+  return [
+    `${assets}/vendor`,
+    ...(
+      await readdir(path.join(directory, packages), { withFileTypes: true }).catch(
+        missing,
+      )
+    )
+      .filter((entry) => entry.isDirectory())
+      .map(({ name }) => `${packages}/${name}/vendor`),
+  ];
+}
+
 export async function checkOutputs(outputs, directory = root) {
-  // The framework's directory holds only what this build writes.
-  const stale = (
-    await readdir(path.join(directory, assets, frameworkDirectory), {
+  const stale = [];
+  for (const owned of await vendorDirectories(directory))
+    for (const file of await readdir(path.join(directory, owned), {
       recursive: true,
-    }).catch((error) => {
-      if (error.code !== "ENOENT") throw error;
-      return [];
-    })
-  )
-    .map((file) => `${assets}/${frameworkDirectory}/${file.split(path.sep).join("/")}`)
-    .filter((name) => !outputs.has(name));
+      withFileTypes: true,
+    }).catch(missing))
+      if (file.isFile()) {
+        const name = path
+          .relative(directory, path.join(file.parentPath, file.name))
+          .split(path.sep)
+          .join("/");
+        if (!outputs.has(name)) stale.push(name);
+      }
   for (const [name, expected] of outputs) {
     let actual;
     try {
@@ -342,10 +329,8 @@ async function main(args) {
   const outputs = await buildOutputs();
   if (args[0] === "--check") await checkOutputs(outputs);
   else {
-    await rm(path.join(root, assets, frameworkDirectory), {
-      force: true,
-      recursive: true,
-    });
+    for (const owned of await vendorDirectories(root))
+      await rm(path.join(root, owned), { force: true, recursive: true });
     for (const [name, bytes] of outputs) {
       const destination = path.join(root, name);
       await mkdir(path.dirname(destination), { recursive: true });

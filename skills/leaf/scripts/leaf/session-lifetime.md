@@ -218,16 +218,17 @@ ownership, log, cursor, status and the shared live work reading. Its typed input
 response debt and watcher facts feed Stop policy before harness formatting; prompt
 pickup is an explicit transition and rechecks that debt remains unsettled.
 Every hook effect checks its captured session generation and revision, including
-no-ID and same-ID prompt renewal. The complete context is published and flushed
-under that epoch guard. A harness discards the output of a hook it times out,
-and Claude Code cuts a large context to a preview, so the hook confirms an inline
-delivery only after publishing it, and only while it is well inside its timeout
-(`hook_transport.CONFIRM_WITHIN`); otherwise, and for a delivery too large for the
-context, it hands over a pointer. After reading all its parts, the session
-confirms receipt with `leaf delivery ack`. Every hook envelope's `acknowledge` is null. Receipt then revalidates
-current ownership and exact event identities under page→session locks held
-through pickup and cursor commit, batch by batch, so a page the session no longer
-holds keeps its input pending. Hook and provider receipt observe an open turn and
+no-ID and same-ID prompt renewal. The decision to publish is taken under that
+epoch guard. A harness reads a hook's output only once it exits, discards it for
+a hook it times out, and Claude Code cuts a large context to a preview, so the
+hook hands a delivery over inline only once it fits, and only once the hook has
+confirmed every batch while well inside its timeout
+(`hook_transport.CONFIRM_WITHIN`); otherwise it hands over a pointer. After
+reading all its parts, the session confirms receipt with `leaf delivery ack`,
+which shows any refusal the hook met. Every hook envelope's `acknowledge` is null.
+Receipt revalidates current ownership and exact event identities under
+page→session locks held through pickup and cursor commit, batch by batch, so a
+page the session no longer holds keeps its input pending. Hook and provider receipt observe an open turn and
 cannot open or replace one. Explicit reader acknowledgement can open a fresh unnamed
 harness turn after a missed prompt hook; known provider turns remain authoritative.
 Input stays pending if a hook is stopped before it confirms, or a

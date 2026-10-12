@@ -22,23 +22,30 @@ session's transport (`Harness.hook_delivers`): each freezes the input pending on
 the session's pages and hands over its complete envelope inline, or its
 immutable pointer.
 
-The hook confirms an inline envelope itself, as it hands it over, so the user's
-updates read Picked up without waiting on the model; the envelope's `acknowledge`
-is null. Two things could keep inline context from reaching the turn, and the
-hook rules out both before it confirms. A harness discards the output of a hook
-it times out, so the hook confirms only by a deadline well inside its timeout
-(`CONFIRM_WITHIN`): it goes inline only before it, confirms only after
-publishing, and leaves pending any page whose lock is still held at the deadline.
-Stopped before it confirms, it has confirmed nothing, and it never waits on a
-lock past the deadline into the harness's timeout. Claude Code cuts context over a limit to a preview
-(`HOOK_CONTEXT_LIMIT`), so a delivery that large goes as a pointer, and so does
-one the hook was too slow to confirm; the reader's explicit `leaf delivery ack`
-is its receipt, including for pointers Codex's tool hook offers. What remains is a turn that ends
-just after it starts, as an interrupt can; its updates then read Picked up in a
-turn that ended, as an App Server turn's do."""
+The hook confirms an envelope it hands over inline itself, so the user's updates
+read Picked up without waiting on the model; the envelope's `acknowledge` is null,
+and its reader confirms nothing. So it hands an envelope over inline only once it
+has confirmed every batch: an inline envelope it could not confirm would leave its
+input pending, and every later hook and watch would offer it again as new. A
+batch's receipt can be refused for good, as when this Leaf may not write a log
+another Leaf vendored (`layer.foreign_event_contract`), so whatever the hook could
+not confirm goes as a pointer, whose reader's explicit `leaf delivery ack` either
+confirms it or shows the refusal. Claude Code cuts context over a limit to a
+preview (`HOOK_CONTEXT_LIMIT`), so a delivery that large goes as a pointer too,
+unconfirmed, as do pointers Codex's tool hook offers.
+
+A harness reads a hook's output only once it exits, and discards it for a hook it
+times out, so the hook confirms only by a deadline well inside its timeout
+(`CONFIRM_WITHIN`) and prints once confirmation is settled. Stopped before it
+confirms, it has confirmed nothing; it never waits on a lock past the deadline
+into the harness's timeout, and a page whose lock is still held then goes
+unconfirmed. What remains is a turn that ends just after it starts, as an
+interrupt can; its updates then read Picked up in a turn that ended, as an App
+Server turn's do."""
 
 import json
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -315,14 +322,14 @@ def hands_delivery(output: str) -> bool:
 
 
 def render(
-    delivery: dict | None, attention: list[str], *, inline: bool
-) -> tuple[str, bool]:
-    """The hook's context, and whether it hands `delivery` over inline, which
-    confirms it: only where `inline` allows and the whole message fits under
-    `HOOK_CONTEXT_LIMIT`. Otherwise it hands over the pointer its reader's
-    `leaf delivery ack` confirms after complete reading."""
+    delivery: dict | None, attention: list[str], *, confirm: Callable[[], bool]
+) -> str:
+    """The hook's context. It hands `delivery` over inline only where the whole
+    message fits under `HOOK_CONTEXT_LIMIT` and `confirm` then confirms every batch;
+    otherwise it hands over the pointer its reader's `leaf delivery ack` confirms
+    after complete reading."""
     if delivery is None:
-        return "\n".join(attention), False
+        return "\n".join(attention)
     message = "\n".join(
         [
             INLINE_DELIVERY,
@@ -330,8 +337,8 @@ def render(
             *attention,
         ]
     )
-    if inline and len(message.encode("utf-8")) < HOOK_CONTEXT_LIMIT:
-        return message, True
+    if len(message.encode("utf-8")) < HOOK_CONTEXT_LIMIT and confirm():
+        return message
     return "\n".join(
         [
             (
@@ -340,7 +347,7 @@ def render(
             ),
             *attention,
         ]
-    ), False
+    )
 
 
 def carry_turn(
@@ -354,8 +361,8 @@ def carry_turn(
     reconnect_harness: str | None = None,
 ) -> bool | None:
     """Compose this lifecycle's page input, obligations, and reconnect context
-    into the one hook output its harness reads, and confirm the delivery it
-    hands over inline by `CONFIRM_WITHIN` after `started`, the hook's
+    into the one hook output its harness reads, confirming a delivery it hands
+    over inline by `CONFIRM_WITHIN` after `started`, the hook's
     `time.monotonic()` as it began."""
     expected = session_record(sid) if expected is ... else expected
     plans = read_plans(sid)
@@ -414,15 +421,15 @@ def carry_turn(
     with publishing_notices(reconnect_harness, sid, expected) as context:
         if context is None:
             return
-        message, inline = render(
-            delivery,
-            [*context, *attention],
-            inline=time.monotonic() < deadline,
-        )
-        if message:
-            print(
-                json.dumps(harness.hook_context(event, message)),
-                flush=True,
-            )
-    if inline:
-        receive_held(delivery, sid, deadline=deadline)
+    # Receipt takes the page and session locks the notices hold, so it follows them,
+    # and confirms only into the lifecycle they were read under.
+    message = render(
+        delivery,
+        [*context, *attention],
+        confirm=lambda: (
+            time.monotonic() < deadline
+            and receive_held(delivery, sid, expected, deadline=deadline)
+        ),
+    )
+    if message:
+        print(json.dumps(harness.hook_context(event, message)), flush=True)

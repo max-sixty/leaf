@@ -8,7 +8,7 @@ import { quietSince } from "./presence.js";
 import { quoted } from "./widget-elements.js";
 import { saidAt, reportSequence } from "./reports.js";
 import { widgetController } from "./widget-controller.js";
-import { addressableName } from "./anchor-resolution.js";
+import { addressableName } from "./addressable-names.js";
 
 const widgets = () => layerFact("$work")?.widgets ?? {};
 

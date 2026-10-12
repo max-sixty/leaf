@@ -235,7 +235,7 @@ function wireDeclaredButtons(scope) {
 const either = (a, b) => (a && b ? () => a() || b() : undefined);
 export const elementScopes = new WeakMap();
 // The scopes other owners project onto an element, keyed by the owner, so one control can
-// carry several: a margin entry holds its widget's scope and a Question's digit route at once.
+// carry several: a margin entry holds its widget's scope and an ask's digit route at once.
 const projectedScopes = new WeakMap();
 const commandScopeCapabilities = new WeakSet();
 export const scopeIdentity = (scope) => scope.identity ?? scope;
@@ -662,7 +662,7 @@ export function commandsWithin(root) {
 // Every declaration on one element is painted as one native shortcut attribute. A local
 // declaration and any number of projected ones can coexist, so none may erase another's
 // bindings. Each scope's live rows are read and refused on their own; the attribute is
-// their union, since two scopes on one control may name one press: a Question's route names
+// their union, since two scopes on one control may name one press: an ask's route names
 // the intrinsic key of the command it routes to, which that command's own scope names.
 function reflectElementShortcuts(element) {
   const available = scopesAt(element).filter((scope) => !scope.when || scope.when());

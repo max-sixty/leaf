@@ -11,7 +11,7 @@
    obligation outranks concurrent agent work, which stays the card's secondary
    status.
 
-   A thread's `id` is its one identity: the id the server keys it by, which every Question,
+   A thread's `id` is its one identity: the id the server keys it by, which every ask,
    workflow, placement, and view names it by. Its `root` is its opening message, a
    message like any other, and what a reply or settlement addresses as its `parent`. A
    thread this tab opened goes by its pending message's id until the log answers. */

@@ -37,7 +37,7 @@
  * chip explicitly releases that hold. The chip remains available while activation waits.
  *
  * Retained nodes keep their mechanical state. Replaced nodes use `carry.js`'s authored-id
- * contract, and the Question view restores the selected Question by id. Both installs restore these
+ * contract, and the ask view restores the selected ask by id. Both installs restore these
  * readings; the patch passes its retained nodes so restoration skips them. Unnamed
  * replaced controls receive no guessed focus. Authored controls and registered draft
  * editors carry native editing under their existing replacement identity; arbitrary
@@ -45,10 +45,10 @@
  * use their own stores.
  *
  * A fresh-document install stores a page-scoped, one-use handoff: reading position,
- * comparison, pointer, margin standing, mechanical carry, and Question standing. A newer
+ * comparison, pointer, margin standing, mechanical carry, and ask standing. A newer
  * revision may consume it, but ordinary reloads and history travel cannot replay it.
  * Explicit historical travel carries reading position and the decision landmark, without
- * mechanical carry or Question standing. State application serializes responses and remains
+ * mechanical carry or ask standing. State application serializes responses and remains
  * pending after navigation starts until the old document is discarded.
  *
  * `captureView` records a place (reading-place.js) for the page and each reading
@@ -1399,7 +1399,7 @@ export function createVersionController({
   }
 
   // Patch against the authored baselines. Retained nodes keep their live state;
-  // replacement nodes recover eligible state through carry and Question restoration.
+  // replacement nodes recover eligible state through carry and ask restoration.
   function captureEditingContinuity() {
     const draftEditing = captureDraftEditing();
     return {
@@ -1408,8 +1408,8 @@ export function createVersionController({
       // A replaced reply box takes focus back either way, but is brought into view only
       // where it marked the user's place (user-place.js, `focusedInView`).
       replyInView: focusedInView() !== null,
-      // Question standing is the fallback for unnamed controls. An exact editor already
-      // has a replacement identity, so its parent Question does not also own focus.
+      // Ask standing is the fallback for unnamed controls. An exact editor already
+      // has a replacement identity, so its parent ask does not also own focus.
       askStanding: draftEditing ? null : captureAskStanding(),
     };
   }

@@ -1931,9 +1931,7 @@ def test_required_approval_is_an_ask_until_approved(browser, serve, width):
       await askActions.open(question.id);
       return target === document.querySelector('.lf-signoff') && document.activeElement === target;
     }""")
-    assert target, (
-        "the public Question route did not reach its declared approval target"
-    )
+    assert target, "the public ask route did not reach its declared approval target"
     page.keyboard.press("q")
     approval = page.locator(".lf-signoff")
     expect(approval).to_be_visible()
@@ -1966,7 +1964,7 @@ def test_required_approval_is_an_ask_until_approved(browser, serve, width):
 
 
 def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serve):
-    """Approval, its Question and its history agree during send, undo and refusal.
+    """Approval, its ask and its history agree during send, undo and refusal.
 
     Holding each POST proves the result is visible before admission; a definitive
     refusal restores the same admitted approval through every consumer.
@@ -2483,7 +2481,7 @@ def test_the_versions_menu_uses_the_banner_panel_and_its_doors_edge(browser, ser
 
 
 def test_more_wears_a_dot_while_a_press_would_approve(browser, serve):
-    """On a phone Approval stands behind More as a waiting Question, and More wears
+    """On a phone Approval stands behind More as a waiting ask, and More wears
     its dot and names both reasons. Approving takes the dot down and taking the
     approval back puts it up again; on a desk Approval stands on the row and More
     wears no dot for it."""

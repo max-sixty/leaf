@@ -541,7 +541,7 @@ pageMapDialog = createPageMapDialog({
   annotationFocus: app.overlay?.mapFocusTarget,
 });
 
-// Question view is constructed below by its owner factory; all accesses above are inert closures.
+// The ask view is constructed below by its owner factory; all accesses above are inert closures.
 asks = createAskView({
   focusForNavigation,
   presentedControl: app.overlay?.presentedControl,

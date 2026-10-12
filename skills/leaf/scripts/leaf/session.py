@@ -80,7 +80,7 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
     provisional state forever either. The answers it holds the page for are
     `activity.blocking_obligations`, a started update's included: the Stop hook lets
     the turn that started one end over it, but closing the page answers nothing. It
-    holds the page for every open task too, which only its ending discharges.
+    holds the page for every open to-do too, which only its ending discharges.
     The check and the transition share the log lock, so an event arriving
     or an acknowledgement advancing the cursor orders against them."""
     from .activity import blocking_obligations, unanswered
@@ -114,7 +114,7 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
                 f"{unanswered(owed, page_dir, 'acknowledged')}; answer before idling. "
                 + ANSWER_ASK_INSTRUCTION
             )
-        # A task is work the agent still owes, which closing the page would leave
+        # A to-do is work the agent still owes, which closing the page would leave
         # standing on a page nobody holds.
         if todos := work.durable.log.owed:
             named = "; ".join(f"{todo['id']} ({todo['title']})" for todo in todos)

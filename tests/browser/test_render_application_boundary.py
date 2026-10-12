@@ -1840,7 +1840,7 @@ def test_frozen_ask_reveals_its_exact_message_in_a_selective_primary(
     expect(reader.locator(f'.lf-msg[data-event="{owner}"]')).to_be_visible()
     email = reader.locator("#email")
     expect(email).to_be_in_viewport()
-    with sending(page, "answer the Question in its addressed native turn"):
+    with sending(page, "answer the ask in its addressed native turn"):
         email.click()
     expect(email.get_by_role("checkbox")).to_be_checked()
 
@@ -1912,7 +1912,7 @@ def package_workspace(serve, *, before_reader="", primary=True):
 
 
 def test_package_answer_summary_waits_for_widget_completion(browser, serve):
-    """A selected value remains partial until the multiple-choice Question is done."""
+    """A selected value remains partial until the multiple-choice ask is done."""
     url = package_workspace(serve)
     append_carried_log_record(
         serve.page_dir,

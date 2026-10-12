@@ -88,10 +88,10 @@ def _completed_tasks(
     revision: int,
     completes: tuple[str, ...],
 ) -> list[str]:
-    """End only the open widget tasks explicitly named by ``completes``.
+    """End only the open widget to-dos explicitly named by ``completes``.
 
-    Removing a target leaves its task open in the queue; a page edit does not
-    establish that the task is complete.
+    Removing a target leaves its to-do open on Tasks; a page edit does not
+    establish that the to-do is complete.
     """
     if len(set(completes)) != len(completes):
         raise Refused("--completes names each widget at most once")

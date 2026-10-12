@@ -3094,7 +3094,7 @@ customElements.define("lf-conditional", class extends HTMLElement {
         if count:
             expect_asks_answered(page, "0/1")
             banner_control(page, ".lf-queue").click()
-        # The phase move is the agent's to answer. The Question leaves the user's
+        # The phase move is the agent's to answer. The ask leaves the user's
         # queue when its condition closes, retaining its withdrawn inventory row.
         expect(
             page.locator("[data-lf-queue='you'] .lf-queue-row[data-lf-kind='ask']")
@@ -3514,7 +3514,7 @@ def test_revision_reveals_an_active_region_without_any_reading_landmark(browser,
 
 
 def test_ask_repaints_keep_the_queues_reading_until_an_explicit_arrival(browser, serve):
-    """Question repaint keeps the list's reading; explicit arrival reveals its row."""
+    """Ask repaint keeps the list's reading; explicit arrival reveals its row."""
     questions = "".join(
         f'<lf-ask id="ask-{index}"><h2>Question {index} about this project</h2>'
         f'<lf-options id="options-{index}" choose>'
@@ -3559,7 +3559,7 @@ def test_ask_repaints_keep_the_queues_reading_until_an_explicit_arrival(browser,
     assert row.locator(".lf-queue-title").evaluate(
         "words => words.getBoundingClientRect().top >= "
         "words.closest('.lf-drawer-list').getBoundingClientRect().top"
-    ), "explicit Question navigation still reveals its matching row"
+    ), "explicit ask navigation still reveals its matching row"
 
 
 @pytest.mark.parametrize("newer_reading", [False, True])

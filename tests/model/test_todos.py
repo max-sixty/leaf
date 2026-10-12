@@ -1,4 +1,4 @@
-"""Tasks hold work the agent owes until it ends them, a start takes a move or task in
+"""To-dos hold work the agent owes until it ends them, a start takes a move or to-do in
 hand, and the two queues say what is on the user and what is on the agent."""
 
 import json
@@ -38,7 +38,7 @@ def kinds(items) -> list:
 
 
 def test_page_state_tracks_questions_and_tasks_until_they_are_settled(page_dir):
-    """Discovery reads the user's actual queue, including all three question
+    """Discovery reads the user's actual queue, including all three ask
     sources, and keeps agent work after Questions reaches zero."""
     asking(page_dir)
     [ask] = state_json(page_dir)["queues"]["questions"]
@@ -56,7 +56,7 @@ def test_page_state_tracks_questions_and_tasks_until_they_are_settled(page_dir):
     assert kinds(queue["queues"]["tasks"]) == [("todo", mine["id"])]
     assert queue["source"]["live"] is True
 
-    # An invalid save preserves the last valid document's questions and reports
+    # An invalid save preserves the last valid document's asks and reports
     # the source error beside them rather than implying the user owes nothing.
     source = (page_dir / "index.html").read_text()
     (page_dir / "index.html").write_text(source.replace('id="choice"', 'id="plan"'))
@@ -96,10 +96,10 @@ def test_page_state_tracks_questions_and_tasks_until_they_are_settled(page_dir):
 
 
 def test_required_approval_is_an_ask_for_its_exact_stamp_until_approved(page_dir):
-    """Required sign-off is one Question with a typed answer for its exact stamp.
+    """Required sign-off is one ask with a typed answer for its exact stamp.
 
     It cannot block its own approval, and neither drafts nor another version
-    supply an answer. Undo restores the same Question without creating a Task.
+    supply an answer. Undo restores the same ask without creating a to-do.
     """
     source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>', 1)
     source = source.replace(
@@ -186,7 +186,7 @@ def test_required_approval_is_an_ask_for_its_exact_stamp_until_approved(page_dir
 def test_a_todo_holds_its_thread_on_the_agent_past_reply_and_resolve(page_dir):
     """A reply that promises work answers the comment and, with `--todo`, opens that
     work on its thread under the reply's id in the same write. Resolving the thread
-    closes it, but the task stays on the agent's queue until the agent ends it: the
+    closes it, but the to-do stays on the agent's queue until the agent ends it: the
     work a reply promised is no longer owed nowhere."""
     publish(page_dir)
     comment = append_carried_log_record(
@@ -237,7 +237,7 @@ def test_a_todo_holds_its_thread_on_the_agent_past_reply_and_resolve(page_dir):
         page_dir,
         {"kind": "resolve", "author": "user", "parent": comment["id"]},
     )
-    # Resolving closes the thread for the user; the task stays the agent's, and the
+    # Resolving closes the thread for the user; the to-do stays the agent's, and the
     # banner names it from the served `todos`.
     state = state_json(page_dir)
     assert state["threads"][0]["attention"] is None
@@ -425,7 +425,7 @@ def test_user_queue_selects_widget_and_prose_asks(page_dir, sessionless):
 
 @pytest.mark.parametrize("answer_kind", ["reply", "reaction"])
 def test_an_opening_ask_retains_its_answer_in_the_ask_inventory(page_dir, answer_kind):
-    """An implicit opening Question retains its answer across edits and updates."""
+    """An implicit opening ask retains its answer across edits and updates."""
     publish(page_dir)
     question = append_carried_log_record(
         page_dir,
@@ -490,9 +490,9 @@ def test_an_opening_ask_retains_its_answer_in_the_ask_inventory(page_dir, answer
 
 
 def test_an_ask_ends_at_the_reaction_that_settles_it(page_dir):
-    """A reaction answers a question only when its token settles (`$reactions`): one
-    that doesn't leaves the question on the user, and the one that does is the
-    outcome the ended question records."""
+    """A reaction answers an ask only when its token settles (`$reactions`): one
+    that doesn't leaves the ask on the user, and the one that does is the
+    outcome the ended ask records."""
     publish(page_dir)
     comment = append_carried_log_record(
         page_dir,
@@ -548,8 +548,8 @@ def test_an_ask_ends_at_the_reaction_that_settles_it(page_dir):
 
 
 def test_a_thread_is_on_you_once_however_many_moves_it_holds_for_you(page_dir):
-    """A thread whose reply failed is one item on the user, named by the thread, and a
-    question the agent then leaves in it makes it that question rather than a second
+    """A thread whose reply failed is one item on the user, named by the thread, and an
+    ask the agent then leaves in it makes it that ask rather than a second
     item: `q` stops at a thread once."""
     publish(page_dir)
     comment = append_carried_log_record(
@@ -594,7 +594,7 @@ def test_a_thread_is_on_you_once_however_many_moves_it_holds_for_you(page_dir):
 def test_working_names_a_move_until_its_answer_and_a_todo_until_its_end(page_dir):
     """`task start` takes an item on the agent's queue in hand with the banner's line:
     the user's move, by its event id, reads Working until the reply that answers it,
-    and a task runs until it ends. An id that is neither is refused at the door."""
+    and a to-do runs until it ends. An id that is neither is refused at the door."""
     publish(page_dir)
     comment = append_carried_log_record(
         page_dir,
@@ -637,8 +637,8 @@ def test_working_names_a_move_until_its_answer_and_a_todo_until_its_end(page_dir
     again = leaf("task", "start", page_dir, comment["id"], "More")
     assert again.exit_code != 0
 
-    # A task the agent opens on the page, for work no move asked for, runs under its
-    # start's line until the task ends; the banner shows that line.
+    # A to-do the agent opens on the page, for work no move asked for, runs under its
+    # start's line until the to-do ends; the banner shows that line.
     todo = written(leaf("task", "open", page_dir, "page", "Add a glossary"))
     assert todo["subject"] == {"kind": "page"}
     written(leaf("task", "start", page_dir, todo["id"], "Drafting the glossary"))
@@ -655,8 +655,8 @@ def test_working_names_a_move_until_its_answer_and_a_todo_until_its_end(page_dir
 
 
 def test_a_thread_todo_runs_under_its_start_line(page_dir):
-    """A started task on a thread reads Working with its line in the thread's
-    attention, and Task open with its title once nothing runs on it."""
+    """A started to-do on a thread reads Working with its line in the thread's
+    attention, and To-do open with its title once nothing runs on it."""
     publish(page_dir)
     comment = append_carried_log_record(
         page_dir,
@@ -692,7 +692,7 @@ WORK_PAGE = FLOW_PAGE.replace(
 
 
 def test_a_widget_todo_needs_a_seat_and_a_completing_stamp_ends_it(page_dir):
-    """A task on a page widget needs a widget that declares `x-work` or holds an
+    """A to-do on a page widget needs a widget that declares `x-work` or holds an
     unsettled move. A version that drops its widget without completing it is refused;
     `page stamp --completes` ends it done, citing that version."""
     (page_dir / "index.html").write_text(WORK_PAGE)
@@ -708,7 +708,7 @@ def test_a_widget_todo_needs_a_seat_and_a_completing_stamp_ends_it(page_dir):
     [served] = state_json(page_dir)["todos"]
     assert served["running"]["text"] == "Checking the fallback"
 
-    # An unrelated version leaves the task standing; one that drops its card is
+    # An unrelated version leaves the to-do standing; one that drops its card is
     # refused unless it completes it.
     (page_dir / "index.html").write_text(
         WORK_PAGE.replace("<title>t</title>", "<title>t · v2</title>")
@@ -760,7 +760,7 @@ def test_a_waiting_declaration_puts_down_every_start_before_it(page_dir):
     """`status waiting` says what the agent wants back, and the banner shows it: every
     start written before it is put down, by a `put_down` in the log that a declaration
     with no start standing does not repeat. A started move goes back to its delivery
-    stage, and a started task stays open with nothing running on it. A start after
+    stage, and a started to-do stays open with nothing running on it. A start after
     the declaration is in hand again."""
     publish(page_dir)
     comment = append_carried_log_record(
@@ -790,7 +790,7 @@ def test_a_waiting_declaration_puts_down_every_start_before_it(page_dir):
 
 
 def test_idle_refuses_over_an_open_todo(page_dir):
-    """Closing the page discharges no task: idle names each open one and how to end
+    """Closing the page discharges no to-do: idle names each open one and how to end
     it, and goes through once they have ended."""
     publish(page_dir)
     todo = written(leaf("task", "open", page_dir, "page", "Add a glossary"))
@@ -803,7 +803,7 @@ def test_idle_refuses_over_an_open_todo(page_dir):
 
 
 def test_a_start_on_a_widget_todo_holds_the_moves_delivered_before_it(page_dir):
-    """A task on a widget answers the moves on it: once started, the move the user
+    """A to-do on a widget answers the moves on it: once started, the move the user
     made there reads Working and lets the turn that started it end over it. A move
     made after the start is not in hand."""
     (page_dir / "index.html").write_text(
@@ -876,7 +876,7 @@ def done(page_dir, todo: str) -> tuple[int, dict]:
 
 
 def test_a_todo_on_the_user_stands_on_any_element_until_their_done(page_dir):
-    """`--on user` puts a task on the user's queue, about any element of the page by
+    """`--on user` puts a to-do on the user's queue, about any element of the page by
     its id, and their Done ends it: an event the agent hears of, on the one door."""
     publish(page_dir)
     todo = written(
@@ -913,7 +913,7 @@ def test_a_todo_on_the_user_stands_on_any_element_until_their_done(page_dir):
     assert (ended["state"], ended["outcome"]["author"]) == ("done", "user")
     assert done(page_dir, todo["id"])[0] == 400
 
-    # Done is a gesture the user can take back, which puts the task on them again.
+    # Done is a gesture the user can take back, which puts the to-do on them again.
     status, answer = endpoint_model.accept_event(
         page_dir, {"kind": "undo", "undoes": end["id"]}, dict
     )
@@ -924,7 +924,7 @@ def test_a_todo_on_the_user_stands_on_any_element_until_their_done(page_dir):
 
 
 def test_a_thread_ask_remains_distinct_from_explicit_user_work(page_dir):
-    """A prose Question ends at a reply, without a Task or separate Done action."""
+    """A prose ask ends at a reply, without a to-do or separate Done action."""
     publish(page_dir)
     comment = append_carried_log_record(
         page_dir,
@@ -943,7 +943,7 @@ def test_a_thread_ask_remains_distinct_from_explicit_user_work(page_dir):
     refused = leaf(
         "task", "open", page_dir, comment["id"], "Is it enough?", "--on", "user"
     )
-    # A task's subject is never a thread; the thread asks with `--question`.
+    # A to-do's subject is never a thread; the thread asks with `--ask`.
     assert refused.exit_code != 0
     assert "event is invalid" in refused.output
 
@@ -1040,7 +1040,7 @@ def test_widget_ask_ends_through_its_source_and_prose_end_withdraws_request(
 
 
 def test_user_work_cannot_duplicate_a_widget_ask(page_dir):
-    """A Question owns the request; opening user work must name that canonical id."""
+    """An ask owns the request; opening user work must name that canonical id."""
     asking(page_dir)
     [ask] = asks_on_user(state_json(page_dir))
     result = leaf("task", "open", page_dir, "choice", "Check evidence", "--on", "user")
@@ -1052,7 +1052,7 @@ def test_user_work_cannot_duplicate_a_widget_ask(page_dir):
 
 def test_a_todo_an_earlier_leaf_wrote_without_an_owner_is_absent(page_dir):
     """A record missing a field this version reads is ignored where it is loaded: the
-    page still reads, and the task is on neither queue."""
+    page still reads, and the to-do is on neither queue."""
     publish(page_dir)
     append_carried_log_record(
         page_dir,
@@ -1071,7 +1071,7 @@ def test_a_todo_an_earlier_leaf_wrote_without_an_owner_is_absent(page_dir):
 
 
 def test_a_version_can_remove_a_target_while_its_todos_stay_open(page_dir):
-    """Removing a page subject does not silently settle either side's tasks."""
+    """Removing a page subject does not silently settle either side's to-dos."""
     (page_dir / "index.html").write_text(WORK_PAGE)
     publish(page_dir)
     mine = written(leaf("task", "open", page_dir, "plan", "Rewrite the plan"))

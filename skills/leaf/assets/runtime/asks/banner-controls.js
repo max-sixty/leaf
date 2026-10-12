@@ -1,6 +1,6 @@
-/* Generated faces for the Question blanket answers in the banner ("Accept all (3)"). The
+/* Generated faces for the ask blanket answers in the banner ("Accept all (3)"). The
    banner toolbar owns the stable native buttons and their fixed overflow seats; these
-   light-DOM Lit owners paint one frozen Question presentation reading inside them. */
+   light-DOM Lit owners paint one frozen ask presentation reading inside them. */
 import { html } from "../../vendor/browser-runtime.js";
 import {
   BANNER_CONTROL_RANK,

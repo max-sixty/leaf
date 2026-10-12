@@ -166,7 +166,7 @@ export function createAnnotationInventory({
   };
   // One group per target, and one more for each row inside it that pointing gestures
   // stood threads at (pointed-place.js): those threads stand there together, and
-  // everything else about the target (its other threads, a Question's marker, a widget's
+  // everything else about the target (its other threads, an ask's marker, a widget's
   // actions) keeps the target's own row. `pointed` is `{ key, element, words }`: the
   // row's key, which its first comment gave it and later ones share, the element it is,
   // and its words as the page reads them, which name it.

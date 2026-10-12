@@ -304,7 +304,7 @@ def test_ask_context_frames_any_number_of_independent_sources(page_dir):
         registry,
     )
     assert (
-        "a Question context must have exactly one direct heading, found none"
+        "an ask context must have exactly one direct heading, found none"
         in " ".join(untitled)
     )
 
@@ -312,9 +312,7 @@ def test_ask_context_frames_any_number_of_independent_sources(page_dir):
         f'<lf-ask id="decision-retitled"><h2>Choose</h2><h3>Again</h3>{first}</lf-ask>',
         registry,
     )
-    assert "a Question context must have exactly one direct heading" in " ".join(
-        retitled
-    )
+    assert "an ask context must have exactly one direct heading" in " ".join(retitled)
 
     context_first = fragment_errors(
         f'<lf-ask id="decision-context-first"><p>Context.</p><h2>Choose</h2>{first}</lf-ask>',
@@ -335,7 +333,7 @@ def test_ask_context_frames_any_number_of_independent_sources(page_dir):
 
     # A context framing no live source would show a question the banner never
     # counts. A retired source still counts: settling a decision keeps its context.
-    assert "registers no Question: it holds no widget that declares x-awaits" in (
+    assert "registers no ask: it holds no widget that declares x-awaits" in (
         " ".join(
             fragment_errors(
                 '<lf-ask id="decision-empty"><h2>Nothing to answer</h2></lf-ask>',
@@ -356,7 +354,7 @@ def test_ask_context_frames_any_number_of_independent_sources(page_dir):
     settled = first.replace(" choose", " choose settled")
     settled_ask = f'<lf-ask id="decision-settled"><h2>Chosen</h2>{settled}</lf-ask>'
     assert fragment_errors(settled_ask, registry) == []
-    # The registry's `retired` is what says the flag ended an asked Question; a flag
+    # The registry's `retired` is what says the flag ended an ask; a flag
     # that merely stops a widget asking leaves the context framing nothing.
     unretired = copy.deepcopy(registry)
     del unretired["lf-options"]["x-awaits"]["retired"]

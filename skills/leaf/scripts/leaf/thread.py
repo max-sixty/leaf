@@ -374,7 +374,7 @@ def post_reply(
     ``failure`` records a harness-owned failure code alongside its presentation text;
     ordinary agent answers omit it.
 
-    ``ask`` makes the reply a prose ask on the user (`questions`).
+    ``ask`` makes the reply a prose ask on the user (`asks`).
     ``todo`` titles work the reply promises and does not deliver: the reply opens
     that to-do on its thread, under the reply's own id (`todos.todo_reading`), so
     the user's message is answered and the work stays on the agent in one write.

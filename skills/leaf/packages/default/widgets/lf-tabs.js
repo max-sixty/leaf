@@ -412,7 +412,7 @@ customElements.define(
       }
     }
 
-    // A side list's answers follow the page's Question reading.
+    // A side list's answers follow the page's ask reading.
     #listenForAsks() {
       if (!this.#side || !this.#buttons.size || this.#stopAsks) return;
       this.#stopAsks = watchAsks(this, () => this.#marks());

@@ -5946,9 +5946,9 @@ def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser,
 def test_page_annotation_view_seats_questions_and_contributed_controls(browser, serve):
     """A page that owns its annotations shows Questions and contributed actions in its
     own box: Leaf hands the consumer each entry's items and native controls, and the
-    page only arranges them. Activating an item reaches its Question, and a seated
+    page only arranges them. Activating an item reaches its ask, and a seated
     control still runs its contribution's action. The view follows the log: an answered
-    Question leaves once the server holds the answer, and Undo brings it back."""
+    ask leaves once the server holds the answer, and Undo brings it back."""
     url = serve(
         leaf_page(
             "Page annotation view",

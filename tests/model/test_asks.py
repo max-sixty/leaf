@@ -1,4 +1,4 @@
-"""One Question inventory, its canonical values, and its presentation context."""
+"""One ask inventory, its canonical values, and its presentation context."""
 
 import json
 from copy import deepcopy
@@ -687,7 +687,7 @@ def _element(content: list, id: str) -> dict | None:
     ids=lambda case: case["id"],
 )
 def test_an_element_is_named_as_the_browser_names_it(case):
-    """A Question's prompt is its element's name, read off the document by the rule
+    """An ask's prompt is its element's name, read off the document by the rule
     the browser's `addressableName` reads off the live page."""
     document = SourceDocument(model.leaf_page("Names", case["markup"]))
     node = _element(document.content, "it")

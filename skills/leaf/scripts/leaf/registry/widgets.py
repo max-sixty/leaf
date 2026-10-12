@@ -303,7 +303,7 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
             raise RegistryError(f"{path}: <{tag}> x-ask-context does not require an id")
         if entry.get("x-content") != "markup":
             raise RegistryError(
-                f"{path}: <{tag}> x-ask-context must admit prose around the Question it frames"
+                f"{path}: <{tag}> x-ask-context must admit prose around the ask it frames"
             )
     conditions = [
         ("x-awaits", awaits.get("when", {})),
@@ -400,9 +400,9 @@ def _validate_widget_interactions(
     answered = awaits.get("answered", {})
     if entry.get("x-awaits") is not None and not answered:
         raise RegistryError(
-            f"{path}: <{tag}> x-awaits local Question declares no `answered` condition"
+            f"{path}: <{tag}> x-awaits local ask declares no `answered` condition"
         )
-    # The user answers their own Question, so only a verb the user writes can answer it.
+    # The user answers their own ask, so only a verb the user writes can answer it.
     user_verbs = {verb for verb, _spec in state_specs(entry, writer="user")}
     if unknown := sorted(set(answered) - user_verbs):
         raise RegistryError(
@@ -413,7 +413,7 @@ def _validate_widget_interactions(
         raise RegistryError(
             f"{path}: <{tag}> x-awaits value must name a user-written x-state verb"
         )
-    # A retired Question was asked and has ended, so the flag that retires it has to be
+    # A retired ask was asked and has ended, so the flag that retires it has to be
     # one registration already reads as stopping the widget asking.
     retired = awaits.get("retired")
     if retired and awaits.get("when", {}).get(retired) != [False]:
@@ -421,14 +421,14 @@ def _validate_widget_interactions(
             f"{path}: <{tag}> x-awaits retires with `{retired}`, but its `when` does not "
             f"require `{retired}` absent"
         )
-    # A blanket answer is one decision per Question, taken through the widget's deciding
-    # verb, so it names an outcome that verb declares and the verb answers the Question.
+    # A blanket answer is one decision per ask, taken through the widget's deciding
+    # verb, so it names an outcome that verb declares and the verb answers the ask.
     if (blanket := awaits.get("all")) and (
         deciding_verb(entry) not in answered or blanket not in deciding_outcomes(entry)
     ):
         raise RegistryError(
             f"{path}: <{tag}> x-awaits blanket answer `{blanket}` is not an outcome "
-            "of a deciding verb that answers its Question"
+            "of a deciding verb that answers its ask"
         )
     needs_upgrade = [
         key

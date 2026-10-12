@@ -1393,7 +1393,7 @@ SEATED_ASK_LAYER = {SEATED_ASK_TAG: SEATED_ASK_ENTRY}
 SEATED_ASK_WIDGETS = {f"{SEATED_ASK_TAG}.js": SEATED_ASK_MODULE}
 
 
-# A block proposal whose new text holds a Question of its own.
+# A block proposal whose new text holds an ask of its own.
 NESTED_PROPOSAL_PAGE = leaf_page(
     "nested proposal",
     """

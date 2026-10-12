@@ -2817,7 +2817,7 @@ def unshown_key_findings(page, source):
     """Each command in a widget that declares context keys the page never shows
     (`shows-context-keys`, widget_quality.py), in the page and each Leaf document it
     frames. A worked example shows one state of its widget, and a command a widget
-    declares only in another, such as a multiple-choice Question's Done, goes unseen
+    declares only in another, such as a multiple-choice ask's Done, goes unseen
     there; the corpus holds those states. Widgets and `KNOWN` are read as for
     `held_scroller_findings`."""
     local = source.with_suffix(".page")

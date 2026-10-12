@@ -30,7 +30,7 @@ page or the widget or section it concerns; housekeeping, such as re-vendoring or
 restarting the server, owes the user nothing and is no item.
 
 To-dos on the user are `todo` events opened with `--on user`, ending at Done or an
-agent end. Asks are separate canonical records (`questions`), selected directly by
+agent end. Asks are separate canonical records (`asks`), selected directly by
 the lists, never synthesized into to-dos. A `todo_end` can also withdraw an open
 prose ask by its ask id or source-message id; that withdraws the request without
 recording a user answer. A stamped document declaring `lf-review=sign-off` adds an
@@ -430,7 +430,7 @@ def put_down(page) -> dict | None:
 
 
 def cmd_end(page_dir: Path, todo: str, outcome: str, detail: str | None) -> dict:
-    """End `task` with `outcome`, `detail` saying where the result is or why there
+    """End `todo` with `outcome`, `detail` saying where the result is or why there
     is none; the record."""
     from .event_contracts import append_admitted
     from .harness import message_identity

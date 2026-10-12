@@ -357,7 +357,7 @@ export function foldWidgetStates(authoredSnapshots, projection) {
   return states;
 }
 
-/* A Question reads its value from the same complete fold as its widget. Completion
+/* An ask reads its value from the same complete fold as its widget. Completion
    can make an empty recorded value an answer, but cannot invent custom state after
    undo removes its action. Python's projection.ask_value owns the same reading;
    the shared ask-value cases exercise both runtimes. */
@@ -366,7 +366,7 @@ export function foldWidgetStates(authoredSnapshots, projection) {
 export function askValue(widget, verb, answered) {
   const state = widget.state[verb];
   const spec = widget.specs.get(verb);
-  if (!state || !spec) throw new Error(`Missing Question value definition for ${verb}`);
+  if (!state || !spec) throw new Error(`Missing ask value definition for ${verb}`);
   /** @param {unknown} value */
   const recorded = (value) =>
     spec.record?.kind === "attribute" && Array.isArray(value)

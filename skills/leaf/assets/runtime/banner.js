@@ -677,7 +677,7 @@ const publicationWords = (published) => [
   "Install Leaf",
 ];
 
-// The updates an open turn picked up, by kind: a comment in a thread, or an answer to a
+// The updates an open turn picked up, by kind: a comment in a thread, or an answer to an
 // ask. A lone update is the user's own; several are counted.
 function pickedUpWords({ comments, answers }) {
   if (comments + answers === 1) return comments ? "your comment" : "your answer";

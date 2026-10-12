@@ -10,7 +10,7 @@ import { servedAskValues } from "../served.mjs";
 const cases = servedAskValues();
 
 for (const fixture of cases) {
-  test(`Question value agrees with Python: ${fixture.name}`, () => {
+  test(`Ask value agrees with Python: ${fixture.name}`, () => {
     const authored = new Map([
       [
         "owner",

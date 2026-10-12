@@ -1,7 +1,7 @@
 """Canonical page availability and agent work projected from durable evidence.
 
 Status is the agent's waiting or idle declaration, a start in the log is the item it
-has in hand (`tasks`), claims prove ownership and turn lifetime, and pickup events
+has in hand (`todos`), claims prove ownership and turn lifetime, and pickup events
 prove delivery. Delivery remains interaction evidence rather than becoming the
 page's execution state. This module is the one fold that orders those facts and
 supplies every reader — browser chrome, hooks, and agent-facing state — with one
@@ -459,12 +459,12 @@ def _canonical_workflows(
 def _canonical_todos(
     todos: list[dict], present: dict, now: datetime, *, held: bool, turn: Turn
 ) -> tuple[list[dict], dict[str, tuple[dict, bool, bool]]]:
-    """Age the start running on each open task as a Working update's is aged, and
-    return beside them, for each task a start ran on, that start and how quiet and
-    whether dropped it is. A task's `running` is the start that holds it: one gone
-    quiet holds nothing, so every reader of the task finds it open with nothing
+    """Age the start running on each open to-do as a Working update's is aged, and
+    return beside them, for each to-do a start ran on, that start and how quiet and
+    whether dropped it is. A to-do's `running` is the start that holds it: one gone
+    quiet holds nothing, so every reader of the to-do finds it open with nothing
     running, while the page reading below still dates its stall by that start.
-    Nobody holding the page has nothing in hand, so an unheld page's tasks run
+    Nobody holding the page has nothing in hand, so an unheld page's to-dos run
     nothing."""
     result = []
     aging = {}
@@ -496,9 +496,9 @@ def canonical_activity(
     """Return the one current reading of agent activity for a page snapshot.
 
     `interaction_evidence` are the page's workflows (`workflows.canonical_workflows`)
-    and `events` the log they were read from, which holds the agent's open tasks and
+    and `events` the log they were read from, which holds the agent's open to-dos and
     the starts running on them (`todos.TodoReading`). Both come back aged, as
-    `workflows` and `tasks`.
+    `workflows` and `todos`.
 
     `reservations` reserve automatic replies from the claimant's exact App Server
     turn (`reply_reservation_stands`). Their workflows keep the `reply` answer kind
@@ -550,7 +550,7 @@ def canonical_activity(
                 "attempt": reservation["attempt"],
             }
 
-    # The items in hand: each Working update, by the start that holds it, and each task
+    # The items in hand: each Working update, by the start that holds it, and each to-do
     # a start runs on, each beside how quiet and whether dropped that start is. Their
     # newest start is the line the banner shows.
     in_hand = [
@@ -705,7 +705,7 @@ def canonical_activity(
             "active": len(active_updates),
             "handling": len(handling),
             # Of those, the updates in a thread: comments. The rest are widget actions in
-            # an answered Question, the only widget actions that owe an answer.
+            # an answered ask, the only widget actions that owe an answer.
             "handling_comments": sum(
                 item["subject"]["kind"] == "thread" for item in handling
             ),

@@ -51,7 +51,7 @@ export const servedAskItem = (ask, changes) =>
 // The same admitted undo/refusal/revision sequence used by the Python fold test.
 export const servedGestureSequence = () => structuredClone(RECORDS.gestures);
 
-// Cross-runtime typed Question values use the same real server fold.
+// Cross-runtime typed ask values use the same real server fold.
 export const servedAskValues = () => structuredClone(RECORDS.ask_values);
 
 // `state_definition_cases.json`'s pairs as the definitions Python records.

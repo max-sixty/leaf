@@ -8303,7 +8303,7 @@ def test_the_line_offers_the_thread_g_t_lands_on_its_own_keys(browser, serve):
 
 
 def test_a_narrowing_hides_a_thread_without_taking_its_ask_off_the_page(browser, serve):
-    """Thread narrowing changes presentation, not the admitted Question inventory.
+    """Thread narrowing changes presentation, not the admitted ask inventory.
 
     After both Questions are answered, hiding a thread with the On you filter keeps
     both canonical records in Done and preserves the page-wide completion count.

@@ -86,7 +86,7 @@ _RECORD_VALUE = {
 }
 
 # A `when` predicate selects instances by attribute values (or by a flag's being
-# present or absent). One condition shape serves Questions and threads because they
+# present or absent). One condition shape serves asks and threads because they
 # ask the same question of the same authored attributes.
 AWAITING_CONDITION = {
     "type": "object",
@@ -99,7 +99,7 @@ AWAITING_CONDITION = {
     },
 }
 
-# When a local Question is answered: a map from each answering x-state verb to the
+# When a local ask is answered: a map from each answering x-state verb to the
 # condition its standing state meets. An empty condition means the verb's state stands
 # (a non-empty attribute or value record, otherwise a standing action). `when` narrows
 # the verb to instances whose attributes match; `empty` holds when the one member
@@ -571,7 +571,7 @@ ATTRIBUTE_KEYS = (
 # `idiom` says a selector entry may declare the mark for the elements its selector
 # matches, as `.callout` declares the room: the mark's every reader reads its paint and
 # nothing paints it in a message, so delivery's paint is the whole of it. The others
-# are also read by tag (the Questions fold, the render checks, the runtime's descriptors).
+# are also read by tag (the asks fold, the render checks, the runtime's descriptors).
 #
 # Delivery paints a page's document from this (`revision_delivery.mark_declared`).
 # Composition stamps it into the vocabulary as `$marks` (`registry.layer.

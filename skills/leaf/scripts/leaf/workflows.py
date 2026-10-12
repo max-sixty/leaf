@@ -15,12 +15,12 @@ an owed update holds the agent's turn is `activity.turn_obligations`'s to say.
 Answers are one of:
 
 - `{"kind": "reply", "to": <message>, "for": <event>}` — a thread message, or an
-  action in an answered Question in frozen thread markup. The agent answers it with
+  action in an answered ask in frozen thread markup. The agent answers it with
   `leaf response reply <answer.ref>`. While a reply reservation (`delivery`'s
   header) stands on it, `activity` adds `writer: "turn"` and the reservation's
   attempt.
 - `{"kind": "markup", "action": <action>}` — a page action that is part of its
-  widget's answered Question and the authored markup does not yet record, answered by
+  widget's answered ask and the authored markup does not yet record, answered by
   a stamped version that writes it in. A pick of an option the user added is the
   log's to hold, so the stamped version takes that part in without writing it.
 
@@ -32,7 +32,7 @@ An update no receipt has carried has none: only its delivery mints one.
 
 Two kinds of update have workflows with no answer of their own. An update a
 newer one in the same thread covers is answered through the newest, whose one
-answer settles both. A widget action that answers no Question, such as an edit to a
+answer settles both. A widget action that answers no ask, such as an edit to a
 user-owned draft or a moved card, owes nothing: the log carries it onto later
 readings of its document, and `page check` holds the next version to any part
 of it that version must write. Its receipt stands until that document takes it
@@ -40,14 +40,14 @@ in: on the page, until the markup records it or a later version supersedes it
 (`page_action_unsettled`); in frozen thread markup, which no version rewrites,
 until the agent's next spoken turn in that thread or a resolution after it.
 Delivery is separate from workflows. Admission records whether a user's update
-changes outstanding Questions, pending answers, work in hand or approval; delivery keeps
+changes outstanding asks, pending answers, work in hand or approval; delivery keeps
 that decision even after these workflows settle.
 
-A user action on a widget whose own Question the user has not finished answering — a
+A user action on a widget whose own ask the user has not finished answering — a
 pick before the Done its group declares, an action before a queue is empty —
 has not been handed over yet, so it is no workflow at all: the user is still
-composing the answer, and the finishing action carries the receipt. Once the Question is
-answered, every action on that widget is owed; canonical Questions own that reading.
+composing the answer, and the finishing action carries the receipt. Once the ask is
+answered, every action on that widget is owed; canonical asks own that reading.
 
 A harness that gives up on an update writes the failure its answer takes
 (`thread.fail_answer`), each carrying `failure`: a reply in the
@@ -122,7 +122,7 @@ def obligation_reading(readings) -> dict:
             "prompts": {
                 identity: prompt["message"] for identity, prompt in prompts.items()
             },
-            # The tasks the agent put on the user, which their Done ends.
+            # The to-dos the agent put on the user, which their Done ends.
             "todos": [
                 todo["id"]
                 for todo in work.log.todos
@@ -160,7 +160,7 @@ def page_action_unsettled(
 ) -> bool:
     """Whether one standing page action is still unsettled.
 
-    An owed action — part of an answered Question — settles when the authored markup
+    An owed action — part of an answered ask — settles when the authored markup
     records it. The note of a later version settles the rest: a verb with no
     authored record form, whose note is the document's answer to it, and an action
     that owed nothing, which that version has taken in whether or not its markup
@@ -218,8 +218,8 @@ def canonical_workflows(
     """The unsettled user inputs and strongest evidence held for each.
 
     A standing start (`todos.item_starts`) holds an update it names, and a start running
-    on an open task over a widget holds that widget's actions delivered before it, as
-    the work the task answers. A `put_down` in the log, which `leaf status waiting`
+    on an open to-do over a widget holds that widget's actions delivered before it, as
+    the work the to-do answers. A `put_down` in the log, which `leaf status waiting`
     and `idle` write, ends every start before it, so the updates they named are no
     longer in hand. The workflow names the start holding it as `held_by`,
     which `activity` takes off before serving.
@@ -282,7 +282,7 @@ def canonical_workflows(
         )
 
     def holding(source: dict, target: dict, delivered: int) -> dict | None:
-        """The start that holds this update: its own, or the newest start on a task over
+        """The start that holds this update: its own, or the newest start on a to-do over
         its widget written once the update was delivered."""
         if source["id"] in starts:
             return starts[source["id"]]
@@ -453,8 +453,8 @@ def canonical_workflows(
 
     # Every widget action the user has handed over keeps its delivery receipt until
     # it settles, whether the widget stands in the page or was frozen into thread
-    # markup, and only an action in an answered Question is owed an answer. An action on a
-    # Question the user is still answering has not been handed over, so it has no receipt
+    # markup, and only an action in an answered ask is owed an answer. An action on an
+    # ask the user is still answering has not been handed over, so it has no receipt
     # until the finishing action carries one. The two documents differ only in what
     # settles an action and which operation answers an owed one.
     def page_action(coordinate: tuple, source: dict, spec: dict, owed: bool):

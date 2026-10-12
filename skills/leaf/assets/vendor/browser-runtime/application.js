@@ -257,7 +257,7 @@ function advance(
 
 
 
-/** One to-do, as `served_state.browser` serves it (`tasks.page_todos`): `todos` holds
+/** One to-do, as `served_state.browser` serves it (`work_reading.WorkReading.page_todos`): `todos` holds
  * the open ones on either side and `ended_todos` the ones that ended, with their
  * outcome. Asks are separate records and never appear in this list. */
 
@@ -912,7 +912,7 @@ export function createSemanticApplication({
       pendingEntries: localProjections,
     });
     // Threads and Questions both wait for an admitted reading. Authored markup names every
-    // Question the page could hold, but only the log says which of them it still holds and
+    // ask the page could hold, but only the log says which of them it still holds and
     // whether they are answered, so before that reading there is no inventory to publish.
     const ready = phase === "ready";
     // The ledger's thread gestures, in the order the user made them.
@@ -1065,7 +1065,7 @@ export function createSemanticApplication({
         isTurnEvent(entry.event) ? (localWorkflow(entry, false) ?? []) : [],
       ),
       // A refused message or widget move has a destination to send again.
-      // Other gestures restore their own control or task when speculation ends.
+      // Other gestures restore their own control or to-do when speculation ends.
       ...refused.flatMap((entry) => localWorkflow(entry, true) ?? []),
     ];
     const threads = readThreadRecords(

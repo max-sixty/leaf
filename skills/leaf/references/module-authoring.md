@@ -1332,7 +1332,7 @@ required-version approval and its Undo update that ask at once, and a refusal re
 admitted record. Page-widget asks follow the shown document version; frozen-thread asks are
 page-wide.
 
-`askWords(question)` formats the answer of a widget, prose or approval ask, using the
+`askWords(ask)` formats the answer of a widget, prose or approval ask, using the
 widget family's `answerWords` ("Declared widget state"). It may return empty words and owns
 no answer state. Display words are not canonical answer data.
 

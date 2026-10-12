@@ -1,6 +1,6 @@
 """The durable work reading of one document and admitted log.
 
-Tasks, frozen thread questions, and exact-input workflows share one event basis.
+To-dos, frozen thread asks, and exact-input workflows share one event basis.
 Admission constructs it under the sending vocabulary; serving constructs it under
 its active document, and each view of a pinned revision under that revision's
 (`viewing`). Neither adds claim liveness: activity enriches these facts
@@ -43,8 +43,8 @@ class WorkReading:
 
     def supposing(self, gestures: list[dict]) -> "WorkReading":
         """This reading with `gestures` appended to its log, for asking what they would
-        leave in the threads they stand in. They carry no markup and name no task, so
-        the frozen thread document is this reading's own, and so is the task log
+        leave in the threads they stand in. They carry no markup and name no to-do, so
+        the frozen thread document is this reading's own, and so is the to-do log
         unless one takes a message back, which changes what the log has withdrawn.
         The page document is this reading's own too: what they could change there, a
         page Ask seated in a thread they reopen, stands in no thread's reading."""
@@ -162,7 +162,7 @@ class WorkReading:
         )
 
     def page_todos(self, aged: list[dict] = ()) -> tuple[list[dict], list[dict]]:
-        """Explicit tasks enriched with their thread and current activity."""
+        """To-dos enriched with their thread and current activity."""
         by_id = {todo["id"]: todo for todo in aged}
         log = [
             {

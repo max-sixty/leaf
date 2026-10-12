@@ -1519,7 +1519,7 @@ def test_unresolve_reopens_a_thread_in_agent_readings(page_dir):
 
 
 def test_a_closed_thread_stops_asking(page_dir):
-    """Resolving a thread suppresses its Question attention while retaining inventory."""
+    """Resolving a thread suppresses its ask attention while retaining inventory."""
     (page_dir / "index.html").write_text(PAGE)
     publish(page_dir)
     root = append_carried_log_record(

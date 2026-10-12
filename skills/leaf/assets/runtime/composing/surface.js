@@ -348,9 +348,9 @@ export function createResponseSurface({
     }) ?? null;
   // An element response exits to its subject, or the declared proxy representing it
   // where the subject cannot take focus. Resolve that structural parent from the current
-  // anchor, so c from a Question and an aimed press on the same Question unwind alike.
-  // There is no saved pre-command focus: standing on an option comments on its Question,
-  // and closing returns to the Question itself. A drawing's proxy is the fallback, not
+  // anchor, so c from an ask and an aimed press on the same ask unwind alike.
+  // There is no saved pre-command focus: standing on an option comments on its ask,
+  // and closing returns to the ask itself. A drawing's proxy is the fallback, not
   // the parent, even for a user who pressed it: focused, its face stands under the
   // banner, away from the drawing it is about (chrome.css). A quoted selection clears to
   // the page; a removed subject has no parent to land on.
@@ -1232,10 +1232,10 @@ export function createResponseSurface({
     const here = standingTarget();
     const anchor = fabAnchorAt();
     // The thread the user is at continues where it is about what they stand on: they
-    // are in it, or its target lies within the element they stand at — the Question holding
-    // focus, answered or not, else the element itself — as a Question's options group does
+    // are in it, or its target lies within the element they stand at — the ask holding
+    // focus, answered or not, else the element itself — as an ask's options group does
     // when the user holds one of its marks. A card showing an enclosing block's thread is
-    // about that block, so an element inside it, such as a Question in a commented task,
+    // about that block, so an element inside it, such as an ask in a commented task,
     // takes a thread of its own, and a selection still starts one on its words.
 
     const inline = threadHere();

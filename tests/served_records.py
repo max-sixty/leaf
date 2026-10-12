@@ -344,7 +344,7 @@ def ask_value_cases():
 
     These isolate the state boundary from event admission, pairing authored markup
     with its browser initial state and standing value actions. Both runtimes fold
-    the same operation specs; no Question-specific store participates.
+    the same operation specs; no ask-specific store participates.
     """
     cases = []
 

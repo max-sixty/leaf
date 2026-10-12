@@ -1,6 +1,6 @@
 """Shared semantic reading of one document and its standing event log.
 
-Browser state and agent inspection use the same retirement and Question assembly.
+Browser state and agent inspection use the same retirement and ask assembly.
 Callers supply the document's reading and events from their page transaction; this
 reading stores no derived state. Registration history is read lazily through the
 transaction-owned revision reader supplied by the caller. The retired passage view is
@@ -27,7 +27,7 @@ class DocumentReading(NamedTuple):
 
 
 def read_document(page: PageReading, threads: dict) -> DocumentReading:
-    """Resolve a document's durable state and its user's outstanding Questions.
+    """Resolve a document's durable state and its user's outstanding asks.
 
     `spoken` retains authored words because retractions and action ownership are
     based on construction. `passages` removes retired slots; exact replacement

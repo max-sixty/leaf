@@ -38,7 +38,7 @@
  *
  * The keyboard walk stops at options. This widget assigns 1–9 to authored options,
  * then its add field and Done; generated options receive the remaining numbers. Each
- * of them wears its digit in the group's one badge column, Done included: a Question
+ * of them wears its digit in the group's one badge column, Done included: an ask
  * whose last step showed no key could not be finished by a user reading the keys.
  * Removing or disabling a choice leaves the other bindings intact. Tab remains the
  * platform's path through every control and into that field. There it follows Leaf's
@@ -48,9 +48,9 @@
  * In a thread the existing reply box already owns those words, so Enter from a mark
  * continues into that box. Every `multiple` group grows a Done press: each toggle
  * reaches the agent as it lands, so the press is the one statement that the set
- * is whole, posted as an `answer` action and held as the Question's closing
+ * is whole, posted as an `answer` action and held as the ask's closing
  * condition (x-awaits.answered). Answered is paint on the press, never a wider word. A
- * second press withdraws that answer through the widget's exact undo, reopening the Question;
+ * second press withdraws that answer through the widget's exact undo, reopening the ask;
  * the set can still change after either press, and each toggle reaches the agent.
  *
  * That paint goes on the press and nowhere else, which is a rule rather than a
@@ -69,7 +69,7 @@
  *
  * The keyboard path: every mark is a checkbox, so Tab reaches it and Space toggles. From a
  * mark, the runtime's row walk moves among the options: ↑/↓ clamp at the ends, and Home and
- * End land on them. This widget owns 1–9; Question forwards those declarations across the
+ * End land on them. This widget owns 1–9; the ask view forwards those declarations across the
  * whole question. The column is held whether or not a key is in it, which is the theme's
  * half of this. The rows are
  * declared per mark, on the mark rather than on the group — the group holds the option's
@@ -144,7 +144,7 @@ const DONE_TAG = "lf-options-done";
 customElements.define(
   "lf-options",
   class extends HTMLElement {
-    // What the Question was answered with: the picked options' names, the group's own in its
+    // What the ask was answered with: the picked options' names, the group's own in its
     // order and then the user's in the order they added them. An option the user added
     // is named by the words its `add` carries, and an authored one by its markup.
     static answerWords(value, group) {
@@ -401,7 +401,7 @@ customElements.define(
     }
 
     // From a mark, arrows walk the options and Space toggles. The group owns stable
-    // numbered commands; Question forwards those same declarations.
+    // numbered commands; the ask view forwards those same declarations.
     #keys() {
       for (const bindingBadge of this.querySelectorAll(
         ":scope > lf-option > .lf-key-badge",

@@ -247,7 +247,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     turn of its own (`exchange`), so it resumes the thread as a reply does.
 
     Each thread is keyed by, and carries as ``id``, the id of the comment that
-    opened it, its ``root``: the name every Question, workflow, summary, and title
+    opened it, its ``root``: the name every ask, workflow, summary, and title
     uses for it. Admission keeps every standing message's parent standing
     (`event_contracts._parent_error`), so each reply lands in a thread.
     """
@@ -520,9 +520,9 @@ def awaits_agent(thread: dict) -> bool:
 
     This reading says nothing about whether the user owes a word: an ordinary agent
     reply may leave the open thread awaiting nobody, while an agent comment, an
-    explicit prose question, or a structured widget Question awaits the user. The browser
+    explicit prose ask, or a structured widget ask awaits the user. The browser
     does not receive it: each browser Thread's `attention` aggregates this turn with
-    the workflows and Questions standing on the thread, so the panel, its filters and the
+    the workflows and asks standing on the thread, so the panel, its filters and the
     margin read one answer to whose turn it is."""
     return bool(not thread["resolved"] and unanswered_turns(thread))
 
@@ -546,15 +546,15 @@ def seat_root(thread: dict) -> str | None:
 def seats_with_agent(threads: dict) -> set[str]:
     """Widget ids whose own seat holds a thread now waiting on the agent.
 
-    An Question whose own thread is with the agent is not one the user has to
-    deal with, so a Question projection reading their list subtracts these. It is not an
+    An ask whose own thread is with the agent is not one the user has to
+    deal with, so an ask projection reading their list subtracts these. It is not an
     answer — the widget's state is untouched — which is why the reading that asks
-    whether a Question is answered passes an empty set instead. The browser receives
-    the Questions this subtraction leaves rather than subtracting again, so the banner's
+    whether an ask is answered passes an empty set instead. The browser receives
+    the asks this subtraction leaves rather than subtracting again, so the banner's
     count and `page state` cannot disagree about whose turn it is.
 
     Whose thread it is does not enter into it: the agent may open one in the seat too,
-    and once the user has answered there the question is with the agent either way.
+    and once the user has answered there the ask is with the agent either way.
 
     Takes the built fold rather than the log, because every caller already holds one:
     `build_threads` walks the whole log and tests each action against the retraction

@@ -305,11 +305,11 @@ rule `workflows.py` states for page actions.
 
 An open structural ask anywhere in an unresolved thread keeps it awaiting the
 user after later prose or a settling reaction. Without one, the latest unanswered
-prose question determines the obligation. Later agent messages leave it open.
-A user turn answers every question before it; a reaction whose token declares
-`settles` answers only the question it names, so an older unanswered question may
+prose ask determines the obligation. Later agent messages leave it open.
+A user turn answers every ask before it; a reaction whose token declares
+`settles` answers only the ask it names, so an older unanswered ask may
 become current again. Neither answer resolves the thread. `asks.thread_asks`
-owns recognition, content identity, answer and withdrawal for every prose question,
+owns recognition, content identity, answer and withdrawal for every prose ask,
 including an agent opening comment. An agent `todo_end` naming an open prose
 ask withdraws that request; its outcome is no user answer.
 

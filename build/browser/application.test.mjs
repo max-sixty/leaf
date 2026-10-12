@@ -1802,7 +1802,7 @@ test("a revision changing a verb's writer retains delivery without drawing the o
   assert.equal(app.read().unresolved.length, 1);
 });
 
-test("Question contains the local typed answer while completion waits for admission", () => {
+test("An ask contains the local typed answer while completion waits for admission", () => {
   const declared = {
     ...descriptor,
     declaration: {
@@ -1835,7 +1835,7 @@ test("Question contains the local typed answer while completion waits for admiss
   assert.equal(app.read().effective.asks.all[0].answer, null);
 });
 
-test("empty completed answer and wrapper changes preserve Question identity", () => {
+test("empty completed answer and wrapper changes preserve ask identity", () => {
   const choose = {
     unit: "widget",
     writer: "user",
@@ -1886,7 +1886,7 @@ test("empty completed answer and wrapper changes preserve Question identity", ()
   assert.equal(app.read().effective.asks.all[0].prompt.target, "new-context");
 });
 
-test("pending undo removes completed empty Question values and refusal restores them", () => {
+test("pending undo removes completed empty ask values and refusal restores them", () => {
   for (const [record, value] of [
     [{ kind: "attribute", attr: "chosen" }, []],
     [{ kind: "body" }, ""],
@@ -1992,7 +1992,7 @@ test("pending undo withdraws a decision an earlier Leaf recorded with another fi
   assert.equal(app.read().effective.asks.all[0].answer, null);
 });
 
-test("pending undo removes a custom Question answer before authoritative completion changes", () => {
+test("pending undo removes a custom ask answer before authoritative completion changes", () => {
   const declared = {
     ...descriptor,
     declaration: {

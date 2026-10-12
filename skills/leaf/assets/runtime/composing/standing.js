@@ -7,7 +7,7 @@ import { aimTargetAt } from "../anchor-resolution.js";
 import { placeOf } from "../standing-target.js";
 import { heldThread } from "../thread/focus.js";
 
-// Question controls target the question they work; other focus keeps the exact datum or
+// Ask controls target the ask they work; other focus keeps the exact datum or
 // visual part before falling back to the innermost addressable element. Chrome owners
 // translate their controls through placeOf. A focused thread belongs to its own reply
 // route, and chrome with no page target leaves only a general page comment.

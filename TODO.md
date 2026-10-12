@@ -81,7 +81,7 @@ has tried; settle that before building it.
 ### Agent and author experience
 
 - **Decide whether `page check` should still refuse an `lf-ask` without a leading
-  heading.** The heading is the Question's title in the Questions panel, the banner
+  heading.** The heading is the ask's title in the Questions panel, the banner
   and the `q` announcement, which all show an empty title without one, and the
   `lf-ask` instructions already ask for it. Wait until the other narrow checks
   removed in October 2026 have been gone a while; if pages written since still

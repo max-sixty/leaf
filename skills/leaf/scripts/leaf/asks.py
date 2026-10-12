@@ -1,10 +1,10 @@
-"""Canonical Questions from widget state, conversations and stamped page sign-off.
+"""Canonical asks from widget state, conversations and stamped page sign-off.
 
 One record contains its prompt, typed answer, completion and next actor. Its thread
 and exact owning message locate frozen sources without depending on a live renderer.
 A widget source owns identity; context wrappers contribute only prompt words and arrival.
 The inventory is complete even when a work queue hides a resolved thread or an
-older prompt. Tasks never stand in for these records."""
+older prompt. To-dos never stand in for these records."""
 
 import hashlib
 import json
@@ -40,7 +40,7 @@ from leaf.thread_context import widget_messages
 
 
 def local_ask_entry(entry: dict) -> bool:
-    """Whether a widget can originate a Question when its predicate holds."""
+    """Whether a widget can originate an ask when its predicate holds."""
     return entry.get("x-awaits") is not None
 
 
@@ -92,14 +92,14 @@ def settles(reaction: dict, turn: str, tokens: dict) -> bool:
 
 @dataclass(frozen=True)
 class ThreadAsks:
-    """Prose questions and their settlement from one standing thread.
+    """Prose asks and their settlement from one standing thread.
 
     Each record retains its source message, content version, state and settling
-    event. Widget Questions have their own reading and never become prose questions.
-    `prompt` selects the latest unanswered prose question unless the thread is
-    closed or an open widget Question owns attention. Earlier unanswered questions
+    event. Widget asks have their own reading and never become prose asks.
+    `prompt` selects the latest unanswered prose ask unless the thread is
+    closed or an open widget ask owns attention. Earlier unanswered asks
     remain available when a later one is settled; a user turn answers all that
-    precede it. Consumers select these facts rather than recognizing questions
+    precede it. Consumers select these facts rather than recognizing asks
     or interpreting their answers again.
     """
 
@@ -117,8 +117,8 @@ def event_reference(event: dict | None) -> dict | None:
 
 
 def approval_blocking(records: list[dict]) -> list[dict]:
-    """The Questions that keep a version from being approved: each open widget
-    Question someone still owes, on the page or in a widget an agent sent. The append
+    """The asks that keep a version from being approved: each open widget
+    ask someone still owes, on the page or in a widget an agent sent. The append
     door refuses a sign-off while one stands, and the browser view serves their ids
     so the approve control says the same."""
     return [
@@ -140,11 +140,11 @@ def collection(records: list[dict]) -> dict:
 
 
 def approval_ask(document, revision: int, events: list) -> dict | None:
-    """Sign-off for an exact public stamp as one canonical Question.
+    """Sign-off for an exact public stamp as one canonical ask.
 
     Draft revisions owe none. Only a standing done event for this public version
-    supplies the typed answer; an undo makes the same Question open again.
-    Approval admission counts widget Questions alone, so this record cannot
+    supplies the typed answer; an undo makes the same ask open again.
+    Approval admission counts widget asks alone, so this record cannot
     block its own answer.
     """
     version = stamped_version(events, revision)
@@ -182,10 +182,10 @@ def thread_asks(
 ) -> ThreadAsks:
     """Keep every prose request, selecting only the latest open prompt for work.
 
-    A user turn or settling reaction answers preceding questions. An agent task end
+    A user turn or settling reaction answers preceding asks. An agent's `todo_end`
     withdraws its request, whatever outcome that event reports; it invents no user
     answer. Resolving a thread suppresses attention without changing either fact.
-    A message that carries a widget question poses no second prose question.
+    A message that carries a widget ask poses no second prose ask.
     """
     turns = conversation_turns(thread)
     user_turns = {message["id"] for message in turns if message["author"] == "user"}
@@ -345,7 +345,7 @@ def previously_requested(
 
 
 def answer_verbs(entry: dict) -> dict:
-    """Each x-state verb whose standing state answers this widget's local Question,
+    """Each x-state verb whose standing state answers this widget's local ask,
     mapped to the condition that state has to meet (x-awaits.answered)."""
     return (entry.get("x-awaits") or {}).get("answered") or {}
 
@@ -365,7 +365,7 @@ def verb_answers(
     The condition reads standing state and nothing else. `empty` asks the projected
     containment the verb's position records leave; an attribute or value record reads
     through authored markup as well as the fold, so a version that honors the answer
-    keeps it answered and a cleared value opens the Question again; any other verb answers
+    keeps it answered and a cleared value opens the ask again; any other verb answers
     while one of its actions stands on the widget.
     """
     condition = answer_verbs(entry)[verb]
@@ -398,7 +398,7 @@ def ask_answered(
     registry: dict,
     holders: dict[str, dict] | None = None,
 ) -> bool:
-    """Whether the user's own state answers this Question: one of its answering verbs'
+    """Whether the user's own state answers this ask: one of its answering verbs'
     conditions holds."""
     if holders is None:
         holders = projected_action_holders(projection, byid, registry)
@@ -524,7 +524,7 @@ def answering_action(
     registered: bool = False,
 ) -> bool:
     """Whether an action of `verb`, standing in `projection`, answers its widget's
-    Question: the instance asks or retains an earlier registration, and the verb's
+    ask: the instance asks or retains an earlier registration, and the verb's
     own condition holds with it in place. Editable answers retain user provenance
     after the author suppresses the request. Admission stamps `meaning.answer` on
     exactly these."""
@@ -546,7 +546,7 @@ def answering_action(
 
 
 class _AskReducer:
-    """One page or frozen-thread Question fold over a shared state projection."""
+    """One page or frozen-thread ask fold over a shared state projection."""
 
     def __init__(
         self,
@@ -833,7 +833,7 @@ def page_ask_readings(
     revision: int | None = None,
     events: list = (),
 ) -> dict:
-    """Questions in one document basis; a discussion changes attention, not answer."""
+    """Asks in one document basis; a discussion changes attention, not answer."""
     reducer = _AskReducer(
         source, projection, byid, spk, registry, dropped, revision, events
     )
@@ -847,7 +847,7 @@ def thread_ask_readings(
     *,
     reading: FrozenThreadReading | None = None,
 ) -> dict:
-    """Frozen widget Questions retain inventory when their containing thread closes."""
+    """Frozen widget asks retain inventory when their containing thread closes."""
     reading = reading or frozen_thread_reading(events, registry)
     reducer = _AskReducer(
         reading.structure,

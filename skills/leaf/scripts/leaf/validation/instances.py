@@ -149,7 +149,7 @@ def unasked(rec: dict, entry: dict) -> str:
     """The `x-awaits.when` conditions a widget never met, worded for the author, or
     "" where it asks, was asked, or can be made to ask.
 
-    The flag `x-awaits.retired` names is how an author ends a Question already
+    The flag `x-awaits.retired` names is how an author ends an ask already
     asked, such as a settled decision kept with its context, so failing on it alone
     leaves the widget counted. A condition a recorded value writes can still be met
     by a gesture."""
@@ -175,9 +175,9 @@ def unasked(rec: dict, entry: dict) -> str:
 
 
 def ask_context_errors(lf_elements: list, registry: dict) -> list:
-    """A context supplies a leading title and arrival region for nested Questions.
+    """A context supplies a leading title and arrival region for nested asks.
 
-    Context never owns Question identity or registration. Any number of sources
+    Context never owns ask identity or registration. Any number of sources
     can select it, and each source retains its independent answer and lifecycle.
     A context framing no source asks nothing: the page shows a question the banner
     never counts and the user can't answer, so the error names what each framed
@@ -217,7 +217,7 @@ def ask_context_errors(lf_elements: list, registry: dict) -> list:
                 for rec, lacks in framed[id(region)]
             )
             errors.append(
-                f"{at(region)}: a Question context registers no Question: "
+                f"{at(region)}: an ask context registers no ask: "
                 + (widgets or "it holds no widget that declares x-awaits")
             )
         headings = [
@@ -227,7 +227,7 @@ def ask_context_errors(lf_elements: list, registry: dict) -> list:
         ]
         if len(headings) != 1:
             errors.append(
-                f"{at(region)}: a Question context must have exactly one direct heading, "
+                f"{at(region)}: an ask context must have exactly one direct heading, "
                 f"found {json_value(headings) if headings else 'none'}"
             )
         elif region["direct"][0] != headings[0]:
@@ -235,7 +235,7 @@ def ask_context_errors(lf_elements: list, registry: dict) -> list:
                 "text" if region["direct"][0] == "#text" else f"<{region['direct'][0]}>"
             )
             errors.append(
-                f"{at(region)}: a Question context's direct heading must be its first content, "
+                f"{at(region)}: an ask context's direct heading must be its first content, "
                 f"found {first} first"
             )
     return errors
@@ -402,7 +402,7 @@ def reference_errors(lf_elements: list, registry: dict, ids: set, by_id: dict) -
 
 
 def addressable_instance_errors(lf_elements: list, registry: dict) -> list:
-    """Conditional Questions and thread seats need an id when they are live.
+    """Conditional asks and thread seats need an id when they are live.
 
     Requiring every instance globally would outlaw inert option groups; checking the
     declared predicate here gives the runtime exactly the addressability it consumes.

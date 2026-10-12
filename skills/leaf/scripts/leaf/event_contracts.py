@@ -681,8 +681,8 @@ def admission_error(
 
 
 def _todo_error(view, event: dict, readings) -> str | None:
-    """A task stands on an open thread, a widget that seats work or an element, or the
-    page. Task endings also admit an agent withdrawal of a prose Question; a
+    """A to-do stands on an open thread, a widget that seats work or an element, or the
+    page. A `todo_end` also admits an agent withdrawal of a prose ask; a
     start names explicit agent work or an owed update (`todos.todo_error`)."""
     from leaf.todos import start_reading
 
@@ -815,7 +815,7 @@ def admitted_event(view, events: list, event: dict) -> dict:
     if kind in WIDGET_KINDS:
         event = admit_widget_event(view.document(event["revision"]), event, readings)
     if kind == "todo" and event["subject"]["kind"] == "widget":
-        # The revision the task was opened against, which the stamp that completes
+        # The revision the to-do was opened against, which the stamp that completes
         # it must come after (`publishing`).
         event = {**event, "revision": view.revisions[-1]}
     # Fold only a validated event. Attention is server-owned and boolean by

@@ -1307,9 +1307,9 @@ def test_side_tabs_distinguish_withdrawn_asks_from_answers(browser, serve):
 
 
 def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, serve):
-    """A Question answered before the page loads is named once the page presents, however
+    """An ask answered before the page loads is named once the page presents, however
     late the answering widget's module arrives: startup imports every module the
-    document names before the first reading brings the Question inventory."""
+    document names before the first reading brings the ask inventory."""
     url = serve(
         leaf_page(
             "a late queue",

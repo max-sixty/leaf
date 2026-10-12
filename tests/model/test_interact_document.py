@@ -2796,7 +2796,7 @@ def test_a_corrupted_publication_reads_as_that_sources_error(page_dir, value, me
 
 
 def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir):
-    """A Question retains its source identity under an authored context wrapper.
+    """An ask retains its source identity under an authored context wrapper.
     The nested widget remains the canonical answer owner."""
     opts = """<lf-options id="g1" choose>
       <lf-option id="o-shim"><strong>Shim it</strong> Fastest to ship.</lf-option>
@@ -4174,7 +4174,7 @@ def test_revisions_change_decision_words_labels_and_defaults_without_retracting(
 
 
 def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir):
-    """An action admitted by an earlier Leaf keeps standing, and keeps its Question
+    """An action admitted by an earlier Leaf keeps standing, and keeps its ask
     answered, under a Leaf that records the same operation's definition with other
     fields. Before #2329 the definition carried `update`, the verb flag now
     named `text`; matching every recorded field dropped each decision on a page

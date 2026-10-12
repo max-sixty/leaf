@@ -3,7 +3,7 @@ import test from "node:test";
 import { asksIn, askPlace } from "/runtime/asks/place.js";
 import { askHolding } from "/runtime/standing-target.js";
 
-test("shared context keeps placement and containment specific to each Question", () => {
+test("shared context keeps placement and containment specific to each ask", () => {
   document.body.innerHTML =
     '<section id="context"><div id="first"><button>One</button></div><div id="second"><button>Two</button></div></section>';
   const ask = (id) => ({

@@ -14551,7 +14551,7 @@ def test_an_ask_in_a_reply_is_where_the_user_stands_once_answered(browser, serve
     expect(page.locator("#cache-disk")).not_to_have_attribute("chosen", "")
 
 
-# A Question's digits beside a page-scoped command with a context key of its own,
+# An ask's digits beside a page-scoped command with a context key of its own,
 # registered the way an authored module does.
 QUICK_KEYS_PAGE = leaf_page(
     "quick keys",

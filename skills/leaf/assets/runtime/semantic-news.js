@@ -17,7 +17,7 @@ const identity = (record) => record.attempt ?? record.id;
 
 // News reads the shown revision's view: the one the page just presented, whose Questions
 // the drawer and banner count paint. While an activation waits (a gesture defers it, or
-// the document is a pinned version), a Question the active revision adds is not on this
+// the document is a pinned version), an ask the active revision adds is not on this
 // page yet; it becomes news when a revision holding it is presented.
 export function semanticNewsReading(root) {
   const view = root.effective.view;

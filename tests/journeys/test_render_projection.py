@@ -1997,7 +1997,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
         COMMAND_HUB_PAGE,
         flags=re.DOTALL,
     )
-    # A draft without `needed` is optional editing, not a Question framed by an Ask.
+    # A draft without `needed` is optional editing, not an ask framed by an `lf-ask`.
     honoring = honoring.replace(
         '<lf-ask id="decision-ledger-fixture-region">',
         '<div id="decision-ledger-fixture-region">',
@@ -2008,7 +2008,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
     assert '<lf-ask id="decision-ledger-fixture-region">' not in honoring
     stamp_page(d, honoring, "input absorbed")
     wait_for_revision(page, 2)
-    # The saved answer remains in the reviewable Question inventory after the source
+    # The saved answer remains in the reviewable ask inventory after the source
     # drops `needed`; it is completed, not newly owed to the user.
     expect_asks_answered(page, "1/5")
     expect(page.locator(".lf-queue")).not_to_have_text("Questions: 0")

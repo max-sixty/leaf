@@ -221,7 +221,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
    by declaring `--lf-ask-ring: none` on the decision: its theme is in a cascade layer
    this sheet outranks whatever the selector, and a declaration still reaches it. */
 /* The ring stands outside the decision, so a landing keeps its room at the scroller's
-   edge, as a margin entry's does (theme.css): a Question landed at the top of a scrolling
+   edge, as a margin entry's does (theme.css): an ask landed at the top of a scrolling
    pane stood flush with it, the top of its ring cut off under the pane's header rule. */
 [data-lf-ask] { outline: var(--lf-ask-ring, var(--focus-ring)); --lf-focus-ring: ask;
                 outline-offset: var(--focus-ring-gap);
@@ -826,14 +826,14 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     border-radius: 6px; background: none; color: inherit; font: inherit;
     cursor: pointer; }
   .lf-queue-row:hover { background: var(--chip); }
-  /* A task the user ends with Done carries its Done beside the row, at the row's top so
+  /* A to-do the user ends with Done carries its Done beside the row, at the row's top so
      it stands level with the kind; the row gives up the width it takes. */
   .lf-queue-item { display: flex; align-items: flex-start; gap: 4px; }
   .lf-queue-item > .lf-queue-row { flex: 1 1 auto; min-width: 0; }
   .lf-queue-finish { flex: none; margin: 4px 6px 0 0; }
   /* Both rings this row can wear, inset together. A control packed into a list states
      its own inset (theme.css, --focus-ring), because the list clips to its padding box.
-     The second ring is the standing Question's (markHere), which the row naming that Question
+     The second ring is the standing ask's (markHere), which the row naming that ask
      mirrors while the panel is open. Done's door is a stop in the same list. */
   .lf-queue-row:is([data-lf-focus], [data-lf-ask]),
   .lf-queue-done > summary[data-lf-focus] {
@@ -1721,7 +1721,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-chip-seat { position: absolute; left: 0; top: 0; width: 0; height: 0;
     pointer-events: none; }
   .lf-chip-seat > .lf-key-badge { position: absolute; left: 0; top: 0; display: block; }
-  /* Question binding badges sit on the answer control's upper-left corner: the single digit is
+  /* Ask binding badges sit on the answer control's upper-left corner: the single digit is
      a local label for the control it touches. */
   .lf-command-binding-badge { transform: translate(-50%, -50%); }
   /* The Target picker and Go-to sequence both give visible targets generated, prefix-free

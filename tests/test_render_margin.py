@@ -1736,6 +1736,8 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
     stale = sample("update stale")
     fallback = sample("working · fallback")
     expect(resting).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
+    expect(resting).not_to_have_attribute("data-lf-turn", re.compile(".+"))
+    expect(sample("on you")).to_have_attribute("data-lf-turn", "user")
     expect(picked_up).to_have_attribute("data-lf-agent-workflow", "picked_up")
     expect(picked_up).to_have_css(
         "border-top-color",
@@ -4240,18 +4242,25 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     expect(workflow).to_have_attribute("title", f"Working · {detail}")
 
 
-def test_margin_and_page_map_agree_on_each_controls_receipt(browser, serve):
-    """A package control's own workflow receipt reads the same in both projections.
+@pytest.mark.parametrize("annotations", ["margin", "page"])
+def test_each_seat_agrees_with_the_page_map_on_a_controls_receipt(
+    browser, serve, annotations
+):
+    """A package control's receipt reads the same wherever its target's controls sit.
 
     The target's agent work rides on its primary control, and every other control shows
     the receipt its contribution gave it. The contrast is a control that gives up the
-    primary seat: it goes back to its own receipt in the margin as in the Page Map.
+    primary seat: it goes back to its own receipt, and the new primary takes the work,
+    in the margin or a page's own annotation view as in the Page Map.
     """
+    source = ASK_PAGE
+    if annotations == "page":
+        source = source.replace("<body>", '<body data-annotations="page">')
     page = open_page(
         browser,
         live_url(
             serve(
-                ASK_PAGE,
+                source,
                 events=[
                     {**COMMENT_ON_ASK, "id": "1" * 32},
                     {
@@ -4278,10 +4287,30 @@ def test_margin_and_page_map_agree_on_each_controls_receipt(browser, serve):
     )
     assert claimed.exit_code == 0, claimed.output
     told(page)
-    cluster = page.locator('[data-lf-margin-for="bracket"]')
-    expect(cluster.locator(":scope > .lf-margin-marker")).to_have_attribute(
-        "data-lf-agent-workflow", "working"
-    )
+    if annotations == "margin":
+        seat = page.locator('[data-lf-margin-for="bracket"]')
+        expect(seat.locator(":scope > .lf-margin-marker")).to_have_attribute(
+            "data-lf-agent-workflow", "working"
+        )
+    else:
+        seat = page.locator("#receipt-view")
+        page.evaluate("""async () => {
+          const {consumeAnnotations} =
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const box = document.createElement('aside');
+          box.id = 'receipt-view';
+          document.querySelector('#bracket').after(box);
+          consumeAnnotations(box, (entries, view) => {
+            box.replaceChildren();
+            for (const entry of entries) {
+              const row = document.createElement('div');
+              row.dataset.lfGen = '1';
+              box.append(row);
+              row.append(...view.controls(entry));
+              view.place(entry, row);
+            }
+          });
+        }""")
     page.evaluate("""async () => {
       const {contributionEntry, registerContribution} =
         await window.__lfRuntimeImport('/runtime/widget-api.js');
@@ -4304,12 +4333,12 @@ def test_margin_and_page_map_agree_on_each_controls_receipt(browser, serve):
     }""")
 
     def receipts():
-        margin = {
-            key: cluster.locator(f'[data-lf-margin-entry-key="{key}"]').get_attribute(
+        seated = {
+            key: seat.locator(f'[data-lf-margin-entry-key="{key}"]').get_attribute(
                 "data-lf-agent-workflow"
             )
             for key in ("approve", "edit")
-            if cluster.locator(f'[data-lf-margin-entry-key="{key}"]').count()
+            if seat.locator(f'[data-lf-margin-entry-key="{key}"]').count()
         }
         page.keyboard.press("g")
         page.keyboard.press("Shift+m")
@@ -4323,17 +4352,15 @@ def test_margin_and_page_map_agree_on_each_controls_receipt(browser, serve):
         }
         page.keyboard.press("Escape")
         expect(dialog).to_be_hidden()
-        return margin, mapped
+        return seated, mapped
 
     carrying = {"edit": "working"}
-    expect(cluster.locator('[data-lf-margin-entry-key="edit"]')).to_have_attribute(
+    expect(seat.locator('[data-lf-margin-entry-key="edit"]')).to_have_attribute(
         "data-lf-agent-workflow", "working"
     )
     assert receipts() == (carrying, carrying)
     page.evaluate("window.offerApproval()")
-    expect(cluster.locator('[data-lf-margin-entry-key="approve"]')).to_have_attribute(
-        "data-lf-agent-workflow", "working"
-    )
+    expect(seat.locator('[data-lf-margin-entry-key="approve"]')).to_have_count(1)
     displaced = {"approve": "working", "edit": "picked_up"}
     assert receipts() == (displaced, displaced)
 

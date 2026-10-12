@@ -83,7 +83,7 @@ export const entryEngaged = (entry) => entry.state !== "idle";
 
 // A target's agent work rides on its primary control (`workflowCarrier`); every other
 // control shows the receipt its contribution gave it. Each control item carries the
-// receipt this rule gives it, and the margin and the Page Map both paint that one.
+// receipt this rule gives it, and every seat that shows the control paints that one.
 const controlReceipt = (carrier, record) =>
   carrier?.key === record.key && carrier.owner === record.owner
     ? carrier.receipt
@@ -95,7 +95,6 @@ const contributionItem = (offered, record, carrier, cluster = null) =>
     offered,
     record,
     receipt: controlReceipt(carrier, record),
-    surface: "margin",
   });
 const visibleRecords = (offers) =>
   offers.flatMap((offered) =>
@@ -103,6 +102,10 @@ const visibleRecords = (offers) =>
       .filter((record) => record.visible)
       .map((record) => ({ offered, record })),
   );
+// Every control a target offers, before and after it alike, in canonical order, each
+// with its receipt. The Page Map and page annotation views list a target's controls so.
+export const entryControls = (entry) =>
+  [...entry.controls, ...entry.afterControls].sort(compareContributionEntryRecords);
 export const choosePrimary = (entry) => entry.controls[0] ?? null;
 export const entryHasMarginHost = (entry) => entry.hasMarginHost;
 export const readingKey = (entry, choice) => JSON.stringify([entry.key, choice.key]);

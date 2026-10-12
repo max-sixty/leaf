@@ -8,7 +8,6 @@
  * The owner retains its rows and layout, and unregisters when its document leaves.
  */
 import { contributionSource } from "./contributions.js";
-import { compareContributions } from "./contribution-model.js";
 import {
   activateContributionControl,
   clearContributionControls,
@@ -19,7 +18,7 @@ import {
 } from "./contribution-controls.js";
 import { declareSide } from "./standing-target.js";
 import { under } from "./shadow.js";
-import { annotationItems } from "./margin-model.js";
+import { annotationItems, entryControls } from "./margin-model.js";
 
 export function createAnnotationView(owner, render, inventory, invalidate, retire) {
   if (!(owner instanceof Element))
@@ -76,24 +75,25 @@ export function createAnnotationView(owner, render, inventory, invalidate, retir
         },
         controls(entry) {
           admit(entry);
-          return entry.offers
-            .map(contributionSource)
-            .sort(compareContributions)
-            .flatMap((offered) => {
+          const retained = new Map(
+            entry.offers.map((model) => {
+              const offered = contributionSource(model);
               nextOffers.add(offered);
-              const controls = materializeContributionControls(
-                offered,
-                "page",
-                activateContributionControl,
-              );
-              return offered.reading.entries
-                .filter((item) => item.visible)
-                .map((item) => {
-                  const control = controls.get(item.key);
-                  presentContributionReceipts(control, item.workflowReceipt, false);
-                  return control;
-                });
-            });
+              return [
+                model,
+                materializeContributionControls(
+                  offered,
+                  "page",
+                  activateContributionControl,
+                ),
+              ];
+            }),
+          );
+          return entryControls(entry).map(({ offered, record, receipt }) => {
+            const control = retained.get(offered).get(record.key);
+            presentContributionReceipts(control, receipt, false);
+            return control;
+          });
         },
       });
       if (result?.then)

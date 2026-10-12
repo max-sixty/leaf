@@ -2,19 +2,10 @@
  * that supply margin clusters. DOM placement, retained controls, activation, search
  * input and focus stay in the dialog adapter. */
 
-import {
-  spokenSubject,
-  compareContributionEntryRecords,
-  visibleContributionEntryLabel,
-} from "./contribution-model.js";
+import { spokenSubject, visibleContributionEntryLabel } from "./contribution-model.js";
 
 import { contributionItemKey } from "./contribution-model.js";
-import { annotationItems } from "./margin-model.js";
-
-// The margin's control items, before and after the target alike, in one canonical
-// order; each already carries its receipt (margin-model.js, `controlReceipt`).
-const dialogControls = (entry) =>
-  [...entry.controls, ...entry.afterControls].sort(compareContributionEntryRecords);
+import { annotationItems, entryControls } from "./margin-model.js";
 
 const dialogItemKey = (entry, item) =>
   JSON.stringify(["item", entry.key, contributionItemKey(item)]);
@@ -29,7 +20,7 @@ const dialogControlId = (entry, offered, record) =>
 export function marginMapGroups(entries, faceFor, searchTextByKey) {
   return Object.freeze(
     entries.map((entry) => {
-      const controls = dialogControls(entry);
+      const controls = entryControls(entry);
       const items = annotationItems(entry);
       const actions = [
         ...items.map((item) => {

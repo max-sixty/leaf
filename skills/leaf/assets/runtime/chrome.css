@@ -1838,6 +1838,21 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     max-height: 100%;
     object-fit: contain;
   }
+  .lf-media-viewer-probe {
+    position: absolute;
+    width: 1px;
+    height: 0;
+    overflow: hidden;
+    visibility: hidden;
+  }
+  .lf-media-viewer-probe > img {
+    display: block;
+    width: auto;
+    height: auto;
+    min-width: 0;
+    max-width: none;
+    max-height: none;
+  }
   .lf-media-viewer-stage > img,
   .lf-media-viewer .pswp__img {
     outline: 1px solid var(--border-2);

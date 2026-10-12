@@ -2948,7 +2948,8 @@ def test_linked_images_zoom_and_return_to_the_report(browser, serve, tmp_path, o
         page.keyboard.press("Escape")
         expect(viewer).to_be_hidden()
     # The diagram fills the room it fits in, not the browser's 300x150 stand-in, and
-    # still does once the window grows. It zooms past that fit for a closer look.
+    # still does once the window grows, even from a room narrower than that stand-in.
+    # It zooms past that fit for a closer look.
     fills = """() => {
       const stage = document.querySelector('.lf-media-viewer-stage');
       const inset = getComputedStyle(stage);
@@ -2960,7 +2961,7 @@ def test_linked_images_zoom_and_return_to_the_report(browser, serve, tmp_path, o
         .getBoundingClientRect();
       return [box.width, box.height].some((side, i) => Math.abs(side - room[i]) < 1);
     }"""
-    resized(page, 1440, 500)
+    resized(page, 320, 500)
     page.locator("#diagram a").click()
     expect(viewer.locator("img.pswp__img")).to_be_visible()
     assert page.evaluate(fills)

@@ -3,10 +3,12 @@
 Each validator owns a self-contained resource graph and is cached by schema content.
 Leaf's date-time format admits only absolute, timezone-aware RFC3339 instants, and its
 uri format only absolute URLs the browser's URL parser accepts. A registry schema may
-name only a format `FORMAT_CHECKER` checks (`check_schema`). `pattern` and
-`patternProperties` are ECMAScript regular expressions, as JSON Schema defines them
-and the browser reads them; jsonschema would search them with Python's `re`, whose
-`$` also matches before a final newline, so `"abc\n"` passed `^[a-z]+$`.
+name only a format `FORMAT_CHECKER` checks (`check_schema`). A `pattern` is an
+ECMAScript regular expression, as JSON Schema defines it and the browser reads it;
+jsonschema would search it with Python's `re`, whose `$` also matches before a final
+newline, so `"abc\n"` passed `^[a-z]+$`. A declared pattern must compile in both, since
+the metaschema's own check compiles it with `re`. (`patternProperties` keys are still
+read by `re`; no Leaf schema declares one.)
 """
 
 import functools
@@ -70,21 +72,11 @@ def _pattern(validator, pattern, instance, schema):
         yield ValidationError(f"{instance!r} does not match {pattern!r}")
 
 
-def _pattern_properties(validator, pattern_properties, instance, schema):
-    if not validator.is_type(instance, "object"):
-        return
-    for pattern, subschema in pattern_properties.items():
-        for key, value in instance.items():
-            if _ecma(pattern).find(key):
-                yield from validator.descend(
-                    value, subschema, path=key, schema_path=pattern
-                )
-
-
-# Draft 2020-12 with ECMAScript patterns; every reader is one (`json_validator`).
+# Draft 2020-12 with ECMAScript patterns; every reader is one (`json_validator`). The
+# version registers it as the 2020-12 dialect, so a subschema naming that `$schema`
+# keeps Leaf's reading rather than evolving into jsonschema's own class.
 LeafValidator = validators.extend(
-    Draft202012Validator,
-    {"pattern": _pattern, "patternProperties": _pattern_properties},
+    Draft202012Validator, {"pattern": _pattern}, version="draft2020-12"
 )
 
 
@@ -106,10 +98,7 @@ def check_schema(schema) -> None:
 
     def visit(contents) -> None:
         if isinstance(contents, dict):
-            patterns = [contents.get("pattern"), *contents.get("patternProperties", {})]
-            for pattern in patterns:
-                if not isinstance(pattern, str):
-                    continue
+            if isinstance(pattern := contents.get("pattern"), str):
                 try:
                     _ecma(pattern)
                 except regress.RegressError as error:

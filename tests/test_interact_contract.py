@@ -2879,6 +2879,9 @@ def test_check_refuses_a_format_no_boundary_checks(page_dir):
     assert "<lf-options> is not a valid JSON Schema: format 'hostname'" in result.output
 
 
+DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema"
+
+
 def test_patterns_read_as_the_browser_reads_them(page_dir):
     """A schema pattern is an ECMAScript regular expression wherever Leaf reads it, so
     `$` ends the string rather than also matching before a final newline, and a
@@ -2886,6 +2889,9 @@ def test_patterns_read_as_the_browser_reads_them(page_dir):
     name = {"type": "string", "pattern": "^[a-z]+$"}
     assert registry_schema.schema_error(name, "keep") is None
     assert registry_schema.schema_error(name, "keep\n") is not None
+    # A subschema naming the 2020-12 dialect keeps the same reading.
+    nested = {"properties": {"id": {"$schema": DRAFT_2020_12, **name}}}
+    assert registry_schema.schema_error(nested, {"id": "keep\n"}) is not None
 
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-options"]["properties"]["id"]["pattern"] = "^(?P<id>[a-z]+)$"

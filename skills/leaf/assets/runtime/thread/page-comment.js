@@ -153,6 +153,7 @@ export function createPageComment({
       accessibleName: hint,
       sends: "send",
       sendBtn: send,
+      mediaBelow: true,
       save: (text) => saveDraft("general", text),
       send: (_text, raw, owns) => {
         let flight = null;

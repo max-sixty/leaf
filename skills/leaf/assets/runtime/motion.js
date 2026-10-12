@@ -1,7 +1,6 @@
 // Arrival is not a gesture. Restored panel, drawer, drawn-width, design-mode, widget, and
-// reading-position state appears at rest. `motion` finishes Web Animations immediately
-// before `data-lf-presented` and while an already-standing state is being restored into
-// replacement markup; theme transitions use the same presentation stamp.
+// reading-position state appears at rest. `motion` plays nothing before
+// `data-lf-presented`, and theme transitions use the same presentation stamp.
 //
 // After presentation, changes that remove a visible unit use a short fold. The semantic
 // state is true at the start of the fold, while the old pixels collapse so the eye can

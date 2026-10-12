@@ -488,11 +488,12 @@ page composition can choose their layout.
 
 Keep content within its allocated column, visual surface, or pane. The theme scrolls a `<pre>` or a table
 that runs wider than its container and fits an image or SVG to it, so none of them needs a
-width. A table that scrolls has every column at its longest unbreakable run, and
-the browser gate refuses one that scrolls with a cell in it wrapped: put an
+width. A table that scrolls has every column at its longest unbreakable run, so its
+prose wraps a word a line beside the scroller, and the browser gate reports each
+width from a 360px phone up where a table scrolls with a cell in it wrapped: put an
 identifier in `<code>`, where it breaks inside its cell, rather than bare, where
 it holds its column and squeezes the prose beside it, and keep the columns to
-what the measure holds. Widgets whose element declaration requests wider space size
+what the measure holds at the narrowest width the page's readers use. Widgets whose element declaration requests wider space size
 themselves within the page's available room. Preserve the meaningful detail in a diagram
 or comparison rather than shrinking its source solely to fit the prose column.
 

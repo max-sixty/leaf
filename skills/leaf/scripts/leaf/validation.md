@@ -117,8 +117,7 @@ shadow tree, one in an embedded frame placed at that frame (a widget failing sof
 is a console error, since the page reports it);
 every widget upgraded, painted with values that resolve, and given real space;
 words a user can mark, reach, and select, with the registry's verbatim and shadow
-declarations honored; no sideways scroll, clipped control, squeezed table, or
-misplaced box; space below words and controls for a horizontal overlay scrollbar;
+declarations honored; no sideways scroll, clipped control, or misplaced box; space below words and controls for a horizontal overlay scrollbar;
 and standing state that replays without conflict and idempotently.
 `render_gate/readings.py` is the list. Those readings run
 at a desktop and a phone viewport; once they are done, the loaded desktop page is
@@ -133,9 +132,9 @@ into rows, and the swept widths where that changes.
 At each swept width it also reads, as advice, each drawing whose fit to its box draws
 labels under 10px and each table that scrolls with a cell wrapped, and reports each
 unbroken run of widths where one appears, with its reading at the narrowest of them.
-A squeezed table refuses the version only at the two viewports it renders: elsewhere
-the table still scrolls with every word in reach, and whether the page answers for that
-width is the author's call. Swept sideways faults are reported by run the same way.
+A squeezed table is advice at every width, the two the gate renders among them: the
+table still scrolls with every word in reach, and the remedy is a choice of
+composition. Swept sideways faults are reported by run the same way.
 
 A version that passes gets screens for the author to read (`render_gate/screens.py`):
 the page's first eight screens down from its top at the desktop viewport, at the

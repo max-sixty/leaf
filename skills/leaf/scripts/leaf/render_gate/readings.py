@@ -231,9 +231,6 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     overflow = column["overflow"]
     misplaced = column["misplaced"]
     scrollbars = evaluate_probe(page, "scrollbarClearance")
-    # This experiment writes and removes a temporary wrapping rule. Preserve its
-    # position between the two read-only groups so each reads the same restored page.
-    squeezed = evaluate_probe(page, "squeezedTables")
     reachability = evaluate_probe(page, "reachabilityReading")
     clipped = reachability["clipped"]
     unreachable = reachability["unreachable"]
@@ -340,7 +337,6 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     ]
     found += [f"[{scheme}] {text}" for _key, text in _overflow(overflow, misplaced)]
     found += [f"[{scheme}] {text}" for _key, text in _scrollbars(scrollbars)]
-    found += [f"[{scheme}] {text}" for _key, text in _squeezed(squeezed)]
     found += [
         f"[{scheme}] the control .{c['ctrl'].split()[0]}"
         + (f" (#{c['id']})" if c["id"] else "")
@@ -406,12 +402,6 @@ def _overflow(overflow: int, misplaced: list) -> list[tuple[tuple[str, str], str
             )
         )
     return found + [((m["place"], m["kind"]), m["text"]) for m in misplaced]
-
-
-def _squeezed(tables: list) -> list[tuple[tuple[str, str], str]]:
-    """Tables that scroll with a cell wrapped, keyed like other width-dependent
-    geometry."""
-    return [((table["place"], "squeezed"), table["text"]) for table in tables]
 
 
 # The widths the sweep takes a loaded page through: a version holds at every width from
@@ -541,22 +531,16 @@ def swept_overflow(readings, viewports) -> list[str]:
 
     A run that takes in a fixed width is dropped here, because that viewport's own
     reading already reports it in both schemes."""
-    return _unfixed(
-        readings,
-        viewports,
-        lambda reading: (
-            _overflow(reading["overflow"], reading["misplaced"])
-            + _scrollbars(reading["scrollbars"])
-        ),
-    )
-
-
-def _unfixed(readings, viewports, faults) -> list[str]:
-    """Each swept run of `faults` that takes in no fixed width, said with its widths."""
     fixed = {viewport["width"] for viewport in viewports}
     return [
         f"at {_span(widths)} wide, {text}"
-        for widths, text in _swept(readings, faults)
+        for widths, text in _swept(
+            readings,
+            lambda reading: (
+                _overflow(reading["overflow"], reading["misplaced"])
+                + _scrollbars(reading["scrollbars"])
+            ),
+        )
         if not fixed & set(widths)
     ]
 
@@ -567,16 +551,24 @@ def _unfixed(readings, viewports, faults) -> list[str]:
 # the author's call, so none of it refuses a version.
 
 
-def squeezed_table_advice(readings, viewports) -> list[str]:
-    """Advice naming each table that scrolls sideways with a cell wrapped at swept
-    widths the fixed viewports miss.
+def squeezed_table_advice(readings) -> list[str]:
+    """Advice naming each table that scrolls sideways with a cell wrapped.
 
-    Advice there, though the fixed viewports refuse the same reading, because the
-    table still scrolls and every word in it stays in reach: what costs the reader is
-    prose wrapped a word a line beside a scroller, and whether a page answers for a
-    360px phone with fewer columns or shorter words is the author's call. A run that
-    takes in a fixed width is that viewport's failure to report."""
-    return _unfixed(readings, viewports, lambda r: _squeezed(r["squeezed"]))
+    The sweep is the reading's only home, and it takes in the fixed viewports' widths.
+    Advice rather than a failure because the table still scrolls and every word in it
+    stays in reach: what costs the reader is prose wrapped a word a line beside a
+    scroller, and the remedy (a column fewer, shorter words, an identifier in `<code>`)
+    is a choice of composition only the author can make."""
+    return [
+        f"at {_span(widths)} wide, {text}"
+        for widths, text in _swept(
+            readings,
+            lambda reading: (
+                ((table["place"], "squeezed"), table["text"])
+                for table in reading["squeezed"]
+            ),
+        )
+    ]
 
 
 def shrunk_label_advice(readings) -> list[str]:

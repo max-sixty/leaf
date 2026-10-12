@@ -74,7 +74,6 @@ def _render_version_attempt(
     an element showing words with no box for a mark to hang on, so a comment anchored
     there would outline nothing and the Question walk would travel to the top of the page,
     the page scrolling sideways, content set past the column and out into the margin,
-    a table that scrolls sideways with a cell in it wrapped,
     words the user can read and can't select, words drawn on top of other words — each
     in both color schemes at wide and compact viewports, because the dark theme and
     responsive layout are real CSS nobody otherwise renders — plus, in one scheme at
@@ -92,7 +91,7 @@ def _render_version_attempt(
     360px to 1920px, the sideways readings again: a version holds at each of them, not
     only at the two it renders. There it also reads, as advice naming the widths it
     spans, whether a drawing's fit to its box shrinks its labels past reading, and
-    whether a table scrolls with a cell wrapped at widths the two miss. That pass
+    whether a table scrolls sideways with a cell in it wrapped. That pass
     also finds each width where the page's margin content changes (a sidebar, contents
     map or note first standing in the margin), and the gate renders the page there too,
     in the light scheme: what stands in the margin is layout, which the scheme does not
@@ -124,7 +123,7 @@ def _render_version_attempt(
         advice.extend(unreserved_height_advice(page, element_declarations(registry)))
         widths = sweep(page, RENDER_VIEWPORTS, open_widgets(registry))
         advice.extend(shrunk_label_advice(widths))
-        advice.extend(squeezed_table_advice(widths, RENDER_VIEWPORTS))
+        advice.extend(squeezed_table_advice(widths))
         swept.extend(swept_overflow(widths, RENDER_VIEWPORTS))
         arrangement.extend(arrangement_changes(widths))
         fixed = {viewport["width"] for viewport in RENDER_VIEWPORTS}

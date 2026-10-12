@@ -51,8 +51,8 @@ export function geometryReading(open) {
   };
 }
 
-// The fixed viewport's column and margin findings, before the table experiment
-// temporarily changes wrapping. Keep singleton readers for callers asking one fact.
+// The fixed viewport's column and margin findings in one round trip. Keep singleton
+// readers for callers asking one fact.
 export function columnGeometry() {
   return {
     overflow: rootOverflow(),
@@ -623,9 +623,10 @@ export function misplacedBoxes() {
 // A table that scrolls with nothing left to wrap is the theme's honest third case.
 //
 // Whether a table scrolls depends on the window, so the gate reads this at every width
-// of its sweep as well as at its fixed viewports. Each finding carries its table's
-// place (locate.js) beside the words, so the sweep tells one table's run of widths from
-// another's. A page with no scrolling table never adds the wrapping rule.
+// of its sweep, and reports it as advice: the table still scrolls with every word in
+// reach, and the remedy is the author's choice of composition. Each finding carries its
+// table's place (locate.js) beside the words, so the sweep tells one table's run of
+// widths from another's. A page with no scrolling table never adds the wrapping rule.
 export function squeezedTables() {
   const main = pageDocument();
   if (!main) return [];

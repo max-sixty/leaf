@@ -10,10 +10,9 @@ def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
     """The sweep names a fault per element and per unbroken run of widths, with its
     reading at the run's narrowest. Here a spill clears between 1520px and 640px and
     returns below; the run taking in the 540px viewport is that viewport's to report,
-    and the wide run is still the sweep's. A table that fits at both fixed viewports and
-    scrolls squeezed only on a phone narrower than 540px is the sweep's advice, and one
-    squeezed across 540px is that viewport's failure. Two drawings that share a name
-    are told apart by their place."""
+    and the wide run is still the sweep's. A squeezed table is advice wherever the
+    sweep finds it, a run across the 540px viewport included, since no fixed viewport
+    reads it. Two drawings that share a name are told apart by their place."""
     widths = sorted({*render_gate_readings.SWEEP_WIDTHS, 540}, reverse=True)
 
     def at(width):
@@ -54,8 +53,9 @@ def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
     assert render_gate_readings.swept_overflow(readings, fixed) == [
         "at 1560–1600px wide, <pre> spills at 1560px"
     ]
-    assert render_gate_readings.squeezed_table_advice(readings, fixed) == [
-        "at 360–400px wide, <table id=t> scrolls at 360px"
+    assert render_gate_readings.squeezed_table_advice(readings) == [
+        "at 520–560px wide, <table id=u> scrolls at 520px",
+        "at 360–400px wide, <table id=t> scrolls at 360px",
     ]
     advice = render_gate_readings.shrunk_label_advice(readings)
     shown = r"at 360–800px wide <svg> in <figure id=f> draws labels below 10px, "

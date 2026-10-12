@@ -3772,7 +3772,8 @@ def test_every_table_the_theme_sets_honestly_passes_the_gate(browser, serve):
     # Vacuous otherwise: the gate has to be looking at a page that carries both.
     expect(open_page(browser, url).locator(".lf-mark-note")).to_have_count(2)
 
-    assert render_gate_model.render_version(browser, url).failures == []
+    reading = render_gate_model.render_version(browser, url)
+    assert (reading.failures, reading.advice) == ([], []), reading
 
 
 def test_a_quiet_word_inside_a_scrolling_table_leaves_the_page_its_own_width(

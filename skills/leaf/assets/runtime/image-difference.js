@@ -643,7 +643,7 @@ export function changedPixels(a, b) {
   const one = words(a);
   const other = words(b);
   const data = new Uint8ClampedArray(width * height * 4);
-  const alpha = [0, 96, 255];
+  const alpha = [0, 40, 255];
   for (let y = 0; y < height; y += 1)
     for (let x = 0; x < width; x += 1)
       data[(y * width + x) * 4 + 3] = alpha[pixelChange(a, one, b, other, x, y)];

@@ -92,7 +92,7 @@ test("the changed-pixel mask is opaque where a pixel moved far, faint where slig
   const alpha = (x, y) => data[(y * width + x) * 4 + 3];
   assert.deepEqual([width, height], [20, 12]);
   assert.equal(alpha(2, 2), 255);
-  assert.equal(alpha(5, 5), 96);
+  assert.equal(alpha(5, 5), 40);
   assert.equal(alpha(9, 9), 0);
   // A row only the taller image has changed throughout.
   assert.equal(alpha(9, 11), 255);

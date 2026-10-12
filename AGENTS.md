@@ -340,12 +340,12 @@ change needs"). A pull request's `test` job and `wt merge`'s pre-merge run the b
 selection, `uv run pytest tests`, at landing, and report any failure your selection
 missed. Don't run it by hand before then, nor a whole browser test file or a whole
 later tier (`--run-main`, `--run-nightly`, `-m main`, `-m nightly`): each takes minutes
-to over an hour and slows every session on the shared host, however idle it looks. A change to code most
-of the suite runs through still hands over on the tests that exercise what it
-changed, and leaves finding the rest to the gate. Before widening your own selection
-or raising its parallelism, check current CPU use, memory pressure, and other running
-test suites; on a busy host, favor focused checks and avoid redundant overlapping
-runs.
+to over an hour and slows every session on the shared host, however idle it looks. A
+change to code most of the suite runs through still hands over on the tests that
+exercise what it changed, and leaves finding the rest to the gate. Before widening
+your own selection or raising its parallelism, check current CPU use, memory
+pressure, and other running test suites; on a busy host, favor focused checks and
+avoid redundant overlapping runs.
 
 Two TypeScript trees, `worker/src/` and `build/browser/`, and the JavaScript lock
 every committed bundle is built from have gates the suite and pre-commit do not reach.

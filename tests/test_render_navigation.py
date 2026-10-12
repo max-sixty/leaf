@@ -3067,7 +3067,8 @@ def test_color_cues_fade_to_the_live_surface(request, serve, engine, target):
     assert fills["end"] == fills["rest"], fills
 
 
-@pytest.mark.parametrize("target", ["banner", "tab"])
+# The banner's cue; Firefox's paused tab cue is test_color_cues_fade_to_the_live_surface's.
+@pytest.mark.parametrize("target", ["banner"])
 def test_firefox_paints_a_natural_color_cue(firefox_browser, serve, target):
     """Observe the ordinary compositor path without pausing or reading its styles."""
     page = open_page(firefox_browser, serve(color_cue_markup()))

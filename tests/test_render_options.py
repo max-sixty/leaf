@@ -922,26 +922,25 @@ def test_an_open_option_ring_stays_visible_at_rest(browser, serve, color_scheme)
     assert all(reading["contrast"] >= 3 for reading in readings), readings
 
 
-@pytest.mark.parametrize(
-    ("ask", "group", "question"),
-    [
+def test_an_ask_leads_with_one_authored_heading(browser, serve):
+    """The question is document content above the answers, never generated group chrome.
+
+    Each shape of Ask is read on the one page that holds them all."""
+    page = open_page(browser, serve(ASK_SHAPES_PAGE))
+    for ask, group, question in (
         ("cards-decision", "cards", "Where should a session live?"),
         ("rows-decision", "rows", "Which jobs are worth starting?"),
         ("done-decision", "done", "How do parallel sessions merge?"),
-    ],
-)
-def test_an_ask_leads_with_one_authored_heading(browser, serve, ask, group, question):
-    """The question is document content above the answers, never generated group chrome."""
-    page = open_page(browser, serve(ASK_SHAPES_PAGE))
-    heading = page.locator(f"#{ask} > :is(h1, h2, h3, h4, h5, h6)")
-    expect(heading).to_have_count(1)
-    expect(heading).to_have_text(question)
-    expect(page.locator(f"#{group} > [data-lf-said='label']")).to_have_count(0)
-    assert heading.evaluate("el => el.getBoundingClientRect().bottom") < page.locator(
-        f"#{group}"
-    ).evaluate("el => el.getBoundingClientRect().top"), (
-        "the answer control stands before its authored question"
-    )
+    ):
+        heading = page.locator(f"#{ask} > :is(h1, h2, h3, h4, h5, h6)")
+        expect(heading).to_have_count(1)
+        expect(heading).to_have_text(question)
+        expect(page.locator(f"#{group} > [data-lf-said='label']")).to_have_count(0)
+        assert heading.evaluate(
+            "el => el.getBoundingClientRect().bottom"
+        ) < page.locator(f"#{group}").evaluate(
+            "el => el.getBoundingClientRect().top"
+        ), f"{group}'s answer control stands before its authored question"
 
 
 def test_a_first_ask_starts_at_the_pages_content_edge_even_in_a_live_sample(
@@ -1007,8 +1006,7 @@ def test_a_first_ask_starts_at_the_pages_content_edge_even_in_a_live_sample(
     )
 
 
-@pytest.mark.parametrize("group", ["cards", "rows"])
-def test_joined_option_cells_share_edges_and_text_column(browser, serve, group):
+def test_joined_option_cells_share_edges_and_text_column(browser, serve):
     """Read over the joined option cells and the full-width Done control.
 
     A group under `choose` is one control: cells sharing edges, divided by a hairline
@@ -1032,84 +1030,86 @@ def test_joined_option_cells_share_edges_and_text_column(browser, serve, group):
     Every child shares the joined edge; option cells share a text column. The
     authored options are the author's, the option the user writes is the module's,
     the question and the Done press are the runtime's, and each arrived carrying the
-    spacing it wears standing alone."""
+    spacing it wears standing alone. Both joined forms, cards and rows, stand on one
+    page."""
     page = open_page(browser, serve(ASK_SHAPES_PAGE))
-    cells = page.locator(f"#{group}").evaluate(
-        r"""el => {
-             const px = (v) => parseFloat(v) || 0;
-             const kids = [...el.children].filter((c) => c.checkVisibility());
-             return kids.map((c, i) => {
-               const s = getComputedStyle(c);
-               const r = c.getBoundingClientRect();
-               const next = kids[i + 1];
-               // The ground the user sees under the cell, which is not the same as
-               // what the cell declares: a cell that paints nothing shows the group's
-               // own, and that is how an unpicked option is filled.
-               const clear = (v) => !v || v === 'transparent'
-                        || /rgba\(0,\s*0,\s*0,\s*0\)/.test(v);
-               return {
-                 kind: c.tagName.toLowerCase(),
-                 what: c.tagName.toLowerCase() + (c.dataset.lfSaid
-                        ? `[${c.dataset.lfSaid}]` : (c.className ? '.' + c.className.trim().split(/\s+/)[0] : '')),
-                 opens: px(s.paddingInlineStart) + px(s.borderInlineStartWidth),
-                 ground: clear(s.backgroundColor)
-                   ? getComputedStyle(el).backgroundColor : s.backgroundColor,
-                 picked: c.hasAttribute('chosen'),
-                 gap: next
-                   ? Math.round((next.getBoundingClientRect().top - r.bottom) * 10) / 10
-                   : null,
-               };
-             });
-           }"""
-    )
-    assert len(cells) > 2, f"a control of {len(cells)} cells proves little: {cells}"
+    for group in ("cards", "rows"):
+        cells = page.locator(f"#{group}").evaluate(
+            r"""el => {
+                 const px = (v) => parseFloat(v) || 0;
+                 const kids = [...el.children].filter((c) => c.checkVisibility());
+                 return kids.map((c, i) => {
+                   const s = getComputedStyle(c);
+                   const r = c.getBoundingClientRect();
+                   const next = kids[i + 1];
+                   // The ground the user sees under the cell, which is not the same as
+                   // what the cell declares: a cell that paints nothing shows the group's
+                   // own, and that is how an unpicked option is filled.
+                   const clear = (v) => !v || v === 'transparent'
+                            || /rgba\(0,\s*0,\s*0,\s*0\)/.test(v);
+                   return {
+                     kind: c.tagName.toLowerCase(),
+                     what: c.tagName.toLowerCase() + (c.dataset.lfSaid
+                            ? `[${c.dataset.lfSaid}]` : (c.className ? '.' + c.className.trim().split(/\s+/)[0] : '')),
+                     opens: px(s.paddingInlineStart) + px(s.borderInlineStartWidth),
+                     ground: clear(s.backgroundColor)
+                       ? getComputedStyle(el).backgroundColor : s.backgroundColor,
+                     picked: c.hasAttribute('chosen'),
+                     gap: next
+                       ? Math.round((next.getBoundingClientRect().top - r.bottom) * 10) / 10
+                       : null,
+                   };
+                 });
+               }"""
+        )
+        assert len(cells) > 2, f"a control of {len(cells)} cells proves little: {cells}"
 
-    apart = [c for c in cells if c["gap"] is not None and c["gap"] > 0.5]
-    assert not apart, (
-        f"cells of #{group} stand apart from the line that joins them: {apart}"
-    )
+        apart = [c for c in cells if c["gap"] is not None and c["gap"] > 0.5]
+        assert not apart, (
+            f"cells of #{group} stand apart from the line that joins them: {apart}"
+        )
 
-    # Done spans the control and centers its label, apart from the option text column.
-    done_cells = [c for c in cells if c["kind"] == "lf-options-done"]
-    assert len(done_cells) <= 1
-    if done_cells:
-        assert cells[-1] is done_cells[0], "Done should close the joined control"
-    option_cells = [c for c in cells if c["kind"] != "lf-options-done"]
-    bare = [c for c in option_cells if c["opens"] < 0.5]
-    assert not bare, (
-        f"cells of #{group} open on the frame while their neighbours hold off it: "
-        f"{bare}"
-    )
+        # Done spans the control and centers its label, apart from the option text column.
+        done_cells = [c for c in cells if c["kind"] == "lf-options-done"]
+        assert len(done_cells) <= 1
+        if done_cells:
+            assert cells[-1] is done_cells[0], "Done should close the joined control"
+        option_cells = [c for c in cells if c["kind"] != "lf-options-done"]
+        bare = [c for c in option_cells if c["opens"] < 0.5]
+        assert not bare, (
+            f"cells of #{group} open on the frame while their neighbours hold off it: "
+            f"{bare}"
+        )
 
-    # And they open at one column, which is the half a user sees first: the question
-    # hung a whole binding column left of the words it was a question about. Every cell,
-    # the user's own among them: that cell holds the option they write when none of the
-    # authored ones is the answer, so a cell drawn short of the column starts the one box
-    # the group takes words in outside the run of boxes the group is. Its own 12px did
-    # exactly that, and this line excused it as apparatus. What is compared is the cell,
-    # not the caret: a text box holds its words off its own frame, which is the box's and
-    # no business of the group's.
-    words = {c["opens"] for c in option_cells}
-    assert len(words) == 1, (
-        f"#{group}'s cells open at {sorted(words)}, so the question, its answers and "
-        "the option the user writes read as more than one column"
-    )
+        # And they open at one column, which is the half a user sees first: the question
+        # hung a whole binding column left of the words it was a question about. Every cell,
+        # the user's own among them: that cell holds the option they write when none of the
+        # authored ones is the answer, so a cell drawn short of the column starts the one box
+        # the group takes words in outside the run of boxes the group is. Its own 12px did
+        # exactly that, and this line excused it as apparatus. What is compared is the cell,
+        # not the caret: a text box holds its words off its own frame, which is the box's and
+        # no business of the group's.
+        words = {c["opens"] for c in option_cells}
+        assert len(words) == 1, (
+            f"#{group}'s cells open at {sorted(words)}, so the question, its answers and "
+            "the option the user writes read as more than one column"
+        )
 
-    # And the user's own option is filled the way an option nobody has picked is
-    # filled, which is the other half of what says it is one of the answers. A pick
-    # colours the cell that holds it and nothing else does, so any other ground here is
-    # a state the group hasn't got: the cell wore --field, a tinted band that in this
-    # theme means a detail or a note, and a band under the answers is a footer whatever
-    # else is written in it.
-    open_option = next(
-        c["ground"] for c in cells if c["what"] == "lf-option" and not c["picked"]
-    )
-    user = next(c for c in cells if "lf-another" in c["what"])
-    assert user["ground"] == open_option, (
-        f"#{group}'s user-written option stands on {user['ground']} where an "
-        f"unpicked option stands on {open_option}, so it reads as apparatus under the "
-        "answers rather than as one of them"
-    )
+        # And the user's own option is filled the way an option nobody has picked is
+        # filled, which is the other half of what says it is one of the answers. A pick
+        # colours the cell that holds it and nothing else does, so any other ground here is
+        # a state the group hasn't got: the cell wore --field, a tinted band that in this
+        # theme means a detail or a note, and a band under the answers is a footer whatever
+        # else is written in it.
+        open_option = next(
+            c["ground"] for c in cells if c["what"] == "lf-option" and not c["picked"]
+        )
+        user = next(c for c in cells if "lf-another" in c["what"])
+        assert user["ground"] == open_option, (
+            f"#{group}'s user-written option stands on {user['ground']} where an "
+            f"unpicked option stands on {open_option}, so it reads as apparatus under the "
+            "answers rather than as one of them"
+        )
 
 
 WIDE_PROSE = (

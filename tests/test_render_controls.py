@@ -1389,6 +1389,17 @@ LIVE_SAMPLES_PAGE = leaf_page(
 ).replace("</template>", SAMPLE_STARTUP_FAILURE + "</template>")
 
 
+# One practice page, for the journeys that need no second child to compare against:
+# each child is a whole page to load.
+LIVE_SAMPLE_PAGE = re.sub(
+    r'<lf-sample id="second-practice".*?</lf-sample>\n',
+    "",
+    LIVE_SAMPLES_PAGE,
+    flags=re.DOTALL,
+)
+assert "second-practice" not in LIVE_SAMPLE_PAGE
+
+
 def fail_sample_startup(route):
     """The real child reports its fixture's failure over the private bridge.
 
@@ -1480,7 +1491,7 @@ def test_live_sample_full_view_keeps_the_child_and_returns_after_inner_escape(
 
 def test_a_live_revision_mounts_and_resets_its_new_sample(browser, serve):
     """An arriving sample allocates from its own revision before that revision paints."""
-    page = open_page(browser, live_url(serve(LIVE_SAMPLES_PAGE)))
+    page = open_page(browser, live_url(serve(LIVE_SAMPLE_PAGE)))
     addition = """
 <lf-sample id="arriving-practice" label="New practice">
   <template id="arriving-source" data-sample>
@@ -1488,7 +1499,7 @@ def test_a_live_revision_mounts_and_resets_its_new_sample(browser, serve):
   </template>
 </lf-sample>
 """
-    revised = LIVE_SAMPLES_PAGE.replace("</main>", addition + "</main>")
+    revised = LIVE_SAMPLE_PAGE.replace("</main>", addition + "</main>")
     with page.expect_request("**/api/samples") as allocation:
         _publish(serve.page_dir, 2, revised, "Add another practice page.")
     sample = page.locator("#arriving-practice")
@@ -2446,7 +2457,7 @@ def test_sample_browser_boundary_contains_focus_scroll_and_parent_access(
 
 def test_live_samples_retire_before_navigation_and_coalesce_reset(browser, serve):
     """A held replacement navigation cannot keep a released child alive."""
-    page = open_page(browser, serve(LIVE_SAMPLES_PAGE))
+    page = open_page(browser, serve(LIVE_SAMPLE_PAGE))
     page.evaluate("""async () => {
         const {mountSample} = await window.__lfRuntimeImport('/runtime/sample.js');
         window.practiceFrame = document.createElement('iframe');
@@ -2512,7 +2523,7 @@ def test_live_samples_retire_before_navigation_and_coalesce_reset(browser, serve
 
 def test_live_samples_release_pending_allocations_and_can_reconnect(browser, serve):
     """Destroy releases every startup phase; a detached widget can reconnect."""
-    page = open_page(browser, serve(LIVE_SAMPLES_PAGE))
+    page = open_page(browser, serve(LIVE_SAMPLE_PAGE))
     sample = page.locator("#first-practice")
     reset = sample.get_by_role("button", name="Reset", exact=True)
     expect(reset).to_be_enabled()
@@ -2614,7 +2625,7 @@ def test_live_samples_release_pending_allocations_and_can_reconnect(browser, ser
 
 def test_slow_sample_state_does_not_hold_up_other_child_loads(browser, serve):
     """A child waiting for state releases its load slot for the next sample."""
-    page = open_page(browser, serve(LIVE_SAMPLES_PAGE))
+    page = open_page(browser, serve(LIVE_SAMPLE_PAGE))
     held = []
     page.route(
         re.compile(r"/api/samples/[^/]+/api/state$"),
@@ -2637,7 +2648,7 @@ def test_slow_sample_state_does_not_hold_up_other_child_loads(browser, serve):
 
 def test_live_samples_preserve_optimistic_refusal_and_child_escape(browser, serve):
     """Delivery rollback and nested Escape remain the ordinary child's behavior."""
-    page = open_page(browser, serve(LIVE_SAMPLES_PAGE))
+    page = open_page(browser, serve(LIVE_SAMPLE_PAGE))
     sample = page.locator("#first-practice")
     expect(sample.get_by_role("button", name="Reset", exact=True)).to_be_enabled()
     child = sample.locator("iframe").element_handle().content_frame()

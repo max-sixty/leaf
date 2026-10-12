@@ -240,10 +240,16 @@ test("declared representation and a workflow carrier suppress only duplicate rea
     marker("other-work", "activity", { workflowFace: KINDS.activity }),
     marker("thread", "comment"),
   ];
+  const reviewReceipt = Object.freeze({ id: "review" });
   const entry = inventory({
     items,
     workflowReceipt,
-    offers: [offer("widget", [control("apply")])],
+    offers: [
+      offer("widget", [
+        control("apply"),
+        control("review", { workflowReceipt: reviewReceipt }),
+      ]),
+    ],
   });
   assert.deepEqual(
     entry.items.map((item) => item.id),
@@ -255,8 +261,16 @@ test("declared representation and a workflow carrier suppress only duplicate rea
     receipt: workflowReceipt,
   });
   assert.deepEqual(
-    map([entry])[0].actions.map((action) => action.record?.key ?? action.item.id),
-    ["thread", "other-work", "apply"],
+    map([entry])[0].actions.map((action) => [
+      action.record?.key ?? action.item.id,
+      action.receipt,
+    ]),
+    [
+      ["thread", undefined],
+      ["other-work", undefined],
+      ["apply", workflowReceipt],
+      ["review", reviewReceipt],
+    ],
   );
   const withoutControl = inventory({ items, workflowReceipt });
   assert.equal(withoutControl.workflowCarrier, null);

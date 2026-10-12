@@ -126,8 +126,9 @@ A behavior module follows these rules:
   `offered` so its press marker reads that type. Bind values and handlers normally, and use
   `repeat(items, identity, template)` to retain keyed controls, subject to the
   container and native-state rules in "Template rendering".
-  `said(true)`, `said(false)`, or `said("echo")` marks a template element's words with
-  the same passage and print meaning as `relabel`; Lit owns the element's content.
+  A template label writes the markers `relabel` writes as static attributes:
+  `data-lf-gen="1"`, plus `data-lf-said` where the label is the page speaking or
+  `data-lf-echo` where it copies words the page says elsewhere.
 - Read UI based on element geometry synchronously from `PRESENTATION` for its
   first paint, then through normal layout signals. Reconcile UI derived from
   authored structure at `PAGE_INTERFACE`, at startup and each in-place revision
@@ -153,8 +154,9 @@ A behavior module follows these rules:
   whose commands the runtime owns. Check `quoted()` before wiring input and
   controller command availability before a semantic widget’s optimistic gesture.
   In templates, `commandsOn(title, rows, options)` attaches that same command scope
-  to its element. It reads the current declaration on each render and withdraws its
-  attachment when the directive leaves; projected commands on the element remain.
+  to its element. It attaches once per connection, takes the current declaration on
+  each render, and withdraws its attachment when the directive leaves; projected
+  commands on the element remain.
 
 Each helper's header under `runtime/` explains its contract.
 

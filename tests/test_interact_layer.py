@@ -1851,8 +1851,7 @@ def test_layer_style_sources_consume_the_runtime_layout_names():
     """CSS and runtime agree on shared property and attribute names. Read editable
     sources; the stylesheet freshness gate holds their generated delivery copies."""
     runtime = schema_model.ASSETS / "runtime"
-    layout = (runtime / "chrome-layout.js").read_text()
-    drawers = (runtime / "drawers.js").read_text()
+    edges = (runtime / "drawn-edge.js").read_text()
     page_paint = (runtime / "page-paint.js").read_text()
     styles = schema_model.ASSETS / "styles"
     sheet = (styles / "theme.css").read_text() + (styles / "chrome.css").read_text()
@@ -1863,10 +1862,8 @@ def test_layer_style_sources_consume_the_runtime_layout_names():
     surfaces = (runtime / "auxiliary-surfaces.js").read_text()
     for spelling in (
         "--lf-" + constant(r'getPropertyValue\("--lf-([a-z-]+)"\)', surfaces) + ":",
-        "var(" + constant(r'^const THREAD_PANEL_PROP = "([^"]+)";', layout) + ")",
-        "var("
-        + constant(r'^export const DRAWER_SLOT_PROP = "([^"]+)";', drawers)
-        + ")",
+        "var(" + constant(r'^const THREAD_PANEL_PROP = "([^"]+)";', edges) + ")",
+        "var(" + constant(r'^const DRAWER_SLOT_PROP = "([^"]+)";', edges) + ")",
         "[" + constant(r'^  question: "([^"]+)",', page_paint) + "]",
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"

@@ -42,7 +42,6 @@ import {
 import { createEngagement } from "./runtime/composing/engagement.js";
 import { createCompositionInputs } from "./runtime/composing/input.js";
 import {
-  createSelectionComposer,
   composerOpen,
   composerQuote,
   fabBar,
@@ -250,13 +249,12 @@ let pageMapDialog;
 let questions;
 let panelKeys;
 let pageComment;
-let selectionComposer;
 let responseSurface;
 let drawing;
 let regionCapture;
 // A draft's drawing put in place, null taking it off, and the page's ink repainted.
 const replaceDrawing = (anchor, drawn) => {
-  selectionComposer.setDraftDrawing(anchor, drawn);
+  responseSurface.setDraftDrawing(anchor, drawn);
   drawingPaint.paint();
 };
 // A composer's own controls for the drawing its draft holds, which the drawing
@@ -343,7 +341,7 @@ const designMode = createDesignMode({
   syncGeneral: () => pageComment.sync(),
   composer: {
     showFab: (...args) => responseSurface.showFab(...args),
-    openComposer: (...args) => selectionComposer.openComposer(...args),
+    openComposer: (...args) => responseSurface.openComposer(...args),
   },
   closePreview: (...args) => app.overlay?.closePreview(...args),
   marginTargetAt: (...args) => app.overlay?.marginTargetAt(...args),
@@ -610,30 +608,6 @@ pageComment = createPageComment({
   showThread: landing.showThread,
   threadsToggle: toggleBtn,
 });
-selectionComposer = createSelectionComposer({
-  panelIsOpen,
-  setReact: (...args) => reactions.setReact(...args),
-  reactionTokens,
-  designModeActive: designMode.active,
-  openPageThread: app.threadDestinations.openPageThread,
-  threadTransitionOrigin: app.overlay?.threadTransitionOrigin,
-  anchorTravelAt: (...args) => responseSurface.anchorTravelAt(...args),
-  bringForward: (...args) => responseSurface.bringForward(...args),
-  fabAnchorAt: (...args) => responseSurface.fabAnchorAt(...args),
-  fabPointAt: (...args) => responseSurface.fabPointAt(...args),
-  fabFrameAt: () => responseSurface.fabFrameAt(),
-  fabPositioned: (...args) => responseSurface.fabPositioned(...args),
-  beginFabFocus: (...args) => responseSurface.beginFabFocus(...args),
-  endFabFocus: (...args) => responseSurface.endFabFocus(...args),
-  landFabFocus: (...args) => responseSurface.landFabFocus(...args),
-  showFab: (...args) => responseSurface.showFab(...args),
-  letGoOfFab: () => responseSurface.letGoOfFab(),
-  createComment: (command) => app.threadActions.create(command)?.delivery ?? null,
-  landSent: landing.landSent,
-  refreshThread: app.refreshThread,
-  wireInput: inputs.wireInput,
-  drawingEdits,
-});
 const passageSelection = createPassageSelection({
   restore: anchorTravel.restoreSelection,
 });
@@ -648,19 +622,10 @@ responseSurface = createResponseSurface({
   replyThreadAtStanding: () => app.threadDestinations.replyThreadAtStanding(),
   threadTarget: (id) => app.threadDestinations.threadTarget(id),
   standingTarget,
-  composerHolds: selectionComposer.composerHolds,
-  responseOptionsAreOpen: selectionComposer.responseOptionsAreOpen,
   markAt: anchorPaint?.markAt,
   scrollToElement: anchorTravel.scrollToElement,
   scrollToRange: anchorTravel.scrollToRange,
   visualActionAnchor: anchorControls.visualActionAnchor,
-  hideComposer: selectionComposer.hideComposer,
-  openComposer: selectionComposer.openComposer,
-  carryComposerToReply: selectionComposer.carryComposerToReply,
-  resetResponseOptions: selectionComposer.resetResponseOptions,
-  responseOptionsAvailable: selectionComposer.responseOptionsAvailable,
-  setResponseOptions: selectionComposer.setResponseOptions,
-  syncResponseOptions: selectionComposer.syncResponseOptions,
   designModeActive: designMode.active,
   designTarget: designMode.target,
   openOnDesign: designMode.open,
@@ -680,6 +645,11 @@ responseSurface = createResponseSurface({
   revealResponseHome: overlaySelected
     ? null
     : () => threadPanelController.setPanel(true),
+  threadTransitionOrigin: app.overlay?.threadTransitionOrigin,
+  createComment: (command) => app.threadActions.create(command)?.delivery ?? null,
+  landSent: landing.landSent,
+  wireInput: inputs.wireInput,
+  drawingEdits,
 });
 reactions = createReactionController({
   marginEntryChoices: app.overlay?.marginEntryChoices,
@@ -688,8 +658,8 @@ reactions = createReactionController({
   openMarginEntryOptions: app.overlay?.openMarginEntryOptions,
   unfoldedMarginEntries: app.overlay?.unfoldedMarginEntries,
   designModeActive: designMode.active,
-  hideComposer: selectionComposer.hideComposer,
-  syncResponseOptions: selectionComposer.syncResponseOptions,
+  hideComposer: responseSurface.hideComposer,
+  syncResponseOptions: responseSurface.syncResponseOptions,
   fabAnchorAt: responseSurface.fabAnchorAt,
   fabReturnPlaces: responseSurface.fabReturnPlaces,
   fabTargetAt: responseSurface.fabTargetAt,
@@ -715,12 +685,12 @@ drawing = createDrawingController({
   pageGeometry: { refreshAim: pageGeometry.refreshAim },
   pointer: pointerAt,
   visibleTargets: targets.visibleTargets,
-  anchoredDrawing: selectionComposer.draftDrawing,
-  heldDrawings: selectionComposer.heldDrawings,
-  watchHeldDrawings: selectionComposer.watchHeldDrawings,
-  draftKey: selectionComposer.draftKey,
+  anchoredDrawing: responseSurface.draftDrawing,
+  heldDrawings: responseSurface.heldDrawings,
+  watchHeldDrawings: responseSurface.watchHeldDrawings,
+  draftKey: responseSurface.draftKey,
   openAnchoredDrawing: (anchor, drawing) =>
-    selectionComposer.openComposer(anchor, "", { carry: true, drawing }),
+    responseSurface.openComposer(anchor, "", { carry: true, drawing }),
   replaceDrawing,
   setDesignMode: designMode.setActive,
   closeTargetPicker: targets.closeTargetPicker,
@@ -736,7 +706,7 @@ regionCapture = createRegionCapture({
   closeReactionMode: () => reactions.setReact(false),
   parent: chromeForeground,
   visibleTargets: targets.visibleTargets,
-  openComposerWithMedia: selectionComposer.openComposerWithMedia,
+  openComposerWithMedia: responseSurface.openComposerWithMedia,
 });
 
 layout = createChromeLayout({
@@ -750,7 +720,6 @@ layout = createChromeLayout({
     bottomStatusEl,
   },
   scheduleThreadPreviewPosition: app.overlay?.scheduleThreadPreviewPosition,
-  restateDrawerEdge: () => drawers.drawersEdge.state(),
   syncAuxiliarySurfaces: auxiliarySurfaces.sync,
   syncReactLayout: reactions.syncReactLayout,
   refreshFab: responseSurface.refreshFab,
@@ -800,8 +769,6 @@ if (document.documentElement.lfSample) {
 
 drawers = createDrawers({
   doors: { queue: [queueCounts] },
-  sideEdge: layout.commentsEdge,
-  landEdge: layout.landEdge,
   auxiliarySurfaces,
   closePreview: app.overlay?.closePreview,
   leavesOffered,
@@ -913,7 +880,6 @@ if (!offlineInteractive) {
   narrowing.mount();
   await panelKeys.mount();
   pageComment.mount(chromeForeground);
-  selectionComposer.mount();
   responseSurface.mount();
   holdToRead();
   reactions.mount();
@@ -979,10 +945,10 @@ const replayReady = passiveSample
         toggleBtn,
         panelIsOpen,
         setPanel: threadPanelController.setPanel,
-        detachComposer: selectionComposer.detachComposer,
+        detachComposer: responseSurface.detachComposer,
         fabInput,
         fabFrameAt: () => responseSurface.fabFrameAt(),
-        openComposer: selectionComposer.openComposer,
+        openComposer: responseSurface.openComposer,
         closePreview: app.overlay?.closePreview,
         openThread: app.threadDestinations.openPageThread,
         threadTransitionOrigin: app.overlay?.threadTransitionOrigin,
@@ -1021,8 +987,6 @@ if (!offlineInteractive) {
 
 if (!passiveSample && !offlineInteractive) {
   restoreUserView({
-    commentsEdge: layout.commentsEdge,
-    drawersEdge: drawers.drawersEdge,
     restoreAuxiliarySurface: auxiliarySurfaces.restore,
     setDesignMode: designMode.setActive,
   });
@@ -1039,7 +1003,7 @@ const landFragment = version.aimArrival();
 const { landArrival, savedView } = offlineInteractive
   ? { landArrival: () => {}, savedView: null }
   : version.installArrival();
-const savedComposer = offlineInteractive ? null : selectionComposer.pendingComposer();
+const savedComposer = offlineInteractive ? null : responseSurface.pendingComposer();
 
 async function presentPage() {
   if (pagePresented()) return;
@@ -1050,7 +1014,7 @@ async function presentPage() {
     const draftOpened =
       !offlineInteractive &&
       recoverComposer() &&
-      selectionComposer.openDraft(savedComposer);
+      responseSurface.openDraft(savedComposer);
     await app.presentThread();
     // Anchoring changes where thread chrome is painted. That final paint is part
     // of initial presentation too: opening interaction before it commits can expose a

@@ -2710,43 +2710,71 @@ def test_a_sidebar_pages_track_is_its_aside_in_the_order_it_is_written(browser, 
 
 def test_a_sidebar_pages_track_stays_in_view_only_beside_the_body(browser, serve):
     """Beside the body, a track taller than the window stays in view below the banner
-    as the body scrolls, and scrolls what it holds so its end is reachable. Stacked,
-    whether the window is narrow or the body's content needs the page's width, it
-    scrolls with the page rather than standing over the body."""
+    as the body scrolls, scrolls what it holds so its end is reachable, and is the
+    reading region its words scroll in. A footer stays clear of it at the page's end.
+    Stacked, whether the window is narrow, the body's content needs the page's width,
+    or the track's own content needs more than its share, it scrolls with the page
+    rather than standing over the body, however the window reached that width; and a
+    second track beside it is no body to stand beside."""
     body = "<div id='body'>" + "<p>Body paragraph. " * 600 + "</p></div>"
-    track = "<aside id='track'>" + "<p>Follow-up to check.</p>" * 60 + "</aside>"
+    track = (
+        "<aside id='track'><p id='follow-up'>Follow-up to check.</p>"
+        + "<p>Follow-up to check.</p>" * 60
+    )
     wide = "<div style='min-width: 1300px'>A block 1300px wide.</div>"
-    read = """() => {
-      const track = document.getElementById('track').getBoundingClientRect();
-      return { top: track.top, bottom: track.bottom,
+    footer = "<footer id='foot'><p>Reviewed by the platform team.</p></footer>"
+    read = """async () => {
+      const box = (id) => document.getElementById(id)?.getBoundingClientRect();
+      const { scrollerFor } = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+      return { top: box('track').top, bottom: box('track').bottom,
+               foot: box('foot')?.top ?? Infinity, innerHeight,
                banner: document.querySelector('.lf-banner').getBoundingClientRect().bottom,
-               innerHeight };
+               scroller: scrollerFor(document.getElementById('follow-up'))?.id ?? null };
     }"""
-    for content, width, beside in (
-        ("", 900, True),
-        ("", 390, False),
-        (wide, 1440, False),
-    ):
+    cases = (
+        # (what follows the track's opening, the body's lead, after the body, widths, beside)
+        ("", "", footer, (900,), True),
+        ("", "", "", (390,), False),
+        ("", wide, "", (1440,), False),
+        (
+            "<div style='min-width: 650px'>A block 650px wide.</div>",
+            "",
+            "",
+            (1440, 900),
+            False,
+        ),
+        ("</aside><aside id='second'><p>Owners.</p>", "", "", (900,), False),
+    )
+    for opening, lead, after, widths, beside in cases:
         source = leaf_page(
             "a sidebar page",
             "<header><h1>Review</h1></header>"
-            + track
-            + body.replace("<p>", content + "<p>", 1),
+            + track.replace("<p ", opening + "<p ", 1)
+            + "</aside>"
+            + body.replace("<p>", lead + "<p>", 1)
+            + after,
             layout="sidebar",
         )
         page = open_page(browser, serve(source))
-        resized(page, width, 600)
+        for width in widths:
+            resized(page, width, 600)
+        marked = expect(page.locator("#track"))
         if beside:
-            expect(page.locator("#track")).to_have_attribute("data-lf-beside", "")
+            marked.to_have_attribute("data-lf-beside", "")
         else:
-            expect(page.locator("#track")).not_to_have_attribute("data-lf-beside", "")
+            marked.not_to_have_attribute("data-lf-beside", "")
         page.evaluate("scrollTo(0, 1500)")
         at = page.evaluate(read)
         if beside:
             assert at["banner"] <= at["top"] <= at["banner"] + 40, at
             assert at["bottom"] <= at["innerHeight"], at
+            assert at["scroller"] == "track", at
+            page.evaluate("scrollTo(0, document.documentElement.scrollHeight)")
+            at = page.evaluate(read)
+            assert at["bottom"] <= at["foot"], at
         else:
-            assert at["top"] < 0, (width, at)
+            assert at["top"] < 0, (widths, at)
+            assert at["scroller"] != "track", (widths, at)
 
 
 @pytest.mark.parametrize("rail", [True, False])

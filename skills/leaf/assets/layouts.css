@@ -121,11 +121,13 @@
     /* It scrolls what it holds, so it starts `--lf-top` and its landing band again for
      * that (theme.css) and sticks at the value its column met. What it holds is not a
      * stuck header's controls, so a focused link keeps the focus ring's room
-     * (`--lf-head-inset`, shadow.css). */
+     * (`--lf-head-inset`, shadow.css). It is a reading region of the Layout's own
+     * (`--lf-reading-region`, reading-regions.js). */
     main.layout-column[data-lf-margin~="sidebar"] > aside.sidebar:nth-child(1 of aside.sidebar) {
       float: left; clear: left; position: sticky;
       top: calc(var(--lf-top-outer) + var(--sp-4)); --lf-top: 0px;
       --lf-top-covered: 0px; --lf-landing-room: 0px; --lf-head-inset: initial;
+      --lf-reading-region: layout;
       width: calc(var(--sidebar) - var(--sp-4));
       max-height: calc(var(--lf-view-height) - 2 * var(--sp-4));
       overflow-y: auto;
@@ -465,9 +467,13 @@
    * is depends on the window's width and on what the body's content needs, which no
    * query can read, so the margin reading says so on the track (`data-lf-beside`,
    * prepaint.js `residency`). Like a column's sidebar standing in the margin, it starts
-   * the slot and landing band again for what it holds and keeps a focused control's
-   * ring room (`--lf-head-inset`), and anchors no reading (`overflow-anchor`). It sticks
-   * inside `main`, so a footer stands over it as the page's end scrolls up. */
+   * the slot and landing band again for what it holds, keeps a focused control's ring
+   * room (`--lf-head-inset`), anchors no reading (`overflow-anchor`), and is a reading
+   * region of the Layout's own (`--lf-reading-region`, reading-regions.js). A scroller's
+   * automatic minimum width is zero, which would let it stay beside a body it no longer
+   * fits beside once it sticks, so it keeps its content's minimum. It sticks inside
+   * `main`, so it keeps clear of a footer by the room the reading measures below its
+   * line (`--lf-track-end`). */
   @media screen {
     main.layout-sidebar { --lf-top-outer: var(--lf-top); }
     main.layout-sidebar > aside[data-lf-beside] {
@@ -475,11 +481,11 @@
       top: calc(var(--lf-top-outer) + var(--sp-4));
       --lf-top: 0px; --lf-top-covered: 0px; --lf-landing-room: 0px;
       --lf-head-inset: initial;
+      --lf-reading-region: layout;
+      min-width: min-content;
       max-height: calc(var(--lf-view-height) - 2 * var(--sp-4));
       overflow-y: auto;
-    }
-    main.layout-sidebar:has(> aside[data-lf-beside]) > footer {
-      position: relative; z-index: 1; background: var(--paper);
+      margin-block-end: var(--lf-track-end, 0px);
     }
   }
   /* Tiles: equal cells, as many to a row as fit at 9rem each, and every cell in a row

@@ -113,30 +113,39 @@ export function registerReadingRegion({ id, host, body }) {
   };
 }
 
-// The box a page's Layout makes scroll, which no widget owns: the workspace's body,
-// which scrolls as a whole where a pane in it does not bound itself (layouts.css). The
-// stylesheet marks it (`--lf-reading-region: layout`) and it is registered like any
-// other region, so a flowing pane inside it is carried by it rather than by the page.
-// Chrome layout asks on every pass, since a revision can replace `main`'s children.
-let layoutRegion = null;
+// The boxes a page's Layout makes scroll, which no widget owns: the workspace's body,
+// which scrolls as a whole where a pane in it does not bound itself, and a sidebar
+// while it sticks beside what it accompanies (layouts.css). The stylesheet marks each
+// child of `main` it makes one (`--lf-reading-region: layout`), and each is registered
+// like any other region, so what it holds is carried by it rather than by the page. Its
+// id is its element's where it has one, and its place among the marked boxes otherwise.
+// Chrome layout asks on every pass, since a revision can replace `main`'s children and
+// a resize can change which of them scroll.
+const layoutRegions = new Map();
 export function syncLayoutRegion() {
   const main = pageDocument();
-  const body = main
-    ? [...main.children].find(
+  const bodies = main
+    ? [...main.children].filter(
         (child) =>
           child.checkVisibility() &&
           getComputedStyle(child).getPropertyValue("--lf-reading-region").trim() ===
             "layout",
       )
-    : undefined;
-  if (body === layoutRegion?.body) return;
-  layoutRegion?.stop();
-  layoutRegion = body
-    ? {
-        body,
-        stop: registerReadingRegion({ id: "lf-region:layout", host: body, body }),
-      }
-    : null;
+    : [];
+  const ids = new Map(
+    bodies.map((body, at) => [body, `lf-region:layout:${body.id || at}`]),
+  );
+  for (const [body, region] of layoutRegions)
+    if (ids.get(body) !== region.id) {
+      region.stop();
+      layoutRegions.delete(body);
+    }
+  for (const [body, id] of ids)
+    if (!layoutRegions.has(body))
+      layoutRegions.set(body, {
+        id,
+        stop: registerReadingRegion({ id, host: body, body }),
+      });
 }
 
 // Replace a region's contents with another subject's (see the header). A region not

@@ -628,34 +628,63 @@
     return { changed, holders };
   };
   // Whether each track (`--lf-resident: track`, a sidebar page's `aside`, layouts.css)
-  // stands beside another of `main`'s boxes, which it says as `data-lf-beside` so the
-  // Layout sticks it only there. Flex wrapping places it, from the window's width and
-  // from the minimum the body's content declares, and no query reads the second. It is
-  // read across rather than down, since sticking moves the track down alone: a box on
-  // its line stands clear of it to one side, and one on another line spans it, as the
-  // header, the footer and a stacked body do.
+  // stands beside the body, which it says as `data-lf-beside` so the Layout sticks it
+  // only there. Flex wrapping places it, from the window's width and from the minimum
+  // the body's content declares, and no query reads the second. It is read across rather
+  // than down, since sticking moves the track down alone: a box of the page's own on its
+  // line stands clear of it to one side, and one on another line spans it, as the
+  // header, the footer and a stacked body do. Another track beside it is no body to
+  // stick over, so it does not count. A sticking track may move down as far as `main`
+  // ends, so where boxes follow its line, such as a footer, it says how far they reach
+  // past that line (`--lf-track-end`), and the Layout keeps it that far above `main`'s
+  // end. Moving the track never moves those boxes against `main`'s end, so the reading
+  // holds once written. Every box is read before any track is written.
   const BESIDE = "data-lf-beside";
+  const TRACK_END = "--lf-track-end";
   const stand = () => {
     const main = document.querySelector("body > main");
     if (!main) return false;
-    const boxes = [...main.children].filter((child) => child.checkVisibility());
-    let changed = false;
-    for (const track of main.children) {
-      if (getComputedStyle(track).getPropertyValue("--lf-resident").trim() !== "track")
-        continue;
+    const tracks = [];
+    const own = [];
+    for (const child of main.children) {
+      const track =
+        getComputedStyle(child).getPropertyValue("--lf-resident").trim() === "track";
+      if (track) tracks.push(child);
+      else if (child.checkVisibility()) own.push(child.getBoundingClientRect());
+    }
+    if (!tracks.length) return false;
+    const frame = getComputedStyle(main);
+    const end =
+      main.getBoundingClientRect().bottom -
+      parseFloat(frame.paddingBottom) -
+      parseFloat(frame.borderBottomWidth);
+    const readings = tracks.map((track) => {
       const { left, right } = track.getBoundingClientRect();
-      const beside =
-        boxes.includes(track) &&
-        boxes.some((box) => {
-          if (box === track) return false;
-          const other = box.getBoundingClientRect();
-          return (
-            other.width > 0 && (other.right <= left + 0.5 || other.left >= right - 0.5)
-          );
-        });
-      if (track.hasAttribute(BESIDE) === beside) continue;
+      const beside = track.checkVisibility()
+        ? own.filter(
+            (box) =>
+              box.width > 0 && (box.right <= left + 0.5 || box.left >= right - 0.5),
+          )
+        : [];
+      if (!beside.length) return [track, false, ""];
+      const line = Math.max(...beside.map((box) => box.bottom));
+      const after = own.map((box) => box.top).filter((top) => top >= line - 0.5);
+      const reach = after.length
+        ? `${Math.round(end - Math.min(...after) + (parseFloat(frame.rowGap) || 0))}px`
+        : "";
+      return [track, true, reach];
+    });
+    let changed = false;
+    for (const [track, beside, reach] of readings) {
+      if (
+        track.hasAttribute(BESIDE) === beside &&
+        track.style.getPropertyValue(TRACK_END) === reach
+      )
+        continue;
       if (!sourceShells.has(track)) sourceShells.set(track, track.cloneNode(false));
       track.toggleAttribute(BESIDE, beside);
+      if (reach) setRuntimeRootStyle(track, TRACK_END, reach);
+      else removeRuntimeRootStyle(track, TRACK_END);
       changed = true;
     }
     return changed;

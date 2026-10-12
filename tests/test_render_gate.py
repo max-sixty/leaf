@@ -1841,34 +1841,21 @@ def test_page_navigation_reports_a_recurring_resize_notice(browser, serve):
     assert errors == [RECURRING_RESIZE_NOTICE]
 
 
-def test_the_render_gate_rejects_an_upgrade_that_defines_no_element(
-    browser, serve, tmp_path, monkeypatch
-):
-    monkeypatch.chdir(tmp_path)
-    add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
-    module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
-    module.write_text("// Valid JavaScript, but no custom-element definition.\n")
-
-    failures = render_gate_model.render_version(
-        browser, serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    ).failures
-
-    assert any(
-        "upgraded widgets did not define their elements: <lf-callout>" in failure
-        for failure in failures
-    )
-
-
-def test_the_render_gate_requires_a_declared_threads_host(
+def test_the_render_gate_requires_a_declared_threads_host_and_a_defined_element(
     browser, serve, tmp_path, monkeypatch
 ):
     """A thread declaration whose module omits its host fails visibly, beside the same
     declaration whose module places it and passes. Both are project widgets; only the
-    second's starter module leaves out the threadBox placement."""
+    second's starter module leaves out the threadBox placement. A third declares an
+    upgrade whose module is valid JavaScript and defines no element, which the gate
+    names."""
     monkeypatch.chdir(tmp_path)
     package = tmp_path / ".leaf"
-    for tag in ("lf-callout", "lf-unseated"):
+    for tag in ("lf-callout", "lf-unseated", "lf-undefined"):
         add_test_widget(package, tag, upgrade=True)
+    (package / "widgets" / "lf-undefined.js").write_text(
+        "// Valid JavaScript, but no custom-element definition.\n"
+    )
     registry_path = package / "registry.json"
     registry = json.loads(registry_path.read_text())
     registry["lf-callout"]["x-thread-seat"] = {"when": {"id": ["custom-note"]}}
@@ -1889,7 +1876,9 @@ def test_the_render_gate_requires_a_declared_threads_host(
     page = CUSTOM_WIDGET_PAGE.replace(
         "</main>",
         '<lf-unseated id="unseated-note"><strong>Heads up</strong> No seat.'
-        "</lf-unseated>\n</main>",
+        "</lf-unseated>\n"
+        '<lf-undefined id="undefined-note"><strong>Heads up</strong> Never defined.'
+        "</lf-undefined>\n</main>",
     )
 
     failures = render_gate_model.render_version(
@@ -1901,6 +1890,10 @@ def test_the_render_gate_requires_a_declared_threads_host(
         "matching hosts; its module must place exactly one threadBox"
     ) in failures
     assert not [f for f in failures if "custom-note" in f], failures
+    assert any(
+        "upgraded widgets did not define their elements: <lf-undefined>" in failure
+        for failure in failures
+    ), failures
 
 
 def test_the_render_gate_requires_a_visual_parts_provider(

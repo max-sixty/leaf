@@ -59,6 +59,7 @@ from leaf import activity as activity_model
 from leaf import cli as cli_model
 from leaf import codex_adapter as codex_adapter_model
 from leaf import data as data_model
+from leaf import delivery as delivery_model
 from leaf import detached as detached_model
 from leaf import document_reading as document_reading_model
 from leaf import event_log as event_model
@@ -4297,6 +4298,80 @@ def test_a_server_refuses_a_page_another_leaf_vendored_until_it_is_re_vendored(
     finally:
         stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
         assert stopped.exit_code == 0, stopped.output
+
+
+def test_a_revision_saved_before_a_re_vendor_neither_opens_nor_takes_input(page_dir):
+    """A re-vendor across a protocol bump leaves the revisions the page saved before
+    it standing, each with the runtime it was saved with. Served, that runtime would
+    talk to this Leaf's server across the bump, so its address refuses, as does an
+    event made against it, a widget to-do opened on it as the newest included, while
+    the revision saved since serves and admits. An event made against no document,
+    such as a pickup, is judged by the page's layer, so it goes through before the
+    source saves again."""
+    board = PAGE.replace(
+        "<h2>Plan</h2>",
+        '<h2>Plan</h2>\n<lf-board id="rollout"><lf-column id="rollout-now" '
+        'label="Now"><lf-card id="rollout-card">Ship it</lf-card></lf-column>'
+        "</lf-board>",
+    )
+    (page_dir / "index.html").write_text(board)
+    foreign = vendored_at_another_protocol(page_dir)
+    revisioning_model.activate_source(page_dir)
+    waiting = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Still there?"},
+    )
+    reinitialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    assert reinitialized.exit_code == 0, reinitialized.output
+    with service_model.PageTransaction(page_dir) as page:
+        assert delivery_model.record_pickup(
+            page, [waiting], session="session", turn="turn"
+        )
+    todo = {
+        "kind": "todo",
+        "author": "agent",
+        "owner": "agent",
+        "agent": "Claude",
+        "session": "session",
+        "subject": {"kind": "widget", "id": "rollout-card"},
+        "title": "Check the rollout",
+    }
+    with pytest.raises(event_model.EventRefused, match=f"page protocol {foreign}"):
+        append_command(page_dir, todo)
+    (page_dir / "index.html").write_text(board.replace("Ship it", "Ship it now"))
+    revisioning_model.activate_source(page_dir)
+    old, new = (
+        next((page_dir / "revisions").glob(f"r{n}-*.html")).name for n in (1, 2)
+    )
+
+    temporary = hosting_model.TemporaryPageServer(page_dir, token=TOKEN).start()
+    try:
+        status, body = fetch(f"{temporary.origin}/revisions/{old}")
+        assert status == 409, body
+        assert f"Revision 1 was saved at page protocol {foreign}" in body.decode()
+        assert fetch(f"{temporary.origin}/revisions/{new}")[0] == 200
+        assert fetch(f"{temporary.origin}/")[0] == 200
+
+        def commented(revision):
+            event = {
+                "kind": "comment",
+                "revision": revision,
+                "text": "Which plan?",
+                "anchor": {"section": "plan"},
+            }
+            return fetch(
+                f"{temporary.origin}/api/event", data=json.dumps(event).encode()
+            )
+
+        before = event_model.read_events(page_dir)
+        status, body = commented(1)
+        assert status == 400, body
+        assert f"page protocol {foreign}" in body.decode()
+        assert event_model.read_events(page_dir) == before
+        assert commented(2)[0] == 200
+        assert append_command(page_dir, todo)["revision"] == 2
+    finally:
+        temporary.close()
 
 
 def test_an_unidentified_old_service_is_not_mislabeled_as_the_calling_leaf(page_dir):

@@ -38,7 +38,7 @@ from .files import (
     version_revisions,
 )
 from .interaction_log import append_interactions, client_records
-from .layer import incompatible_layer, running_leaf, same_leaf
+from .layer import incompatible_layer, incompatible_revision, running_leaf, same_leaf
 from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
 from .passages import SourceReading
@@ -864,7 +864,10 @@ class PageEndpoint:
     def _serve_document(
         self, artifact: RevisionArtifact, revision: int, version: int | None
     ) -> Response:
-        """Serve one immutable document under the current delivery boundary."""
+        """Serve one immutable document under the current delivery boundary, unless
+        it was saved at another protocol (`incompatible_revision`)."""
+        if refusal := incompatible_revision(revision, artifact.registry):
+            return self._json({"error": refusal}, 409)
         self.response_layer = artifact.registry["$layer"]["generation"]
         projected = compose_document(
             artifact.html.decode("utf-8"),

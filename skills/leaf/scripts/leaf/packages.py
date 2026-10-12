@@ -8,11 +8,7 @@ import secrets
 import shutil
 import sys
 import tempfile
-import tomllib
 from pathlib import Path
-
-from packaging.requirements import InvalidRequirement, Requirement
-from packaging.specifiers import InvalidSpecifier, SpecifierSet
 
 from .files import read_json, replace_files
 from .layer import (
@@ -237,14 +233,6 @@ INLINE_METADATA = re.compile(
 )
 
 
-def floor_error(specifier: SpecifierSet) -> str | None:
-    """Why a version constraint is not a floor with no cap, or None."""
-    operators = {spec.operator for spec in specifier}
-    if operators != {">="}:
-        return "must state a floor (>=) and nothing else"
-    return None
-
-
 def check_package_scripts(package: Path) -> None:
     """Refuse a script `package run` could not run apart from the caller's project.
 
@@ -254,10 +242,9 @@ def check_package_scripts(package: Path) -> None:
     producer would depend on where the agent ran it. `--no-project` does not
     close that, since uv still finds the caller's `.venv` for a file with no block,
     so the block is the one guarantee: required here, where `package check` reports
-    it and `package install` refuses it, and for bundled packages by the suite. Its
-    constraints follow the project's dependency policy, a floor and no cap
-    (AGENTS.md, "The install runs this tree"). A
-    subdirectory of `scripts/` holds helpers and is not run.
+    it and `package install` refuses it, and for bundled packages by the suite. What
+    the block declares is uv's to read: a malformed block fails `package run` with
+    uv's own error. A subdirectory of `scripts/` holds helpers and is not run.
     """
     scripts = package / SCRIPTS_DIR
     if not (scripts.exists() or scripts.is_symlink()):
@@ -267,52 +254,15 @@ def check_package_scripts(package: Path) -> None:
     for path in sorted(scripts.glob("*.py")):
         if not path.is_file():
             raise Refused(f"{path} must be a file")
-        script_requirements(path)
-
-
-def script_requirements(path: Path) -> list[Requirement]:
-    """The dependencies one package script's inline metadata declares, held to the
-    policy `check_package_scripts` states; a script that breaks it is refused."""
-    blocks = [
-        match
-        for match in INLINE_METADATA.finditer(path.read_text(encoding="utf-8"))
-        if match["type"] == "script"
-    ]
-    if len(blocks) != 1:
-        raise Refused(
-            f"{path} needs one inline `# /// script` metadata block (PEP 723) "
-            "declaring its dependencies, so `leaf package run` runs it in an "
-            "environment of its own"
-        )
-    content = "".join(
-        line[2:] if line.startswith("# ") else line[1:]
-        for line in blocks[0]["content"].splitlines(keepends=True)
-    )
-    try:
-        metadata = tomllib.loads(content)
-        dependencies = metadata.get("dependencies", [])
-        python = metadata.get("requires-python", ">=0")
-        if not (
-            isinstance(dependencies, list)
-            and all(isinstance(value, str) for value in dependencies)
-            and isinstance(python, str)
+        if not any(
+            match["type"] == "script"
+            for match in INLINE_METADATA.finditer(path.read_text(encoding="utf-8"))
         ):
-            raise ValueError(
-                "dependencies must be a list of strings and requires-python a string"
-            )
-        requirements = [Requirement(value) for value in dependencies]
-        python = SpecifierSet(python)
-    except (ValueError, InvalidRequirement, InvalidSpecifier) as error:
-        raise Refused(f"{path}: invalid script metadata ({error})")
-    if error := floor_error(python):
-        raise Refused(f"{path}: requires-python {error}")
-    for requirement in requirements:
-        if requirement.url is not None or (error := floor_error(requirement.specifier)):
             raise Refused(
-                f"{path}: dependency {str(requirement)!r} "
-                f"{error or 'must name a version floor, not a URL'}"
+                f"{path} needs an inline `# /// script` metadata block (PEP 723) "
+                "declaring its dependencies, so `leaf package run` runs it in an "
+                "environment of its own"
             )
-    return requirements
 
 
 def validate_package_dir(package: Path) -> list:

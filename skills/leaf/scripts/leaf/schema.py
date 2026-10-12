@@ -202,8 +202,8 @@ STATE_SCHEMA = {
             },
             "writer": {"const": "agent"},
             "creates": ACTION_CREATES,
-            # The effect owns the payload; report adds required nonempty detail.text.
-            "report": {"const": True},
+            # The effect owns the payload; `text` adds a required non-empty detail.text.
+            "text": {"const": True},
         },
         "required": ["unit"],
         "allOf": [
@@ -220,7 +220,7 @@ STATE_SCHEMA = {
         # shows the user. Its record is required: the gate compares record forms,
         # and a recordless report would be a claim nothing could check a version
         # against. Only the user adds children, and only an agent verb
-        # declares `report` text.
+        # declares `text`.
         "if": {"required": ["writer"]},
         "then": {
             "required": ["record"],
@@ -229,7 +229,7 @@ STATE_SCHEMA = {
                 "creates": False,
             },
         },
-        "else": {"properties": {"report": False}},
+        "else": {"properties": {"text": False}},
     },
 }
 AWAITS_SCHEMA = {

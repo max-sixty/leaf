@@ -900,12 +900,13 @@ def test_render_reads_widget_chrome_where_it_stands(
     assert [
         said
         for said in render_checks_model.evaluate_probe(page, "wordsInFormControls")
-        if "c-lax" in said
+        if said["at"] == "<lf-option id=c-lax>"
     ] == [
-        (
-            '<lf-option id=c-lax> says "Lax, host-only" inside a form control, where '
-            "no selection can reach it"
-        )
+        {
+            "code": "form-control-words",
+            "at": "<lf-option id=c-lax>",
+            "words": "Lax, host-only",
+        }
     ]
     # The two-width pair fails soft, as the gate below is to hear.
     consume_browser_errors(page, '<lf-shot id="shot-pair"> failed')
@@ -914,34 +915,24 @@ def test_render_reads_widget_chrome_where_it_stands(
     failures = render_gate_model.render_version(
         primed(browser.unwatched, stage_reach_cases), url
     ).failures
-    assert [f for f in failures if "600px" in f and "400px" in f], failures
-    clipped = [f for f in failures if "(#clipped-offer)" in f]
-    assert len(clipped) == 2, failures
-    assert all(
-        "outside the <div id=clipped-holder> that clips it" in f for f in clipped
+    pair = [f for f in failures if f.code == "console-error"]
+    assert pair and all(
+        "shot-pair" in f.values["text"]
+        and "600px" in f.values["text"]
+        and "400px" in f.values["text"]
+        for f in pair
+    ), failures
+    clipped = [f for f in failures if f.code == "clipped-control"]
+    assert [f.values["id"] for f in clipped] == ["clipped-offer"] * 2, failures
+    assert all(f.values["by"] == "<div id=clipped-holder>" for f in clipped), clipped
+    words = sorted(
+        {(f.code, f.at, f.values["words"]) for f in failures if f not in pair + clipped}
     )
-    assert not [f for f in failures if "(#shown-offer)" in f], failures
-    found = sorted(
-        {
-            f.split("] ", 1)[1]
-            for f in failures
-            if "shot-pair" not in f and f not in clipped
-        }
-    )
-    assert found == [
-        (
-            '<lf-badge id=rp-badge> puts "Sent by the reviewer" under .lf-ui, where no '
-            "comment can reach it"
-        ),
-        (
-            '<lf-option id=c-lax> puts "Session cookies" under .lf-ui, where no comment '
-            "can reach it"
-        ),
-        (
-            '<lf-option id=c-lax> puts "opens in a new tab" under .lf-ui, where no '
-            "comment can reach it"
-        ),
-    ], found
+    assert words == [
+        ("chrome-words", "<lf-badge id=rp-badge>", "Sent by the reviewer"),
+        ("chrome-words", "<lf-option id=c-lax>", "Session cookies"),
+        ("chrome-words", "<lf-option id=c-lax>", "opens in a new tab"),
+    ], failures
 
 
 FILM_DECLARATION = {
@@ -986,7 +977,7 @@ def test_a_widget_that_fails_in_a_message_reports_when_its_thread_draws(
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     expect(page.locator(".lf-thread-panel #t-bad .lf-error")).to_contain_text(
-        "does not parse"
+        "Unexpected token"
     )
     report = '<lf-chart id="t-bad"> failed: '
     consume_browser_errors(page, report)

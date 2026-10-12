@@ -4,7 +4,7 @@ they select from.
 The reading uses one transaction and prints the two lists the active view serves
 (`served_state.queues`): Questions holds open asks, to-dos on the user and resends;
 Tasks holds the answers the agent owes, its work in hand and its to-dos. The ask
-inventory also retains answered and withdrawn records. `source` states whether a
+inventory also retains finished records, whatever their `status` (`questions`). `source` states whether a
 document is live and whether an invalid source save leaves the last valid version
 active.
 """

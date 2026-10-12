@@ -1,7 +1,9 @@
 """Assemble the published site (https://leaf.page/) into .tmp/site.
 
 Every product document under `docs/` is a Leaf source. The build publishes each one as a
-complete page directory, alongside the worked examples. The Worker serves the
+complete page directory, alongside the worked examples, with the parts other sources own,
+such as the route bar and the catalog's previews and captions, composed in as it is read
+(`leaf_dev.docs`). The Worker serves the
 build-generated initial projection at the edge, then gives an interacting browser a
 private copy through Leaf's canonical Python server. The catalog previews and the
 product card come from the max-sixty/leaf-assets revision pinned in `leaf-assets.json`.
@@ -45,9 +47,7 @@ import subprocess
 import sys
 import tempfile
 from collections.abc import Callable, Sequence
-from dataclasses import replace
 from functools import partial
-from html import escape
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import unquote, urljoin, urlsplit
@@ -55,18 +55,16 @@ from urllib.parse import unquote, urljoin, urlsplit
 import click
 from leaf.files import latest_revision, list_revisions
 from leaf.live_shell import write_live_shell
-from leaf.media import media_name
 from leaf.revision_delivery import DeliveryAddress, rebase_document
 from leaf.schema import (
     BROWSER_DIRS,
     DATA_DIR,
-    MEDIA_DIR,
     PAGE_STATE_FILES,
     SERVED_PATH,
     SESSION_ROUTE_DIRS,
     VENDORED_FILES,
 )
-from leaf.structure import FRAME_ANCESTORS_CSP, SourceDocument, source_index
+from leaf.structure import FRAME_ANCESTORS_CSP
 from leaf_website import (
     SITE_MANIFEST,
     SITE_ORIGIN,
@@ -77,10 +75,11 @@ from leaf_website import (
     site_metadata,
 )
 
-from leaf_dev import LEAF_COMMAND, ROOT
+from leaf_dev import LEAF_COMMAND, ROOT, docs
 from leaf_dev.arms import environment
 from leaf_dev.distribution import prepare
-from leaf_dev.example_data import catalog_sources
+from leaf_dev.docs import PRODUCT_ROUTES, catalog_preview, media_url
+from leaf_dev.example_data import catalog_sources, document_metadata
 from leaf_dev.leaf_assets import pinned_assets
 from leaf_dev.page_fixtures import (
     package_selection_args,
@@ -89,23 +88,12 @@ from leaf_dev.page_fixtures import (
     source_packages,
 )
 
-DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
 INTERNAL_EXAMPLES = {"corpus"}
 DEVELOPER_PAGES = tuple(sorted((EXAMPLES / "developer").glob("*.html")))
 OUT = ROOT / ".tmp" / "site"
 BUNDLE_RUNTIME = ROOT / "worker" / "bundle-runtime.mjs"
 
-PRODUCT_ROUTES = {
-    "index.html": "/",
-    "examples.html": "/examples/",
-    "how-it-works.html": "/how-it-works/",
-    "extending.html": "/extending/",
-    "registry.html": "/registry/",
-    "event-log.html": "/event-log/",
-    "threads.html": "/threads/",
-    "website.html": "/website/",
-}
 # The card a link to a product page unfurls into, shot at the 1.91:1 an unfurler draws
 # by `leaf_dev.record_demo`, relative to the asset tree. An example names its own
 # catalog preview instead.
@@ -249,7 +237,7 @@ def published_page_sources() -> list[Path]:
 
 def product_sources() -> list[Path]:
     """The product documents, one per public route."""
-    return [DOCS / name for name in PRODUCT_ROUTES]
+    return [docs.DOCS / name for name in PRODUCT_ROUTES]
 
 
 def product_page(out: Path, source_name: str) -> Path:
@@ -281,17 +269,7 @@ def prepared_leaf(out: Path) -> Callable:
     install = install_tree(out)
     shutil.rmtree(install, ignore_errors=True)
     prepare(install)
-    shutil.copytree(
-        ROOT / "worker" / "leaf_website",
-        install / "worker" / "leaf_website",
-        ignore=shutil.ignore_patterns("__pycache__"),
-    )
     return partial(leaf, [str(install / "bin" / "leaf")], environment())
-
-
-def media_url(source: Path) -> str:
-    """The page path an image takes once `leaf page media` has stored it."""
-    return f"/{MEDIA_DIR}/{media_name(source.read_bytes(), source.suffix)}"
 
 
 def social_images(assets: Path) -> dict[str, str]:
@@ -304,60 +282,10 @@ def social_images(assets: Path) -> dict[str, str]:
     catalog = PRODUCT_ROUTES["examples.html"].rstrip("/")
     images = {
         f"{catalog}/{source.stem}": catalog
-        + media_url(assets / "examples" / f"example-{source.stem}.jpg")
+        + media_url(catalog_preview(assets, source.stem))
         for source in catalog_sources()
     }
     return {"": media_url(assets / SOCIAL_CARD), **images}
-
-
-def document_metadata(source: Path) -> tuple[str, str]:
-    """The authored title and description shared by publication and catalog captions."""
-    parsed = SourceDocument(source.read_text(encoding="utf-8"))
-    title = parsed.title.strip()
-    description = next(
-        (
-            (meta["content"] or "").strip()
-            for meta in parsed.named_metas
-            if meta["name"] == "description"
-        ),
-        "",
-    )
-    if not title or not description:
-        sys.exit(f"{source}: a published page needs a <title> and a description")
-    return title, description
-
-
-def catalog_markup(markup: str) -> str:
-    """Derive each active catalog caption from its example's description.
-
-    The authored catalog keeps selection, order, category labels and presentation.
-    Source spans replace only descriptions, preserving the rest of its markup,
-    including commented-out cards. Site publication uses this reading even when
-    the committed generated captions have not been refreshed.
-    """
-    parsed = SourceDocument(markup)
-    index = source_index(markup)
-    replacements = []
-    for link in parsed.tree.select("a.example-link"):
-        name = urlsplit(link.attrs["href"]).path.removeprefix("/examples/").strip("/")
-        _, description = document_metadata(EXAMPLES / f"{name}.html")
-        location = link.select_one(".example-description").source_location
-        start = index(location.start_tag.end_line, location.start_tag.end_col)
-        end = index(location.end_tag.start_line, location.end_tag.start_col)
-        replacements.append((start, end, escape(description, quote=False)))
-    for start, end, text in reversed(replacements):
-        markup = markup[:start] + text + markup[end:]
-    return markup
-
-
-@click.command()
-def catalog() -> None:
-    """Refresh docs/examples.html descriptions from example page metadata."""
-    source = DOCS / "examples.html"
-    source.write_text(
-        catalog_markup(source.read_text(encoding="utf-8")), encoding="utf-8"
-    )
-    click.echo(f"✓ catalog descriptions → {source}")
 
 
 def write_crawler_directives(assets: Path, routes: list[str]) -> None:
@@ -425,42 +353,23 @@ def publish_examples(out: Path, run: Callable, *, assets: Path) -> None:
         print(f"  {source.stem}")
 
 
-def publish_pages(
-    out: Path, run: Callable, assets: Path, source_markup: dict[Path, str]
-) -> None:
-    """Publish product documents with build-local markup and authored companions.
+def publish_pages(out: Path, run: Callable, assets: Path) -> None:
+    """Publish product documents with their authored companions.
 
-    Overrides are private source files, consumed by validation and the final stamp;
-    their companions and prior versions still come from the authored source. The
-    supplied asset tree provides media selected by those documents.
+    The supplied asset tree provides the media their markup selects, including the
+    catalog previews their composition names (`leaf_dev.docs`).
     """
     with tempfile.TemporaryDirectory() as tmp:
         template = Path(tmp) / "product-page"
-        selection = package_selection_args(source_packages(DOCS / "index.html"))
+        selection = package_selection_args(source_packages(docs.DOCS / "index.html"))
         run("page", "init", *selection, str(template))
         # Reuse the initialized layer; each document prepares its own authored inputs.
         for source in product_sources():
-            fixture = read_fixture(source)
-            authored = source.read_text(encoding="utf-8")
-            markup = source_markup.get(source, authored)
-            if source.name == "examples.html":
-                markup = catalog_markup(markup)
-            if markup != authored:
-                private_source = Path(tmp) / source.name
-                private_source.write_text(markup, encoding="utf-8")
-                fixture = replace(
-                    fixture,
-                    source=private_source,
-                    versions=tuple(
-                        private_source if version == source else version
-                        for version in fixture.versions
-                    ),
-                )
             target = product_page(out, source.name)
             shutil.copytree(template, target)
             prepare_page(
                 target,
-                fixture,
+                read_fixture(source),
                 run,
                 initialize=False,
                 final_status="idle",
@@ -569,18 +478,12 @@ def build_examples(out: Path, run: Callable, *, assets: Path) -> None:
     publish_live_shells(out, run, assets, include_products=False)
 
 
-def build(
-    out: Path,
-    run: Callable,
-    *,
-    assets: Path | None = None,
-    source_markup: dict[Path, str] | None = None,
-) -> None:
-    """Build one site, optionally validating draft markup without editing its sources."""
+def build(out: Path, run: Callable, *, assets: Path | None = None) -> None:
+    """Build one site from the pinned assets, or from a draft asset tree."""
     assets = assets or pinned_assets()
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
-    publish_pages(out, run, assets, source_markup or {})
+    publish_pages(out, run, assets)
     publish_live_shells(out, run, assets)
     check_links(out)
 

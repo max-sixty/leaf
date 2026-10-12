@@ -41,10 +41,11 @@ from leaf.render_checks import wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.revision_artifact import read_artifact
 from leaf.structure import SourceDocument
+from leaf_dev import docs
 from leaf_dev import site as site_build
 from leaf_dev.example_data import catalog_sources, data_operations, example_versions
 from leaf_dev.leaf_assets import pinned_assets
-from leaf_dev.page_fixtures import source_packages
+from leaf_dev.page_fixtures import authored_markup, source_packages
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_layout import banner_control
@@ -309,7 +310,7 @@ def test_published_product_page_renders(site, browser, name):
     with hosting_model.TemporaryPageServer(product) as server:
         url = f"{server.origin}/versions/v1.html?t={server.token}"
         failures = render_gate_model.render_version(browser, url).failures
-    assert failures == [], "\n".join(failures)
+    assert failures == [], "\n".join(map(str, failures))
 
 
 def test_published_examples_keep_the_site_theme_out_of_their_layer(site):
@@ -349,9 +350,7 @@ def test_product_pages_are_published_as_complete_page_records(site):
     assert {source.name for source in sources} == set(site_build.PRODUCT_ROUTES)
     for source in sources:
         page = site_build.product_page(site, source.name)
-        expected = source.read_text()
-        if source.name == "examples.html":
-            expected = site_build.catalog_markup(expected)
+        expected = authored_markup(source)
         assert (page / "index.html").read_text() == expected, source.name
         for name in (
             *schema_model.VENDORED_FILES,
@@ -392,7 +391,7 @@ def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
     """The edge gets served Leaf documents and browser assets, never session state."""
     assets = site_build.asset_site(site)
     pinned = pinned_assets()
-    root_media = SourceDocument((ROOT / "docs" / "index.html").read_text()).media_refs
+    root_media = SourceDocument(authored_markup(DOCS / "index.html")).media_refs
     root_media.add(media_url(pinned / site_build.SOCIAL_CARD))
     product_media = {
         Path(media_url(source)).name: source
@@ -1249,7 +1248,7 @@ def test_an_invalid_product_document_stops_the_build(tmp_path, monkeypatch):
             "</head>", '<base href="https://evil.example/"></head>'
         )
     )
-    monkeypatch.setattr(site_build, "DOCS", staged_docs)
+    monkeypatch.setattr(docs, "DOCS", staged_docs)
 
     with pytest.raises(SystemExit) as stopped:
         site_build.build(tmp_path / "invalid-site", site_build.checkout_leaf())

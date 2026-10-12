@@ -15,7 +15,7 @@ import {
   showNews,
 } from "./banner-toolbar.js";
 import { iconElement } from "./icons.js";
-import { latestChip, versionBtn } from "./version-picker.js";
+import { latestChip, versionBtn, versionPicker } from "./version-picker.js";
 import { othersBtn, queueBtn } from "./drawers.js";
 import { pagePresented } from "./page-paint.js";
 import { repaint } from "./repaint.js";
@@ -86,9 +86,15 @@ approveBtn.title = "Approve this work; the page stays open for follow-up";
 // the user has not seen yet. The control states that refusal from its first reading.
 const AWAITING_STATE = "Approval waits until this page has read its current state";
 let approvalReason;
+let approvalText = "Approve version";
+// What Approval says and whether a press would approve, for another presentation of it,
+// such as the floating panel's Versions view; null where the page asks no sign-off.
+export const approvalReading = () =>
+  signoff ? { text: approvalText, reason: approvalReason ?? null } : null;
 // Keep a refused press focusable, with its reason available to keyboard and touch.
 function presentApproval({ reason, text, title }) {
   approvalReason = reason;
+  approvalText = text;
   render(text, approveBtn);
   keeps(approveBtn, "aria-disabled", reason ? "true" : null);
   keeps(approveBtn, "aria-description", reason || null);
@@ -107,6 +113,7 @@ registerBannerControl({
   control: othersBtn,
   rank: BANNER_CONTROL_RANK.leaves,
   conditional: true,
+  row: { label: "All pages", group: "navigate" },
 });
 registerBannerControl({
   key: "latest",
@@ -114,17 +121,28 @@ registerBannerControl({
   rank: BANNER_CONTROL_RANK.latest,
   conditional: true,
   urgent: "new",
+  row: { label: () => versionPicker.model.latest.label, group: "page" },
 });
 registerBannerControl({
   key: "queue",
   control: queueBtn,
   rank: BANNER_CONTROL_RANK.queue,
   seat: { desk: "row", phone: "menu" },
+  row: {
+    label: "Questions",
+    value: () => String(readQueues().questions.length),
+    group: "page",
+  },
 });
 registerBannerControl({
   key: "versions",
   control: versionBtn,
   rank: BANNER_CONTROL_RANK.versions,
+  row: {
+    label: "Versions",
+    value: () => versionPicker.model.picker.token.replace(/^Showing /, ""),
+    group: "page",
+  },
 });
 registerBannerControl({
   key: "approval",
@@ -132,12 +150,21 @@ registerBannerControl({
   rank: BANNER_CONTROL_RANK.approval,
   seat: { desk: "row", phone: "menu" },
   present: false,
+  row: { label: () => approvalText, group: "page", press: () => approve() },
 });
 registerBannerControl({
   key: "threads",
   control: toggleBtn,
   rank: BANNER_CONTROL_RANK.threads,
   seat: "row",
+  row: {
+    label: "Threads",
+    value: () =>
+      openThreads === null
+        ? ""
+        : `${openThreads}${unreadThreads ? ` · ${unreadThreads} new` : ""}`,
+    group: "page",
+  },
 });
 
 // ---------- banner ----------
@@ -242,17 +269,8 @@ export async function loadIcon() {
   const response = await fetch(runtimeResource("/icon.svg"));
   if (!response.ok) throw new Error(`icon.svg answered ${response.status}`);
   const doc = new DOMParser().parseFromString(await response.text(), "image/svg+xml");
-  // Two failures, and the same symptom: no element to paint. A parse error is reported
-  // as a document rather than thrown, so a mark that isn't SVG at all reaches the class
-  // check and fails it — sending whoever overrode the file to look for a class that is
-  // sitting right there in it.
-  const broken = doc.querySelector("parsererror");
-  if (broken)
-    throw new Error(
-      // Collapsed, because the browser's report is laid out as a page and reads as
-      // several lines of it; what matters is the line and column it names.
-      `icon.svg is not SVG — ${broken.textContent.replace(/\s+/g, " ").trim()}`,
-    );
+  // A package's replacement that is not SVG at all parses to an error document, which
+  // has no lf-tone element either.
   if (!doc.querySelector(".lf-tone"))
     throw new Error(
       "icon.svg carries no lf-tone element, which is where the page's " +
@@ -290,9 +308,9 @@ let saidActionableWork;
 // to the disclosure (chrome.css). Its box is reserved for the count it usually reaches,
 // as the Threads control is for "Threads: 999", and only grows, so a count changing
 // moves none of its words. Both are read from the application's publication rather
-// than the state answer: a reply the user sends leaves their count and joins the
-// agent's in the turn it is sent. A press on either opens the Questions panel, which
-// lists both.
+// than the state answer: a reply the user sends joins the agent's count in the turn
+// it is sent, and leaves the user's once the server has read it. A press on either
+// opens the Questions panel, which lists both.
 const QUEUE_WORDS = Object.freeze({
   ask: ["ask", "asks"],
   approval: ["approval", "approvals"],
@@ -332,6 +350,15 @@ function queueWords() {
 }
 const WITHOUT_QUEUES = new Set(["broken", "unreachable", "publication"]);
 let lastStatus = null;
+// The status the banner shows, as one reading another presentation of it shares: the
+// floating panel's leaf and comment field say the same words in the same tone.
+let statusReading = null;
+const statusListeners = new Set();
+export function watchStatus(listener) {
+  statusListeners.add(listener);
+  if (statusReading) listener(statusReading);
+  return () => statusListeners.delete(listener);
+}
 const presentStatus = (status) => {
   lastStatus = status;
   const { kind, tone, summary, publication = null, actionableWork = null } = status;
@@ -356,16 +383,17 @@ const presentStatus = (status) => {
       examplesUrl: examples ? "/examples/" : null,
     });
   }
-  bannerStatus.present(
-    Object.freeze({
-      tone,
-      summary,
-      queues: queues.summary,
-      queuesWidest: queues.widest,
-      explanation,
-      publication: publicationModel,
-    }),
-  );
+  const model = Object.freeze({
+    tone,
+    summary,
+    queues: queues.summary,
+    queuesWidest: queues.widest,
+    explanation,
+    publication: publicationModel,
+  });
+  bannerStatus.present(model);
+  statusReading = model;
+  for (const listener of statusListeners) listener(model);
   paintTab();
   const changed =
     saidKind !== undefined &&
@@ -424,6 +452,15 @@ if (SHARE_ROOT) {
     control: details,
     focusTarget: share,
     rank: BANNER_CONTROL_RANK.share,
+    // The press is the Copy link control's own, with its success and failure notices.
+    row: {
+      label: "Copy share link",
+      group: "about",
+      press: () => {
+        copy.value = shareUrl();
+        copyButton.click();
+      },
+    },
   });
 }
 
@@ -449,6 +486,7 @@ const otherPayloadLines = (relation, provenance) => [
 ];
 
 let previewMarginEntry = null;
+let previewLabel = "";
 let previewMarginEntryCopy = null;
 let previewDiagnostics = "";
 function renderPreview(state) {
@@ -501,9 +539,11 @@ function renderPreview(state) {
       control: previewMarginEntryCopy,
       focusTarget: previewMarginEntry,
       rank: BANNER_CONTROL_RANK.preview,
+      row: { label: () => previewLabel, group: "about" },
     });
   }
   previewMarginEntryCopy.value = previewDiagnostics;
+  previewLabel = label;
   keepsText(previewMarginEntry, label);
   keeps(
     previewMarginEntry,
@@ -520,6 +560,7 @@ function renderPreview(state) {
 // whoever meets a problem can tell how far apart the two are (AGENTS.md, "Pages
 // across Leaf updates").
 let layerReferenceElement = null;
+let layerIdentity = "";
 let layerReferenceElementCopy = null;
 let layerDiagnostics = "";
 function renderLayerReference(state) {
@@ -531,6 +572,7 @@ function renderLayerReference(state) {
     : fingerprint && `sha256:${fingerprint.replace(/^sha256:/, "").slice(0, 12)}`;
   if (!fullIdentity) return;
   const identity = producer.commit ? shortCommit(producer) : fullIdentity;
+  layerIdentity = identity;
   const age = payloadAge(producer);
   const dateLines = payloadDateLines(producer);
   // Present only where the serving Leaf is another than the page's (`http.page_state`).
@@ -564,6 +606,11 @@ function renderLayerReference(state) {
       control: layerReferenceElementCopy,
       focusTarget: layerReferenceElement,
       rank: BANNER_CONTROL_RANK.layer,
+      row: {
+        label: "Leaf version",
+        value: () => layerIdentity,
+        group: "about",
+      },
     });
   }
   layerReferenceElementCopy.value = layerDiagnostics;
@@ -727,6 +774,7 @@ function renderSessionReference() {
       control: sessionReferenceElementCopy,
       focusTarget: sessionReferenceElement,
       rank: BANNER_CONTROL_RANK.session,
+      row: { label: () => sessionReferenceLabel, group: "about" },
     });
   }
   sessionReferenceElementCopy.value = runtime.sessionReference;
@@ -858,7 +906,8 @@ export function mountBanner({ approveVersion, paintApproval }) {
   });
   for (const box of [banner, bannerActions, counts]) seatCounts.observe(box);
   reserveBannerControls();
-  approveBtn.onclick = async () => {
+  approveBtn.onclick = approve;
+  async function approveNow() {
     if (approving) return;
     // A refused press answers with its reason where every user sees it.
     if (approvalReason) {
@@ -875,8 +924,13 @@ export function mountBanner({ approveVersion, paintApproval }) {
       approveBtn.removeAttribute("aria-busy");
       paintApproval();
     }
-  };
+  }
+  approveWith = approveNow;
 }
+
+// The one approval press, whichever control the user made it on.
+let approveWith = null;
+export const approve = () => approveWith?.();
 
 // Sign-off belongs to the authored revision, and the head it rides in is the only copy
 // of it: a revision this document takes on in place brings its own, so the reading is

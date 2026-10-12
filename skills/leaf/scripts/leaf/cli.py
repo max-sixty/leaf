@@ -290,17 +290,25 @@ def package_run(name: str, script: str, arguments: tuple[str, ...]) -> None:
 @click.option(
     "--render", is_flag=True, help="also check the rendered page in the host's browser"
 )
-def check(dir: str, render: bool) -> None:
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    help="print the findings as one JSON object instead of lines",
+)
+def check(dir: str, render: bool, as_json: bool) -> None:
     """Check PAGE/index.html.
 
     Runs deterministic markup checks. --render also checks the drawn page in the
     host's browser: whichever executable LEAF_BROWSER_EXECUTABLE, CHROME_PATH, or
     CHROME_BIN names, else the installed Chrome, else the first browser on PATH.
-    A host with no browser gets a note in place of each browser check.
+    A host with no browser gets a note in place of each browser check. --json prints
+    one object instead: the exit status, every finding with its code, element,
+    measured values and severity, and what each browser check ran in.
     """
     from leaf.validation.command import cmd_check
 
-    sys.exit(cmd_check(resolve_dir(dir), render))
+    sys.exit(cmd_check(resolve_dir(dir), render, as_json))
 
 
 @page.command()
@@ -1179,9 +1187,10 @@ def task_start(dir: str, item: str, text: str) -> None:
 def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> None:
     """End TODO with OUTCOME. DETAIL says where the result is, such as the
     version or reply holding it, or why there is none. TODO may be a to-do on
-    either side. A prose ask's id (`reply:<message-id>`)
-    withdraws that request without creating a user answer. Widget asks end
-    through their declared state or an authored withdrawal."""
+    either side. A prose ask's id (`reply:<message-id>`) ends that request
+    without creating a user answer: `done` records it answered elsewhere, DETAIL
+    saying where, and `dropped` records it withdrawn. Widget asks end through
+    their declared state or an authored withdrawal."""
     from leaf.tasks import cmd_end
 
     _print_records(cmd_end(resolve_dir(dir), task_id, outcome, detail))

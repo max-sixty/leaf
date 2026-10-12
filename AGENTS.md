@@ -83,6 +83,18 @@ long as any architectural problem they leave remains easy to fix.
 Make improvements that follow from the repository. Ask the user only when the
 choice depends on purpose or intent the code cannot supply.
 
+### Responsiveness
+
+A gesture shows what it settles by itself in the turn the user makes it: a
+message in its thread, a widget's new state, a thread the user resolves. Facts
+derived from the rest of the log, such as whose turn a thread is and which asks
+the user owes, come back with the server's reading of the gesture. The server
+usually runs on the user's machine, so that reading should be on screen within
+100 ms. The browser does not anticipate it: a prediction is a second copy of the
+server's rules, and each gesture and subject it misses shows the wrong state
+until the reading lands. Where the reading cannot reach the screen within 100 ms,
+make that path faster rather than predicting what it will say.
+
 ### Pages across Leaf updates
 
 A page keeps the layer of the Leaf that vendored it, and each later Leaf serves,
@@ -218,8 +230,8 @@ install must be writable, and Leaf writes nothing else there. Point Codex
 at the git source, since a local-directory marketplace copies a checkout's
 `.venv` too. A plugin update may replace the directory wholesale, so what has to
 survive one belongs in the page directory or the state home. Runtime
-dependencies, and those a package script declares, state a floor and no cap. The
-host supplies Chrome and `jq`; leaf never downloads a browser.
+dependencies, and those a bundled package script declares, state a floor and no
+cap. The host supplies Chrome and `jq`; leaf never downloads a browser.
 
 Files under `skills/leaf/assets/vendor/` and each package's `vendor/` are
 generated and committed where their consumer reads them; `build/AGENTS.md` says
@@ -273,11 +285,10 @@ sends it, before the log answers; a disabled control, spinner, or other delivery
 status is not that result. The page can draw what its own document settles, such as
 a widget's state or the words of a turn the user adds to a thread. Which asks
 the document still holds, which of them the user owes, and whose turn a thread is
-depend on the whole log, so the browser reads them from the server's state and,
-while a thread gesture of its own is unresolved, from what the server read that
-gesture leaving (each thread's `after`). It adds only what it decides itself: a
-required-version approval, a thread it opened, and the resend a refused send
-leaves. A refusal restores the authoritative state.
+depend on the whole log, so the browser reads them from the server's state and
+waits for its reading of a gesture ("Responsiveness"). It adds only what it decides
+itself: a required-version approval, a to-do the user ends, a thread it opened, the
+answer a send is owed, and the resend a refused send leaves. A refusal restores the authoritative state.
 
 The active document has one immutable application publication. Only its publisher
 combines authored baselines, the complete admitted server reading, and the ordered

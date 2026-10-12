@@ -11,11 +11,11 @@ import {
   materializeContributionControls,
   contributionEntry,
   presentContributionEntry,
-} from "/runtime/contribution-controls.js";
-import { contributionSource } from "/runtime/contributions.js";
-import { el, offer } from "/runtime/widget-elements.js";
-import { keeps, keepsHidden } from "/runtime/keeps.js";
-import { holdFocus } from "/runtime/focus.js";
+} from "../contribution-controls.js";
+import { contributionSource } from "../contributions.js";
+import { el, offer } from "../widget-elements.js";
+import { keeps, keepsHidden } from "../keeps.js";
+import { holdFocus } from "../focus.js";
 
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
 const TAG = "leaf-margin-cluster";

@@ -27,7 +27,9 @@ page scopes, then the browser. An implemented declaration gets first refusal whi
 (`dispatch.js`'s `standing`: the user is in it and the page has it); if its command is
 unavailable, the press does not fall through to another Leaf meaning. Text entry keeps
 characters, composition, caret movement, and deletion ahead of ancestor widgets; an
-exact control may still claim Enter or its own Escape step.
+exact control may still claim Enter or its own Escape step. A link keeps its Enter and
+a button its Enter and Space the same way: no scope around them runs a command on that
+press, and a row that only names it, such as a link's Follow, still names it.
 
 ## Escape
 
@@ -134,7 +136,7 @@ Closing More or standing outside it retires the checkpoint.
 `bindings.js` (spelling, parsing, declaration checks), `scopes.js` (element
 scopes), `register.js` (scope order, page commands, the Escape ladder),
 `dispatch.js` (precedence), `controller.js` (input lifecycle), `text-entry.js`
-(native editing claims), `layer-stack.js` (popovers and dialogs over the page),
+(native editing and activation claims), `layer-stack.js` (popovers and dialogs over the page),
 `page.js` (the page's own parts and the foot of the ladder), `go-to-sequence.js`
 (the `g` grammar), `control-keys.js`,
 `key-sequence.js`, `shortcut-bar.js`, `command-reference.js`, `hints.js`,

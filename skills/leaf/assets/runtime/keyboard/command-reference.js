@@ -139,10 +139,7 @@ function declaredStack(origin) {
   const activeScopes = scopesFor(origin);
   const named = (section) =>
     activeScopes.some(
-      (scope) =>
-        scope.title === section.title &&
-        (!scope.when || scope.when()) &&
-        (!scope.at || scope.at()),
+      (scope) => scope.title === section.title && (!scope.when || scope.when()),
     );
   // Carry a scope's sequence down to each row before same-title sections merge. The prefix
   // belongs only to the rows that scope contributed.

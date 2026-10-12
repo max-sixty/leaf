@@ -8,8 +8,8 @@
    available to read and select. Leaving the source restores the copy control.
    Enter on a document code block copies it. That press is a register row projected
    onto the block beside any scope its owner declares, so the shortcut bar, the command
-   reference and `aria-keyshortcuts` name it. It answers on the block itself, leaving a
-   link inside it its own Enter, and the control stays out of the Tab sequence. Focus
+   reference and `aria-keyshortcuts` name it. A link or button inside the code keeps its
+   own Enter (`nativeActivationAt`), and the control stays out of the Tab sequence. Focus
    need not be on the control, so every copy's result also takes the status line. */
 import { offer } from "./widget-elements.js";
 import { watchArrivals } from "./arrivals.js";
@@ -19,7 +19,7 @@ import {
   anchorView,
   refreshAnchorView,
 } from "./css-anchors.js";
-import { focusDestination, focused, onStanding } from "./focus.js";
+import { focusDestination, onStanding } from "./focus.js";
 import { upFrom } from "./shadow.js";
 import { chromeRoot } from "./chrome.js";
 import { claimReachStop, releaseReachStop } from "./reach.js";
@@ -115,19 +115,15 @@ export function watchCodeBlocks() {
           projectCommandScope(
             pre,
             COPY_SCOPE,
-            commandScope(
-              "On a code block",
-              [
-                {
-                  id: "code.copy",
-                  keys: ["Enter"],
-                  description: "Copy this block's code to the clipboard",
-                  title: "copy code",
-                  run: () => copy.shadowRoot.querySelector("button").click(),
-                },
-              ],
-              { at: () => focused() === pre },
-            ),
+            commandScope("On a code block", [
+              {
+                id: "code.copy",
+                keys: ["Enter"],
+                description: "Copy this block's code to the clipboard",
+                title: "copy code",
+                run: () => copy.shadowRoot.querySelector("button").click(),
+              },
+            ]),
           );
           pre.addEventListener(
             "pointerenter",

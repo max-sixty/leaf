@@ -827,7 +827,7 @@ test("a template scope refused on re-render withdraws its shortcuts, and its ali
           {
             id: "probe.first",
             keys: ["y"],
-            contextKeys: ["Enter"],
+            contextKeys: ["1"],
             title: "a",
             run() {},
           },
@@ -840,7 +840,7 @@ test("a template scope refused on re-render withdraws its shortcuts, and its ali
   reflectFirstScopes();
   reflectKeys();
   const element = root.querySelector("button");
-  assert.equal(element.getAttribute("aria-keyshortcuts"), "y Enter");
+  assert.equal(element.getAttribute("aria-keyshortcuts"), "y 1");
   paint("Second", false);
   reflectFirstScopes();
   assert.deepEqual(

@@ -4617,8 +4617,16 @@ def test_the_render_gate_reports_a_table_squeezed_by_what_cannot_break(browser, 
     table that scrolls with nothing left to wrap is the theme's honest third case
     and passes. The table has to scroll before the reading has anything to say, and
     the test says so first: a fixture that fitted CI's fonts by ten pixels left the
-    gate silent there, and the silence read as the reading's."""
-    url = serve(BARE_IDENTIFIERS_PAGE)
+    gate silent there, and the silence read as the reading's.
+
+    Beside it, a wrap that falls at a node boundary rather than inside a text node: a
+    column of owners as links, one word each, in a table eight single-token columns
+    hold open. Read node by node it never wraps, and the column stood at 84px on five
+    lines with the gate green; set at line-height 1, the second line's glyph box
+    overlaps the first's, and a reading of line boxes lost it again."""
+    linked = LINKED_CELLS_PAGE[LINKED_CELLS_PAGE.index('<table id="sessions">') :]
+    linked = linked[: linked.index("</table>") + len("</table>")]
+    url = serve(BARE_IDENTIFIERS_PAGE.replace("</main>", linked + "</main>"))
     page = open_page(browser, url)
     scrolls = page.locator("#held").evaluate("(t) => t.scrollWidth - t.clientWidth")
     assert scrolls > 1, "the names fit the measure here, so the reading is never asked"
@@ -4631,7 +4639,10 @@ def test_the_render_gate_reports_a_table_squeezed_by_what_cannot_break(browser, 
         widths = dict(re.findall(r'"([^"]+)" wraps at (\d+)px', finding))
         assert {"Mechanism", "Held by"} <= widths.keys(), finding
         assert int(widths["Held by"]) > 3 * int(widths["Mechanism"]), finding
-    assert not [f for f in failures if "<table id=held> scrolls" not in f], failures
+    owners = [f for f in failures if "<table id=sessions> scrolls" in f]
+    assert owners, failures
+    assert all('"Owners" wraps at' in f for f in owners), owners
+    assert not [f for f in failures if f not in squeezed + owners], failures
 
 
 def test_the_squeeze_reading_follows_words_into_an_open_shadow_root(
@@ -4686,23 +4697,6 @@ def test_the_squeeze_reading_follows_words_into_an_open_shadow_root(
     squeezed = render_checks_model.evaluate_probe(page, "squeezedTables")
 
     assert any("<table id=held> scrolls" in finding for finding in squeezed), squeezed
-
-
-def test_the_squeeze_reading_sees_a_wrap_between_two_links(browser, serve):
-    """A wrap that falls at a node boundary rather than inside a text node: a
-    column of owners as links, one word each, in a table eight single-token
-    columns hold open. Read node by node it never wraps, and the column stood at
-    84px on five lines with the gate green; set at line-height 1, the second
-    line's glyph box overlaps the first's, and a reading of line boxes lost it
-    again. The table without that column is
-    `test_every_table_the_theme_sets_honestly_passes_the_gate`'s, and passes."""
-    failures = render_gate_model.render_version(
-        browser, serve(LINKED_CELLS_PAGE)
-    ).failures
-
-    squeezed = [f for f in failures if "<table id=sessions> scrolls" in f]
-    assert squeezed, failures
-    assert all('"Owners" wraps at' in f for f in squeezed), squeezed
 
 
 def test_every_table_the_theme_sets_honestly_passes_the_gate(browser, serve):

@@ -20,6 +20,7 @@ from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import leases as leases_model
+from leaf import media as media_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import thread as thread_model
@@ -2893,13 +2894,21 @@ def test_original_image_link_has_a_standalone_target(browser, serve):
     expect(page.locator("#image")).to_be_focused()
 
 
+# A diagram that states no size of its own, only a shape, as Mermaid writes one.
+DIAGRAM_SVG = (
+    b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">'
+    b'<rect width="400" height="200" fill="#cde"/></svg>'
+)
+DIAGRAM = media_model.media_name(DIAGRAM_SVG, ".svg")
+
+
 @pytest.mark.parametrize("offline", [False, True])
 def test_linked_images_zoom_and_return_to_the_report(browser, serve, tmp_path, offline):
     """An authored image link inspects in place, including in the offline artifact."""
     url = serve(
         leaf_page(
             "Screenshot report",
-            """
+            f"""
       <h1>Screenshot report</h1>
       <figure id="screenshot"><a href="/media/051bee487bfb5d13.png">
         <img src="/media/051bee487bfb5d13.png" width="1800" height="746"
@@ -2907,25 +2916,71 @@ def test_linked_images_zoom_and_return_to_the_report(browser, serve, tmp_path, o
         <figcaption>Release output after the fix.</figcaption></figure>
       <p><a id="other" href="#context"><img src="/media/051bee487bfb5d13.png"
         alt="Go to the context"></a></p>
+      <figure id="diagram"><a href="/media/{DIAGRAM}">
+        <img src="/media/{DIAGRAM}" alt="Release flow"></a></figure>
       <section id="context"><h2>Context</h2><p>The release passed.</p></section>
     """,
-        )
+        ),
+        media={f"media/{DIAGRAM}": DIAGRAM_SVG},
     )
     if offline:
         out = tmp_path / "image-report.html"
         exporting_model.cmd_export(serve.page_dir, out, None)
         url = out.as_uri()
     page = open_page(browser, url)
+    viewer = page.get_by_role("dialog", name="Image preview")
+    if not offline:
+        # Until PhotoSwipe arrives, the opening draws the fitted image where
+        # PhotoSwipe will, here where the viewport's height binds the fit.
+        held = []
+        page.route("**/photoswipe.esm.js", lambda route: held.append(route))
+        resized(page, 1440, 500)
+        page.locator("#screenshot a").click()
+        interim = viewer.locator(".lf-media-viewer-stage > img")
+        expect(interim).to_have_js_property("complete", True)
+        early = interim.bounding_box()
+        holding(page, held, 1, "the image tools")
+        held.pop().continue_()
+        fitted = viewer.locator("img.pswp__img")
+        expect(fitted).to_be_visible()
+        assert fitted.bounding_box() == pytest.approx(early, abs=1)
+        page.unroute("**/photoswipe.esm.js")
+        page.keyboard.press("Escape")
+        expect(viewer).to_be_hidden()
+    # The diagram fills the room it fits in, not the browser's 300x150 stand-in, and
+    # still does once the window grows, even from a room narrower than that stand-in.
+    # It zooms past that fit for a closer look.
+    fills = """() => {
+      const stage = document.querySelector('.lf-media-viewer-stage');
+      const inset = getComputedStyle(stage);
+      const room = [
+        stage.clientWidth - parseFloat(inset.paddingLeft) - parseFloat(inset.paddingRight),
+        stage.clientHeight - parseFloat(inset.paddingTop) - parseFloat(inset.paddingBottom),
+      ];
+      const box = document.querySelector('.lf-media-viewer .pswp__img')
+        .getBoundingClientRect();
+      return [box.width, box.height].some((side, i) => Math.abs(side - room[i]) < 1);
+    }"""
+    resized(page, 320, 500)
+    page.locator("#diagram a").click()
+    expect(viewer.locator("img.pswp__img")).to_be_visible()
+    assert page.evaluate(fills)
+    resized(page, 1440, 800)
+    page.wait_for_function(fills)
+    expect(
+        viewer.get_by_role("button", name="Zoom to actual size", exact=True)
+    ).to_be_enabled()
+    page.keyboard.press("Escape")
+    expect(viewer).to_be_hidden()
     for width in (1440, 390):
         resized(page, width, 900)
         image_link = page.locator("#screenshot a")
         image_link.scroll_into_view_if_needed()
-        before = page.evaluate("({url:location.href,scroll:scrollY})")
         # Enter follows the authored link's same inspection route as a tap.
         page.keyboard.press("Tab")
         image_link.focus()
+        before = page.evaluate("({url:location.href,scroll:scrollY})")
         image_link.press("Enter")
-        viewer = page.get_by_role("dialog", name="Image preview")
         expect(viewer).to_be_visible()
         zoom = viewer.get_by_role("button", name="Zoom to actual size", exact=True)
         expect(zoom).to_be_enabled()

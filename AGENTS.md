@@ -183,11 +183,11 @@ ready assets. Consumers run no browser build.
 
 ### The install runs this tree
 
-Consumer installers follow the CI-built `prepared` Git branch. The browser kernel
-is compiled there; development branches keep its source modules. The leaf.page
-container runs the same preparation, which `leaf-dev site` builds beside the site. Installation,
-page authoring, custom packages, and export require no browser build or npm command.
-`dev/leaf_dev/distribution.py` owns preparation and publication.
+Consumer installers follow `main` and serve the browser runtime's source modules.
+The leaf.page container instead installs a tree with the runtime compiled into one
+kernel, which `leaf-dev site` prepares beside the site (`dev/leaf_dev/distribution.py`).
+Installation, page authoring, custom packages, and export require no browser build or
+npm command.
 
 An install is the tracked tree copied into a harness's plugin cache, and nothing is
 built at install time: `bin/leaf` is `uv run --no-dev` on the tree, so the

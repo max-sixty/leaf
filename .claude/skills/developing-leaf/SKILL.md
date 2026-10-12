@@ -424,6 +424,6 @@ is a fast-forward failure.
 
 Installed sessions load harness caches, not the checkout. Claude Code picks up a
 push on its marketplace sweep; Codex refreshes configured Git marketplaces and
-installed plugins at startup. Both follow the configured ref (`prepared` for
-consumer installs). For an immediate Codex refresh in a running session, run
+installed plugins at startup. Both follow the configured ref, `main` by default.
+For an immediate Codex refresh in a running session, run
 `codex plugin marketplace upgrade leaf`.

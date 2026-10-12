@@ -16,7 +16,6 @@ import {
   stateDefinition,
   eventSpec,
   sameStateDefinition,
-  sameStateOperation,
 } from "../../skills/leaf/assets/runtime/registry-contract.js";
 import {
   discussed,
@@ -355,10 +354,13 @@ type ServerView = AuthoritativeState["browser"]["views"][string];
 /** A server view with its basis, the transport identity, left off. */
 type PageView = Omit<ServerView, "basis">;
 
+// The server classified each entry under the registry that admitted its reading, and
+// only it can compare a recorded operation another Leaf wrote (`served_state/wire.py`).
+// The page's descriptors may come from another revision's registry, so the browser
+// takes the classification as served rather than filtering it again.
 function normalizedProjection(
   view: PageView | null | undefined,
   thread: AuthoritativeState["browser"]["thread"] | undefined,
-  descriptors?: SemanticDocument["descriptors"],
 ) {
   const entries = [];
   const actionIds = [];
@@ -368,17 +370,6 @@ function normalizedProjection(
     if (!projection) continue;
     for (const wire of projection.entries) {
       const e = wire.event;
-      const descriptor = descriptors?.get(e.widget);
-      const currentSpec = descriptor && eventSpec(descriptor.declaration, e);
-      if (
-        descriptor &&
-        (!currentSpec ||
-          !sameStateOperation(
-            e.meaning?.state,
-            stateDefinition(descriptor.tag, descriptor.declaration, currentSpec),
-          ))
-      )
-        continue;
       const coordinate = JSON.stringify(wire.coordinate);
       entries.push({
         coordinate,
@@ -680,23 +671,39 @@ export function createSemanticApplication({
     const receipts = state?.browser.receipts ?? [];
     const local = unresolved.filter((entry) => DRAWN_LOCALLY.has(entry.state));
     const refused = unresolved.filter((entry) => entry.state === "refused");
-    // A revision may reuse a widget/verb with a different operation. Keep its
-    // pending delivery, but stop drawing it against that new declaration. The
-    // server validates durable payloads; speculative state waits for its receipt
-    // when a revised payload schema cannot be compared directly.
-    const compatiblePending = (projection: NonNullable<LedgerEntry["projection"]>) => {
-      const operation = projection.kind === "undo" ? projection.target : projection;
-      const descriptor = document.descriptors.get(operation.e.widget);
-      if (!descriptor) return false;
-      const currentSpec = eventSpec(descriptor.declaration, operation.e);
-      if (!currentSpec) return false;
-      const recorded = operation.e.meaning?.state as { detail?: unknown } | undefined;
-      const current = stateDefinition(descriptor.tag, descriptor.declaration, currentSpec);
-      return (
-        sameStateOperation(recorded, current) &&
-        sameStateDefinition(recorded?.detail, current.detail)
+    // The shown revision's server view, resolved here once for every reader of this
+    // document's page state. Its basis is transport identity, which the adoption
+    // boundary has already matched to the log reading; left in, a read that only moved
+    // the log's sequence would publish a new semantic epoch.
+    const served = state?.browser.views[String(document.revision)];
+    const view: PageView | null = served
+      ? (({ basis: _basis, ...rest }) => rest)(served)
+      : null;
+    const admitted = normalizedProjection(view, state?.browser.thread);
+    const classifiedIds = new Set(admitted.entries.map(({ e }) => e.id));
+    // A revision may reuse a widget/verb with a different operation. Keep its pending
+    // delivery, but stop drawing it against that new declaration. This tab wrote a
+    // pending action's definition itself, so it draws while the shown declaration
+    // still defines the same one; the server validates the durable payload. An undo
+    // draws while its target does: a pending target by that rule, a logged one while
+    // the server's reading of this document still classifies it.
+    const drawsAction = (e: ProjectionEntry["e"]) => {
+      const descriptor = document.descriptors.get(e.widget);
+      const currentSpec = descriptor && eventSpec(descriptor.declaration, e);
+      return Boolean(
+        currentSpec &&
+          sameStateDefinition(
+            e.meaning?.state,
+            stateDefinition(descriptor.tag, descriptor.declaration, currentSpec),
+          ),
       );
     };
+    const compatiblePending = (projection: NonNullable<LedgerEntry["projection"]>) =>
+      projection.kind !== "undo"
+        ? drawsAction(projection.e)
+        : Number.isInteger(projection.target.e.seq)
+          ? classifiedIds.has(projection.target.e.id)
+          : drawsAction(projection.target.e);
     const localProjections = local.flatMap((entry) => {
       const projection = entry.projection;
       if (!projection || !compatiblePending(projection)) return [];
@@ -706,19 +713,6 @@ export function createSemanticApplication({
           : projection,
       ];
     });
-    // The shown revision's server view, resolved here once for every reader of this
-    // document's page state. Its basis is transport identity, which the adoption
-    // boundary has already matched to the log reading; left in, a read that only moved
-    // the log's sequence would publish a new semantic epoch.
-    const served = state?.browser.views[String(document.revision)];
-    const view: PageView | null = served
-      ? (({ basis: _basis, ...rest }) => rest)(served)
-      : null;
-    const admitted = normalizedProjection(
-      view,
-      state?.browser.thread,
-      document.descriptors,
-    );
     const projection = foldProjection({
       ...admitted,
       pendingEntries: localProjections,

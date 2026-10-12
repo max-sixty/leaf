@@ -19,6 +19,7 @@ from leaf.event_log import EventRefused
 from leaf.passages import SourceReading
 from leaf.projection import StateProjection, authored_rank, question_value
 from leaf.questions import collection
+from leaf.registry.contract import verb_writer
 from leaf.structure import SourceDocument
 from model_folds import leaf_page, served_reading
 
@@ -463,8 +464,16 @@ def gesture_sequence() -> dict:
         assert "already been taken back" in str(error), str(error)
     else:
         raise AssertionError("The duplicate undo must be refused")
+    declaration = model_layer()["lf-draft"]
     return {
-        "declaration": model_layer()["lf-draft"],
+        # As a widget descriptor captures it: `adoptRegistry` resolves each verb's writer.
+        "declaration": {
+            **declaration,
+            "x-state": {
+                verb: {**spec, "writer": verb_writer(spec)}
+                for verb, spec in declaration["x-state"].items()
+            },
+        },
         "authored": authored,
         "commands": commands,
         "states": states,

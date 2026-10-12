@@ -794,6 +794,22 @@ test("filtered widget state is selected inside the publisher", () => {
   assert.equal(outcomeOf(app.selectWidgets(null).get("choice").state), "accept");
 });
 
+test("a served decision stands whichever operation the shown registry declares", () => {
+  // A pinned revision captures its descriptors under its own registry, while the server
+  // classified the thread's decisions under the active revision's. Its reading decides.
+  const revised = {
+    ...descriptor,
+    declaration: {
+      "x-state": {
+        decide: { ...spec, writer: "user", record: { kind: "value", attr: "status" } },
+      },
+    },
+  };
+  const app = setup([[revised.id, revised]]);
+  app.adopt(state(2, [{ ...action("first"), id: "e1", seq: 1 }]));
+  assert.equal(decision(app), "accept");
+});
+
 test("admitted edits, a raced undo refusal, and revisions share one sequence", () => {
   const sequence = servedGestureSequence();
   for (const refusalFirst of [false, true]) {
@@ -1599,7 +1615,7 @@ test("a revision preserves pending delivery while replacing incompatible specula
   app.enqueue({ kind: "undo", undoes: pending.localId, attempt: "undo-old" }, "now");
   const document = structuredClone(app.read().document);
   document.revision = 2;
-  const revisedSpec = { ...spec, record: { kind: "value", attr: "status" } };
+  const revisedSpec = { ...spec, writer: "user", record: { kind: "value", attr: "status" } };
   const declaration = {
     properties: { status: { type: "integer" } },
     "x-state": { decide: revisedSpec },
@@ -1686,7 +1702,7 @@ test("Question contains the local typed answer while completion waits for admiss
 });
 
 test("empty completed answer and wrapper changes preserve Question identity", () => {
-  const choose = { unit: "widget", record: { kind: "attribute", attr: "chosen" } };
+  const choose = { unit: "widget", writer: "user", record: { kind: "attribute", attr: "chosen" } };
   const declared = {
     ...descriptor,
     declaration: {
@@ -1736,8 +1752,8 @@ test("pending undo removes completed empty Question values and refusal restores 
     [{ kind: "attribute", attr: "chosen" }, []],
     [{ kind: "body" }, ""],
   ]) {
-    const choose = { unit: "widget", record };
-    const answer = { unit: "widget" };
+    const choose = { unit: "widget", writer: "user", record };
+    const answer = { unit: "widget", writer: "user" };
     const declared = {
       ...descriptor,
       declaration: {

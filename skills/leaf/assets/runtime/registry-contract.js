@@ -113,22 +113,10 @@ export function sameStateDefinition(recorded, current) {
   );
 }
 
-// The operation is the fields stateDefinition writes now, detail aside; a field an
-// earlier Leaf recorded beside them never retracts a decision. registry/contract.py's
-// same_state_operation holds the same rule.
-export function sameStateOperation(recorded, current) {
-  if (!recorded || !current) return false;
-  return Object.entries(current).every(
-    ([key, value]) =>
-      key === "detail" ||
-      (Object.hasOwn(recorded, key) && sameStateDefinition(recorded[key], value)),
-  );
-}
-
 export function eventSpec(entry, event) {
   const spec = entry["x-state"]?.[event.action];
   const writer = { action: "user", report: "agent" }[event.kind];
-  return spec && (spec.writer ?? "user") === writer ? spec : null;
+  return spec?.writer === writer ? spec : null;
 }
 
 // Registry keys share schema.WIDGET_NAME with Python. Exact custom-element names

@@ -5625,6 +5625,18 @@ def test_a_gesture_at_a_coordinate_reaches_only_the_answers_still_standing_there
         {},
     )
     assert (restated["v2"], restated["again"]) == (["c1"], ["c2"])
+    late = thread_memberships(
+        [
+            *comments,
+            {"kind": "note", "id": "v2", "revision": 2, "restated": ["sug-a"]},
+            decide("stale", "accept", "c1"),
+            decide("again", "accept", "c2", revision=2),
+        ],
+        names,
+        {},
+        {},
+    )
+    assert (late["stale"], late["again"]) == (["c1"], ["c2"])
 
 
 @pytest.mark.parametrize(

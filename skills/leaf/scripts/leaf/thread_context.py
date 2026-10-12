@@ -5,6 +5,7 @@ from typing import NamedTuple
 
 from leaf.events import (
     action_rests_on,
+    action_retracted,
     active_summaries,
     build_threads,
     conversation_turns,
@@ -257,6 +258,7 @@ def thread_memberships(
     # an undo takes one out, and so does a version note retracting what it rested on,
     # after which a later action at its coordinate leaves the thread it closed alone.
     answers: dict[tuple, dict[str, tuple[dict, str]]] = {}
+    floors: dict[str, int] = {}
     for event in events:
         if event["kind"] == "undo":
             named = memberships.get(event["undoes"], [])
@@ -267,9 +269,14 @@ def thread_memberships(
         if event["kind"] == "action":
             held = answers.setdefault(event_coordinate(event), {})
             named = [*named, *(answered for _, answered in held.values())]
-            if answered := event["meaning"].get("answer"):
+            # An answer a version had already retracted on arrival, as from a tab
+            # still showing an older version, never stands.
+            answered = event["meaning"].get("answer")
+            if answered and not action_retracted(event, floors, within):
                 held[event["id"]] = (event, answered)
         elif event["kind"] == "note" and (restated := set(event.get("restated", []))):
+            for identity in restated:
+                floors[identity] = max(floors.get(identity, 0), event["revision"])
             for held in answers.values():
                 for action_id, (action, answered) in list(held.items()):
                     if event["revision"] > action["revision"] and restated.intersection(

@@ -14,6 +14,7 @@ import { slide } from "./motion.js";
 import { retainUserIntent } from "./user-intent.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { closestAcross } from "./passages.js";
+import { under } from "./shadow.js";
 import { declareSide } from "./standing-target.js";
 import { cancelReplyDictation } from "./thread/replies.js";
 
@@ -30,7 +31,7 @@ export function createThreadPanelController({
   closePreview,
 }) {
   const stopSide = declareSide((node) => {
-    const listed = panel.contains(node)
+    const listed = under(node, panel)
       ? closestAcross(node, ".lf-thread[data-id]")
       : null;
     return listed ? (placedAt(listed.dataset.id)?.place ?? null) : null;

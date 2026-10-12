@@ -362,7 +362,7 @@ browser, or `loadId`.
 
 `serverMs` is how long the Worker took to answer, from its `Server-Timing` header. Every
 other time is milliseconds since navigation started. A time not observed is `null`.
-Widgets can upgrade while private state still waits for its container. The page
+Widgets can upgrade while the first saved-state response still waits. The page
 presents after the state answer is applied, except that the offline fallback can
 present authored content with `firstStateResponseMs: null`.
 
@@ -489,18 +489,29 @@ ask, which leaves the answer standing and lets the user answer again
 at once on any other failure receipt.
 
 The Worker starts each turn inside the request's `waitUntil`, which Cloudflare allows
-30 seconds. Nothing stores the accepted event or the running turn in Durable Object
-storage, and nothing recovers a start that outlasts that window.
+30 seconds. The accepted event is durable; the running turn is not, and nothing
+recovers a start that outlasts that window.
 
 ## Configuration
 
-### Prewarm and capacity
+### Saved state and capacity
 
-`AGENT_PREWARM` in `wrangler.toml` starts a visitor's container in the background on
-each browser document navigation when it is `"true"`. Set it to `"false"` to compare
-cold starts; read-only visits then stay at the edge. Wrangler environments do not
-inherit variables, so it is set for production and again under `env.dev`. Prewarming
-draws on the task-start rate limiter under its own per-source key.
+Read-only visits do not prewarm a container. The existing session Durable Object
+serves saved documents, comments, choices and private resources while compute is
+stopped. A write or a missing saved response starts Python, which restores the
+canonical page record before accepting requests. `leaf_website.storage` publishes
+canonical files and matching Python-produced responses atomically before a write
+is acknowledged; a failed publication fails the request and permits an idempotent
+retry. File modification dates survive restore, including the publication date of
+an unstamped revision. A release selects fresh demo records, while container
+replacement preserves the current release's records. `docs/website.html`, **Private sessions**, owns the
+storage and identity contract.
+
+The append lease admits one staged successor per page. Replacing or committing it
+collects chunks no committed record, staged successor, delivery stream or restore
+snapshot uses.
+An interrupted upload therefore retains at most one successor until that page
+retries; other pages' concurrent uploads and readers remain protected.
 
 `max_instances` caps concurrent `basic` containers: 5,900 for production and 90 for
 `dev`, under Cloudflare's account limit of 6,000. A container with no requests stops

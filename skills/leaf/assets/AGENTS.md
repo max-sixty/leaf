@@ -51,16 +51,15 @@ representative desktop viewport.
   when their CSS loads before first paint: adding, removing or moving one keeps every
   block's position, wrapping and size. No rule pads, indents, widens or reflows a block
   to clear a pin, since reserved room would make the page's geometry depend on which
-  markers exist and where. Where a pin covers something the user needs, the answers are
-  `o` (Hide annotations under More on a touch screen) and a better placement
-  (`TODO.md`), never room made for it. The rail sits right of `main` wherever the window
+  markers exist and where. Resting pins use clear space or are withheld, while Page Map
+  retains their threads and actions. The rail sits right of `main` wherever the window
   has room, and seating it there never moves, narrows or indents the column
   (`content-layout.js`). `data-rail` on `body` withholds or reserves it: `"right"` makes
   the shell give up the rail's width, so the page's layout gets narrower
   (`annotation-theme.css`). Otherwise only the left resident and sidenotes move the
   column, through prepaint.js `residency`.
   Checks: `test_a_comment_leaves_its_block_as_the_page_wrote_it` and the shift watch
-  ("Stability"). Owners: the default package's `margin-placement.js` for where a margin
+  ("Stability"). Owners: `runtime/annotation-overlay/margin-placement.js` for where a margin
   row sits and when a pin folds.
 - **Auxiliary surfaces open over the page and never change its geometry.** The
   Questions panel, the thread panel and the Pages drawer take no room from the page;
@@ -388,11 +387,18 @@ keeps its own test says why beside it. Rows marked *lint* are enforced in
 
 | Question | Owner |
 | --- | --- |
-| Where the user stands: focus inside open shadow trees, or a label press holding them | `focus.js` `focused` |
+| Where the user stands: focus inside open shadow trees, or a label press holding them; asked in one tree, the node standing for it there | `focus.js` `focused`, `focused(tree)` (*lint*) |
+| Whether the user stands in a scope, across shadow trees and slots | `focus.js` `standingIn` (*lint*) |
+| The user's working place, read before something borrows it and handed back after | `history.js` `readPlace`, `returnPlace` |
+| Where a page walk starts, and which item it steps to from there | `standing-target.js` `walkOrigin`, `stepFrom` |
+| Which of two nodes the reader reaches first, across shadow trees | `shadow-tree.js` `renderedOrder`, `byRenderedOrder` |
+| Whether a node stands inside another across shadow trees, by composed parents or as rendered | `shadow-tree.js` `under`, `renderedUnder`, `composedParentNode` |
 | Put the user on an element, saying what moved them | `focus.js` `focusDestination(node, cause)` (*lint*) |
 | Place a node that may already stand somewhere, keeping the user's place in it | `dom-move.js` `move(parent, node, before)` (*lint*) |
 | Make a list of nodes, some already placed, a parent's children | `dom-children.js` `setChildren` |
 | Whether a control takes typed letters | `focus.js` `typesText`, `takesLetters` |
+| Which keys move a caret, and whether a key is Select All | `control-selectors.js` `CARET_KEYS`, `selectsAll` |
+| A hint map's walk and choose rows | `keyboard/hints.js` `createHintSession`, its session's walkRows |
 | Which focused control counts as the user's place: shown, and not under a stuck box | `user-place.js` `focusedInView` |
 | Whether a click came from the keyboard | `pointer.js` `pressIsKeyboardActivation` |
 | Whether a press is the plain one a control claims: primary button, no modifier | `pointer.js` `plainPress` |
@@ -483,10 +489,9 @@ contains its source, prompt, typed answer, status and next actor. The browser
 selects each widget answer from the same local-inclusive state its controls draw,
 without folding its `x-awaits.answered` completion rule again. A required-version
 approval is another ask source: its local approval or undo updates its contained
-answer and status immediately, with refusal restoring the admitted reading. While a
-reply, rewrite, settlement or settling reaction is unresolved, its thread's attention and the asks
-in it the user owes are what the server read that gesture leaving them (each served
-thread's `after`); a refusal restores the admitted reading. Asks derive their queue rows directly, while to-dos hold
+answer and status immediately, with refusal restoring the admitted reading. A thread
+gesture changes no served thread's attention and no ask until the server's reading of it
+arrives (root `AGENTS.md`, "Responsiveness"). Asks derive their queue rows directly, while to-dos hold
 explicit committed work. Every state read has
 one `through_seq`, and version comparison asks `/api/view` at the sequence
 already applied. A page widget's projection stops at the current revision; a

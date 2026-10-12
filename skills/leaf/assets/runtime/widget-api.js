@@ -169,7 +169,7 @@ export {
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
 export { announce, notice } from "./notifications.js";
-export { alignText, alignedNodes } from "./text-alignment.js";
+export { alignText } from "./text-alignment.js";
 export { inChrome, says, wrote } from "./passages.js";
 export {
   ago,
@@ -204,10 +204,11 @@ export {
 export { PAGE_INTERFACE, PRESENTATION, afterPresentation } from "./presentation.js";
 export { quietWord } from "./declared-words.js";
 export { projectData } from "./application.js";
-export { copyCodeBlock } from "./code-copy.js";
+export { copyBlock } from "./code-copy.js";
 export { retainUserIntent } from "./user-intent.js";
-// Whether a press is the plain one a control claims: the primary button, no modifier.
-export { plainPress } from "./pointer.js";
+// Whether a press is the plain one a control claims: the primary button, no modifier;
+// and whether a click came from the keyboard rather than a pointer.
+export { plainPress, pressIsKeyboardActivation } from "./pointer.js";
 export { onUserInput } from "./focus.js";
 export { keepView, openingView, tabStore } from "./storage.js";
 export {

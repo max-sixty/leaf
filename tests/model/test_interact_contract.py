@@ -42,10 +42,12 @@ from interact_support import (
     append_command,
     assert_revendor_serializes_writer,
     check,
+    check_findings,
     comment,
     declare_data_input,
     element_declaration,
     fetch,
+    found,
     fresh_process,
     lock_contention,
     model_layer,
@@ -2294,9 +2296,9 @@ def test_revendoring_an_unreadable_edit_does_not_require_historical_bindings(
         assert "error" in reading and "value" not in reading
     assert files_model.list_revisions(page_dir) == revisions
     assert source.read_bytes() == b"\xff"
-    checked = check(page_dir)
-    assert checked.exit_code != 0
-    assert "not UTF-8" in checked.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert [f.code for f in findings] == ["not-utf8"]
 
 
 def _page_owned_deferred_source(page_dir):
@@ -2359,6 +2361,56 @@ def _page_owned_deferred_source(page_dir):
         {"files": [{"key": "app.py", "patch": "old", "body": "new"}]},
     )
     return authored
+
+
+def test_a_contracts_item_schema_decides_whether_a_record_has_deferred_content(
+    page_dir,
+):
+    """The item schema owns presence; delivery neither invents nor requires payloads."""
+    authored = _page_owned_deferred_source(page_dir)
+    with pytest.raises(data_model.DataError, match="'patch' is a required property"):
+        data_model.cmd_data_set(
+            page_dir,
+            "files",
+            {"files": [{"key": "metadata", "body": "mode 100644 → 100755"}]},
+        )
+    declarations = json.loads(authored.read_text())
+    contract = declarations["$data"]["contracts"]["local-files"]
+    contract["schema"]["properties"]["files"]["items"]["required"] = ["key", "body"]
+    authored.write_text(json.dumps(declarations))
+    activated = revisioning_model.activate_source(page_dir)
+    assert activated.error is None
+    value = {
+        "files": [
+            {"key": "metadata", "body": "mode 100644 → 100755"},
+            {"key": "text", "body": "changed", "patch": "source evidence"},
+        ]
+    }
+    data_model.cmd_data_set(page_dir, "files", value)
+    registry = registry_storage.require_registry(page_dir)
+    stored = data_model.read_data(page_dir, registry)
+    reading = stored["sources"]["files"]
+    browser = data_model.browser_data_from(stored, registry)
+    assert browser["sources"]["files"]["value"] == {
+        "files": [
+            value["files"][0],
+            {"key": "text", "body": "changed"},
+        ]
+    }
+    assert (
+        data_model.deferred_value(
+            reading, registry, source="files", revision=reading["revision"], key="text"
+        )["value"]
+        == "source evidence"
+    )
+    with pytest.raises(data_model.DataError, match="deferred"):
+        data_model.deferred_value(
+            reading,
+            registry,
+            source="files",
+            revision=reading["revision"],
+            key="metadata",
+        )
 
 
 @pytest.mark.parametrize("change", ["schema", "records", "resources"])
@@ -2647,18 +2699,18 @@ def test_check_refuses_the_runtimes_own_markers_in_authored_markup(page_dir):
             '<p id="g" data-lf-gen="1">generated-looking</p>',
         )
     )
-    result = check(page_dir)
-    assert result.exit_code != 0
-    assert result.output.count("the runtime's own markers") == 4, result.output
-    # The marker list in parentheses, not the bare word: `reserved_marker_errors` names
-    # the tag, the line and the markers and never the element's id, so an `id="k"`
-    # conjunct here would have passed under the very fault it was written to catch. A
-    # bare "note" is the opposite failure — a future message carrying "denote" or
-    # "annotation" turns this red for a reason that has nothing to do with the page.
-    assert "(note)" not in result.output, (
-        "an ordinary authored class was refused as the runtime's own record, so "
-        f"the reservation reaches past the lf- namespace: {result.output}"
-    )
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    # Exactly these markers: an ordinary class among them would mean the reservation
+    # reaches past the lf- namespace.
+    assert [
+        (f.at, f.values["markers"]) for f in found(findings, "reserved-markers")
+    ] == [
+        ("<div>", ["lf-chrome"]),
+        ("<p>", ["lf-quiet"]),
+        ("<p>", ["lf-not-coined-yet"]),
+        ("<p>", ["data-lf-gen"]),
+    ]
 
 
 @pytest.mark.parametrize(
@@ -4460,13 +4512,18 @@ def test_check_rejects_an_invalid_bound_and_loose_pane_text(page_dir):
             '<lf-pane id="queue" label="Queue">loose<p>Two</p></lf-pane>',
         )
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert (
-        'data-bound="bottom"> (line 9) has an invalid value; expected one of start, '
-        in (result.output)
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(
+        findings,
+        "allocation-value",
+        "<pre>",
+        line=9,
+        attr="data-bound",
+        value="bottom",
+        allowed=["start", "end"],
     )
-    assert "x-reading-role pane must contain exactly one direct body" in result.output
+    assert found(findings, "pane-body", "<lf-pane>", body=["#text", "p"])
 
 
 def test_check_rejects_an_unknown_authored_width(page_dir):
@@ -4476,11 +4533,16 @@ def test_check_rejects_an_unknown_authored_width(page_dir):
             '<h2>Plan</h2><table data-width="full"><tr><td>A</td></tr></table>',
         )
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert (
-        '<table data-width="full"> (line 9) has an invalid value; expected one of '
-        "wide, available" in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(
+        findings,
+        "allocation-value",
+        "<table>",
+        line=9,
+        attr="data-width",
+        value="full",
+        allowed=["wide", "available"],
     )
 
 
@@ -4496,11 +4558,10 @@ def test_check_takes_a_stated_height_in_whole_css_pixels(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + chart.format("240px"))
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert (
-        'data-height="240px"> (line 9) has an invalid value; expected a whole number '
-        "of CSS pixels" in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(
+        findings, "allocation-value", attr="data-height", value="240px", allowed=None
     )
 
 
@@ -4514,10 +4575,16 @@ def test_check_takes_a_rail_only_by_name(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace("<body>", '<body data-rail="left">')
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert 'data-rail="left"> (line' in result.output
-    assert "expected one of right, none" in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(
+        findings,
+        "allocation-value",
+        "<body>",
+        attr="data-rail",
+        value="left",
+        allowed=["right", "none"],
+    )
 
 
 def test_a_fresh_server_does_not_revalidate_the_active_revisions_inputs(
@@ -4721,13 +4788,15 @@ def test_sample_diagnostics_report_authored_lines(page_dir, nested):
         f'<template\n id="practice"\n data-sample>\n{markup}</template></main>',
     )
     (page_dir / "index.html").write_text(source)
-    result = check(page_dir)
-    assert result.exit_code != 0, result.output
-    assert "sample 'practice'" in result.output
-    if nested:
-        assert "sample 'nested'" in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    samples = ("practice", "nested") if nested else ("practice",)
     line = source[: source.index("<noscript>")].count("\n") + 1
-    assert f"<noscript> at line {line}:" in result.output
+    unknown = source[: source.index("<lf-unknown")].count("\n") + 1
+    assert [(f.code, f.samples, f.values["line"]) for f in findings] == [
+        ("noscript", samples, line),
+        ("unknown-widget", samples, unknown),
+    ]
 
 
 def test_sample_checks_available_history_beside_forward_thread_references(
@@ -4754,9 +4823,11 @@ def test_sample_checks_available_history_beside_forward_thread_references(
             '<h1 id="duplicate">Child</h1></template></main>',
         )
     )
-    result = check(page_dir)
-    assert result.exit_code != 0
-    assert 'ids already taken by message markup: ["duplicate"]' in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert [(f.code, f.samples, f.values) for f in findings] == [
+        ("ids-taken-by-messages", ("practice",), {"ids": ["duplicate"]})
+    ]
 
 
 def test_check_reports_css_syntax_errors_in_every_source_the_page_writes(page_dir):
@@ -4769,12 +4840,13 @@ def test_check_reports_css_syntax_errors_in_every_source_the_page_writes(page_di
         )
     )
 
-    result = check(page_dir)
+    status, findings = check_findings(page_dir)
 
-    assert result.exit_code == 1
-    assert "page <style> syntax error" in result.output
-    assert re.search(r"<p style> \(line \d+\) syntax error", result.output)
-    assert result.output.count("syntax error") == 2
+    assert status == 1
+    assert [f.values["sheet"] for f in found(findings, "css-syntax")] == [
+        "page <style>",
+        "<p style> (line 10)",
+    ]
 
 
 def test_an_ask_role_declares_an_addressable_instance(page_dir):
@@ -4887,13 +4959,10 @@ def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_di
         "</lf-shot>"
     )
     (page_dir / "index.html").write_text(PAGE.replace("</main>", shot + "</main>"))
-    refused = check(page_dir)
-    assert refused.exit_code == 1
-    assert (
-        "/media/0000000000000001.png isn't in the page directory" in refused.output
-    ), (
-        f"the version door stopped asking, so the comparison below is empty: "
-        f"{refused.output}"
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(findings, "missing-media", ref="/media/0000000000000001.png"), (
+        "the version door stopped asking, so the comparison below is empty"
     )
 
     (page_dir / "index.html").write_text(PAGE)

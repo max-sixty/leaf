@@ -884,7 +884,9 @@ its platform meaning, such as a new tab or a context menu.
 
 A control whose label is the page's own words checks `reachedForWords(control)` in its
 click handler: true means the press ended a text selection on the control, so the user
-was taking the words rather than pressing. A container that takes a press anywhere on its
+was taking the words rather than pressing. A click the keyboard made, Enter or Space on
+the control, took no words, so the handler asks `pressIsKeyboardActivation(event)` first
+and lets that click through. A container that takes a press anywhere on its
 box, as an option card does, first asks `worksInside(event.target, container)`, which
 returns the control or widget inside it the press was aimed at, or `null` where the
 container is the aim.
@@ -1225,10 +1227,13 @@ array per line for a widget that numbers its lines. `lang` is one of the registr
 `highlightBlocks(root)` colours each `pre > code` block in `root`, `root` included, whose
 `language-…` class names a language, as Leaf colours authored code.
 
-Leaf adds a Copy button to each `pre > code` block in the page document itself. For a code
-block a widget draws in its shadow stage, `copyCodeBlock(pre, source)` returns the Copy
-button, which copies `source()` when pressed; call it once the styled block is connected,
-and append the button beside the `pre`.
+Leaf adds a Copy button to each `pre > code` block in the page document itself. For any
+other block of source text a widget draws, such as code in its shadow stage,
+`copyBlock(block, source, noun)` returns a Copy button standing at the block's top right,
+which copies `source()` when pressed; `noun`, such as `"code"`, names what it copies.
+Call it once the styled block is connected, and append the button as a child of the
+widget. The button shows while a pointer is over the widget or focus is inside it, which
+a tap on the block gives a finger, and Enter on the block copies too.
 
 ### Text alignment
 
@@ -1237,8 +1242,7 @@ and append the button beside the `pre`.
 and `delete` runs join to `before`, and the `same` and `insert` runs to `after`; a very
 large rewritten middle comes back as one delete and one insert. To align a rewritten
 paragraph by sentences instead, pass an `Intl.Segmenter` with `granularity: "sentence"` as
-the third argument. `alignedNodes(runs)` renders the runs as a `<span>`, `<del>` or `<ins>`
-each.
+the third argument.
 
 ### Image comparison
 

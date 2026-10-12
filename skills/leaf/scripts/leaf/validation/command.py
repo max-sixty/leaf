@@ -1,10 +1,21 @@
-"""Command boundary for mutable-source validation."""
+"""Command boundary for mutable-source validation.
 
+`page check` prints its findings for a reader, or with `--json` one JSON object on
+stdout: `status`, the exit status; `findings`, every finding as
+`findings.Finding.json` gives it, the markup checks' first; and `browser`,
+the browser gates `asked` for and those that `ran` (failing page code ends the check
+before the render gate reads anything), in which browser or why none could, with the
+render gate's margin widths and saved screens where it passed. `browser` is null where
+no gate needed one.
+"""
+
+import json
 import sys
 from pathlib import Path
 
 from leaf.event_log import read_events
 from leaf.files import list_revisions
+from leaf.findings import Finding
 from leaf.layer import payload_provenance, provenance_label, same_leaf
 from leaf.leases import page_locked
 from leaf.registry.contract import RegistryError
@@ -14,13 +25,13 @@ from leaf.revision_artifact import read_revision
 from .source import check_source
 
 
-def cmd_check(page_dir: Path, render: bool = False) -> int:
+def cmd_check(page_dir: Path, render: bool = False, as_json: bool = False) -> int:
     """Check the mutable source without activating or stamping it."""
     with page_locked(page_dir):
-        return _check(page_dir, render)
+        return _check(page_dir, render, as_json)
 
 
-def leaf_versions(page_dir: Path) -> list[str]:
+def leaf_versions(page_dir: Path) -> list[Finding]:
     """The Leaf that vendored the page beside the one checking it, where they differ.
 
     Between protocol bumps an update can still break an older page (`AGENTS.md`,
@@ -35,48 +46,77 @@ def leaf_versions(page_dir: Path) -> list[str]:
     if same_leaf(page_leaf, this_leaf):
         return []
     return [
-        (
-            f"Leaf {provenance_label(page_leaf)} vendored this page; this is Leaf "
-            f"{provenance_label(this_leaf)}. If the page misbehaves, "
-            f"`leaf page init {page_dir}` re-vendors it."
+        Finding(
+            "leaf-version",
+            values={
+                "vendored": provenance_label(page_leaf),
+                "running": provenance_label(this_leaf),
+                "page": str(page_dir),
+            },
+            severity="advice",
         )
     ]
 
 
-def _check(page_dir: Path, render: bool) -> int:
+def _check(page_dir: Path, render: bool, as_json: bool) -> int:
     events = read_events(page_dir)
     result = check_source(page_dir, events)
+    errors = result.errors
     advice = [*result.advice, *leaf_versions(page_dir)]
-    if result.errors:
+
+    def reported(status, browser=None):
         print(
-            f"Error: index.html has {len(result.errors)} validation issue{'s' if len(result.errors) != 1 else ''}",
+            json.dumps(
+                {
+                    "status": status,
+                    "findings": [
+                        f.json()
+                        for f in [
+                            *errors,
+                            *advice,
+                            *(browser.findings() if browser else []),
+                        ]
+                    ],
+                    "browser": browser.json() if browser else None,
+                },
+                ensure_ascii=False,
+            )
+        )
+        return status
+
+    if errors:
+        if as_json:
+            return reported(1)
+        print(
+            f"Error: index.html has {len(errors)} validation issue{'s' if len(errors) != 1 else ''}",
             file=sys.stderr,
         )
-        for error in result.errors:
+        for error in errors:
             print(f"  - {error}", file=sys.stderr)
         for line in advice:
             print(f"  · {line}", file=sys.stderr)
         return 1
-    print(
-        "✓ index.html: valid",
-        # Ahead of any browser gate's stderr, which a piped reader gets unbuffered.
-        flush=True,
-    )
-    for line in advice:
-        print(f"  · {line}")
+    if not as_json:
+        print(
+            "✓ index.html: valid",
+            # Ahead of any browser gate's stderr, which a piped reader gets unbuffered.
+            flush=True,
+        )
+        for line in advice:
+            print(f"  · {line}")
     from leaf.render_gate.page_code import needs_browser
 
     runs_code = needs_browser(result.document, result.artifact)
     if not (runs_code or render):
-        return 0
-    from leaf.render_gate.command import browser_check
+        return reported(0) if as_json else 0
+    from leaf.render_gate.command import browser_check, print_browser_check
 
     revisions = list_revisions(page_dir)
     active = revisions[-1] if revisions else 0
     revision = active
     if not active or read_revision(page_dir, active).digest != result.artifact.digest:
         revision = active + 1
-    return browser_check(
+    browser = browser_check(
         page_dir,
         result.document,
         revision,
@@ -84,3 +124,6 @@ def _check(page_dir: Path, render: bool) -> int:
         page_code=runs_code,
         render=render,
     )
+    if as_json:
+        return reported(browser.status, browser)
+    return print_browser_check(browser)

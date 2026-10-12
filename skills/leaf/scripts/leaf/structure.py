@@ -7,6 +7,7 @@ from urllib.parse import urlsplit
 
 import turbohtml
 
+from .findings import Finding
 from .schema import EVENT_ID, MEDIA_DIR
 
 DELIVERY_ENCODING_META = '<meta charset="utf-8" data-lf-runtime>'
@@ -86,13 +87,12 @@ AUTHORED_ALLOCATIONS = {
 PAGE_ALLOCATIONS = frozenset({"data-rail", "data-annotations"})
 
 
-def allocation_expects(attr: str, value: str) -> str | None:
-    """What an authored allocation's value should have been, or None where it is
-    one of the values `attr` takes."""
+def allocation_valid(attr: str, value: str) -> bool:
+    """Whether an authored allocation's value is one of the values `attr` takes."""
     values = AUTHORED_ALLOCATIONS[attr]
     if isinstance(values, re.Pattern):
-        return None if values.fullmatch(value) else "a whole number of CSS pixels"
-    return None if value in values else f"one of {', '.join(values)}"
+        return values.fullmatch(value) is not None
+    return value in values
 
 
 # Page-level declarations the runtime reads from <meta name="lf-*"> in the head,
@@ -428,9 +428,7 @@ class SourceDocument:
                 token = starts.get((error.line, error.col))
                 tag = token.tag if token is not None else "element"
                 self.errors.append(
-                    f"<{tag}/> at line {error.line} is self-closing: HTML ignores the "
-                    f"slash and the element would swallow what follows — write "
-                    f"<{tag} …></{tag}>"
+                    Finding("self-closing", f"<{tag}>", {"line": error.line})
                 )
 
     def _record_element(
@@ -528,17 +526,14 @@ class SourceDocument:
             if reference.startswith(("/page/", "page/", "./page/"))
         )
 
-        if tag == "noscript" or (tag == "template" and "data-sample" not in attrs):
-            self.errors.append(
-                f"<{tag}> at line {line}: the browser renders none of its content; "
-                "write it plainly or leave it out"
-            )
+        if tag == "noscript":
+            self.errors.append(Finding("noscript", "<noscript>", {"line": line}))
         if (
             not in_main
             and tag not in DOCUMENT_WRAPPERS
             and not (in_head and tag in HEAD_METADATA_TAGS)
         ):
-            self.outside_main.append(f"<{tag}> at line {line}")
+            self.outside_main.append({"tag": tag, "line": line, "text": False})
 
         if tag.startswith("lf-"):
             record = {
@@ -588,9 +583,7 @@ class SourceDocument:
         )
         if not attrs.get("id"):
             line, _ = self._position(template)
-            self.errors.append(
-                f"<template data-sample> at line {line}: needs a stable id"
-            )
+            self.errors.append(Finding("unnamed-sample", "<template>", {"line": line}))
         body = "".join(
             f' {name}="{escape(value)}"'
             for name, value in attrs.items()
@@ -740,7 +733,9 @@ class SourceDocument:
                     and "main" not in next_ancestors
                     and element.tag not in {"script", "style", "title"}
                 ):
-                    self.outside_main.append(f"text in <{element.tag}> at line {line}")
+                    self.outside_main.append(
+                        {"tag": element.tag, "line": line, "text": True}
+                    )
 
         if element.tag == "template" and "data-sample" in attrs:
             self._sample_resources(element)

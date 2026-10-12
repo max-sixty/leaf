@@ -13,6 +13,7 @@ in [UI review detection](ui-review-detection/README.md).
 pnpm install --frozen-lockfile
 uv run leaf-dev eval brief-document-needs-no-outline --harness claude-code
 uv run leaf-dev eval reading document/resume --harness codex
+uv run leaf-dev eval 'website-replies*' --harness codex --base -j 1
 uv run leaf-dev eval task-outlasts-the-turn --harness claude-code --base
 uv run leaf-dev eval document --harness both --condition both --repeat 3
 pnpm run eval:view
@@ -146,14 +147,18 @@ with `not-llm-rubric` for an answer the judge should reject. Promptfoo skips age
 generation and grades that answer; `review-shows-the-change/grader-*` exercises
 this path. These scores measure the judge, not the agent's behavior.
 
-A complete task instead names `metadata.executor`, a `leaf_dev` module, and
-`metadata.scenario`, a key of that module's `CASES`. The executor builds fixtures, runs the agent
-through resumed phases or live user rounds, and returns a boolean per deterministic check.
-Its `expected_checks` declares the check names, which become one assertion each, so a
-check that never ran fails rather than disappearing. An executor may also declare
-`rubrics`: text `llm-rubric` or screenshot `agent-rubric` assertions. A
-deterministic check reads a fact the page or the trace states; anything said in
-prose, a reply or a passage on the page, goes to the text judge. A text rubric's
+A complete task names `metadata.executor`, a `leaf_dev` Python module, and
+`metadata.scenario`, a case in `workflows/<module-name>.yaml`. That YAML owns the
+authored prompts, scenario inputs and native Promptfoo `assert` blocks, including
+text `llm-rubric` and screenshot `agent-rubric` assertions. Shared request files
+and fixture data stay beside their tasks and are read by the executor.
+
+Python prepares fixtures, drives the agent through resumed phases or live user
+rounds, and extracts evidence. It derives deterministic facts from the page or
+trace, such as whether each input received a completed reply; `expected_checks`
+declares those facts, which become one assertion each, so missing evidence fails
+rather than disappearing. Semantic grading stays with Promptfoo: anything said
+in prose, a reply or a passage on the page, goes to the text judge. A text rubric's
 `transform` can hand the judge one entry of the response's `metadata.texts`, such
 as one phase's reply or one paragraph, in place of the whole output. A screenshot executor lists captures beside the request
 they answer and writes them to the supplied `shots` directory, the only place its
@@ -167,6 +172,7 @@ declaring both on a case, including through inherited variant metadata, is an er
 | `arrangement_eval` | Runs a page task the way its user would, in one live session per sample. The author builds the page from `request.md`; the user then asks in chat for the 900px preference, comments on a passage, and makes the page's decision in a browser before asking for it to be applied. Leaf runs as the installed plugin: its agent serves and hands over the page, the comment is posted from a browser selection on that page, and the hook delivers it. HTML gets the comment in chat, and pastes what its page offered to copy, or types the decision. A user agent (`eval_user.py`) makes the decision through the page's own controls; the judge reads the author's answer to the comment, a reader checks the applied result against what was chosen, and on Leaf a fresh reader also reports the decision from the page's state. Screenshots each version on a laptop, at 900px with tall and short windows, and on a phone, with the commented item open once a version carries the comment, and records each phase's time, tokens, cost, authored CSS and script lines, and how often it wrote and rendered the page. |
 | `usability_eval` | Seeded pages read, resumed and revised, and live handoffs where the harness posts user updates through the served page. Checks read Leaf's page state and its parse of the markup; answers and edited prose go to the text judge; script repairs exercise the affected control. Fixtures are in `usability/fixtures/`. |
 | `delivery_eval` | Comments posted between turns and mid-turn, each of which must be picked up, started and answered. |
+| `website_eval` | Runs the arm's hosted App Server adapter and installed plugin on its configured model and reasoning effort. Asks a page question and a contextual follow-up, without requesting page construction. Retains native notifications, the opening and final reply updates actually published, and exact-input completed replies. Checks successful turns, replies and an unchanged page; judges whether the answers and visible openings address the user. |
 | `reader_eval` | Calibrates the screenshot judge: `dashboard/reader-seeded` and `reader-clean` each show it one triage board, with a seeded count defect or the correct count, and ask both whether the count matches the cards. |
 
 `sidebar-page-at-900px` runs the complete authoring and render loop. Its
@@ -188,7 +194,11 @@ shares `/tmp`, so run its complete tasks at `-j 1`. The decision round's user ag
 drives the page with the host's `playwright-cli`. Native Codex probes install the complete arm through the
 host Codex CLI's plugin installer in that home, and use the same CLI to run the
 read-only task. `MODELS` in `dev/leaf_dev/arms.py` pins the agent and judge
-models. The `llm-rubric` judge grades text and opens nothing. The screenshot judge
+models. Hosted response cases instead read the model, reasoning effort and
+instructions from each arm's website adapter, so they follow the deployed agent
+configuration. They use the local login and adapter, without the Worker, container
+or browser; `leaf-dev journey website-adapter` and the website delivery checks
+cover those boundaries. The `llm-rubric` judge grades text and opens nothing. The screenshot judge
 runs on the installed `codex` under a permission profile that lets it read the
 run's `screenshots/` and no other file of the repository. Promptfoo counts a
 judge's tokens but not its cost, and doesn't record which screenshots it opened, so

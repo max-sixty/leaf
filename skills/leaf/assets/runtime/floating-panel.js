@@ -44,7 +44,8 @@ import { queueBtn } from "./drawers.js";
 import { keys } from "./keyboard/scopes.js";
 import { pageCommand, pageRung } from "./keyboard/register.js";
 import { advertisesKeys, submitLabel } from "./keyboard/bindings.js";
-import { bannerRows, readStanding, watchBannerRows } from "./banner-toolbar.js";
+import { bannerRows, watchBannerRows } from "./banner-toolbar.js";
+import { readPlace } from "./history.js";
 import { readThreads } from "./thread/state.js";
 import { watchThreads } from "./thread/watch.js";
 import { threadAttention, workflowLabel } from "./thread/workflow.js";
@@ -73,9 +74,11 @@ import {
   onStanding,
   onUserInput,
   releaseFocus,
+  standingIn,
 } from "./focus.js";
 import { sizeObserver } from "./rendering.js";
 import { agentName, readApplication, watchSemantic } from "./semantic-state.js";
+import { renderedUnder } from "./shadow.js";
 
 const prefs = () => document.documentElement.lfChrome;
 // The Codex panel's tween: one strong ease-out for every change of size and fade.
@@ -1371,7 +1374,7 @@ export function createFloatingPanel({
       out: () => {
         const inField = editors.get(destination())?.input === focused();
         close();
-        if (!inField && !host.contains(focused())) focusDestination(leaf, "return");
+        if (!inField && !standingIn(host)) focusDestination(leaf, "return");
       },
     };
   });
@@ -1381,7 +1384,7 @@ export function createFloatingPanel({
       keys: ["Escape"],
       description: "Leave the comment field",
       title: "leave field",
-      when: () => !menuOpen && !trail.length && host.contains(focused()),
+      when: () => !menuOpen && !trail.length && standingIn(host),
       run: () => releaseFocus(),
     },
     // The menu's rows are a list the arrows walk.
@@ -1414,20 +1417,20 @@ export function createFloatingPanel({
     run: () => setRest(prefs().rest === "mark" ? "row" : "mark"),
   });
   // Where the reader stood before stepping into the panel, which a row's command that
-  // acts on that place gets back (banner-toolbar.js, `readStanding`).
+  // acts on that place gets back (history.js, `readPlace`).
   let heldStanding = null;
   host.addEventListener(
     "pointerdown",
     () => {
-      if (!host.contains(focused())) heldStanding = readStanding();
+      if (!standingIn(host)) heldStanding = readPlace();
     },
     true,
   );
   // Writing begins in the field and lasts while the user stays in the panel, so the
   // line naming where the words go stays put while they press Resolve or a filter.
   onStanding((node, _cause, left) => {
-    const inside = host.contains(node);
-    if (inside && left && !host.contains(left)) heldStanding = readStanding(left);
+    const inside = Boolean(node) && renderedUnder(node, host);
+    if (inside && left && !renderedUnder(left, host)) heldStanding = readPlace(left);
     const next = inside ? writing || node.localName === "leaf-text" : false;
     if (next === writing && !inside) return;
     writing = next;

@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import tomllib
 from datetime import datetime
 from pathlib import Path
 
@@ -60,6 +61,8 @@ from leaf.render_gate import browser as browser_model
 from leaf.render_gate.preview import preview_server
 from leaf.revisioning import activate_source
 from model_folds import leaf_page
+from packaging.requirements import Requirement
+from packaging.specifiers import SpecifierSet
 
 
 def storage_contract() -> tuple[list[str], list[str]]:
@@ -613,6 +616,9 @@ def test_shim_dispatches_every_command_through_one_uv_run(tmp_path, monkeypatch,
     fake_uv.chmod(0o755)
     monkeypatch.setenv("PATH", f"{tmp_path}:{os.environ['PATH']}")
     shim = PLUGIN_ROOT / "bin" / "leaf"
+    selected = tmp_path / "selected-leaf"
+    selected.symlink_to(shim)
+    monkeypatch.setenv("LEAF_HOST_LAUNCHER", str(selected))
 
     result = subprocess.run(
         [shim, *args],
@@ -642,7 +648,78 @@ def test_shim_dispatches_every_command_through_one_uv_run(tmp_path, monkeypatch,
     ]
 
 
-def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(tmp_path):
+def test_the_launcher_uses_the_hosts_selected_leaf_for_commands_and_hooks(
+    tmp_path, monkeypatch
+):
+    """A native plugin must retain the host's Python environment and hook stdin."""
+    launcher = tmp_path / "plugin" / "bin" / "leaf"
+    launcher.parent.mkdir(parents=True)
+    shutil.copy2(PLUGIN_ROOT / "bin" / "leaf", launcher)
+    interpreter = launcher.parent.parent / ".venv" / "bin" / "python"
+    interpreter.parent.mkdir(parents=True)
+    interpreter.write_text("#!/bin/sh\nexit 3\n")
+    interpreter.chmod(0o755)
+    selected = tmp_path / "selected leaf"
+    selected.write_text(
+        f"#!{sys.executable}\n"
+        "import sys\n"
+        'sys.stdout.write("".join(f"{arg}\\n" for arg in sys.argv[1:]) + sys.stdin.read())\n'
+        "sys.exit(23)\n"
+    )
+    selected.chmod(0o755)
+    monkeypatch.setenv("LEAF_HOST_LAUNCHER", str(selected))
+    for args, payload in [
+        (["page", "check", "a page"], ""),
+        (["hook", "--harness", "codex"], '{"session_id":"hosted"}'),
+    ]:
+        result = subprocess.run(
+            [launcher, *args],
+            input=payload,
+            capture_output=True,
+            text=True,
+            timeout=STATED_TIMEOUT,
+            check=False,
+        )
+        assert (result.returncode, result.stdout, result.stderr) == (
+            23,
+            "".join(f"{arg}\n" for arg in args) + payload,
+            "",
+        )
+    # A host may prepare its environment in a wrapper that invokes Leaf again.
+    # The selection belongs to this dispatch, not to the wrapper's child.
+    selected.write_text(
+        '#!/bin/sh\nexec "' + str(PLUGIN_ROOT / "bin" / "leaf") + '" "$@"\n'
+    )
+    delegated = subprocess.run(
+        [launcher, "--root"],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=False,
+    )
+    assert (delegated.returncode, delegated.stdout, delegated.stderr) == (
+        0,
+        f"{PLUGIN_ROOT}\n",
+        "",
+    )
+    monkeypatch.setenv("LEAF_HOST_LAUNCHER", "leaf")
+    refused = subprocess.run(
+        [launcher, "--version"],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=False,
+    )
+    assert (refused.returncode, refused.stdout, refused.stderr) == (
+        2,
+        "",
+        "LEAF_HOST_LAUNCHER must name an absolute launcher path\n",
+    )
+
+
+def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(
+    tmp_path, monkeypatch
+):
     """Which copy of leaf answered is otherwise unknowable from outside it. A
     harness session runs the payload its plugin cache holds and a checkout stands
     beside it; `bin/leaf` is identical across versions and nothing the CLI
@@ -658,6 +735,12 @@ def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(tm
     Eager and page-free, so it answers with no page named and nothing written
     where it ran, which is the whole of what a session asking the question has.
     """
+    # Pi exposes LEAF as the agent's locator; explicit launchers still name their
+    # own payload, even when another install supplied that locator.
+    selected = tmp_path / "installed-leaf"
+    selected.write_text("#!/bin/sh\nexit 99\n")
+    selected.chmod(0o755)
+    monkeypatch.setenv("LEAF", str(selected))
     cached_commit = "123456789abc"
     cached = install_payload(
         tmp_path / "plugins" / "cache" / "marketplace" / "leaf" / cached_commit
@@ -680,7 +763,8 @@ def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(tm
             check=False,
         )
 
-    here = asked(LEAF_COMMAND, "--root")
+    checkout_launcher = [str(PLUGIN_ROOT / "bin" / "leaf")]
+    here = asked(checkout_launcher, "--root")
     assert here.returncode == 0, here.stderr
     assert here.stdout.strip() == str(PLUGIN_ROOT.resolve())
 
@@ -696,7 +780,7 @@ def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(tm
         == f"leaf {cached_commit}, installed 2026-09-21T14:13:20+00:00"
     )
 
-    checkout = asked(LEAF_COMMAND, "--version")
+    checkout = asked(checkout_launcher, "--version")
     assert checkout.returncode == 0, checkout.stderr
     assert re.fullmatch(
         r"leaf [0-9a-f]{12}\+?, committed "
@@ -1951,15 +2035,18 @@ def test_page_check_names_an_older_leaf_beside_its_own(page_dir):
     """Between protocol bumps an update can still break an older page, and nothing
     compares the page's files with this Leaf's. So `page check` names the Leaf that
     vendored the page beside its own, with their dates, for the agent to judge a
-    re-vendor; a page this Leaf vendored gets no such line."""
+    re-vendor; a page this Leaf vendored gets no such line. With `--json` the same
+    reading is a record of both versions."""
     (page_dir / "index.html").write_text(PLAIN_PAGE, encoding="utf-8")
     stamp = page_dir / "registry.json"
     registry = json.loads(stamp.read_text(encoding="utf-8"))
 
-    def checked(producer):
+    def checked(producer, *flags):
         registry["$layer"]["producer"] = producer
         cleanup_model.write_json(stamp, registry)
-        result = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
+        result = CliRunner().invoke(
+            cli_model.cli, ["page", "check", str(page_dir), *flags]
+        )
         assert result.exit_code == 0, result.output
         return result.output
 
@@ -1974,6 +2061,18 @@ def test_page_check_names_an_older_leaf_beside_its_own(page_dir):
         f"this is Leaf {this_leaf}." in checked(older)
     )
     assert "vendored this page" not in checked(layer_model.payload_provenance())
+    report = json.loads(checked(older, "--json"))
+    assert (report["status"], report["browser"]) == (0, None)
+    [finding] = [f for f in report["findings"] if f["code"] == "leaf-version"]
+    assert finding["severity"] == "advice"
+    assert finding["values"] == {
+        "vendored": "a74b08365870, committed 2026-09-26T09:32:21-07:00",
+        "running": this_leaf,
+        "page": str(page_dir),
+    }
+    same = json.loads(checked(layer_model.payload_provenance(), "--json"))
+    assert {f["code"] for f in same["findings"]} == {"unpointable"}, same
+    assert {f["severity"] for f in same["findings"]} == {"advice"}, same
 
 
 def test_a_server_names_its_leaf_where_another_vendored_the_page(page_dir):
@@ -3262,6 +3361,15 @@ def test_package_check_requires_a_non_empty_widget_description(tmp_path, monkeyp
 
     assert result.exit_code != 0
     assert "<lf-toned-note> must carry a non-empty description" in result.output
+    # With --json the refusal is the result's one finding.
+    result = runner.invoke(cli_model.cli, ["package", "check", ".leaf", "--json"])
+    assert result.exit_code == 1
+    report = json.loads(result.stdout)
+    assert (report["status"], report["browser"]) == (1, None)
+    [refusal] = report["findings"]
+    assert (refusal["code"], refusal["severity"]) == ("package", "error")
+    said = refusal["values"]["text"]
+    assert "<lf-toned-note> must carry a non-empty description" in said
 
 
 def test_package_check_refuses_a_registry_example_that_violates_its_schema(
@@ -4484,92 +4592,72 @@ def test_an_installed_package_runs_its_own_scripts_by_name(tmp_path, monkeypatch
     assert "unknown package 'tallies'" in unknown.stderr
 
 
-@pytest.mark.parametrize(
-    ("header", "message"),
-    [
-        ("", "needs one inline `# /// script` metadata block"),
-        (
-            '# /// script\n# dependencies = ["unidiff>=1,<2"]\n# ///\n',
-            "dependency 'unidiff<2,>=1' must state a floor (>=) and nothing else",
-        ),
-        (
-            '# /// script\n# dependencies = ["unidiff==1.0.1"]\n# ///\n',
-            "dependency 'unidiff==1.0.1' must state a floor",
-        ),
-        (
-            '# /// script\n# dependencies = ["unidiff"]\n# ///\n',
-            "dependency 'unidiff' must state a floor",
-        ),
-        (
-            '# /// script\n# requires-python = "<3.13"\n# ///\n',
-            "requires-python must state a floor",
-        ),
-        (
-            '# /// script\n# dependencies = "unidiff>=1"\n# ///\n',
-            "invalid script metadata",
-        ),
-    ],
-)
 def test_package_check_refuses_a_script_that_would_run_in_the_callers_project(
-    tmp_path, monkeypatch, header, message
+    tmp_path, monkeypatch
 ):
     """Without an inline `script` block, `uv run --script` runs a file in whatever
-    project the caller's directory reaches, so check and install refuse one; a
-    declared constraint must be a floor with no cap, since no lock ships beside it.
-    """
+    project the caller's directory reaches, so check and install refuse one."""
     monkeypatch.chdir(tmp_path)
     source = tmp_path / "src" / "tally"
     created = CliRunner().invoke(cli_model.cli, ["package", "init", str(source)])
     assert created.exit_code == 0, created.output
     (source / "scripts").mkdir()
     script = source / "scripts" / "count.py"
-    script.write_text(f"{header}print('counted')\n")
+    script.write_text("print('counted')\n")
 
     checked = CliRunner().invoke(cli_model.cli, ["package", "check", str(source)])
     installed = CliRunner().invoke(cli_model.cli, ["package", "install", str(source)])
 
     assert checked.exit_code == 1
     assert checked.output.startswith(f"Error: {script}")
+    message = "needs an inline `# /// script` metadata block"
     assert message in checked.output
     assert installed.exit_code == 1
     assert message in installed.output
     assert not (machine_model.package_store() / "tally").exists()
 
 
-def test_script_requirements_read_a_multiline_dependency_list(tmp_path):
-    """The reading `package check` applies is the one the suite's pin guard uses, so
-    a header written across several comment lines is read whole by both."""
-    script = tmp_path / "tool.py"
-    script.write_text(
-        "# /// script\n"
-        "# dependencies = [\n"
-        '#   "unidiff>=1",\n'
-        '#   "rich>=13",\n'
-        "# ]\n"
-        "# ///\n"
-    )
-    assert [str(r) for r in packages_model.script_requirements(script)] == [
-        "unidiff>=1",
-        "rich>=13",
+def bundled_script_metadata(script: Path) -> dict:
+    """The inline `script` block of one bundled script, read as PEP 723 reads it."""
+    (block,) = [
+        match["content"]
+        for match in packages_model.INLINE_METADATA.finditer(script.read_text())
+        if match["type"] == "script"
     ]
+    return tomllib.loads(
+        "".join(
+            line[2:] if line.startswith("# ") else line[1:]
+            for line in block.splitlines(keepends=True)
+        )
+    )
 
 
 def test_the_suite_pins_every_bundled_script_dependency():
     """A bundled script's header declares its dependencies and ships no lock, so
-    the dev group repeats each one: `uv.lock` then pins what the suite runs the
-    script against, and the suite needs no network to run it."""
+    they follow the tree's dependency policy, a floor and no cap (AGENTS.md, "The
+    install runs this tree"), and the dev group repeats each one: `uv.lock` then pins
+    what the suite runs the script against, and the suite needs no network to run it.
+    """
     pyproject = (PLUGIN_ROOT / "pyproject.toml").read_text()
-    declared = {
-        str(requirement)
-        for script in schema_model.BUNDLED_PACKAGES.glob("*/scripts/*.py")
-        for requirement in packages_model.script_requirements(script)
-    }
+    scripts = sorted(schema_model.BUNDLED_PACKAGES.glob("*/scripts/*.py"))
+    assert scripts
+    declared = set()
+    for script in scripts:
+        metadata = bundled_script_metadata(script)
+        constraints = [metadata[key] for key in ["requires-python"] if key in metadata]
+        for value in metadata.get("dependencies", []):
+            requirement = Requirement(value)
+            assert requirement.url is None, (script, value)
+            constraints.append(str(requirement.specifier))
+            declared.add(str(requirement))
+        for constraint in constraints:
+            assert {spec.operator for spec in SpecifierSet(constraint)} == {">="}, (
+                script,
+                constraint,
+            )
     # Bundled packages never pass through `package install`, so hold their scripts
     # to the same check here.
-    for package in {
-        script.parent.parent
-        for script in schema_model.BUNDLED_PACKAGES.glob("*/scripts/*.py")
-    }:
+    for package in {script.parent.parent for script in scripts}:
         checked = CliRunner().invoke(cli_model.cli, ["package", "check", str(package)])
         assert checked.exit_code == 0, checked.output
     assert [

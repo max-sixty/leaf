@@ -585,13 +585,14 @@
             <p class="eyebrow bg-feature-elements">lf-draft</p>
             <h2>
               <strong>Drafts</strong
-              ><span class="bg-feature-detail">: editable passages and history</span>
+              ><span class="bg-feature-detail">: editable passages</span>
             </h2>
             <p id="bg-editing-guide">
               Drafts render Markdown as readable prose. “Edit” opens its exact source;
-              “Save” records it, “Cancel” discards the unsaved edit, and “Close” keeps
-              it for later. These controls stay in the box when annotations are hidden.
-              After an edit, “Changes” lists saved versions and “Restore” reapplies one.
+              “Save” records it, and “Cancel” or <kbd>Escape</kbd> discards the unsaved
+              edit. These controls stay in the box when annotations are hidden. Copy, at
+              the box’s top right, copies its Markdown. Press <kbd>z</kbd> to undo a
+              saved edit.
             </p>
             <lf-draft id="bg-draft">
               <pre>
@@ -2675,23 +2676,28 @@ gallery/
                 stays at the top of the view until the pair ends, below any page tabs.
                 This pair carries
                 <code>outlines</code>, so outlines mark each region where the two images
-                differ, on both sides of the divider, and the rail counts them.
+                differ, on both sides of the divider. Press “Changes” to hide and
+                restore every outline. Hover or focus it to read the changed and moved
+                counts, or hold it on a phone. Slide off before releasing to leave the
+                outlines as they were. “Pixels” opens the after image greyed with every
+                changed pixel painted over it. Press Pixels again, or click the picture,
+                to return to the comparison with its divider and outline setting
+                preserved.
               </p>
               <lf-shot
                 id="bg-shot"
                 outlines
+                pixels
                 alt="a sample run list with and without a status column"
                 before="/media/051bee487bfb5d13.png"
                 after="/media/a99a1b63048502d0.png"
               ></lf-shot>
               <p id="bg-shot-plain-guide">
                 The same pair without <code>outlines</code>: nothing is marked, and the
-                rail says nothing, since the pair has a change to point at. This one
-                carries <code>pixels</code> instead: choose “changed pixels” in the
-                middle of the rail, or press it with Enter, to see the after image
-                greyed with every changed pixel painted over it. Choose Before or After
-                to leave it, or click the picture to return to the comparison as it
-                stood.
+                rail offers no Changes control. This one carries <code>pixels</code>
+                instead: press “Pixels” with Enter to inspect the changed pixels. Choose
+                Before or After to leave it, or click the picture to return to the
+                comparison as it stood.
               </p>
               <lf-shot
                 id="bg-shot-plain"

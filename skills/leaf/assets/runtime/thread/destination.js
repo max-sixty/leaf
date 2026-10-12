@@ -46,6 +46,7 @@ import { renderedUnder } from "../shadow.js";
 import { threadKey, threadNames } from "./model.js";
 import { openMessageEditIn } from "./message-edit.js";
 import { THREAD } from "./selectors.js";
+import { threadPlace as placementOf } from "./placement.js";
 
 export function createThreadDestinations({
   placedAt,
@@ -71,6 +72,12 @@ export function createThreadDestinations({
     };
   }
   const threadTarget = (id) => placedAt(id)?.place ?? null;
+  // Where the thread stands in the page's order, as the list sorts it: its target, or
+  // the section its anchor names where the passage no longer resolves.
+  const threadPlace = (id) => {
+    const thread = allThreads().find((candidate) => candidate.id === id);
+    return thread ? placementOf(thread, placedAt) : null;
+  };
   const threadHere = () => heldThread() ?? preview?.accompanied() ?? null;
   // Discussion identity precedes the view that realizes it. Reply availability
   // narrows an editable destination without erasing the user's standing thread.
@@ -293,5 +300,6 @@ export function createThreadDestinations({
     threadAtStanding,
     replyThreadAtStanding,
     threadTarget,
+    threadPlace,
   };
 }

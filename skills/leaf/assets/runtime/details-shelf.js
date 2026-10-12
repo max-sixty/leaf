@@ -33,6 +33,7 @@
 import { chromeRoot } from "./chrome.js";
 import { move } from "./dom-move.js";
 import { declareSide } from "./standing-target.js";
+import { upFrom } from "./shadow.js";
 import { offer } from "./widget-elements.js";
 
 // element -> { notes, authored }; a note's element, read back.
@@ -41,7 +42,7 @@ const owners = new WeakMap();
 let shelf = null;
 
 declareSide((node) => {
-  for (let at = node; at && at !== shelf; at = at.parentElement) {
+  for (let at = node; at && at !== shelf; at = upFrom(at)) {
     const element = owners.get(at);
     if (element) return element;
   }

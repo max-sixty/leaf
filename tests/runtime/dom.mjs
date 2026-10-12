@@ -6,23 +6,16 @@
    happy-dom supplies the document object model itself — nodes, trees, selectors,
    ranges, and the geometry types — in this process.
 
-   A served page answers those modules at `/runtime/…`, its vendored bundles at
-   `/vendor/…` and its widget modules at `/widgets/…`, so that is how the runtime imports
-   them, and Node reads a root-absolute specifier as a path from the filesystem root.
-   Each of those three is a composed directory rather than one place on disk: the layer's
-   own, then every selected package's, the last to hold a name winning
-   (`composed_dir_files` in `layer.py`). A bundle in particular lives in the package
-   whose widget imports it, so mapping `/vendor/` onto the layer's half alone would send
-   a widget to a path that never held its bundle. No test selects packages, so the
-   composition here is every bundled one.
+   The runtime imports those modules by the root-absolute paths a served page answers
+   (`tests/served-paths.mjs`), which Node would read as paths from the filesystem root.
 
    This is not Chrome, and which readings may be asked of it is `tests/AGENTS.md`'s,
    under "Put each assertion at the boundary that owns it". */
 
-import { existsSync, readdirSync } from "node:fs";
 import { registerHooks } from "node:module";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { pathToFileURL } from "node:url";
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
+import { served } from "../served-paths.mjs";
 
 GlobalRegistrator.register({ url: "https://leaf.test/" });
 // Nothing is laid out here, so every box is whatever a test states. The window is the
@@ -92,32 +85,17 @@ sheets.dataset.lfSheets = "";
 sheets.textContent = JSON.stringify({ chrome: "", marks: "" });
 document.head.append(sheets);
 
-const at = (path) => fileURLToPath(new URL(path, import.meta.url));
-const PACKAGES = at("../../skills/leaf/packages");
-const ROOTS = [
-  at("../../skills/leaf/assets"),
-  ...readdirSync(PACKAGES, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => `${PACKAGES}/${entry.name}`)
-    .sort(),
-];
-
-const composed = (specifier) =>
-  ROOTS.map((root) => root + specifier).findLast(existsSync);
-
 // A test's comparisons go through `assert.mjs`, which writes a node as its opening tag.
-const ASSERT = pathToFileURL(at("./assert.mjs")).href;
+const ASSERT = new URL("./assert.mjs", import.meta.url).href;
 
 registerHooks({
   resolve(specifier, context, next) {
     if (specifier === "node:assert/strict" && context.parentURL !== ASSERT)
       return { url: ASSERT, shortCircuit: true };
-    if (/^\/(runtime|vendor|widgets)\//.test(specifier)) {
-      // An unanswered one falls through, so it reads as the module Node could not find
-      // rather than as a missing file at a path the layer would never have served it at.
-      const file = composed(specifier);
-      if (file) return { url: pathToFileURL(file).href, shortCircuit: true };
-    }
+    // An unanswered one falls through, so it reads as the module Node could not find
+    // rather than as a missing file at a path the layer would never have served it at.
+    const file = served(specifier);
+    if (file) return { url: pathToFileURL(file).href, shortCircuit: true };
     return next(specifier, context);
   },
 });

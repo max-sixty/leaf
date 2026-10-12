@@ -35,7 +35,7 @@ The sample's output is what a judge needs: the user's request, the later message
 the author's answer to the comment, and each version's screenshots by width,
 written to `shots`, the one directory its judge may read. Before screenshotting a version that carries the comment, the
 capture opens the commented item (`Scenario.reveal`), so the judge sees the change.
-`rubrics` are the Promptfoo `agent-rubric` assertions the judge grades from it;
+The YAML cases hold the native Promptfoo `agent-rubric` assertions;
 `eval-pairs` is the quality score, judging a pair's final versions side by side.
 """
 
@@ -76,29 +76,19 @@ from leaf_dev.arms import (
     trace_summary,
 )
 from leaf_dev.browser import chrome, load, settle, tab
+from leaf_dev.eval_cases import definition
 from leaf_dev.eval_user import comment_on_passage, decide, reveal
 
 TASKS = ROOT / "evals"
+DEFINITION = definition("arrangement_eval")
 WIDTHS = {
-    "laptop": ((1440, 900), "a 1440px laptop window"),
-    "narrow": ((900, 900), "a 900px window"),
-    "short": ((900, 600), "a short 900px by 600px window"),
-    "phone": ((390, 844), "a 390px phone"),
+    name: (tuple(width["viewport"]), width["description"])
+    for name, width in DEFINITION["widths"].items()
 }
-PREFERENCE = (
-    "A standing preference for all my pages from now on: I read them in a window "
-    "about 900px wide, beside my editor. At that width, keep the page's summary, "
-    "status, contents or queue beside the main content rather than stacked above "
-    "or below it."
-)
+PREFERENCE = DEFINITION["preference"]
 # Content out of view is reachable through a labeled control, as both judges count
 # it.
-REACHABLE = (
-    "A labeled control whose content is out of view, such as a collapsed section, "
-    "an unselected item or a scroll region's remainder, counts as reachable but "
-    "costs the user a step; content cut off with no visible way to reach it does "
-    "not count."
-)
+REACHABLE = DEFINITION["reachable"]
 # How long a session that has answered stays quiet before the next phase, and how
 # long the harness waits for a turn to start before calling a phase undelivered.
 GRACE = 20
@@ -136,173 +126,40 @@ class Decision:
 
 @dataclass(frozen=True)
 class Scenario:
-    quality: str = ""
     comment: Comment | None = None
     decision: Decision | None = None
     # What a reader clicks to open the item that holds the comment's passage.
     reveal: str = ""
 
 
-DISPOSITIONS = ("refund", "fix", "escalate to engineering", "close")
-QUEUE = {
-    "ESC-4107": "fix",
-    "ESC-4108": "close",
-    "ESC-4109": "fix",
-    "ESC-4111": "escalate to engineering",
-    "ESC-4112": "escalate to engineering",
-    "ESC-4113": "refund",
-    "ESC-4114": "escalate to engineering",
-}
-QUEUE_DECISIONS = "; ".join(f"{ticket}: {action}" for ticket, action in QUEUE.items())
-
-ACTIONS = ("pages", "opens a ticket", "off")
 # Each alert's candidate thresholds as the request lists them, and the user's setting.
-ALERTS = {
-    "payments-5xx-rate": (
-        ("over 0.5%", "over 1%", "over 2%", "over 5%"),
-        ("over 2%", "pages"),
-    ),
-    "payments-p99-latency": (
-        ("over 600 ms", "over 800 ms", "over 1,200 ms", "over 2,000 ms"),
-        ("over 1,200 ms", "opens a ticket"),
-    ),
-    "card-auth-decline-spike": (
-        ("over 1.5×", "over 2×", "over 3×"),
-        ("over 3×", "opens a ticket"),
-    ),
-    "webhook-backlog": (
-        ("over 1,000", "over 5,000", "over 20,000"),
-        ("over 20,000", "pages"),
-    ),
-    "ledger-reconciliation-lag": (
-        ("over 60 min", "over 90 min", "over 180 min"),
-        ("over 180 min", "pages"),
-    ),
-    "gateway-cert-expiry": (
-        ("under 30 days", "under 14 days", "under 7 days"),
-        ("under 30 days", "opens a ticket"),
-    ),
-}
-SETTINGS = "; ".join(
-    f"{alert}: {threshold}, {action}"
-    for alert, (_, (threshold, action)) in ALERTS.items()
-)
 
 
 CASES = {
-    "document": Scenario(
-        comment=Comment(
-            target="the recommendation's ask of the database owners",
-            quotes=(
-                "the database owners to say whether 55% peak CPU is acceptable",
-                "whether 55% peak CPU is acceptable",
-                "55% peak CPU",
-            ),
-            text="The database owners are Mei Tanaka's team. Name them here and ask "
-            "for their answer by Wednesday, the day before the decision.",
-            applied=r"Mei Tanaka",
+    name: Scenario(
+        comment=(
+            Comment(**(comment | {"quotes": tuple(comment["quotes"])}))
+            if (comment := case["inputs"]["comment"])
+            else None
         ),
-        decision=Decision(
-            task="As the platform team, decide the review's question: choose "
-            "option 1, staying on managed Redis and shortening the TTL to 7 days.",
-            typed="We've decided: stay on managed Redis and shorten the TTL to 7 days.",
-            chosen={"option": "stay on managed Redis, 7-day TTL"},
-            values={
-                "option": (
-                    "stay on managed Redis, 7-day TTL",
-                    "Postgres",
-                    "stateless tokens with a revocation list",
+        decision=(
+            Decision(
+                **(
+                    decision
+                    | {
+                        "values": {
+                            item: tuple(values)
+                            for item, values in decision["values"].items()
+                        }
+                    }
                 )
-            },
+            )
+            if (decision := case["inputs"]["decision"])
+            else None
         ),
-    ),
-    "dashboard": Scenario(
-        comment=Comment(
-            target="the follow-up to confirm the timeout change with the payments team",
-            quotes=(
-                "Confirm the timeout change with the payments team (Dana).",
-                "Confirm the timeout change with the payments team",
-                "timeout change with the payments team",
-            ),
-            text="Dana confirmed at 15:52 that 7.2's 3 s connect timeout is the cause. "
-            "Mark this follow-up done and say so where the page explains the cause.",
-            applied=r"15:52",
-        ),
-        decision=Decision(
-            task="Decide eu-west: roll it back to 4.11 and ship 4.12.1 with the old "
-            "timeout.",
-            typed="Roll eu-west back to 4.11 and ship 4.12.1 with the old timeout.",
-            chosen={
-                "eu-west": "roll back to 4.11",
-                "next release": "4.12.1 with the old timeout",
-            },
-            values={
-                "eu-west": ("resume to 100%", "hold at 50%", "roll back to 4.11"),
-                "next release": ("4.12.1 with the old timeout", "none"),
-            },
-        ),
-    ),
-    "queue": Scenario(
-        comment=Comment(
-            target="ESC-4110 (Brightline Dental)'s suggested action",
-            quotes=(
-                "point to the feature request board, already planned for Q4",
-                "point to the feature request board",
-                "feature request board",
-            ),
-            text="Brightline is on a Team trial that converts next week, so don't just "
-            "close it: route it to their account manager, Sam Okafor, with the Q4 plan.",
-            applied=r"Sam Okafor",
-        ),
-        decision=Decision(
-            task="Work through the queue and decide each ticket: "
-            f"{QUEUE_DECISIONS}. ESC-4110 is settled by your earlier comment; "
-            "leave it as it is.",
-            typed=f"My decisions: {QUEUE_DECISIONS}. ESC-4110 as I said in my comment.",
-            chosen=QUEUE,
-            values=dict.fromkeys(QUEUE, DISPOSITIONS),
-        ),
-        reveal="ESC-4110",
-    ),
-    "configuration": Scenario(
-        comment=Comment(
-            target="the ledger-reconciliation-lag alert",
-            quotes=(
-                "minutes since the last successful ledger reconciliation run",
-                "last successful ledger reconciliation run",
-                "ledger-reconciliation-lag",
-            ),
-            text="Finance owns this alert. If it pages, it pages the finance-ops "
-            "rotation, not payments on-call; show that beside its routing.",
-            applied=r"finance-ops",
-        ),
-        decision=Decision(
-            task=f"Set each alert's threshold and routing: {SETTINGS}.",
-            typed=f"Final settings: {SETTINGS}.",
-            chosen={
-                f"{alert} {part}": value
-                for alert, (_, setting) in ALERTS.items()
-                for part, value in zip(("threshold", "routing"), setting)
-            },
-            values={
-                f"{alert} {part}": values
-                for alert, (thresholds, _) in ALERTS.items()
-                for part, values in (("threshold", thresholds), ("routing", ACTIONS))
-            },
-        ),
-        reveal="ledger-reconciliation-lag",
-    ),
-    "sidebar-page-at-900px": Scenario(
-        quality=(
-            "The completed rollout's forty entries must remain readable in the "
-            "document's scroll, rather than showing only one screen of a separate "
-            "listing. At both 900px window heights, all six checks and their failing "
-            "result stay accessible beside the log as it scrolls. Page navigation "
-            "and any supporting sidebar content remain reachable; a sticky box must "
-            "not hold them below the window. On a phone, the regions stack without covering "
-            "the log or hiding its entries."
-        ),
-    ),
+        reveal=case["inputs"]["reveal"],
+    )
+    for name, case in DEFINITION["cases"].items()
 }
 
 
@@ -360,61 +217,33 @@ def phases(subject: str) -> tuple[int, ...]:
 
 
 def first_prompt(payload: Path, page: Path, subject: str, condition="leaf") -> str:
-    request = (TASKS / subject / "request.md").read_text()
-    if condition == "leaf":
-        tooling = (
-            "Use the Leaf skill ($leaf in Codex; leaf:leaf in Claude Code) for this "
-            f"page. $LEAF is its launcher, {payload}/bin/leaf. Check the page with "
-            f"`$LEAF page check {page} --render`, fix findings and stamp it."
-        )
-        handover = (
-            f"Write the page at {page}/index.html and hand it over to me in my browser."
-        )
-    else:
-        tooling = (
-            "Build with ordinary HTML, CSS and JavaScript. No Leaf instructions, "
-            "widgets or runtime are available. Check your output in the browser and "
-            "fix findings."
-        )
-        handover = (
-            f"Write the page at {page}/index.html; I'll open it in my browser. "
-            "Reply with one line naming the path, and I'll answer here."
-        )
-    return f"""{tooling}
-
-{handover} Produce a finished record with readable evidence and the choices or
-navigation the request needs. You may use the browser tooling available on this
-machine.
-
-The user's request follows.
-
-{request}"""
+    return DEFINITION["prompts"]["first"][condition].format(
+        payload=payload,
+        page=page,
+        request=(TASKS / subject / "request.md").read_text(),
+    )
 
 
 def preference_message() -> str:
-    return f"{PREFERENCE} Please revise the page to follow it."
+    return DEFINITION["prompts"]["preference"].format(preference=PREFERENCE)
 
 
 def comment_message(comment: Comment) -> str:
     """The comment as a user writes it in chat, or on a page whole."""
-    return f"On {comment.target}: {comment.text}"
+    return DEFINITION["prompts"]["comment"].format(
+        target=comment.target, text=comment.text
+    )
 
 
 # What applying a decision means here, where no system takes it but the page.
-APPLY = "Apply them: update the page so it records them as final."
 
 
 def apply_message(decision: Decision, route: str, copied: str | None) -> str:
     """The user's request to apply the decision: made on the page, pasted from what
     the page offered to copy, or typed."""
-    if route == "page":
-        return f"I've made my decisions on the page. {APPLY}"
-    if route == "copied":
-        return (
-            "I've made my decisions on the page, and this is what it gave me to "
-            f"copy:\n\n{copied}\n\n{APPLY}"
-        )
-    return f"{decision.typed}\n\n{APPLY}"
+    return DEFINITION["prompts"]["apply"][route].format(
+        typed=decision.typed, copied=copied
+    )
 
 
 def snapshot(page: Path, destination: Path) -> None:
@@ -583,12 +412,6 @@ def answers_in_phase(run: Run, phase: int) -> list[str]:
     ]
 
 
-READING = """{situation} For each item below, give one of its listed values, or
-"undecided" where nothing says.
-
-{items}"""
-
-
 def items(decision: Decision) -> str:
     return "\n".join(
         f"- {item}: {' | '.join(values)}" for item, values in decision.values.items()
@@ -637,13 +460,10 @@ def read_applied(run: Run, reply: str) -> dict:
     listed = "\n".join(
         f"- {path}" for path in sorted(files.rglob("*")) if path.is_file()
     )
-    prompt = READING.format(
-        situation="A user had an assistant build a page, made decisions on it and "
-        "asked the assistant to update the page so it records them as final. Read "
-        f"the page's files:\n{listed}\n\nand the assistant's answers at {answer}. "
-        "Say what the page's files now record as the final decision. The answers "
-        "may tell you where to look, but what they claim counts only where the "
-        "files show it.",
+    prompt = DEFINITION["prompts"]["reading"].format(
+        situation=DEFINITION["prompts"]["reading_applied"].format(
+            listed=listed, answer=answer
+        ),
         items=items(decision),
     )
     (evidence / "prompt.txt").write_text(prompt)
@@ -677,11 +497,10 @@ def read_decision(run: Run) -> dict:
     destination.mkdir()
     source_before = (page / "index.html").read_bytes()
     events_before = (page / "events.jsonl").read_bytes()
-    prompt = READING.format(
-        situation=f"Read the Leaf skill at {run.payload}/skills/leaf/SKILL.md. The "
-        f"page at {page} has been reviewed by a user who made decisions on it. Read "
-        "its current state: what did the user decide? Don't edit the page or serve "
-        "it.",
+    prompt = DEFINITION["prompts"]["reading"].format(
+        situation=DEFINITION["prompts"]["reading_decision"].format(
+            payload=run.payload, page=page
+        ),
         items=items(decision),
     )
     (destination / "prompt.txt").write_text(prompt)
@@ -873,7 +692,7 @@ def comment_applied(run: Run, page: Path) -> bool:
 def comment_answer(run: Run, reply: str) -> str:
     """What the author told the user about their comment, where it was asked: its
     replies on the comment's thread in Leaf, its chat reply in HTML. The judge reads
-    it (`rubrics`, "comment-answered")."""
+    it (the case's "comment-answered" assertion)."""
     if not run.leaf_condition:
         return reply
     thread = run.recorded("comment").get("event")
@@ -952,55 +771,6 @@ def brief(
     for phase in phases(subject):
         lines += ["", f"Version {phase} screenshots:", *listing(captures[phase])]
     return "\n".join(lines)
-
-
-JUDGING = (
-    "Open every screenshot the output lists for version {phase} before judging. "
-    "Each width's screenshots run top to bottom with overlap. Fixed viewer "
-    f"controls are outside the page's content. {REACHABLE} Judge only what a user "
-    "sees; don't infer interaction behavior from an unoperated screenshot. "
-)
-
-
-def rubrics(scenario: str) -> list[dict]:
-    """The judged quality of each version, and of the revision against the preference.
-
-    Splitting quality into separate verdicts would have the judge read every
-    screenshot once per verdict; its reason names what failed."""
-    return [
-        *(
-            {
-                "type": "agent-rubric",
-                "metric": f"phase-{phase}-quality",
-                "value": JUDGING.format(phase=phase)
-                + f"Pass only if, at every width, version {phase} keeps the request's "
-                "substantive information, lets the user find and read the evidence, and "
-                "provides the decisions or navigation the request needs. "
-                + CASES[scenario].quality,
-            }
-            for phase in phases(scenario)
-        ),
-        {
-            "type": "agent-rubric",
-            "metric": "phase-2-preference",
-            "value": JUDGING.format(phase=2)
-            + "Pass only if version 2 follows the standing width preference the "
-            "output quotes.",
-        },
-        *(
-            [
-                {
-                    "type": "agent-rubric",
-                    "metric": "comment-answered",
-                    "value": "Pass only if the author's answer to the user's comment, "
-                    "which the output quotes, tells the user that the change the "
-                    "comment asked for is made.",
-                }
-            ]
-            if CASES[scenario].comment
-            else []
-        ),
-    ]
 
 
 def expected_checks(case: str, *, condition="leaf") -> list[str]:

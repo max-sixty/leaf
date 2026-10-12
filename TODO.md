@@ -321,6 +321,12 @@ height and where a switch lands wait on the workspace decision under Layout.
 Keep the optional Leaf timeline alongside Playwright's viewer, as Max chose
 on 2026-10-07.
 
+- **Start videos without a flash or oversized play animation.** Provide shared,
+  quiet video controls with compact play/pause and a timeline, keeping the image
+  stable during startup. Firefox's native controls expand the initial play button
+  to three times its size while fading it out over 400 ms; rewinding and replaying
+  skips that effect. Verify first play and replay, including keyboard and touch
+  access ([Firefox implementation](https://github.com/mozilla-firefox/firefox/blob/main/toolkit/content/widgets/videocontrols.js)).
 - **Explore DOM selection in the imported timeline.** The optional `playwright`
   package imports native actions, checkpoint images, captured frames and saved
   accessibility elements; following their comments restores the moment. Reuse

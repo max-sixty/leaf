@@ -46,7 +46,7 @@ const reading = (events) => ({
         },
         coverage: [],
         undo: events.map((event) => ({ event })).reverse(),
-        queues: { questions: [], tasks: [], done: [], held: [] },
+        queues: { questions: [], tasks: [], done: [] },
         approval_blocking: [],
         document: {
           asks: noAsks(),

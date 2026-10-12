@@ -187,9 +187,12 @@ the comparison itself still flips between its endpoints.
 Before writing the prose and `alt` around a pair, open both images and compare
 them where the change should be.
 Add `outlines`, and each frame outlines what changed and, dashed, what only moved,
-where it sits in that frame, and the rail counts them. Leave it off where most
-outlines would mark what the pair is not about, such as live data that moved between
-captures you cannot retake, and say in the prose where to look. Either way, the rail
+where it sits in that frame. The rail's Changes control hides and restores all
+outlines. Hover or focus it to read the changed and moved counts, or hold it on
+a phone; sliding off before releasing leaves the outlines as they were.
+Leave it off where most outlines would mark what the pair is not about, such as
+live data that moved between captures you cannot retake, and say in the prose where
+to look. Either way, the rail
 reads "identical", "only slight changes" where no pixel moved far, or "changed
 throughout" where most of the image changed. Where it reads "identical", or no
 outline stands where the prose puts the change, capture a case that shows the
@@ -198,8 +201,9 @@ reader will hardly see the change, so name it in the prose, or say that nothing 
 redrawing changed.
 Add `pixels` where the reader needs to see exactly which pixels changed, as when
 the change is a shift of a few pixels or a recolour that flipping barely shows, or
-when the claim is that nothing else changed. The rail's reading then opens a third
-view, the after image greyed with every changed pixel painted over it, so build no
-difference image of your own. It combines with `outlines`, which still say where
-to look. Leave it off where the change reflows much of the frame, since nearly
-every pixel there changes and the view says less than the outlines.
+when the claim is that nothing else changed. The rail's Pixels action opens an
+inspection view, the after image greyed with every changed pixel painted over it,
+so build no difference image of your own. Returning preserves the divider and
+outline setting. It combines with `outlines`, which still say where to look. Leave
+it off where the change reflows much of the frame, since nearly every pixel there
+changes and the view says less than the outlines.

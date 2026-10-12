@@ -9,34 +9,34 @@
    page's words (questions, messages) in the page's serif; two inks, full and 60%, and
    the accent for what is on the user. The leaf is the one symbol at rest, and its
    colour is the agent's state. Every row is one line. */
-html[data-lf-floating-chrome] .lf-chrome {
-  /* A passing notice is said in the panel's empty field (floating-panel.js), so the
-     foot's status line keeps only a walk's position, which stands at the window's head,
-     centred: the panel's foot is where the user is writing, and its height changes. */
-  --lf-notice-seat: panel;
-  .lf-banner,
-  .lf-shortcut-bar {
-    display: none !important;
-  }
-  .lf-bottom-status {
-    top: calc(12px + var(--lf-safe-top));
-    bottom: auto;
-    right: auto;
-    left: 50%;
-    translate: -50% 0;
-  }
-  @container style(--lf-notice-seat: panel) {
-    .lf-bottom-status:not(
-      :has(> .lf-go-to-status:not([hidden]), > .lf-walk-position:not([hidden]))
-    ) {
-      display: none;
-    }
-    .lf-bottom-status > .lf-notice {
-      display: none;
-    }
-  }
-}
 @scope (.lf-chrome) {
+  html[data-lf-floating-chrome] :scope {
+    /* A passing notice is said in the panel's empty field (floating-panel.js), so the
+       foot's status line keeps only a walk's position, which stands at the window's head,
+       centred: the panel's foot is where the user is writing, and its height changes. */
+    --lf-notice-seat: panel;
+    .lf-banner,
+    .lf-shortcut-bar {
+      display: none !important;
+    }
+    .lf-bottom-status {
+      top: calc(12px + var(--lf-safe-top));
+      bottom: auto;
+      right: auto;
+      left: 50%;
+      translate: -50% 0;
+    }
+    @container style(--lf-notice-seat: panel) {
+      .lf-bottom-status:not(
+        :has(> .lf-go-to-status:not([hidden]), > .lf-walk-position:not([hidden]))
+      ) {
+        display: none;
+      }
+      .lf-bottom-status > .lf-notice {
+        display: none;
+      }
+    }
+  }
   :is(.lf-floating-panel, .lf-fp-ground) {
     --lf-fp-surface: light-dark(
       var(--paper),
@@ -65,8 +65,8 @@ html[data-lf-floating-chrome] .lf-chrome {
     inset: 0;
     z-index: calc(var(--lf-z-banner) - 1);
     pointer-events: none;
-    filter: drop-shadow(0 12px 14px light-dark(rgb(20 18 12 / 0.1), rgb(0 0 0 / 0.4)))
-      drop-shadow(0 1px 1px light-dark(rgb(20 18 12 / 0.04), rgb(0 0 0 / 0.2)));
+    filter: drop-shadow(0 12px 14px color-mix(in srgb, var(--shade) 70%, transparent))
+      drop-shadow(0 1px 1px color-mix(in srgb, var(--shade) 30%, transparent));
   }
   .lf-fp-ring,
   .lf-fp-fill {
@@ -707,7 +707,7 @@ html[data-lf-floating-chrome] .lf-chrome {
     background: var(--lf-fp-surface);
     box-shadow:
       0 0 0 1px var(--lf-fp-ring),
-      0 12px 24px -12px light-dark(rgb(20 18 12 / 0.25), rgb(0 0 0 / 0.6));
+      0 12px 24px -12px var(--shade);
   }
   .lf-floating-panel:not([data-menu]) .lf-fp-menu {
     display: none;
@@ -764,7 +764,7 @@ html[data-lf-floating-chrome] .lf-chrome {
     background: var(--lf-fp-surface);
     box-shadow:
       0 0 0 1px var(--lf-fp-ring),
-      0 8px 20px -10px rgb(20 18 12 / 0.2);
+      0 8px 20px -10px var(--shade);
     color: var(--lf-fp-muted);
     font-size: 12px;
     pointer-events: none;

@@ -132,8 +132,8 @@ other page files and the external state listed below.
 - `data/` — one JSON publication per source, `<source>.json`, holding `run`,
   `updated`, and `value` together. `leaf data set` validates and atomically writes
   it; a new write gets a new opaque run receipt, including an identical value.
-  Copying the page preserves that receipt. Readings validate the publication and
-  its value against the recorded contract. Deferred record fields served by
+  Copying the page preserves that receipt. Readings trust the publication's shape
+  and validate its value against the recorded contract. Deferred record fields served by
   `/api/deferred` come from the value in these same publications.
 
 - `status.json` — the agent's `waiting` or `idle` declaration, observed activity,
@@ -150,7 +150,8 @@ other page files and the external state listed below.
   first viewed. `presence.py` owns throttled renewal, which the server runs as a
   visible tab asks for news; hidden tabs do not renew it.
 
-- `cursor.json` — acknowledged position in this page's event log. Acknowledgement and
+- `cursor.json` — durable acknowledged position in this page's event log, retained
+  with that log when its serving process is replaced. Acknowledgement and
   log replacement rules are defined in [session-lifetime.md](session-lifetime.md).
 
 - `preview.json` — the preview identity browser chrome labels, written by

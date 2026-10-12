@@ -2339,6 +2339,43 @@ customElements.define("lf-shadow-reading", class extends HTMLElement {
     ).to_be_focused()
 
 
+@pytest.mark.parametrize("key", ["t", "Shift+t"])
+def test_the_thread_walk_opens_the_thread_on_the_passage_the_caret_is_in(
+    browser, serve, key
+):
+    """A caret in a passage a thread is on is at that thread without standing on it, so
+    either direction of the walk opens it, as `q` arrives at an item holding the caret."""
+    url = serve(
+        leaf_page(
+            "a caret on a thread",
+            """
+<h1>Caret walk</h1>
+<p id="before">The earlier discussion comes first.</p>
+<p id="here">The caret stands in this discussion.</p>
+<p id="after">The later discussion comes last.</p>
+""",
+        ),
+        anchored=[
+            ("before", "earlier discussion"),
+            ("here", "caret stands"),
+            ("after", "later discussion"),
+        ],
+    )
+    roots = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    page = open_page(browser, url)
+    page.evaluate(
+        "() => getSelection().collapse(document.querySelector('#here').firstChild, 30)"
+    )
+    page.keyboard.press(key)
+    expect(
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{roots[1]}"]')
+    ).to_be_focused()
+
+
 def test_generated_hints_include_links_revealed_by_a_page_widget(browser, serve):
     """A visible page route stays addressable when its widget generated the anchors.
 
@@ -3288,8 +3325,9 @@ def test_q_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, se
     """`q` stops, in page order, at a thread whose question waits on the user as well
     as at an open Ask, and passes a thread waiting on the agent; `t` still walks both
     threads. The banner counts what waits on each side, the user's Questions on their
-    door beside Threads and the agent's Tasks beside the status, and a reply the user
-    sends moves its thread from their count to the agent's and off the walk."""
+    door beside Threads and the agent's Tasks beside the status. A reply the user sends
+    joins the agent's count as it is sent, and its thread leaves the user's count and
+    the walk once the server has read the reply."""
     url = serve(QUEUE_PAGE)
     d = serve.page_dir
     asked = append_carried_log_record(
@@ -3363,13 +3401,13 @@ def test_q_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, se
     page.keyboard.press("Enter")
     box = thread.locator("leaf-text")
     write(box, "Weekly.")
-    # The reply moves from one count to the other in the turn it is sent, before the
-    # server has answered for it.
+    # The reply is the agent's to answer in the turn it is sent; which question it
+    # answers is the server's reading, which takes the thread off the user's count.
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     page.keyboard.press("ControlOrMeta+Enter")
     holding(page, held, 1, "the reply")
-    counts(1, 2)
+    counts(2, 2)
     page.unroute("**/api/event")
     for route in held:
         route.continue_()
@@ -3407,8 +3445,9 @@ def test_the_questions_panel_lists_both_queues_and_what_is_done(browser, serve):
     """The Questions panel lists the queues the `q` walk and the banner's counts read,
     the user's first and then the agent's, and folds what is done at the foot: here a
     task the agent ended. The prose question is an agent opening comment, which
-    asks implicitly. A row arrives where `q` would, and a reply the user sends moves its
-    thread from the user's list to the agent's in the turn it is sent."""
+    asks implicitly. A row arrives where `q` would. A reply the user sends joins the
+    agent's list as it is sent, and its thread leaves the user's once the server has
+    read the reply."""
     url = serve(QUEUE_PAGE)
     d = serve.page_dir
 
@@ -3521,8 +3560,8 @@ def test_the_questions_panel_lists_both_queues_and_what_is_done(browser, serve):
     page.keyboard.press("ControlOrMeta+Enter")
     holding(page, held, 1, "the reply")
     you = panel.locator("[data-lf-queue='you'] .lf-queue-row")
-    expect(you).to_have_count(1)
     expect(panel.locator("[data-lf-queue='agent'] .lf-queue-row")).to_have_count(3)
+    expect(you).to_have_count(2)
     page.unroute("**/api/event")
     for route in held:
         route.continue_()
@@ -12028,6 +12067,41 @@ def test_align_current_item_more_restores_touch_context_and_reserves_z(browser, 
     expect(page.locator("#align-heading")).to_be_focused()
 
 
+def test_more_keeps_its_place_when_a_revision_shortens_the_words_it_held(
+    browser, serve
+):
+    """More holds the reader's caret while it is open, and a live revision can shorten
+    the very text node that caret stands in meanwhile. A place-keeping command then
+    hands back what is left of that place and acts, rather than throwing on an offset
+    past the node's new length."""
+    source = leaf_page(
+        "A shortened passage",
+        '<h1>Keep the same reading place</h1><div style="height:700px"></div>'
+        '<p id="remembered">The amber passage keeps <strong>its own identity</strong>.</p>'
+        '<div style="height:1400px"></div>',
+    )
+    page = open_page(browser, live_url(serve(source)))
+    point = _word_point(page.locator("#remembered"), "keeps")
+    page.mouse.click(point["x"], point["y"])
+    held = page.evaluate(
+        "() => { window.held = getSelection().focusNode; return getSelection().focusOffset; }"
+    )
+    page.locator(".lf-banner-more").click()
+    control = page.get_by_role("button", name="Align current item at top", exact=True)
+    expect(control).to_be_visible()
+
+    stamp = stamp_page(
+        serve.page_dir,
+        source.replace("The amber passage keeps ", "Amber "),
+        "Shorten the passage",
+    )
+    wait_for_revision(page, stamp["revision"])
+    # The revision rewrote the held node in place, leaving the caret's offset past it.
+    assert page.evaluate("() => window.held.isConnected && window.held.length") < held
+    control.click()
+    _expect_aligned(page, "#remembered")
+
+
 def test_align_current_thread_stays_in_its_panel_without_travel(browser, serve):
     page = open_page(
         browser, serve(ALIGN_CURRENT_PAGE, anchored=[("remembered", "amber")] * 8)
@@ -13414,11 +13488,10 @@ def test_r_resolves_a_thread_from_wherever_the_user_stands_in_it(browser, serve)
 def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve):
     """One press is one action: the rung is the innermost scope in reach that binds
     Escape, and the dispatcher runs that one and no other. The draft editor's Esc used
-    to be two — the edit cancelled and the runtime's ladder closed the panel behind it
-    — and the cancel discarded the user's words against the never-lose-text norm. Each
-    control kept that by hand once and the stack keeps it now, so this is the test that
-    says the structure holds. The editor closes keeping the edit, the panel stands, and
-    a grabbed card's Esc cancels the move and nothing else."""
+    to be two — the edit cancelled and the runtime's ladder closed the panel behind it.
+    Each control kept that by hand once and the stack keeps it now, so this is the test
+    that says the structure holds. The editor's Esc cancels the edit and the panel
+    stands, and a grabbed card's Esc cancels the move and nothing else."""
     html = BOARD_PAGE.replace(
         "</main>", '<lf-draft id="plan"><pre>Ship it.</pre></lf-draft></main>'
     )
@@ -13441,12 +13514,7 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
     page.keyboard.press("Escape")
     expect(ta).to_have_count(0)  # the editor closed…
     expect(page.locator(".lf-thread-panel")).to_be_visible()  # …and only the editor
-    # The edit was set aside, not discarded: reopening resumes it.
-    draft_control(page, "edit", "plan").click()
-    expect(page.locator("lf-draft leaf-text")).to_have_js_property(
-        "value", "Ship it — but louder."
-    )
-    page.keyboard.press("Escape")
+    expect(page.locator("lf-draft .lf-draft-body")).to_have_text("Ship it.")
 
     # A grabbed card: Esc cancels the move, and the panel it would have closed stands.
     grip = page.locator("#card-heater .lf-grip")
@@ -13631,8 +13699,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     not about reopening what a pick has closed.
 
     The seat and the ask are the project widget SEATED_ASK_ENTRY declares, for the reason
-    test_a_seat_thread_leaves_the_pick_it_is_about_live gives: the split is between
-    two declarations, and since 292de9c no shipped entry carries both."""
+    test_a_seat_thread_leaves_the_pick_it_is_about_live gives."""
     url = serve(
         leaf_page(
             "mid-sentence",

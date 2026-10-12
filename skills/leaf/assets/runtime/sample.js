@@ -8,6 +8,8 @@
  * An opaque parent cannot classify a later document which has no Leaf bootstrap.
  * Departed ports cannot settle the replacement's calls.
  * A block follows the child's reported height; a window keeps its own viewport.
+ * A reading step the child's scroll chain spent goes on from the frame here, as the
+ * wheel's scroll chains out of a frame (navigation.js, `stepAlong`).
  * Passive demonstrations remain inert. Removing a frame retires its realm before
  * releasing the allocation, including on reset and parent departure. Destruction
  * cancels pending admission and queue waits; an allocation already in flight is
@@ -319,6 +321,14 @@ export function mountSample(
         );
       } else if (data.type === "return")
         frame.dispatchEvent(new Event("lf-sample-return"));
+      else if (data.type === "step")
+        frame.dispatchEvent(
+          new CustomEvent("lf-sample-step", {
+            bubbles: true,
+            composed: true,
+            detail: data.detail,
+          }),
+        );
       else notify(data.type, data.detail);
     };
     event.source.postMessage(

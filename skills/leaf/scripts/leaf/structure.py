@@ -71,9 +71,10 @@ PROSE_TAGS = {"p", "h1", "h2", "h3", "h4", "h5", "h6"}
 SECTIONING_TAGS = {"section", "article", "main", "body"}
 # The allocations a page occurrence may state, each attribute with the values it takes:
 # a block's width in the page's flow, whether it bounds its own height, the height in
-# CSS pixels of a widget that draws into a box of a stated height (x-height), and, on
-# `body` alone, the selected annotation presentation and whether the page claims the
-# overlay rail or keeps that margin for its own residents.
+# CSS pixels of a widget that draws into a box of a stated height (x-height), and, read
+# from `body`, the selected annotation presentation and whether the page claims the
+# overlay rail or keeps that margin for its own residents. Delivery honours a width,
+# bound or height only where it means something (`authored_on`, schema.DECLARED_MARKS).
 AUTHORED_ALLOCATIONS = {
     "data-width": ("column", "wide", "available"),
     "data-bound": ("start", "end"),
@@ -302,7 +303,6 @@ class SourceDocument:
         # document metadata alike: one index of what the head names, so a user
         # after a description does not need a second parse of the same head.
         self.named_metas = []
-        self.encoding_metas = []  # {charset, line} per authored encoding declaration
         # The authored page lives under one direct body > main because that is the
         # element the first-replay presentation boundary withholds. Both assets that
         # establish that boundary belong in head; anything paintable outside main would
@@ -483,8 +483,6 @@ class SourceDocument:
             self.named_metas.append(
                 {"name": attrs["name"], "content": attrs.get("content"), "line": line}
             )
-        if tag == "meta" and attrs.get("charset"):
-            self.encoding_metas.append({"charset": attrs["charset"], "line": line})
         if attrs.get("style"):
             self.inline_styles.append(
                 {"tag": tag, "line": line, "style": attrs["style"]}

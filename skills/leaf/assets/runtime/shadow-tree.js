@@ -21,13 +21,18 @@ export const upFrom = (node) => node?.parentElement ?? shadowHost(node?.getRootN
 // The same step through the tree as rendered: a node slotted into a shadow tree renders
 // inside its slot, so the slot is where it is scrolled and ordered, not its light parent.
 export const renderedParent = (node) => node?.assignedSlot ?? upFrom(node);
-// Whether `node` is itself a native layer the browser holds in the top layer: an open
-// popover or a modal dialog. A nonmodal open dialog is part of the page it stands in.
-// Read node kind rather than realm-specific Element: a sample asks this of its frame.
-export const isNativeLayer = (node) =>
-  node?.nodeType === Node.ELEMENT_NODE &&
-  node.isConnected &&
-  node.matches(":popover-open, dialog:modal");
+// The kind of native layer the browser holds `node` as in the top layer: `"modal"` for a
+// dialog shown modally, `"popover"` for an open popover, a dialog opened with
+// `showPopover` included, which leaves the page behind it live; else null. A nonmodal open
+// dialog is part of the page it stands in. Read node kind rather than realm-specific
+// Element: a sample asks this of its frame.
+export const nativeLayerKind = (node) => {
+  if (node?.nodeType !== Node.ELEMENT_NODE || !node.isConnected) return null;
+  if (node.matches("dialog:modal")) return "modal";
+  return node.matches(":popover-open") ? "popover" : null;
+};
+// Whether `node` is itself a native layer, of either kind.
+export const isNativeLayer = (node) => nativeLayerKind(node) !== null;
 
 // The innermost native layer `node` stands in as rendered, itself included, or null: a
 // box slotted into a popover stands in it.

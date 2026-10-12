@@ -52,7 +52,7 @@ import {
   showNativeLayer,
   closeNativeLayer,
 } from "./keyboard/layer-stack.js";
-import { nativeLayerHolding } from "./shadow-tree.js";
+import { nativeLayerHolding, nativeLayerKind } from "./shadow-tree.js";
 import { registerCoveringAuxiliarySurface } from "./keyboard/register.js";
 import { hides, placeHolder } from "./geometry.js";
 import { under } from "./shadow.js";
@@ -141,7 +141,7 @@ export function createAuxiliarySurfaces({
         next &&
         document.hasFocus() &&
         !restored &&
-        !nativeLayerHolding(deepFocus())?.hasAttribute("popover")
+        nativeLayerKind(nativeLayerHolding(deepFocus())) !== "popover"
       )
         focusDestination(landingIn(next), "return");
     });

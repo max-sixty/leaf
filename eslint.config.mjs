@@ -580,7 +580,7 @@ const placementsRule = {
 };
 
 // Whether a node is an open native layer, or stands in one, is asked of shadow-tree.js
-// (`isNativeLayer`, `nativeLayerHolding`), and which are open of keyboard/layer-stack.js
+// (`nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding`), and which are open of keyboard/layer-stack.js
 // (`nativeLayers`). A selector naming the open state answers it again, and the copies
 // drift: a `dialog[open]` read once counted the auxiliary envelope, a nonmodal dialog
 // that is always open, as a layer. A reader that also wants a nonmodal dialog asks the
@@ -622,7 +622,7 @@ export const openLayersRule = {
           context.report({
             node,
             message:
-              "Ask shadow-tree.js whether a node is an open layer or stands in one (isNativeLayer, nativeLayerHolding) rather than selecting the open state.",
+              "Ask shadow-tree.js whether a node is an open layer or stands in one (nativeLayerKind, isNativeLayer, nativeLayerHolding) rather than selecting the open state.",
           });
       },
     };

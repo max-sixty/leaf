@@ -32,7 +32,7 @@
    back from them.
 
    Whether a node is one of these layers, or stands in one as rendered, is asked of
-   `shadow-tree.js` (`isNativeLayer`, `nativeLayerHolding`), below this module and the
+   `shadow-tree.js` (`nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding`), below this module and the
    modules it imports, so focus and inertness ask it too. Every reader that treats the top
    layer differently asks there: an anchor cannot reach out of it, it paints over every
    page level, and a cluster keeps its options open while the user visits one.
@@ -62,7 +62,7 @@ import {
   canPlaceFocus,
 } from "../focus.js";
 import { renderedUnder } from "../shadow.js";
-import { isNativeLayer } from "../shadow-tree.js";
+import { isNativeLayer, nativeLayerKind } from "../shadow-tree.js";
 
 const entries = [];
 const watchedRoots = new WeakSet();
@@ -88,7 +88,7 @@ function pushNativeLayer(node, source = null) {
   entries.push({
     root: node,
     get kind() {
-      return node.localName === "dialog" ? "modal" : "popover";
+      return nativeLayerKind(node);
     },
     active: () => isNativeLayer(node),
     fromNowhere: !holding || holding === document.body,
@@ -119,12 +119,12 @@ function closing(event) {
 }
 
 HTMLDialogElement.prototype.showModal = function () {
-  if (!isNativeLayer(this)) pushNativeLayer(this);
+  if (nativeLayerKind(this) !== "modal") pushNativeLayer(this);
   return nativeDialogShowModal.call(this);
 };
 
 HTMLElement.prototype.showPopover = function (options) {
-  const opening = !isNativeLayer(this);
+  const opening = nativeLayerKind(this) !== "popover";
   if (opening) pushNativeLayer(this);
   nativePopoverShow.call(this, options);
   const entry = opening && entries.find((candidate) => candidate.root === this);
@@ -237,7 +237,7 @@ export function nativeModalAdmits(node) {
     return !modal || renderedUnder(node, modal);
   }
   return [...owner.querySelectorAll("dialog")]
-    .filter(isNativeLayer)
+    .filter((dialog) => nativeLayerKind(dialog) === "modal")
     .every((modal) => renderedUnder(node, modal));
 }
 

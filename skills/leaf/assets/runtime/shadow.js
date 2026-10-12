@@ -1,7 +1,7 @@
 /* This module owns declared shadow roots, the shadow.css rules they render under, and
  * the shared highlight rules. */
 import { registry, tagsDeclaring } from "./registry.js";
-import { shadowHost, upFrom, renderedParent, isNativeLayer } from "./shadow-tree.js";
+import { shadowHost, upFrom, renderedParent, nativeLayerKind } from "./shadow-tree.js";
 export { shadowHost, upFrom, renderedParent };
 
 // The open shadow roots under some root that hold the page's own words, from what the
@@ -42,7 +42,7 @@ export const pageShadowRoots = () => shadowRootsIn(document);
 export function excludedByInert(node) {
   for (let owner = node; owner; owner = renderedParent(owner)) {
     if (owner.inert) return true;
-    if (isNativeLayer(owner) && owner.localName === "dialog") break;
+    if (nativeLayerKind(owner) === "modal") break;
   }
   return false;
 }

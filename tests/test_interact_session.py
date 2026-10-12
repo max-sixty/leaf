@@ -19584,6 +19584,30 @@ def test_a_prompt_reminds_of_debt_on_a_page_its_leaf_cannot_write(claimed, capsy
     assert events_model.read_events(claimed) == logged
 
 
+def test_a_prompt_offers_no_new_input_from_a_page_its_leaf_cannot_write(
+    claimed, capsys
+):
+    """A prompt hands over no delivery of fresh input on a page vendored at another
+    protocol, whose receipt this Leaf would refuse: the pointer could never be
+    confirmed, so every later prompt or Stop offered the same input again. It names
+    the page protocol and the re-vendor instead."""
+    append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "Please answer"}
+    )
+    vendored_at_another_protocol(claimed)
+    cursor = events_model.read_cursor(claimed)
+
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    )
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    assert "page protocol" in context
+    assert not re.search(r"leaf delivery read|<leaf-delivery", context)
+    assert events_model.read_cursor(claimed) == cursor
+
+
 def test_a_hook_waits_on_no_receipt_lock_past_its_deadline(
     claimed, tmp_path, monkeypatch, capsys
 ):

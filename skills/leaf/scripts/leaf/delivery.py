@@ -631,12 +631,14 @@ def deliverable(page: PageTransaction) -> list[dict]:
     `receive_batch` refuses its receipt. Handed over anyway, it stayed pending, so a
     watch woke its session on every pass and a Codex watch opened a turn for it each
     time. It waits for a Leaf that can write the page; the prompt hook names the
-    re-vendor that frees it (`hook_transport.remedies`)."""
+    re-vendor that frees it (`hook_transport.remedies`). A page with nothing pending
+    is answered without loading its layer, since Codex asks after every tool call."""
+    pending = unacknowledged(page.events, page.cursor)
+    if not pending:
+        return []
     from .event_contracts import write_refusal
 
-    if write_refusal(page.page_dir):
-        return []
-    return unacknowledged(page.events, page.cursor)
+    return [] if write_refusal(page.page_dir) else pending
 
 
 class ReceiptRefused(Refused):

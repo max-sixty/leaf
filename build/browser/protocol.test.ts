@@ -32,15 +32,15 @@ type None<T> = [T] extends [never] ? true : false;
 type Takes<New, Old> = [Old] extends [New] ? true : false;
 
 // What the page's runtime posts, which the current browser door must admit.
-export const commandsKeepTheirFields: None<
+const commandsKeepTheirFields: None<
   Dropped<Vendored.BrowserCommandMap, Current.BrowserCommandMap>
 > = true;
-export const commandsStillAdmitted: Takes<
+const commandsStillAdmitted: Takes<
   Current.BrowserCommand,
   Vendored.BrowserCommand
 > = true;
 // What the page's log holds, which the current Leaf must read.
-export const recordsKeepTheirFields: None<
+const recordsKeepTheirFields: None<
   Dropped<Vendored.EventMap, Current.EventMap>
 > = true;
-export const recordsStillRead: Takes<Current.Event, Vendored.Event> = true;
+const recordsStillRead: Takes<Current.Event, Vendored.Event> = true;

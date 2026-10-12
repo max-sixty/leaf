@@ -62,13 +62,16 @@ const threadPosition = (threadHere, panelIsOpen, narrowing, list) => {
   });
 };
 
-// From a place on the page at no thread, a walk in the page's order measures document
-// position against each thread's target: a target holding the place is where the user
-// already is, so the press steps off it. A general or detached thread has no target, and is reached from the
-// list's ends, as every thread is in the panel's Recent order.
-function threadFrom(threads, place, dir, threadTarget) {
+// From a place at no thread, a walk measures document position against each thread's
+// place: a place on the page, in the page's order, against each thread's target, and a
+// list row that is no thread, such as a withdrawn thread's notice, against the cards
+// beside it, in whichever order the list shows. A target holding the place is where the
+// user already is, so the press steps off it. A general or detached thread has no
+// target, and is reached from the list's ends, as every thread is in the panel's Recent
+// order.
+function threadFrom(threads, place, dir, placeOfThread) {
   const placed = threads
-    .map((thread) => ({ thread, target: threadTarget(thread.dataset.id) }))
+    .map((thread) => ({ thread, target: placeOfThread(thread) }))
     .filter(({ target }) => target);
   if (!place || !placed.length) return clampedRow(threads, null, dir);
   const side =
@@ -121,15 +124,20 @@ function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
   const current = currentThread(threads, threadHere);
   const targetId = !current && threadAtStanding();
   const atTarget = targetId && threads.find((thread) => thread.dataset.id === targetId);
+  // Focus on a list row the walk does not count, such as a withdrawn thread's notice.
+  const atRow =
+    panelIsOpen() && focused() !== threadsBox && threadsBox.contains(focused());
   const next = current
     ? clampedRow(threads, current, dir)
     : (atTarget ??
-      threadFrom(
-        threads,
-        !panelIsOpen() || narrowing.listedInPageOrder() ? walkOrigin() : null,
-        dir,
-        threadTarget,
-      ));
+      (atRow
+        ? threadFrom(threads, focused(), dir, (thread) => thread)
+        : threadFrom(
+            threads,
+            !panelIsOpen() || narrowing.listedInPageOrder() ? walkOrigin() : null,
+            dir,
+            (thread) => threadTarget(thread.dataset.id),
+          )));
   if (!next) return;
   void arriveAtThread(next, destinations, panelIsOpen, threadsBox, retainUserIntent());
   announce(

@@ -2,10 +2,12 @@
 
 ## Stamp checkpoints
 
-At a checkpoint the user would name, such as sign-off or the end of the conversation,
-stamp the exact current source with a brief changelog, after the review the main
-skill's "Quick pages and records" step asks of a record. An answered message is not a
-checkpoint.
+Stamp a record again at a checkpoint the user would name, such as sign-off or the
+end of the conversation, and wherever a reference requires a stamped version, as
+taking in an answer to a page ask does (`references/authoring-revisions.md`). Each
+stamp records the exact current source with a brief changelog, after the render check
+and reading the main skill's "Review and stamp a record" step asks of a record. An
+answered message is not a checkpoint.
 
 ```bash
 leaf page stamp <page> --text "<what changed>"

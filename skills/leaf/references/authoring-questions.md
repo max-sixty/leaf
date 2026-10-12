@@ -5,8 +5,8 @@ that decision open until the user decides. `conversation-loop.md`, "Questions an
 Tasks", owns the complete queue contract, including conversational questions and
 requests for actions outside the page.
 
-The user answers an ask from what is on screen when they reach it. The `q`
-key takes them to its answering widget and context. Keep its question,
+The user answers an ask from what is on screen when they reach it, often by pressing
+`q` (`conversation-loop.md`, "Questions and Tasks"). Keep its question,
 short shared premise, and evidence together with the answering control. Use `lf-ask`
 to frame that material when it lives outside the answering widget: a question heading,
 then context and evidence, then one answering widget. Backing detail and reproductions
@@ -34,11 +34,8 @@ widths").
 
 Write related, independently answerable asks in page order. A widget can carry its
 own question and context, or an `lf-ask` can frame them around it. They remain visible
-as one complete page. The user can press `q` to reach the next thing waiting on them
-(an open ask, a thread whose question is theirs, a to-do you put on them, or an update
-whose reply failed and needs sending again) and use an ask's displayed `1`–`9`
-actions. If a later ask depends on an earlier answer, publish it in the next turn
-instead of authoring every possible branch.
+as one complete page. If a later ask depends on an earlier answer, publish it in the
+next turn instead of authoring every possible branch.
 
 Each ask contains its prompt, current typed answer and status. Widget state
 owns the answer: a choice can supply a partial value before its Done completes
@@ -46,12 +43,10 @@ the ask, and an empty selection can be a completed answer. `lf-ask` adds
 context around the answering widget; it does not create another ask or
 replace the widget's identity. Standalone decision widgets also pose asks.
 
-`leaf page state` lists `asks` separately from `todos`. A widget's
-ask is identified by `widget:<widget-id>`; a prose ask in a thread by
-`reply:<message-id>`. If a widget ask stops mattering before the user answers,
-retire its source in a version or mark that source `restated` as
-`authoring-revisions.md` says. A to-do you put on the user is work you ask them
-to do, such as trying a build, rather than a question they answer (`conversation-loop.md`, "Questions and Tasks").
+If a widget ask stops mattering before the user answers, retire its source in a
+version or mark that source `restated` as `authoring-revisions.md` says. A to-do you
+put on the user is work you ask them to do, such as trying a build, rather than a
+question they answer (`conversation-loop.md`, "Questions and Tasks").
 
 The user can finish each independently answerable proposal as they review it,
 without leaving the material it rests on. Choosing which of several items to act
@@ -83,6 +78,8 @@ alternative's costs and open questions belong in its case; how to build it, and
 asks that arise only once it is chosen, wait for the user's pick, the one you
 recommend included.
 
+## Sign-off
+
 A page whose approval unblocks work declares:
 
 ```html
@@ -90,8 +87,8 @@ A page whose approval unblocks work declares:
 ```
 
 An informational page omits it. The banner offers approval only on a stamped
-version that declares it. This creates an approval ask identified by `approval:v<version>`;
-that version's approval answers it, and Undo reopens it. Approval requires every
-widget ask on the page and in its unresolved threads to be answered or withdrawn. Widget asks in
-resolved threads and prose asks do not block approval. Discussion alone
-leaves a widget's answer incomplete.
+version that declares it, so stamp a draft before requesting its sign-off. Each such
+version gets an approval ask; that version's approval answers it, and Undo reopens
+it. Approval requires every widget ask on the page and in its unresolved threads to
+be answered or withdrawn. Widget asks in resolved threads and prose asks do not
+block approval. Discussion alone leaves a widget's answer incomplete.

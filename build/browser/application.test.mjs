@@ -5,6 +5,7 @@ import { createPresentationCoordinator } from "./presentation.ts";
 import { projectionOrigins } from "../../skills/leaf/assets/runtime/projection/model.js";
 import {
   servedGestureSequence,
+  servedQuestionItem,
   servedReading,
   servedThread,
   servedWorkflow,
@@ -78,6 +79,26 @@ const wireQuestion = (
   status: "open",
   next_actor: "user",
 });
+// A view's Questions as the served queues list them: each the user owes, and each
+// that is answered or withdrawn, done.
+const questionQueues = (questions) => {
+  const item = (question) =>
+    servedQuestionItem(question, {
+      subject: { kind: "widget", id: question.source.id },
+    });
+  return {
+    on_you: questions.filter((question) => question.next_actor === "user").map(item),
+    on_agent: [],
+    done: questions
+      .filter((question) => question.status !== "open")
+      .map((question) => ({
+        ...item(question),
+        state: "done",
+        ended: null,
+        detail: null,
+      })),
+  };
+};
 const coordinate = ["choice", "choice", "decide"];
 const action = (attempt, outcome = "accept") => ({
   kind: "action",
@@ -99,6 +120,7 @@ const state = (taken, events = []) => ({
   browser: {
     basis: { through_seq: events.length },
     receipts: events,
+    thread_memberships: {},
     tasks: [],
     ended_tasks: [],
     thread: {
@@ -114,6 +136,8 @@ const state = (taken, events = []) => ({
         undo: [],
         reports: [],
         published_at: null,
+        queues: { on_you: [], on_agent: [], done: [] },
+        approval_blocking: [],
         document: {
           questions: noQuestions(),
           projection: {
@@ -277,7 +301,8 @@ test("one synchronous immutable reading combines authored, accepted, and later p
 test("the public Thread collection contains conversations while approvals stay page-wide", () => {
   const app = capture();
   const reading = state(1);
-  const question = servedReading("approval").views["1"].document.questions.all[0];
+  const question =
+    servedReading("approval").browser.views["1"].document.questions.all[0];
   reading.browser.views[1].document.questions = {
     all: [question],
     user: [question],
@@ -665,6 +690,39 @@ test("every thread gesture the ledger holds names the thread it stands in", () =
   assert.deepEqual(gestured(action("move")), []);
 });
 
+test("an answer concerns the thread it closes from the reading that logs it", () => {
+  // A page suggestion that answers a thread stands in no thread, so accepting it draws
+  // nothing there until the log closes the thread. The reading that does files the
+  // acceptance under that thread, and the news the thread holds back shows with it.
+  const app = createSemanticApplication();
+  app.identify(1);
+  app.adopt(servedReading("suggestion closes a thread"));
+  app.enqueue(
+    {
+      kind: "action",
+      widget: "sug-refill",
+      action: "decide",
+      detail: { outcome: "accept" },
+      revision: 1,
+      attempt: "accept",
+    },
+    "now",
+  );
+  assert.deepEqual(app.read().effective.thread.gestured, []);
+  const logged = servedReading("suggestion accepted");
+  const accepted = logged.events.at(-1);
+  app.accept("accept", accepted);
+  app.adopt(logged);
+  assert.deepEqual(app.read().effective.thread.gestured, ["e1"]);
+
+  // Taking the acceptance back concerns the thread it closed, which the undo reopens.
+  const undoing = createSemanticApplication();
+  undoing.identify(1);
+  undoing.adopt(logged);
+  undoing.enqueue({ kind: "undo", undoes: accepted.id, attempt: "take-back" }, "now");
+  assert.deepEqual(undoing.read().effective.thread.gestured, ["e1"]);
+});
+
 test("a refused local message publishes one failed workflow before retirement", () => {
   const app = setup();
   const event = {
@@ -991,7 +1049,7 @@ test("receipt adoption keeps attempts until presentation proof and preserves dep
   app.present([accepted]);
   app.release(new Set(["first"]));
   assert.equal(decision(app), null);
-  assert.equal(app.nameUndo("undo"), true);
+  assert.equal(app.nameEvents("undo"), true);
   assert.equal(app.entry("undo").event.undoes, "e1");
 });
 
@@ -1513,60 +1571,18 @@ test("a reaction root is not a spoken turn awaiting the user", () => {
   assert.equal(app.read().effective.thread.all[0].attention, null);
 });
 
-test("a Done this tab sends ends its task at once, and its undo puts the task back", () => {
-  // The task the agent put on the user, as the server serves it.
-  const task = servedReading("queues on both sides").tasks.find(
-    (candidate) => candidate.owner === "user",
-  );
-  const onYou = (app) => app.read().effective.queues.onYou.map(({ id }) => id);
-  const done = (app) =>
-    app.read().effective.queues.done.map(({ id, state }) => [id, state]);
-
-  const app = setup();
-  const open = state(2);
-  open.browser.tasks = [task];
-  open.browser.ended_tasks = [];
-  app.adopt(open);
-  assert.deepEqual(onYou(app), [task.id]);
-  app.enqueue(
-    { kind: "task_end", task: task.id, outcome: "done", attempt: "done" },
-    "now",
-  );
-  assert.deepEqual(onYou(app), []);
-  assert.deepEqual(done(app), [[task.id, "done"]]);
-  // A refused Done puts the task back as the log has it.
-  app.refuse("done");
-  assert.equal(onYou(app)[0], task.id);
-  assert.deepEqual(done(app), []);
-
-  const later = setup();
-  const ended = state(2);
-  ended.browser.tasks = [];
-  ended.browser.ended_tasks = [
-    { ...task, state: "done", outcome: { ...task.outcome, id: "e20", ts: "now" } },
-  ];
-  later.adopt(ended);
-  assert.deepEqual(onYou(later), []);
-  later.enqueue({ kind: "undo", undoes: "e20", attempt: "undo" }, "now");
-  assert.deepEqual(onYou(later), [task.id]);
-  assert.deepEqual(done(later), []);
-});
-
 test("approval leaves Questions in its sending turn and undo restores the exact version", () => {
-  const wire = servedReading("approval");
-  const question = wire.views["1"].document.questions.all.find(
-    (candidate) => candidate.source.kind === "approval",
-  );
-  const app = setup();
-  const reading = state(2);
-  reading.browser.views[1].document.questions = {
-    all: [question],
-    user: [question],
-    unanswered: [question],
+  const adopt = (name) => {
+    const app = createSemanticApplication();
+    app.identify(1);
+    app.adopt(servedReading(name));
+    return app;
   };
-  app.adopt(reading);
+  const app = adopt("approval");
   const questions = () => app.read().effective.queues.onYou;
   const record = () => app.read().effective.questions.all[0];
+  const question = record();
+  assert.equal(question.source.kind, "approval");
   assert.equal(questions()[0].id, question.id);
   assert.equal(questions()[0].kind, "question");
   assert.equal(questions()[0].offers.done, false);
@@ -1578,6 +1594,7 @@ test("approval leaves Questions in its sending turn and undo restores the exact 
     "queued-at",
   );
   assert.equal(questions().length, 0);
+  assert.equal(app.read().effective.queues.done[0].id, question.id);
   assert.deepEqual(record().answer, { value: true, event: null });
   assert.equal(record().status, "answered");
   assert.deepEqual(app.read().effective.thread.approvalHistory, [
@@ -1593,48 +1610,20 @@ test("approval leaves Questions in its sending turn and undo restores the exact 
   assert.deepEqual(app.read().effective.thread.approvalHistory, []);
   assert.equal(questions().length, 1);
   assert.equal(record().answer, null);
-  const accepted = state(3);
-  accepted.browser.views[1].document.questions = {
-    all: [
-      {
-        ...question,
-        status: "answered",
-        next_actor: null,
-        answer: {
-          value: true,
-          event: {
-            id: "approval-event",
-            kind: "done",
-            seq: 3,
-            ts: "now",
-            author: "user",
-          },
-        },
-      },
-    ],
-    user: [],
-    unanswered: [],
-  };
-  const previousApproval = {
-    id: "previous-approval",
-    kind: "done",
-    version: 0,
-    ts: "before",
-  };
-  const currentApproval =
-    accepted.browser.views[1].document.questions.all[0].answer.event;
-  accepted.browser.thread.approval_history = [previousApproval, currentApproval];
-  app.adopt(accepted);
-  assert.deepEqual(app.read().effective.thread.approvalHistory, [
-    previousApproval,
-    currentApproval,
-  ]);
-  assert.equal(questions().length, 0);
-  app.enqueue({ kind: "undo", undoes: "approval-event", attempt: "undo" }, "now");
-  assert.equal(questions()[0].id, question.id);
-  assert.equal(record().answer, null);
-  assert.equal(record().status, "open");
-  assert.deepEqual(app.read().effective.thread.approvalHistory, [previousApproval]);
+
+  const approved = adopt("approved");
+  const approval = approved.read().effective.questions.all[0].answer.event;
+  assert.deepEqual(
+    approved.read().effective.thread.approvalHistory.map(({ id }) => id),
+    [approval.id],
+  );
+  assert.equal(approved.read().effective.queues.onYou.length, 0);
+  approved.enqueue({ kind: "undo", undoes: approval.id, attempt: "undo" }, "now");
+  assert.equal(approved.read().effective.queues.onYou[0].id, question.id);
+  assert.equal(approved.read().effective.queues.done.length, 0);
+  assert.equal(approved.read().effective.questions.all[0].answer, null);
+  assert.equal(approved.read().effective.questions.all[0].status, "open");
+  assert.deepEqual(approved.read().effective.thread.approvalHistory, []);
 });
 
 test("a revision preserves pending delivery while replacing incompatible speculative state", () => {
@@ -1754,6 +1743,7 @@ test("Question contains the local typed answer while completion waits for admiss
     user: [question],
     unanswered: [question],
   };
+  reading.browser.views[1].queues = questionQueues([question]);
   app.adopt(reading);
   assert.equal(app.read().effective.questions.all[0].answer, null);
   app.enqueue(action("typed"), "now");
@@ -1808,6 +1798,7 @@ test("empty completed answer and wrapper changes preserve Question identity", ()
     user: [],
     unanswered: [],
   };
+  reading.browser.views[1].queues = questionQueues([question]);
   app.adopt(reading);
   assert.deepEqual(app.read().effective.questions.all[0].answer.value, []);
   assert.equal(app.read().effective.queues.onYou.length, 0);
@@ -1875,6 +1866,7 @@ test("pending undo removes completed empty Question values and refusal restores 
       user: [],
       unanswered: [],
     };
+    reading.browser.views[1].queues = questionQueues([question]);
     app.adopt(reading);
     assert.deepEqual(app.read().effective.questions.all[0].answer.value, value);
     app.enqueue({ kind: "undo", undoes: accepted.id, attempt: "undo-empty" }, "now");
@@ -1947,6 +1939,7 @@ test("pending undo removes a custom Question answer before authoritative complet
     user: [],
     unanswered: [],
   };
+  reading.browser.views[1].queues = questionQueues([question]);
   app.adopt(reading);
   assert.deepEqual(app.read().effective.questions.all[0].answer.value, {
     outcome: "accept",

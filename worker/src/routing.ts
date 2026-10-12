@@ -1,109 +1,64 @@
 /** Pure request routing for the public Leaf pages. */
 
-import * as z from "zod/mini";
-
 export const SESSION_COOKIE = "__Host-leaf-page";
 export const HTTP_SESSION_COOKIE = "leaf-page-local";
 export const ACTIVE_COOKIE_PREFIX = "__Host-leaf-active";
 export const HTTP_ACTIVE_COOKIE_PREFIX = "leaf-active-local";
 
 const SESSION_ID = /^[0-9a-f]{32}$/;
-const RELEASE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
-const PAGE_ROOT = /^(?:\/|\/[a-z0-9-]+(?:\/[a-z0-9-]+)*)$/;
-const RELEASE_ASSET =
-  /^\/_leaf-release\/(?:[0-9a-f]{40}|[0-9a-f]{64})\/[a-z0-9-]+$/;
-const STATE = /^\/_leaf\/state\/[a-z0-9-]+\.json$/;
 
-const sitePageSchema = z
-  .object({
-    assets: z.string().check(z.regex(RELEASE_ASSET)),
-    directory: z.string().check(
-      z.minLength(1),
-      z.refine(
-        (directory) =>
-          !directory.startsWith("/") && !directory.split("/").includes(".."),
-      ),
-    ),
-    description: z.string().check(z.minLength(1)),
-    // The card image a shared link unfurls into: a path on this site, which the
-    // container's page head joins to the origin. The build names the media file and
-    // proves it resolves (`check_links` in `dev/leaf_dev/site.py`).
-    image: z.string().check(z.startsWith("/")),
-    kind: z.union([z.literal("product"), z.literal("example")]),
-    layer: z.string().check(z.minLength(1)),
-    state: z.string().check(z.regex(STATE)),
-    title: z.string().check(z.minLength(1)),
-    states: z.record(
-      z.string().check(z.regex(/^[1-9][0-9]*$/)),
-      z.string().check(z.regex(STATE)),
-    ),
-  })
-  .check(
-    z.refine(
-      (page) => Object.keys(page.states).length > 0,
-      { path: ["states"] },
-    ),
-    z.refine(
-      (page) => Object.values(page.states).includes(page.state),
-      { path: ["state"] },
-    ),
-  );
+// The manifest `leaf-dev site` writes beside the assets (`dev/leaf_dev/site.py`), which
+// ships in the same release as this Worker. The build constructs each field: the asset
+// path from the release, the state from the page's current revision, the image from a
+// media file `check_links` proves resolves, and the title and description from the
+// page's head, which the build refuses without them. The fields the container alone
+// reads, such as each page's build directory, are left out.
+interface SitePage {
+  /** `/_leaf-release/{release}/{key}`. */
+  assets: string;
+  description: string;
+  /** The card image a shared link unfurls into: a path on this site, which the
+   * container's page head joins to the origin. */
+  image: string;
+  kind: "product" | "example";
+  layer: string;
+  /** The current revision's entry in `states`. */
+  state: string;
+  /** Each revision's published projection, keyed by revision number. */
+  states: Record<string, string>;
+  title: string;
+}
 
 // A page's URL namespace beneath its root, by kind: its browser layer's directories,
 // the directories its session writes, and the vendored files (`schema.BROWSER_DIRS`,
-// `SESSION_ROUTE_DIRS`, `VENDORED_FILES`). `leaf-dev site` writes it into the
-// manifest. The API directory is the page server's protocol prefix, fixed with the
-// endpoints under it that this Worker handles by name.
+// `SESSION_ROUTE_DIRS`, `VENDORED_FILES`). The API directory is the page server's
+// protocol prefix, fixed with the endpoints under it that this Worker handles by name.
 const API_DIR = "api";
-const routeDir = z.string().check(z.regex(/^[a-z]+$/));
-const pageRoutesSchema = z.object({
-  layer: z.array(routeDir),
-  session: z.array(routeDir),
-  files: z.array(z.string().check(z.regex(/^[a-z0-9-]+\.[a-z]+$/))),
-});
+interface PageRoutes {
+  layer: string[];
+  session: string[];
+  files: string[];
+}
 
-const siteManifestSchema = z
-  .object({
-    release: z.string().check(z.regex(RELEASE)),
-    // The header policy every HTML response adds, since a document's own <meta>
-    // policy cannot govern its ancestors (`structure.FRAME_ANCESTORS_CSP`).
-    frame_ancestors: z.string().check(z.startsWith("frame-ancestors ")),
-    routes: pageRoutesSchema,
-    pages: z.record(z.string().check(z.regex(PAGE_ROOT)), sitePageSchema),
-  })
-  .check((context) => {
-    for (const [root, page] of Object.entries(context.value.pages)) {
-      if (page.assets.startsWith(`/_leaf-release/${context.value.release}/`)) {
-        continue;
-      }
-      context.issues.push({
-        code: "custom",
-        input: page.assets,
-        message: "asset path does not match the site release",
-        path: ["pages", root, "assets"],
-      });
-    }
-  });
+export interface SiteManifest {
+  release: string;
+  /** The header policy every HTML response adds, since a document's own <meta>
+   * policy cannot govern its ancestors (`structure.FRAME_ANCESTORS_CSP`). */
+  frame_ancestors: string;
+  routes: PageRoutes;
+  /** Keyed by public root: `/` or `/segment(/segment)*`. */
+  pages: Record<string, SitePage>;
+}
 
-type SitePage = z.infer<typeof sitePageSchema>;
-export type SiteManifest = z.infer<typeof siteManifestSchema>;
-export type PageRoute = Omit<SitePage, "directory"> & {
+export type PageRoute = SitePage & {
   root: string;
   inside: string;
 };
 
-export function parseSiteManifest(value: unknown): SiteManifest {
-  const result = siteManifestSchema.safeParse(value);
-  if (!result.success) {
-    throw new Error(`invalid Leaf site manifest: ${z.prettifyError(result.error)}`);
-  }
-  return result.data;
-}
-
 const within = (dirs: string[], inside: string): boolean =>
   dirs.some((dir) => inside === dir || inside.startsWith(`${dir}/`));
 
-function pageResource(routes: SiteManifest["routes"], inside: string): boolean {
+function pageResource(routes: PageRoutes, inside: string): boolean {
   return (
     routes.files.includes(inside) ||
     within([API_DIR, ...routes.layer, ...routes.session], inside)
@@ -202,7 +157,6 @@ export function activeFromCookie(
 }
 
 function pageCookieName(prefix: string, pageRoot: string): string {
-  if (!PAGE_ROOT.test(pageRoot)) throw new Error("invalid page cookie root");
   const suffix =
     pageRoot === "/"
       ? "root"
@@ -211,9 +165,6 @@ function pageCookieName(prefix: string, pageRoot: string): string {
 }
 
 export function newSessionId(random: Uint8Array): string {
-  if (random.byteLength !== 16) {
-    throw new Error("a Leaf website session id needs exactly 16 random bytes");
-  }
   return Array.from(random, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
@@ -224,7 +175,6 @@ export function sessionReference(sessionId: string): string {
 }
 
 export function sessionCookie(sessionId: string, secure: boolean): string {
-  if (!SESSION_ID.test(sessionId)) throw new Error("invalid Leaf website session id");
   const name = secure ? SESSION_COOKIE : HTTP_SESSION_COOKIE;
   const security = secure ? "; Secure" : "";
   return `${name}=${sessionId}; Path=/${security}; HttpOnly; SameSite=Lax`;

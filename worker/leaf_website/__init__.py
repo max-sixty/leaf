@@ -5,6 +5,31 @@ adapter selects the product or example page directory behind a clean public rout
 then hands the request to the same routes and event admission as a locally served
 Leaf. Agent input comes from Leaf's shared projections; this adapter owns no parallel
 state store or event semantics.
+
+The adapter also runs the hosted agent. The Worker posts each accepted event that owes
+a reply to `/_leaf/agent/start`, and `attach` starts or resumes one Codex App Server
+thread rooted at the page directory and hands it the event in Leaf's delivery envelope;
+while a turn is running, Leaf holds the delivery and starts it when that turn ends. A
+repeated start for the same event starts nothing new. Codex has the prepared Leaf plugin
+installed, as a terminal agent's Codex does, and `CODEX_INSTRUCTIONS` adds only the
+session's environment and scope. Each turn is bound to its delivery id, sent as
+`clientUserMessageId`, so the turn's follower knows its turn from the start. A delivery
+carries at most one plain reply, which streams into its thread and is committed through
+Leaf's reply writer even if the connection drops or the next turn opens first.
+
+`HostedTurn` follows a turn on the connection that started it. Completion ends it, and
+so do a dropped connection, silence past `STREAM_SILENCE`, and any fault; for those the
+follower interrupts the provider turn, since nothing else is reading it. Every ending
+closes the Leaf turn and gives each update the turn still owed an answer the
+`turn_failed` receipt, unless a rejected final reply starts a repair turn. The ending
+then starts the page's next owed update (`_continue_page`), because no other code
+looks for it.
+
+`write_failure_receipt` writes every failure receipt, whichever boundary gave up: the
+Worker posts `rate_limited` or `startup_failed` to `/_leaf/agent/fail`, and the
+container writes `startup_failed` for a next update it could not start and
+`turn_failed` for a turn it followed. `worker/README.md`, "Hosted turns", lists the
+codes and the records an operator reads.
 """
 
 from __future__ import annotations

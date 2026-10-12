@@ -1191,56 +1191,60 @@ def test_words_a_slow_send_retains_its_input(browser, delay):
     judge_watches()
 
 
-def test_coalesced_rendering_jobs_keep_their_own_input_source(browser, serve):
-    """One pass may contain input and passive jobs; neither lends the other its cause.
-    Each scheduler takes one order, and both orders are taken: which job comes first is
-    the pass's, not the scheduler's. The cases run in turn on one page, each with its
-    own fields and press."""
+# Each scheduler takes one order, and both orders are taken: which job comes first is
+# the pass's, not the scheduler's.
+@pytest.mark.parametrize(
+    ("scheduler", "order"),
+    [
+        ("nextRender", "passive-first"),
+        ("afterScript", "input-first"),
+        ("presenter", "passive-first"),
+    ],
+)
+def test_coalesced_rendering_jobs_keep_their_own_input_source(
+    browser, serve, scheduler, order
+):
+    """One pass may contain input and passive jobs; neither lends the other its cause."""
     page = open_page(
-        browser, serve(leaf_page("Rendering job input ownership", "<h1>Jobs</h1>"))
+        browser,
+        serve(
+            leaf_page(
+                "Rendering job input ownership",
+                '<textarea id="native"></textarea><textarea id="passive"></textarea>'
+                '<button id="send">Put my words away</button>',
+            )
+        ),
     )
-    for index, (scheduler, order) in enumerate(
-        (
-            ("nextRender", "passive-first"),
-            ("afterScript", "input-first"),
-            ("presenter", "passive-first"),
-        )
-    ):
-        page.evaluate(
-            """async ({scheduler,order,index}) => {
-              const main=document.querySelector('main');
-              main.insertAdjacentHTML('beforeend',
-                `<textarea id="native-${index}"></textarea><textarea id="passive-${index}"></textarea>`
-                + `<button id="send-${index}">Put my words away</button>`);
-              const module=await __lfRuntimeImport('/runtime/rendering.js');
-              let schedule=module[scheduler];
-              if(scheduler==='presenter') {
-                const {bindQueuedWork}=await __lfRuntimeImport('/runtime/queued-work.js');
-                const {createPresentationSchedule}=await __lfRuntimeImport('/vendor/browser-runtime.js');
-                const presentations=createPresentationSchedule(bindQueuedWork);
-                schedule=callback=>presentations.presenter({attach:()=>null,paint:callback}).sync(null);
-              }
-              window.jobsDone=0;
-              const passive=lfInputWork.capture(()=>schedule(()=>{
-                document.getElementById(`passive-${index}`).remove();window.jobsDone++;
-              }));
-              document.getElementById(`send-${index}`).onclick=()=>{
-                if(order==='passive-first')passive();
-                schedule(()=>{document.getElementById(`native-${index}`).remove();window.jobsDone++;});
-                if(order==='input-first')passive();
-              };
-            }""",
-            {"scheduler": scheduler, "order": order, "index": index},
-        )
-        lost = f"Words lost without permission ({scheduler}, {order})"
-        page.locator(f"#native-{index}").fill("Words deliberately put away")
-        page.locator(f"#passive-{index}").fill(lost)
-        page.locator(f"#send-{index}").click()
-        page.wait_for_function("window.jobsDone === 2")
-        judge_watches()
-        consume_browser_errors(
-            page, f'typed words left the screen without a key or press: "{lost}"'
-        )
+    page.evaluate(
+        """async ({scheduler,order}) => {
+          const module=await __lfRuntimeImport('/runtime/rendering.js');
+          let schedule=module[scheduler];
+          if(scheduler==='presenter') {
+            const {bindQueuedWork}=await __lfRuntimeImport('/runtime/queued-work.js');
+            const {createPresentationSchedule}=await __lfRuntimeImport('/vendor/browser-runtime.js');
+            const presentations=createPresentationSchedule(bindQueuedWork);
+            schedule=callback=>presentations.presenter({attach:()=>null,paint:callback}).sync(null);
+          }
+          const passive=lfInputWork.capture(()=>schedule(()=>{
+            document.getElementById('passive').remove();window.passiveDone=true;
+          }));
+          document.getElementById('send').onclick=()=>{
+            if(order==='passive-first')passive();
+            schedule(()=>{document.getElementById('native').remove();window.nativeDone=true;});
+            if(order==='input-first')passive();
+          };
+        }""",
+        {"scheduler": scheduler, "order": order},
+    )
+    page.locator("#native").fill("Words deliberately put away")
+    page.locator("#passive").fill("Words lost without permission")
+    page.locator("#send").click()
+    page.wait_for_function("window.nativeDone && window.passiveDone")
+    judge_watches()
+    consume_browser_errors(
+        page,
+        'typed words left the screen without a key or press: "Words lost without permission"',
+    )
 
 
 @pytest.mark.parametrize("scheduler", ["nextRender", "presenter"])

@@ -45,7 +45,7 @@ import click
 from leaf.codex import APP_SERVER_ENV
 from leaf.delivery import opened_input_ids
 from leaf.harness import IDENTITY_VARIABLES, ClaudeCodeHarness, CodexHarness
-from leaf.hook_transport import hands_delivery
+from leaf.hook_transport import DELIVERY_FIELD
 from leaf.tasks import start_reading
 from leaf.thread import successful_replies
 
@@ -947,10 +947,16 @@ def waits_started(record: dict) -> list[str]:
 
 
 def hook_delivered(record: dict) -> bool:
-    """Whether one stream record is a Leaf hook handing a delivery to the turn."""
-    return record.get("subtype") == "hook_response" and hands_delivery(
-        record.get("output") or ""
-    )
+    """Whether one stream record is a Leaf hook handing a delivery to the turn: its
+    output, the hook's whole stdout, names one in `DELIVERY_FIELD`. Other hooks in
+    the same trace, such as the background watch, print text that is not JSON."""
+    if record.get("subtype") != "hook_response":
+        return False
+    try:
+        output = json.loads(record.get("output") or "")
+    except json.JSONDecodeError:
+        return False
+    return isinstance(output, dict) and DELIVERY_FIELD in output
 
 
 def inputs_received(events: list[dict], attempts: set[str]) -> bool:

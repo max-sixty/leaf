@@ -316,54 +316,61 @@ HOOK_CONTEXT_LIMIT = 10_000
 CONFIRM_WITHIN = 10.0
 
 
-# The line an inline delivery opens with, by which Leaf's Claude Code hooks module
-# finds one in the Stop hook's output (`hooks/claude-code.ts`).
-# TODO: without the module, Claude Code prints a Stop hook's inline delivery in
-# full in the terminal. Hiding it there means handing over a pointer, which needs a
-# record of offered, unread deliveries that a repeated Stop and the watch both
-# respect; otherwise each re-offers it as new. Moot once the module is Claude
+# The words that open a delivery's context, inline or by pointer: prose for the
+# model alone. What reads a hook's output for its delivery reads `DELIVERY_FIELD`.
+# TODO: without the hooks module, Claude Code prints a Stop hook's inline delivery
+# in full in the terminal. Hiding it there means handing over a pointer, which
+# needs a record of offered, unread deliveries that a repeated Stop and the watch
+# both respect; otherwise each re-offers it as new. Moot once the module is Claude
 # Code's only watcher and transport.
-INLINE_DELIVERY = (
+INLINE_OPENING = (
     "Leaf has new input for your turn. Read this complete delivery before answering."
 )
-# The words a delivery handed over by pointer opens with, before its read command.
-POINTED_DELIVERY = "Leaf has new input for this turn. Read it with"
+POINTED_OPENING = "Leaf has new input for this turn. Read it with"
 
-
-def hands_delivery(output: str) -> bool:
-    """Whether a hook's output hands the turn a delivery `render` wrote, inline or by
-    pointer: the reading a transcript of hook runs is scored by. The context may sit
-    inside the harness's JSON envelope, so it is found anywhere in the output."""
-    return INLINE_DELIVERY in output or POINTED_DELIVERY in output
+# The hook output's field naming the delivery its context hands the turn: its
+# `id`, and whether it went `inline` or as a pointer. Claude Code leaves a field
+# it does not know out of what it hands the model and a hooks module, and keeps
+# the hook's whole stdout in a trace's `hook_response` (measured at 2.1.296). So
+# the field reaches Leaf's hooks module, which runs the Stop hook itself to read
+# it (`hooks/claude-code.ts`), and an eval's reading of a trace
+# (`leaf_dev.arms.hook_delivered`).
+DELIVERY_FIELD = "leaf_delivery"
 
 
 def render(
-    delivery: dict | None, attention: list[str], *, confirm: Callable[[], bool]
-) -> str:
-    """The hook's context. It hands `delivery` over inline only where the whole
-    message fits under `HOOK_CONTEXT_LIMIT` and `confirm` then confirms every batch;
-    otherwise it hands over the pointer its reader's `leaf delivery ack` confirms
-    after complete reading."""
+    harness: Harness,
+    event: str | None,
+    delivery: dict | None,
+    attention: list[str],
+    *,
+    confirm: Callable[[], bool],
+) -> dict | None:
+    """The hook's output, or None where it puts nothing in the turn. It hands
+    `delivery` over inline only where the whole message fits under
+    `HOOK_CONTEXT_LIMIT` and `confirm` then confirms every batch; otherwise it hands
+    over the pointer its reader's `leaf delivery ack` confirms after complete
+    reading. Either way `DELIVERY_FIELD` names what it handed over."""
     if delivery is None:
-        return "\n".join(attention)
+        return harness.hook_context(event, "\n".join(attention)) if attention else None
     message = "\n".join(
-        [
-            INLINE_DELIVERY,
-            json.dumps(delivery, ensure_ascii=False),
-            *attention,
-        ]
+        [INLINE_OPENING, json.dumps(delivery, ensure_ascii=False), *attention]
     )
-    if len(message.encode("utf-8")) < HOOK_CONTEXT_LIMIT and confirm():
-        return message
-    return "\n".join(
-        [
-            (
-                f"{POINTED_DELIVERY} `leaf delivery read {delivery['id']}` "
-                "and follow its receipt instruction."
-            ),
-            *attention,
-        ]
-    )
+    inline = len(message.encode("utf-8")) < HOOK_CONTEXT_LIMIT and confirm()
+    if not inline:
+        message = "\n".join(
+            [
+                (
+                    f"{POINTED_OPENING} `leaf delivery read {delivery['id']}` "
+                    "and follow its receipt instruction."
+                ),
+                *attention,
+            ]
+        )
+    return {
+        **harness.hook_context(event, message),
+        DELIVERY_FIELD: {"id": delivery["id"], "inline": inline},
+    }
 
 
 def carry_turn(
@@ -439,7 +446,9 @@ def carry_turn(
             return
     # Receipt takes the page and session locks the notices hold, so it follows them,
     # and confirms only into the lifecycle they were read under.
-    message = render(
+    output = render(
+        harness,
+        event,
         delivery,
         [*context, *attention],
         confirm=lambda: (
@@ -447,5 +456,5 @@ def carry_turn(
             and receive_held(delivery, sid, expected, deadline=deadline)
         ),
     )
-    if message:
-        print(json.dumps(harness.hook_context(event, message)), flush=True)
+    if output:
+        print(json.dumps(output), flush=True)

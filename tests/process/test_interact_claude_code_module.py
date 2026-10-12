@@ -18,7 +18,6 @@ from interact_support import (
     serving,
     wait_for,
 )
-from leaf import hook_transport as hook_transport_model
 from leaf import hooks as hooks_model
 from leaf import leases as leases_model
 from leaf import service as service_model
@@ -404,9 +403,10 @@ def test_the_module_keeps_a_stop_hooks_delivery_out_of_the_terminal(
     """Claude Code prints what a Stop hook continues a turn with in the user's
     terminal, and none of a row a module appends. Input pending as a turn ends,
     with no watch running, is handed over by Leaf's Stop hook inline; the module
-    appends that delivery to the session and the turn goes on with one line, so
-    the delivery is in the turn's context, as its Picked up says, but not on the
-    user's screen."""
+    runs that hook itself, in place of its registration, to read the delivery its
+    output names, appends the delivery to the session, and the turn goes on with
+    one line, so the delivery is in the turn's context, as its Picked up says, but
+    not on the user's screen."""
     claude_code.start_turn()
     append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "wakes the watch"}
@@ -416,20 +416,20 @@ def test_the_module_keeps_a_stop_hooks_delivery_out_of_the_terminal(
         page_dir, {"kind": "comment", "author": "user", "text": "as it ends"}
     )
     payload = {"hook_event_name": "Stop", "session_id": claude_code.session}
-    hooks_model.cmd_hook("claude-code", payload)
-    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
-        "additionalContext"
-    ]
-    assert context.startswith(hook_transport_model.INLINE_DELIVERY)
+    ended = claude_code.emit("classic.Stop", payload)
+    # Leaf's Stop registration beneath the module stands down for the payload it
+    # receives, since the module ran the hook itself.
+    hooks_model.cmd_hook("claude-code", ended["reached"])
+    assert capsys.readouterr().out == ""
 
-    answer = {"additionalContext": [context]}
-    result = claude_code.emit("classic.Stop", payload, answer)["result"]
     appended = claude_code.message()["appended"]
-    assert appended == context
-    [batch] = json.loads(appended.split("\n")[1])["batches"]
+    [delivery] = [
+        json.loads(line) for line in appended.split("\n") if line.startswith("{")
+    ]
+    [batch] = delivery["batches"]
     assert [event["id"] for event in batch["events"]] == [pending["id"]]
-    [shown] = result["additionalContext"]
-    assert hook_transport_model.INLINE_DELIVERY not in shown
+    [shown] = ended["result"]["additionalContext"]
+    assert delivery["id"] not in shown
 
 
 def test_a_wake_during_the_stop_hooks_waits_for_them(page_dir, claude_code):

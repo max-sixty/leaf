@@ -56,6 +56,11 @@ from .state import (
 def cmd_hook(harness: str, payload: dict) -> None:
     """Answer one hook of `harness`, the name its registration passes."""
     started = time.monotonic()
+    if payload.get("leaf_watch") == "module":
+        # Claude Code's hooks module marks the Stop payload it passes to the
+        # registrations beneath it, and runs this hook itself, unmarked, to read
+        # the delivery its output names (`hooks/claude-code.ts`).
+        return
     event, sid = payload.get("hook_event_name"), payload.get("session_id") or ""
     if sid:
         # Capability evidence for hook transport and open-turn activity. An

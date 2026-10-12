@@ -56,7 +56,10 @@ export function announce(msg) {
   // Removing and restoring the text node makes repeated identical announcements a
   // fresh live-region change, including when two arrivals' delays overlap.
   liveEl.replaceChildren();
-  setTimeout(() => liveEl.replaceChildren(msg), 30);
+  setTimeout(() => {
+    liveEl.replaceChildren();
+    liveEl.append(msg);
+  }, 30);
 }
 
 // The acknowledgement of a gesture ("Moved to Done — sent"), an arrival ("Updated

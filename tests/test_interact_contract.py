@@ -1461,15 +1461,42 @@ def test_a_composed_vocabulary_carries_its_decisions(page_dir):
     }
 
 
-def test_a_verb_is_written_by_the_side_it_declares():
-    """`verb_writer` states the default the browser's `adoptRegistry` applies, and
-    both are held to `tests/verb_writer_cases.json`."""
-    cases = json.loads((Path(__file__).parent / "verb_writer_cases.json").read_text())
-    assert [
-        [tag, verb, registry_contract.verb_writer(spec)]
-        for tag, entry in cases["declarations"].items()
-        for verb, spec in entry["x-state"].items()
-    ] == cases["writers"]
+def test_a_composed_vocabulary_carries_each_verbs_writer_and_definition(page_dir):
+    """`$states` is what the browser reads for a verb's writer and the operation an
+    admitted event records, so it derives neither. A page's own declaration is stamped
+    with the layer's, an unstated writer as the user's."""
+    layer = registry_storage.load_registry(page_dir)
+    declaration = element_declaration("lf-local", upgrade=True)
+    declaration["properties"] |= {
+        name: {"type": "boolean"} for name in ("overruled", "restated")
+    } | {"reading": {"type": "string"}}
+    declaration["x-state"] = {
+        "set": {
+            "unit": "widget",
+            "detail": {"type": "object", "additionalProperties": False},
+        },
+        "measure": {
+            "unit": "widget",
+            "writer": "agent",
+            "record": {"kind": "value", "attr": "reading"},
+        },
+    }
+    widget_paths = {f"widgets/{path.name}" for path in (page_dir / "widgets").glob("*")}
+
+    composed = registry_page.compose_page_registry(
+        layer, {"lf-local": declaration}, {*widget_paths, "widgets/lf-local.js"}
+    ).registry
+
+    assert composed["$states"]["lf-local"] == {
+        verb: {
+            "writer": writer,
+            "definition": registry_contract.state_definition(
+                "lf-local", declaration, declaration["x-state"][verb]
+            ),
+        }
+        for verb, writer in (("set", "user"), ("measure", "agent"))
+    }
+    assert composed["$states"]["lf-suggestion"]["decide"]["writer"] == "user"
 
 
 @pytest.mark.parametrize(

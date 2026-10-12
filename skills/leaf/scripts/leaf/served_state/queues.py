@@ -15,6 +15,7 @@ task item the task's fields a row draws. Each done item adds how it ended (`stat
 when (`ended`), and the outcome's detail.
 """
 
+
 def _task_item(task: dict) -> dict:
     """One task as an item on the queue of its `owner`."""
     return {

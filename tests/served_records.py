@@ -6,8 +6,9 @@ every field the server sends and cannot omit one the runtime relies on. `thread`
 `workflow` are one record of each, which `served.mjs` hands out for a test to change
 only the fields the server sends; `gestures` holds an admitted edit, undo, refusal
 and revision sequence shared across runtimes; `question_values` holds typed values
-folded by Python for comparison with the browser; `readings` holds whole served readings
-whose premise is the case under test. `served.mjs` reads this output directly, so its
+folded by Python for comparison with the browser; `state_definitions` holds the
+operation definitions Python records, for the browser's comparison of them; `readings`
+holds whole served readings whose premise is the case under test. `served.mjs` reads this output directly, so its
 assertions always consume this checkout's server rather than a recorded copy.
 """
 
@@ -299,7 +300,7 @@ def build() -> dict:
                         "outcome": "done",
                         "detail": "Matched the theme",
                     },
-                )
+                ),
             ),
         },
     }
@@ -336,24 +337,6 @@ def _served_question_item() -> dict:
         for item in state["browser"]["views"]["1"]["queues"]["on_you"]
         if item["kind"] == "question"
     )
-
-
-def state_definition_cases() -> list[dict]:
-    """Each case in `state_definition_cases.json` as two definitions the server
-    serves (`registry.contract.state_definition`), which the browser compares as
-    `same_state_definition` does."""
-    cases = json.loads((Path(__file__).with_name("state_definition_cases.json")).read_text())
-    return [
-        {
-            "id": case["id"],
-            "definitions": [
-                state_definition("lf-local", {}, {"unit": "widget", "detail": case[key]})
-                for key in ("before", "after")
-            ],
-            "same": case["same"],
-        }
-        for case in cases
-    ]
 
 
 def question_value_cases():
@@ -565,13 +548,36 @@ def gesture_sequence() -> dict:
         assert "already been taken back" in str(error), str(error)
     else:
         raise AssertionError("The duplicate undo must be refused")
+    layer = model_layer()
     return {
-        "declaration": model_layer()["lf-draft"],
+        "declaration": layer["lf-draft"],
+        "stamped": layer["$states"]["lf-draft"],
         "authored": authored,
         "commands": commands,
         "states": states,
         "refused": duplicate,
     }
+
+
+def state_definition_cases() -> list[dict]:
+    """`state_definition_cases.json`, each pair of detail schemas as the definitions
+    Python records, so the browser's comparison is held to the same verdicts."""
+    cases = json.loads(
+        Path(__file__).with_name("state_definition_cases.json").read_text()
+    )
+    return [
+        {
+            "id": case["id"],
+            "definitions": [
+                state_definition(
+                    "lf-local", {}, {"unit": "widget", "detail": case[key]}
+                )
+                for key in ("before", "after")
+            ],
+            "same": case["same"],
+        }
+        for case in cases
+    ]
 
 
 def serialized() -> str:

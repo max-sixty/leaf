@@ -369,7 +369,9 @@ export function questionValue(widget, verb, answered) {
   if (!state || !spec) throw new Error(`Missing Question value definition for ${verb}`);
   /** @param {unknown} value */
   const recorded = (value) =>
-    spec.record?.kind === "attribute" && Array.isArray(value) ? value.toSorted() : value;
+    spec.record?.kind === "attribute" && Array.isArray(value)
+      ? value.toSorted()
+      : value;
   const value =
     "units" in state
       ? spec.record?.kind === "position"

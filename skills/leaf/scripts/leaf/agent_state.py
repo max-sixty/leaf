@@ -387,9 +387,7 @@ def _write_page_state(
         )
         state["tasks"] = browser["tasks"]
         served_queues = browser["views"][str(active["revision"])]["queues"]
-        state["queues"] = {
-            side: served_queues[side] for side in ("on_you", "on_agent")
-        }
+        state["queues"] = {side: served_queues[side] for side in ("on_you", "on_agent")}
     subject = None
     if target is not None:
         subject = page_subject(page_dir, events, target)

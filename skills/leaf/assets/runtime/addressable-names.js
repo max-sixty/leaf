@@ -5,7 +5,8 @@
  * reader, so generated chrome never names anything. */
 import { isElementName } from "./registry-contract.js";
 import { registry } from "./registry.js";
-import { authoredScope, elementReading, TEXT_BLOCK } from "./passages.js";
+import { authoredScope, elementReading } from "./passages.js";
+import { TEXT_BLOCK } from "./passage-facts.js";
 import { uiInside, upFrom } from "./shadow.js";
 import { excerptWords } from "./words.js";
 

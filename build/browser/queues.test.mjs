@@ -26,14 +26,15 @@ test("the browser publishes the queues the server selected", () => {
   assert.deepEqual(onAgent.map(listed), served.on_agent);
   assert.deepEqual(done.map(listed), served.done);
   // Something of every kind on each side, so each placement below has an item to move.
-  assert.deepEqual(
-    [...new Set(onYou.map(({ kind }) => kind))].sort(),
-    ["question", "recovery", "task"],
-  );
-  assert.deepEqual(
-    [...new Set(onAgent.map(({ kind }) => kind))].sort(),
-    ["answer", "task"],
-  );
+  assert.deepEqual([...new Set(onYou.map(({ kind }) => kind))].sort(), [
+    "question",
+    "recovery",
+    "task",
+  ]);
+  assert.deepEqual([...new Set(onAgent.map(({ kind }) => kind))].sort(), [
+    "answer",
+    "task",
+  ]);
 });
 
 test("a start gone quiet holds nothing, so its task shows no line in hand", () => {
@@ -51,11 +52,23 @@ test("a follow-up sent in a thread stands for the answer it was owed", () => {
   const { app } = adopted("queues on both sides");
   const owed = published(app).onAgent.find((item) => item.kind === "answer");
   app.enqueue(
-    { kind: "reply", parent: owed.thread, text: "Also this.", revision: 1, attempt: "a3" },
+    {
+      kind: "reply",
+      parent: owed.thread,
+      text: "Also this.",
+      revision: 1,
+      attempt: "a3",
+    },
     "now",
   );
   app.enqueue(
-    { kind: "reply", parent: owed.thread, text: "And this.", revision: 1, attempt: "a5" },
+    {
+      kind: "reply",
+      parent: owed.thread,
+      text: "And this.",
+      revision: 1,
+      attempt: "a5",
+    },
     "now",
   );
   // The thread is owed one answer, for its newest turn, however many are sending.
@@ -84,7 +97,13 @@ test("prose sent beside a Question takes it off the user until the log answers",
     (item) => item.kind === "question" && item.question.source.kind === "reply",
   );
   app.enqueue(
-    { kind: "reply", parent: asked.thread, text: "Weekly.", revision: 1, attempt: "a4" },
+    {
+      kind: "reply",
+      parent: asked.thread,
+      text: "Weekly.",
+      revision: 1,
+      attempt: "a4",
+    },
     "now",
   );
   assert.ok(!published(app).onYou.some((item) => item.id === asked.id));
@@ -117,7 +136,10 @@ test("a Done this tab sends ends its task at once, and its undo puts it back", (
     published(app)
       .done.filter((item) => item.kind === "task")
       .map(({ id, state }) => [id, state]);
-  app.enqueue({ kind: "task_end", task: task.id, outcome: "done", attempt: "d" }, "now");
+  app.enqueue(
+    { kind: "task_end", task: task.id, outcome: "done", attempt: "d" },
+    "now",
+  );
   assert.ok(!published(app).onYou.some((item) => item.id === task.id));
   assert.deepEqual(ended(), [[task.id, "done"]]);
   // A refused Done puts the task back as the log has it.

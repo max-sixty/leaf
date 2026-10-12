@@ -346,13 +346,16 @@ export function createResponseSurface({
       scrollToElement,
       scrollToRange,
     }) ?? null;
-  // An element response exits to its subject, or the declared proxy representing it.
-  // Resolve that structural parent from the current anchor, so c from a Question and an
-  // aimed press on the same Question unwind alike. There is no saved pre-command focus:
-  // standing on an option comments on its Question, and closing returns to the Question itself.
-  // A quoted selection clears to the page; a removed subject has no parent to land on.
+  // An element response exits to its subject, or the declared proxy representing it
+  // where the subject cannot take focus. Resolve that structural parent from the current
+  // anchor, so c from a Question and an aimed press on the same Question unwind alike.
+  // There is no saved pre-command focus: standing on an option comments on its Question,
+  // and closing returns to the Question itself. A drawing's proxy is the fallback, not
+  // the parent, even for a user who pressed it: focused, its face stands under the
+  // banner, away from the drawing it is about (chrome.css). A quoted selection clears to
+  // the page; a removed subject has no parent to land on.
   const returnPlaces = (anchor) =>
-    anchor && !anchor.quote ? [visualActionAnchor(anchor), anchorTargetAt(anchor)] : [];
+    anchor && !anchor.quote ? [anchorTargetAt(anchor), visualActionAnchor(anchor)] : [];
   // Putting the bar away is closing a layer (focus.js, `closeLayer`): `showFab(null)`
   // moves no focus, and the closer names where a user who stood in the bar lands, read
   // before it goes. `putAwayFab` hands them back to the bar's subject; `letGoOfFab` lets
@@ -364,8 +367,8 @@ export function createResponseSurface({
     const places = leavingBar || toPage ? returnPlaces(fabAnchor) : [];
     return layerLanding(() => {
       if (toPanel) focusDestination(threadsBox, "return");
-      // The shared return tests each representative: a hidden or rebuilt proxy cannot
-      // skip a subject that still takes focus. If none remains, it lands on the page.
+      // The shared return tests each place in turn: a subject that cannot take focus
+      // yields to its proxy. If neither remains, it lands on the page.
       else if (leavingBar && !toPage) handBack(...places);
       else if (leavingBar || (toPage && places.includes(document.activeElement)))
         letGo();

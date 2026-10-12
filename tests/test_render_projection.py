@@ -2794,6 +2794,14 @@ def test_a_revision_leaves_the_page_everything_it_did_not_write(browser, serve):
     spans in a code block, a tab stop `focus.js` lends to land the keyboard somewhere,
     and what a page module built inside an authored container. The revision rewrites one
     paragraph and mentions none of them.
+
+    The same revision rewrites two more paragraphs. One a page module relocated into
+    its own box, which is the module's to do: the words change where it stands, the
+    node is the same, and no second copy arrives where the source wrote it. Above the
+    other it inserts a paragraph, the one shape the gap cannot decide: both are
+    paragraphs, neither carries a name, and the words that would have paired them are
+    the words that changed. The user's node survives either way, and the page is whole
+    and in order whichever way the diff falls.
     """
     body = """
 <h1 id="ow-title">Owners</h1>
@@ -2804,20 +2812,46 @@ def test_a_revision_leaves_the_page_everything_it_did_not_write(browser, serve):
 <div id="ow-built"></div>
 <p id="ow-land">A paragraph the keyboard can land on.</p>
 <p id="ow-edited">The cutover has not started.</p>
+<div id="mv-box"></div>
+<p id="mv-moved">The move has not started.</p>
+<p id="mv-kept">A paragraph that stays where it was written.</p>
+<section id="tw"><p>The twins have not started.</p></section>
 """
     module = (
         '<script type="module">'
         "document.getElementById('ow-built')"
         ".append(Object.assign(document.createElement('span'),"
         " {id: 'ow-made', textContent: 'built by the page'}));"
+        "document.getElementById('mv-box')"
+        ".append(document.getElementById('mv-moved'));"
         "</script>"
     )
     first = leaf_page("Owners first", body, head=module)
-    second = first.replace("Owners first", "Owners second").replace(
-        "The cutover has not started.", "The cutover finished on the second attempt."
+    second = (
+        first.replace("Owners first", "Owners second")
+        .replace(
+            "The cutover has not started.",
+            "The cutover finished on the second attempt.",
+        )
+        .replace(
+            "The move has not started.", "The move finished on the second attempt."
+        )
+        .replace(
+            "<p>The twins have not started.</p>",
+            "<p>A finding above it.</p><p>The twins finished on the second attempt.</p>",
+        )
     )
     page = open_page(browser, live_url(serve(first)))
     expect(page.locator("#ow-made")).to_have_text("built by the page")
+    expect(page.locator("#mv-box > #mv-moved")).to_have_count(1)
+    page.evaluate(
+        """() => {
+          window.__mvMoved = document.getElementById('mv-moved');
+          const paragraph = document.querySelector('#tw p');
+          window.__twParagraph = paragraph;
+          window.__twNode = paragraph.firstChild;
+        }"""
+    )
     page.locator("#ow-details > summary").click()
     expect(page.locator("#ow-details")).to_have_attribute("open", "")
     # The runtime lends a tab stop to land the keyboard on a paragraph. Taking that
@@ -2861,6 +2895,29 @@ def test_a_revision_leaves_the_page_everything_it_did_not_write(browser, serve):
         "landing": "-1",
         "focused": True,
     }, f"the revision took back what its author never wrote: {standing}"
+    rewritten = page.evaluate(
+        """() => {
+          const paragraphs = [...document.querySelectorAll('#tw p')];
+          return {
+            moved: document.getElementById('mv-moved').textContent,
+            sameNode: window.__mvMoved === document.getElementById('mv-moved'),
+            inBox: document.getElementById('mv-moved').parentElement.id,
+            copies: document.querySelectorAll('#mv-moved').length,
+            twins: paragraphs.map((p) => p.textContent),
+            twinKept: paragraphs.includes(window.__twParagraph),
+            twinConnected: window.__twNode.isConnected,
+          };
+        }"""
+    )
+    assert rewritten == {
+        "moved": "The move finished on the second attempt.",
+        "sameNode": True,
+        "inBox": "mv-box",
+        "copies": 1,
+        "twins": ["A finding above it.", "The twins finished on the second attempt."],
+        "twinKept": True,
+        "twinConnected": True,
+    }, f"the revision did not reach what it rewrote in place: {rewritten}"
 
 
 def test_a_revision_that_moves_the_block_the_user_types_in_keeps_them_there(
@@ -2965,49 +3022,6 @@ def test_a_revision_reorders_a_live_sample_without_replacing_its_document(
     expect(editor).to_be_focused()
 
 
-def test_a_declared_widget_with_no_id_survives_a_revision_that_left_it_alone(
-    browser, serve
-):
-    """An unnamed widget is as much the user's as a named one.
-
-    Nothing asks an author to name a widget, and the shipped examples do not, so the
-    digests each capture records key an unnamed one by its tag and place among the
-    others of that tag. Without that key it could never answer that its markup was
-    unchanged, and every revision would rebuild it — taking whatever the user had
-    open in it.
-    """
-    body = (
-        '<h1 id="nm-title">Unnamed</h1>\n'
-        '<p id="nm-kept">A <lf-gloss tip="the cutover of the store">cutover</lf-gloss>'
-        " the user is asking about.</p>\n"
-        '<p id="nm-edited">The cutover has not started.</p>'
-    )
-    first = leaf_page("Unnamed first", body)
-    second = first.replace("Unnamed first", "Unnamed second").replace(
-        "The cutover has not started.", "The cutover finished."
-    )
-    page = open_page(browser, live_url(serve(first)))
-    expect(page.locator("lf-gloss")).to_have_count(1)
-    page.evaluate(
-        "() => { window.__nmGloss = document.querySelector('lf-gloss');"
-        " window.__nmGloss.dataset.userHeld = 'open'; }"
-    )
-
-    (serve.page_dir / "index.html").write_text(second)
-    told(page)
-    expect(page).to_have_title("Unnamed second")
-    standing = page.evaluate(
-        """() => ({
-          same: window.__nmGloss === document.querySelector('lf-gloss'),
-          held: document.querySelector('lf-gloss')?.dataset.userHeld ?? null,
-        })"""
-    )
-    assert standing == {
-        "same": True,
-        "held": "open",
-    }, f"a widget the revision never touched was rebuilt for want of a name: {standing}"
-
-
 def test_a_prose_revision_takes_only_the_words_it_rewrote(browser, serve):
     """The paragraph a revision rewrote is the only thing the user gives up.
 
@@ -3073,70 +3087,104 @@ def test_a_prose_revision_takes_only_the_words_it_rewrote(browser, serve):
     expect(page.locator(".lf-version-menu")).to_contain_text("Current · Draft after v1")
 
 
-def test_a_revision_reaches_the_markup_held_inside_a_template(browser, serve):
-    """A template's tree is its content fragment, not its children.
+def test_a_revision_reaches_markup_wherever_its_source_holds_it(browser, serve):
+    """A patch reads the source text, whitespace and all, and reaches markup wherever
+    the source holds it, while what the revision never touched keeps its node. Six
+    independent sections on one page, each revised or left alone by the same revision:
 
-    `childNodes` is empty on a template however much markup it holds, so a patch that
-    read the element alone left every template on a page frozen at the revision it
-    arrived in — silently, because the element is there and its attributes even keep
-    up. Sample templates supply the authored document of an isolated child page.
+    - A template's tree is its content fragment, not its children. `childNodes` is
+      empty on a template however much markup it holds, so a patch that read the
+      element alone left every template frozen at the revision it arrived in —
+      silently, because the element is there and its attributes even keep up.
+    - A template written one line to a line holds a whitespace text node between every
+      pair of lines and around both ends. Those nodes all read alike and outnumber the
+      lines; one of them taking a line's pairing would put the rewrite in the wrong line
+      or rebuild the fragment whole.
+    - An unnamed widget is as much the user's as a named one. The digests each capture
+      records key it by its tag and place among the others of that tag; without that
+      key every revision would rebuild it, taking whatever the user had open in it.
+    - A widget that arrives alone inside an exhibit is told the parent it will stand
+      under, so it arrives quoted, its actions closed, rather than open to a decision
+      against material the page declares as evidence.
+    - An authored class written over two lines patches, since source text is the
+      patch's input.
+    - Delivery writes each revision's root into every media address, so the same picture
+      is spelled differently in two revisions that never touched it. The page keeps the
+      address it has, still served because revisions are immutable, and the picture is
+      not fetched again.
     """
     first = leaf_page(
-        "Template first",
-        '<h1 id="tm-title">Template</h1>\n'
+        "Patched first",
+        '<h1 id="pt-title">Patched</h1>\n'
         '<template id="tm-held" data-sample>'
-        '<p class="tm-line">The first account.</p></template>',
-    )
-    second = first.replace("Template first", "Template second").replace(
-        "The first account.", "The second account, rewritten."
-    )
-    page = open_page(browser, live_url(serve(first)))
-    held = "() => document.getElementById('tm-held').content.textContent"
-    assert page.evaluate(held) == "The first account."
-
-    (serve.page_dir / "index.html").write_text(second)
-    told(page)
-    expect(page).to_have_title("Template second")
-    assert page.evaluate(held) == "The second account, rewritten.", (
-        "the revision did not reach the markup inside the template"
-    )
-
-
-def test_a_revision_patches_one_line_of_a_template_written_over_several(browser, serve):
-    """A template's content is markup like the rest of the page, indentation included.
-
-    An author writes the lines of a template one to a line, so its content fragment
-    holds a whitespace text node between every pair of them and around both ends. Those
-    nodes are what the matcher walks through to reach the lines: they all read alike,
-    there are more of them than there are lines, and one of them taking a line's pairing
-    would put the rewrite in the wrong line or rebuild the fragment whole.
-    """
-    first = leaf_page(
-        "Lines first",
-        '<h1 id="tl-title">Lines</h1>\n'
+        '<p class="tm-line">The first account.</p></template>\n'
         '<template id="tl-held" data-sample>\n'
-        '  <p class="tl-line">The first account.</p>\n'
+        '  <p class="tl-line">The first line.</p>\n'
         '  <p class="tl-line">The <lf-gloss tip="held inside">second</lf-gloss>'
-        " account.</p>\n"
-        '  <p class="tl-line">The third account.</p>\n'
+        " line.</p>\n"
+        '  <p class="tl-line">The third line.</p>\n'
         "</template>\n"
         '<p id="tl-after">A <lf-gloss tip="after the template">term</lf-gloss> the'
-        " template does not hold.</p>",
+        " template does not hold.</p>\n"
+        '<p id="nm-kept">A <lf-gloss tip="the cutover of the store">cutover</lf-gloss>'
+        " the user is asking about.</p>\n"
+        '<p id="nm-edited">The store has not moved.</p>\n'
+        '<lf-sample id="qt-spec" label="an inert pick">\n'
+        '  <lf-options id="qt-opts" choose>\n'
+        '    <lf-option id="qt-a">Alpha</lf-option>\n'
+        '    <lf-option id="qt-b">Beta</lf-option>\n'
+        "  </lf-options>\n"
+        "</lf-sample>\n"
+        '<p id="cs-note" class="note\n    aside">The cutover has not started.</p>\n'
+        '<img id="md-shot" src="/media/051bee487bfb5d13.png" alt="a shot">',
     )
-    second = first.replace("Lines first", "Lines second").replace(
-        "second</lf-gloss> account.", "second</lf-gloss> account, rewritten."
+    second = (
+        first.replace("Patched first", "Patched second")
+        .replace("The first account.", "The second account, rewritten.")
+        .replace("second</lf-gloss> line.", "second</lf-gloss> line, rewritten.")
+        .replace("The store has not moved.", "The store moved.")
+        .replace(">Beta<", ">Beta, rewritten<")
+        .replace(
+            "The cutover has not started.",
+            "The cutover finished on the second attempt.",
+        )
     )
     page = open_page(browser, live_url(serve(first)))
-    page.evaluate(
-        "() => { window.__tlLines ="
-        " [...document.getElementById('tl-held').content.querySelectorAll('p')];"
-        " window.__tlAfter = document.querySelector('#tl-after > lf-gloss'); }"
+    template = "() => document.getElementById('tm-held').content.textContent"
+    assert page.evaluate(template) == "The first account."
+    quoted = (
+        "async () => { const api = await window.__lfRuntimeImport('/runtime/widget-api.js');"
+        " const reading = api.widgetController(document.getElementById('qt-opts')).read();"
+        " return { choose: reading.actions.choose.available,"
+        " label: document.getElementById('qt-b').textContent.trim() }; }"
+    )
+    assert page.evaluate(quoted) == {"choose": False, "label": "Beta"}
+    expect(page.locator("lf-gloss")).to_have_count(2)
+    src = page.evaluate(
+        """() => {
+          window.__tlLines =
+            [...document.getElementById('tl-held').content.querySelectorAll('p')];
+          window.__tlAfter = document.querySelector('#tl-after > lf-gloss');
+          window.__nmGloss = document.querySelector('#nm-kept > lf-gloss');
+          window.__nmGloss.dataset.userHeld = 'open';
+          const shot = document.getElementById('md-shot');
+          window.__mdLoads = 0;
+          shot.addEventListener('load', () => { window.__mdLoads += 1; });
+          return shot.getAttribute('src');
+        }"""
     )
     assert page.evaluate("() => window.__tlLines.length") == 3
 
     (serve.page_dir / "index.html").write_text(second)
     told(page)
-    expect(page).to_have_title("Lines second")
+    expect(page).to_have_title("Patched second")
+    expect(page.locator("#qt-b")).to_contain_text("Beta, rewritten")
+    expect(page.locator("#cs-note")).to_have_text(
+        "The cutover finished on the second attempt."
+    )
+    assert page.evaluate(template) == "The second account, rewritten.", (
+        "the revision did not reach the markup inside the template"
+    )
     standing = page.evaluate(
         """() => {
           const content = document.getElementById('tl-held').content;
@@ -3150,128 +3198,35 @@ def test_a_revision_patches_one_line_of_a_template_written_over_several(browser,
             // digest names the wrong widget and the revision rebuilds it.
             afterKept:
               window.__tlAfter === document.querySelector('#tl-after > lf-gloss'),
+            unnamedKept: window.__nmGloss === document.querySelector('#nm-kept > lf-gloss'),
+            unnamedHeld: document.querySelector('#nm-kept > lf-gloss')?.dataset.userHeld,
+            unnamedEdited: document.getElementById('nm-edited').textContent,
+            classes: [...document.getElementById('cs-note').classList].sort(),
+            src: document.getElementById('md-shot').getAttribute('src'),
+            loads: window.__mdLoads,
           };
         }"""
     )
     assert standing == {
         "words": [
-            "The first account.",
-            "The second account, rewritten.",
-            "The third account.",
+            "The first line.",
+            "The second line, rewritten.",
+            "The third line.",
         ],
         "kept": [True, True, True],
         "nodes": 7,
         "afterKept": True,
-    }, f"the revision did not land on the line it rewrote: {standing}"
-
-
-def test_a_rewritten_widget_inside_an_exhibit_stays_quoted(browser, serve):
-    """A widget that arrives alone still knows where it stands.
-
-    The readings taken off arriving markup before a controller owns it ask about its
-    place in the document: whether an exhibit quotes it, which declared elements
-    enclose it. The node is not in the document yet when they are taken, so the parent
-    it will stand under is stated to them. Without that, a rewritten widget inside an
-    exhibit arrives unquoted and its actions open, and a user can record a decision
-    against material the page declares as evidence.
-    """
-    first = leaf_page(
-        "Quoted first",
-        """
-<h1 id="qt-title">Quoted</h1>
-<lf-sample id="qt-spec" label="an inert pick">
-  <lf-options id="qt-opts" choose>
-    <lf-option id="qt-a">Alpha</lf-option>
-    <lf-option id="qt-b">Beta</lf-option>
-  </lf-options>
-</lf-sample>
-""",
-    )
-    second = first.replace("Quoted first", "Quoted second").replace(
-        ">Beta<", ">Beta, rewritten<"
-    )
-    page = open_page(browser, live_url(serve(first)))
-    read = (
-        "async () => { const api = await window.__lfRuntimeImport('/runtime/widget-api.js');"
-        " const reading = api.widgetController(document.getElementById('qt-opts')).read();"
-        " return { choose: reading.actions.choose.available,"
-        " label: document.getElementById('qt-b').textContent.trim() }; }"
-    )
-    assert page.evaluate(read) == {"choose": False, "label": "Beta"}
-
-    (serve.page_dir / "index.html").write_text(second)
-    told(page)
-    expect(page).to_have_title("Quoted second")
-    expect(page.locator("#qt-b")).to_contain_text("Beta, rewritten")
-    assert page.evaluate(read) == {
+        "unnamedKept": True,
+        "unnamedHeld": "open",
+        "unnamedEdited": "The store moved.",
+        "classes": ["aside", "note"],
+        "src": src,
+        "loads": 0,
+    }, f"the revision missed what it rewrote or took what it left alone: {standing}"
+    assert page.evaluate(quoted) == {
         "choose": False,
         "label": "Beta, rewritten",
     }, "the rewritten widget arrived unquoted"
-
-
-def test_an_authored_class_written_over_two_lines_patches(browser, serve):
-    """Source text is the patch's input, whitespace and all."""
-    first = leaf_page(
-        "Classes first",
-        '<h1 id="cs-title">Classes</h1>\n'
-        '<p id="cs-note" class="note\n    aside">The cutover has not started.</p>',
-    )
-    second = first.replace("Classes first", "Classes second").replace(
-        "The cutover has not started.", "The cutover finished on the second attempt."
-    )
-    page = open_page(browser, live_url(serve(first)))
-    (serve.page_dir / "index.html").write_text(second)
-    told(page)
-    expect(page).to_have_title("Classes second")
-    expect(page.locator("#cs-note")).to_have_text(
-        "The cutover finished on the second attempt."
-    )
-    assert page.evaluate(
-        "() => [...document.getElementById('cs-note').classList].sort()"
-    ) == ["aside", "note"]
-
-
-def test_media_the_revision_never_mentioned_keeps_its_address(browser, serve):
-    """Each revision is delivered under its own root, and that is not a change.
-
-    Delivery writes the revision's root into every media address, so the same picture
-    is spelled differently in two revisions that never touched it. The page keeps the
-    address it has, which is still served because revisions are immutable, and the
-    picture is not fetched again.
-    """
-    first = leaf_page(
-        "Media first",
-        '<h1 id="md-title">Media</h1>\n'
-        '<img id="md-shot" src="/media/051bee487bfb5d13.png" alt="a shot">\n'
-        '<p id="md-edited">The cutover has not started.</p>',
-    )
-    second = first.replace("Media first", "Media second").replace(
-        "The cutover has not started.", "The cutover finished on the second attempt."
-    )
-    page = open_page(browser, live_url(serve(first)))
-    held = page.evaluate(
-        """() => {
-          const shot = document.getElementById('md-shot');
-          window.__mdLoads = 0;
-          shot.addEventListener('load', () => { window.__mdLoads += 1; });
-          return shot.getAttribute('src');
-        }"""
-    )
-
-    (serve.page_dir / "index.html").write_text(second)
-    told(page)
-    expect(page).to_have_title("Media second")
-    expect(page.locator("#md-edited")).to_have_text(
-        "The cutover finished on the second attempt."
-    )
-    standing = page.evaluate(
-        "() => ({ src: document.getElementById('md-shot').getAttribute('src'),"
-        " loads: window.__mdLoads })"
-    )
-    assert standing == {
-        "src": held,
-        "loads": 0,
-    }, f"the revision re-addressed a picture it never mentioned: {standing}"
 
 
 def test_a_word_the_revision_adds_to_a_surviving_element_is_said(
@@ -3299,106 +3254,6 @@ def test_a_word_the_revision_adds_to_a_surviving_element_is_said(
         "Release checks"
     )
     assert page.evaluate("window.__sample === document.getElementById('sd-reading')")
-
-
-def test_a_revision_reaches_a_paragraph_a_page_module_moved(browser, serve):
-    """An authored element a page module relocated is still that element.
-
-    The module moved the paragraph into its own box, which is the module's to do. A
-    revision that rewrites the paragraph's words reaches it where it stands: the words
-    change, the node is the same, it stays in the box, and no second copy arrives at the
-    place the source wrote it.
-    """
-    body = """
-<h1 id="mv-title">Moved</h1>
-<div id="mv-box"></div>
-<p id="mv-moved">The cutover has not started.</p>
-<p id="mv-kept">A paragraph that stays where it was written.</p>
-"""
-    module = (
-        '<script type="module">'
-        "document.getElementById('mv-box')"
-        ".append(document.getElementById('mv-moved'));"
-        "</script>"
-    )
-    first = leaf_page("Moved first", body, head=module)
-    second = first.replace("Moved first", "Moved second").replace(
-        "The cutover has not started.", "The cutover finished on the second attempt."
-    )
-    page = open_page(browser, live_url(serve(first)))
-    expect(page.locator("#mv-box > #mv-moved")).to_have_count(1)
-    page.evaluate("() => { window.__mvMoved = document.getElementById('mv-moved'); }")
-
-    (serve.page_dir / "index.html").write_text(second)
-    told(page)
-    expect(page).to_have_title("Moved second")
-    standing = page.evaluate(
-        """() => ({
-          words: document.getElementById('mv-moved').textContent,
-          sameNode: window.__mvMoved === document.getElementById('mv-moved'),
-          inBox: document.getElementById('mv-moved').parentElement.id,
-          copies: document.querySelectorAll('#mv-moved').length,
-        })"""
-    )
-    assert standing == {
-        "words": "The cutover finished on the second attempt.",
-        "sameNode": True,
-        "inBox": "mv-box",
-        "copies": 1,
-    }, f"the revision did not reach the moved paragraph in place: {standing}"
-
-
-def test_a_same_kind_sibling_inserted_above_an_edited_one_keeps_the_page_whole(
-    browser, serve
-):
-    """The one shape the gap cannot decide, and what it still owes the user.
-
-    Insert a paragraph above one the same revision rewrote and there is nothing to
-    decide it on: both are paragraphs, neither carries a name, and the words that would
-    have paired them are the words that changed. The user's node survives either way,
-    so nothing is torn out from under them, but which of the two the words land in is
-    not something this can promise — and it is the diff's answer, not a walk's, so the
-    page itself is whole and in order whichever way it falls.
-    """
-    first = leaf_page(
-        "Twins first",
-        "<h1 id='tw-title'>Twins</h1>\n<p>The cutover has not started.</p>",
-    )
-    second = first.replace("Twins first", "Twins second").replace(
-        "<p>The cutover has not started.</p>",
-        "<p>A finding above it.</p>\n<p>The cutover finished on the second attempt.</p>",
-    )
-    page = open_page(browser, live_url(serve(first)))
-    page.evaluate(
-        """() => {
-          const paragraph = document.querySelector('main p');
-          window.__twParagraph = paragraph;
-          window.__twNode = paragraph.firstChild;
-        }"""
-    )
-
-    (serve.page_dir / "index.html").write_text(second)
-    told(page)
-    expect(page).to_have_title("Twins second")
-
-    standing = page.evaluate(
-        """() => {
-          const paragraphs = [...document.querySelectorAll('main p')];
-          return {
-            words: paragraphs.map((p) => p.textContent),
-            kept: paragraphs.includes(window.__twParagraph),
-            connected: window.__twNode.isConnected,
-          };
-        }"""
-    )
-    assert standing == {
-        "words": [
-            "A finding above it.",
-            "The cutover finished on the second attempt.",
-        ],
-        "kept": True,
-        "connected": True,
-    }, f"the page did not come out whole: {standing}"
 
 
 def test_another_kind_of_sibling_above_an_edited_paragraph_keeps_the_user_on_it(
@@ -3638,36 +3493,6 @@ def test_a_revision_inside_one_tab_keeps_the_tab_set_and_every_other_tab(
     expect(page.locator("#tp-notes")).to_be_visible()
 
 
-def test_a_revision_retires_every_declared_identity_it_removes(browser, serve):
-    """Plain declared elements leave the semantic document with their upgraded owner."""
-    first = leaf_page(
-        "Ask first",
-        """<h1>One question</h1>
-<lf-ask id="gone-ask"><h2>Keep it?</h2>
-  <lf-options id="gone-options" choose>
-    <lf-option id="gone-yes">Yes</lf-option>
-  </lf-options>
-</lf-ask>""",
-    )
-    second = leaf_page(
-        "Ask removed", "<h1>No question</h1><p>The decision is gone.</p>"
-    )
-    page = open_page(browser, live_url(serve(first)))
-    expect_asks_answered(page, "0/1")
-
-    stamp_page(serve.page_dir, second, "remove the question")
-    wait_for_revision(page, 2)
-    expect(page.locator(".lf-queue")).to_have_text("Questions: 0")
-    descriptors = page.evaluate(
-        """async () => {
-          const {readApplication} = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js');
-          return [...readApplication().document.descriptors.keys()];
-        }"""
-    )
-    assert not {"gone-ask", "gone-options", "gone-yes"} & set(descriptors)
-
-
 @pytest.mark.parametrize("subject", ["diff", "selection"])
 def test_a_live_revision_updates_the_closed_questions_door(browser, serve, subject):
     """Unrelated questions arrive while an anchored comment keeps its native editor."""
@@ -3848,7 +3673,8 @@ def test_a_live_revision_preserves_an_unchanged_authored_editor(browser, serve):
 
 
 def test_a_live_revision_reorders_the_page_and_ask_inventory_together(browser, serve):
-    """Retained Ask descriptors follow the incoming document's order."""
+    """Retained Ask descriptors follow the incoming document's order, and plain declared
+    elements a revision removes leave the semantic document with their upgraded owner."""
 
     def question(identity, label):
         return f"""<lf-ask id="{identity}-ask"><h2>{label}?</h2>
@@ -3861,16 +3687,19 @@ def test_a_live_revision_reorders_the_page_and_ask_inventory_together(browser, s
     second_question = question("second", "Second")
     first = leaf_page(
         "Ask order first",
-        f"<h1>Two questions</h1>{first_question}{second_question}",
+        f"<h1>Two questions</h1>{first_question}{second_question}"
+        + question("gone", "Gone"),
     )
     second = leaf_page(
         "Ask order second",
-        f"<h1>Two questions</h1>{second_question}{first_question}",
+        f"<h1>Two questions</h1>{second_question}{first_question}"
+        "<p>The third decision is gone.</p>",
     )
     page = open_page(browser, live_url(serve(first)))
+    expect_asks_answered(page, "0/3")
     banner_control(page, ".lf-queue").click()
     rows = page.locator(".lf-queue-row")
-    expect(rows).to_have_count(2)
+    expect(rows).to_have_count(3)
 
     def identities(selector, attribute):
         return page.locator(selector).evaluate_all(
@@ -3878,13 +3707,14 @@ def test_a_live_revision_reorders_the_page_and_ask_inventory_together(browser, s
             attribute,
         )
 
-    assert identities("main > lf-ask", "id") == ["first-ask", "second-ask"]
+    assert identities("main > lf-ask", "id") == ["first-ask", "second-ask", "gone-ask"]
     assert identities(".lf-queue-row", "data-lf-at") == [
         "widget:first-options",
         "widget:second-options",
+        "widget:gone-options",
     ]
 
-    stamp_page(serve.page_dir, second, "reverse the questions")
+    stamp_page(serve.page_dir, second, "reverse the questions, remove the third")
     wait_for_revision(page, 2)
 
     assert identities("main > lf-ask", "id") == ["second-ask", "first-ask"]
@@ -3892,6 +3722,14 @@ def test_a_live_revision_reorders_the_page_and_ask_inventory_together(browser, s
         "widget:second-options",
         "widget:first-options",
     ]
+    descriptors = page.evaluate(
+        """async () => {
+          const {readApplication} = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js');
+          return [...readApplication().document.descriptors.keys()];
+        }"""
+    )
+    assert not {"gone-ask", "gone-options", "gone-yes"} & set(descriptors)
 
 
 def test_a_projected_attribute_opens_an_ask_captured_from_authored_markup(
@@ -4982,7 +4820,17 @@ def test_a_revision_gives_values_to_controls_the_user_never_touched(browser, ser
     default and every such control reads as user state on the way out, and arrives
     written over whatever the next revision authored. The authored node answers the same
     way the live one does, so asking it instead finds nothing to carry.
+
+    The other side of that: a control the user did move is theirs, whatever its kind.
+    The authored range still reads its midpoint, so a range the user dragged disagrees
+    with it and crosses into the widget the revision replaced. A rule keyed on the kind
+    of control instead — words carry, the rest do not — keeps the untouched tick and
+    range from crossing only by leaving every range behind, the user's drag included.
     """
+    moved = (
+        ' <label for="lk-moved">How far</label>'
+        ' <input id="lk-moved" name="lk-moved" type="range"></p>'
+    )
     unvalued = (
         '<p><label for="lk-tick">Also</label>'
         ' <input id="lk-tick" name="lk-tick" type="checkbox">'
@@ -4992,6 +4840,8 @@ def test_a_revision_gives_values_to_controls_the_user_never_touched(browser, ser
     valued = unvalued.replace('type="checkbox"', 'type="checkbox" value="yes"').replace(
         'type="range"', 'type="range" value="80"'
     )
+    unvalued = unvalued.replace("</p>", moved)
+    valued = valued.replace("</p>", moved)
     first = LIVE_KEYS_APPARATUS.replace(
         '<details id="lk-why">', unvalued + '<details id="lk-why">'
     )
@@ -5010,10 +4860,12 @@ def test_a_revision_gives_values_to_controls_the_user_never_touched(browser, ser
         "50",
         "",
     ]
-    # The user works the field and leaves both of those alone.
+    # The user works the field and one range, and leaves the other two alone.
     note = page.locator("#lk-note")
     note.click()
     note.type("half a thought")
+    page.locator("#lk-moved").fill("17")
+    assert page.locator("#lk-moved").evaluate("el => el.value") == "17"
 
     (serve.page_dir / "index.html").write_text(second)
     told(page)
@@ -5024,43 +4876,10 @@ def test_a_revision_gives_values_to_controls_the_user_never_touched(browser, ser
     )
     assert page.locator("#lk-tick").evaluate("el => el.value") == "yes"
     assert page.locator("#lk-dial").evaluate("el => el.value") == "80"
-    # While the field whose value is the user's own words still crosses.
+    # While the field whose value is the user's own words still crosses, and the range
+    # the user moved.
     expect(page.locator("#lk-note")).to_have_value("half a thought")
-
-
-def test_a_range_the_user_moved_keeps_its_place_across_a_revision(browser, serve):
-    """The other side of that: a control the user did move is theirs, whatever its kind.
-
-    The authored range still reads its midpoint, so a range the user dragged disagrees
-    with it and crosses into the widget the revision replaced. A rule keyed on the kind of
-    control instead — words carry, the rest do not — keeps the untouched tick and range
-    of the test above from crossing only by leaving every range behind, the user's drag
-    included.
-    """
-    unvalued = (
-        '<p><label for="lk-dial">How much</label>'
-        ' <input id="lk-dial" name="lk-dial" type="range"></p>'
-    )
-    first = LIVE_KEYS_APPARATUS.replace(
-        '<details id="lk-why">', unvalued + '<details id="lk-why">'
-    )
-    second = LIVE_KEYS_APPARATUS_REWRITTEN.replace(
-        '<details id="lk-why">', unvalued + '<details id="lk-why">'
-    )
-
-    version_url = serve(first)
-    page = open_page(browser, live_url(version_url))
-    page.locator("#lk-dial").fill("17")
-    assert page.locator("#lk-dial").evaluate("el => el.value") == "17"
-
-    (serve.page_dir / "index.html").write_text(second)
-    told(page)
-    expect(page).to_have_title("Live keys rewritten")
-    # The widget did go whole, so the carry is what decides the range.
-    expect(page.locator("#lk-decision h2")).to_have_text(
-        "Which one, now the costs are in?"
-    )
-    assert page.locator("#lk-dial").evaluate("el => el.value") == "17"
+    assert page.locator("#lk-moved").evaluate("el => el.value") == "17"
 
 
 def test_a_revision_that_rewrites_a_draft_leaves_the_user_where_they_stand(
@@ -6708,7 +6527,9 @@ def test_render_allows_authored_state_the_log_replays_over(browser, serve):
     expect(page.locator("#opt-stage")).not_to_have_attribute("chosen", "")
 
 
-def test_the_render_gate_applies_every_standing_action_a_second_time(browser, serve):
+def test_the_render_gate_applies_every_standing_action_a_second_time(
+    browser, serve, tmp_path, monkeypatch
+):
     """Absoluteness is what makes a fold a fold, and it is the one thing about a widget
     module no reading of a rendered page can see: a relative implementation renders
     perfectly and costs the user their gesture later, on the poll that replays it. So
@@ -6720,9 +6541,58 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
     under a log holding one note, so the fold is empty there and the reading passes
     without applying anything. This page is the log the examples haven't got, and the
     floor is that the standing state covers every verb the registry declares — a verb
-    added without an event here fails rather than going unexercised."""
-    url = serve(STANDING_PAGE)
-    for widget, action, detail in STANDING_ACTIONS:
+    added without an event here fails rather than going unexercised.
+
+    Beside that clean vocabulary stands the bug-back for the module contract's first
+    state rule, and for both readings the gate takes of it: a project widget that steps
+    its count from the count it reads and appends its caption to the caption it reads,
+    right once and wrong every time after. Its findings name the widget, both verbs, and
+    what moved, and they are the only findings. Two verbs on one unit exercise the two
+    readings that catch different things: the count is markup, so `shallowSigs` sees
+    it; the caption is text, which that signature excludes on purpose, so only the
+    verb's declared record form reaches it."""
+    monkeypatch.chdir(tmp_path)
+    add_test_widget(tmp_path / ".leaf", "lf-tally", upgrade=True)
+    registry_path = tmp_path / ".leaf" / "registry.json"
+    declarations = json.loads(registry_path.read_text())
+    declarations["lf-tally"]["properties"]["count"] = {
+        "type": "string",
+        "pattern": "^[0-9]+$",
+    }
+    declarations["lf-tally"].setdefault("required", []).append("count")
+    declarations["lf-tally"]["x-content"] = "data"
+    declarations["lf-tally"]["x-example"] = (
+        '<lf-tally id="tally-example" count="0"><pre>Nothing yet.</pre></lf-tally>'
+    )
+    # The registry holds a widget-unit verb to the attribute a version retracts a
+    # decision with, so a state channel arrives with its way out of one.
+    declarations["lf-tally"]["properties"]["restated"] = {"type": "boolean"}
+    declarations["lf-tally"]["x-state"] = {
+        "step": {
+            "unit": "widget",
+            "record": {"kind": "value", "attr": "count"},
+        },
+        "caption": {
+            "unit": "widget",
+            "record": {"kind": "body"},
+        },
+    }
+    registry_path.write_text(json.dumps(declarations, indent=2))
+    (tmp_path / ".leaf" / "widgets" / "lf-tally.js").write_text(RELATIVE_WIDGET_MODULE)
+    tallies = RELATIVE_WIDGET_PAGE[
+        RELATIVE_WIDGET_PAGE.index(
+            '<lf-tally id="tally-fitted"'
+        ) : RELATIVE_WIDGET_PAGE.rindex("</lf-tally>") + len("</lf-tally>")
+    ]
+    url = serve(
+        STANDING_PAGE.replace("</main>", tallies + "</main>"),
+        packages=(*EXAMPLE_PACKAGES, ROOT / "tests/fixtures/packages/work", "./.leaf"),
+    )
+    relative_actions = [
+        ("tally-fitted", "step", {"value": "3"}),
+        ("tally-fitted", "caption", {"value": "Two greys at the north feeder."}),
+    ]
+    for widget, action, detail in [*STANDING_ACTIONS, *relative_actions]:
         append_command(
             serve.page_dir,
             {
@@ -6751,7 +6621,7 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
 
     page = open_page(browser, url)
     standing_ids = sorted(
-        {widget for widget, _action, _detail in STANDING_ACTIONS}
+        {widget for widget, _action, _detail in [*STANDING_ACTIONS, *relative_actions]}
         | {"ab-baffles", "ab-wren"}
     )
     standing = page.evaluate(
@@ -6784,7 +6654,22 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
     assert {
         (key, action) for widget, _tag, key, action in standing if widget == "ab-pick"
     } == {("choose", "choose"), ("answer", "answer"), ("add", "add")}
-    assert render_gate_model.render_version(browser, url).failures == []
+    failures = render_gate_model.render_version(browser, url).failures
+    assert [f for f in failures if "is relative" in f] == [
+        (
+            "[light] <lf-tally id=tally-fitted> renderState is relative — rendering "
+            "the same complete state changed tally-fitted, body text. Render the "
+            "supplied values without stepping from the DOM."
+        ),
+        (
+            "[light] <lf-tally id=tally-seen> renderState is relative — rendering "
+            "the same complete state changed body text. Render the "
+            "supplied values without stepping from the DOM."
+        ),
+    ], failures
+    # The relative widget's appended caption is its own fault in other readings too;
+    # the standing vocabulary beside it leaves the gate nothing to say.
+    assert all("lf-tally" in f for f in failures), failures
 
 
 def test_a_user_verb_and_an_agent_verb_stand_side_by_side(
@@ -7024,81 +6909,6 @@ customElements.define("lf-piece", class extends HTMLElement {
     told(page)
     expect(page.locator("#zone-b > #piece")).to_have_count(1)
     expect(page.locator("#piece")).to_have_attribute("pinned", "yes")
-
-
-def test_the_render_gate_catches_a_relative_state_renderer(
-    browser, serve, tmp_path, monkeypatch
-):
-    """Bug-back for the module contract's first state rule, and for
-    both readings the gate takes of it. One project widget steps its count from the
-    count it reads and appends its caption to the caption it reads: right once, and
-    wrong every time after, because the page has already replayed the actions and the
-    poll replays the user's own gestures back at them. The finding names the widget,
-    both verbs, and what moved.
-
-    Two verbs on one unit prove both can stand while exercising the two readings that
-    catch different things. The count is markup, so `shallowSigs` sees it; the caption
-    is text, which that signature excludes on purpose, so only the verb's declared
-    record form reaches it — a limb of the gate that would otherwise never have fired."""
-    monkeypatch.chdir(tmp_path)
-    add_test_widget(tmp_path / ".leaf", "lf-tally", upgrade=True)
-    registry_path = tmp_path / ".leaf" / "registry.json"
-    declarations = json.loads(registry_path.read_text())
-    declarations["lf-tally"]["properties"]["count"] = {
-        "type": "string",
-        "pattern": "^[0-9]+$",
-    }
-    declarations["lf-tally"].setdefault("required", []).append("count")
-    declarations["lf-tally"]["x-content"] = "data"
-    declarations["lf-tally"]["x-example"] = (
-        '<lf-tally id="tally-example" count="0"><pre>Nothing yet.</pre></lf-tally>'
-    )
-    # The registry holds a widget-unit verb to the attribute a version retracts a
-    # decision with, so a state channel arrives with its way out of one.
-    declarations["lf-tally"]["properties"]["restated"] = {"type": "boolean"}
-    declarations["lf-tally"]["x-state"] = {
-        "step": {
-            "unit": "widget",
-            "record": {"kind": "value", "attr": "count"},
-        },
-        "caption": {
-            "unit": "widget",
-            "record": {"kind": "body"},
-        },
-    }
-    registry_path.write_text(json.dumps(declarations, indent=2))
-    (tmp_path / ".leaf" / "widgets" / "lf-tally.js").write_text(RELATIVE_WIDGET_MODULE)
-    url = serve(RELATIVE_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    for widget, action, detail in [
-        ("tally-fitted", "step", {"value": "3"}),
-        ("tally-fitted", "caption", {"value": "Two greys at the north feeder."}),
-    ]:
-        append_command(
-            serve.page_dir,
-            {
-                "kind": "action",
-                "author": "user",
-                "revision": 1,
-                "widget": widget,
-                "action": action,
-                "detail": detail,
-            },
-        )
-
-    failures = render_gate_model.render_version(browser, url).failures
-
-    assert [f for f in failures if "is relative" in f] == [
-        (
-            "[light] <lf-tally id=tally-fitted> renderState is relative — rendering "
-            "the same complete state changed tally-fitted, body text. Render the "
-            "supplied values without stepping from the DOM."
-        ),
-        (
-            "[light] <lf-tally id=tally-seen> renderState is relative — rendering "
-            "the same complete state changed body text. Render the "
-            "supplied values without stepping from the DOM."
-        ),
-    ], failures
 
 
 def test_a_widget_standing_out_of_place_is_a_page_the_gate_reports(

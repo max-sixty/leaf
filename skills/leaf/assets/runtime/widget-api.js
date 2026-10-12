@@ -166,7 +166,7 @@ export {
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
 export { announce, notice } from "./notifications.js";
-export { alignText, alignedNodes } from "./text-alignment.js";
+export { alignText } from "./text-alignment.js";
 export { inChrome, says, wrote } from "./passages.js";
 export {
   ago,

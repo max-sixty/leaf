@@ -1235,8 +1235,7 @@ inside it.
 and `delete` runs join to `before`, and the `same` and `insert` runs to `after`; a very
 large rewritten middle comes back as one delete and one insert. To align a rewritten
 paragraph by sentences instead, pass an `Intl.Segmenter` with `granularity: "sentence"` as
-the third argument. `alignedNodes(runs)` renders the runs as a `<span>`, `<del>` or `<ins>`
-each.
+the third argument.
 
 ### Image comparison
 

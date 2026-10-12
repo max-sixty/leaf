@@ -11,41 +11,39 @@
  * command declarations own pointer activation, keyboard routes, availability and
  * accessible shortcut hints. The editor's own keys, Save's and Escape's, show in the
  * shared shortcut bar. The controls take no context keys, so a Question lends them
- * no digits; Tab reaches them, as it does every native button. Comments and workflow receipts keep their own
- * annotation layer; hiding annotations cannot hide the editor's controls. The editor
- * and its tools are Leaf surfaces even inside the document, so Draw and Design modes leave them
- * operable while the saved reading and history remain the page's to draw on or comment on.
- * History shares the footer only when edits exist and the editor is closed.
- * It draws the controller's published reading; local control changes retain that
- * reading until the next publication, including while an editor defers replay.
+ * no digits; Tab reaches them, as it does every native button. Comments and workflow
+ * receipts keep their own annotation layer; hiding annotations cannot hide the
+ * editor's controls. The editor and its tools are Leaf surfaces even inside the
+ * document, so Draw and Design modes leave them operable while the saved reading
+ * remains the page's to draw on or comment on.
  *
- * The shared draft store retains unsent source across reloads and tabs. Save
- * submits one absolute edit through the shared send generation; Cancel discards,
- * while Escape keeps the draft for the next opening or resume writing (`g i`). Escape
- * has no button of its own: a footer offering both Cancel and Close asked the user to
- * tell two ways of leaving apart. A finger needs none either, since every keystroke
- * is already kept and an open editor costs it nothing but its place on the page. An
- * active editor defers authoritative projection until it closes. Another tab's settlement closes its matching
- * editor without taking focus from an unrelated place. Failure reopens the
- * retained source with Retry. Print keeps the saved reading and omits controls.
+ * The editor reads as an ordinary text box: its words stand in the field until Save
+ * or Cancel, and the field's own undo walks them back. Save submits one absolute edit
+ * through the shared send generation; Cancel and Escape close the editor, discarding
+ * its changes, as a message rewrite's do. A saved edit is withdrawn with the page's
+ * undo (`z`), and the log keeps every version for the agent. Rejected: Escape setting
+ * unsent words aside for the next opening, which needed a Close button beside Cancel
+ * and left a closed box holding words it gave no sign of; and a Changes list that
+ * restored earlier versions, which the page's undo already does.
+ *
+ * The shared draft store still holds an open editor's words, so they survive a
+ * reload, a live revision that replaces this element, and the tab closing, and every
+ * tab's open editor shows the same words. An active editor defers authoritative
+ * projection until it closes. Another tab's settlement closes its matching editor
+ * without taking focus from an unrelated place. A refused save reopens the retained
+ * source with Retry. Print keeps the saved reading and omits controls.
  */
 import {
   commandScope,
-  commandsOn,
-  DISCLOSE,
-  holdFocus,
   html,
   render,
-  repeat,
   offered,
   nothing,
-  guard,
   once,
   offer,
   TEXT_FIELD,
   paintKeys,
   quoted,
-  revisionLabel,
   sendDraft,
   notice,
   commands,
@@ -55,8 +53,6 @@ import {
   clearDraft,
   watchDraft,
   whileConnected,
-  alignText,
-  alignedNodes,
   widgetController,
   reachedForWords,
   paintMarkdown,
@@ -71,7 +67,7 @@ import {
 const ACTIONS = [
   ["edit", "Edit"],
   ["save", "Save"],
-  ["cancel", "Cancel", "Cancel, discarding your changes"],
+  ["cancel", "Cancel"],
 ];
 
 // The store key for a draft's unsent edit. The page's port is its own origin, so
@@ -102,7 +98,6 @@ customElements.define(
 
     #controller = widgetController(this);
     #body;
-    #reading = null;
     #editor = null;
     #sending = false;
     #failed = false;
@@ -174,17 +169,16 @@ customElements.define(
       const interactive = !quoted(this);
       this.#controller.subscribe((reading) => {
         if (!interactive) return;
-        this.#reading = reading;
         // Recovery chooses the first action face: an unsent editor opens with Save
         // and Cancel, without briefly publishing the resting Edit control.
-        this.#recoverEdit(reading);
+        this.#recoverEdit();
         this.#paintFooter();
         if (this.#editor && !this.#resumeProjection && reading.actions.edit.available)
           this.#resumeProjection = this.#controller.defer();
       });
     }
 
-    #recoverEdit(reading) {
+    #recoverEdit() {
       if (this.#recovered) return;
       this.#recovered = true;
       // A recovered edit outranks the authored text: the user typed it and never got
@@ -198,11 +192,13 @@ customElements.define(
       // stands somewhere else, and news with no gesture behind it moves nobody — the same
       // reason `#watchDraft` leaves a closed box closed. On a page that has just loaded,
       // startup hands the focus to the page after this runs either way.
+      //
+      // The store holds words only while an editor stands open on them, so any it
+      // holds reopen that editor. They are not compared with the standing text: this
+      // first reading can precede the log's, and words walking a saved edit back to the
+      // authored text are an edit all the same.
       const pending = loadEdit(this.id);
-      const authored = reading.authored.edit.value;
-      if (pending !== null && pending !== authored)
-        this.#open(pending, undefined, false);
-      else if (pending === authored) clearEdit(this.id);
+      if (pending !== null) this.#open(pending, undefined, false);
     }
 
     #watchDraft() {
@@ -272,21 +268,13 @@ customElements.define(
         {
           id: "draft.cancel",
           reach: "in an open draft editor",
-          keys: [],
+          keys: ["Escape"],
           control: () => this.#control("cancel"),
           decision: true,
           title: "Cancel",
-          description: "Cancel the edit",
+          description: "Cancel the edit, discarding your changes",
           when: () => Boolean(this.#editor),
           run: () => this.#close(true),
-        },
-        {
-          id: "draft.close",
-          reach: "in an open draft editor",
-          keys: ["Escape"],
-          title: "Close — edit kept",
-          when: () => Boolean(this.#editor),
-          run: () => this.#close(false),
         },
       ]);
       commands(this, this.#commandScope);
@@ -300,24 +288,17 @@ customElements.define(
     #paintFooter() {
       if (!this.#footer) return;
       const editing = Boolean(this.#editor);
-      const blocked = !this.#available();
-      if (this.#editor) this.#editor.readOnly = blocked;
-      // A restore control disappears when its text becomes the standing text.
-      // Surviving controls keep native focus; that completed action returns to history.
-      const history = this.#footer.querySelector(":scope > details");
-      const restore = history && holdFocus(history);
+      if (this.#editor) this.#editor.readOnly = !this.#available();
       render(
-        html`${this.#historyView(this.#reading, editing, blocked)}
-          <span ${offered("lf-draft-status")} role="status"
+        html`<span ${offered("lf-draft-status")} role="status"
             >${this.#failed ? "Save failed. Your edit is kept." : ""}</span
           >
           <div ${offered("lf-draft-tools")} data-lf-runtime>
             ${ACTIONS.map(
-              ([key, title, hint]) =>
+              ([key, title]) =>
                 html`<button
                   ${offered("lf-btn lf-draft-action")}
                   data-lf-draft-action=${key}
-                  title=${hint ?? nothing}
                   ?hidden=${key === "edit" ? editing : !editing}
                   aria-expanded=${key === "edit" ? String(editing) : nothing}
                 >
@@ -327,7 +308,6 @@ customElements.define(
           </div>`,
         this.#footer,
       );
-      restore?.(history.querySelector(":scope > summary"));
       paintKeys();
     }
 
@@ -344,106 +324,6 @@ customElements.define(
       });
     }
 
-    #historyView(reading, editing, blocked) {
-      if (!reading) return nothing;
-      const authored = reading.authored.edit.value;
-      const standing = reading.state.edit.value;
-      const actions = reading.actions.edit.history;
-      if (!actions.length && standing === authored) return nothing;
-      const rows = [
-        { key: "authored", label: "Version text", text: authored, before: null },
-        ...actions.map((event, index) => ({
-          key: event.seq,
-          label: `Edit ${index + 1} · ${revisionLabel(event.revision)}`,
-          text: event.detail.value,
-          before: index ? actions[index - 1].detail.value : null,
-        })),
-      ];
-      return html`<details ${offered("lf-draft-history")} ?hidden=${editing}>
-        <summary
-          ${commandsOn("On a draft", (summary) => [
-            {
-              id: "draft.history.toggle",
-              keys: () => DISCLOSE(summary),
-              title: () =>
-                `${summary.parentElement.open ? "hide" : "show"} the history`,
-            },
-          ])}
-        >
-          Changes · ${actions.length} ${actions.length === 1 ? "edit" : "edits"}
-        </summary>
-        <section class="lf-draft-current">
-          <strong>
-            ${
-              standing === authored
-                ? "Standing text matches this version"
-                : "This version → standing text"
-            }
-          </strong>
-          ${standing === authored ? nothing : this.#delta(authored, standing)}
-        </section>
-        <ol class="lf-draft-revisions">
-          ${repeat(
-            rows,
-            (row) => row.key,
-            (row) =>
-              html`<li>
-                <div class="lf-draft-revision-head">
-                  <strong>${row.label}</strong>
-                  ${
-                    row.text === standing
-                      ? nothing
-                      : html`<button
-                          ${offered("lf-btn lf-draft-restore")}
-                          aria-disabled=${String(blocked)}
-                          tabindex=${blocked ? -1 : 0}
-                          @click=${() => this.#restore(row.text, row.label)}
-                        >
-                          Restore ${row.label.toLowerCase()}
-                        </button>`
-                  }
-                </div>
-                ${
-                  row.before === null
-                    ? html`<div class="lf-draft-snapshot">${row.text || "Empty"}</div>`
-                    : this.#delta(row.before, row.text)
-                }
-              </li>`,
-          )}
-        </ol>
-      </details>`;
-    }
-
-    // The aligned run is computed once per pair; guard keeps its nodes across renders.
-    #delta(before, after) {
-      const content = guard([before, after], () => {
-        const nodes = alignedNodes(alignText(before, after));
-        return nodes.length ? nodes : "Empty";
-      });
-      return html`<div class="lf-draft-delta">${content}</div>`;
-    }
-
-    async #restore(text, label) {
-      if (!this.#available()) return;
-      if (this.#sending) {
-        notice("Wait for the current edit to finish sending");
-        return;
-      }
-      if (this.#editor) {
-        notice("Save or cancel the open edit before restoring history");
-        return;
-      }
-      if (text === this.#controller.read().state.edit.value) return;
-      this.#sending = true;
-      this.setAttribute("aria-busy", "true");
-      this.#paintFooter();
-      const ok = await this.#dispatch(text)?.delivery;
-      this.#sending = false;
-      this.removeAttribute("aria-busy");
-      this.#paintFooter();
-      if (ok) notice(`Restored ${label.toLowerCase()} — sent`);
-    }
-
     #open(seed, at, arrive = true) {
       if (this.#editor) return;
       if (this.#sending) {
@@ -453,7 +333,8 @@ customElements.define(
       if (this.#available()) this.#resumeProjection ??= this.#controller.defer();
       const editor = offer(TEXT_FIELD, "lf-draft-edit");
       editor.dataset.lfRuntime = "";
-      // A set-aside edit outranks the authored text here too: reopening resumes it.
+      // Words another tab's open editor holds outrank the standing text: they are the
+      // same unsent edit.
       const effective = this.#controller.read().state.edit.value;
       editor.value = seed ?? loadEdit(this.id) ?? effective;
       editor.setAttribute("aria-label", `Edit ${this.id}`);
@@ -464,11 +345,9 @@ customElements.define(
           this.#paintFooter();
         }
       });
-      // The composer's bindings on the box that replaces the page's own words. Escape sets
-      // the edit aside rather than discarding it (never lose user text: Cancel is the only
-      // discard) — and being the innermost scope's is what keeps the runtime's own rung
-      // from running behind it and closing the panel too, which the widget used to have to
-      // prevent by consuming the press.
+      // The composer's bindings on the box that replaces the page's own words. Escape
+      // being the innermost scope's is what keeps the runtime's own rung from running
+      // behind it and closing a panel too.
       this.#editor = editor;
       commands(editor, this.#commandScope);
       this.#body.after(editor);

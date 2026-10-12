@@ -13298,11 +13298,10 @@ def test_r_resolves_a_thread_from_wherever_the_user_stands_in_it(browser, serve)
 def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve):
     """One press is one action: the rung is the innermost scope in reach that binds
     Escape, and the dispatcher runs that one and no other. The draft editor's Esc used
-    to be two — the edit cancelled and the runtime's ladder closed the panel behind it
-    — and the cancel discarded the user's words against the never-lose-text norm. Each
-    control kept that by hand once and the stack keeps it now, so this is the test that
-    says the structure holds. The editor closes keeping the edit, the panel stands, and
-    a grabbed card's Esc cancels the move and nothing else."""
+    to be two — the edit cancelled and the runtime's ladder closed the panel behind it.
+    Each control kept that by hand once and the stack keeps it now, so this is the test
+    that says the structure holds. The editor's Esc cancels the edit and the panel
+    stands, and a grabbed card's Esc cancels the move and nothing else."""
     html = BOARD_PAGE.replace(
         "</main>", '<lf-draft id="plan"><pre>Ship it.</pre></lf-draft></main>'
     )
@@ -13325,12 +13324,7 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
     page.keyboard.press("Escape")
     expect(ta).to_have_count(0)  # the editor closed…
     expect(page.locator(".lf-thread-panel")).to_be_visible()  # …and only the editor
-    # The edit was set aside, not discarded: reopening resumes it.
-    draft_control(page, "edit", "plan").click()
-    expect(page.locator("lf-draft leaf-text")).to_have_js_property(
-        "value", "Ship it — but louder."
-    )
-    page.keyboard.press("Escape")
+    expect(page.locator("lf-draft .lf-draft-body")).to_have_text("Ship it.")
 
     # A grabbed card: Esc cancels the move, and the panel it would have closed stands.
     grip = page.locator("#card-heater .lf-grip")

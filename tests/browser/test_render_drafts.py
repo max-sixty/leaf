@@ -1621,15 +1621,11 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
     told(page)
     expect(page.locator("#col-done #card-x")).to_have_count(1)
     expect(editor).to_have_js_property("value", "Local unsent words.")
-    expect(draft.locator(".lf-draft-history")).to_have_count(0)
 
     page.route("**/api/state*", refuse)
     page.keyboard.press("Escape")
     ticked(page)
     expect(draft.locator(".lf-draft-body")).to_have_text("Foreign committed words.")
-    expect(draft.locator(".lf-draft-history > summary")).to_have_text(
-        "Changes · 2 edits"
-    )
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "3")
 
 
@@ -4705,20 +4701,18 @@ def test_a_composer_on_one_passage_is_one_box_in_every_tab(browser, serve, one_u
     assert said == [sent], "one box, and so one comment however many tabs showed it"
 
 
-def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, serve):
-    """One disclosure answers both deferred draft decisions. It compares this version's
-    authored body with the standing body, retains every absolute edit in log order,
-    and walks back by posting another ordinary edit. A second tab proves restore is
-    durable replay rather than local history state; copy mode proves the local history
-    does not survive without its handlers.
+def test_text_alignment_keeps_every_character_and_action_history_is_read_only(
+    browser, serve
+):
+    """The text aligner may choose where an ambiguous repeated word aligns, but never
+    loses or invents a character: same+delete is the old text, same+insert the new one.
+    Unicode, whitespace and repetition are where a character or regex diff quietly
+    breaks. Every granularity, because the unit is the caller's and the contract is
+    not: an inline version comparison starts with sentences and refines a local edit by
+    word. Its words come from Intl.Segmenter, so it is read in the browser.
 
-    The comparison is drawn by the text aligner, which is allowed to choose where an
-    ambiguous repeated word aligns, but never to lose or invent a character: same+delete
-    is the old text, same+insert the new one. Unicode, whitespace and repetition are
-    where a character or regex diff quietly breaks. Both granularities, because the unit
-    is the caller's and the contract is not: a draft's history aligns by word, while an
-    inline version comparison starts with sentences and refines a local edit by word.
-    Its words come from Intl.Segmenter, so it is read in the browser."""
+    A draft's saved edits reach a widget as its action history, in log order, and a
+    widget cannot rewrite that history by mutating what it read."""
     url = serve(JOURNEY_V1)
     page = open_page(browser, url)
     cases = [
@@ -4788,59 +4782,16 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
         draft.locator(".lf-draft-body").dblclick()
         write(draft.locator("leaf-text"), text)
         draft_control(page, "save", "draft-ops").click()
-        round_trip(page)  # the history is drawn from the log, not the box
-        expect(draft.locator(".lf-draft-history > summary")).to_have_text(
-            f"Changes · {index} {'edit' if index == 1 else 'edits'}"
-        )
-
-    # The disclosure is the platform's to work and the register says so, naming the
-    # press where the user is standing on it and reading which way it goes off the
-    # state they can already see.
-    history = draft.locator(".lf-draft-history > summary")
-    history.focus()
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("show the history")
-    history.click()
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("hide the history")
-
-    current_deleted = "".join(draft.locator(".lf-draft-current del").all_inner_texts())
-    current_inserted = "".join(draft.locator(".lf-draft-current ins").all_inner_texts())
-    assert "before" in current_deleted and "deploying" in current_deleted
-    assert "afterthebackup" in re.sub(r"\s+", "", current_inserted)
-    labels = draft.locator(".lf-draft-revision-head strong").all_inner_texts()
-    assert labels == ["Version text", "Edit 1 · v1", "Edit 2 · v1"]
-    # Adjacent recorded edits are aligned too, rather than rendered as two unrelated
-    # snapshots. The first has no knowable predecessor on a later pinned version.
-    second_delta = draft.locator(".lf-draft-revisions > li").nth(2)
-    second_deleted = "".join(second_delta.locator("del").all_inner_texts())
-    second_inserted = "".join(second_delta.locator("ins").all_inner_texts())
-    assert "before" in second_deleted and "deploying" in second_deleted
-    assert "afterthebackup" in re.sub(r"\s+", "", second_inserted)
-    # Comparisons preserve source whitespace; template indentation is visible here.
-    comparison = second_delta.locator(".lf-draft-delta").text_content()
-    assert comparison == comparison.strip()
-
-    draft.get_by_role("button", name="Restore edit 1 · v1").focus()
-    page.keyboard.press("Enter")
-    round_trip(page)
-    expect(draft.locator(".lf-draft-body")).to_have_text(edits[0])
-    expect(draft.locator(".lf-draft-history > summary")).to_have_text(
-        "Changes · 3 edits"
-    )
-    expect(draft.locator(".lf-draft-history > summary")).to_be_focused()
-    expect(draft.locator(".lf-draft-history")).to_have_attribute("open", "")
-    expect(draft).to_have_attribute("data-lf-user-override", "1")
+        round_trip(page)
+        expect(draft.locator(".lf-draft-body")).to_have_text(text)
 
     events = [
         event
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "action"
     ]
-    assert [event["detail"]["value"] for event in events] == [
-        edits[0],
-        edits[1],
-        edits[0],
-    ]
-    assert [event["action"] for event in events] == ["edit", "edit", "edit"]
+    assert [event["detail"]["value"] for event in events] == edits
+    assert [event["action"] for event in events] == ["edit", "edit"]
 
     sequence = page.evaluate(
         """async () => {
@@ -4853,15 +4804,8 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
             .map(event => [event.seq, event.detail.value]);
         }"""
     )
-    assert [text for _, text in sequence] == [edits[0], edits[1], edits[0]]
+    assert [text for _, text in sequence] == edits
     assert [seq for seq, _ in sequence] == sorted(seq for seq, _ in sequence)
-
-    # The handover URL, since the key it carries has left this tab's address.
-    other = open_page(browser, url)
-    expect(other.locator("#draft-ops .lf-draft-body")).to_have_text(edits[0])
-    expect(other.locator("#draft-ops .lf-draft-history > summary")).to_have_text(
-        "Changes · 3 edits"
-    )
 
 
 def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
@@ -4886,8 +4830,8 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
         )
 
     old = open_page(browser, url, pin=True)
-    expect(old.locator("#draft-ops .lf-draft-history > summary")).to_have_text(
-        "Changes · 1 edit"
+    expect(old.locator("#draft-ops .lf-draft-body")).to_have_text(
+        "First recorded body."
     )
     old_sequence = old.evaluate(
         """async () => (await window.__lfRuntimeImport('/runtime/widget-api.js'))
@@ -4897,8 +4841,8 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
     assert old_sequence == [1]
 
     latest = open_page(browser, url.replace("v1.html", "v2.html"), pin=True)
-    expect(latest.locator("#draft-ops .lf-draft-history > summary")).to_have_text(
-        "Changes · 2 edits"
+    expect(latest.locator("#draft-ops .lf-draft-body")).to_have_text(
+        "Second recorded body."
     )
     latest_sequence = latest.evaluate(
         """async () => (await window.__lfRuntimeImport('/runtime/widget-api.js'))
@@ -6018,7 +5962,6 @@ def test_first_draft_save_and_refusal_keep_the_local_editor_controls(browser, se
         ),
     )
     draft = page.locator("#first-draft")
-    expect(draft.locator(".lf-draft-history")).to_have_count(0)
     draft_control(page, "edit", "first-draft").click()
     write(draft.locator("leaf-text"), "Changed words.")
     before = page.locator("#following").bounding_box()
@@ -6034,19 +5977,16 @@ def test_first_draft_save_and_refusal_keep_the_local_editor_controls(browser, se
     expect(draft.locator(".lf-draft-body")).to_have_text("Original words.")
     expect(draft_control(page, "retry", "first-draft")).to_be_visible()
     expect(draft_control(page, "cancel", "first-draft")).to_be_visible()
-    expect(draft.locator(".lf-draft-history")).to_have_count(0)
     assert page.locator("#following").bounding_box() == before
     consume_browser_errors(page, "400")
 
 
-def test_draft_controls_survive_hiding_annotations_and_close_keeps_source(
-    browser, serve
-):
+def test_draft_controls_survive_hiding_annotations_and_escape_discards(browser, serve):
     """Editing operations stay in their box while the annotation layer is hidden.
 
-    The footer offers Save and Cancel; Escape, which has no button, sets the edit
-    aside for the next opening. The box's Copy control copies the Markdown source the
-    box shows, the open editor's while it stands."""
+    The footer offers Save and Cancel, and Escape cancels as the button does, so a
+    closed box holds no unsent words. The box's Copy control copies the Markdown source
+    the box shows, the open editor's while it stands."""
     context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
     page = open_page(
         browser,
@@ -6079,7 +6019,8 @@ def test_draft_controls_survive_hiding_annotations_and_close_keeps_source(
     expect(editor).to_have_count(0)
     expect(edit).to_be_focused()
     edit.press("Enter")
-    expect(editor).to_have_js_property("value", "Unsent `source`.")
+    expect(editor).to_have_js_property("value", "Saved **source**.")
+    write(editor, "Changed again.")
     draft_control(page, "cancel", "local").click()
     expect(edit).to_be_focused()
     edit.click()
@@ -6087,6 +6028,29 @@ def test_draft_controls_survive_hiding_annotations_and_close_keeps_source(
     page.keyboard.press("Escape")
     copy.click()
     assert page.evaluate("navigator.clipboard.readText()") == "Saved **source**."
+
+
+def test_an_open_edit_back_to_the_authored_text_survives_reload(browser, serve):
+    """An open editor's words come back on reload whenever they differ from the
+    standing text, words that walk a saved edit back to the authored text included."""
+    url = serve(
+        leaf_page(
+            "Walk back",
+            '<h1>Walk back</h1><lf-draft id="walk"><pre>Authored words.</pre></lf-draft>',
+        )
+    )
+    page = open_page(browser, url)
+    draft = page.locator("#walk")
+    draft_control(page, "edit", "walk").click()
+    write(draft.locator("leaf-text"), "Saved words.")
+    draft_control(page, "save", "walk").click()
+    round_trip(page)
+    draft_control(page, "edit", "walk").click()
+    write(draft.locator("leaf-text"), "Authored words.")
+    page.reload()
+    wait_until_ready(page)
+    expect(draft.locator("leaf-text")).to_have_js_property("value", "Authored words.")
+    expect(draft.locator(".lf-draft-body")).to_have_text("Saved words.")
 
 
 def test_resume_writing_is_a_touch_action_and_does_not_steal_hint_addresses(
@@ -6163,7 +6127,6 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
     write(edit, "Last edit")
     page.keyboard.press("Home")
     page.keyboard.press("ArrowRight")
-    page.keyboard.press("Escape")
     page.locator("#fold > summary").click()
     if hidden_tab:
         page.get_by_role("tab", name="Reading", exact=True).click()
@@ -6216,7 +6179,6 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
     expect(edit).to_be_focused()
     edit.press("ControlOrMeta+a")
     edit.press("Backspace")
-    page.keyboard.press("Escape")
     if hidden_tab:
         page.get_by_role("tab", name="Reading", exact=True).click()
     page.locator("#elsewhere").click()
@@ -6372,13 +6334,12 @@ def test_a_draft_button_keeps_its_target_when_pointerdown_focuses_it(browser, se
         ),
     )
     draft = page.locator("#note")
-    # Save keeps its words; cancel and close discard theirs.
+    # Save keeps its words; cancel discards theirs.
     saved = "Keep this note."
     for action, edge in (
         ("edit", "left"),
         ("save", "right"),
         ("cancel", "left"),
-        ("close", "right"),
     ):
         if action != "edit":
             draft_control(page, "edit", "note").click()

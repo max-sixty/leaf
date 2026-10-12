@@ -4072,13 +4072,13 @@ def test_a_revision_gives_values_to_controls_the_user_never_touched(browser, ser
 def test_a_revision_that_rewrites_a_draft_leaves_the_user_where_they_stand(
     browser, serve
 ):
-    """A draft's unsent edit comes back with it, and does not take the user with it.
+    """A draft's open editor comes back with it, and does not take the user with it.
 
-    Escape sets a draft's edit aside rather than discarding it, and the draft reads the
-    edit back from its own store whenever it connects — which a revision rewriting the
-    draft makes it do. Getting the words back is right. The editor taking the focus is
-    not, when the user had put the edit away and gone to stand on something else: the
-    revision is news, and news with no gesture behind it moves nobody.
+    The draft reads an open editor's words back from its own store whenever it
+    connects — which a revision rewriting the draft makes it do. Getting the words back
+    is right. The editor taking the focus is not, when the user had left the editor
+    open and gone to stand on something else: the revision is news, and news with no
+    gesture behind it moves nobody.
     """
     draft = '<lf-draft id="plan"><pre>Ship it.</pre></lf-draft>'
     first = LIVE_KEYS_V1.replace('<p id="lk-para">', draft + '\n<p id="lk-para">')
@@ -4091,9 +4091,7 @@ def test_a_revision_that_rewrites_a_draft_leaves_the_user_where_they_stand(
     editor = page.locator("lf-draft leaf-text")
     expect(editor).to_be_focused()
     write(editor, "Ship it, but louder.")
-    page.keyboard.press("Escape")
-    expect(editor).to_have_count(0)
-    # The user goes and stands on the question instead.
+    # The user leaves the editor open and goes to stand on the question instead.
     pick = page.locator("#lk-one .lf-pick")
     pick.focus()
     expect(pick).to_be_focused()
@@ -6531,8 +6529,9 @@ def test_live_revision_drafts_wait_for_the_complete_controller_publication(
     revised.locator(".lf-draft-body").click()
     editor = revised.get_by_role("textbox", name="Edit revised-draft")
     write(editor, "The user's unsent replacement.\n")
-    editor.press("Escape")
-    expect(editor).to_have_count(0)
+    # The user leaves the editor open and steps back to the page.
+    page.locator("h1").click()
+    expect(editor).not_to_be_focused()
     assert take_browser_errors(page) == []
 
     stamp_page(serve.page_dir, second, "replace and insert drafts")

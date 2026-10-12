@@ -29,10 +29,13 @@ vars:
     The page directory is not reachable from here, so reply with the HTML fragment
     rather than writing a file.
 assert:
-- type: regex
+- type: llm-rubric
   metric: pair-outlined
-  value: <lf-shot\b(?=[^>]*\bbefore=["'][^"']*header-before\.png)(?=[^>]*\bafter=["'][^"']*header-after\.png)(?=(?:[^>"']|"[^"]*"|'[^']*')*\soutlines(?:=""|\s|/?>))
-  transform: output.toLowerCase()
+  value: |
+    Pass only if one `lf-shot` takes `/media/header-before.png` as `before` and
+    `/media/header-after.png` as `after` and carries the `outlines` attribute, so the
+    page marks where the header changed. Fail if the pair has no `outlines`, or
+    the captures appear only as separate images, never together in one `lf-shot`.
 - type: llm-rubric
   metric: judgment
   value: |

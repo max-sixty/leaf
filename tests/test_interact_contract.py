@@ -2082,6 +2082,12 @@ def test_a_custom_units_identity_rule_keeps_the_details_reference_base():
     assert spec["detail"]["properties"]["item"] == {"type": "string"}
 
 
+def test_a_recorded_body_accepts_empty_text_but_not_a_missing_value():
+    schema = registry_contract.detail_schema({}, {"record": {"kind": "body"}})
+    assert registry_schema.schema_error(schema, {"value": ""}) is None
+    assert registry_schema.schema_error(schema, {}) is not None
+
+
 @pytest.mark.parametrize(
     "schema",
     [

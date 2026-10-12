@@ -265,6 +265,8 @@ def detail_schema(entry: dict, spec: dict) -> dict:
         value = entry["properties"][record["attr"]]
     elif kind == "attribute":
         value = {"type": "array", "items": _IDENTITY, "uniqueItems": True}
+    elif kind == "body":
+        value = {"type": "string"}
     else:
         value = _IDENTITY
     properties = {"value": value}

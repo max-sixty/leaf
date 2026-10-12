@@ -87,9 +87,7 @@ from render_cases_navigation import (
 from render_cases_widgets import (
     GENERIC_VISUAL_LAYER,
     GENERIC_VISUAL_PAGE,
-    GENERIC_VISUAL_WIDGETS,
     PART_DIAGRAM_PAGE,
-    PREFIXED_VISUAL_PAGE,
     TYPED_PARTS_PAGE,
     prefixed_visual_layer,
     visual_widgets,
@@ -1909,37 +1907,6 @@ def test_the_render_gate_requires_a_declared_threads_host_and_a_defined_element(
     ), failures
 
 
-def test_the_render_gate_requires_a_visual_parts_provider(
-    browser, serve, tmp_path, monkeypatch
-):
-    """A part declaration without a registered inventory cannot silently fall back.
-
-    The CLI can validate authored tokens without rendering them, so the browser gate
-    holds the other half: every matching instance must register the inventory from which
-    Leaf derives both lookup directions before semantic visual anchors can publish.
-    """
-    monkeypatch.chdir(tmp_path)
-    add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
-    registry_path = tmp_path / ".leaf" / "registry.json"
-    declarations = json.loads(registry_path.read_text())
-    declarations["lf-callout"]["properties"]["parts"] = {
-        "type": "string",
-        "minLength": 1,
-    }
-    declarations["lf-callout"]["x-visual"] = {"parts": "parts"}
-    registry_path.write_text(json.dumps(declarations, indent=2))
-
-    failures = render_gate_model.render_version(
-        browser, serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    ).failures
-
-    assert any(
-        "declares addressable visual parts but its module did not call "
-        "registerVisualParts" in failure
-        for failure in failures
-    ), failures
-
-
 def test_the_render_gate_resolves_registered_visual_inventories(browser, serve):
     """The gate resolves every authored token through the generic package contract,
     one registered visual per case on one page: one that draws every part, and one
@@ -1984,48 +1951,87 @@ def test_the_render_gate_resolves_registered_visual_inventories(browser, serve):
     ), failures
 
 
-def test_the_render_gate_rejects_invalid_visual_inventory_records(browser, serve):
-    markup = GENERIC_VISUAL_PAGE.replace(
-        '<lf-test-visual id="visual" parts="outer inner html"></lf-test-visual>',
-        """<lf-test-visual id="missing" parts="outer absent"></lf-test-visual>
-<lf-test-visual id="outside" parts="outer inner html"></lf-test-visual>""",
+def test_the_render_gate_refuses_visual_inventories_it_cannot_trust(
+    browser, serve, tmp_path, monkeypatch
+):
+    """A visual's inventory is checked before anything is read off the page, so these
+    refusals share a page whose readings end there.
+
+    A part declaration without a registered inventory cannot silently fall back: the
+    CLI can validate authored tokens without rendering them, so the browser gate holds
+    the other half, and every matching instance must register the inventory from
+    which Leaf derives both lookup directions before semantic visual anchors can
+    publish. An inventory that leaves a declared part unregistered, or names a part
+    with no descendant surface, is refused by element with the throw site of what it
+    could not read. And a prefixed visual authors no tokens, so the gate has none to
+    resolve; what it holds is the widget to its own declaration, refusing a registered
+    id outside it and only that one: `outer` and `inner` stand inside the prefixes
+    left."""
+    monkeypatch.chdir(tmp_path)
+    add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
+    callout = json.loads((tmp_path / ".leaf" / "registry.json").read_text())[
+        "lf-callout"
+    ]
+    callout["properties"]["parts"] = {"type": "string", "minLength": 1}
+    callout["x-visual"] = {"parts": "parts"}
+    prefixed = prefixed_visual_layer("out", "inn")["lf-test-visual"]
+    layer = {
+        **GENERIC_VISUAL_LAYER,
+        "lf-test-visual-prefixed": {
+            **prefixed,
+            "x-example": '<lf-test-visual-prefixed id="example"></lf-test-visual-prefixed>',
+        },
+        "lf-callout": callout,
+    }
+    widgets = visual_widgets(outside_surface_for="outside") | visual_widgets(
+        tag="lf-test-visual-prefixed"
     )
-    widgets = visual_widgets(outside_surface_for="outside")
+    markup = CUSTOM_WIDGET_PAGE.replace(
+        "</main>",
+        """<lf-test-visual id="missing" parts="outer absent"></lf-test-visual>
+<lf-test-visual id="outside" parts="outer inner html"></lf-test-visual>
+<lf-test-visual-prefixed id="prefixed"></lf-test-visual-prefixed>
+</main>""",
+    )
     failures = render_gate_model.render_version(
         browser.unwatched,
-        serve(
-            markup,
-            layer_registry=GENERIC_VISUAL_LAYER,
-            layer_widgets=widgets,
-        ),
+        serve(markup, layer_registry=layer, layer_widgets=widgets),
     ).failures
-    assert [failure.splitlines()[0] for failure in failures] == [
-        (
-            "[light] <lf-test-visual id='missing'> declares addressable visual parts "
-            "but its module did not register declared parts absent"
-        ),
-        (
-            "[light] <lf-test-visual id='outside'> declares addressable visual parts "
-            "but its module could not read visual parts: Visual part outer has no descendant Element surface"
-        ),
-        (
-            "[dark] <lf-test-visual id='missing'> declares addressable visual parts "
-            "but its module did not register declared parts absent"
-        ),
-        (
-            "[dark] <lf-test-visual id='outside'> declares addressable visual parts "
-            "but its module could not read visual parts: Visual part outer has no descendant Element surface"
-        ),
-    ]
 
-    inventory_errors = [
-        failure for failure in failures if "could not read visual parts" in failure
+    def first_lines(tag):
+        return [f.splitlines()[0] for f in failures if f"<{tag} " in f]
+
+    assert any(
+        "declares addressable visual parts but its module did not call "
+        "registerVisualParts" in failure
+        for failure in first_lines("lf-callout")
+    ), failures
+    unread = (
+        "could not read visual parts: Visual part outer has no descendant Element "
+        "surface"
+    )
+    assert first_lines("lf-test-visual") == [
+        (
+            f"[{scheme}] <lf-test-visual id='{ident}'> declares addressable visual "
+            f"parts but its module {problem}"
+        )
+        for scheme in ("light", "dark")
+        for ident, problem in (
+            ("missing", "did not register declared parts absent"),
+            ("outside", unread),
+        )
     ]
+    inventory_errors = [f for f in failures if "could not read visual parts" in f]
     assert len(inventory_errors) == 2, failures
     assert all(
         "TypeError:" in failure and "registeredVisualParts" in failure
         for failure in inventory_errors
     )
+    assert first_lines("lf-test-visual-prefixed") == [
+        f"[{scheme}] <lf-test-visual-prefixed id='prefixed'> declares addressable "
+        "visual parts but its module registered parts its prefixes do not admit html"
+        for scheme in ("light", "dark")
+    ]
 
 
 def test_visual_reveal_findings_keep_the_throw_site(browser, serve):
@@ -2076,25 +2082,6 @@ def test_replay_findings_keep_the_throw_site(browser, serve):
     )
     assert "TypeError: replay rejected" in findings[0]
     assert "replayProjection" in findings[0]
-
-
-def test_the_render_gate_bounds_a_prefixed_inventory_by_its_prefixes(browser, serve):
-    """A prefixed visual authors no tokens, so the gate has none to resolve; what it
-    holds is the widget to its own declaration, refusing a registered id outside it
-    and only that one: `outer` and `inner` stand inside the prefixes left."""
-    failures = render_gate_model.render_version(
-        browser.unwatched,
-        serve(
-            PREFIXED_VISUAL_PAGE,
-            layer_registry=prefixed_visual_layer("out", "inn"),
-            layer_widgets=GENERIC_VISUAL_WIDGETS,
-        ),
-    ).failures
-    assert failures == [
-        f"[{scheme}] <lf-test-visual id='visual'> declares addressable visual parts "
-        "but its module registered parts its prefixes do not admit html"
-        for scheme in ("light", "dark")
-    ]
 
 
 def test_the_render_gate_rejects_a_partial_diagram_parts_list(browser, serve):

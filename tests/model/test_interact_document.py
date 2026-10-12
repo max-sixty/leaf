@@ -37,8 +37,10 @@ from interact_support import (
     asks_on_user,
     before_choice,
     check,
+    check_findings,
     comment,
     declare_data_input,
+    found,
     fresh_process,
     lock_contention,
     model_layer,
@@ -481,14 +483,14 @@ def test_an_image_loads_from_any_server(page_dir):
 @pytest.mark.parametrize(
     "authored, expected",
     [
-        ("<script>window.x = 1;</script>", "still parsing"),
+        ("<script>window.x = 1;</script>", "parser-blocking-script"),
         (
             '<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>',
-            "still parsing",
+            "parser-blocking-script",
         ),
         (
             '<script type="module" async src="https://unpkg.com/d3"></script>',
-            "runs whenever it arrives",
+            "async-script",
         ),
     ],
     ids=["inline-classic", "blocking-classic", "async-module"],
@@ -499,10 +501,10 @@ def test_check_runs_each_script_after_leaf_reads_the_page(page_dir, authored, ex
     version = page_dir / "index.html"
     version.write_text(PAGE.replace("</main>", f"{authored}</main>"))
 
-    result = check(page_dir)
+    status, findings = check_findings(page_dir)
 
-    assert result.exit_code == 1
-    assert expected in result.output
+    assert status == 1
+    assert [f.code for f in findings] == [expected]
 
 
 def test_a_quote_crosses_an_upgraded_verbatim_wrapper(page_dir):
@@ -1178,10 +1180,9 @@ def test_check_refuses_noscript_words_the_browser_never_renders(page_dir):
             "<h2>Plan</h2><noscript>Fallback words.</noscript>",
         )
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "<noscript>" in result.output
-    assert "the browser renders none of its content" in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(findings, "noscript", "<noscript>")
 
 
 def test_check_admits_a_template_whose_words_no_anchor_reaches(page_dir):
@@ -1216,22 +1217,25 @@ def test_check_rejects_widget_violations(page_dir):
             '<lf-diagram id="bare-body">graph LR</lf-diagram>',
         ).replace('<lf-option id="flag-first"', "<lf-option")
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    out = result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
     # Both the widget and the plain <figure/>: the slash misleads a browser on
     # any non-void tag, not only on the vocabulary's.
-    assert out.count("self-closing") == 2
-    assert "unknown widget" in out
-    assert '<lf-column tone="medium">' in out
-    assert "not a tone this page's layer paints" in out
-    assert "must be a direct member of <lf-options>" in out
-    assert "'id' is a required property" in out
-    assert "does not match" in out  # id pattern
+    assert [f.at for f in found(findings, "self-closing")] == ["<lf-gloss>", "<figure>"]
+    assert found(findings, "unknown-widget", "<lf-bogus>")
+    assert found(findings, "unknown-word", "<lf-column>", attr="tone", value="medium")
+    assert found(findings, "not-member", "<lf-option>", owners=["lf-options"])
+    assert found(findings, "attribute-schema", "<lf-option>", keyword="required")
+    assert found(
+        findings, "attribute-schema", "<lf-diagram>", keyword="pattern", path=["id"]
+    )
     # A stray element beside the <pre>, and a body that never opened one: both are
     # the same rule, since the <pre> is what carries the whitespace the notation needs.
-    assert out.count("its body is one <pre> holding the text") == 2
-    assert "text outside its <pre>" in out
+    assert [f.values["children"] for f in found(findings, "data-body")] == [
+        ["pre", "em"],
+        [],
+    ]
+    assert found(findings, "text-outside-pre", "<lf-diagram>")
 
 
 def test_check_rejects_a_widget_language_nothing_will_color(page_dir):
@@ -1246,10 +1250,11 @@ def test_check_rejects_a_widget_language_nothing_will_color(page_dir):
             '<lf-code id="walk-bad" language="pythn"><pre>z = 3\n</pre></lf-code>',
         )
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert '<lf-code language="pythn">' in result.output, result.output
-    assert 'class="language-pythn"' not in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert [(f.at, f.values["value"]) for f in found(findings, "unknown-word")] == [
+        ("<lf-code>", "pythn")
+    ]
 
 
 def test_a_widget_that_declares_a_language_is_checked_by_that_alone(page_dir):
@@ -1267,10 +1272,16 @@ def test_a_widget_that_declares_a_language_is_checked_by_that_alone(page_dir):
             '<h2>Plan</h2>\n<lf-gloss tip="Feeder layout" dialect="lisp">feeders</lf-gloss>',
         )
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert '<lf-gloss dialect="lisp">' in result.output
-    assert "not a language this page's layer speaks" in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(
+        findings,
+        "unknown-word",
+        "<lf-gloss>",
+        attr="dialect",
+        value="lisp",
+        declares="x-language",
+    )
 
 
 def test_every_declared_attribute_and_enum_stands_in_an_example():
@@ -1350,12 +1361,9 @@ def test_pane_grammar_follows_the_declared_role_across_packages(page_dir):
             "<p>First</p></lf-zone>", "<p>First</p><p>Split</p></lf-zone>"
         )
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "<lf-zone> (line" in result.output, result.output
-    assert "x-reading-role pane must contain exactly one direct body element" in (
-        result.output
-    )
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(findings, "pane-body", "<lf-zone>", body=["p", "p"])
 
 
 def test_pane_grammar_rejects_misplaced_slots_and_split_content(page_dir):
@@ -1369,13 +1377,13 @@ def test_pane_grammar_rejects_misplaced_slots_and_split_content(page_dir):
 <lf-pane id="loose" label="Loose">Loose text</lf-pane>""",
         )
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "x-reading-role pane direct <header> must be first" in result.output
-    body = "x-reading-role pane must contain exactly one direct body element"
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(findings, "pane-header-first", "<lf-pane>", line=10)
     # The split body and the loose text, each named by its own line.
-    for line in (11, 12):
-        assert f"<lf-pane> (line {line}): {body}" in result.output, result.output
+    assert [
+        (f.values["line"], f.values["body"]) for f in found(findings, "pane-body")
+    ] == [(11, ["p", "p"]), (12, ["#text"])]
 
 
 def test_a_layer_naming_no_languages_refuses_every_word_rather_than_none(page_dir):
@@ -1395,20 +1403,26 @@ def test_a_layer_naming_no_languages_refuses_every_word_rather_than_none(page_di
             '<lf-code id="walk" language="python"><pre>x = 1\n</pre></lf-code>',
         )
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert '<lf-code language="python">' in result.output, result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(findings, "unknown-word", "<lf-code>", value="python", known=[])
 
 
 def test_check_rejects_loose_content_in_items_container(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace("<lf-options>", "<lf-options>\nloose text\n<p>stray</p>\n<br/>")
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert 'admits only ["lf-option"] members' in result.output
-    assert '"br"' in result.output  # self-closed strays count as children too
-    assert "loose text" in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    # Self-closed strays count as children too.
+    assert found(
+        findings,
+        "stray-members",
+        "<lf-options>",
+        admits=["lf-option"],
+        found=["br", "p"],
+    )
+    assert found(findings, "loose-text", "<lf-options>")
 
 
 def test_retired_question_and_recommendation_attributes_are_rejected(page_dir):
@@ -1417,11 +1431,13 @@ def test_retired_question_and_recommendation_attributes_are_rejected(page_dir):
             'id="backfill-first">', 'id="backfill-first" recommended>'
         )
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "Additional properties are not allowed" in result.output
-    assert "'label' was unexpected" in result.output
-    assert "'recommended' was unexpected" in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert [f.at for f in found(findings, "attribute-schema")] == [
+        "<lf-options>",
+        "<lf-option>",
+    ]
+    assert {f.values["keyword"] for f in findings} == {"additionalProperties"}
 
 
 def test_tabs_reject_structural_violations(page_dir):
@@ -1434,22 +1450,25 @@ def test_tabs_reject_structural_violations(page_dir):
 <lf-tab id="ws-stray" label="Stray"><p>y</p></lf-tab>
 <lf-options>"""
     (page_dir / "index.html").write_text(PAGE.replace("<lf-options>", bad))
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "'label' is a required property" in result.output
-    assert "must be a direct member of <lf-tabs>" in result.output
-    assert "loose text" in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(findings, "attribute-schema", "<lf-tab>", keyword="required")
+    assert found(findings, "not-member", "<lf-tab>", owners=["lf-tabs"])
+    assert found(findings, "loose-text", "<lf-tabs>")
 
 
 def test_suggestion_rejects_malformed_shapes(page_dir):
     for markup, expected in [
-        ('<lf-suggestion id="sug-a"></lf-suggestion><lf-options>', "needs a <lf-old>"),
+        (
+            '<lf-suggestion id="sug-a"></lf-suggestion><lf-options>',
+            ("empty-suggestion", "<lf-suggestion id=sug-a>"),
+        ),
         (
             (
                 '<lf-suggestion id="sug-a"><lf-new><p>x</p></lf-new>'
                 "<lf-new><p>y</p></lf-new></lf-suggestion><lf-options>"
             ),
-            "one at most",
+            ("repeated-slot", "<lf-suggestion id=sug-a>"),
         ),
         (
             (
@@ -1457,24 +1476,24 @@ def test_suggestion_rejects_malformed_shapes(page_dir):
                 '<lf-suggestion id="sug-b"><lf-new>x</lf-new></lf-suggestion>'
                 "</lf-new></lf-suggestion><lf-options>"
             ),
-            "don't nest",
+            ("nested-suggestion", "<lf-suggestion id=sug-b>"),
         ),
         (
             "<lf-old><p>orphan</p></lf-old><lf-options>",
-            "must be a direct member of <lf-suggestion>",
+            ("not-member", "<lf-old>"),
         ),
         (
             (
                 '<lf-suggestion id="sug-a" resolves="nosuch"><lf-new><p>x</p></lf-new>'
                 "</lf-suggestion><lf-options>"
             ),
-            "names no thread in this document",
+            ("unknown-thread", "<lf-suggestion id=sug-a>"),
         ),
     ]:
         (page_dir / "index.html").write_text(PAGE.replace("<lf-options>", markup))
-        result = check(page_dir)
-        assert result.exit_code == 1, markup
-        assert expected in result.output, f"{markup}\n{result.output}"
+        status, findings = check_findings(page_dir)
+        assert status == 1, markup
+        assert expected in [(f.code, f.at) for f in findings], markup
 
 
 def test_reply_refuses_a_suggestion(page_dir):
@@ -1829,40 +1848,58 @@ def test_reply_for_a_stale_event_reports_the_failed_fence(page_dir):
     [
         (
             '<script type="module" src="/leaf.js"></script>',
-            "public layer entry point",
+            ("capture-failed", {"error": "public layer entry point"}),
         ),
         (
             '<link rel="stylesheet" href="/theme.css" media="print">',
-            "escapes /page/ and /media/",
+            ("capture-failed", {"error": "escapes /page/ and /media/"}),
         ),
-        ('<base href="https://outside.example/">', "<base> (line"),
+        (
+            '<base href="https://outside.example/">',
+            ("document-declaration", {"at": "<base>"}),
+        ),
         (
             '<meta http-equiv="Content-Security-Policy" content="default-src none">',
-            "<meta> (line",
+            ("document-declaration", {"at": "<meta>"}),
         ),
-        ('<script type="importmap">{"imports": {}}</script>', "<script> (line"),
+        (
+            '<script type="importmap">{"imports": {}}</script>',
+            ("document-declaration", {"at": "<script>"}),
+        ),
     ],
     ids=["runtime-module", "theme", "base", "policy", "import-map"],
 )
 def test_check_rejects_authored_delivery_assets(page_dir, asset, expected):
+    """Capture refuses a delivery asset the page would load, for its own reason, and
+    the markup check a declaration about the whole document."""
     (page_dir / "index.html").write_text(PAGE.replace("</head>", f"{asset}\n</head>"))
 
-    result = check(page_dir)
+    status, findings = check_findings(page_dir)
 
-    assert result.exit_code == 1
-    assert expected in result.output
+    assert status == 1
+    code, holds = expected
+    [finding] = findings
+    assert finding.code == code
+    # A capture refusal is still its exception's words (`capture-failed`).
+    if "error" in holds:
+        assert holds["error"] in finding.values["error"]
+    else:
+        assert finding.at == holds["at"]
 
 
 @pytest.mark.parametrize(
-    "outside",
+    "outside, refused",
     [
-        "Authored tail",
-        '<p id="tail">Authored tail</p>',
-        '<lf-options><lf-option id="tail">Authored tail</lf-option></lf-options>',
-        '<main><p id="tail">Second main</p></main>',
+        ("Authored tail", "outside-main"),
+        ('<p id="tail">Authored tail</p>', "outside-main"),
+        (
+            '<lf-options><lf-option id="tail">Authored tail</lf-option></lf-options>',
+            "outside-main",
+        ),
+        ('<main><p id="tail">Second main</p></main>', "main-count"),
     ],
 )
-def test_check_confines_authored_content_to_one_direct_main(page_dir, outside):
+def test_check_confines_authored_content_to_one_direct_main(page_dir, outside, refused):
     """The element the presentation boundary withholds contains the whole page.
 
     Prose, ordinary elements, widgets, and another main beside the first are all
@@ -1870,10 +1907,10 @@ def test_check_confines_authored_content_to_one_direct_main(page_dir, outside):
     """
     (page_dir / "index.html").write_text(PAGE.replace("</main>", f"</main>\n{outside}"))
 
-    result = check(page_dir)
+    status, findings = check_findings(page_dir)
 
-    assert result.exit_code == 1
-    assert "one <main> directly under <body>" in result.output
+    assert status == 1
+    assert found(findings, refused)
 
 
 def test_check_requires_main_to_be_a_direct_body_child(page_dir):
@@ -1883,10 +1920,10 @@ def test_check_requires_main_to_be_a_direct_body_child(page_dir):
     )
     (page_dir / "index.html").write_text(wrapped)
 
-    result = check(page_dir)
+    status, findings = check_findings(page_dir)
 
-    assert result.exit_code == 1
-    assert "one <main> directly under <body>" in result.output
+    assert status == 1
+    assert found(findings, "main-count", direct=0)
 
 
 def test_check_requires_an_explicit_head_for_delivery(page_dir):
@@ -1894,10 +1931,10 @@ def test_check_requires_an_explicit_head_for_delivery(page_dir):
     source = PAGE.replace("<head>", "").replace("</head>", "")
     (page_dir / "index.html").write_text(source)
 
-    result = check(page_dir)
+    status, findings = check_findings(page_dir)
 
-    assert result.exit_code == 1
-    assert "one explicit <head> directly under <html>" in result.output
+    assert status == 1
+    assert found(findings, "head-count", tags=0)
 
 
 def test_check_rejects_an_extra_head_that_html_recovery_ignores(page_dir):
@@ -1905,10 +1942,10 @@ def test_check_rejects_an_extra_head_that_html_recovery_ignores(page_dir):
     source = PAGE.replace("</html>", "<head></head></html>")
     (page_dir / "index.html").write_text(source)
 
-    result = check(page_dir)
+    status, findings = check_findings(page_dir)
 
-    assert result.exit_code == 1
-    assert "found 2 head tags" in result.output
+    assert status == 1
+    assert found(findings, "head-count", tags=2)
 
 
 @pytest.mark.parametrize(
@@ -1922,10 +1959,10 @@ def test_check_rejects_paintable_markup_the_browser_reparents(page_dir, html):
     """HTML recovery cannot move authored pixels around the main boundary."""
     (page_dir / "index.html").write_text(html)
 
-    result = check(page_dir)
+    status, findings = check_findings(page_dir)
 
-    assert result.exit_code == 1
-    assert "one <main> directly under <body>" in result.output
+    assert status == 1
+    assert found(findings, "outside-main")
 
 
 def test_check_rejects_an_id_containing_whitespace(page_dir):
@@ -1939,9 +1976,9 @@ def test_check_rejects_an_id_containing_whitespace(page_dir):
             '<g id="layout-no class"><rect width="4" height="4"/></g></svg>',
         )
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "whitespace" in result.output and '"layout-no class"' in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(findings, "spaced-ids", ids=["layout-no class"])
 
 
 def test_any_id_names_one_subject_for_every_command(page_dir):
@@ -2626,7 +2663,7 @@ def test_thread_markup_can_use_a_different_binding_from_a_page_source(page_dir):
     active = read_page_data(page_dir)["sources"]["project-feed"]
     assert active["contract"] == "rows" and active["value"] == ["active page"]
     captured = artifact_model.read_revision(page_dir, reply["revision"]).registry
-    thread_bindings, _seats, errors = data_contracts_model.declared_data_bindings(
+    thread_bindings, errors = data_contracts_model.declared_data_bindings(
         structure_model.SourceDocument(reply["markup"]).lf_elements, captured
     )
     assert errors == [] and thread_bindings == {"project-feed": "other-rows"}

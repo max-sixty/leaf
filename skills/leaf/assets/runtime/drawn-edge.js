@@ -9,7 +9,7 @@ import { el } from "./widget-elements.js";
 import { keys } from "./keyboard/scopes.js";
 import { setRuntimeRootStyle } from "./root-state.js";
 import { keeps, keepsHidden } from "./keeps.js";
-import { focusDestination } from "./focus.js";
+import { focusDestination, focused } from "./focus.js";
 import { layoutWindow } from "./geometry.js";
 
 // The step an arrow takes, in the column's own gutter: the smallest move that shows in a
@@ -75,7 +75,7 @@ function drawnEdge({ side, noun, defaultWidth, min, prop, key }) {
       // was standing on it before taking it away — the browser otherwise silently
       // drops focus to body during a rotation that closes the range.
       const fixed = cap() <= min;
-      if (fixed && handle === document.activeElement)
+      if (fixed && handle === focused())
         focusDestination(handle.lfFixedFocus(), "return");
       keepsHidden(handle, fixed);
     }

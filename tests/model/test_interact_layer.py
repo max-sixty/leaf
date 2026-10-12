@@ -329,6 +329,13 @@ def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(page_dir
     checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
     assert checked.exit_code != 0
     assert "x-question-context" in checked.output and revendor in checked.output
+    as_json = CliRunner().invoke(
+        cli_model.cli, ["page", "check", "--json", str(page_dir)]
+    )
+    report = json.loads(as_json.output)
+    assert report["status"] == 1 and report["browser"] is None
+    [finding] = report["findings"]
+    assert finding["code"] == "invalid-registry" and revendor in finding["text"]
 
     vendored(lambda keys: keys.pop("x-question-context"))
     assert write_refusal(page_dir) is None
@@ -705,6 +712,9 @@ def test_shim_dispatches_every_command_through_one_uv_run(tmp_path, monkeypatch,
     fake_uv.chmod(0o755)
     monkeypatch.setenv("PATH", f"{tmp_path}:{os.environ['PATH']}")
     shim = PLUGIN_ROOT / "bin" / "leaf"
+    selected = tmp_path / "selected-leaf"
+    selected.symlink_to(shim)
+    monkeypatch.setenv("LEAF_HOST_LAUNCHER", str(selected))
 
     result = subprocess.run(
         [shim, *args],
@@ -734,7 +744,78 @@ def test_shim_dispatches_every_command_through_one_uv_run(tmp_path, monkeypatch,
     ]
 
 
-def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(tmp_path):
+def test_the_launcher_uses_the_hosts_selected_leaf_for_commands_and_hooks(
+    tmp_path, monkeypatch
+):
+    """A native plugin must retain the host's Python environment and hook stdin."""
+    launcher = tmp_path / "plugin" / "bin" / "leaf"
+    launcher.parent.mkdir(parents=True)
+    shutil.copy2(PLUGIN_ROOT / "bin" / "leaf", launcher)
+    interpreter = launcher.parent.parent / ".venv" / "bin" / "python"
+    interpreter.parent.mkdir(parents=True)
+    interpreter.write_text("#!/bin/sh\nexit 3\n")
+    interpreter.chmod(0o755)
+    selected = tmp_path / "selected leaf"
+    selected.write_text(
+        f"#!{sys.executable}\n"
+        "import sys\n"
+        'sys.stdout.write("".join(f"{arg}\\n" for arg in sys.argv[1:]) + sys.stdin.read())\n'
+        "sys.exit(23)\n"
+    )
+    selected.chmod(0o755)
+    monkeypatch.setenv("LEAF_HOST_LAUNCHER", str(selected))
+    for args, payload in [
+        (["page", "check", "a page"], ""),
+        (["hook", "--harness", "codex"], '{"session_id":"hosted"}'),
+    ]:
+        result = subprocess.run(
+            [launcher, *args],
+            input=payload,
+            capture_output=True,
+            text=True,
+            timeout=STATED_TIMEOUT,
+            check=False,
+        )
+        assert (result.returncode, result.stdout, result.stderr) == (
+            23,
+            "".join(f"{arg}\n" for arg in args) + payload,
+            "",
+        )
+    # A host may prepare its environment in a wrapper that invokes Leaf again.
+    # The selection belongs to this dispatch, not to the wrapper's child.
+    selected.write_text(
+        '#!/bin/sh\nexec "' + str(PLUGIN_ROOT / "bin" / "leaf") + '" "$@"\n'
+    )
+    delegated = subprocess.run(
+        [launcher, "--root"],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=False,
+    )
+    assert (delegated.returncode, delegated.stdout, delegated.stderr) == (
+        0,
+        f"{PLUGIN_ROOT}\n",
+        "",
+    )
+    monkeypatch.setenv("LEAF_HOST_LAUNCHER", "leaf")
+    refused = subprocess.run(
+        [launcher, "--version"],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=False,
+    )
+    assert (refused.returncode, refused.stdout, refused.stderr) == (
+        2,
+        "",
+        "LEAF_HOST_LAUNCHER must name an absolute launcher path\n",
+    )
+
+
+def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(
+    tmp_path, monkeypatch
+):
     """Which copy of leaf answered is otherwise unknowable from outside it. A
     harness session runs the payload its plugin cache holds and a checkout stands
     beside it; `bin/leaf` is identical across versions and nothing the CLI
@@ -750,6 +831,12 @@ def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(tm
     Eager and page-free, so it answers with no page named and nothing written
     where it ran, which is the whole of what a session asking the question has.
     """
+    # Pi exposes LEAF as the agent's locator; explicit launchers still name their
+    # own payload, even when another install supplied that locator.
+    selected = tmp_path / "installed-leaf"
+    selected.write_text("#!/bin/sh\nexit 99\n")
+    selected.chmod(0o755)
+    monkeypatch.setenv("LEAF", str(selected))
     cached_commit = "123456789abc"
     cached = install_payload(
         tmp_path / "plugins" / "cache" / "marketplace" / "leaf" / cached_commit
@@ -772,7 +859,8 @@ def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(tm
             check=False,
         )
 
-    here = asked(LEAF_COMMAND, "--root")
+    checkout_launcher = [str(PLUGIN_ROOT / "bin" / "leaf")]
+    here = asked(checkout_launcher, "--root")
     assert here.returncode == 0, here.stderr
     assert here.stdout.strip() == str(PLUGIN_ROOT.resolve())
 
@@ -788,7 +876,7 @@ def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(tm
         == f"leaf {cached_commit}, installed 2026-09-21T14:13:20+00:00"
     )
 
-    checkout = asked(LEAF_COMMAND, "--version")
+    checkout = asked(checkout_launcher, "--version")
     assert checkout.returncode == 0, checkout.stderr
     assert re.fullmatch(
         r"leaf [0-9a-f]{12}\+?, committed "
@@ -2079,7 +2167,7 @@ def test_page_check_names_an_older_leaf_beside_its_own(page_dir):
         "page": str(page_dir),
     }
     same = json.loads(checked(layer_model.payload_provenance(), "--json"))
-    assert {f["code"] for f in same["findings"]} == {"markup"}, same
+    assert {f["code"] for f in same["findings"]} == {"unpointable"}, same
     assert {f["severity"] for f in same["findings"]} == {"advice"}, same
 
 
@@ -3369,6 +3457,15 @@ def test_package_check_requires_a_non_empty_widget_description(tmp_path, monkeyp
 
     assert result.exit_code != 0
     assert "<lf-toned-note> must carry a non-empty description" in result.output
+    # With --json the refusal is the result's one finding.
+    result = runner.invoke(cli_model.cli, ["package", "check", ".leaf", "--json"])
+    assert result.exit_code == 1
+    report = json.loads(result.stdout)
+    assert (report["status"], report["browser"]) == (1, None)
+    [refusal] = report["findings"]
+    assert (refusal["code"], refusal["severity"]) == ("package", "error")
+    said = refusal["values"]["text"]
+    assert "<lf-toned-note> must carry a non-empty description" in said
 
 
 def test_package_check_refuses_a_registry_example_that_violates_its_schema(

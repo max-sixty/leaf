@@ -35,7 +35,7 @@ import { isNativeLayer } from "../shadow-tree.js";
 import { el } from "../widget-elements.js";
 import { iconElement } from "../icons.js";
 import { textField } from "../composing/text-field.js";
-import { closeLayer, focusDestination } from "../focus.js";
+import { closeLayer, focusDestination, focused } from "../focus.js";
 import { retainUserIntent } from "../user-intent.js";
 import { loadDraft, mirrorDraft, saveDraft, sendMessage } from "../drafts.js";
 import { flashDuration, backgroundFlash } from "../motion.js";
@@ -181,8 +181,7 @@ export function createPageComment({
         // Delivery may refuse long after Send. Restore text entry only while the user
         // still stands at the door; a later gesture owns its focus and disclosure.
         void Promise.resolve(flight).then((accepted) => {
-          if (!accepted && document.activeElement === door && mayRestore())
-            mayRestore.handoff(open);
+          if (!accepted && focused() === door && mayRestore()) mayRestore.handoff(open);
         });
       },
     });

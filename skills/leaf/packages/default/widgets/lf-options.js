@@ -109,6 +109,7 @@ import {
   landInThread,
   markdownWords,
   offer,
+  pressIsKeyboardActivation,
   quoted,
   reachedForWords,
   rowWalk,
@@ -237,7 +238,7 @@ customElements.define(
         // A click ending a drag-select belongs to the selection rather than the option.
         const option = e.target.closest?.("lf-option");
         if (!option || option.parentElement !== this) return;
-        if (e.detail !== 0 && reachedForWords(option)) return;
+        if (!pressIsKeyboardActivation(e) && reachedForWords(option)) return;
         // A click something in the option has a use for is not a pick: the user was
         // working the case — flipping a shot, opening a disclosure, following a link —
         // rather than choosing between the options. `worksInside` is the whole of that

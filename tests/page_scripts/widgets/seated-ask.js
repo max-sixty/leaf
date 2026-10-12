@@ -1,6 +1,4 @@
-/* A seated Ask whose press paints optimistically before dispatching settlement.
- * seatAttribute lets the revision case declare a conditional thread seat without
- * rewriting the implementation; the registry in that case declares the same rule. */
+/* A seated Ask whose press paints optimistically before dispatching settlement. */
 import {
   keeps,
   keepsText,
@@ -10,7 +8,7 @@ import {
   widgetController,
 } from "/runtime/widget-api.js";
 
-export function defineSeatedAsk({ seatAttribute = null } = {}) {
+export function defineSeatedAsk() {
   customElements.define(
     "lf-verdict",
     class extends HTMLElement {
@@ -33,10 +31,7 @@ export function defineSeatedAsk({ seatAttribute = null } = {}) {
           });
         };
         this.append(this.press);
-        const seat =
-          seatAttribute === null || this.hasAttribute(seatAttribute)
-            ? threadBox(this, "Say something about this")
-            : null;
+        const seat = threadBox(this, "Say something about this");
         if (seat) this.append(seat);
         this.#stop ??= this.#controller.subscribe(() => {});
       }

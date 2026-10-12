@@ -2,10 +2,10 @@
 
 from dataclasses import dataclass, replace
 
+from leaf.findings import Finding
 from leaf.registry.contract import element_declarations
 from leaf.render_checks import RENDER_VIEWPORT, SERVED_TIMEOUT_MS
 
-from .findings import Finding
 from .readings import (
     arrangement_changes,
     margin_changes,

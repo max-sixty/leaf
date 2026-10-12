@@ -69,7 +69,9 @@ def _stamp_candidate(page_dir: Path, events: list):
     """Check the exact source and determine its revision without publishing it."""
     checked = check_source(page_dir, events)
     if checked.errors:
-        raise Refused(f"refusing to stamp index.html: {'; '.join(checked.errors)}")
+        raise Refused(
+            f"refusing to stamp index.html: {'; '.join(map(str, checked.errors))}"
+        )
     return checked, planned_activation(page_dir, checked)
 
 

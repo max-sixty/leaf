@@ -18,6 +18,7 @@ from render_cases_interaction import (
     SEATED_ASK_LAYER,
     SEATED_ASK_PAGE,
     SEATED_ASK_WIDGETS,
+    answered_comment,
     executable_revision,
     live_url,
     panel_comment,
@@ -2334,6 +2335,43 @@ customElements.define("lf-shadow-reading", class extends HTMLElement {
     )
 
     page.keyboard.press("t")
+    expect(
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{roots[1]}"]')
+    ).to_be_focused()
+
+
+@pytest.mark.parametrize("key", ["t", "Shift+t"])
+def test_the_thread_walk_opens_the_thread_on_the_passage_the_caret_is_in(
+    browser, serve, key
+):
+    """A caret in a passage a thread is on is at that thread without standing on it, so
+    either direction of the walk opens it, as `q` arrives at an item holding the caret."""
+    url = serve(
+        leaf_page(
+            "a caret on a thread",
+            """
+<h1>Caret walk</h1>
+<p id="before">The earlier discussion comes first.</p>
+<p id="here">The caret stands in this discussion.</p>
+<p id="after">The later discussion comes last.</p>
+""",
+        ),
+        anchored=[
+            ("before", "earlier discussion"),
+            ("here", "caret stands"),
+            ("after", "later discussion"),
+        ],
+    )
+    roots = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    page = open_page(browser, url)
+    page.evaluate(
+        "() => getSelection().collapse(document.querySelector('#here').firstChild, 30)"
+    )
+    page.keyboard.press(key)
     expect(
         page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{roots[1]}"]')
     ).to_be_focused()
@@ -12030,6 +12068,41 @@ def test_align_current_item_more_restores_touch_context_and_reserves_z(browser, 
     expect(page.locator("#align-heading")).to_be_focused()
 
 
+def test_more_keeps_its_place_when_a_revision_shortens_the_words_it_held(
+    browser, serve
+):
+    """More holds the reader's caret while it is open, and a live revision can shorten
+    the very text node that caret stands in meanwhile. A place-keeping command then
+    hands back what is left of that place and acts, rather than throwing on an offset
+    past the node's new length."""
+    source = leaf_page(
+        "A shortened passage",
+        '<h1>Keep the same reading place</h1><div style="height:700px"></div>'
+        '<p id="remembered">The amber passage keeps <strong>its own identity</strong>.</p>'
+        '<div style="height:1400px"></div>',
+    )
+    page = open_page(browser, live_url(serve(source)))
+    point = _word_point(page.locator("#remembered"), "keeps")
+    page.mouse.click(point["x"], point["y"])
+    held = page.evaluate(
+        "() => { window.held = getSelection().focusNode; return getSelection().focusOffset; }"
+    )
+    page.locator(".lf-banner-more").click()
+    control = page.get_by_role("button", name="Align current item at top", exact=True)
+    expect(control).to_be_visible()
+
+    stamp = stamp_page(
+        serve.page_dir,
+        source.replace("The amber passage keeps ", "Amber "),
+        "Shorten the passage",
+    )
+    wait_for_revision(page, stamp["revision"])
+    # The revision rewrote the held node in place, leaving the caret's offset past it.
+    assert page.evaluate("() => window.held.isConnected && window.held.length") < held
+    control.click()
+    _expect_aligned(page, "#remembered")
+
+
 def test_align_current_thread_stays_in_its_panel_without_travel(browser, serve):
     page = open_page(
         browser, serve(ALIGN_CURRENT_PAGE, anchored=[("remembered", "amber")] * 8)
@@ -14321,7 +14394,7 @@ def test_ask_work_keeps_its_discussion_closed_until_requested(
         + "<p>Compare the memory and disk constraints carefully.</p>" * 14,
     )
     url = serve(source)
-    root = panel_comment(
+    root = answered_comment(
         serve.page_dir, "The disk cache costs more.", {"section": "cache-ask"}
     )
     page = open_page(browser, url)
@@ -14362,7 +14435,7 @@ def test_ask_controls_do_not_automatically_open_discussion(browser, serve, famil
     passive = panel_comment(
         serve.page_dir, "Remember the background.", {"section": "passage"}
     )
-    root = panel_comment(
+    root = answered_comment(
         serve.page_dir, "Please compare the alternatives.", {"section": "work"}
     )
     page = open_page(browser, url)
@@ -14422,7 +14495,9 @@ def test_an_ask_and_its_thread_are_one_standing_target(browser, serve):
     panel_comment(
         d, "Budgets are tight.", {"section": "lead", "quote": "latency budgets"}
     )
-    about_ask = panel_comment(d, "The disk cache costs more.", {"section": "cache-ask"})
+    about_ask = answered_comment(
+        d, "The disk cache costs more.", {"section": "cache-ask"}
+    )
     about_task = panel_comment(
         d,
         "Doubling is a lot.",

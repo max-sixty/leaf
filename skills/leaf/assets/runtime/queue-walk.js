@@ -31,7 +31,7 @@
    a to-do Done ends, `x` is that Done, a step on the banner's row under a finger
    (`queue-api.js`, `done`): the user's `todo_end`, which leaves Questions in the turn it is pressed.
 
-   Page order is each item's place in the document: an ask's own element, or its
+   Page order is each item's place in the page as rendered: an ask's own element, or its
    thread's passage for an ask seated in a thread; a thread's passage; the widget an action
    was made on or the element a to-do is on; the page's head for a to-do on the whole
    page. An item with no place on the page, a general thread or one whose passage is
@@ -56,13 +56,13 @@
 */
 import { cycledRow } from "./keyboard/bindings.js";
 import { pageCommand, pageScope } from "./keyboard/register.js";
-import { documentFocused, paintKeys } from "./keyboard/scopes.js";
-import { onStanding } from "./focus.js";
+import { paintKeys } from "./keyboard/scopes.js";
+import { focused, onStanding } from "./focus.js";
 import { coarsePointer } from "./pointer.js";
-import { askHolding, placeOf, walkOrigin } from "./standing-target.js";
+import { askHolding, placeOf, stepFrom, walkOrigin } from "./standing-target.js";
 import { seenRect } from "./geometry.js";
 import { elementById, inChrome, pageDocument } from "./passages.js";
-import { hostIn, inUi, under } from "./shadow.js";
+import { byRenderedOrder, inUi, under } from "./shadow.js";
 import { readAsks } from "./asks/model.js";
 import { asksIn, askPlace } from "./asks/place.js";
 import { readQueues, queueItemKey } from "./queue-api.js";
@@ -113,7 +113,7 @@ export function createQueueWalk({
   arriveAtAsk,
   arriveAtThread,
   threadHere,
-  threadTarget,
+  threadPlace,
   prepareTrip,
   arrive,
   readableDestination,
@@ -126,17 +126,16 @@ export function createQueueWalk({
       ? approvalTarget()
       : stop.kind === "ask"
         ? stop.thread !== null
-          ? threadTarget(stop.thread)
+          ? threadPlace(stop.thread)
           : askPlace(stop.ask).node
         : stop.kind === "page"
           ? pageHead()
           : stop.thread !== null
-            ? threadTarget(stop.thread)
+            ? threadPlace(stop.thread)
             : elementById(stop.id);
 
   function stops() {
-    const placed = [];
-    const loose = [];
+    const list = [];
     const listed = new Set();
     for (const item of readQueues().questions) {
       const stop = stopOf(item);
@@ -145,22 +144,14 @@ export function createQueueWalk({
       if (listed.has(`${stop.kind}:${stop.id}`)) continue;
       listed.add(`${stop.kind}:${stop.id}`);
       const at = stopElement(stop);
-      const place = at && !inChrome(at) ? hostIn(at, document) : null;
-      (place ? placed : loose).push({
+      list.push({
         ...stop,
         key: `${stop.kind}:${stop.id}`,
         noun: nounOf(item, stop),
-        place,
+        place: at?.isConnected && !inChrome(at) ? at : null,
       });
     }
-    placed.sort((a, b) =>
-      a.place === b.place
-        ? 0
-        : a.place.compareDocumentPosition(b.place) & Node.DOCUMENT_POSITION_FOLLOWING
-          ? -1
-          : 1,
-    );
-    return [...placed, ...loose];
+    return byRenderedOrder(list, (stop) => stop.place);
   }
 
   // The stops of a walk within `region`: the asks waiting on the user it holds.
@@ -177,7 +168,7 @@ export function createQueueWalk({
   // a thread that holds an open ask is not standing on that ask. `here` is the place
   // the step counts from, the user's own unless a caller names another.
   function standingStop(list, here = walkOrigin()) {
-    if (documentFocused() === approvalTarget())
+    if (focused(document) === approvalTarget())
       return list.find((stop) => stop.kind === "approval") ?? null;
     const held = threadHere();
     const thread = held?.dataset.id ?? held?.dataset.thread;
@@ -206,32 +197,17 @@ export function createQueueWalk({
   }
 
   // The stop `dir` steps to, and whether it came round an end to reach it: off the one
-  // the user stands on, else the nearest on that side of their place, else the far end.
-  // A stop whose place holds the user's, such as a thread on the paragraph their caret
-  // is in, is the nearest either way, since they are at it without standing on it. A
-  // stop with no place stands after every placed one, so it is ahead of any place on
-  // the page. Within a region, a place outside it enters at the end the step faces.
-  // `stands` false reads the origin as a place the user is at without standing on it, as
-  // the first ask they see in a region is.
+  // the user stands on, else from their place by the page walks' rule (`stepFrom`,
+  // standing-target.js). Within a region, a place outside it enters at the end the step
+  // faces. `stands` false reads the origin as a place the user is at without standing on
+  // it, as the first ask they see in a region is.
   function step(list, dir, region, origin = walkOrigin(), stands = true) {
     // Outside the region nothing the user stands on is one of its stops, even where the
     // press sits inside an ask's context.
     if (region && !under(origin, region)) return cycledRow(list, null, dir);
     const standing = stands ? standingStop(list, origin) : null;
-    const here = !standing && origin;
-    if (!here) return cycledRow(list, standing, dir);
-    const side =
-      dir > 0 ? Node.DOCUMENT_POSITION_FOLLOWING : Node.DOCUMENT_POSITION_PRECEDING;
-    const reach = list.filter((stop) => {
-      if (!stop.place) return dir > 0;
-      if (stop.place === here || under(here, stop.place)) return true;
-      const rel = here.compareDocumentPosition(stop.place);
-      return !(rel & Node.DOCUMENT_POSITION_CONTAINS) && rel & side;
-    });
-    const row = dir > 0 ? reach[0] : reach.at(-1);
-    return row
-      ? { row, wrapped: false }
-      : { row: dir > 0 ? list[0] : list.at(-1), wrapped: true };
+    if (standing) return cycledRow(list, standing, dir);
+    return stepFrom(list, origin, dir, (stop) => stop.place);
   }
 
   // A page widget action handed back to the user, or a to-do on an element or the page, has
@@ -318,7 +294,7 @@ export function createQueueWalk({
   let shownFor = null;
   function doneTodo() {
     const stop = standingStop(stops());
-    const focus = documentFocused();
+    const focus = focused(document);
     if (
       stop ||
       !coarsePointer.matches ||
@@ -424,7 +400,7 @@ export function createQueueWalk({
   let wentTo = null;
   onStanding((node, cause) => {
     if (cause === "step") return;
-    const place = node && placeOf(hostIn(node, document));
+    const place = node && placeOf(node);
     wentTo = (place && askHolding(readAsks().all, place)?.id) ?? null;
   });
 

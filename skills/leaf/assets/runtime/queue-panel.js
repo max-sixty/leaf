@@ -67,7 +67,7 @@ import {
   readApplication,
   watchSemantic,
 } from "./semantic-state.js";
-import { under } from "./shadow.js";
+import { renderedOrder, under } from "./shadow.js";
 import { askEnding } from "./asks/answer.js";
 import { readAsks } from "./asks/model.js";
 import { askPlace } from "./asks/place.js";
@@ -114,7 +114,7 @@ function sectionWords(element) {
       candidate.parentElement &&
       under(element, candidate.parentElement) &&
       !under(candidate, element) &&
-      candidate.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING,
+      renderedOrder(candidate, element) < 0,
   );
   const words = heading ? addressableLabel(heading) : "";
   return words ? `§ ${words}` : "";

@@ -663,7 +663,7 @@ def _compose_and_append(
                 operation = "reply" if validate_source else "detach"
                 raise Refused(
                     f"cannot {operation} while index.html is invalid: "
-                    f"{'; '.join(checked.errors)}"
+                    f"{'; '.join(map(str, checked.errors))}"
                 )
             prospective_page = checked.document
             if moving:

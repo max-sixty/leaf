@@ -18,7 +18,8 @@ import { html, nothing, repeat } from "../vendor/browser-runtime.js";
 import { PRESS } from "./keyboard/bindings.js";
 import { commandsOn } from "./keyboard/scopes.js";
 import { RetainedFace } from "./retained-face.js";
-import { focusDestination, holdFocus } from "./focus.js";
+import { focusDestination, holdFocus, focused } from "./focus.js";
+import { closestAcross } from "./passages.js";
 
 const QUEUE_AT = "data-lf-at";
 const QUEUE_ROW = "data-lf-row";
@@ -116,7 +117,7 @@ class QueueList extends RetainedFace {
     if (
       this.model.open &&
       !this.committed.open &&
-      document.activeElement === this.parentElement &&
+      focused() === this.parentElement &&
       first !== undefined
     ) {
       this.#landOn = first;
@@ -193,7 +194,7 @@ export const rowAt = (list, id) =>
 
 // The id of the element the row holding `node` stands at, or null.
 export const standsAt = (node) =>
-  node.closest(`${ROW}[${QUEUE_AT}]`)?.getAttribute(QUEUE_AT) ?? null;
+  closestAcross(node, `${ROW}[${QUEUE_AT}]`)?.getAttribute(QUEUE_AT) ?? null;
 
 // The items an open list shows, in order: the rows of either queue, and Done's while it
 // is open.

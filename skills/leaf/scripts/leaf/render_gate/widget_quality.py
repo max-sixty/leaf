@@ -44,6 +44,7 @@ import tempfile
 import zlib
 from pathlib import Path
 
+from leaf.findings import Finding, element_at
 from leaf.layer import LayerComposition, checked_layer_inputs, compose_layer
 from leaf.packages import package_layer_inputs
 from leaf.registry.contract import element_declarations, read_registry_declarations
@@ -60,7 +61,6 @@ from leaf.schema import DIR_FILES, MEDIA_DIR
 from leaf.structure import SourceDocument
 from leaf.vendoring import start_throwaway_page
 
-from .findings import Finding, element_at
 from .preview import preview_server
 from .scheme import (
     arm_interception,

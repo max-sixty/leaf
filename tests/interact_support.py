@@ -62,6 +62,7 @@ from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
+from leaf.findings import Finding
 from leaf.refusals import Refused
 from leaf.registry.storage import load_registry
 from leaf.revision_artifact import active_enclosing
@@ -587,6 +588,26 @@ def page_dir(tmp_path, monkeypatch, initialized_page):
 def check(d):
     """`page check`, in-process."""
     return CliRunner().invoke(cli_model.cli, ["page", "check", str(d)])
+
+
+def check_findings(d) -> tuple[int, list[Finding]]:
+    """`page check --json`, in-process: its exit status and what it found, as records."""
+    report = json.loads(
+        CliRunner().invoke(cli_model.cli, ["page", "check", "--json", str(d)]).stdout
+    )
+    return report["status"], [Finding.loads(found) for found in report["findings"]]
+
+
+def found(findings, code: str, at: str | None = None, **values) -> list[Finding]:
+    """The findings of `code`, about the element `at` names where given, whose values
+    include each of `values`."""
+    return [
+        finding
+        for finding in findings
+        if finding.code == code
+        and at in (None, finding.at)
+        and all(finding.values.get(key) == value for key, value in values.items())
+    ]
 
 
 def read_page_data(page_dir) -> dict:

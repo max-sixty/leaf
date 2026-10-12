@@ -63,6 +63,25 @@ def panel_comment(d, text, anchor=None, author="user"):
     return append_carried_log_record(d, event)["id"]
 
 
+def answered_comment(d, text, anchor):
+    """A user's thread the agent has replied to, so an ask it is about waits on the
+    user again rather than on that reply (`asks.sections_with_agent`)."""
+    root = panel_comment(d, text, anchor)
+    append_carried_log_record(
+        d,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": root,
+            "responds": root,
+            "revision": 1,
+            "text": "Noted.",
+        },
+    )
+    return root
+
+
 # What the list is holding, from the one query that answers both halves of the
 # question a departing thread raises: what stands where, and what the keys can still
 # reach. The two lists differ by exactly the thread on its way out.
@@ -1378,16 +1397,7 @@ SEATED_ASK_ENTRY = {
 # reason the browser door matters as much as the POST one: with the wrong list read here
 # the answer is already on the page, so a refusal is not a refusal the user can see —
 # the control flips, nothing is logged, and the next poll puts it back saying nothing.
-def seated_ask_module(*, seat_attribute=None):
-    """Build a seated Ask with the optional attribute its case's registry requires."""
-    configuration = {"seatAttribute": seat_attribute}
-    return (
-        browser_source("widgets/seated-ask.js")
-        + f"\ndefineSeatedAsk({json.dumps(configuration)});\n"
-    )
-
-
-SEATED_ASK_MODULE = seated_ask_module()
+SEATED_ASK_MODULE = browser_source("widgets/seated-ask.js") + "\ndefineSeatedAsk();\n"
 SEATED_ASK_LAYER = {SEATED_ASK_TAG: SEATED_ASK_ENTRY}
 SEATED_ASK_WIDGETS = {f"{SEATED_ASK_TAG}.js": SEATED_ASK_MODULE}
 

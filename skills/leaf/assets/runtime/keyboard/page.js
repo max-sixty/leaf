@@ -19,7 +19,7 @@ import { pageSelection } from "../composing/capture.js";
 import { heldThread } from "../thread/focus.js";
 import { heldAsk } from "../standing-target.js";
 import { leavesBox } from "../thread/landing.js";
-import { claimsEsc, documentFocused } from "./scopes.js";
+import { claimsEsc } from "./scopes.js";
 import { DISCLOSE, DISCLOSURE_SELECTOR, disclosed } from "./disclosure.js";
 import { nativeLayers } from "./layer-stack.js";
 import { LINK } from "./text-entry.js";
@@ -115,7 +115,7 @@ pageCommand({
 // while focus is in the panel. On the page, a selection or mode unwinds before the
 // destination does. Chrome controls belong to the surface's own Escape ladder.
 const holding = () => {
-  const active = documentFocused();
+  const active = focused(document);
   return Boolean(active) && active !== document.body;
 };
 let standingFloor = () => null;
@@ -125,7 +125,7 @@ export function declareStanding({ pageState }) {
     if (nativeLayers().length) return null;
     if (leavesBox()) return null;
     if (claimsEsc(focused())) return null;
-    if (inChrome(documentFocused())) return null;
+    if (inChrome(focused(document))) return null;
     const thread = heldThread();
     if (pageSelection() || pageState()) return null;
     return thread || heldAsk() || !inUi(focused()) ? document.body : null;

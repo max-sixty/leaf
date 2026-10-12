@@ -27,12 +27,12 @@ from leaf import leases as leases_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import service as service_model
+from leaf.findings import Finding
 from leaf.registry.contract import is_element_name
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import readings as render_gate_readings
 from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
-from leaf.render_gate.findings import Finding
 from leaf.render_gate.widget_quality import own_tags
 from leaf.schema import ELEMENT_ID
 from leaf.validation import composition as validation_model

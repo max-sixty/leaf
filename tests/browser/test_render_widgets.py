@@ -42,6 +42,7 @@ from render_cases_interaction import (
     SUGGESTION_PAGE,
     SWAP_PAGE,
     THREAD_DIFF_PAGE,
+    answered_comment,
     live_url,
 )
 from render_cases_layout import (
@@ -8551,15 +8552,10 @@ def test_a_commented_ask_does_not_wear_its_ring_on_the_runtime_s_own_note(
             "</head>", "<style>#sug-refill { display: contents; }</style>\n</head>"
         )
     )
-    append_carried_log_record(
+    answered_comment(
         serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "Does this hold when the camera is offline?",
-            "anchor": {"section": "sug-refill"},
-        },
+        "Does this hold when the camera is offline?",
+        {"section": "sug-refill"},
     )
     page = open_page(browser, url)
     # The note is what this test is about, so its presence is stated rather than assumed:

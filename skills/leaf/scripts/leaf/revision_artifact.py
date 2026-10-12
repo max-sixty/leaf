@@ -37,6 +37,7 @@ import tempfile
 import threading
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from functools import cached_property, lru_cache, partial
 from pathlib import Path
 from types import MappingProxyType
@@ -1048,6 +1049,11 @@ class RevisionReading(SourceReading):
             # So it takes the candidate's reading, with whatever words and passages
             # the check already read, rather than parsing and walking them again.
             vars(self).update(vars(adopted))
+
+    @cached_property
+    def activated_at(self) -> str:
+        """The immutable marker's publication date, shared by every delivery."""
+        return datetime.fromtimestamp(self.marker.stat().st_mtime, UTC).isoformat()
 
     @cached_property
     def document(self) -> SourceDocument:

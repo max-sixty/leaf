@@ -18,8 +18,8 @@ import {
   scrollChainOf,
   scrollersOf,
 } from "./reading-regions.js";
-import { walkOrigin, heldAsk, placeOf } from "./standing-target.js";
-import { focused } from "./focus.js";
+import { walkOrigin, heldAsk, placeOf, stepFrom } from "./standing-target.js";
+import { focused, standingIn } from "./focus.js";
 import { bannerStanding } from "./banner-toolbar.js";
 import { pageSelection } from "./composing/capture.js";
 import { blockAt, closestAcross, pageRange } from "./passages.js";
@@ -63,30 +63,6 @@ const threadPosition = (threadHere, panelIsOpen, narrowing, list) => {
   });
 };
 
-// From a place at no thread, a walk measures document position against each thread's
-// place: a place on the page, in the page's order, against each thread's target, and a
-// list row that is no thread, such as a withdrawn thread's notice, against the cards
-// beside it, in whichever order the list shows. A target holding the place is where the
-// user already is, so the press steps off it. A general or detached thread has no
-// target and stands after every placed one, as the list sorts it, so it is ahead of any
-// place on the page; in the panel's Recent order every thread is reached from the
-// list's ends. With nothing on the step's side, the walk comes round to the other end.
-function threadFrom(threads, place, dir, placeOfThread) {
-  if (!place) return cycledRow(threads, null, dir);
-  const placed = threads.map((thread) => ({ thread, target: placeOfThread(thread) }));
-  const side =
-    dir > 0 ? Node.DOCUMENT_POSITION_FOLLOWING : Node.DOCUMENT_POSITION_PRECEDING;
-  const reach = placed.filter(({ target }) => {
-    if (!target) return dir > 0;
-    const rel = place.compareDocumentPosition(target);
-    return !(rel & Node.DOCUMENT_POSITION_CONTAINS) && rel & side;
-  });
-  const row = (dir > 0 ? reach[0] : reach.at(-1))?.thread;
-  return row
-    ? { row, wrapped: false }
-    : { row: dir > 0 ? threads[0] : threads.at(-1), wrapped: true };
-}
-
 // Arrive at one thread a walk chose, `next` its list card: the one arrival both
 // the t/T walk and the queue walk (queue-walk.js) make. With the panel shut it opens the
 // thread at its inline destination: a declared widget outlet first, then the thread
@@ -109,7 +85,7 @@ async function arriveAtThread(next, destinations, panelIsOpen, threadsBox, inten
     return Boolean(await openPageThread(next.dataset.id, { part: "thread", intent }));
   if (!intent()) return false;
   threadsBox.revealNavigation(next.dataset.id);
-  const standing = next.contains(document.activeElement);
+  const standing = standingIn(next);
   focusThread(next, "move");
   if (standing) landWalkedThread(next, threadsBox);
   scrollToThread(next.dataset.id, { keep: true });
@@ -119,27 +95,34 @@ async function arriveAtThread(next, destinations, panelIsOpen, threadsBox, inten
 // t/T walk threads. A closed panel walks open threads in page order; once the panel is
 // open, the walk stays in its list, in whichever order the list shows. Both paths come
 // round from either end to the other (`cycledRow`).
+//
+// From a place at no thread, the walk steps by the page walks' one rule (`stepFrom`,
+// standing-target.js): a place on the page against each thread's place as the list
+// sorts it (`threadPlace`), and a list row that is no thread, such as a withdrawn
+// thread's notice, against the cards beside it. A thread whose place holds the user's is
+// where they are without the thread open, so the press opens it. A general thread has
+// no place and stands after every placed one; in the panel's Recent order every thread
+// is reached from the list's ends.
 function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
   const { threadsBox } = list;
-  const { threadHere, threadAtStanding, threadTarget } = destinations;
+  const { threadHere, threadAtStanding, threadPlace } = destinations;
   const { threads } = threadWalk(panelIsOpen, list);
   const current = currentThread(threads, threadHere);
   const targetId = !current && threadAtStanding();
   const atTarget = targetId && threads.find((thread) => thread.dataset.id === targetId);
   // Focus on a list row the walk does not count, such as a withdrawn thread's notice.
-  const atRow =
-    panelIsOpen() && focused() !== threadsBox && threadsBox.contains(focused());
+  const atRow = panelIsOpen() && focused() !== threadsBox && standingIn(threadsBox);
   const { row: next, wrapped } = current
     ? cycledRow(threads, current, dir)
     : atTarget
       ? { row: atTarget, wrapped: false }
       : atRow
-        ? threadFrom(threads, focused(), dir, (thread) => thread)
-        : threadFrom(
+        ? stepFrom(threads, focused(), dir, (thread) => thread)
+        : stepFrom(
             threads,
             !panelIsOpen() || narrowing.listedInPageOrder() ? walkOrigin() : null,
             dir,
-            (thread) => threadTarget(thread.dataset.id),
+            (thread) => threadPlace(thread.dataset.id),
           );
   if (!next) return;
   // The walk reads the standing destination, so begin it once the arrival has moved
@@ -354,7 +337,7 @@ export function createNavigation({
   threadDestinations,
 }) {
   const currentItem = () => {
-    const at = bannerStanding()?.node ?? focused();
+    const at = bannerStanding()?.focus?.deref() ?? focused();
     // More's retained node is the same browser standing, read without moving focus
     // merely to paint whether its control is available.
     const ask = heldAsk(at);

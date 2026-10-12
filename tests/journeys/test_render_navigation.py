@@ -15,6 +15,7 @@ from render_cases_interaction import (
     PANEL_PAGE,
     WORKSHOP_THREAD_EVENTS,
     WORKSHOP_THREADS_PAGE,
+    answered_comment,
     live_url,
     panel_comment,
 )
@@ -1156,16 +1157,8 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
             '<p id="dsc-body"><a id="revealed-link" href="#p2">Read next passage</a> ',
         )
     )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "A visible thread.",
-            "id": "filterthread",
-            "anchor": {"section": "opts-decision"},
-        },
+    thread = answered_comment(
+        serve.page_dir, "A visible thread.", {"section": "opts-decision"}
     )
     page = open_page(browser, url)
     resized(page, 1280, 800)
@@ -1296,7 +1289,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     page.locator("#opt-a").click()
     append_carried_log_record(
         serve.page_dir,
-        {"kind": "resolve", "author": "user", "parent": "filterthread"},
+        {"kind": "resolve", "author": "user", "parent": thread},
     )
     round_trip(page)
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="ask"]')).to_have_count(0)

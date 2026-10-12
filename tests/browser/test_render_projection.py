@@ -2,7 +2,6 @@
 
 import json
 import re
-from copy import deepcopy
 from datetime import datetime, timedelta
 from itertools import pairwise
 
@@ -50,18 +49,17 @@ from render_cases_interaction import (
     RETIRED_WIDGET_PAGE,
     RING,
     ROSTER_PAGE,
-    SEATED_ASK_ENTRY,
     SEATED_ASK_PAGE,
     SUGGESTION_PAGE,
     THREAD_ASKS,
     TRAVEL_PAGE,
     TWO_HOLDER_PAGE,
     WRAP_TOP,
+    answered_comment,
     backdate_note,
     drifting_widget,
     executable_revision,
     live_url,
-    seated_ask_module,
     stale_report,
 )
 from render_cases_layout import (
@@ -3126,56 +3124,6 @@ customElements.define("lf-conditional", class extends HTMLElement {
             expect(withdrawn).to_contain_text("Withdrawn")
 
 
-def test_a_live_revision_reapplies_the_authored_thread_seat_predicate(browser, serve):
-    """An old seated thread cannot hide an Ask from a revision with no seat."""
-    entry = deepcopy(SEATED_ASK_ENTRY)
-    entry["properties"]["talk"] = {"type": "boolean"}
-    entry["x-thread-seat"]["when"] = {"talk": [True]}
-    entry["x-example"] = (
-        '<lf-verdict id="verdict-example" asks talk>Ship it?</lf-verdict>'
-    )
-    module = seated_ask_module(seat_attribute="talk")
-    first = leaf_page(
-        "Conditional thread seat",
-        '<lf-verdict id="question" asks talk>Ship it?</lf-verdict>',
-    )
-    second = leaf_page(
-        "Conditional thread seat",
-        '<lf-verdict id="question" asks>Ship it?</lf-verdict>',
-    )
-    page = open_page(
-        browser,
-        live_url(
-            serve(
-                first,
-                layer_registry={"lf-verdict": entry},
-                layer_widgets={"lf-verdict.js": module},
-            )
-        ),
-    )
-    composer = page.locator("#question > .lf-thread-seat > .lf-say")
-    write(composer.get_by_role("textbox"), "Please check the premise first.")
-    with sending(page, "the seated question"):
-        composer.get_by_role("button", name="Send", exact=True).click()
-
-    def user_asks():
-        # The Ask reading is the log's, so ask it of a page that has taken in what the
-        # server holds: a trip is over when the outbox empties, one beat before the
-        # answer it carried has been applied.
-        told(page)
-        return page.evaluate(
-            """async () => {
-              const {readAsks} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-              return readAsks().user.filter(q => q.source.kind === "widget").map(q => q.source.id);
-            }"""
-        )
-
-    assert user_asks() == []
-    stamp_page(serve.page_dir, second, "remove the thread seat")
-    wait_for_revision(page, 2)
-    assert user_asks() == ["question"]
-
-
 def test_revision_changes_keep_the_complete_heading_below_user_chrome(browser, serve):
     """A partly covered title is the page opening, not a reading place to preserve.
 
@@ -4746,15 +4694,10 @@ def test_escape_lets_go_of_the_ask_the_user_is_standing_on(browser, serve):
     Map action leaves focus in a margin cluster."""
     url = serve(ASKS_PAGE)
     # A third action puts the suggestion's cluster beyond its two resting controls.
-    append_carried_log_record(
+    answered_comment(
         serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "Check this wording before accepting it.",
-            "anchor": {"section": "sug-refill"},
-        },
+        "Check this wording before accepting it.",
+        {"section": "sug-refill"},
     )
     page = open_page(browser, url)
     page.keyboard.press("q")

@@ -2,7 +2,7 @@
 
 `page check` prints its findings for a reader, or with `--json` one JSON object on
 stdout: `status`, the exit status; `findings`, every finding as
-`render_gate.findings.Finding.json` gives it, the markup checks' first; and `browser`,
+`findings.Finding.json` gives it, the markup checks' first; and `browser`,
 the browser gates `asked` for and those that `ran` (failing page code ends the check
 before the render gate reads anything), in which browser or why none could, with the
 render gate's margin widths and saved screens where it passed. `browser` is null where
@@ -15,11 +15,11 @@ from pathlib import Path
 
 from leaf.event_log import read_events
 from leaf.files import list_revisions
+from leaf.findings import Finding
 from leaf.layer import payload_provenance, provenance_label, same_leaf
 from leaf.leases import page_locked
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import layer_metadata
-from leaf.render_gate.findings import Finding
 from leaf.revision_artifact import read_revision
 
 from .source import check_source
@@ -65,7 +65,7 @@ def _check(page_dir: Path, render: bool, as_json: bool) -> int:
     # re-vendor that repairs it comes first (`layer.incompatible_layer`).
     if refusal := write_refusal(page_dir):
         if as_json:
-            found = Finding("markup", values={"text": refusal})
+            found = Finding("invalid-registry", values={"error": refusal})
             report = {"status": 1, "findings": [found.json()], "browser": None}
             print(json.dumps(report, ensure_ascii=False))
         else:
@@ -73,14 +73,8 @@ def _check(page_dir: Path, render: bool, as_json: bool) -> int:
         return 1
     events = read_events(page_dir)
     result = check_source(page_dir, events)
-    errors = [Finding("markup", values={"text": error}) for error in result.errors]
-    advice = [
-        *(
-            Finding("markup", values={"text": line}, severity="advice")
-            for line in result.advice
-        ),
-        *leaf_versions(page_dir),
-    ]
+    errors = result.errors
+    advice = [*result.advice, *leaf_versions(page_dir)]
 
     def reported(status, browser=None):
         print(

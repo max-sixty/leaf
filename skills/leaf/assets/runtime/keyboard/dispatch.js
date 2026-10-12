@@ -104,7 +104,7 @@ import { EVERYTHING, nativeActivationAt, nativeClaimAt } from "./text-entry.js";
 import { takesLetters, focused, recoveredLabelFocus } from "../focus.js";
 import { scopesAt, scopesFor, scopeIdentity } from "./scopes.js";
 import { nativeLayers } from "./layer-stack.js";
-import { shadowHost, renderedUnder, excludedByInert } from "../shadow.js";
+import { composedParentNode, renderedUnder, excludedByInert } from "../shadow.js";
 
 // The two questions a scope answers, named apart because the surfaces ask them apart: the
 // reference lists a scope the page *has* and filters its rows by liveness only where the user
@@ -153,7 +153,7 @@ const innerEscape = (scope, active) => scope.escape === "inner" || scope.el === 
 // document is above every user, at the top of the walk.
 const above = (node, active) => {
   let depth = 0;
-  for (let up = active; up; up = up.parentNode ?? shadowHost(up)) {
+  for (let up = active; up; up = composedParentNode(up)) {
     if (up === node) return depth;
     depth += 1;
   }

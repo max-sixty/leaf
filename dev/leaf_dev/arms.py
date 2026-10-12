@@ -103,12 +103,12 @@ def environment(**extra: str) -> dict[str, str]:
     A harness run from a Claude Code or Codex session inherits that session's
     identity: its id, job directory, effort level and App Server endpoint. A `leaf`
     command would sign events as that session, and a child would use its transport
-    and settings. `CLAUDE_CONFIG_DIR`
-    stays, since it names where the login lives."""
+    and settings. An inherited LEAF_HOST_LAUNCHER would override the arm's launcher.
+    `CLAUDE_CONFIG_DIR` stays, since it names where the login lives."""
     env = {
         key: value
         for key, value in os.environ.items()
-        if key not in (*IDENTITY_VARIABLES, APP_SERVER_ENV)
+        if key not in (*IDENTITY_VARIABLES, APP_SERVER_ENV, "LEAF_HOST_LAUNCHER")
         and not (key.startswith("CLAUDE") and key != "CLAUDE_CONFIG_DIR")
     }
     return {**env, **extra}

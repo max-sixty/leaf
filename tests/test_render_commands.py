@@ -1354,119 +1354,77 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
         expect(delta).to_be_visible()
 
 
-def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
-    """The user's half of the gate. A user selected a draft's heading, tried to
-    comment on it, and got nothing back — twice, months apart, on the same page. The
-    heading was the page's word in a row its author had marked as the runtime's, and
-    `.lf-ui` is a look rather than a permission, so the class alone can't be the answer:
-    the declaration goes on the label (relabel), and an undeclared word under chrome is
-    reported here.
+def stage_reach_cases(page):
+    """Words and controls planted under chrome once the carried options load: a
+    link and a hidden note on #c-bearer, a shown note, a chrome row and a button
+    on #c-lax, and two offered controls, one below an unscrollable clip."""
+    page.add_init_script(
+        """addEventListener('DOMContentLoaded', () => {
+          const control = document.getElementById('c-bearer');
+          const link = document.createElement('a');
+          link.id = 'native-link';
+          link.className = 'lf-ui';
+          link.href = '#h';
+          link.textContent = 'Read context';
+          const hidden = document.createElement('span');
+          hidden.id = 'hidden-note';
+          hidden.className = 'lf-ui';
+          hidden.hidden = true;
+          hidden.textContent = 'opens in a new tab';
+          control.prepend(link, hidden);
 
-    It is about a word the user was shown, so the check asks that first. A word
-    the browser reads out and the page never paints, such as an aria-describedby
-    target inside a shadow tree, is hidden with [hidden], the silence available in
-    every root, and the same word shown is still reported."""
+          const option = document.getElementById('c-lax');
+          const shown = document.createElement('span');
+          shown.id = 'shown-note';
+          shown.className = 'lf-ui';
+          shown.textContent = 'opens in a new tab';
+          const row = document.createElement('div');
+          row.id = 'unreachable-row';
+          row.className = 'lf-ui';
+          row.innerHTML = '<strong>Session cookies</strong>';
+          const button = document.createElement('button');
+          button.id = 'unreachable-button';
+          button.setAttribute('data-lf-said', '');
+          button.textContent = 'Lax, host-only';
+          option.prepend(shown, row, button);
 
-    def stage_reach_cases(page):
-        page.add_init_script(
-            """addEventListener('DOMContentLoaded', () => {
-              const control = document.getElementById('c-bearer');
-              const link = document.createElement('a');
-              link.id = 'native-link';
-              link.className = 'lf-ui';
-              link.href = '#h';
-              link.textContent = 'Read context';
-              const hidden = document.createElement('span');
-              hidden.id = 'hidden-note';
-              hidden.className = 'lf-ui';
-              hidden.hidden = true;
-              hidden.textContent = 'opens in a new tab';
-              control.prepend(link, hidden);
-
-              const option = document.getElementById('c-lax');
-              const shown = document.createElement('span');
-              shown.id = 'shown-note';
-              shown.className = 'lf-ui';
-              shown.textContent = 'opens in a new tab';
-              const row = document.createElement('div');
-              row.id = 'unreachable-row';
-              row.className = 'lf-ui';
-              row.innerHTML = '<strong>Session cookies</strong>';
-              const button = document.createElement('button');
-              button.id = 'unreachable-button';
-              button.setAttribute('data-lf-said', '');
-              button.textContent = 'Lax, host-only';
-              option.prepend(shown, row, button);
-
-              // A visible control and an otherwise identical one below an
-              // unscrollable clip keep the control-reachability field non-vacuous.
-              const holder = document.createElement('div');
-              holder.id = 'clipped-holder';
-              holder.className = 'lf-ui';
-              holder.style.cssText = 'position:fixed;left:0;top:100px;width:120px;'
-                + 'height:40px;overflow:hidden';
-              for (const [id, words] of [['shown-offer', 'Reachable'], ['clipped-offer', 'Clipped']]) {
-                const offer = document.createElement('button');
-                offer.id = id;
-                offer.className = 'lf-reach-control lf-ui';
-                offer.setAttribute('data-lf-offer', '');
-                offer.textContent = words;
-                offer.style.cssText = 'display:block;height:20px;margin:0';
-                if (id === 'clipped-offer') offer.style.marginTop = '40px';
-                holder.append(offer);
-              }
-              document.body.append(holder);
-            }, {once: true});"""
-        )
-
-    primed_browser = primed(browser, stage_reach_cases)
-    page = open_page(primed_browser, serve(CARRIED_PAGE))
-    assert (
-        page.locator(
-            "#native-link, #hidden-note, #shown-note, #unreachable-row, "
-            "#unreachable-button"
-        ).count()
-        == 5
+          // A visible control and an otherwise identical one below an
+          // unscrollable clip keep the control-reachability field non-vacuous.
+          const holder = document.createElement('div');
+          holder.id = 'clipped-holder';
+          holder.className = 'lf-ui';
+          holder.style.cssText = 'position:fixed;left:0;top:100px;width:120px;'
+            + 'height:40px;overflow:hidden';
+          for (const [id, words] of [['shown-offer', 'Reachable'], ['clipped-offer', 'Clipped']]) {
+            const offer = document.createElement('button');
+            offer.id = id;
+            offer.className = 'lf-reach-control lf-ui';
+            offer.setAttribute('data-lf-offer', '');
+            offer.textContent = words;
+            offer.style.cssText = 'display:block;height:20px;margin:0';
+            if (id === 'clipped-offer') offer.style.marginTop = '40px';
+            holder.append(offer);
+          }
+          document.body.append(holder);
+        }, {once: true});"""
     )
-    assert page.locator("#hidden-note").is_hidden()
-    assert page.locator("#shown-offer, #clipped-offer").count() == 2
-    assert page.locator("#shown-offer").is_visible()
-    # A label inside a form control no marker can reach is the suite's question of
-    # Leaf's own modules (`test_page_fixture_renders`), not the gate's.
-    assert render_checks_model.evaluate_probe(page, "wordsInFormControls") == [
-        (
-            '<lf-option id=c-lax> says "Lax, host-only" inside a form control, where '
-            "no selection can reach it"
-        )
-    ]
-    page.close()
-
-    found = render_gate_model.render_version(
-        primed_browser, serve(CARRIED_PAGE)
-    ).failures
-    assert len(found) == 6, found
-    clipped = [f for f in found if "(#clipped-offer)" in f]
-    assert len(clipped) == 2, found
-    assert all(
-        "outside the <div id=clipped-holder> that clips it" in f for f in clipped
-    )
-    assert not [f for f in found if "(#shown-offer)" in f], found
-    assert sorted({f.split("] ", 1)[1] for f in found if f not in clipped}) == [
-        (
-            '<lf-option id=c-lax> puts "Session cookies" under .lf-ui, where no comment '
-            "can reach it"
-        ),
-        (
-            '<lf-option id=c-lax> puts "opens in a new tab" under .lf-ui, where no '
-            "comment can reach it"
-        ),
-    ], found
 
 
 def test_render_reads_painted_facts_and_widget_chrome_where_they_stand(
     browser, serve, tmp_path, monkeypatch, declared_reading_package
 ):
-    """Two halves of the user's reading of a page, on one page.
+    """The user's reading of a page, on one page.
+
+    The words a widget puts out of reach. A user selected a draft's heading, tried to
+    comment on it, and got nothing back — twice, months apart, on the same page. The
+    heading was the page's word in a row its author had marked as the runtime's, and
+    `.lf-ui` is a look rather than a permission, so the class alone can't be the answer:
+    the declaration goes on the label (relabel), and an undeclared word under chrome is
+    reported. It is about a word the user was shown, so the check asks that first: a
+    word the browser reads out and the page never paints is hidden with [hidden], the
+    silence available in every root, and the same word shown is still reported. A
+    visible control and an otherwise identical one below an unscrollable clip keep the
+    control-reachability reading non-vacuous.
 
     The x-paints half, and the line it draws between two silences. A widget may paint
     a fact — `state="failure"` is a visual state and no text node — and it owes a user
@@ -1518,9 +1476,11 @@ def test_render_reads_painted_facts_and_widget_chrome_where_they_stand(
         f'<lf-shot id="shot-nav" alt="the navigation rail" before="{SHOT_SRC["before"]}"'
         f' after="{SHOT_SRC["after"]}"></lf-shot>'
     )
-    source = REPLY_HOST_PAGE.replace("</main>", painted + pair + "</main>").replace(
-        "</head>", "<style>.lf-quiet { display: none }</style></head>"
-    )
+    start = CARRIED_PAGE.index('<lf-options id="carried">')
+    carried = CARRIED_PAGE[start : CARRIED_PAGE.index("</lf-options>") + 13]
+    source = REPLY_HOST_PAGE.replace(
+        "</main>", carried + painted + pair + "</main>"
+    ).replace("</head>", "<style>.lf-quiet { display: none }</style></head>")
     url = serve(
         source,
         packages=(*EXAMPLE_PACKAGES, declared_reading_package),
@@ -1550,12 +1510,61 @@ def test_render_reads_painted_facts_and_widget_chrome_where_they_stand(
             "markup": SAMPLE_MARKUP + '<lf-badge id="rp-badge">Weighed.</lf-badge>',
         },
     )
-    failures = render_gate_model.render_version(browser.unwatched, url).failures
+    page = open_page(primed(browser, stage_reach_cases), url)
+    assert (
+        page.locator(
+            "#native-link, #hidden-note, #shown-note, #unreachable-row, "
+            "#unreachable-button"
+        ).count()
+        == 5
+    )
+    assert page.locator("#hidden-note").is_hidden()
+    assert page.locator("#shown-offer, #clipped-offer").count() == 2
+    assert page.locator("#shown-offer").is_visible()
+    # A label inside a form control no marker can reach is the suite's question of
+    # Leaf's own modules (`test_page_fixture_renders`), not the gate's.
+    assert [
+        said
+        for said in render_checks_model.evaluate_probe(page, "wordsInFormControls")
+        if "c-lax" in said
+    ] == [
+        (
+            '<lf-option id=c-lax> says "Lax, host-only" inside a form control, where '
+            "no selection can reach it"
+        )
+    ]
+    # The two-width pair fails soft, as the gate below is to hear.
+    consume_browser_errors(page, '<lf-shot id="shot-pair"> failed')
+    page.close()
+
+    failures = render_gate_model.render_version(
+        primed(browser.unwatched, stage_reach_cases), url
+    ).failures
     assert [f for f in failures if "600px" in f and "400px" in f], failures
-    found = sorted({f.split("] ", 1)[1] for f in failures if "shot-pair" not in f})
+    clipped = [f for f in failures if "(#clipped-offer)" in f]
+    assert len(clipped) == 2, failures
+    assert all(
+        "outside the <div id=clipped-holder> that clips it" in f for f in clipped
+    )
+    assert not [f for f in failures if "(#shown-offer)" in f], failures
+    found = sorted(
+        {
+            f.split("] ", 1)[1]
+            for f in failures
+            if "shot-pair" not in f and f not in clipped
+        }
+    )
     assert found == [
         (
             '<lf-badge id=rp-badge> puts "Sent by the reviewer" under .lf-ui, where no '
+            "comment can reach it"
+        ),
+        (
+            '<lf-option id=c-lax> puts "Session cookies" under .lf-ui, where no comment '
+            "can reach it"
+        ),
+        (
+            '<lf-option id=c-lax> puts "opens in a new tab" under .lf-ui, where no '
             "comment can reach it"
         ),
         (

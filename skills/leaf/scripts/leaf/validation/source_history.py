@@ -59,7 +59,10 @@ def revision_reanchors(
     section detaches instead of guessing a different subject. Data-backed and
     runtime-produced passages stay with their own coordinate resolvers.
     """
-    if not revision.predecessor:
+    # A log gesture may retire a passage within the same authored revision, but
+    # another gesture can restore it. Only an authored revision transition may
+    # record a permanent reanchor.
+    if revision.unchanged or not revision.predecessor:
         return {}, []
     previous = page_reading(revision.previous, events, revision.predecessor)
     current = page_reading(reading, events, candidate_revision)

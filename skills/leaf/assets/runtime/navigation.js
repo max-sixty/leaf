@@ -36,12 +36,12 @@ import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.
 // The walk's reading supplies both its destinations and their visible scope. In the
 // panel they are the cards its list walks (`walkRows`), which may show resolved threads
 // too; only the closed-panel page walk promises open threads.
-const threadWalk = (panelIsOpen, { threadsBox, openThreads }) => {
+const threadWalk = (panelIsOpen, { threadsBox, openThreadsInPageOrder }) => {
   const inPanel = panelIsOpen();
   return {
     threads: inPanel
       ? threadsBox.walkRows().flatMap(({ thread }) => thread ?? [])
-      : openThreads(),
+      : openThreadsInPageOrder(),
     scope: inPanel ? "shown" : "open",
   };
 };
@@ -329,7 +329,8 @@ export function stopGlide(box) {
 
 export function createNavigation({
   panelElements: { threadsBox, inPanel: panelFocusIsInside },
-  openThreads,
+  threadCards,
+  openThreadsInPageOrder,
   panelIsOpen,
   narrowing,
   coveringAuxiliaryScroller,
@@ -378,7 +379,7 @@ export function createNavigation({
     },
   };
   const inPanel = () => panelFocusIsInside(panelIsOpen);
-  const threadList = { threadsBox, openThreads };
+  const threadList = { threadsBox, openThreadsInPageOrder };
   const move = (amount, unit) => stepReading(amount, unit, coveringAuxiliaryScroller);
   const walkThreads = (dir) =>
     stepThread(dir, threadDestinations, panelIsOpen, narrowing, threadList);
@@ -482,7 +483,10 @@ export function createNavigation({
   // walk goes to what is on the user whatever the list shows.
   async function arriveAtThreadById(id) {
     const intent = retainUserIntent();
-    const card = () => openThreads().find((thread) => thread.dataset.id === id);
+    const card = () =>
+      (panelIsOpen() ? threadCards() : openThreadsInPageOrder()).find(
+        (thread) => thread.dataset.id === id,
+      );
     if (panelIsOpen() && card()?.hidden) await narrowing.revealThread(id);
     const next = card();
     if (!next) return false;

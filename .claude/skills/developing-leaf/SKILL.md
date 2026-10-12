@@ -128,13 +128,11 @@ the user's question and the baseline and candidate views, and ask first whether
 those views are enough to make that choice; ask for a preference only once they
 are. Operate an interactive comparison's baseline and candidates through the
 same journey before handoff. For a live Leaf interface, embed them as
-`lf-sample window` children. Their standard Full view control lets the user try each
-candidate at viewport size and return with its practice state intact ("Live samples"
-in `skills/leaf/references/page-authoring.md`).
-The outer page carries the configuration and feedback; the children carry practice
-interactions. Start their fictional histories with `data-sample-events`, sharing
-one parent-local JSON fixture when the candidates need the same conversation
-(`skills/leaf/references/page-authoring.md`, "Live samples").
+`lf-sample window` children (`skills/leaf/references/page-authoring.md`, "Live
+samples"). The outer page carries the configuration and feedback, and each child
+carries practice interactions, which its Full view lets the user try at viewport
+size. Start their fictional histories with `data-sample-events`, sharing one
+parent-local JSON fixture when the candidates need the same conversation.
 
 ## Choose what the user reviews
 
@@ -245,25 +243,21 @@ handed to the user carries the fragment of the semantic block it is about
 
 ## Preview a page
 
-`uv run leaf-dev preview <example> --export` writes one file that opens offline.
-`uv run leaf-dev preview <example>` serves a live page at `.tmp/previews/<example>`
-in the foreground, like a dev server, so run it as a long-running command
-(`run_in_background` in Claude Code). A desktop Codex `--user` preview instead
-detaches its watcher and returns its URL: the page and its updates stay available
-when Codex unloads the chat's idle instance. `--source <file>` serves any authored HTML
-file in place of a shipped example. It follows source and runtime edits at one
-URL. A user preview resumes its existing page after a restart, preserving updates,
-decisions, data and revisions; a plain preview rebuilds from the fixture.
-`--slot <name>` starts another copy, with its own initial fixture history and data.
+`uv run leaf-dev preview <example>` serves a live page that follows source and
+runtime edits at one URL. `--source <file>` serves any authored HTML file instead
+of a shipped example, and `--export` writes one file that opens offline. A
+desktop Codex `--user` preview detaches and returns its URL; every other preview
+runs in the foreground like a dev server, so start it as a long-running command
+(`run_in_background` in Claude Code). The
+`dev/leaf_dev/preview.py` header owns slots, what a restart keeps, and the desktop
+Codex detach; `--help` lists the flags.
 
-A plain preview takes no task claim, so its presses reach only the page's log;
-use it for screenshots and browser checks. `--user` claims the page at
-the directory printed at startup (`.tmp/previews/<example>-user` by default;
-`--slot` chooses the directory name) so the user's comments reach the harness, which
-also makes every click this session drives there read as an unanswered
-update. So drive only claimless previews and start any `--user` preview from the
-session the user talks to. Don't
-idle a preview to quiet the loop; `idle` closes the page in the browser.
+A plain preview takes no claim, so its presses reach only the page's log; use it
+for screenshots and browser checks. `--user` claims the page so the user's comments
+reach this session's harness, which also makes every click this session drives
+there read as an unanswered update. So drive only plain previews, and start any
+`--user` preview from the session the user talks to. Don't idle a preview to quiet
+the loop; `idle` closes the page in the browser.
 
 ### Temporary review resources
 
@@ -303,13 +297,13 @@ revision naming the release. It prints how long each step took, the agent's step
 the page server's clock, so the same journey benchmarks every target. A run spends
 the target's login.
 
-Where the user is applies to every step. On a harness the default is over HTTP:
-no browser starts, and each comment is posted as the page's tab posts one. Use it
-for harness behaviour and agent timing, which the page's log carries whole.
-`--browser` runs the whole user journey in Chrome instead: each comment typed in
-Threads, each reply's showing timed by the page, and the release ask's reload
-checked. Use it when what the page shows is part of the change. A website target
-is always in Chrome, since delivery through the page is its subject.
+The simulated user reaches the page the same way on every step. On a harness it
+posts each comment over HTTP by default, as the page's tab does, and starts no
+browser; use that for harness behaviour and agent timing, which the page's log
+carries whole. `--browser` runs the whole user journey in Chrome instead: each
+comment typed in Threads, each reply's showing timed by the page, and the release
+ask's reload checked. Use it when what the page shows is part of the change. A
+website target always runs in Chrome, since delivery through the page is its subject.
 
 On a harness the journey runs a session of it with this working tree as its plugin
 and goes on as the user at its terminal. The suite stands in for each harness, and
@@ -339,15 +333,10 @@ journey against the deployed release is the only production reading.
 
 ## Compare checkout versions
 
-Serve the merge-base runtime beside this checkout:
-
-```bash
-uv run leaf-dev compare <example> --user
-```
-
-Use one shared source for a runtime change (the default), or `--authored` when
-the authored content changed. `--base REF` selects another baseline. Omit `--user`
-for claimless tests; keep that foreground command running.
+`uv run leaf-dev compare <example> --user` serves the merge-base runtime beside
+this checkout, and keeps running in the foreground. Keep the default shared source
+for a runtime change and pass `--authored` when the authored content changed; omit
+`--user` for claimless tests. Its `--help` lists the other flags.
 
 ## Author or revise a page
 
@@ -362,8 +351,17 @@ posed to those instructions.
 To make an existing page exercise the current checkout, re-vendor it with the
 checkout launcher (`<root>/skills/leaf/references/serving-pages.md`); fix or
 report a compatibility refusal rather than falling back to the installed plugin.
-A page that explains how a Leaf interface behaves lets the user operate it
-(`references/page-authoring.md`, "Live samples").
+A page that explains how a Leaf widget, verb, or event flow behaves lets the user
+operate it in a live sample (`<root>/skills/leaf/references/page-authoring.md`,
+"Live samples"). The sample's template holds only the demonstrated page and an
+`lf-activity` feed of the sample's own log, so each gesture shows the event it
+writes; nothing in it mentions the sample. The parent's prose directly above the
+sample lists the gestures to try, in an order that exercises each verb the page
+explains, undo included. Before handing the page over, drive the sample using only
+what that prose tells the user, and read each line the feed prints for those
+gestures: a probe that knows more than the prose shows that the sample works, not
+that a user can work it, and a badly worded line misleads the user about the log
+the page explains.
 
 ## Score an instruction change
 

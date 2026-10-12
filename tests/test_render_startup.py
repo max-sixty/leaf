@@ -1490,7 +1490,7 @@ def test_a_pane_registers_the_body_it_holds_across_moves_and_revisions(browser, 
     )
     result = page.evaluate(
         """async () => {
-          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const leaf = await window.__lfRuntimeImport('/runtime/reading-regions.js');
           const main = document.querySelector('main');
           const pane = document.querySelector('#moving-pane');
           const first = leaf.readingRegion('moving-pane')?.body.id;
@@ -6746,7 +6746,7 @@ def test_page_thread_surface_owns_exact_source_elsewhere_in_main(browser, serve)
 
 
 def _hold_required_thread_panel(page):
-    """Hold actual required panel preparation without changing the semantic epoch."""
+    """Hold actual panel preparation without changing the semantic epoch."""
     page.evaluate("""async()=>{
       const [{createThreadPanelElements},{createThreadListController},
         {createThreadNarrowing},{threadList},app]=await Promise.all([
@@ -6768,7 +6768,7 @@ def _hold_required_thread_panel(page):
       let handle;
       const narrowing=createThreadNarrowing({view:elements.narrowingView,listRoot:elements.threadsBox,
         readThreads:threadList,ready:()=>true,repaint:()=>handle.update()});narrowing.mount();
-      handle=app.registerThreadPanel({controller,threadsBox:elements.threadsBox,required:true,view:{
+      handle=app.registerThreadPanel({controller,threadsBox:elements.threadsBox,view:{
         narrowing,panelIsOpen:()=>true,scrollToElement:()=>{},setThreadCounts:()=>{},onListChanged:()=>{},
         refreshAnchorHover:()=>{},travel:{showThread:()=>{},retainPanelLanding:()=>{},retainNarrowing:()=>{}}}});
       await app.refreshThread();

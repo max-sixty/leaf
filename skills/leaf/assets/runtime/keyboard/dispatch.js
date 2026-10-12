@@ -63,13 +63,15 @@
    reference is the boundary's one route through to another layer.
 
    A popover hands focus back to whatever had it when the popover showed — not to its
-   invoker, and not to `showPopover({source})`, which buys the anchor and the invoker
-   relationship and nothing about focus. So a key that opens a layer runs the press from
+   invoker, and not to `showPopover({source})`, which buys the anchor and the nesting of
+   popovers and nothing about focus. So a key that opens a layer runs the press from
    the control itself rather than opening it from the page, and every door leaves the same
    way out. Where Leaf has to hand focus back itself, scope that to the door that needs it
    rather than to focus landing on the body: a light dismissal restores nothing on
    purpose, and a user who pressed away into the page is not asking to be moved to the
-   control they pressed away from.
+   control they pressed away from. Nor does a `source` spare its own press from light
+   dismissal; only a declared invoker (`popovertarget`, `commandfor`) is spared, so a
+   control whose second press puts its layer away declares itself the invoker.
 
    A declared native button's click and keyboard route invoke the same semantic `run`.
    Native inputs and links retain their platform activation. Arrival may focus or reveal

@@ -783,16 +783,14 @@ function coveredBy(range, node) {
   return true;
 }
 
-// The segments a selection covers, clipped to where it starts and ends.
+// The page reading's segments a range covers, clipped to where it starts and ends.
+// Callers place a passage in that reading (`spanIn`), so the segments are the reading's
+// own. A walk from the range's own root reads whatever that root holds: select-all
+// beside an x-shadow widget composes a range over <html>, and the reading has no
+// position for its <title>.
 export function segmentsIn(range) {
-  const root = range.commonAncestorContainer;
-  // A range spanning direct children of a shadow stage has the ShadowRoot itself as
-  // its common ancestor. It is a walkable root even though it has no parent element.
-  const whole = textNodesUnder(
-    root.nodeType === Node.TEXT_NODE ? root.parentNode : root,
-  );
   const segments = [];
-  for (const segment of whole) {
+  for (const segment of pageText().segments) {
     const { node } = segment;
     if (!coveredBy(range, node)) continue;
     const start = node === range.startContainer ? range.startOffset : 0;

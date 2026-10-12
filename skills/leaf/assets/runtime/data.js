@@ -5,9 +5,10 @@
    differently. `watchData(widget, input, callback)` delivers a clone of `{source,
    contract, revision, run, updated, value, origin}`, or `null` while the bound source has no
    readable value. Subscriptions pause while their owner is absent. A return delivers
-   the newest snapshot when it differs from the one painted or the departure interrupted
-   that paint; a finished paint, failed or not, stands, so a refusal is not reported
-   twice. Contract, publication, or validity changes redeliver; overlapping
+   the newest snapshot when it differs from the last delivered or the departure
+   interrupted that paint's returned promise; a finished paint, failed or not, stands,
+   so a refusal is not reported twice. Contract, publication, or validity changes
+   redeliver; overlapping
    reads await the same in-flight rendering before stamping the version presented. Its
    synchronous time readings refresh independently of data delivery. The returned
    cleanup's `refresh()` repaints the last delivered reading through the same clock
@@ -157,6 +158,7 @@ export function watchData(element, input, callback) {
       // failure or re-entrant notification cannot redeliver the same failed value.
       delivered = true;
       deliveredIdentity = identity;
+      painting = null;
       const mount = presentation;
       const rendering = paint(structuredClone(snapshot));
       const finishing = (completion = Promise.resolve(rendering).catch((error) => {

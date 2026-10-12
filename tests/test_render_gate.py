@@ -3451,12 +3451,35 @@ def test_reader_state_observes_behavior_without_freezing_the_dom(browser, serve)
 # page with nothing for a drawer has no door to it. Escape unwinds any of them to the
 # page (keyboard/AGENTS.md); the ones Go-to opens take the most presses. A new surface
 # joins by its keys.
+#
+# A page has a thread card to open when the Threads control counts an open thread, in
+# its `data-lf-count` (banner.js). Its words are no door: Playwright's `:text-matches`
+# matches the smallest element holding them, the label inside the control.
+OPEN_THREADS = '.lf-threads-toggle[data-lf-count]:not([data-lf-count="0"])'
+# Where the focus stands in a thread, by the runtime's own selectors
+# (thread/selectors.js): "reply" in that thread's reply field, "card" elsewhere in it,
+# or null outside every thread or where the user sees none of the focused node. Seeing
+# it takes both what the browser draws, which `checkVisibility` reads through every
+# ancestor's display, visibility and opacity, and where it is drawn, which `seenRect`
+# (geometry.js) holds to the viewport, every clip and the chrome, as
+# anchor-resolution.js composes the two for a passage.
+IN_THREAD = """async () => {
+  const {THREAD, SAY_BOX} = await window.__lfRuntimeImport('/runtime/thread/selectors.js');
+  const {focused} = await window.__lfRuntimeImport('/runtime/focus.js');
+  const {closestAcross} = await window.__lfRuntimeImport('/runtime/passages.js');
+  const {seenRect} = await window.__lfRuntimeImport('/runtime/geometry.js');
+  const at = focused();
+  const thread = at && closestAcross(at, THREAD);
+  const drawn = at?.checkVisibility({opacityProperty: true, visibilityProperty: true});
+  if (!thread || !drawn || !seenRect(at, new Map())) return null;
+  return [...thread.querySelectorAll(SAY_BOX)].includes(at) ? 'reply' : 'card';
+}"""
 SURFACES = {
     "composer": (["c"], None),
     "target picker": (["s"], None),
     "page search": (["/"], None),
     "go-to": (["g"], None),
-    "thread card": (["t"], '.lf-threads-toggle:text-matches("Threads: [1-9]")'),
+    "thread card": (["t"], OPEN_THREADS),
     "threads panel": (["g", "Shift+t"], None),
     "questions panel": (["g", "Shift+q"], ".lf-btn.lf-queue"),
     "leaves drawer": (["g", "Shift+l"], ".lf-btn.lf-others"),
@@ -3467,6 +3490,9 @@ SURFACES = {
     "shortcut bar": (["?"], None),
     "command reference": (["?", "?"], None),
 }
+# A surface whose keys change the page even where it fails to open, as `t` announces
+# its walk, is open only where this reading finds it.
+SHOWN = {"thread card": lambda page: page.evaluate(IN_THREAD) is not None}
 UNWIND = 3
 # Round trips after the first, which may build what the surface keeps for next time.
 AGAIN = 3
@@ -3520,7 +3546,7 @@ def surface_findings(page):
         if door and not page.locator(door).first.is_visible():
             continue
         press(keys)
-        opened = reader_state(page) != left
+        opened = reader_state(page) != left and SHOWN.get(surface, lambda _: True)(page)
         first = settled_state(left := unwind())
         if not opened:
             findings.append(f"{'+'.join(keys)} opened no {surface}")
@@ -3681,12 +3707,12 @@ TYPED_BOXES = {
     "comment on an item": lambda page: into_the_page(page) and ["c"],
     "comment on the page": lambda page: ["c"],
     "thread card reply": lambda page: (
-        page.locator(
-            '.lf-threads-toggle:text-matches("Threads: [1-9]")'
-        ).first.is_visible()
-        and ["t", "c"]
+        page.locator(OPEN_THREADS).first.is_visible() and ["t", "c"]
     ),
 }
+# A box another box's keys could reach instead, as `c` outside a thread opens the page's
+# comment, is reached only where this reading finds the focus in it.
+IN_BOX = {"thread card reply": lambda page: page.evaluate(IN_THREAD) == "reply"}
 
 
 def typed_box_findings(page):
@@ -3708,7 +3734,9 @@ def typed_box_findings(page):
         for key in keys:
             page.keyboard.press(key)
             rendered(page)
-        if page.evaluate(FOCUSED_WORDS) is None:
+        if page.evaluate(FOCUSED_WORDS) is None or not IN_BOX.get(box, lambda _: True)(
+            page
+        ):
             findings.append(f"{'+'.join(keys)} put the user in no {box} to type in")
             continue
         words = f"Words for the {box}"

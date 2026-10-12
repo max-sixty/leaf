@@ -55,7 +55,8 @@ import { threadAttention } from "./workflow.js";
 import { growthAfterIsSeen, growthIsSeen, seenRect, shownRect } from "../geometry.js";
 import { ago, shortAgo } from "../presence.js";
 import { retainUserIntent } from "../user-intent.js";
-import { scrollThreadIntoView, replyPinned, revealEditor } from "./reply-landing.js";
+import { scrollThreadIntoView, replyPinned } from "./reply-landing.js";
+import { threadRewrites } from "./message-edit.js";
 import { HeldNews, newsNotice } from "./held-news.js";
 import { ReplyContinuity } from "./reply-continuity.js";
 
@@ -307,6 +308,7 @@ const replyRowSizes = sizeObserver((entries) => {
 export class ThreadView {
   #commands;
   #messageCommands;
+  #rewrites;
   #model = null;
   #messages = new Map();
   #reply = null;
@@ -350,46 +352,39 @@ export class ThreadView {
 
   constructor(surface, commands) {
     this.#commands = commands;
+    // A rewrite of one of the user's messages (`message-edit.js`). Opening or closing
+    // it paints at once, so its editor takes or gives back the focus in the same press.
+    this.#rewrites = threadRewrites({
+      thread: () => this.#model.key,
+      views: () =>
+        (this.#model?.messages ?? []).flatMap(
+          ({ key }) => this.#messages.get(key) ?? [],
+        ),
+      paint: (message) => this.repaint({ writing: message }),
+      send: (id, text, options) =>
+        this.#speak(
+          () => commands.reply.actions.edit(this.#model.key, id, text, options),
+          options.attempt,
+          "reply",
+        ),
+      box: () => this.node.querySelector(SAY_BOX),
+      home: () => this.node,
+      // Opening a rewrite shows what the thread holds (held-news.js), and unfolds a
+      // summary holding the message, since it opens to be seen.
+      opening: (id) => {
+        this.#showNews();
+        const folded = this.#model?.summaries.find(({ covers }) => covers.includes(id));
+        if (folded) this.#expandedSummaries.add(folded.id);
+      },
+      landInThread: commands.reply.landInThread,
+      landSent: commands.reply.landSent,
+    });
     // A press on a reply's reactions is the user acting in this thread, so what the
     // thread holds shows with it (held-news.js).
     this.#messageCommands = {
       ...commands,
       reaction: { ...commands.reaction, pressed: () => this.#showNews() },
-      // A rewrite of one of the user's messages (`message-edit.js`). Opening or closing
-      // it paints at once, so its editor takes or gives back the focus in the same press.
-      edit: {
-        paint: (message) => this.repaint({ writing: message }),
-        send: (id, text, options) =>
-          this.#speak(
-            () => commands.reply.actions.edit(this.#model.key, id, text, options),
-            options.attempt,
-            "reply",
-          ),
-        // The rung above a rewrite is the thread's reply box, where ↑ came from, while
-        // it is in view; a thread showing none, as a resolved one or a margin card not
-        // replying, or one whose box is off screen, hands the user on as a sent reply
-        // does, which moves nothing.
-        land: () => {
-          const box = this.node.querySelector(SAY_BOX);
-          if (box && seenRect(box, new Map())) commands.reply.landInThread(box);
-          else commands.reply.landSent(this.node);
-        },
-        previous: (id) => this.#lastEditable(id),
-        // A rewrite starts from the words as they stand, so opening one is acting in
-        // the thread and shows what it holds (held-news.js). One rewrite stands open in
-        // a thread unless the user changed its words: opening one closes another left
-        // as the message says it, and unfolds a summary holding the message, since it
-        // opens to be seen.
-        opening: (id) => {
-          this.#showNews();
-          for (const view of this.#messages.values()) view.putEditAside();
-          const folded = this.#model?.summaries.find(({ covers }) =>
-            covers.includes(id),
-          );
-          if (folded) this.#expandedSummaries.add(folded.id);
-        },
-        reveal: (message, caretLine) => revealEditor(message, caretLine),
-      },
+      edit: this.#rewrites.edit,
     };
     this.node = document.createElement(
       surface === "outlet" || surface === "panel" ? "details" : "div",
@@ -466,24 +461,6 @@ export class ThreadView {
   // never feed a held presentation back into the news owner's input.
   repaint(options) {
     this.present(this.#received, options);
-  }
-
-  // The view of the user's latest words in this thread, or the latest before message
-  // `before`, which ↑ opens for rewriting: from the empty reply box (`wireReply`), or from
-  // the start of a rewrite already open (`message-edit.js`). A message with no words,
-  // such as a bare drawing, is passed over; none while the words found cannot be
-  // rewritten, such as a message still sending, rather than older words.
-  #lastEditable(before = null) {
-    const messages = this.#model?.messages ?? [];
-    const end =
-      before === null ? messages.length : messages.findIndex(({ id }) => id === before);
-    const message = messages
-      .slice(0, Math.max(end, 0))
-      .findLast(
-        (item) =>
-          item.author === "user" && item.body.kind !== "reaction" && item.body.text,
-      );
-    return message?.editable ? (this.#messages.get(message.key) ?? null) : null;
   }
 
   // The last of the thread a reader can see, after which its news grows: a folded
@@ -1353,10 +1330,7 @@ export class ThreadView {
     };
     const lifetime = createReplyView(model.key, commands, {
       onChange: replyChanged,
-      editLast: {
-        available: () => Boolean(this.#lastEditable()),
-        open: () => this.#lastEditable()?.openEdit(),
-      },
+      editLast: this.#rewrites.editLast,
     });
     const { node: row, input } = lifetime;
     if (panel)

@@ -138,9 +138,9 @@ function createWidgetController(owner) {
       .present(value, (reason) => failSoftUnreported(owner, reason))
       .resolve(completion);
 
-  const notify = (reading, callbacks) => {
+  const notify = (reading) => {
     const failures = [];
-    for (const subscription of callbacks) {
+    for (const subscription of subscriptions) {
       try {
         subscription(reading);
       } catch (error) {
@@ -174,7 +174,7 @@ function createWidgetController(owner) {
           { cause: error },
         );
       }
-      failed(notify(reading, [...subscriptions]));
+      failed(notify(reading));
       drawn = true;
     },
     () => refresh(),
@@ -183,18 +183,11 @@ function createWidgetController(owner) {
   // Each presentation commits its ticket, so a reading that draws nothing, as on a
   // return to an unchanged reading, still settles the region. A failed draw settles it
   // with the fail-soft box; the paint has already reported the failure.
-  const presentRender = (reading, draw = () => paint(reading, reading)) => {
+  const presentRender = (reading) => {
     if (!owner.isConnected) return;
-    const handle = render();
-    let drawing;
-    try {
-      drawing = draw();
-    } catch (error) {
-      drawing = Promise.reject(error);
-    }
-    handle
+    render()
       ?.present(reading, (reason) => failSoftUnreported(owner, reason))
-      .resolve(drawing);
+      .resolve(paint(reading, reading));
   };
 
   // A held reading leaves its ticket open; the next presentation or the handle's
@@ -275,12 +268,9 @@ function createWidgetController(owner) {
     subscribe(callback) {
       subscriptions.add(callback);
       if (!stopSelection) connect();
-      else {
-        // A reading still owed draws every subscriber when it paints.
-        const reading = read();
-        if (drawn && !paint.owes(reading))
-          presentRender(reading, () => failed(notify(reading, [callback])));
-      }
+      // A reading already drawn draws again, with the new subscriber, by the paint
+      // every draw goes through; a reading still owed draws it when it paints.
+      else if (drawn) refresh();
       return () => {
         subscriptions.delete(callback);
         if (!subscriptions.size) {

@@ -1,6 +1,6 @@
 /* What `architecture/open-layers` refuses (eslint.config.mjs).
 
-   Whether a node is an open native layer, or stands in one, is layer-stack.js's
+   Whether a node is an open native layer, or stands in one, is shadow-tree.js's
    question, so a selector naming the open state is refused wherever it is asked, and
    a selector about anything else passes. eslint lives in pre-commit's environment,
    not this one, so the rule's visitors run here over acorn's tree, which is the
@@ -19,7 +19,7 @@ function reports(code, file = "skills/leaf/assets/runtime/probe.js") {
   let count = 0;
   const visitors = openLayersRule.create({
     filename: at(file),
-    options: [["skills/leaf/assets/runtime/keyboard/layer-stack.js"]],
+    options: [["skills/leaf/assets/runtime/shadow-tree.js"]],
     report: () => (count += 1),
   });
   const walk = (node) => {
@@ -54,10 +54,7 @@ test("other selectors, and the owner, pass", () => {
   ])
     assert.equal(reports(code), 0, code);
   assert.equal(
-    reports(
-      'node.matches(":modal");',
-      "skills/leaf/assets/runtime/keyboard/layer-stack.js",
-    ),
+    reports('node.matches(":modal");', "skills/leaf/assets/runtime/shadow-tree.js"),
     0,
   );
 });

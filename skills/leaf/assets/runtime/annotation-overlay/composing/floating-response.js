@@ -34,7 +34,7 @@ import {
 import { blockAt, pageRange, quoteFrom, segmentsIn } from "../../passages.js";
 import { pageSelection, selectionAnchor } from "../../composing/capture.js";
 import { closeLayer, holdFocus, focusDestination } from "../../focus.js";
-import { isNativeLayer } from "../../keyboard/layer-stack.js";
+import { isNativeLayer } from "../../shadow-tree.js";
 import { coarsePointer } from "../../pointer.js";
 import { LAYOUT } from "../../widget-elements.js";
 import { under } from "../../shadow.js";

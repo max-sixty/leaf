@@ -414,7 +414,8 @@ keeps its own test says why beside it. Rows marked *lint* are enforced in
 | Whether a place is already shown, and the room a landing needs | `landing-scroll.js` `alreadyShown`, `landingRoom` |
 | Bring something into view without scrolling the page around it | `landing-scroll.js` `scrollIntoView` (*lint*) |
 | Open or close a native modal or popover | `keyboard/layer-stack.js` `showNativeLayer`, `closeNativeLayer` (*lint*) |
-| Whether a node is an open native layer or stands in one, which are open, and whether a modal admits a node | `keyboard/layer-stack.js` `isNativeLayer`, `nativeLayerHolding`, `nativeLayers`, `nativeModalAdmits` (*lint*) |
+| Whether a node is an open native layer, or stands in one as rendered | `shadow-tree.js` `isNativeLayer`, `nativeLayerHolding` (*lint*) |
+| Which native layers are open, in opening order, and whether a modal admits a node | `keyboard/layer-stack.js` `nativeLayers`, `nativeModalAdmits` |
 | The element a URL fragment names | `anchor-resolution.js` `fragmentTarget` |
 | The language a file path means | `syntax.js` `langForPath`, from the registry's `$languages` |
 | Paint on the next frame, or watch a size | `rendering.js` `nextRender`, `nextFrame`, `sizeObserver` (*lint*) |

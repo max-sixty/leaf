@@ -3,7 +3,7 @@
 import { TEXT_BOX } from "./control-selectors.js";
 import { PAGE_ROOT } from "./context.js";
 import { focused } from "./focus.js";
-import { isNativeLayer } from "./keyboard/layer-stack.js";
+import { isNativeLayer } from "./shadow-tree.js";
 import { randomId } from "./ids.js";
 
 // A document with no declared root has no server to record to: an interactive export,

@@ -38,11 +38,8 @@
  * face is the window's, the stylesheet-owned --lf-banner-face that also dresses
  * the banner, so the partition changes only when the window crosses that width.
  */
-import {
-  showNativeLayer,
-  closeNativeLayer,
-  isNativeLayer,
-} from "./keyboard/layer-stack.js";
+import { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
+import { isNativeLayer } from "./shadow-tree.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { setChildLists } from "./dom-children.js";
 import { el } from "./widget-elements.js";

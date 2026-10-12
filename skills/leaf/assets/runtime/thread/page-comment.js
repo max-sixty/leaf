@@ -30,11 +30,8 @@
    The box joins the card the first time the card opens, in the same turn, and stays;
    a connected field builds its editor, so a page whose card never opens builds none.
    Until then it holds its draft unconnected. */
-import {
-  showNativeLayer,
-  closeNativeLayer,
-  isNativeLayer,
-} from "../keyboard/layer-stack.js";
+import { showNativeLayer, closeNativeLayer } from "../keyboard/layer-stack.js";
+import { isNativeLayer } from "../shadow-tree.js";
 import { el } from "../widget-elements.js";
 import { iconElement } from "../icons.js";
 import { textField } from "../composing/text-field.js";

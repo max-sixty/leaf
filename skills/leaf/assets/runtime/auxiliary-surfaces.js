@@ -48,11 +48,11 @@
 
 import {
   dismissPopoversOutside,
-  nativeLayerHolding,
   transitionNativeAncestor,
   showNativeLayer,
   closeNativeLayer,
 } from "./keyboard/layer-stack.js";
+import { nativeLayerHolding } from "./shadow-tree.js";
 import { registerCoveringAuxiliarySurface } from "./keyboard/register.js";
 import { hides, placeHolder } from "./geometry.js";
 import { under } from "./shadow.js";

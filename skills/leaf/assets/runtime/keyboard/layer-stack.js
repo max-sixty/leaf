@@ -31,10 +31,11 @@
    popovers first (`dismissPopoversOutside`), so the reading finds the user already handed
    back from them.
 
-   Whether a node stands in one of these layers is asked here too (`nativeLayerHolding`),
-   of the tree as rendered, by every reader that treats the top layer differently: an
-   anchor cannot reach out of it, it paints over every page level, and a cluster keeps
-   its options open while the user visits one.
+   Whether a node is one of these layers, or stands in one as rendered, is asked of
+   `shadow-tree.js` (`isNativeLayer`, `nativeLayerHolding`), below this module and the
+   modules it imports, so focus and inertness ask it too. Every reader that treats the top
+   layer differently asks there: an anchor cannot reach out of it, it paints over every
+   page level, and a cluster keeps its options open while the user visits one.
 
    A standing modal holds Tab. The browser moves the user through it in its own order,
    but forward from the last stop it leaves the page for its own interface, so this
@@ -75,7 +76,8 @@ import {
   tabStanding,
   tabStops,
 } from "../focus.js";
-import { renderedParent, renderedUnder } from "../shadow.js";
+import { renderedUnder } from "../shadow.js";
+import { isNativeLayer } from "../shadow-tree.js";
 
 const entries = [];
 const watchedRoots = new WeakSet();
@@ -83,21 +85,6 @@ const watchedRoots = new WeakSet();
 const tabRegions = new WeakMap();
 const nativeDialogShowModal = HTMLDialogElement.prototype.showModal;
 const nativePopoverShow = HTMLElement.prototype.showPopover;
-
-// Whether `node` is itself a native layer the browser holds in the top layer: an open
-// popover or a modal dialog. A nonmodal open dialog is part of the page it stands in.
-// Read node kind rather than realm-specific Element: a sample asks this of its frame.
-export const isNativeLayer = (node) =>
-  node?.nodeType === Node.ELEMENT_NODE &&
-  node.isConnected &&
-  node.matches(":popover-open, dialog:modal");
-
-// The innermost native layer `node` stands in as rendered, itself included, or null: a
-// box slotted into a popover stands in it.
-export function nativeLayerHolding(node) {
-  for (let at = node; at; at = renderedParent(at)) if (isNativeLayer(at)) return at;
-  return null;
-}
 
 function prune() {
   for (let index = entries.length - 1; index >= 0; index -= 1) {
@@ -118,7 +105,7 @@ function pushNativeLayer(node, source = null) {
   entries.push({
     root: node,
     get kind() {
-      return node.matches(":modal") ? "modal" : "popover";
+      return node.localName === "dialog" ? "modal" : "popover";
     },
     active: () => isNativeLayer(node),
     fromNowhere: !holding || holding === document.body,
@@ -149,12 +136,12 @@ function closing(event) {
 }
 
 HTMLDialogElement.prototype.showModal = function () {
-  if (!this.matches(":modal")) pushNativeLayer(this);
+  if (!isNativeLayer(this)) pushNativeLayer(this);
   return nativeDialogShowModal.call(this);
 };
 
 HTMLElement.prototype.showPopover = function (options) {
-  const opening = !this.matches(":popover-open");
+  const opening = !isNativeLayer(this);
   if (opening) pushNativeLayer(this);
   nativePopoverShow.call(this, options);
   const entry = opening && entries.find((candidate) => candidate.root === this);
@@ -188,7 +175,7 @@ export function showNativeLayer(layer, { source, modal = true, holds } = {}) {
 // an actual native close; generic disclosure closes have no native return to stop.
 export function closeNativeLayer(layer) {
   const dialog = layer instanceof HTMLDialogElement;
-  if (dialog ? !layer.open : !layer.matches(":popover-open")) return;
+  if (dialog ? !layer.open : !isNativeLayer(layer)) return;
   const standing = focused();
   const returnTo = entries.find((entry) => entry.root === layer)?.opener;
   const returnLocally =
@@ -269,9 +256,9 @@ export function nativeModalAdmits(node) {
     const modal = reading().findLast((layer) => layer.kind === "modal")?.root;
     return !modal || renderedUnder(node, modal);
   }
-  return [...owner.querySelectorAll("dialog:modal")].every((modal) =>
-    renderedUnder(node, modal),
-  );
+  return [...owner.querySelectorAll("dialog")]
+    .filter(isNativeLayer)
+    .every((modal) => renderedUnder(node, modal));
 }
 
 // Raising a native ancestor appends it above its standing descendants. Re-seat those

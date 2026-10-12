@@ -558,13 +558,13 @@ const placementsRule = {
   },
 };
 
-// Whether a node is an open native layer, or stands in one, is asked of
-// keyboard/layer-stack.js (`isNativeLayer`, `nativeLayerHolding`, `nativeLayers`). A
-// selector naming the open state answers it again, and the copies drift: a
-// `dialog[open]` read once counted the auxiliary envelope, a nonmodal dialog that is
-// always open, as a layer. The rule reads the selector a `matches`, `closest` or
-// `querySelector(All)` call is given; the option names the files that keep their own
-// test, each with its reason beside it.
+// Whether a node is an open native layer, or stands in one, is asked of shadow-tree.js
+// (`isNativeLayer`, `nativeLayerHolding`), and which are open of keyboard/layer-stack.js
+// (`nativeLayers`). A selector naming the open state answers it again, and the copies
+// drift: a `dialog[open]` read once counted the auxiliary envelope, a nonmodal dialog
+// that is always open, as a layer. A reader that also wants a nonmodal dialog asks the
+// dialog's own `open`. The rule reads the selector a `matches`, `closest` or
+// `querySelector(All)` call is given; the option names the owner.
 const OPEN_LAYER_SELECTOR = /:popover-open|:modal\b|dialog\[open\]/u;
 const SELECTOR_METHODS = new Set([
   "matches",
@@ -601,7 +601,7 @@ export const openLayersRule = {
           context.report({
             node,
             message:
-              "Ask keyboard/layer-stack.js whether a node is an open layer or stands in one (isNativeLayer, nativeLayerHolding, nativeLayers) rather than selecting the open state.",
+              "Ask shadow-tree.js whether a node is an open layer or stands in one (isNativeLayer, nativeLayerHolding) rather than selecting the open state.",
           });
       },
     };
@@ -1455,13 +1455,7 @@ export default [
         "error",
         [
           // The owner.
-          "skills/leaf/assets/runtime/keyboard/layer-stack.js",
-          // `leftClosedLayer` asks of every dialog, nonmodal ones included, since closing
-          // any of them hands focus back; layer-stack.js imports this module.
-          "skills/leaf/assets/runtime/focus.js",
-          // `excludedByInert` stops at a modal alone, the one layer that escapes inherited
-          // inertness; layer-stack.js imports this module.
-          "skills/leaf/assets/runtime/shadow.js",
+          "skills/leaf/assets/runtime/shadow-tree.js",
         ],
       ],
       "architecture/layer-returns": [

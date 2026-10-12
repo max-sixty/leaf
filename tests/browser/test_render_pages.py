@@ -2711,10 +2711,12 @@ def test_a_sidebar_pages_track_is_its_aside_in_the_order_it_is_written(browser, 
 def test_a_sidebar_pages_track_stays_in_view_only_beside_the_body(browser, serve):
     """Beside the body, the one block a track holds stays in view below the banner as the
     body scrolls, scrolls what it holds so its end is reachable, and is the reading
-    region its words scroll in; it never reaches over a footer. Stacked, whether the
-    window is narrow or the body's content needs the page's width, it scrolls with the
-    page rather than standing over the body, as it does where a second track takes the
-    body's place beside it. A track of several blocks flows as written."""
+    region its words scroll in; it never reaches over a footer. That holds whatever
+    shares the page gives the track. Stacked, whether the window is narrow, the body's
+    content needs the page's width or the track's needs more than its share, it scrolls
+    with the page rather than standing over the body, however the window reached that
+    width; so does a track beside a second track rather than the body, and a track of
+    several blocks."""
     body = "<div id='body'>" + "<p>Body paragraph. " * 600 + "</p></div>"
     block = (
         "<div id='block'><p id='follow-up'>Follow-up to check.</p>"
@@ -2732,16 +2734,23 @@ def test_a_sidebar_pages_track_stays_in_view_only_beside_the_body(browser, serve
                banner: document.querySelector('.lf-banner').getBoundingClientRect().bottom,
                scroller: scrollerFor(document.getElementById('follow-up'))?.id ?? null };
     }"""
-    cases = (
-        # (the track, the body's lead, after the body, widths, whether the block sticks)
-        (block, "", footer, (900,), True),
-        (block, "", "", (1440, 900), True),
-        (block, "", "", (390,), False),
-        (block, wide, "", (1440,), False),
-        (block + "</aside><aside><p>Owners.</p>", "", "", (900,), False),
-        (block + "<p>Owners.</p>", "", "", (900,), False),
+    in_track = block.replace(
+        "<p ", "<div style='min-width: 650px'>A block 650px wide.</div><p ", 1
     )
-    for track, lead, after, widths, sticks in cases:
+    cases = (
+        # (the page's CSS, the track, the body's lead, after the body, widths, sticks)
+        ("", block, "", footer, (900,), True),
+        ("", block, "", "", (1440, 900), True),
+        ("#track { flex-basis: 44rem }", block, "", "", (2560,), True),
+        ("", block, "", "", (390,), False),
+        ("", block, wide, "", (1440,), False),
+        ("#track { max-width: 400px }", block, wide, "", (900,), False),
+        ("", in_track, "", "", (900,), False),
+        ("", in_track, "", "", (1440, 900), False),
+        ("", block + "</aside><aside><p>Owners.</p>", "", "", (900,), False),
+        ("", block + "<p>Owners.</p>", "", "", (900,), False),
+    )
+    for css, track, lead, after, widths, sticks in cases:
         source = leaf_page(
             "a sidebar page",
             "<header><h1>Review</h1></header><aside id='track'>"
@@ -2749,6 +2758,7 @@ def test_a_sidebar_pages_track_stays_in_view_only_beside_the_body(browser, serve
             + "</aside>"
             + body.replace("<p>", lead + "<p>", 1)
             + after,
+            head=f"<style>{css}</style>" if css else "",
             layout="sidebar",
         )
         page = open_page(browser, serve(source))
@@ -2756,19 +2766,19 @@ def test_a_sidebar_pages_track_stays_in_view_only_beside_the_body(browser, serve
             resized(page, width, 600)
         page.evaluate("scrollTo(0, 1500)")
         at = page.evaluate(read)
+        case = (css, widths, track[-30:], at)
         if sticks:
-            assert at["position"] == "sticky", (widths, at)
-            assert at["banner"] <= at["top"] <= at["banner"] + 40, (widths, at)
-            assert at["bottom"] <= at["innerHeight"], (widths, at)
-            assert at["scroller"] == "block", (widths, at)
+            assert at["position"] == "sticky", case
+            assert at["banner"] <= at["top"] <= at["banner"] + 40, case
+            assert at["bottom"] <= at["innerHeight"], case
+            assert at["scroller"] == "block", case
             page.evaluate("scrollTo(0, document.documentElement.scrollHeight)")
             at = page.evaluate(read)
-            assert at["bottom"] <= at["foot"], at
+            assert at["bottom"] <= at["foot"], case
         else:
-            assert at["top"] < 0, (widths, track[-40:], at)
-            if "Owners" not in track:
-                assert at["position"] != "sticky", (widths, at)
-                assert at["scroller"] != "block", (widths, at)
+            assert at["position"] != "sticky", case
+            assert at["top"] < 0, case
+            assert at["scroller"] != "block", case
 
 
 @pytest.mark.parametrize("rail", [True, False])

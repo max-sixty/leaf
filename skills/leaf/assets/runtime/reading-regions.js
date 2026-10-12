@@ -115,13 +115,15 @@ export function registerReadingRegion({ id, host, body }) {
 
 // The boxes a page's Layout makes scroll, which no widget owns: the workspace's body,
 // which scrolls as a whole where a pane in it does not bound itself, a column page's
-// sidebar standing in the margin, and the one block a sidebar page's track holds while
-// it stands beside the body (layouts.css). The stylesheet marks each one
+// sidebar standing in the margin, and the one block a sidebar page's track holds, which
+// scrolls while it stands beside the body (layouts.css). The stylesheet marks each one
 // (`--lf-reading-region: layout`): a child of `main`, or the only child of one that is
 // not itself marked. Each is registered like any other region, so what it holds is
-// carried by it rather than by the page. Its id is its place among the marked boxes,
-// and its element's id where it has one. Chrome layout asks on every pass, since a
-// revision can replace `main`'s children and a resize can change which of them scroll.
+// carried by it rather than by the page, and its posture is read from whether it
+// scrolls. Its id is its element's id where it has one, so a neighbour's arrival or
+// removal never renames it, and its place among the unnamed ones otherwise, in a
+// namespace of its own. Chrome layout asks on every pass, since a revision can replace
+// `main`'s children and a resize can change which of them the stylesheet marks.
 const layoutRegions = new Map();
 const marked = (box) =>
   box.checkVisibility() &&
@@ -135,10 +137,11 @@ export function syncLayoutRegion() {
         return only && marked(only) ? [only] : [];
       })
     : [];
+  let unnamed = 0;
   const ids = new Map(
-    bodies.map((body, at) => [
+    bodies.map((body) => [
       body,
-      `lf-region:layout:${at}${body.id ? `:${body.id}` : ""}`,
+      body.id ? `lf-region:layout#${body.id}` : `lf-region:layout@${unnamed++}`,
     ]),
   );
   for (const [body, region] of layoutRegions)

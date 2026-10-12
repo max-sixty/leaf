@@ -627,10 +627,51 @@
       }
     return { changed, holders };
   };
+  // Whether each track (`--lf-resident: track`, a sidebar page's `aside`, layouts.css)
+  // stands beside the body, which it says as `data-lf-beside` so the Layout keeps the
+  // block it holds in view only there. Flex wrapping places it, from the window's width,
+  // the shares the page gives the track and the body, and the minimum the body's content
+  // declares, and no query reads that. A track stands beside the body when one of
+  // `main`'s own boxes stands wholly to one side of it; another track does not count, and
+  // a box on another line, such as the header, the footer or a stacked body, spans it.
+  // Sticking moves only the block inside the track, so the track's own box is where the
+  // flex line put it. Every box is read before any track is written.
+  const BESIDE = "data-lf-beside";
+  const stand = () => {
+    const main = document.querySelector("body > main");
+    if (!main) return false;
+    const tracks = [];
+    const own = [];
+    for (const child of main.children) {
+      if (getComputedStyle(child).getPropertyValue("--lf-resident").trim() === "track")
+        tracks.push(child);
+      else if (child.checkVisibility()) own.push(child.getBoundingClientRect());
+    }
+    const readings = tracks.map((track) => {
+      if (!track.checkVisibility()) return [track, false];
+      const { left, right } = track.getBoundingClientRect();
+      return [
+        track,
+        own.some(
+          (box) =>
+            box.width > 0 && (box.right <= left + 0.5 || box.left >= right - 0.5),
+        ),
+      ];
+    });
+    let changed = false;
+    for (const [track, beside] of readings) {
+      if (track.hasAttribute(BESIDE) === beside) continue;
+      if (!sourceShells.has(track)) sourceShells.set(track, track.cloneNode(false));
+      track.toggleAttribute(BESIDE, beside);
+      changed = true;
+    }
+    return changed;
+  };
   const residency = () => {
     const seated = seat();
+    const stood = stand();
     const { changed, holders } = indents();
-    return { changed: changed || seated, holders };
+    return { changed: changed || seated || stood, holders };
   };
 
   // The id a URL fragment spells, for location.hash and for a link's href alike, from

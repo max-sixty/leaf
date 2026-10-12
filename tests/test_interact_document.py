@@ -12,6 +12,7 @@ import shutil
 import signal
 import subprocess
 import threading
+import traceback
 import weakref
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
@@ -66,6 +67,7 @@ from leaf import publishing as publishing_model
 from leaf import revision_artifact as artifact_model
 from leaf import revision_delivery as revision_delivery_model
 from leaf import revisioning as revisioning_model
+from leaf import samples as samples_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
@@ -251,45 +253,63 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
     assert historical.resources["/leaf.js"].data == artifact.resources["/leaf.js"].data
 
 
-def test_a_first_revision_shares_the_page_layer_and_outlives_a_re_vendor(page_dir):
-    """A page's first revision links the layer files `page init` wrote rather than
-    writing and syncing a copy of each, and a re-vendor, which replaces those files
-    by rename, leaves the revision's bytes as they were. Only an exact layer file is
-    shared: the registry a capture holds differs from the page's file, and an
-    authored file may be rewritten in place, so both are written."""
-    (page_dir / "page").mkdir(exist_ok=True)
-    (page_dir / "page" / "app.js").write_text("window.result = 1;")
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "</head>", '<script type="module" src="/page/app.js"></script></head>'
-        )
-    )
+def test_a_revision_keeps_its_bytes_when_a_layer_file_is_edited_in_place(page_dir):
+    """A page's layer files are the user's to edit, in place if their editor does,
+    so a revision holds its own copy of each and never shares one's inode."""
     first = revisioning_model.activate_source(page_dir)
     assert first.error is None, first.error
     captured = (
         files_model.revision_path(page_dir, first.revision).with_suffix("")
         / "resources"
     )
-    generation = "runtime/layer-generation.js"
-    for layer_file in ("leaf.js", "theme.css", generation, "widgets/lf-options.js"):
-        assert (captured / layer_file).stat().st_ino == (
+    for layer_file in ("leaf.js", "theme.css", "runtime/layer-generation.js"):
+        assert (captured / layer_file).stat().st_ino != (
             page_dir / layer_file
         ).stat().st_ino, layer_file
-    for written in ("registry.json", "page/app.js"):
-        assert (captured / written).stat().st_ino != (
-            page_dir / written
-        ).stat().st_ino, written
-    artifact = artifact_model.read_artifact(page_dir, first.revision)
-    assert (captured / "registry.json").read_bytes() == (
-        artifact.resources["/registry.json"].data
-    )
+    theme = (captured / "theme.css").read_bytes()
+    with (page_dir / "theme.css").open("r+b") as stream:
+        stream.write(b"/* edited in place */")
+    assert (captured / "theme.css").read_bytes() == theme
 
-    held = (captured / generation).read_bytes()
-    (page_dir / "runtime" / "obsolete.js").write_text("export {};\n")
-    revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
-    assert revendored.exit_code == 0, revendored.output
-    assert (page_dir / generation).read_bytes() != held
-    assert (captured / generation).read_bytes() == held
+
+def test_a_sample_child_stages_its_revision_without_fsync(page_dir, monkeypatch):
+    """A sample's child is Leaf's own and deleted on release, so nothing reads its
+    revision after a crash and staging it pays for no fsync, while a page's own
+    revision is still made durable."""
+    template = (
+        '<template id="practice" data-sample><h1>Practice</h1>'
+        "<p>Child text.</p></template>"
+    )
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", template + "</main>"))
+    synced = []
+    fsync = os.fsync
+
+    def recording(descriptor):
+        if any(
+            frame.filename.endswith("revision_artifact.py")
+            for frame in traceback.extract_stack()
+        ):
+            synced.append(descriptor)
+        return fsync(descriptor)
+
+    monkeypatch.setattr(os, "fsync", recording)
+    parent = revisioning_model.activate_source(page_dir)
+    assert parent.error is None, parent.error
+    assert synced, "a page's own revision is made durable"
+
+    synced.clear()
+    artifact = artifact_model.read_artifact(page_dir, parent.revision)
+    document = artifact_model.read_revision(page_dir, parent.revision).document
+    samples = samples_model.Samples()
+    identity = samples.create(
+        page_dir, artifact, document, [], {"sources": {}}, "practice", False, None
+    )
+    try:
+        child = samples.pages[identity].directory
+        assert files_model.latest_revision(child) == 1
+        assert synced == []
+    finally:
+        samples.close()
 
 
 def test_the_captured_executable_digest_separates_code_from_content(page_dir):

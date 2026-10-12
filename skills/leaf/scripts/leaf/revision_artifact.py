@@ -32,7 +32,6 @@ import json
 import os
 import posixpath
 import re
-import stat
 import sys
 import tempfile
 import threading
@@ -887,32 +886,22 @@ def artifact_name(revision: int, artifact: RevisionArtifact) -> str:
     return f"r{revision}-{artifact.digest.removeprefix('sha256:')[:16]}"
 
 
+class Disposable:
+    """Whether Leaf built this page for itself and deletes it, as a sample's child
+    (`samples`), so nothing reads its revisions after a crash and staging and
+    publishing them skip every fsync.
+
+    The builder sets it in the memory it holds for the page's life
+    (`page_memory.memory_of`). A page whose memory never held the mark, or dropped
+    it, is written durably, so losing the mark costs time and never a revision."""
+
+    held = False
+
+
 def stage_artifact(page_dir: Path, revision: int, artifact: RevisionArtifact) -> str:
-    """Make exact immutable inputs durable, without making a revision discoverable.
-
-    Most of a bundle is the vendored layer, a few hundred files and several
-    megabytes that the previous revision, or the page's own layer files, already
-    hold. So each resource is hard-linked to the newest revision's file with its
-    digest, else to the page's layer file at its logical path when that holds the
-    same bytes (`_linked_layer_file`), and only otherwise written and synced.
-
-    Sharing an inode is safe because nothing writes a captured file or a page's
-    layer file in place. A bundle is never written after it is made, and `page
-    init` replaces each layer file by renaming a staged copy over it
-    (`files.replace_files`), which leaves the old inode, and every revision linked
-    to it, as it was. Authored `page/` and `media/` files are excluded, since an
-    author's editor may rewrite them in place. Whatever else links to these files,
-    such as a site build's deduplication or the test suite's page pool, only reads
-    them. A write in place from outside Leaf, such as an editor saving `theme.css`
-    or an author's `page/` file made an alias of a layer file, would change every
-    revision sharing that inode.
-
-    A link is as durable as the file it shares: a captured file was synced when its
-    bundle was made, and a layer file when `page init` wrote it. A sample's child
-    page (`samples`) writes its layer plainly, but it is disposable and nothing
-    reads it after a crash. `fsync_parents` makes every link's directory entry
-    durable either way.
-    """
+    """Make exact immutable inputs durable, unless the page is `Disposable`, without
+    making a revision discoverable."""
+    durable = not memo(page_dir, Disposable).held
     revisions = page_dir / "revisions"
     revisions.mkdir(exist_ok=True)
     if revision in list_revisions(page_dir):
@@ -926,44 +915,43 @@ def stage_artifact(page_dir: Path, revision: int, artifact: RevisionArtifact) ->
             staged = Path(temporary) / name
             staged.mkdir()
             captured = _captured_files(page_dir)
-            page_root = page_dir.resolve()
             written = []
             for relative, data in (
                 ("index.html", artifact.html),
                 ("manifest.json", artifact.manifest),
             ):
-                written.append(_write_durably(staged / relative, data))
+                written.append(_write(staged / relative, data, durable))
             for path, resource in artifact.resources.items():
                 target = staged / ("resources" + path)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 earlier = captured.get(resource.digest)
-                if not (
-                    (earlier is not None and _linked(earlier, target))
-                    or _linked_layer_file(page_root, path, resource, target)
-                ):
-                    _write_durably(target, resource.data)
+                if earlier is None or not _linked(earlier, target):
+                    _write(target, resource.data, durable)
                 written.append(target)
-            fsync_parents(written + list(staged.rglob("*")))
+            if durable:
+                fsync_parents(written + list(staged.rglob("*")))
             os.rename(staged, destination)
-            fsync_parents([destination])
+            if durable:
+                fsync_parents([destination])
     elif (destination / "manifest.json").read_bytes() != artifact.manifest:
         raise ArtifactError(f"{destination}: immutable artifact digest collision")
     return name
 
 
-def _write_durably(target: Path, data: bytes) -> Path:
+def _write(target: Path, data: bytes, durable: bool) -> Path:
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("xb") as stream:
         stream.write(data)
-        stream.flush()
-        os.fsync(stream.fileno())
+        if durable:
+            stream.flush()
+            os.fsync(stream.fileno())
     return target
 
 
 def _linked(earlier: Path, target: Path) -> bool:
-    """Link `target` to an existing file, unless that file has as many links as its
-    filesystem allows (ext4 stops at 65,000, which a page that never re-vendors
-    reaches after as many revisions)."""
+    """Link `target` to a file an earlier bundle captured, unless that file has as
+    many links as its filesystem allows (ext4 stops at 65,000, which a page that
+    never re-vendors reaches after as many revisions)."""
     try:
         os.link(earlier, target)
     except OSError as error:
@@ -973,44 +961,14 @@ def _linked(earlier: Path, target: Path) -> bool:
     return True
 
 
-def _linked_layer_file(
-    page_root: Path, logical: str, resource: Resource, target: Path
-) -> bool:
-    """Link `target` to the page's own layer file at `logical`, if that holds exactly
-    the resource's bytes.
-
-    Only the vendored layer qualifies: a top-level vendored file or a file under a
-    browser directory, as a regular file, not a symlink, in a directory that resolves
-    inside the page. The link must then name the very inode those checks read, and
-    hold the resource's bytes, so a file renamed into place between the checks and
-    the link, by `page init` or anyone else, is unlinked again rather than kept."""
-    relative = logical.removeprefix("/")
-    if relative not in VENDORED_FILES and relative.split("/", 1)[0] not in BROWSER_DIRS:
-        return False
-    source = page_root / relative
-    try:
-        info = source.lstat()
-        if (
-            not stat.S_ISREG(info.st_mode)
-            or info.st_size != resource.size
-            or not source.parent.resolve().is_relative_to(page_root)
-            or not _linked(source, target)
-        ):
-            return False
-    except FileNotFoundError:
-        return False
-    linked = target.lstat()
-    if (linked.st_dev, linked.st_ino) == (info.st_dev, info.st_ino) and (
-        target.read_bytes() == resource.data
-    ):
-        return True
-    target.unlink()
-    return False
-
-
 def _captured_files(page_dir: Path) -> dict[str, Path]:
-    """The resource files the newest revision captured, by digest, for
-    `stage_artifact` to link."""
+    """The resource files the newest revision captured, by digest.
+
+    Successive revisions of a page capture mostly the same layer, a few hundred files
+    and several megabytes, so a new bundle links each resource the newest one already
+    holds rather than writing and syncing its bytes again. Sharing an inode is safe
+    because nothing writes a captured file after its bundle is made; whatever else
+    links to one, such as a site build's deduplication, only reads it."""
     revision = latest_revision(page_dir)
     if revision is None:
         return {}
@@ -1036,7 +994,8 @@ def publish_artifact(page_dir: Path, name: str, reading: SourceReading) -> Path:
     destination = page_dir / "revisions" / name
     marker = destination.with_name(f"{name}.html")
     os.link(destination / "index.html", marker)
-    fsync_parents([marker])
+    if not memo(page_dir, Disposable).held:
+        fsync_parents([marker])
     marker = marker.absolute()
     memo(page_dir, _Readings).hold(
         marker, file_stamp(marker), RevisionReading(marker, reading)

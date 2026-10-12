@@ -283,17 +283,7 @@ def test_samples_use_captured_resources_and_independent_event_logs(server, page_
     captured_theme = (
         artifact_model.read_artifact(page_dir, 1).resources["/theme.css"].data
     )
-    # Replaced by rename, as `page init` replaces a layer file; the revision shares
-    # the old file's inode (`revision_artifact.stage_artifact`).
-    files_model.replace_files(
-        [
-            (
-                page_dir / "theme.css",
-                b"/* mutable bytes must not enter the child */",
-                False,
-            )
-        ]
-    )
+    (page_dir / "theme.css").write_text("/* mutable bytes must not enter the child */")
     (page_dir / "page/sample.js").write_text('throw Error("mutable code");')
     status, raw = fetch(
         f"{server}/api/samples",

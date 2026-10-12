@@ -364,8 +364,11 @@ summary { align-content: center; }
           border-top: 1px solid var(--rule); pointer-events: none; }
 /* Every conversation shares its reading edge, including a floating draft. The
    field subtracts its border; messages and metadata take the full inset. */
+/* An open progress group's border overhangs the transcript's end by
+   `--lf-group-ring-end`, so a transcript that scrolls keeps that much room there. */
 :root, .lf-page-thread, .lf-thread, .lf-fab-bar {
           --lf-thread-text-inset: 13px;
+          --lf-group-ring-end: 6px;
           --lf-msg-head-height: max(28px, var(--aim-floor));
           --lf-msg-body-gap: 4px;
           --lf-thread-resolve-width: max(calc(5 * var(--t-6)), var(--aim-floor)); }
@@ -396,10 +399,14 @@ summary { align-content: center; }
           min-width: 0; overflow: hidden; white-space: nowrap;
           font-size: var(--t-6); --lf-msg-name-size: 13px; }
 .lf-msg-head .lf-msg-meta { flex: 0 1 auto; overflow: hidden; }
-.lf-primary-message > .lf-msg-head { position: relative; padding-inline-end: 5rem; }
+/* A primary reader's message part holds its thread's news notice at the head's end,
+   beside the message's own control rather than under it (controls.css). */
+.lf-primary-message > .lf-msg-head { position: relative; --lf-msg-head-room: 5rem;
+          padding-inline-end: var(--lf-msg-head-room); }
 .lf-primary-part { position: relative; }
 .lf-primary-part[data-lf-part="reply"] { padding-block-start: max(28px, var(--aim-floor)); }
-.lf-primary-news { position: absolute; inset-block-start: 0; inset-inline-end: 0;
+.lf-primary-news { position: absolute; inset-block-start: 0;
+          inset-inline-end: var(--lf-msg-control-room, var(--lf-msg-control, 0px));
           max-inline-size: 5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lf-msg-head .lf-msg-sending { min-width: 0; overflow: hidden;
           text-overflow: ellipsis; }
@@ -418,7 +425,8 @@ summary { align-content: center; }
    reader is on keeps it open in place (held-news.js). Collapsed disclosures stay inline. */
 .lf-thread-checkpoint[data-expanded="true"] { position: relative; }
 .lf-thread-checkpoint[data-expanded="true"]::before { content: ""; position: absolute;
-  inset-block: -7px; inset-inline: -12px -6px; border: 1px solid var(--rule);
+  inset-block: -7px; inset-inline: -12px calc(-1 * var(--lf-group-ring-end));
+  border: 1px solid var(--rule);
   border-radius: 5px; pointer-events: none; }
 .lf-summary-checkpoint { padding-block: 4px; }
 /* Keep the context label readable when the disclosure needs another line. */

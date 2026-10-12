@@ -12615,12 +12615,45 @@ def test_the_keyboard_walks_up_through_the_users_messages_to_rewrite_one(
     expect(earlier).to_have_js_property("value", "Fit the north bracket.")
 
 
-def _rewrite_surface(browser, serve, surface, size=(1400, 900), resolved=False):
+def _feed_page(serve):
+    """The feature gallery's package reader alone on a page, which in Feed mode draws
+    each message of every conversation as a part of its own, and the selected one's
+    reply box below them."""
+    companion = FEATURE_GALLERY.parent / "feature-gallery.page"
+    return serve(
+        leaf_page(
+            "Package reader",
+            '<h1>Package reader</h1><p id="cd-q">The bracket notes.</p>'
+            '<lf-conversation-workspace id="workspace"></lf-conversation-workspace>',
+        ),
+        layer_registry={
+            "lf-conversation-workspace": json.loads(
+                (companion / "registry.json").read_text()
+            )["lf-conversation-workspace"]
+        },
+        layer_widgets={
+            "lf-conversation-workspace.js": (
+                companion / "widgets/lf-conversation-workspace.js"
+            ).read_text()
+        },
+    )
+
+
+def _rewrite_surface(
+    browser, serve, surface, size=(1400, 900), resolved=False, thanks=False
+):
     """A thread holding the user's message and the agent's answer, drawn on `surface`:
-    the Threads panel, the seat in the page's flow, or the margin card; `resolved`, in
-    the panel, under its Resolved filter. Returns the page, the thread, and the message
-    as that surface draws it."""
-    url = serve(PANEL_PAGE if surface == "card" else THREAD_DIFF_PAGE)
+    the Threads panel, the seat in the page's flow, the margin card, or a package
+    reader's Feed mode; `resolved`, in the panel, under its Resolved filter; `thanks`,
+    with the user's own reply after the answer. Returns the page, the thread, and the
+    message as that surface draws it."""
+    url = (
+        serve(PANEL_PAGE)
+        if surface == "card"
+        else _feed_page(serve)
+        if surface == "feed"
+        else serve(THREAD_DIFF_PAGE)
+    )
     anchor = "how-store" if surface == "card" else "cd-q"
     mine = append_carried_log_record(
         serve.page_dir,
@@ -12632,7 +12665,7 @@ def _rewrite_surface(browser, serve, surface, size=(1400, 900), resolved=False):
             "anchor": {"section": anchor},
         },
     )
-    append_carried_log_record(
+    answer = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -12644,6 +12677,16 @@ def _rewrite_surface(browser, serve, surface, size=(1400, 900), resolved=False):
             "text": "Fitted.",
         },
     )
+    if thanks:
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "user",
+                "parent": answer["id"],
+                "text": "Thanks.",
+            },
+        )
     if resolved:
         append_carried_log_record(
             serve.page_dir, {"kind": "resolve", "author": "user", "parent": mine["id"]}
@@ -12660,6 +12703,10 @@ def _rewrite_surface(browser, serve, surface, size=(1400, 900), resolved=False):
     elif surface == "seat":
         thread = page.locator("#cd-q .lf-page-thread").first
         message = thread.locator(f'.lf-msg[data-event="{mine["id"]}"]')
+    elif surface == "feed":
+        thread = page.locator("#workspace")
+        thread.get_by_role("button", name="Feed", exact=True).click()
+        message = thread.locator(f'.lf-primary-part .lf-msg[data-event="{mine["id"]}"]')
     else:
         page.locator(f'[data-lf-margin-for="{anchor}"] .lf-margin-marker').click()
         thread = page.locator(".lf-margin-preview")
@@ -12684,7 +12731,7 @@ FIRST_LINE = """n => {
 }"""
 
 
-@pytest.mark.parametrize("surface", ["panel", "seat", "card"])
+@pytest.mark.parametrize("surface", ["panel", "seat", "card", "feed"])
 def test_a_rewrite_opens_and_closes_without_moving_the_thread(browser, serve, surface):
     """Opening a rewrite with ↑ swapped the message for a bordered box with Cancel on a
     row of its own, pushing every turn and the reply box below it down 55px, and Escape
@@ -12695,7 +12742,8 @@ def test_a_rewrite_opens_and_closes_without_moving_the_thread(browser, serve, su
     In the margin card each keystroke in the rewrite also threw, from the reply box's
     growth-following reading a reply row the rewrite has none of; the browser fixture
     fails on that error. A double click put the caret before the words, since clearing
-    the word it selected took the caret the editor had just set."""
+    the word it selected took the caret the editor had just set. A package reader's
+    Feed mode, drawing each message on its own, offered no rewrite at all."""
     page, thread, message = _rewrite_surface(browser, serve, surface)
     reply = thread.locator(".lf-thread-reply leaf-text").first
     reply.click()
@@ -12762,6 +12810,132 @@ def test_a_rewrite_opens_and_closes_without_moving_the_thread(browser, serve, su
     round_trip(page)
     rendered(page)
     unmoved()
+
+
+def test_a_package_feed_keeps_a_rewrite_where_a_card_would(browser, serve):
+    """A package reader drawing each message on its own, as the feature gallery's Feed
+    mode does, offered the user's own words no rewrite: its parts had no thread card to
+    open one in, and Resume writing took a kept rewrite to the Threads panel. The Edit
+    control opens it there now, Save sends it, and words kept through a reload come back
+    under Resume writing on the message where Feed draws it, the reader staying in
+    Feed."""
+    page, workspace, message = _rewrite_surface(browser, serve, "feed")
+    mine = message.get_attribute("data-event")
+    feed = workspace.get_by_role("button", name="Feed", exact=True)
+    expect(workspace.locator(".lf-msg.agent .lf-msg-edit")).to_have_count(0)
+
+    message.hover()
+    message.get_by_role("button", name="Edit message").click()
+    editor = message.locator(".lf-msg-editor leaf-text")
+    expect(editor).to_be_focused()
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.type("Fit the south bracket.")
+    page.keyboard.press("Enter")
+    expect(message.locator(".lf-msg-editor")).to_have_count(0)
+    expect(message.locator(".lf-msg-text")).to_have_text("Fit the south bracket.")
+    expect(message.locator(".lf-edited")).to_have_text("edited")
+    round_trip(page)
+    edits = [e for e in events_model.read_events(serve.page_dir) if e["kind"] == "edit"]
+    assert [(e["message"], e["text"]) for e in edits] == [
+        (mine, "Fit the south bracket.")
+    ]
+
+    message.locator(".lf-msg-text").dblclick()
+    expect(editor).to_be_focused()
+    page.keyboard.type(" Or the east.")
+    page.reload()
+    wait_until_ready(page)
+    feed.click()
+    expect(message.locator(".lf-msg-kept")).to_have_text("unsaved edit")
+    page.locator("body").focus()
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(editor).to_be_focused()
+    expect(editor).to_have_js_property("value", "Fit the south bracket. Or the east.")
+    expect(feed).to_have_attribute("aria-pressed", "true")
+    message.get_by_role("button", name="Cancel").click()
+    expect(message.locator(".lf-msg-editor")).to_have_count(0)
+    expect(message.locator(".lf-msg-kept")).to_have_count(0)
+    expect(message.locator(".lf-msg-text")).to_have_text("Fit the south bracket.")
+
+
+def test_a_rewrite_opened_on_held_words_starts_from_the_words_as_they_stand(
+    browser, serve
+):
+    """A rewrite another tab made, which Feed held back behind its news notice, stayed
+    under a rewrite opened here: the editor opened on the old words over the old
+    revision, so even a Save of words the user had not changed was sent, and the log
+    refused it. Until the user changes them, the editor's words follow the message, so
+    it shows the other rewrite and is written over it."""
+    page, workspace, message = _rewrite_surface(browser, serve, "feed")
+    mine = message.get_attribute("data-event")
+    words = message.locator(".lf-msg-text")
+    other = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "edit",
+            "author": "user",
+            "message": mine,
+            "base": mine,
+            "text": "Fit the west bracket.",
+        },
+    )
+    round_trip(page)
+    # Feed holds the other rewrite back while the user reads the message.
+    expect(workspace.locator(".lf-primary-news").first).to_have_text("1 message edited")
+    expect(words).to_have_text("Fit the north bracket.")
+    words.dblclick()
+    editor = message.locator(".lf-msg-editor leaf-text")
+    expect(editor).to_be_focused()
+    expect(editor).to_have_js_property("value", "Fit the west bracket.")
+    page.keyboard.type(" Twice.")
+    page.keyboard.press("Enter")
+    expect(words).to_have_text("Fit the west bracket. Twice.")
+    round_trip(page)
+    edits = [e for e in events_model.read_events(serve.page_dir) if e["kind"] == "edit"]
+    assert [(e["text"], e["base"]) for e in edits] == [
+        ("Fit the west bracket.", mine),
+        ("Fit the west bracket. Twice.", other["id"]),
+    ]
+
+
+def test_one_editor_shows_a_message_across_its_readers(browser, serve):
+    """A rewrite opened on a message in Feed stayed open there when the same message's
+    rewrite was opened in the Threads panel, so two editors of one draft stood at once.
+    Opening it in one reader closes it in the other, the message there reading as it
+    stands."""
+    page, _workspace, message = _rewrite_surface(browser, serve, "feed")
+    mine = message.get_attribute("data-event")
+    message.locator(".lf-msg-text").dblclick()
+    expect(message.locator(".lf-msg-editor leaf-text")).to_be_focused()
+    page.locator(".lf-threads-toggle").click()
+    card = page.locator(f'.lf-thread .lf-msg[data-mid="{mine}"]')
+    card.locator(".lf-msg-text").dblclick()
+    expect(card.locator(".lf-msg-editor leaf-text")).to_be_focused()
+    expect(message.locator(".lf-msg-editor")).to_have_count(0)
+    expect(message.locator(".lf-msg-text")).to_have_text("Fit the north bracket.")
+
+
+def test_one_unchanged_rewrite_stands_open_in_a_thread_across_its_readers(
+    browser, serve
+):
+    """Opening a rewrite of one message closes a rewrite of another in the same thread
+    whose words the user left as they were, in a thread card. A rewrite left open in
+    Feed stayed open when another message's rewrite opened in the Threads panel, since
+    each reader put aside only its own."""
+    page, workspace, message = _rewrite_surface(browser, serve, "feed", thanks=True)
+    message.locator(".lf-msg-text").dblclick()
+    expect(message.locator(".lf-msg-editor leaf-text")).to_be_focused()
+    page.locator(".lf-threads-toggle").click()
+    said = page.locator(".lf-thread .lf-msg.user").filter(has_text="Thanks.")
+    # Named by its id, since an open rewrite holds its words in the box, not as text.
+    thanks = page.locator(
+        f'.lf-thread .lf-msg[data-mid="{said.get_attribute("data-mid")}"]'
+    )
+    thanks.locator(".lf-msg-text").dblclick()
+    expect(thanks.locator(".lf-msg-editor leaf-text")).to_be_focused()
+    expect(workspace.locator(".lf-msg-editor")).to_have_count(0)
+    expect(message.locator(".lf-msg-text")).to_have_text("Fit the north bracket.")
 
 
 def test_walking_up_through_rewrites_shows_each_one(browser, serve):

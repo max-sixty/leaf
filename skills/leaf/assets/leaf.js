@@ -288,7 +288,7 @@ const navigation = createNavigation({
     scrollToThread: (...args) => anchorTravel.scrollToThread(...args),
     threadHere: () => app.threadDestinations.threadHere(),
     threadAtStanding: () => app.threadDestinations.threadAtStanding(),
-    threadTarget: (...args) => app.threadDestinations.threadTarget(...args),
+    threadPlace: (...args) => app.threadDestinations.threadPlace(...args),
   },
 });
 
@@ -556,7 +556,7 @@ const queueWalk = createQueueWalk({
   arriveAtQuestion: questions.arriveAtQuestion,
   arriveAtThread: navigation.arriveAtThread,
   threadHere: () => app.threadDestinations.threadHere(),
-  threadTarget: (id) => app.threadDestinations.threadTarget(id),
+  threadPlace: (id) => app.threadDestinations.threadPlace(id),
   prepareTrip: anchorTravel.prepareTrip,
   arrive: anchorTravel.arrive,
   readableDestination: anchorTravel.readableDestination,

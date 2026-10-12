@@ -52,6 +52,7 @@ import {
   focusDestination,
   scrollIntoView,
   whileConnected,
+  focused,
 } from "/runtime/widget-api.js";
 
 export default class extends HTMLElement {
@@ -317,8 +318,7 @@ export default class extends HTMLElement {
     grip.addEventListener("blur", () => {
       if (this.#grabbed?.grip !== grip) return;
       setTimeout(() => {
-        if (this.#grabbed?.grip === grip && document.activeElement !== grip)
-          this.#cancel();
+        if (this.#grabbed?.grip === grip && focused() !== grip) this.#cancel();
       });
     });
     card.append(grip);

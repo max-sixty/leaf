@@ -599,6 +599,29 @@ def test_a_key_pressed_before_presentation_runs_once_the_page_presents(
     expect(echo).to_have_count(0)
 
 
+def test_a_key_pressed_on_a_checkbox_before_the_runtime_loads_is_held(browser, serve):
+    """A checkbox takes no letters, so `t` pressed on one before the runtime loads is a
+    page key, held and replayed as it is from anywhere else on the page."""
+    url = serve(
+        leaf_page(
+            "Held keys",
+            "<h1>Held keys</h1><p id='said'>A sentence the user commented on.</p>"
+            "<label><input type='checkbox' id='box'> Agreed</label>",
+        ),
+        events=[HELD_KEYS_THREAD],
+    )
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    held, release = _hold_startup(page, "module")
+    page.goto(url, wait_until="commit")
+    holding(page, held, 1, "the module request")
+    page.locator("#box").focus()
+    page.keyboard.press("t")
+    expect(page.locator(".lf-held-keys kbd")).to_have_text("t")
+    release()
+    expect(page.locator('[data-thread="held-thread"]').first).to_be_focused()
+
+
 @pytest.mark.parametrize("stage", ["module", "state"])
 def test_disabled_quick_shortcuts_are_not_held_before_presentation(
     browser, serve, stage

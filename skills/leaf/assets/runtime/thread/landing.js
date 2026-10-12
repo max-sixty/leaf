@@ -42,7 +42,6 @@ import {
   scrollIntoView,
 } from "../landing-scroll.js";
 import { landingBand, shownBox } from "../geometry.js";
-import { documentFocused } from "../keyboard/scopes.js";
 import {
   focusDestination,
   focused,
@@ -51,6 +50,8 @@ import {
   pressing,
   takesLetters,
   whenLeft,
+  deepFocus,
+  standingIn,
 } from "../focus.js";
 import { under } from "../shadow.js";
 import { scrollBehavior } from "../motion.js";
@@ -165,7 +166,7 @@ function backFromBox() {
 // Whether the box the user is typing in has somewhere to hand them back: the
 // thread it belongs to, or the panel's list from the panel's own find box.
 const boxHandsBack = () =>
-  Boolean(backFromBox()) || Boolean(documentFocused()?.closest?.(".lf-thread-panel"));
+  Boolean(backFromBox()) || Boolean(focused(document)?.closest?.(".lf-thread-panel"));
 // The box, or the reply's composition row around it, which takes its Send control too.
 const inBox = () => takesLetters(focused()) || replyDraftContext(focused()) !== null;
 // Whether Escape here leaves a box for the place it hands back to. The page's let-go
@@ -202,10 +203,10 @@ pageScope("text entry", {
       run: () => {
         const back = backFromBox();
         dismissReplyAt(focused());
-        const panelList = documentFocused()
+        const panelList = focused(document)
           ?.closest?.(".lf-thread-panel")
           ?.querySelector(".lf-threads");
-        document.activeElement.blur();
+        deepFocus()?.blur();
         const target = back?.target ?? panelList;
         if (!target) return;
         if (!target.matches?.(THREAD)) {
@@ -499,7 +500,7 @@ async function showThreadNow(
       else focusDestination(destination, "move");
     });
   }
-  const directThread = node === thread && thread.contains(focused());
+  const directThread = node === thread && standingIn(thread);
   // A direct arrival aims at the reply area wherever the user stands in the thread; a
   // long thread whose reply row is pinned aims at the thread's end, which the row
   // stands over.

@@ -579,6 +579,59 @@ const placementsRule = {
   },
 };
 
+// Where the user stands is read through `focused()` in focus.js, or `focused(tree)` for
+// the node standing for it in one tree, as `tree.activeElement` retargets focus. A raw
+// `activeElement`, of the document or of a shadow root, misses a label press that holds
+// the user on the element they stood on, and the document's stops at the host of the
+// shadow tree they stand in, so a copy of that reading answers differently from every
+// other at exactly those edges. A frame's `contentDocument.activeElement` is the frame
+// page's own question. The option names the files that may still read it.
+const STANDING_READ_MESSAGE =
+  "Read where the user stands with focused() (runtime/focus.js; widget-api.js in a package), or focused(tree) for the node standing for it in one document or shadow root: a raw activeElement misses a label press holding them and focus inside shadow trees.";
+export const standingReadsRule = {
+  meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
+  create(context) {
+    const file = path
+      .relative(standingRepoRoot, context.filename ?? context.getFilename())
+      .split(path.sep)
+      .join("/");
+    if ((context.options[0] ?? []).includes(file)) return {};
+    return {
+      MemberExpression(node) {
+        if (
+          !node.computed &&
+          node.property.name === "activeElement" &&
+          !(
+            node.object.type === "MemberExpression" &&
+            !node.object.computed &&
+            node.object.property.name === "contentDocument"
+          )
+        )
+          context.report({ node, message: STANDING_READ_MESSAGE });
+      },
+      // `scope.contains(focused())`, in either reading, stops at a shadow root and misses a
+      // node slotted into the scope, where `standingIn(scope)` climbs as rendered.
+      CallExpression(node) {
+        const { callee, arguments: args } = node;
+        if (
+          callee.type === "MemberExpression" &&
+          !callee.computed &&
+          callee.property.name === "contains" &&
+          args.length === 1 &&
+          args[0].type === "CallExpression" &&
+          args[0].callee.type === "Identifier" &&
+          args[0].callee.name === "focused"
+        )
+          context.report({
+            node,
+            message:
+              "Ask whether the user stands in a scope with standingIn(scope) (runtime/focus.js; widget-api.js in a package): contains() stops at a shadow root.",
+          });
+      },
+    };
+  },
+};
+
 // Whether a node is an open native layer, or stands in one, is asked of shadow-tree.js
 // (`nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding`), and which are open of keyboard/layer-stack.js
 // (`nativeLayers`). A selector naming the open state answers it again, and the copies
@@ -915,6 +968,7 @@ const architecturePlugin = {
     "semantic-store-ownership": semanticStoreOwnershipRule,
     "standing-listeners": standingListenersRule,
     placements: placementsRule,
+    "standing-reads": standingReadsRule,
     "open-layers": openLayersRule,
     moves: movesRule,
     "layer-returns": layerReturnsRule,
@@ -1474,6 +1528,17 @@ export default [
         [
           // The owner of the hand-back and the let-go.
           "skills/leaf/assets/runtime/focus.js",
+        ],
+      ],
+      "architecture/standing-reads": [
+        "error",
+        [
+          // The one reading of where the user stands.
+          "skills/leaf/assets/runtime/focus.js",
+          // The editor asks whether its own content holds focus inside the closed
+          // root it renders in, which focus.js, reading through open roots, cannot see.
+          "skills/leaf/assets/runtime/editor-view.js",
+          "skills/leaf/assets/runtime/composing/text-field.js",
         ],
       ],
       "architecture/moves": [

@@ -97,6 +97,7 @@ import {
   rove,
   rowArrows,
   scrollIntoView,
+  focused,
 } from "/runtime/widget-api.js";
 
 // The page's navigation strip, where one stands: the first tab set in main, drawn as
@@ -238,14 +239,14 @@ export default class extends HTMLElement {
       const order = [...this.#buttons.values()];
       // The strip takes no tab stop of its own, so focus inside it — which is the
       // whole of when this scope holds — is always one of these buttons.
-      const at = order.indexOf(document.activeElement);
+      const at = order.indexOf(focused());
       const next = order[to(at, order.length)];
       // The strip is always on screen; focus scrolling a stuck tab back to its place
       // in flow would move the view being left before the switch records it.
       focusDestination(next, "move");
       next.click();
       beginWalk("tab", "Tab", () =>
-        listWalkPosition([...this.#buttons.values()], document.activeElement),
+        listWalkPosition([...this.#buttons.values()], focused()),
       );
     };
     // Across the row, back is the way the names run from.
@@ -258,8 +259,8 @@ export default class extends HTMLElement {
 
         // The tab already open has nothing for this press to do, so the line does not
         // name it there; the walk beside it is what moves.
-        when: () => document.activeElement?.getAttribute("aria-selected") !== "true",
-        run: () => document.activeElement.click(),
+        when: () => focused()?.getAttribute("aria-selected") !== "true",
+        run: () => focused().click(),
       },
       {
         id: "tab.walk",

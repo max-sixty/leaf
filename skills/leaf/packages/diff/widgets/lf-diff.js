@@ -66,6 +66,7 @@ import {
   whileConnected,
   scrollIntoView,
   layoutPx,
+  focused,
 } from "/runtime/widget-api.js";
 import {
   diffDatumKey,
@@ -1624,8 +1625,8 @@ export default class extends HTMLElement {
   // against, and the tools row standing before every file is why a user who has
   // touched nothing steps to the first hunk rather than nowhere.
   hereNode() {
-    const focused = this.shadowRoot?.activeElement;
-    return focused && this.shadowRoot.contains(focused) ? focused : null;
+    const standing = this.shadowRoot && focused(this.shadowRoot);
+    return standing && this.shadowRoot.contains(standing) ? standing : null;
   }
 
   // With nothing focused inside the shadow tree — the host itself is focused, which
@@ -1734,9 +1735,9 @@ export default class extends HTMLElement {
   }
 
   entryAroundFocus() {
-    const focused = this.hereNode();
+    const here = this.hereNode();
     const focusedEntry =
-      this.fileEntries?.find(({ node }) => focused && node.contains(focused)) ?? null;
+      this.fileEntries?.find(({ node }) => here && node.contains(here)) ?? null;
     if (focusedEntry) return focusedEntry;
     return this.fileEntries?.includes(this.fileCursor) ? this.fileCursor : null;
   }

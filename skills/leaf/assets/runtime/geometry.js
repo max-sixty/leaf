@@ -513,7 +513,7 @@ export function containingView() {
 // holding page, through its document, and of the pages holding that one in turn, and
 // the frame moving in its holder's viewport, which no event in either page announces.
 // Returns the call that stops watching.
-export const ROOM_MOVED = "lf-room-moved";
+const ROOM_MOVED = "lf-room-moved";
 export const announceRoom = (target) =>
   target.dispatchEvent(new Event(ROOM_MOVED, { bubbles: true, composed: true }));
 const WATCH_ROOM = Symbol.for("leaf.watchRoom");

@@ -1949,7 +1949,9 @@ def test_a_page_seat_the_open_panel_stands_over_is_not_read(
         # as the panel goes, so only the panel's own announcement sets off the pass that
         # reads the answer, before the page settles. An unrelated pass would read it some
         # 40s on, so waiting for the receipt proves nothing.
-        page.locator(".lf-shortcut-bar").evaluate("bar => { bar.style.display = 'none'; }")
+        page.locator(".lf-shortcut-bar").evaluate(
+            "bar => { bar.style.display = 'none'; }"
+        )
         page.get_by_role("button", name="Close threads").click()
         panel_settled(page, open=False)
         rendered(page)

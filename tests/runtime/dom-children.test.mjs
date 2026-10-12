@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { patchRetains, patchTree, setChildren } from "/runtime/dom-children.js";
 import { under } from "/runtime/shadow.js";
+import { shadowStage } from "/runtime/shadow-stage.js";
 import { failSoftUnreported } from "/runtime/widget-upgrade.js";
 import { createRef, html, ref, render } from "/vendor/browser-runtime.js";
 
@@ -23,6 +24,27 @@ test("failure replacement releases directives and supports native and template r
   failSoftUnreported(host, new Error("third failure"));
   paint("Final template");
   assert.equal(host.textContent, "Final template");
+});
+
+test("a staged widget shows each failure in its stage and its next stage replaces it", () => {
+  const host = document.createElement("test-widget");
+  document.body.append(host);
+  const view = document.createElement("p");
+  view.textContent = "Good reading";
+  shadowStage(host, [view]);
+  for (const message of ["first failure", "second failure"]) {
+    failSoftUnreported(host, new Error(message));
+    const errors = host.shadowRoot.querySelectorAll(".lf-error");
+    assert.deepEqual(
+      [...errors].map((box) => box.textContent),
+      [`<test-widget> failed: ${message}`],
+    );
+    assert.equal(view.isConnected, false);
+    shadowStage(host, [view]);
+    assert.equal(host.shadowRoot.querySelector(".lf-error"), null);
+    assert.equal(view.isConnected, true);
+  }
+  host.remove();
 });
 
 function patch(beforeMarkup, afterMarkup = beforeMarkup) {

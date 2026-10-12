@@ -24,7 +24,11 @@ path works, the review is done. Reserve findings for architectural seams,
 cross-runtime invariants, public surface traps, regressions on the claimed path,
 or a central claim or test that is false. Omit bounded edge cases, exhaustive
 same-pattern cleanup, minor simplification, and prose or test polish unless they
-expose one of those problems.
+expose one of those problems. In shipped text (the references, `--help`, UI strings,
+`SKILL.md`, and the agent instructions in the `AGENTS.md` files and
+`/developing-leaf`), three prose defects are public surface traps, not polish: mechanism written
+for a reader other than the one the text addresses, a second copy of a rule another
+text owns, and a coined term used without its definition.
 
 A diff that settles its symptom without reaching the underlying issue is an
 architectural seam, not polish: name the issue, and withhold approval unless the

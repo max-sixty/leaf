@@ -6,12 +6,14 @@ every field the server sends and cannot omit one the runtime relies on. `thread`
 `workflow` are one record of each, which `served.mjs` hands out for a test to change
 only the fields the server sends; `gestures` holds an admitted edit, undo, refusal
 and revision sequence shared across runtimes; `question_values` holds typed values
-folded by Python for comparison with the browser; `readings` holds whole served readings
-whose premise is the case under test. `served.mjs` reads this output directly, so its
+folded by Python for comparison with the browser; `state_definitions` holds the
+operation definitions Python records, for the browser's comparison of them; `readings`
+holds whole served readings whose premise is the case under test. `served.mjs` reads this output directly, so its
 assertions always consume this checkout's server rather than a recorded copy.
 """
 
 import json
+from pathlib import Path
 
 from interact_support import model_layer
 from leaf.agent_state import queues
@@ -19,6 +21,7 @@ from leaf.event_log import EventRefused
 from leaf.passages import SourceReading
 from leaf.projection import StateProjection, authored_rank, question_value
 from leaf.questions import collection
+from leaf.registry.contract import state_definition
 from leaf.structure import SourceDocument
 from model_folds import leaf_page, served_reading
 
@@ -56,6 +59,7 @@ def build() -> dict:
     workflows = {workflow["id"]: workflow for workflow in records["workflows"]}
     return {
         "question_values": question_value_cases(),
+        "state_definitions": state_definition_cases(),
         "thread": threads["e1"],
         "workflow": workflows["e4"],
         "gestures": gesture_sequence(),
@@ -463,13 +467,36 @@ def gesture_sequence() -> dict:
         assert "already been taken back" in str(error), str(error)
     else:
         raise AssertionError("The duplicate undo must be refused")
+    layer = model_layer()
     return {
-        "declaration": model_layer()["lf-draft"],
+        "declaration": layer["lf-draft"],
+        "stamped": layer["$states"]["lf-draft"],
         "authored": authored,
         "commands": commands,
         "states": states,
         "refused": duplicate,
     }
+
+
+def state_definition_cases() -> list[dict]:
+    """`state_definition_cases.json`, each pair of detail schemas as the definitions
+    Python records, so the browser's comparison is held to the same verdicts."""
+    cases = json.loads(
+        Path(__file__).with_name("state_definition_cases.json").read_text()
+    )
+    return [
+        {
+            "id": case["id"],
+            "definitions": [
+                state_definition(
+                    "lf-local", {}, {"unit": "widget", "detail": case[key]}
+                )
+                for key in ("before", "after")
+            ],
+            "same": case["same"],
+        }
+        for case in cases
+    ]
 
 
 def serialized() -> str:

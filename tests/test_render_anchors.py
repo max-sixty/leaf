@@ -186,7 +186,8 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
     wait_until_ready(page)
     result = page.evaluate(
         """async () => {
-        const {TEXT_BLOCK, pageRange} = await window.__lfRuntimeImport('/runtime/passages.js');
+        const {pageRange} = await window.__lfRuntimeImport('/runtime/passages.js');
+        const {TEXT_BLOCK} = await window.__lfRuntimeImport('/runtime/passage-facts.js');
         const {anchorForRange, resolveAnchor} =
             await window.__lfRuntimeImport('/runtime/anchor-resolution.js');
         const {nextRender, renderingState} =

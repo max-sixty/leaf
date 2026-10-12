@@ -13,6 +13,14 @@
 /** @typedef {import("../../../../../build/browser/domain.ts").UnitValue} UnitValue */
 /** @typedef {import("../../../../../build/browser/domain.ts").PositionValue} PositionValue */
 /** @typedef {import("../../../../../build/browser/domain.ts").Projection} Projection */
+// A state coordinate, `[owner, unit, verb]`, as the key the folds index it by. The
+// server sends the tuple (`projection.py`); the browser keys and reads it back here.
+/** @param {string} owner @param {string} unit @param {string} verb */
+export const stateCoordinate = (owner, unit, verb) =>
+  JSON.stringify([owner, unit, verb]);
+/** @param {string} key @returns {[string, string, string]} */
+export const coordinateOf = (key) => JSON.parse(key);
+
 /** @param {{detail: Record<string, unknown>}} event @param {import("../../../../../build/browser/domain.ts").StateRecord} record */
 export function foldedValue(event, record) {
   const value = event.detail.value;

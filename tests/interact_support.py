@@ -464,20 +464,20 @@ def install_payload(destination):
     return destination
 
 
-def vendored_by_another_leaf(page_dir: Path) -> str:
-    """Record another Leaf's runtime identity in the page's layer, and return it.
+def vendored_at_another_protocol(page_dir: Path) -> int:
+    """Record another page protocol in the page's layer, and return it.
 
-    The state a plugin update, or a runtime edit in a checkout, leaves a page in:
-    its runtime modules are the ones an earlier `page init` copied, and this Leaf's
-    own are something else. Only the stamp changes, which is all a comparison of
-    identities reads, and it is replaced rather than written through, as every
-    file a lent page may share with its template has to be.
+    The state a breaking Leaf update leaves a page in: its layer is the one an
+    earlier `page init` copied, at a number this Leaf no longer speaks. Only the
+    stamp changes, which is all the comparison reads, and it is replaced rather
+    than written through, as every file a lent page may share with its template
+    has to be.
     """
     stamp = page_dir / "registry.json"
     registry = json.loads(stamp.read_text(encoding="utf-8"))
-    foreign = "sha256:" + "b" * 64
-    assert registry["$layer"]["runtime"] != foreign
-    registry["$layer"]["runtime"] = foreign
+    foreign = 999
+    assert registry["$layer"]["protocol"] != foreign
+    registry["$layer"]["protocol"] = foreign
     cleanup_model.write_json(stamp, registry)
     return foreign
 
@@ -602,32 +602,15 @@ def declare_data_input(
         assert activated.error is None
 
 
-def stamp_activation(d):
-    """Activate the source as `page stamp` does: checked against the standing
-    log with transitions allowed, ahead of the note that records them."""
-    from leaf.validation.source import check_source
+def publish(d, text="published"):
+    """Stamp the source as the next version, through `page stamp`'s own path.
 
-    with service_model.PageTransaction(d) as page:
-        checked = check_source(d, page.events)
-        return revisioning_model.activate_checked_source(page, checked)
+    The stamped version is the user-seen baseline: `page check` compares against
+    the last one, and an action can only ever be made against one the server
+    exposed. Returns the stamp's note."""
+    from leaf.publishing import cmd_stamp
 
-
-def publish(d, version=1):
-    """Append the note event that makes a version the user-seen baseline:
-    `page check` compares against the last *published* version, and an action
-    can only ever be made against one the server exposed."""
-    activated = stamp_activation(d)
-    assert activated.error is None and activated.revision is not None
-    append_carried_log_record(
-        d,
-        {
-            "kind": "note",
-            "author": "agent",
-            "version": version,
-            "revision": activated.revision,
-            "text": "published",
-        },
-    )
+    return cmd_stamp(d, text)
 
 
 def let_a_pick_settle_a_thread(page_dir, thread):

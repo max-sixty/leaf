@@ -176,7 +176,7 @@ def test_required_approval_is_a_question_for_its_exact_stamp_until_approved(page
         source.replace("<title>t</title>", "<title>Revised</title>")
     )
     assert state_json(page_dir)["queues"]["on_you"] == []
-    publish(page_dir, version=2)
+    publish(page_dir)
     [next_approval] = state_json(page_dir)["queues"]["on_you"]
     assert (next_approval["id"], next_approval["question"]["source"]) == (
         "approval:v2",

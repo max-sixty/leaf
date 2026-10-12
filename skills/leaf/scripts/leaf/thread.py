@@ -1,7 +1,9 @@
 """Thread writes, addressed response admission, and provider reply reservations."""
 
+from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
+from typing import NamedTuple
 
 from leaf.activity import answer_command
 from leaf.delivery import (
@@ -289,53 +291,86 @@ def answered_by_reply(events: list[dict], for_event: str) -> bool:
     return bool(successful_replies(events, for_event))
 
 
+@dataclass(frozen=True)
+class Refuse:
+    """An ordinary writer's settlement: a stale or settled response address is
+    refused, with what the log holds instead."""
+
+
+@dataclass(frozen=True)
+class ProviderFinal:
+    """A provider turn's final message, committed at the address its delivery
+    reserved (`reserve_delivery_reply`).
+
+    It keeps that address after the user settled the update, but yields to an answer
+    another writer already gave it (a failure receipt is no answer), so a turn's
+    answer committed after its binding lapsed never answers twice; and it writes
+    nothing once another delivery holds the address."""
+
+    reservation: str
+
+
+@dataclass(frozen=True)
+class Receipt:
+    """A harness's failure receipt: an update that no longer owes an answer takes
+    none. With `only_if_unclaimed`, an update some turn already picked up is left to
+    the writer following that turn."""
+
+    only_if_unclaimed: bool
+
+
+Settlement = Refuse | ProviderFinal | Receipt
+REFUSE = Refuse()
+
+
+class _Obligation(NamedTuple):
+    """Where a reply goes once its address has been checked against the log."""
+
+    to: str
+    thread: str
+    responds: str | None
+    # The update a progress reply takes in hand, if it owes one.
+    in_hand: str | None
+
+
 @contract_writer
 def post_reply(
     page_dir: Path,
-    to: str | None,
+    address: dict,
     text,
-    markup: str,
-    question: bool = False,
+    markup: str = "",
     *,
+    settlement: Settlement = REFUSE,
+    attempt: str | None = None,
+    identity: dict | None = None,
+    claimed_session: str | None = None,
+    failure: str | None = None,
+    validate_source: bool = False,
+    question: bool = False,
     task: str | None = None,
-    for_event: str | None,
+    ephemeral: bool = False,
     quote: str = "",
     section: str = "",
     part: str = "",
     detach: bool = False,
-    attempt: str | None = None,
-    when_settled: str = "refuse",
-    only_if_unclaimed: bool = False,
-    failure: str | None = None,
-    identity: dict | None = None,
-    validate_source: bool = False,
-    claimed_session: str | None = None,
-    ephemeral: bool = False,
-    captured_input: dict | None = None,
-    captured_claim: str | None = None,
     title: str | None = None,
-    reservation: str | None = None,
 ) -> dict | None:
     """Post one complete threaded reply, optionally moving or detaching its anchor;
     the appended record, or the earlier reply a repeated `attempt` names, or none
-    when `when_settled` leaves nothing to write.
+    when `settlement` leaves nothing to write.
+
+    ``address`` takes the fields of a response address (`delivery.response_address`):
+    ``for`` fences the write to that exact current obligation, and ``to`` names the
+    message it threads under, which may differ from ``for`` when a widget gesture
+    belongs to a frozen thread; ``to`` alone posts a new agent message, which the
+    thread must currently owe no reply for, and the event then carries no
+    ``responds``. ``input`` and ``claim``, which a delivery captured, fence it to that
+    page log and delivery owner.
 
     A repeated ``attempt`` is matched more loosely than the append door's payload
-    identity: by kind, progress or answer, response address and declaration, so a
-    CLI retry whose text was reworded returns the first reply rather than refusing.
-
-    ``for_event`` fences the write to the exact current obligation. Its response
-    address may differ from ``to`` when a widget gesture belongs to a frozen
-    thread. The immutable response reference supplies both values. ``to``
-    without ``for_event`` posts a new agent message, which the thread must
-    currently owe no reply for; the event then carries no ``responds``.
-
-    ``when_settled`` distinguishes completed delivery answers from failure receipts.
-    ``post`` retains the delivered response address even after settlement, but
-    yields to an answer another writer already gave the update (a failure receipt
-    is no answer), so a turn's answer committed after its binding lapsed never
-    answers twice; ``skip`` omits a receipt when no answer is owed. The default ``refuse`` rejects a stale
-    response address from an ordinary CLI writer.
+    identity: by kind, progress, failure receipt or answer, response address and
+    declaration, so a CLI retry whose text was reworded returns the first reply
+    rather than refusing.
 
     ``failure`` records a harness-owned failure code alongside its presentation text;
     ordinary agent answers omit it.
@@ -363,307 +398,390 @@ def post_reply(
                     f"page is no longer claimed by session {claimed_session!r}"
                 )
             posting_identity = {"agent": claim["agent"], "session": claim["id"]}
-        if captured_input is not None and captured_claim != page.delivery_owner:
-            raise ReceiptRefused("response page claim no longer matches its delivery")
-        provider_session = (
-            posting_identity.get("session") if reservation is not None else None
-        )
-        events = page.events
-        if captured_input is not None and not any(
-            event["id"] == captured_input["id"]
-            and event["seq"] == captured_input["seq"]
-            for event in events
-        ):
-            raise ReceiptRefused("response no longer matches its page log")
-        if attempt is not None:
-            existing = next(
-                (event for event in events if event.get("attempt") == attempt), None
+        captured = address.get("input")
+        if captured is not None:
+            if address["claim"] != page.delivery_owner:
+                raise ReceiptRefused(
+                    "response page claim no longer matches its delivery"
+                )
+            if not any(
+                event["id"] == captured["id"] and event["seq"] == captured["seq"]
+                for event in page.events
+            ):
+                raise ReceiptRefused("response no longer matches its page log")
+        if attempt is not None and (
+            repeated := _repeated_reply(
+                page.events,
+                attempt,
+                address,
+                ephemeral,
+                failure is not None,
+                question,
+                task,
             )
-            if existing:
-                same_scope = (
-                    existing.get("responds") == (None if ephemeral else for_event)
-                    if for_event is not None or to is not None
-                    else True
-                )
-                if (
-                    existing["kind"] != "reply"
-                    or bool(existing.get("ephemeral")) != ephemeral
-                    or (to is not None and existing["parent"] != to)
-                    or not same_scope
-                ):
-                    raise Refused(
-                        f"attempt {attempt!r} already belongs to another event"
-                    )
-                if (bool(existing.get("question")), existing.get("task")) != (
-                    question,
-                    task,
-                ):
-                    # A repeat that asks or promises differently would otherwise
-                    # return the first answer and drop what this one declares.
-                    raise Refused(
-                        f"{existing['id']!r} already answered this with a different "
-                        "declaration; ask or promise in a new message with "
-                        "`leaf thread reply`"
-                    )
-                return existing
-        if (
-            when_settled == "post"
-            and for_event is not None
-            and answered_by_reply(events, for_event)
         ):
+            return repeated
+        obligation = _resolve_obligation(
+            page,
+            address,
+            settlement,
+            posting_identity.get("session"),
+            ephemeral,
+            failure,
+        )
+        if obligation is None:
             return None
-        responses = current_responses(page_dir, events)
-        if for_event is not None and to is None:
-            expected = responses.get(for_event)
-            if expected is None or expected["kind"] != "reply":
+        return _compose_and_append(
+            page,
+            obligation,
+            posting_identity,
+            text,
+            markup,
+            attempt=attempt,
+            failure=failure,
+            validate_source=validate_source,
+            question=question,
+            task=task,
+            ephemeral=ephemeral,
+            quote=quote,
+            section=section,
+            part=part,
+            detach=detach,
+            title=title,
+        )
+
+
+def _repeated_reply(
+    events: list,
+    attempt: str,
+    address: dict,
+    ephemeral: bool,
+    failed: bool,
+    question: bool,
+    task: str | None,
+) -> dict | None:
+    """The reply an earlier write with this `attempt` appended, or None; refuses an
+    attempt that named another kind of write: progress, a failure receipt and an
+    answer are each their own."""
+    existing = next(
+        (event for event in events if event.get("attempt") == attempt), None
+    )
+    if existing is None:
+        return None
+    to, for_event = address.get("to"), address.get("for")
+    same_scope = (
+        existing.get("responds") == (None if ephemeral else for_event)
+        if for_event is not None or to is not None
+        else True
+    )
+    if (
+        existing["kind"] != "reply"
+        or bool(existing.get("ephemeral")) != ephemeral
+        or ("failure" in existing) != failed
+        or (to is not None and existing["parent"] != to)
+        or not same_scope
+    ):
+        raise Refused(f"attempt {attempt!r} already belongs to another event")
+    if (bool(existing.get("question")), existing.get("task")) != (question, task):
+        # A repeat that asks or promises differently would otherwise return the
+        # first answer and drop what this one declares.
+        raise Refused(
+            f"{existing['id']!r} already answered this with a different "
+            "declaration; ask or promise in a new message with `leaf thread reply`"
+        )
+    return existing
+
+
+def _resolve_obligation(
+    page: PageTransaction,
+    address: dict,
+    settlement: Settlement,
+    session: str | None,
+    ephemeral: bool,
+    failure: str | None,
+) -> _Obligation | None:
+    """Check `address` against the obligations the log holds now; where the reply
+    goes, or None where `settlement` says to write nothing."""
+    page_dir, events = page.page_dir, page.events
+    to, for_event = address.get("to"), address.get("for")
+    if (
+        isinstance(settlement, ProviderFinal)
+        and for_event is not None
+        and answered_by_reply(events, for_event)
+    ):
+        return None
+    responses = current_responses(page_dir, events)
+    if for_event is not None and to is None:
+        expected = responses.get(for_event)
+        if expected is None or expected["kind"] != "reply":
+            if isinstance(settlement, Receipt):
+                return None
+            held = logged_id(events, for_event, responses)
+            raise Refused(
+                f"event {for_event!r} takes no reply; "
+                + (held or f"this page's log holds no event {for_event!r}")
+            )
+        to = expected["to"]
+    thread_id, to = thread_addressed(page_dir, events, to)
+    in_hand = None
+    if for_event is not None:
+        expected = responses.get(for_event)
+        if (
+            expected is None
+            or expected["kind"] != "reply"
+            or (expected["to"], expected["for"]) != (to, for_event)
+        ):
+            if isinstance(settlement, Receipt):
+                return None
+            if not isinstance(settlement, ProviderFinal):
                 held = logged_id(events, for_event, responses)
-                refusal = f"event {for_event!r} takes no reply; " + (
-                    held or f"this page's log holds no event {for_event!r}"
+                raise Refused(
+                    f"event {for_event!r} no longer requires a reply to {to!r}; "
+                    + (held or "read the current delivery or thread state")
                 )
-                if when_settled == "skip":
-                    return None
-                raise Refused(refusal)
-            to = expected["to"]
-        assert to is not None
-        thread_id, to = thread_addressed(page_dir, events, to)
-        opening = _messages(events).get(thread_id)
+        elif ephemeral:
+            in_hand = for_event
         # Current custody belongs to the binding, independently of capture-time
         # writer hints and caller-supplied retry identity.
-        in_hand = None
-        if for_event is not None:
-            expected = responses.get(for_event)
-            if (
-                expected is None
-                or expected["kind"] != "reply"
-                or (expected["to"], expected["for"]) != (to, for_event)
-            ):
-                if when_settled == "skip":
+        binding = page.standing_reply_binding(for_event)
+        if binding is not None:
+            if isinstance(settlement, ProviderFinal):
+                if (session, settlement.reservation) != (
+                    binding["session"],
+                    binding["attempt"],
+                ):
                     return None
-                if when_settled != "post":
-                    held = logged_id(events, for_event, responses)
-                    raise Refused(
-                        f"event {for_event!r} no longer requires a reply to {to!r}; "
-                        + (held or "read the current delivery or thread state")
+            elif not ephemeral and (
+                address.get("input") is None or failure is not None
+            ):
+                refusal = f"event {for_event!r} is answered by this turn's messages; "
+                if failure is not None:
+                    refusal += (
+                        "failure receipts wait for this turn to release the answer; "
+                        "answer in your final message or use "
+                        "`leaf response reply <answer.ref>` without `--failure`"
                     )
-            elif ephemeral:
-                in_hand = for_event
-            binding = page.standing_reply_binding(for_event)
-            if binding is not None:
-                if reservation is not None:
-                    if (provider_session, reservation) != (
-                        binding["session"],
-                        binding["attempt"],
-                    ):
-                        return None
-                elif not ephemeral and (captured_input is None or failure is not None):
-                    refusal = (
-                        f"event {for_event!r} is answered by this turn's messages; "
+                else:
+                    refusal += (
+                        "use `leaf response reply <answer.ref>` to commit "
+                        "an explicit answer"
                     )
-                    if failure is not None:
-                        refusal += (
-                            "failure receipts wait for this turn to release the answer; "
-                            "answer in your final message or use "
-                            "`leaf response reply <answer.ref>` without `--failure`"
-                        )
-                    else:
-                        refusal += (
-                            "use `leaf response reply <answer.ref>` to commit "
-                            "an explicit answer"
-                        )
-                    raise Refused(refusal)
-        else:
-            standing = thread_obligation(events, responses, thread_id)
-            if standing is not None:
-                raise Refused(
-                    f"thread {thread_id!r} currently requires a response; "
-                    f"{answer_command(standing)} answers it"
-                )
-        if only_if_unclaimed and pickup_receipts(
-            events, phase=None, input_id=for_event
-        ):
-            return None
-        moving = bool(quote or section or part)
-        if ephemeral and (question or task or markup or failure or moving or detach):
+                raise Refused(refusal)
+    else:
+        standing = thread_obligation(events, responses, thread_id)
+        if standing is not None:
             raise Refused(
-                "--ephemeral is for progress text; it cannot ask a question, open a task, carry widgets, report failure, or move the thread"
+                f"thread {thread_id!r} currently requires a response; "
+                f"{answer_command(standing)} answers it"
             )
-        if in_hand is not None and start_line_error(text.strip()):
-            raise Refused(
-                f"progress on {in_hand!r}, an update you owe, takes it in hand, and its "
-                "text is the Working line beside the thread and in the banner: write "
-                "it as one line saying what you are doing"
-            )
-        if detach and moving:
-            raise Refused(
-                "--detach cannot be combined with --quote, --section, or --part"
-            )
-        relocating = moving or detach
-        if relocating and opening is None:
-            raise Refused(
-                f"thread {thread_id!r} has no surviving opening comment, so its "
-                "anchor cannot be changed"
-            )
-        if relocating and opening.get("holds"):
-            raise Refused(
-                f"thread {thread_id!r} holds the command goal named by its opening "
-                "comment, so its anchor cannot be changed"
-            )
-        current_thread = (
-            build_threads(events, active_enclosing(page_dir)).get(thread_id)
-            if detach
-            else None
+    if (
+        isinstance(settlement, Receipt)
+        and settlement.only_if_unclaimed
+        and pickup_receipts(events, phase=None, input_id=for_event)
+    ):
+        return None
+    return _Obligation(to, thread_id, None if ephemeral else for_event, in_hand)
+
+
+def _compose_and_append(
+    page: PageTransaction,
+    obligation: _Obligation,
+    posting_identity: dict,
+    text: str,
+    markup: str,
+    *,
+    attempt: str | None,
+    failure: str | None,
+    validate_source: bool,
+    question: bool,
+    task: str | None,
+    ephemeral: bool,
+    quote: str,
+    section: str,
+    part: str,
+    detach: bool,
+    title: str | None,
+) -> dict:
+    """Check the reply's content against the page, compose its event and append it
+    at `obligation`, publishing saved page edits first where `validate_source` or a
+    detach reads them."""
+    page_dir, events = page.page_dir, page.events
+    to, thread_id, responds, in_hand = obligation
+    opening = _messages(events).get(thread_id)
+    moving = bool(quote or section or part)
+    if ephemeral and (question or task or markup or failure or moving or detach):
+        raise Refused(
+            "--ephemeral is for progress text; it cannot ask a question, open a task, carry widgets, report failure, or move the thread"
         )
-        if detach and (current_thread is None or current_thread["anchor"] is None):
-            raise Refused(f"thread {thread_id!r} has no current anchor to detach")
-        reply_revision = None
-        prospective_page = None
-        prospective_anchor = None
-        source_events = events
-        source_matches_active = True
-        if validate_source or detach:
-            active = latest_revision(page_dir)
-            source_matches_active = bool(
-                active is not None
-                and (page_dir / "index.html").is_file()
-                and (page_dir / "index.html").read_bytes()
-                == revision_path(page_dir, active).read_bytes()
-            )
-            if relocating:
-                source_events = [
-                    *events,
-                    {
-                        "kind": "reply",
-                        "id": "prospective-anchor-transition",
-                        "author": "agent",
-                        "text": text,
-                        "seq": events[-1]["seq"] + 1,
-                        "ts": "pending",
-                        "parent": to,
-                        "anchor": None,
-                        **({"responds": for_event} if for_event is not None else {}),
-                    },
-                ]
-            if source_matches_active:
-                reply_revision = active
-            else:
-                from leaf.validation.source import check_source
-
-                checked = check_source(page_dir, source_events)
-                if checked.errors:
-                    operation = "reply" if validate_source else "detach"
-                    raise Refused(
-                        f"cannot {operation} while index.html is invalid: "
-                        f"{'; '.join(checked.errors)}"
-                    )
-                prospective_page = checked.document
-                if moving:
-                    from leaf.registry.storage import require_registry
-
-                    prospective_anchor = _capture_anchor(
-                        page_dir,
-                        events,
-                        SourceReading(checked.document, require_registry(page_dir)),
-                        quote,
-                        section,
-                        part,
-                        (active or 0) + 1,
-                    )
-        fragment = (
-            check_markup(page_dir, "reply", markup, events, page=prospective_page)
-            if markup
-            else None
+    if in_hand is not None and start_line_error(text.strip()):
+        raise Refused(
+            f"progress on {in_hand!r}, an update you owe, takes it in hand, and its "
+            "text is the Working line beside the thread and in the banner: write "
+            "it as one line saying what you are doing"
         )
-        if question and fragment:
-            from leaf.registry.storage import require_registry
-
-            registry = require_registry(page_dir)
-            structural = sorted(
-                {
-                    rec["tag"]
-                    for rec in fragment.lf_elements
-                    if local_question_entry(registry.get(rec["tag"]) or {})
-                    and asking(
-                        rec["attrs"], registry[rec["tag"]]["x-awaits"].get("when")
-                    )
-                    and not quoted_in(rec, registry)
-                }
-            )
-            if structural:
-                raise Refused(
-                    "--question is for a prose question; reply markup already declares "
-                    "a local Question "
-                    f"({', '.join(f'<{tag}>' for tag in structural)})"
-                )
-        if not source_matches_active:
-            from leaf.revisioning import planned_activation
-
-            reply_revision = planned_activation(page_dir, checked).revision
-        if prospective_anchor is not None:
-            revision, anchor = reply_revision, prospective_anchor
-        elif moving:
-            revision, anchor = _current_anchor(
-                page_dir,
-                events,
-                quote,
-                section,
-                part,
-                revision=reply_revision,
-                transaction=page,
-            )
-        elif detach:
-            revision, anchor = reply_revision, None
-        else:
-            revision, anchor = None, None
-        event = {
-            "kind": "reply",
-            "author": "agent",
-            **posting_identity,
-            "parent": to,
-            "text": text,
-            **(
-                {"responds": for_event}
-                if for_event is not None and not ephemeral
-                else {}
-            ),
-        }
-        if ephemeral:
-            event["ephemeral"] = True
-        if in_hand is not None:
-            claim = page.claim
-            turn = (
-                claim.get("turn")
-                if claim and claim["id"] == posting_identity.get("session")
-                else None
-            )
-            event["start"] = {
-                "item": in_hand,
-                **({"turn": turn} if turn else {}),
-            }
-        if question:
-            event["question"] = True
-        if task is not None:
-            event["task"] = task
-        if markup:
-            event["markup"] = markup
-        if attempt is not None:
-            event["attempt"] = attempt
-        if failure is not None:
-            event["failure"] = failure
-        if relocating or markup:
-            event["revision"] = revision or latest_revision(page_dir)
+    if detach and moving:
+        raise Refused("--detach cannot be combined with --quote, --section, or --part")
+    relocating = moving or detach
+    if relocating and opening is None:
+        raise Refused(
+            f"thread {thread_id!r} has no surviving opening comment, so its "
+            "anchor cannot be changed"
+        )
+    if relocating and opening.get("holds"):
+        raise Refused(
+            f"thread {thread_id!r} holds the command goal named by its opening "
+            "comment, so its anchor cannot be changed"
+        )
+    current_thread = (
+        build_threads(events, active_enclosing(page_dir)).get(thread_id)
+        if detach
+        else None
+    )
+    if detach and (current_thread is None or current_thread["anchor"] is None):
+        raise Refused(f"thread {thread_id!r} has no current anchor to detach")
+    reply_revision = None
+    prospective_page = None
+    prospective_anchor = None
+    source_events = events
+    source_matches_active = True
+    if validate_source or detach:
+        active = latest_revision(page_dir)
+        source_matches_active = bool(
+            active is not None
+            and (page_dir / "index.html").is_file()
+            and (page_dir / "index.html").read_bytes()
+            == revision_path(page_dir, active).read_bytes()
+        )
         if relocating:
-            event["anchor"] = anchor
-        if title is not None:
-            event["title"] = title
-        if not source_matches_active:
-            from leaf.revisioning import publish_checked_event
-
-            record = publish_checked_event(page, checked, event)
+            source_events = [
+                *events,
+                {
+                    "kind": "reply",
+                    "id": "prospective-anchor-transition",
+                    "author": "agent",
+                    "text": text,
+                    "seq": events[-1]["seq"] + 1,
+                    "ts": "pending",
+                    "parent": to,
+                    "anchor": None,
+                    **({"responds": responds} if responds is not None else {}),
+                },
+            ]
+        if source_matches_active:
+            reply_revision = active
         else:
-            record, _ = append_admitted(page, event)
-        if in_hand is not None and page.status["state"] == "idle":
-            page.set_status("waiting", "")
-        return record
+            from leaf.validation.source import check_source
+
+            checked = check_source(page_dir, source_events)
+            if checked.errors:
+                operation = "reply" if validate_source else "detach"
+                raise Refused(
+                    f"cannot {operation} while index.html is invalid: "
+                    f"{'; '.join(checked.errors)}"
+                )
+            prospective_page = checked.document
+            if moving:
+                from leaf.registry.storage import require_registry
+
+                prospective_anchor = _capture_anchor(
+                    page_dir,
+                    events,
+                    SourceReading(checked.document, require_registry(page_dir)),
+                    quote,
+                    section,
+                    part,
+                    (active or 0) + 1,
+                )
+    fragment = (
+        check_markup(page_dir, "reply", markup, events, page=prospective_page)
+        if markup
+        else None
+    )
+    if question and fragment:
+        from leaf.registry.storage import require_registry
+
+        registry = require_registry(page_dir)
+        structural = sorted(
+            {
+                rec["tag"]
+                for rec in fragment.lf_elements
+                if local_question_entry(registry.get(rec["tag"]) or {})
+                and asking(rec["attrs"], registry[rec["tag"]]["x-awaits"].get("when"))
+                and not quoted_in(rec, registry)
+            }
+        )
+        if structural:
+            raise Refused(
+                "--question is for a prose question; reply markup already declares "
+                "a local Question "
+                f"({', '.join(f'<{tag}>' for tag in structural)})"
+            )
+    if not source_matches_active:
+        from leaf.revisioning import planned_activation
+
+        reply_revision = planned_activation(page_dir, checked).revision
+    if prospective_anchor is not None:
+        revision, anchor = reply_revision, prospective_anchor
+    elif moving:
+        revision, anchor = _current_anchor(
+            page_dir,
+            events,
+            quote,
+            section,
+            part,
+            revision=reply_revision,
+            transaction=page,
+        )
+    elif detach:
+        revision, anchor = reply_revision, None
+    else:
+        revision, anchor = None, None
+    event = {
+        "kind": "reply",
+        "author": "agent",
+        **posting_identity,
+        "parent": to,
+        "text": text,
+        **({"responds": responds} if responds is not None else {}),
+    }
+    if ephemeral:
+        event["ephemeral"] = True
+    if in_hand is not None:
+        claim = page.claim
+        turn = (
+            claim["turn"]
+            if claim and claim["id"] == posting_identity.get("session")
+            else None
+        )
+        event["start"] = {
+            "item": in_hand,
+            **({"turn": turn} if turn else {}),
+        }
+    if question:
+        event["question"] = True
+    if task is not None:
+        event["task"] = task
+    if markup:
+        event["markup"] = markup
+    if attempt is not None:
+        event["attempt"] = attempt
+    if failure is not None:
+        event["failure"] = failure
+    if relocating or markup:
+        event["revision"] = revision or latest_revision(page_dir)
+    if relocating:
+        event["anchor"] = anchor
+    if title is not None:
+        event["title"] = title
+    if not source_matches_active:
+        from leaf.revisioning import publish_checked_event
+
+        record = publish_checked_event(page, checked, event)
+    else:
+        record, _ = append_admitted(page, event)
+    if in_hand is not None and page.status["state"] == "idle":
+        page.set_status("waiting", "")
+    return record
 
 
 def post_response(
@@ -673,9 +791,10 @@ def post_response(
 
     The reference chooses page, input and frozen thread destination. All rich reply
     options belong to the durable writer. A direct write refuses a superseded input;
-    a provider's final preserves its captured destination after user settlement but
-    yields to another successful answer. Explicit addressed replies commit immediately;
-    reservations prevent competing provider finals and failure receipts.
+    a provider's final (`reservation`, `ProviderFinal`) preserves its captured
+    destination after user settlement but yields to another successful answer.
+    Explicit addressed replies commit immediately; reservations prevent competing
+    provider finals and failure receipts.
     """
     address = response_address(reference)
     if address["kind"] != "reply":
@@ -685,22 +804,20 @@ def post_response(
     attempt = options.pop("attempt", None)
     if reservation is None and (attempt is not None or not options.get("ephemeral")):
         # Public retry keys identify this addressed author's writes, never a
-        # provider's reservation. The disjoint namespace prevents a progress
-        # retry key from consuming its provider final's append identity too.
+        # provider's reservation. The disjoint namespaces prevent a progress
+        # retry key from consuming its provider final's append identity too, and
+        # a failure receipt's from standing in for a later answer's.
         retry = reference if attempt is None else f"{reference}:{attempt}"
-        attempt = f"leaf-response-{sha256(retry.encode()).hexdigest()}"
+        namespace = "failure" if options.get("failure") is not None else "response"
+        attempt = f"leaf-{namespace}-{sha256(retry.encode()).hexdigest()}"
     return post_reply(
         Path(address["page"]),
-        address["to"],
+        address,
         text,
         markup,
-        for_event=address["for"],
-        captured_input=address["input"],
-        captured_claim=address["claim"],
+        settlement=REFUSE if reservation is None else ProviderFinal(reservation),
         attempt=attempt,
-        when_settled="post" if reservation is not None else "refuse",
         validate_source=True,
-        reservation=reservation,
         **options,
     )
 
@@ -744,13 +861,10 @@ def fail_answer(
         )
     return post_reply(
         page_dir,
-        None,
+        {"for": responds},
         text,
-        "",
-        for_event=responds,
+        settlement=Receipt(only_if_unclaimed),
         attempt=attempt,
-        when_settled="skip",
-        only_if_unclaimed=only_if_unclaimed,
         failure=failure,
         identity=identity,
         claimed_session=claimed_session,

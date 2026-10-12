@@ -30,8 +30,9 @@ on:
       # The site build and the deploy gate that verifies it are leaf_dev code.
       - 'dev/**'
       - 'worker/**'
-      - 'build/runtime-bundle.mjs'
-      - 'build/browser/build.mjs'
+      # The site build compiles the runtime through build.mjs, which loads the
+      # rest of build/ (the bundle table, its entries and the registry generators).
+      - 'build/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'

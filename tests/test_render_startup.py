@@ -43,6 +43,7 @@ from render_cases_interaction import (
     SUGGESTION_PAGE,
     executable_revision,
     live_url,
+    serve_interaction_gallery,
 )
 from render_cases_layout import (
     SHADOWED_DIFF,
@@ -196,6 +197,28 @@ window.authoredModuleRan = true;
         and event.get("widget") == "pick"
         and event.get("detail") == {"value": ["yes"]}
         for event in events_model.read_events(serve.page_dir)
+    )
+
+
+def test_the_gallery_embeds_an_ordinary_stamped_page(browser, serve):
+    """Authored iframe markup opens a durable version rather than a practice copy."""
+    url = live_url(serve(FEATURE_GALLERY))
+    page = open_page(browser, url + "#bg-durable-embedding")
+    expect(page.locator("#bg-durable-embedding")).to_be_in_viewport()
+    page.locator("#bg-durable-frame-open").click()
+    frame = page.locator("#bg-durable-frame").element_handle().content_frame()
+    wait_until_ready(frame)
+    assert urlparse(frame.url).path == "/versions/v2.html"
+    expect(frame.locator("#bg-choice-ask h3")).to_have_text(
+        "Which map should the sample team carry?"
+    )
+    frame.locator(".lf-threads-toggle").click()
+    expect(frame.locator(".lf-thread-panel")).to_be_visible()
+    frame.goto(frame.url)
+    wait_until_ready(frame)
+    assert urlparse(frame.url).path == "/versions/v2.html"
+    expect(frame.locator("#bg-choice-ask h3")).to_have_text(
+        "Which map should the sample team carry?"
     )
 
 
@@ -1337,7 +1360,7 @@ def test_reading_regions_read_posture_from_the_stylesheet_and_announce_a_shift(
     page = open_page(browser, serve(SHORT_SUGGESTION))
     readings = page.evaluate(
         """async () => {
-          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const leaf = await window.__lfRuntimeImport('/runtime/reading-regions.js');
           const frames = () => new Promise(resolve =>
             requestAnimationFrame(() => requestAnimationFrame(resolve)));
           const main = document.querySelector('main');
@@ -1704,12 +1727,8 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
 
 
 def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
-    """Optional page interface preparation holds the first widget upgrade.
-
-    The same gallery page then embeds an ordinary stamped page: authored iframe markup
-    opens a durable version rather than a practice copy, and keeps opening it across a
-    reload of the frame."""
-    url = serve(FEATURE_GALLERY)
+    """Optional page interface preparation holds the first widget upgrade."""
+    url = serve_interaction_gallery(serve)
     held = []
     release_state = False
     page = browser.new_page(viewport={"width": 1440, "height": 900})
@@ -1755,24 +1774,6 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     ).click()
     expect(controls).to_be_visible()
     expect(page.locator(".lf-status-detail")).not_to_contain_text("Connecting")
-
-    page.evaluate("location.hash = 'bg-durable-embedding'")
-    expect(page.locator("#bg-durable-embedding")).to_be_in_viewport()
-    page.locator("#bg-durable-frame-open").click()
-    frame = page.locator("#bg-durable-frame").element_handle().content_frame()
-    wait_until_ready(frame)
-    assert urlparse(frame.url).path == "/versions/v2.html"
-    expect(frame.locator("#bg-choice-ask h3")).to_have_text(
-        "Which map should the sample team carry?"
-    )
-    frame.locator(".lf-threads-toggle").click()
-    expect(frame.locator(".lf-thread-panel")).to_be_visible()
-    frame.goto(frame.url)
-    wait_until_ready(frame)
-    assert urlparse(frame.url).path == "/versions/v2.html"
-    expect(frame.locator("#bg-choice-ask h3")).to_have_text(
-        "Which map should the sample team carry?"
-    )
 
 
 def test_playground_joins_initial_widget_settlement(browser, serve):
@@ -2344,6 +2345,36 @@ def test_the_diff_marks_a_card_the_author_relocated(browser, serve):
     assert not page.evaluate(
         "document.getElementById('card-x-note').classList.contains('lf-ins-block')"
     ), "the card's passenger marked as its own move"
+
+
+def test_the_diff_marks_the_card_the_author_reordered_and_no_other(browser, serve):
+    """A card moved within its column changes no words and no column, and the state
+    half still marks it. Only the card whose move explains the new order is marked:
+    the cards it passed kept their order among themselves."""
+    cards = {
+        name: f'<lf-card id="card-{name}"><strong>{name.title()}</strong></lf-card>'
+        for name in ("y", "z")
+    }
+    v1 = JOURNEY_V1.replace(_CARD, _CARD + cards["y"] + cards["z"])
+    url = serve(v1)
+    _publish(
+        serve.page_dir,
+        2,
+        JOURNEY_V1.replace(_CARD, cards["y"] + cards["z"] + _CARD),
+        "moved card x to the end",
+    )
+    page = open_page(browser, url.replace("v1.html", "v2.html"))
+    compare_with(page)
+    page.wait_for_function(
+        "() => document.getElementById('card-x').classList.contains('lf-ins-block')"
+    )
+    assert (
+        page.evaluate(
+            "['card-y', 'card-z'].filter(id =>"
+            " document.getElementById(id).classList.contains('lf-ins-block'))"
+        )
+        == []
+    )
 
 
 def test_accepting_a_suggestion_resolves_its_thread_in_one_event(browser, serve):
@@ -5690,10 +5721,9 @@ customElements.define(TAG, class extends HTMLElement {
     )
     thread_model.post_reply(
         serve.page_dir,
-        "question",
+        {"to": "question", "for": "question"},
         "Frozen feed.",
         '<lf-object-feed id="thread-feed" source="shared"></lf-object-feed>',
-        for_event="question",
     )
     data_model.cmd_data_set(serve.page_dir, "shared", ["same bytes"])
     page = open_page(browser, url)

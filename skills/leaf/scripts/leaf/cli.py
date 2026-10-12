@@ -1066,9 +1066,7 @@ def thread_reply(dir: str, thread: str, **options) -> None:
     from leaf.thread import post_reply
 
     _print_records(
-        post_reply(
-            resolve_dir(dir), thread, for_event=None, validate_source=True, **options
-        )
+        post_reply(resolve_dir(dir), {"to": thread}, validate_source=True, **options)
     )
 
 

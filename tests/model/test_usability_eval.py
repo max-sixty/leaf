@@ -7,29 +7,30 @@ from leaf.hook_transport import INLINE_DELIVERY
 from leaf_dev import ROOT
 from leaf_dev.usability_eval import (
     CASES,
+    JUDGED,
     Run,
     checks_for,
     expected_checks,
     progress_shown,
+    rubrics,
 )
 
 
 def test_every_scenario_has_fixed_nonvacuous_checks():
     assert len(CASES) == 19
+    assert set(JUDGED) <= set(CASES)
     for case in CASES:
         expected = expected_checks(case)
         assert expected[0] == "completed"
-        from leaf_dev.usability_eval import rubrics
-
-        assert len(expected) > 1 or rubrics(case)
-        assert len(set(expected)) == len(expected)
+        judged = [r["metric"] for r in rubrics(case)]
+        assert len(expected) > 1 or judged
+        assert len(set(expected + judged)) == len(expected + judged)
         actual = checks_for(case, {}, [], False)
         assert list(actual) == expected
         assert not any(actual.values())
     handoff = checks_for("handoff", {"served": True}, [], True)
     assert handoff["served"]
     assert not handoff["question_delivered"]
-    assert not handoff["question_answered"]
     near_miss = checks_for("near-miss", {"pages": 0}, [{"leaf_skill": False}], True)
     assert all(near_miss.values())
     assert not checks_for("near-miss", {"pages": 1}, [{"leaf_skill": True}], True)[
@@ -150,6 +151,10 @@ def test_native_scenario_output_preserves_unavailable_usage(
         "near-miss", ROOT, tmp_path, harness="codex"
     )
     assert response.get("tokenUsage", {}) == expected
+    # Each phase's final message is a text the judge can read.
+    assert response["metadata"]["texts"] == {
+        f"reply-{n}": "A short reply." for n in range(1, len(usage) + 1)
+    }
     if not expected:
         assert "tokenUsage" not in response
     phases = response["metadata"]["diagnostics"]["phases"]

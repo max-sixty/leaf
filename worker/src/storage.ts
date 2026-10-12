@@ -2,13 +2,18 @@
  *
  * Python stages one successor per page under its append lease, uploads missing
  * content-addressed chunks, then atomically publishes files and HTTP responses.
- * Committed records, staged successors and in-flight delivery streams are the
+ * Committed records, staged successors and in-flight delivery/restore streams are the
  * complete set of chunk owners. Replacing or committing a stage reclaims unused
  * bytes; an interrupted upload retains at most one successor until that page retries.
  * This owner never interprets the log, computes widget state or infers activity.
+ * GET /records is one uncompressed TAR snapshot: records.json first contains the
+ * committed file descriptors; each referenced chunk follows once as a regular file
+ * named by its hex digest. Capture and stream retention share one synchronous
+ * reading. The container consumes the snapshot before replacing any local inputs.
  */
 
 import * as z from "zod/mini";
+import { createTarPacker } from "modern-tar";
 
 export const CHUNK_BYTES = 1024 * 1024;
 const digest = z.string().check(z.regex(/^[0-9a-f]{64}$/));
@@ -160,7 +165,7 @@ export class PageStore {
     });
   }
 
-  records(): Record<string, PagePublication["record"]> {
+  records(): Response {
     const records = Object.fromEntries(this.storage.sql.exec<{ root: string }>(
       "SELECT root FROM leaf_pages WHERE staged = 0 ORDER BY root",
     ).toArray().map(({ root }) => [root, {} as PagePublication["record"]]));
@@ -169,28 +174,73 @@ export class PageStore {
     }>("SELECT root, path, chunks, modified FROM leaf_files WHERE staged = 0 ORDER BY root, path").toArray()) {
       records[root][path] = { chunks: JSON.parse(chunks), modified };
     }
-    return records;
+    const names = [...new Set(Object.values(records)
+      .flatMap((record) => Object.values(record).flatMap(({ chunks }) => chunks)))];
+    const { readable, controller } = createTarPacker();
+    const stream = this.hold(names, readable);
+    // Capture descriptors and retain their chunks synchronously before yielding.
+    // TAR supplies framing and backpressure; one restore crosses the outbound
+    // proxy once, regardless of how many revisions share these chunks.
+    void (async () => {
+      const add = async (name: string, bytes: Uint8Array) => {
+        const writer = controller.add({ name, size: bytes.byteLength }).getWriter();
+        await writer.write(bytes);
+        await writer.close();
+      };
+      await add("records.json", new TextEncoder().encode(JSON.stringify(records)));
+      for (const name of names) {
+        const bytes = this.blob(name);
+        if (bytes === null) throw new Error("published page storage chunk disappeared");
+        await add(name, new Uint8Array(bytes));
+      }
+      controller.finalize();
+    })().catch((error) => controller.error(error));
+    return new Response(stream, { headers: { "Content-Type": "application/x-tar" } });
   }
 
-  private body(names: string[]): ReadableStream<Uint8Array> {
+  private hold(names: string[], stream: ReadableStream<Uint8Array>): ReadableStream<Uint8Array> {
     this.deliveries.add(names);
     const finish = () => {
       if (this.deliveries.delete(names)) this.collect();
     };
-    let part = 0;
+    const reader = stream.getReader();
     return new ReadableStream({
-      pull: (controller) => {
-        if (part === names.length) {
-          controller.close();
+      pull: async (controller) => {
+        try {
+          const { done, value } = await reader.read();
+          if (done) {
+            controller.close();
+            finish();
+          } else {
+            controller.enqueue(value);
+          }
+        } catch (error) {
+          controller.error(error);
           finish();
-        } else {
+        }
+      },
+      cancel: async (reason) => {
+        try {
+          await reader.cancel(reason);
+        } finally {
+          finish();
+        }
+      },
+    }, { highWaterMark: 0 });
+  }
+
+  private body(names: string[]): ReadableStream<Uint8Array> {
+    let part = 0;
+    return this.hold(names, new ReadableStream({
+      pull: (controller) => {
+        if (part === names.length) controller.close();
+        else {
           const bytes = this.blob(names[part++]);
           if (bytes === null) throw new Error("published page storage chunk disappeared");
           controller.enqueue(new Uint8Array(bytes));
         }
       },
-      cancel: finish,
-    });
+    }, { highWaterMark: 0 }));
   }
 
   async response(root: string, path: string, head: boolean): Promise<Response | null> {

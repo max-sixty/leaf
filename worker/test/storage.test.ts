@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { unpackTar } from "modern-tar";
 import { CHUNK_BYTES, PageStore, type PagePublication } from "../src/storage";
 import { sqliteStorage } from "./sqlite";
 
@@ -16,6 +17,11 @@ async function capture(bytes: Uint8Array, blobs: Map<string, Uint8Array>): Promi
 async function stage(store: PageStore, publication: PagePublication, blobs: Map<string, Uint8Array>) {
   const missing = store.prepare(publication);
   for (const digest of missing) await store.saveBlob(digest, blobs.get(digest)!.slice().buffer);
+}
+
+async function records(store: PageStore): Promise<Record<string, PagePublication["record"]>> {
+  const entries = await unpackTar(store.records().body!);
+  return JSON.parse(new TextDecoder().decode(entries[0].data!));
 }
 
 function page(root: string, chunks: string[]): PagePublication {
@@ -52,7 +58,7 @@ describe("durable website page records", () => {
       expect(Buffer.byteLength(JSON.stringify(publication))).toBeGreaterThan(2_000_000);
       await stage(store, publication, blobs);
       store.publish(publication);
-      expect(new PageStore(storage).records()[publication.root]).toEqual(publication.record);
+      expect((await records(new PageStore(storage)))[publication.root]).toEqual(publication.record);
       const sizes = storage.sql.exec<{ bytes: number }>(`SELECT MAX(
         length(root) + length(path) + length(headers) + length(chunks) + 16
       ) AS bytes FROM leaf_responses`).toArray();
@@ -92,7 +98,7 @@ describe("durable website page records", () => {
       await stage(store, empty, blobs);
       store.publish(empty);
       const restored = new PageStore(storage);
-      expect(restored.records()["/examples/board"]).toEqual(publication.record);
+      expect((await records(restored))["/examples/board"]).toEqual(publication.record);
       const response = (await restored.response("/examples/board", "media/private.png", false))!;
       expect(Buffer.from(await response.arrayBuffer()).equals(body)).toBe(true);
       expect(response.headers.get("Cache-Control")).toBe("private, no-store");
@@ -118,7 +124,7 @@ describe("durable website page records", () => {
       restored.prepare(unfinished);
       expect(() => restored.publish(unfinished)).toThrow("missing page storage chunk");
       expect(await (await restored.response("/examples/board", "api/state", false))!.json()).toMatchObject({ saved: "choice" });
-      expect(restored.records()["/examples/board"]).toEqual(publication.record);
+      expect((await records(restored))["/examples/board"]).toEqual(publication.record);
       await expect(store.saveBlob("a".repeat(64), new Uint8Array(CHUNK_BYTES + 1).buffer)).rejects.toThrow("exceeds 1 MiB");
       await expect(store.saveBlob("a".repeat(64), new Uint8Array([1]).buffer)).rejects.toThrow("digest does not match");
     } finally {
@@ -149,7 +155,7 @@ describe("durable website page records", () => {
       const next = page("/", await capture(new Uint8Array([9]), blobs));
       await stage(store, next, blobs);
       expect(store.blob(abandoned.record["events.jsonl"].chunks[0])).toBeNull();
-      expect(store.records()["/"]["events.jsonl"].chunks).not.toEqual(next.record["events.jsonl"].chunks);
+      expect((await records(store))["/"]["events.jsonl"].chunks).not.toEqual(next.record["events.jsonl"].chunks);
       store.publish(next);
       expect(storage.sql.exec<{ size: number }>("SELECT sum(length(bytes)) size FROM leaf_blobs").toArray()[0].size).toBe(2);
       const rogue = new Uint8Array([10]);
@@ -160,7 +166,7 @@ describe("durable website page records", () => {
     }
   });
 
-  it("retains chunks of a replaced response until its existing reader finishes or cancels", async () => {
+  it("retains chunks of replaced delivery and restore snapshots until readers finish or cancel", async () => {
     const { storage, close } = sqliteStorage();
     try {
       const store = new PageStore(storage);
@@ -169,17 +175,32 @@ describe("durable website page records", () => {
       bytes.fill(1, 0, CHUNK_BYTES);
       bytes.fill(2, CHUNK_BYTES, 2 * CHUNK_BYTES);
       const chunks = await capture(bytes, blobs);
-      const first = { ...page("/", []), responses: { "media/file": { status: 200, headers: {}, chunks } } };
+      const first = { ...page("/", chunks), responses: { "media/file": { status: 200, headers: {}, chunks } } };
+      first.record["revisions/r2-private/shared.js"] = { chunks: [...chunks, chunks[0]], modified: 1_700_000_000 };
       await stage(store, first, blobs);
       store.publish(first);
+      const neighbor = page("/other", chunks);
+      await stage(store, neighbor, blobs);
+      store.publish(neighbor);
       const reading = (await store.response("/", "media/file", false))!;
       const cancelled = (await store.response("/", "media/file", false))!;
+      const restored = store.records();
+      const cancelledRestore = store.records();
       const next = page("/", []);
       await stage(store, next, blobs);
       store.publish(next);
+      const emptyNeighbor = page("/other", []);
+      await stage(store, emptyNeighbor, blobs);
+      store.publish(emptyNeighbor);
       expect(Buffer.from(await reading.arrayBuffer()).equals(bytes)).toBe(true);
       expect(store.blob(chunks[2])).not.toBeNull();
+      const archive = await unpackTar(restored.body!);
+      expect(archive.map(({ header }) => header.name)).toEqual(["records.json", ...chunks]);
+      expect(JSON.parse(new TextDecoder().decode(archive[0].data!))).toEqual({ "/": first.record, "/other": neighbor.record });
+      expect(Buffer.concat(archive.slice(1).map(({ data }) => Buffer.from(data!))).equals(bytes)).toBe(true);
       await cancelled.body!.cancel();
+      expect(store.blob(chunks[2])).not.toBeNull();
+      await cancelledRestore.body!.cancel();
       expect(store.blob(chunks[2])).toBeNull();
     } finally {
       close();

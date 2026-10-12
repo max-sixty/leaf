@@ -2,6 +2,7 @@
 
 import base64
 import hashlib
+import io
 import itertools
 import json
 import os
@@ -10,6 +11,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tarfile
 import threading
 import time
 import urllib.error
@@ -152,19 +154,37 @@ def durable_page_store():
         "records": {},
         "blobs": {},
         "uploads": [],
+        "restores": 0,
+        "truncate": False,
         "inventories": 0,
         "fail": False,
     }
 
     class Store(BaseHTTPRequestHandler):
         def do_GET(self):
+            assert self.path == "/records"
+            stored["restores"] += 1
             self.send_response(200)
+            self.send_header("Content-Type", "application/x-tar")
             self.end_headers()
-            if self.path.startswith("/blobs/"):
-                self.wfile.write(stored["blobs"][self.path.removeprefix("/blobs/")])
-            else:
-                assert self.path == "/records"
-                self.wfile.write(json.dumps(stored["records"]).encode())
+            with tarfile.open(fileobj=self.wfile, mode="w|") as archive:
+
+                def add(name, data):
+                    member = tarfile.TarInfo(name)
+                    member.size = len(data)
+                    archive.addfile(member, io.BytesIO(data))
+
+                add("records.json", json.dumps(stored["records"]).encode())
+                names = dict.fromkeys(
+                    digest
+                    for record in stored["records"].values()
+                    for file in record.values()
+                    for digest in file["chunks"]
+                )
+                for digest in names:
+                    add(digest, stored["blobs"][digest])
+                    if stored["truncate"]:
+                        break
 
         def do_PUT(self):
             body = self.rfile.read(int(self.headers["Content-Length"]))
@@ -274,6 +294,46 @@ def test_saved_state_verifier_fixture_returns_the_admitted_event_ids(
     assert events[seeded["comment"]]["text"] == "Saved before the container stopped."
     assert seeded["revision_name"] == revision_path(private, seeded["revision"]).name
     assert (private / "page/saved-state-recall.css").read_text() == seeded["stylesheet"]
+
+
+def test_website_restore_streams_shared_chunks_once_across_files_and_pages(
+    tmp_path, monkeypatch
+):
+    from leaf_website.storage import CHUNK_BYTES, restore
+
+    site = tmp_path / "site"
+    site.mkdir()
+    write_manifest(site, {"/first": ("first", "example"), "/next": ("next", "example")})
+    chunks = [b"a" * CHUNK_BYTES, b"b" * CHUNK_BYTES, b"tail"]
+    digests = [hashlib.sha256(chunk).hexdigest() for chunk in chunks]
+    modified = 1_700_000_000.25
+    shared = {"chunks": [*digests[:2], digests[0], digests[2]], "modified": modified}
+    with durable_page_store() as (store_url, stored):
+        stored["blobs"].update(zip(digests, chunks, strict=True))
+        stored["records"] = {
+            "/first": {
+                "page/shared.js": shared,
+                "revisions/r2-private/shared.js": shared,
+            },
+            "/next": {"page/shared.js": shared},
+        }
+        monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
+        restore(site)
+        assert stored["restores"] == 1
+        expected = chunks[0] + chunks[1] + chunks[0] + chunks[2]
+        for directory, record in stored["records"].items():
+            for name in record:
+                target = site / directory.strip("/") / name
+                assert target.read_bytes() == expected
+                assert target.stat().st_mtime == modified
+        # A complete TAR can still omit bodies its descriptors reference.
+        # Refuse that snapshot before replacing the previous local inputs.
+        previous = site / "first/page/shared.js"
+        previous.write_bytes(b"previous local input")
+        stored["truncate"] = True
+        with pytest.raises(ValueError, match="missing referenced chunks"):
+            restore(site)
+        assert previous.read_bytes() == b"previous local input"
 
 
 def test_saved_website_record_keeps_an_unstamped_revisions_publication_date(

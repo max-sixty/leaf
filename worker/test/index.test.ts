@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { unpackTar } from "modern-tar";
 import { sqliteStorage } from "./sqlite";
 
 const forwardedContainerFetch = vi.hoisted(() => vi.fn(async () => new Response("container")));
@@ -1645,14 +1646,25 @@ describe("website page agent", () => {
       }) as never, env as never, context as never);
       expect(put.status).toBe(204);
       expect(await (await missing()).json()).toEqual({ missing: [absent] });
-      const answer = await handler(new Request(`https://leaf-state.internal/blobs/${digest}`) as never,
+      const publication = {
+        root: "/examples/triage-board", release: RELEASE,
+        record: { "events.jsonl": { chunks: [digest], modified: 1_700_000_000 } }, responses: {},
+      };
+      await session.preparePublication(publication);
+      await session.savePublication(publication);
+      const answer = await handler(new Request("https://leaf-state.internal/records") as never,
         env as never, context as never);
-      expect(await answer.text()).toBe("private saved bytes");
+      expect(answer.headers.get("Content-Type")).toBe("application/x-tar");
+      const entries = await unpackTar(answer.body!);
+      expect(entries.map(({ header }) => header.name)).toEqual(["records.json", digest]);
+      expect(JSON.parse(new TextDecoder().decode(entries[0].data!))).toEqual({
+        "/examples/triage-board": publication.record,
+      });
+      expect(new TextDecoder().decode(entries[1].data!)).toBe("private saved bytes");
       expect(idFromString.mock.calls.every(([id]) => id === "trusted-owner")).toBe(true);
       await expect(handler(new Request(`https://leaf-state.internal/blobs/${digest}`, {
         method: "PUT", body: new Uint8Array(1024 * 1024 + 1),
       }) as never, env as never, context as never)).rejects.toThrow("exceeds 1 MiB");
-      expect(Buffer.from(session.savedBlob(digest)!)).toEqual(Buffer.from(bytes));
     } finally {
       close();
     }

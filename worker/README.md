@@ -508,7 +508,8 @@ replacement preserves the current release's records. `docs/website.html`, **Priv
 storage and identity contract.
 
 The append lease admits one staged successor per page. Replacing or committing it
-collects chunks no committed record, staged successor or streaming response uses.
+collects chunks no committed record, staged successor, delivery stream or restore
+snapshot uses.
 An interrupted upload therefore retains at most one successor until that page
 retries; other pages' concurrent uploads and readers remain protected.
 

@@ -15,8 +15,13 @@ import json
 import os
 import shutil
 import ssl
+import tarfile
+import time
 import urllib.request
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
+from http.client import HTTPResponse
 from pathlib import Path
 from tempfile import TemporaryFile
 from types import SimpleNamespace
@@ -43,7 +48,8 @@ from starlette.requests import Request
 CHUNK_BYTES = 1024 * 1024
 
 
-def _request(path: str, payload: dict | bytes | None = None) -> dict | bytes:
+@contextmanager
+def _request(path: str, payload: dict | bytes | None = None) -> Iterator[HTTPResponse]:
     url = os.environ["LEAF_PAGE_STORE_URL"].rstrip("/") + path
     binary = path.startswith("/blobs/")
     request = urllib.request.Request(
@@ -63,17 +69,20 @@ def _request(path: str, payload: dict | bytes | None = None) -> dict | bytes:
     certificate = os.environ.get("CODEX_CA_CERTIFICATE")
     context = ssl.create_default_context(cafile=certificate) if certificate else None
     with urllib.request.urlopen(request, context=context, timeout=60) as response:
-        if response.status == 204:
-            return {}
-        return response.read() if binary else json.load(response)
+        yield response
 
 
 @dataclass
 class _BlobSet:
-    """One publication's unique chunk bytes, spooled without retaining media history."""
+    """One transfer's unique chunk bytes, spooled without retaining media history."""
 
     buffer: BinaryIO
     offsets: dict[str, tuple[int, int]] = field(default_factory=dict)
+
+    def add(self, digest: str, chunk: bytes) -> None:
+        self.buffer.seek(0, os.SEEK_END)
+        self.offsets[digest] = (self.buffer.tell(), len(chunk))
+        self.buffer.write(chunk)
 
     def chunks(self, data: bytes) -> dict:
         result = []
@@ -81,8 +90,7 @@ class _BlobSet:
             chunk = data[offset : offset + CHUNK_BYTES]
             digest = hashlib.sha256(chunk).hexdigest()
             if digest not in self.offsets:
-                self.offsets[digest] = (self.buffer.tell(), len(chunk))
-                self.buffer.write(chunk)
+                self.add(digest, chunk)
             result.append(digest)
         return {"chunks": result}
 
@@ -93,37 +101,68 @@ class _BlobSet:
 
 
 def restore(site_root: Path) -> None:
-    """Restore durable records before any HTTP request or agent can change them."""
+    """Restore before serving, from the snapshot contract in worker/src/storage.ts."""
     if not os.environ.get("LEAF_PAGE_STORE_URL"):
         return
-    from leaf_website import SITE_MANIFEST
+    from leaf_website import SITE_MANIFEST, elapsed_ms, log_agent
 
+    started = time.monotonic()
+    files = 0
     manifest = json.loads((site_root / SITE_MANIFEST).read_text())
-    for root, record in _request("/records").items():
-        directory = (site_root / manifest["pages"][root]["directory"]).resolve()
-        if not directory.is_relative_to(site_root.resolve()):
-            raise ValueError("stored page directory escapes site root")
-        targets = []
-        for name, content in record.items():
-            target = (directory / name).resolve()
-            if not target.is_relative_to(directory) or target == directory:
-                raise ValueError("invalid stored page record path")
-            targets.append((content, target))
-        # These trees are complete inputs, not patches over the release.
-        # Replacing them also preserves deletion of a published input.
-        for name in PAGE_OWNED_DIRS:
-            if name == "revisions":
-                continue
-            if (directory / name).exists():
-                shutil.rmtree(directory / name)
-        for name in PAGE_OWNED_FILES:
-            (directory / name).unlink(missing_ok=True)
-        for content, target in targets:
-            target.parent.mkdir(parents=True, exist_ok=True)
-            with target.open("wb") as output:
-                for digest in content["chunks"]:
-                    output.write(_request(f"/blobs/{digest}"))
-            os.utime(target, (content["modified"], content["modified"]))
+    # Revisions and neighboring pages share most assets. Download one snapshot
+    # containing each canonical digest once, before replacing any local inputs.
+    with TemporaryFile() as buffer:
+        blobs = _BlobSet(buffer)
+        with (
+            _request("/records") as response,
+            tarfile.open(fileobj=response, mode="r|") as archive,
+        ):
+            first = archive.next()
+            if first is None or first.name != "records.json":
+                raise ValueError("page restore snapshot has no records")
+            records = json.load(archive.extractfile(first))
+            while member := archive.next():
+                blobs.add(member.name, archive.extractfile(member).read())
+        if any(
+            digest not in blobs.offsets
+            for record in records.values()
+            for content in record.values()
+            for digest in content["chunks"]
+        ):
+            raise ValueError("page restore snapshot is missing referenced chunks")
+        for root, record in records.items():
+            directory = (site_root / manifest["pages"][root]["directory"]).resolve()
+            if not directory.is_relative_to(site_root.resolve()):
+                raise ValueError("stored page directory escapes site root")
+            targets = []
+            for name, content in record.items():
+                target = (directory / name).resolve()
+                if not target.is_relative_to(directory) or target == directory:
+                    raise ValueError("invalid stored page record path")
+                targets.append((content, target))
+            # These trees are complete inputs, not patches over the release.
+            # Replacing them also preserves deletion of a published input.
+            for name in PAGE_OWNED_DIRS:
+                if name == "revisions":
+                    continue
+                if (directory / name).exists():
+                    shutil.rmtree(directory / name)
+            for name in PAGE_OWNED_FILES:
+                (directory / name).unlink(missing_ok=True)
+            for content, target in targets:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with target.open("wb") as output:
+                    for digest in content["chunks"]:
+                        output.write(blobs.body(digest))
+                os.utime(target, (content["modified"], content["modified"]))
+                files += 1
+        log_agent(
+            "page_restore_completed",
+            durationMs=elapsed_ms(started),
+            files=files,
+            chunks=len(blobs.offsets),
+            bytes=sum(length for _, length in blobs.offsets.values()),
+        )
     os.environ["LEAF_PAGE_COMMIT"] = "leaf_website.storage:publish"
 
 
@@ -287,9 +326,12 @@ def publish(page: PageTransaction) -> None:
             "record": record,
             "responses": responses,
         }
-        missing = _request("/prepare", publication)["missing"]
+        with _request("/prepare", publication) as response:
+            missing = json.load(response)["missing"]
         for digest in missing:
-            _request(f"/blobs/{digest}", blobs.body(digest))
-        _request("/publication", publication)
+            with _request(f"/blobs/{digest}", blobs.body(digest)):
+                pass
+        with _request("/publication", publication):
+            pass
     token.parent.mkdir(parents=True, exist_ok=True)
     write_json(token, {"fingerprint": fingerprint})

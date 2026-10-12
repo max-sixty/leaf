@@ -900,9 +900,14 @@ class LocalWorker:
     name: str
     evidence: Path
 
-    def containers(self) -> set[str]:
+    def containers(self, *, include_stopped: bool = False) -> set[str]:
         listed = docker_command(
-            "ps", "--filter", f"name=^workerd-{self.name}-", "--format", "{{json .}}"
+            "ps",
+            *(["--all"] if include_stopped else []),
+            "--filter",
+            f"name=^workerd-{self.name}-",
+            "--format",
+            "{{json .}}",
         )
         # Miniflare's egress proxy survives independently of the page process. It
         # must remain available while a stopped page is read from its Durable Object.
@@ -1008,7 +1013,27 @@ def local_worker() -> Iterator[LocalWorker]:
                 180,
                 cwd=ROOT / "worker",
             ) as origin:
-                yield LocalWorker(origin, release, name, out)
+                worker = LocalWorker(origin, release, name, out)
+                try:
+                    yield worker
+                except BaseException:
+                    # Keep Python's restore/startup evidence beside the Worker
+                    # trace before this verifier removes its containers.
+                    try:
+                        for container in worker.containers(include_stopped=True):
+                            print(
+                                f"Container {container} log:", file=output, flush=True
+                            )
+                            subprocess.run(
+                                ["docker", "logs", container],
+                                stdout=output,
+                                stderr=subprocess.STDOUT,
+                                check=False,
+                                timeout=10,
+                            )
+                    except (RuntimeError, subprocess.TimeoutExpired) as error:
+                        print(f"Cannot collect container logs: {error}", file=output)
+                    raise
     finally:
         listed = subprocess.run(
             ["docker", "ps", "--all", "--quiet", "--filter", f"name=^workerd-{name}-"],

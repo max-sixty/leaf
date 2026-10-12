@@ -150,16 +150,12 @@ export class LeafWebsiteSession extends Container<Env> {
     };
   }
 
-  savedRecords(): Record<string, PagePublication["record"]> {
+  savedRecords(): Response {
     return this.pages.records();
   }
 
   async saveBlob(digest: string, bytes: ArrayBuffer): Promise<void> {
     await this.pages.saveBlob(digest, bytes);
-  }
-
-  savedBlob(digest: string): ArrayBuffer | null {
-    return this.pages.blob(digest);
   }
 
   private async publication(value: unknown): Promise<PagePublication> {
@@ -222,7 +218,7 @@ LeafWebsiteSession.outboundByHost = {
     const session = env.PAGES.get(env.PAGES.idFromString(ctx.containerId));
     const path = new URL(request.url).pathname;
     if (request.method === "GET" && path === "/records") {
-      return Response.json(await session.savedRecords());
+      return session.savedRecords();
     }
     if (request.method === "PUT" && path === "/prepare") {
       return Response.json({ missing: await session.preparePublication(await request.json()) });
@@ -240,13 +236,6 @@ LeafWebsiteSession.outboundByHost = {
       }));
       await session.saveBlob(blob[1], await new Response(body).arrayBuffer());
       return new Response(null, { status: 204 });
-    }
-    if (blob !== null && request.method === "GET") {
-      const bytes = await session.savedBlob(blob[1]);
-      return new Response(bytes, {
-        status: bytes === null ? 404 : 200,
-        headers: { "Content-Type": "application/octet-stream" },
-      });
     }
     if (request.method === "PUT" && path === "/publication") {
       await session.savePublication(await request.json());

@@ -1448,6 +1448,12 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
                 ),
             };
         }"""
+    # A paused animation's time is fixed at the frame its pause commits, so the
+    # reading waits for every pause to stop pending.
+    accept_frame_element.element_handle().content_frame().wait_for_function(
+        """() => document.querySelector('#bg-motion-accept')
+            .getAnimations({subtree: true}).every(animation => !animation.pending)"""
+    )
     frozen = accept.evaluate(paused_suggestion)
     page.wait_for_timeout(800)
     assert accept.evaluate(paused_suggestion) == frozen

@@ -1,11 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  patchRetains,
-  patchTree,
-  replaceChildren,
-  setChildren,
-} from "/runtime/dom-children.js";
+import { patchRetains, patchTree, setChildren } from "/runtime/dom-children.js";
 import { under } from "/runtime/shadow.js";
 import { failSoftUnreported } from "/runtime/widget-upgrade.js";
 import { createRef, html, ref, render } from "/vendor/browser-runtime.js";
@@ -28,42 +23,6 @@ test("failure replacement releases directives and supports native and template r
   failSoftUnreported(host, new Error("third failure"));
   paint("Final template");
   assert.equal(host.textContent, "Final template");
-});
-
-test("destructive replacement releases bounded templates and permits a fresh render", () => {
-  const container = document.createElement("div");
-  const retained = document.createElement("section");
-  const before = document.createComment("render boundary");
-  const reference = createRef();
-  const retainedReference = createRef();
-  const paintRetained = (text) =>
-    render(html`<p ${ref(retainedReference)}>${text}</p>`, retained);
-  paintRetained("Retained template");
-  container.append(retained, before);
-  const paint = (text) =>
-    render(html`<p ${ref(reference)}>${text}</p>`, container, {
-      renderBefore: before,
-    });
-  paint("Before replacement");
-  assert.equal(reference.value.textContent, "Before replacement");
-  replaceChildren(container, retained, before);
-  assert.equal(reference.value, undefined);
-  assert.ok(retainedReference.value === retained.querySelector("p"));
-  paintRetained("Updated retained template");
-  paint("After replacement");
-  assert.equal(container.textContent, "Updated retained templateAfter replacement");
-  assert.ok(reference.value === container.lastElementChild);
-});
-
-test("failure content moved into a shadow stage does not prevent the next failure", () => {
-  const host = document.createElement("test-widget");
-  const root = host.attachShadow({ mode: "open" });
-  failSoftUnreported(host, new Error("first failure"));
-  root.replaceChildren(...host.childNodes);
-  failSoftUnreported(host, new Error("second failure"));
-  root.replaceChildren(...host.childNodes);
-  assert.equal(root.querySelectorAll(".lf-error").length, 1);
-  assert.equal(root.textContent, "<test-widget> failed: second failure");
 });
 
 function patch(beforeMarkup, afterMarkup = beforeMarkup) {

@@ -1223,3 +1223,38 @@ def test_visual_review_selected_caption_owns_its_activation_keys(browser, serve)
             expect(caption).to_be_focused()
             expect(caption).to_have_attribute("aria-pressed", "true")
             assert abs(page.evaluate("scrollY") - before) <= 1
+
+
+@pytest.mark.parametrize("change", ["case-dropped", "source-cleared"])
+def test_a_comment_being_written_on_a_visual_case_stays_in_hand_as_the_case_goes(
+    browser, serve, change
+):
+    """The comment box seated on a case goes back beside the review when a new run
+    drops that case or the source is cleared, and the user goes on typing in it.
+    Before, the case's article took the box out of the document: it blurred once, and
+    a dropped case left the user on the next case's title."""
+    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
+    resized(page, 1366, 768)
+    datum = page.locator("#visual-review-run [data-lf-datum]").first
+    case = datum.get_attribute("data-lf-datum")
+    comment_on_target(page, datum)
+    box = page.locator(".lf-fab-input")
+    expect(page.locator(".lf-vr-thread-outlet .lf-fab-input")).to_be_focused()
+    page.keyboard.type("Half")
+    box.evaluate(
+        "box => { window.blurs = 0; box.addEventListener('blur', () => window.blurs++); }"
+    )
+    if change == "source-cleared":
+        data_model.cmd_data_clear(serve.page_dir, "gallery-visual-run")
+    else:
+        source = VISUAL_REVIEW_GALLERY.with_suffix(".data.json")
+        run = json.loads(source.read_text())["gallery-visual-run"]
+        run["cases"] = [each for each in run["cases"] if each["id"] != case]
+        data_model.cmd_data_set(serve.page_dir, "gallery-visual-run", run)
+    told(page)
+    expect(page.locator(f'[data-lf-datum="{case}"]')).to_have_count(0)
+    expect(box).to_be_focused()
+    expect(box).to_be_in_viewport()
+    assert page.evaluate("window.blurs") == 0
+    page.keyboard.type(" a thought")
+    expect(box).to_have_js_property("value", "Half a thought")

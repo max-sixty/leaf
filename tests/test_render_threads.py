@@ -11372,6 +11372,7 @@ def test_a_comment_being_written_on_a_diff_line_stays_in_hand_across_a_new_patch
     told(page)
     expect(page.locator("lf-diff .lf-diff-thread-outlet")).to_have_count(0)
     expect(box).to_be_focused()
+    expect(box).to_be_in_viewport()
     expect(box).to_have_js_property("value", "Half a thought")
     assert box.evaluate("box => [box.selectionStart, box.selectionEnd]") == [4, 4]
     # The editor never leaves the document, so nothing has to put the user back.

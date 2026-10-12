@@ -14,11 +14,11 @@
  * `inlineComparison` / `toggleInlineComparison` disclose a block's text diff on
  * request. `comparisonBase` names the standing base. `comparisonChanges(owner)` selects
  * changed descendants from the same comparison reading; `watchComparison(owner,
- * callback)` reads it on each comparison change and on the microtask after a
- * connection, pauses while detached, and returns a function that ends the subscription.
- * Each announced change advances the comparison's generation, which keys the reading,
- * so a return reads again by the one return rule (`readingPaint` in presence.js): only
- * a comparison that changed while away is read, and a reading that threw stands
+ * callback)` reads it on each comparison change and on each connection, pauses while
+ * detached, and returns a function that ends the subscription. Each announced change
+ * advances the comparison's generation, which keys the reading, so a return reads
+ * again by the one return rule (`readingPaint` in presence.js): only a comparison that
+ * changed while away is read, and a reading that threw is reported once and stands
  * without ending the subscription.
  *
  * Executable identity selects the install. An unchanged registry, module graph, and
@@ -942,8 +942,7 @@ export function watchComparison(owner, callback) {
   const read = () => paint(comparisonGeneration);
   const stop = whileConnected(owner, (signal) => {
     document.addEventListener("lf-comparison", read, { signal });
-    // Read outside the connection, so a reading that throws ends no subscription.
-    queueMicrotask(() => signal.aborted || read());
+    read();
   });
   return () => {
     stop();

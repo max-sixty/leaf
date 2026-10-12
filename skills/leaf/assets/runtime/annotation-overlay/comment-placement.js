@@ -24,9 +24,10 @@
    The semantic comment anchor remains the original target. A caller requesting
    window placement without a visible attachment supplies `clear: null` and stands
    at its upper inline edge through the same sizing and placement machinery.
-   An existing target with no drawn part has no attachment: seated surfaces withhold
-   their native editing state until it returns. An explicit open can request the
-   unanchored window posture while retaining the hidden subject as its semantic anchor.
+   A target that is not drawn has no attachment: seated surfaces withhold their native
+   editing state until it returns. An explicit open can request the unanchored window
+   posture while retaining the hidden subject as its semantic anchor. A drawn target's
+   geometry may have zero area; its whole extent still supplies the fallback seat.
    The editing surface uses this solver for its initial attachment, then retains
    browser-owned following (`composing/floating-response.js`).
 
@@ -149,11 +150,11 @@ export function commentAttachment({
     };
   }
   // The margin may offer a different mechanical seat, but the comment still belongs
-  // to its semantic target. If that target has no drawn part, a seated editor or card
-  // must withhold until the target returns; an explicit Resume can request the window
-  // posture above without changing that target.
-  const targetParts = shownParts(target).filter(drawn);
-  if (!targetParts.length) return null;
+  // to its semantic target. If that target is not drawn, a seated editor or card must
+  // withhold until it returns; an explicit Resume can request the window posture above
+  // without changing that target. A drawn target may have a zero-area box, as an SVG
+  // line does, and still supplies the geometry fallback below.
+  if (!drawn(target)) return null;
   const margin = marginSpot(target, point);
   const external = margin?.attachment && margin.attachment !== target;
   const attachment = external ? margin.attachment : target;

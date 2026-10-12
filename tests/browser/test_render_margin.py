@@ -4837,6 +4837,58 @@ def test_a_spilled_thread_opens_the_full_thread_without_a_hidden_anchor(browser,
     expect(thread.locator("leaf-text")).to_be_focused()
 
 
+def test_page_map_opens_a_thread_anchored_to_a_drawn_zero_area_svg_line(browser, serve):
+    """A visible SVG stroke remains a usable comment target despite its zero-height box."""
+    source = leaf_page(
+        "Horizontal line comment",
+        """
+<h1>Review this diagram</h1>
+<svg width="320" height="120" viewBox="0 0 320 120" role="img"
+     aria-label="A horizontal line">
+  <line id="hline" x1="10" y1="60" x2="310" y2="60"
+        stroke="currentColor" stroke-width="8" />
+</svg>
+""",
+    )
+    comment = {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "text": "Check this line.",
+        "anchor": {"section": "hline"},
+    }
+    page = open_page(browser, serve(source, events=[comment]))
+    page.set_default_timeout(10_000)
+    expect.set_options(timeout=10_000)
+    page.wait_for_function(
+        "() => window.__lfRuntimeImport('/runtime/annotation-overlay/margin-layout.js')"
+        ".then(({layoutMarginRows}) => (layoutMarginRows(), true))",
+        timeout=10_000,
+    )
+
+    line = page.locator("#hline")
+    assert line.evaluate("node => node.getBoundingClientRect().height") == 0
+    assert line.evaluate("node => node.checkVisibility()")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    dialog = page.get_by_role("dialog", name="Page Map", exact=True)
+    dialog.get_by_role(
+        "button", name="Open thread: Check this line.", exact=True
+    ).click()
+    rendered(page)
+
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    thread_id = next(
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("text") == comment["text"]
+    )
+    thread = preview.locator(f'.lf-page-thread[data-thread="{thread_id}"]')
+    expect(thread).to_be_focused()
+    expect(thread).to_contain_text("Check this line.")
+
+
 # The right edge of the column's words, inside `main`'s padding. A thread card beside
 # them stands clear of it, over the margin cluster if its measure needs that room.
 WORDS_RIGHT = """() => {

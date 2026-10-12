@@ -20,6 +20,8 @@ Rendering work that reaches a resting state uses `nextRender`, `nextFrame` and
 when the element leaves ("Connection lifetimes"). Continuous mechanical motion, such as recording playback, uses
 `nextAnimation` and `cancelAnimation`: it schedules browser frames without holding
 page readiness open. Cancel it when the motion stops or its owner leaves.
+Work that races its own cancellation awaits `aborted(signal)`, which resolves once the
+signal aborts: `Promise.race([work, aborted(signal)])`.
 
 `/runtime/widget-api.js` is the whole Leaf API a behavior module gets: a module imports
 only that public helper surface, and does not reach into the runtime's private owners,
@@ -449,9 +451,10 @@ A widget's own layer, such as a list it opens over its contents, records where i
 opened from with `openLayer(layer)` as it opens, which reads where the user stands.
 Open a native modal dialog or popover with `showNativeLayer(layer, {source})`;
 `modal: false` opens a nonmodal dialog. It suppresses the native opening's automatic
-focus inside a sample; use `focusDestination` for the intended arrival. Close a
-native dialog or popover with `closeNativeLayer(layer)`, which prevents the native
-return from taking input from the containing page. A layer
+focus inside a sample; use `focusDestination` for the intended arrival. A popover keeps
+its `source` when the runtime re-seats it, as it does when a panel starts or stops
+covering the page. Close a native dialog or popover with `closeNativeLayer(layer)`,
+which prevents the native return from taking input from the containing page. A layer
 closes with `closeLayer(close, land)`: `close` hides it, and `land` puts a user who stood
 in it where the close takes them, usually `handBack(openerOf(layer))`, which lets go onto
 the page where the opener is gone. Readers of where the user stands hear only where they

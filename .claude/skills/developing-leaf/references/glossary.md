@@ -94,12 +94,11 @@ Don't say *widget entry* for an element declaration, *item* for an addressable e
 |---|---|
 | **Page shell** | The body-level responsive sizing envelope after chrome reservations |
 | **Content frame** | `body > main`, the root of authored content and its reading column in flow posture |
-| **Layout** | A shipped class (`layouts.css`, the `lf-layouts` cascade layer) that arranges the box it is on: `layout-column`, `layout-wide`, `layout-sidebar`, `layout-tiles`, `layout-workspace` |
-| **Wide page** | A content frame carrying a Layout other than `layout-column`. It is a width, not a separate kind of page |
+| **Layout** | A shipped class (`layouts.css`, the `lf-layouts` cascade layer) that arranges the box it is on: the page Layouts `layout-column`, `layout-sidebar` and `layout-workspace` on the content frame alone, and `layout-tiles` on any block |
 | **Frame** | A box whose size comes from outside it: `main`, a root tab panel, a pane, a cell of a Layout or of the page's own grid, or any box declaring `--lf-block-frame`, whose values `theme.css` defines |
 | **Text** and **surface** | How a block uses its frame's width. Text (a paragraph, list item, term or description, quote, caption or heading, or a block allocated the column) keeps the reading measure; every other box is a surface that fills its frame |
 | **Bounded block** | A block that holds its own height and scrolls inside it (`x-bound`, `data-bound`), which makes it a reading region |
-| **Sidebar Layout** | `layout-sidebar`: a wrapping layout that places a main region beside a smaller supporting region when both fit, on a wide page or inside a nested block |
+| **Sidebar page** | A content frame on `layout-sidebar`, as wide as the window up to a cap: a wrapping layout placing the body beside its `aside` when both fit, with a header and footer across both. Every block starts at its region's left edge and takes its width, while text keeps the reading measure |
 | **Margin sidebar** | `aside.sidebar`: page-level supporting material, typically navigation, in a column page's left margin where it fits and in flow otherwise. It creates no side-by-side content regions |
 | **Workspace** | A page on `main.layout-workspace`, which keeps task regions together |
 | **Full-height** | A workspace that fills the window exactly, where the window is large enough, marked by `--lf-full-height: 1` on `main`; the web calls it a full-height or app-shell layout. `layouts.css` says which of its boxes scroll |

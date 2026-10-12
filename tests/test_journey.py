@@ -75,7 +75,9 @@ def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(end):
         def evaluate(self, script, arg=None):
             assert script == "window.__leafVerifier.replyShownAt"
             shown.append(arg["id"])
-            return {"at": 1_000_000 + 9_500, "by": "row"}
+            # The row shows the reply first; its message comes into view a read later.
+            message = 1_000_000 + 9_520 if len(shown) > 1 else None
+            return {"at": 1_000_000 + 9_500, "by": "row", "message": message}
 
     url = "http://127.0.0.1:1/?t=token"
     user_end = (
@@ -123,7 +125,8 @@ def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(end):
     if end == "browser":
         assert reading["sinceSendMs"]["responseVisible"] == 9500
         assert reading["responseShownBy"] == "row"
-        assert shown == ["r1"]
+        assert reading["sinceSendMs"]["responseMessageVisible"] == 9520
+        assert shown == ["r1", "r1"]
     else:
         assert "sinceSendMs" not in reading and shown == []
     # The record before the pickup is no delivery; the work after it is.
@@ -341,10 +344,8 @@ def test_the_release_ask_over_http_is_the_shared_check(tmp_path):
         append_event(page, title_event(comment["id"], "Release recorded", agent))
         post_reply(
             page,
-            comment["id"],
+            {"to": comment["id"], "for": comment["id"]},
             "Recorded.",
-            "",
-            for_event=comment["id"],
             identity=agent,
         )
 

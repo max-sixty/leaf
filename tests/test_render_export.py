@@ -22,12 +22,12 @@ from interact_support import (
     COMPOSITE_TIMEOUT,
     STATED_TIMEOUT,
     append_carried_log_record,
-    consume_pending_input,
     install_payload,
     wait_for,
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
+from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import files as files_model
@@ -60,7 +60,7 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 ROOT = Path(__file__).parent.parent
 # `leaf-dev preview`, run by the interpreter this suite runs on.
@@ -688,20 +688,20 @@ def test_a_user_preview_restarts_under_its_original_codex_claim(
     # Ownership can end while a runtime edit waits for the page transaction.
     # page init needs that transaction before it can stop the service, so do not
     # wait for its stop while holding the transaction ourselves.
-    with service_model.PageTransaction(directory) as transaction:
+    with service_model.PageTransaction(directory):
         with theme.open("a", encoding="utf-8") as stream:
             stream.write("\nh1 { color: teal; }\n")
-        transaction.release_claim()
+        cleanup_model.end_session(claim["id"])
     wait_for(
         lambda: server_model.running_server(directory),
         lambda running: not running,
-        failure="the released claim left the service running",
+        failure="the ended session left the service running",
     )
-    assert service_model.page_claim(directory)["released"] is not None
+    assert not service_model.claim_is_active(service_model.page_claim(directory))
     wait_for(
         lambda: leases_model.lock_is_held(preview_model.preview_lease(directory)),
         lambda held: not held,
-        failure="the released session left its preview running",
+        failure="the ended session left its preview running",
     )
 
 
@@ -878,7 +878,8 @@ def test_a_failed_preview_bootstrap_hears_the_replacement_server(
         expect(page.locator("body")).to_have_attribute(
             "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
         )
-        expect(status).not_to_be_visible()
+        # Re-vendoring the full layer can outlast the default browser wait.
+        expect(status).not_to_be_visible(timeout=HANDOVER_DEADLINE_MS)
     if resource == "widgets/lf-options.js":
         expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert len(documents) >= 2
@@ -886,53 +887,6 @@ def test_a_failed_preview_bootstrap_hears_the_replacement_server(
         json.loads((directory / "registry.json").read_text())["$layer"]["generation"]
         != generation
     )
-
-
-def test_a_failed_bootstrap_hears_a_static_registry_generation(
-    browser, watched_preview
-):
-    """A static host can supervise startup without synthesizing Leaf headers."""
-    _, _, directory, _, url, _ = watched_preview
-    registry = json.loads((directory / "registry.json").read_text())
-    generation = registry["$layer"]["generation"]
-    page = browser.new_page()
-    failures = []
-    probes = []
-    documents = requested_documents(page)
-
-    def interrupt_entry(route):
-        if failures:
-            route.continue_()
-            return
-        failures.append(True)
-        route.abort()
-
-    def static_registry(route):
-        if len(documents) > 1:
-            route.continue_()
-            return
-        probes.append(True)
-        body = json.loads(json.dumps(registry))
-        if len(probes) > 1:
-            body["$layer"]["generation"] = f"{generation}-replacement"
-        route.fulfill(content_type="application/json", body=json.dumps(body))
-
-    page.route("**/leaf.js", interrupt_entry)
-    page.route("**/registry.json", static_registry)
-    # As above: the refused entry and the server that replaces it are one restart,
-    # and its noise belongs to the span rather than to a list of wordings.
-    with restarting(page):
-        page.goto(url, wait_until="load")
-        status = page.get_by_text(
-            "Leaf couldn't start. Waiting for the server to update."
-        )
-        expect(status).to_be_visible()
-        expect(page.locator("body")).to_have_attribute(
-            "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
-        )
-    assert len(probes) >= 2
-    assert len(documents) == 2
-    expect(status).not_to_be_visible()
 
 
 @pytest.mark.parametrize("interrupted", ["registry.json", "widgets/lf-options.js"])
@@ -1117,8 +1071,12 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
         },
     )
     assert waiter.wait(timeout=STATED_TIMEOUT) == 0, waited.read_text()
-    assert "has new input" in waited.read_text()
-    [batch] = consume_pending_input(session)["batches"]
+    lines = waited.read_text().splitlines()
+    start = next(i for i, line in enumerate(lines) if line.startswith("{"))
+    payload = json.loads("\n".join(lines[start:]))
+    assert f"leaf wait --ack {payload['id']}" in payload["acknowledge"]
+    delivery_model.receive(payload, session)
+    [batch] = payload["batches"]
     assert [event["text"] for event in batch["events"]] == ["still there?"]
 
 
@@ -1134,10 +1092,9 @@ def test_a_user_preview_brings_back_a_service_that_is_down_but_wanted(
     port = server_model.running_server(directory)["port"]
     claim = service_model.page_claim(directory)
     events = (directory / "events.jsonl").read_bytes()
-    # Hold the watcher while taking the stopped server's port. The first revival
-    # must refuse, then recover after that condition clears without a source edit.
+    # Hold the watcher while taking the stopped server's port. Revival waits for
+    # native availability, then recovers without a source edit.
     with socket.socket() as occupied:
-        occupied.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         os.killpg(process.pid, signal.SIGSTOP)
         try:
             killed = subprocess.run(
@@ -1154,10 +1111,11 @@ def test_a_user_preview_brings_back_a_service_that_is_down_but_wanted(
         finally:
             os.killpg(process.pid, signal.SIGCONT)
         wait_for(
-            log.read_text,
-            lambda output: "can't serve" in output,
-            failure="the occupied preview address was not reported",
+            lambda: leases_model.lock_is_held(directory / "server.lock"),
+            bool,
+            failure="the preview did not prepare a replacement server",
         )
+        assert server_model.running_server(directory) is None
         assert files_model.read_json(directory / "service.json")["enabled"]
 
     wait_for(

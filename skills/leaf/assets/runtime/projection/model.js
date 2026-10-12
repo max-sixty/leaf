@@ -13,6 +13,14 @@
 /** @typedef {import("../../../../../build/browser/domain.ts").UnitValue} UnitValue */
 /** @typedef {import("../../../../../build/browser/domain.ts").PositionValue} PositionValue */
 /** @typedef {import("../../../../../build/browser/domain.ts").Projection} Projection */
+// A state coordinate, `[owner, unit, verb]`, as the key the folds index it by. The
+// server sends the tuple (`projection.py`); the browser keys and reads it back here.
+/** @param {string} owner @param {string} unit @param {string} verb */
+export const stateCoordinate = (owner, unit, verb) =>
+  JSON.stringify([owner, unit, verb]);
+/** @param {string} key @returns {[string, string, string]} */
+export const coordinateOf = (key) => JSON.parse(key);
+
 /** @param {{detail: Record<string, unknown>}} event @param {import("../../../../../build/browser/domain.ts").StateRecord} record */
 export function foldedValue(event, record) {
   const value = event.detail.value;
@@ -344,6 +352,48 @@ export function foldWidgetStates(authoredSnapshots, projection) {
         for (const ids of Object.values(position.value))
           ids.sort(byRank(position.ranks));
   return states;
+}
+
+/* A Question reads its value from the same complete fold as its widget. Completion
+   can make an empty recorded value an answer, but cannot invent custom state after
+   undo removes its action. Python's projection.question_value owns the same reading;
+   the shared question-value cases exercise both runtimes. */
+/** @param {Pick<import("../../../../../build/browser/domain.ts").AuthoredWidget, "state" | "specs">} widget
+ * @param {string} verb @param {boolean} answered */
+export function questionValue(widget, verb, answered) {
+  const state = widget.state[verb];
+  const spec = widget.specs.get(verb);
+  if (!state || !spec) throw new Error(`Missing Question value definition for ${verb}`);
+  /** @param {unknown} value */
+  const recorded = (value) =>
+    spec.record?.kind === "attribute" &&
+    (typeof value === "string" || Array.isArray(value))
+      ? [...value].sort()
+      : value;
+  const value =
+    "units" in state
+      ? spec.record?.kind === "position"
+        ? state.value
+        : Object.fromEntries(
+            Object.entries(state.units)
+              .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+              .map(([id, entry]) => [
+                id,
+                spec.record ? recorded(entry.value) : entry.detail,
+              ]),
+          )
+      : spec.record
+        ? recorded(state.value)
+        : state.action
+          ? state.detail
+          : null;
+  const populated =
+    value !== null &&
+    value !== "" &&
+    (typeof value !== "object" || Object.keys(value).length > 0);
+  const hasInput =
+    "units" in state ? Object.keys(state.units).length > 0 : Boolean(state.action);
+  return { value, present: value !== null && (populated || answered || hasInput) };
 }
 
 /** @param {ClassifiedEntry} entry @returns {entry is ProjectionEntry} */

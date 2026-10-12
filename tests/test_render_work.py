@@ -27,7 +27,7 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 def reading(page, scope):
@@ -151,7 +151,7 @@ customElements.define("lf-project-milestone", class extends HTMLElement {
 
 
 @pytest.mark.watch_shifts
-def test_atlas_report_waits_behind_a_stationary_updates_control(browser, serve):
+def test_atlas_report_waits_behind_a_stationary_refresh_control(browser, serve):
     page = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
     # The status is part of the summary's hit area, including at phone widths.
     # A native form output here consumes activation instead of opening details.
@@ -181,11 +181,11 @@ def test_atlas_report_waits_behind_a_stationary_updates_control(browser, serve):
     expect(report).to_have_text(before)
     after = report.bounding_box()
     assert abs(after["y"] - box["y"]) < 1
-    updates = page.get_by_role("button", name="Show updates", exact=True)
-    expect(updates).to_be_enabled()
-    updates.click()
+    latest = page.get_by_role("button", name="Show latest", exact=True)
+    expect(latest).to_be_enabled()
+    latest.click()
     expect(report).to_contain_text("Expanded report.")
-    expect(updates).to_be_disabled()
+    expect(latest).to_be_disabled()
     heard = report.locator("time")
     event = next(
         row
@@ -211,8 +211,8 @@ def test_atlas_report_waits_behind_a_stationary_updates_control(browser, serve):
     data_model.cmd_data_set(serve.page_dir, "atlas-worktrees", worktrees)
     told(page)
     expect(observed).to_have_text(re.compile(r"\d+d ago"))
-    expect(updates).to_be_enabled()
-    updates.click()
+    expect(latest).to_be_enabled()
+    latest.click()
     expect(observed).to_have_text("just now")
     expect(observed).to_have_attribute("datetime", refreshed_at)
 
@@ -270,11 +270,11 @@ def test_work_status_is_a_generated_browser_passage(browser, serve, owner):
         else:
             expect(page.locator("#goal > .lf-quiet")).to_have_count(0)
         captured = line.evaluate("""async el => {
-          const {says, pageText} = await window.__lfRuntimeImport('/runtime/passages.js');
+          const {says} = await window.__lfRuntimeImport('/runtime/passages.js');
           const {anchorForRange, resolveAnchor} = await window.__lfRuntimeImport('/runtime/anchor-resolution.js');
           const range = document.createRange(); range.selectNodeContents(el);
           const anchor = anchorForRange(range);
-          const resolved = resolveAnchor(anchor, pageText());
+          const resolved = resolveAnchor(anchor);
           return {words: says(el), anchor, kind: resolved?.kind, exact: resolved?.exact};
         }""")
         assert captured == {
@@ -309,10 +309,9 @@ def test_work_status_is_a_generated_browser_passage(browser, serve, owner):
         # Resolve the admitted historical coordinates, not a newly recaptured range.
         resolved = page.evaluate(
             """async anchors => {
-          const {pageText} = await window.__lfRuntimeImport('/runtime/passages.js');
           const {resolveAnchor} = await window.__lfRuntimeImport('/runtime/anchor-resolution.js');
           return anchors.map(anchor => {
-            const found = resolveAnchor(anchor, pageText());
+            const found = resolveAnchor(anchor);
             return {quote: anchor.quote, exact: found?.exact ?? false};
           });
         }""",

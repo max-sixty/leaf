@@ -1,0 +1,63 @@
+/* Drafts read as Markdown, with editor operations in their own stable footer.
+   Reserve that footer before upgrade; actual history shares it rather than adding
+   an empty Changes row. The frame holds focus, and print retains saved prose. */
+:scope:is(lf-draft) { display: block; border: 1px solid var(--border-2); border-radius: 6px;
+  padding: 10px 14px; margin: 12px 0; background: var(--card);
+  font-size: max(var(--entry-floor), 1em); }
+.lf-draft-body, :scope:is(lf-draft) > .lf-markdown-body { white-space: normal; }
+:is(.lf-draft-body, :scope:is(lf-draft) > .lf-markdown-body) > :first-child { margin-top: 0; }
+:is(.lf-draft-body, :scope:is(lf-draft) > .lf-markdown-body) > :last-child { margin-bottom: 0; }
+/* The shared source primitive owns fallback presentation, which a draft's source
+ * does not wear: it reads as prose lines. */
+:scope:is(lf-draft) > pre {
+  white-space: pre-line;
+  background: none; border: 0; border-radius: 0; padding: 0; margin: 0;
+  font: inherit; line-height: inherit; overflow: visible;
+}
+.lf-draft-edit.lf-ui { display: block; width: 100%; padding: 0; border: 0; background: none;
+  font: inherit; min-height: 0; max-height: none; overflow: hidden; }
+.lf-draft-edit.lf-ui[data-lf-focus] { outline: none; box-shadow: none;
+  --lf-focus-ring: none; }
+.lf-draft-footer { display: none; }
+@media screen {
+  @scope (html[data-lf-interactive] :scope) {
+    :scope:is(lf-draft):not(:where([data-lf-exhibit], [data-lf-exhibit] *)) {
+      display: grid;
+      grid-template-rows: minmax(min-content, auto) minmax(max(32px, var(--aim-floor)), auto);
+      gap: 8px;
+    }
+  }
+  :scope:is(lf-draft):has(.lf-draft-edit) { border-color: var(--muted); }
+  :scope:is(lf-draft):has(.lf-draft-edit[data-lf-focus]) { outline: var(--focus-ring);
+    --lf-focus-ring: draft-editor;
+    outline-offset: calc(-1 * (var(--focus-ring-w) + var(--focus-ring-gap))); }
+  :scope:is(lf-draft):has(.lf-draft-edit:state(ready)) > .lf-draft-body { display: none; }
+  .lf-draft-footer { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 8px 12px;
+    min-width: 0; font: var(--t-5)/var(--lf-ui-lh) var(--sans); }
+  .lf-draft-tools { display: flex; flex-wrap: wrap; gap: 8px; margin-inline-start: auto; }
+  .lf-draft-action { min-height: max(32px, var(--aim-floor)); }
+  .lf-draft-status { color: var(--danger-ink); align-self: center; }
+  .lf-draft-status:empty { display: none; }
+  .lf-draft-history { flex: 1; min-width: 0; margin: 0; padding: 0; border: 0;
+    --lf-block-frame: 1; font: inherit; color: var(--ink-2); }
+  .lf-draft-history[hidden] { display: none; }
+  .lf-draft-history > summary { width: max-content; max-width: 100%; cursor: pointer;
+    padding-block: 5px; color: var(--muted); }
+  .lf-draft-history > summary:hover { color: var(--ink-2); }
+}
+@media (forced-colors: active) {
+  :scope:is(lf-draft):has(.lf-draft-edit[data-lf-focus]) {
+    outline: 2px solid Highlight; outline-offset: -5px; box-shadow: none;
+  }
+}
+.lf-draft-current { margin: 10px 0; }
+.lf-draft-current > strong { display: block; margin-bottom: 4px; }
+.lf-draft-revisions { margin: 0; padding-left: 20px; }
+.lf-draft-revisions > li { margin: 8px 0; padding-left: 3px; }
+.lf-draft-revision-head { display: flex; align-items: center; justify-content: space-between;
+                          gap: 8px; margin-bottom: 3px; }
+.lf-draft-delta, .lf-draft-snapshot { white-space: pre-wrap; color: var(--ink-2); }
+.lf-draft-delta del { background: var(--del-tint); color: var(--danger-ink); }
+.lf-draft-delta ins { background: var(--add-tint); color: var(--ok-ink);
+                      text-decoration: none; }
+.lf-draft-restore { flex: none; font-size: var(--t-6); }

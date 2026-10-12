@@ -8,7 +8,7 @@ import pytest
 from interact_support import append_carried_log_record, append_command
 from leaf import event_log as events_model
 from leaf import interaction_log as interaction_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -17,6 +17,7 @@ from render_cases_interaction import (
     LIVE_V2,
     SEATED_ASK_ENTRY,
     SEATED_ASK_MODULE,
+    SEATED_QUESTION_PAGE,
     live_url,
 )
 from render_harness import (
@@ -31,6 +32,7 @@ from render_harness import (
     refuse,
     reported_browser_errors,
     round_trip,
+    scroll_settled,
     sending,
     stamp_page,
     take_browser_errors,
@@ -221,7 +223,11 @@ def test_browser_interactions_are_recorded_beside_server_requests(browser, serve
     assert any(
         any("button#trace-button" in part for part in row["target"]) for row in clicks
     )
-    assert any(row["id"] == "command.reference.open" for row in commands)
+    reference = next(row for row in commands if row["id"] == "command.reference.open")
+    assert reference["title"]
+    assert "description" in reference
+    assert reference["focus"]["target"] == "body"
+    assert reference["scroll"] == [0, 0]
     assert len({row["session"] for row in inputs + clicks + commands}) == 1
     grouped = [row for row in parts if row["partOf"] == parts[0]["partOf"]]
     reconstructed = json.loads(
@@ -435,7 +441,7 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     box = page_comment(page)
-    send = page.locator(".lf-page-comment-card .lf-general button")
+    send = page.locator(".lf-page-comment-card .lf-general .lf-compose-submit")
     write(box, "Pending **words**")
     send.click()
     holding(page, held, 1, "the shared collection's pending root")
@@ -534,7 +540,7 @@ def test_package_thread_widgets_keep_local_filters_and_independent_subscriptions
     before = [widget.evaluate("node => node.updates") for widget in (first, second)]
     with sending(page, "a Thread visible to both package widgets"):
         write(page_comment(page), "Cedar")
-        page.locator(".lf-page-comment-card .lf-general button").click()
+        page.locator(".lf-page-comment-card .lf-general .lf-compose-submit").click()
     expect(second.locator("li")).to_have_text("Cedar")
     expect(first.locator("li")).to_have_text("Alpine")
     for widget, count in zip((first, second), before):
@@ -553,7 +559,7 @@ def test_package_thread_widgets_keep_local_filters_and_independent_subscriptions
     first_before = first.evaluate("node => node.updates")
     with sending(page, "another Thread after one widget disconnected"):
         write(page_comment(page), "Delta")
-        page.locator(".lf-page-comment-card .lf-general button").click()
+        page.locator(".lf-page-comment-card .lf-general .lf-compose-submit").click()
     expect(first.locator("li")).to_have_text("Delta")
     assert first.evaluate("node => node.updates") > first_before
     assert removed.evaluate("node => node.updates") == stopped_at
@@ -648,8 +654,9 @@ def test_package_thread_mirrors_share_core_conversation_without_claiming_placeme
       node.consumer.update();
     }""")
     # The log answered the reply before the held mirror drew it, so to that mirror it is
-    # news, which waits behind a notice rather than moving its reply box.
-    expect(second.locator(".lf-thread-news")).to_have_text("1 new reply")
+    # news, which waits behind a notice rather than moving its reply box. It is the
+    # user's own message, not a reply.
+    expect(second.locator(".lf-thread-news")).to_have_text("1 new message")
     expect(second.locator(".lf-page-thread")).not_to_contain_text("While held")
 
     # This lifecycle removal follows the user's clearing their local filter.
@@ -960,7 +967,7 @@ def test_admission_holds_approval_until_the_answer_is_in_the_log(
     expect_asks_answered(page, "0/1")
     expect(approval).to_be_disabled()
     expect(approval).to_have_attribute(
-        "title", "Answer every Ask before approving this work"
+        "title", "Answer every Question before approving this work"
     )
 
     if expanded:
@@ -1393,6 +1400,7 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
         "whenLeafPresented().then(() => { presentationReady = true; }); true"
     )
     assert page.evaluate("presentationReady") is False
+    rendered(page)  # A deferred local edit does not hold mechanical rendering.
     resumed = page.evaluate(
         "resumeLocal(); const once = Number(pageLocal.dataset.readings); "
         "resumeLocal(); [once, Number(pageLocal.dataset.readings)]"
@@ -1438,6 +1446,9 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
         }"""
     )
     page.wait_for_function("beforeRemovalReady")
+    rendered(
+        page
+    )  # A removed owner's unresolved preparation no longer holds rendering.
     assert page.evaluate("Number(pageLocal.dataset.readings)") == page.evaluate(
         "beforeDetachedReading"
     )
@@ -1467,6 +1478,12 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
         }"""
     )
     assert page.evaluate("reconnectedReady") is False
+    assert (
+        page.evaluate(
+            "Object.values(document.querySelector('script[data-lf-entry]').lfRenderingState()).every(Boolean)"
+        )
+        is False
+    )
     assert page.evaluate("Number(pageLocal.dataset.readings)") == page.evaluate(
         "beforeDetachedReading + 1"
     )
@@ -1501,9 +1518,97 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
     )
     page.wait_for_function("readLeafPresentation().pending.length === 0")
     assert page.evaluate("window.__failedLocalRenders") == 1
-    assert take_browser_errors(page) == [
+    errors = take_browser_errors(page)
+    assert [error.splitlines()[0] for error in errors] == [
         "leaf: Presentation failed: <lf-local> renderState threw: deliberate render failure"
     ]
+    assert "Caused by: Error: deliberate render failure" in errors[0]
+
+
+@pytest.mark.parametrize(
+    "mode", ["siblings", "superseded", "reconnected", "registered-detached"]
+)
+def test_preparation_waits_for_all_capable_work(browser, serve, mode):
+    """Failures and reconnects retain every producer that can still commit DOM."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Preparation",
+                '<h1>Preparation</h1><lf-local id="page-local" choice="idle"></lf-local>',
+            ),
+            page_files={
+                "registry.json": json.dumps(PAGE_DECLARATION),
+                "widgets/lf-local.js": PAGE_WIDGET,
+            },
+        ),
+    )
+    page.locator("#page-local").evaluate("""owner => {
+      window.preparationOwner = owner;
+      window.preparationParent = owner.parentNode;
+    }""")
+    if mode == "registered-detached":
+        page.evaluate("preparationOwner.remove()")
+    page.evaluate("""() => {
+      const owner = preparationOwner;
+      const first = new Promise((done, fail) => {
+        window.finishPreparation = done;
+        window.rejectPreparation = fail;
+      });
+      owner.controller.present(first.then(() => { owner.dataset.late = 'committed'; }));
+    }""")
+    if mode == "registered-detached":
+        append_command(
+            serve.page_dir,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": "page-local",
+                "action": "choose",
+                "detail": {"value": "chosen"},
+            },
+        )
+        told(page)
+    elif mode != "siblings":
+        page.get_by_role("button", name="Choose", exact=True).click()
+        expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
+    page.evaluate("""() => {
+      const owner = preparationOwner;
+      const second = new Promise(done => { window.releaseSibling = done; });
+      owner.controller.present(second);
+    }""")
+    if mode in {"reconnected", "registered-detached"}:
+        if mode == "reconnected":
+            page.get_by_role("heading", name="Preparation", exact=True).click()
+            page.evaluate("preparationOwner.remove()")
+        rendered(page)
+        page.evaluate("preparationParent.append(preparationOwner)")
+    if mode != "siblings":
+        page.evaluate("releaseSibling()")
+    else:
+        page.evaluate("rejectPreparation(new Error('deliberate preparation failure'))")
+        expect(page.locator("#page-local .lf-error")).to_contain_text(
+            "deliberate preparation failure"
+        )
+    one_frame(page)
+    assert not page.evaluate(
+        "Object.values(document.querySelector('script[data-lf-entry]').lfRenderingState()).every(Boolean)"
+    )
+    if mode in {"reconnected", "registered-detached"}:
+        page.evaluate("finishPreparation()")
+        rendered(page)
+        expect(page.locator("#page-local")).to_have_attribute("data-late", "committed")
+        return
+    if mode == "superseded":
+        page.evaluate("rejectPreparation(new Error('deliberate preparation failure'))")
+    expect(page.locator("#page-local .lf-error")).to_contain_text(
+        "deliberate preparation failure"
+    )
+    errors = take_browser_errors(page)
+    assert errors and all("deliberate preparation failure" in error for error in errors)
+    page.evaluate("releaseSibling()")
+    rendered(page)
 
 
 def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
@@ -1668,7 +1773,7 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
     expect(page.locator("#thread-failing")).to_have_count(1)
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 2")
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
-    assert take_browser_errors(page) == [
+    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
         "leaf: Presentation failed: frozen descendant failure"
     ]
 
@@ -1782,13 +1887,13 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
             );
             if (!candidate) return present(model);
             if (failures > 0) {
+              const attempt = failures--;
               await present(model);
-              if (failures === 2) {
+              if (attempt === 2) {
                 window.failedCandidatePresented = true;
                 await failedCandidate;
               }
-              failures -= 1;
-              window.completeListFailures = 2 - failures;
+              window.completeListFailures = (window.completeListFailures ?? 0) + 1;
               throw new Error('injected complete-list failure');
             }
             if (!window.threadRetryReleased) {
@@ -1853,7 +1958,9 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         selected.locator(".lf-thread-summary").click()
         expect(selected).to_have_attribute("open", "")
     elif place == "leave-displaced-title":
-        expect(page.locator(".lf-thread[open] > .lf-thread-summary")).to_be_focused()
+        expect(
+            page.locator('[data-withdrawn="selected-thread"] button')
+        ).to_be_focused()
         page_comment(page)
     page.evaluate("window.releaseFirstListFailure()")
     page.wait_for_function(
@@ -1889,6 +1996,10 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
     ) == [6, 14, "backward"]
     assert "thread" in page.evaluate("window.readLeafPresentation().pending")
+    # The restored card must stand for a frame before retrying its withdrawal;
+    # the choice that dismissed the failed candidate cannot hide a later jump.
+    page.evaluate("lfShiftsJudged()")
+    restored_top = page.evaluate("window.keptPanel.getBoundingClientRect().top")
 
     # The retry paints the whole candidate again and then reaches the independently
     # held frozen-widget preparation. Only that complete reading may commit.
@@ -1930,6 +2041,211 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         kept["id"],
     ), "successful list retry replaced a committed panel card, seat, or editor"
     expect(editor).to_have_js_property("value", "draft survives sibling rollback")
+    if place == "choose-earlier":
+        expect(page.locator('[data-withdrawn="selected-thread"]')).to_have_count(1)
+        assert page.evaluate(
+            "window.keptPanel.getBoundingClientRect().top"
+        ) == pytest.approx(restored_top, abs=0.1)
+    expected_errors = (
+        []
+        if place == "choose-earlier"
+        else [
+            (
+                "leaf: Presentation failed: Thread list presentation retry failed: "
+                "injected complete-list failure; injected complete-list failure"
+            )
+        ]
+    )
+    errors = take_browser_errors(page)
+    assert [error.splitlines()[0] for error in errors] == expected_errors, errors
+
+
+@pytest.mark.parametrize("place", ["closed", "selected", "scrolled", "scaled"])
+def test_an_external_withdrawal_keeps_the_readers_allocation(browser, serve, place):
+    """Absent threads retain room, never live controls or semantic membership."""
+    selected = place not in {"closed", "scaled"}
+    url = serve(
+        leaf_page(
+            "Withdrawn thread",
+            '<h1>Review</h1><p id="one">First passage.</p><p id="two">Next passage.</p>',
+        ),
+        layer_registry=PAGE_DECLARATION,
+        layer_widgets={"lf-local.js": PAGE_WIDGET},
+    )
+    first = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "first-thread",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "one"},
+            "text": "The conversation that will be withdrawn."
+            + (
+                "\n\n"
+                + "\n\n".join(
+                    f"Paragraph {i}: A long conversation stays readable while the panel scrolls."
+                    for i in range(28)
+                )
+                if place == "scrolled"
+                else ""
+            ),
+        },
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "next-thread",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "two"},
+            "text": "The conversation that stays.",
+        },
+    )
+    if place == "scrolled":
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "id": "long-reply",
+                "author": "agent",
+                "revision": 1,
+                "parent": first["id"],
+                "text": "\n\n".join(
+                    f"Paragraph {i}: The full conversation remains available as the reader scrolls."
+                    for i in range(28)
+                ),
+            },
+        )
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "id": "widget-reply",
+                "author": "agent",
+                "revision": 1,
+                "parent": first["id"],
+                "text": "A frozen control in the withdrawn thread.",
+                "markup": '<lf-local id="withdraw-widget" choice="idle"></lf-local>',
+            },
+        )
+    page = open_page(browser, live_url(url))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    if place == "scaled":
+        page.add_style_tag(
+            content=".lf-thread-panel { transform:scale(1.2); transform-origin:top right; }"
+        )
+        assert (
+            page.locator(".lf-thread-panel").evaluate(
+                "node => getComputedStyle(node).transform"
+            )
+            == "matrix(1.2, 0, 0, 1.2, 0, 0)"
+        )
+    first_card = page.locator('.lf-threads > [data-id="first-thread"]')
+    next_card = page.locator('.lf-threads > [data-id="next-thread"]')
+    (first_card if selected else next_card).locator(".lf-thread-summary").click()
+    if place == "scrolled":
+        write(
+            first_card.locator(":scope > .lf-thread-reply leaf-text"),
+            "A draft for this conversation",
+        )
+        page.evaluate(
+            "window.withdrawnWidget = document.querySelector('#withdraw-widget')"
+        )
+        panel = page.locator("leaf-thread-list")
+        box = panel.bounding_box()
+        page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        page.mouse.wheel(0, 600)
+        page.wait_for_function(
+            "document.querySelector('leaf-thread-list').scrollTop > 0"
+        )
+        scroll_settled(page, "leaf-thread-list")
+        assert first_card.evaluate(
+            "node => node.getBoundingClientRect().top < node.parentElement.getBoundingClientRect().top"
+        )
+    rendered(page)
+    allocation = first_card.evaluate("node => node.getBoundingClientRect().height")
+    position = next_card.evaluate("node => node.getBoundingClientRect().top")
+    page.evaluate(
+        "() => { window.survivingCard = document.querySelector('.lf-threads > [data-id=next-thread]'); }"
+    )
+    if place == "scrolled":
+        for reply in ["long-reply", "widget-reply"]:
+            append_carried_log_record(
+                serve.page_dir, {"kind": "undo", "author": "agent", "undoes": reply}
+            )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "undo",
+            "id": "withdraw-first",
+            "author": "user",
+            "revision": 1,
+            "undoes": first["id"],
+        },
+    )
+    told(page)
+    withdrawn = page.locator('[data-withdrawn="first-thread"]')
+    expect(withdrawn).to_contain_text("Thread withdrawn")
+    expect(first_card).to_have_count(0)
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 1")
+    expect(page.locator(".lf-thread-view-summary")).to_have_text("1 open thread")
+    assert withdrawn.evaluate(
+        "node => node.getBoundingClientRect().height"
+    ) == pytest.approx(allocation, abs=0.1)
+    assert next_card.evaluate(
+        "node => node.getBoundingClientRect().top"
+    ) == pytest.approx(position, abs=0.1)
+    assert next_card.evaluate("node => node === window.survivingCard")
+    if selected:
+        expect(withdrawn.locator("button")).to_be_focused()
+        expect(next_card).not_to_have_attribute("open", "")
+        assert withdrawn.locator("button").evaluate("""node => {
+            const box = node.getBoundingClientRect();
+            const panel = node.closest('leaf-thread-list').getBoundingClientRect();
+            return box.top >= panel.top && box.bottom <= panel.bottom;
+        }""")
+    else:
+        expect(next_card.locator(".lf-thread-summary")).to_be_focused()
+        expect(next_card).to_have_attribute("open", "")
+    if place == "scrolled":
+        assert page.evaluate(
+            "window.withdrawnWidget && !window.withdrawnWidget.isConnected"
+        )
+        # The subject has left the document: its editor ends, while the draft's
+        # independent saved owner keeps the words for a genuine return.
+        page.evaluate("lfWordsJudged()")
+        assert take_browser_errors(page) == [
+            'typed words left the screen without a key or press: "A draft for this conversation" in leaf-text.lf-ui'
+        ]
+    # A view change or choosing another conversation releases retained news too.
+    if place == "scaled":
+        find = page.get_by_role("searchbox", name="Find in threads")
+        find.fill("stays")
+        rendered(page)
+        expect(withdrawn).to_have_count(0)
+        expect(find).to_be_focused()
+        find.press("Escape")
+    elif place == "selected":
+        page.keyboard.press("t")
+    else:
+        withdrawn.get_by_role("button", name="Dismiss").focus()
+        page.keyboard.press("Enter")
+    rendered(page)
+    expect(withdrawn).to_have_count(0)
+    expect(next_card).to_have_attribute("open", "")
+    expect(next_card.locator(".lf-thread-summary")).to_be_focused()
+
+    if place == "scrolled":
+        assert (
+            page.evaluate("""async () => {
+            const {loadDraft} = await window.__lfRuntimeImport('/runtime/drafts.js');
+            return loadDraft('reply:first-thread');
+        }""")
+            == "A draft for this conversation"
+        )
 
 
 def test_an_unavailable_list_preserves_the_selected_conversation(browser, serve):
@@ -2077,8 +2393,6 @@ def test_a_refused_thread_reading_leaves_a_user_who_moved_on_where_they_went(
             "leaf: Presentation failed: Thread list presentation retry failed: "
             "injected refusal; injected refusal"
         ),
-        "leaf: State presentation failed: Thread list presentation retry failed",
-        "leaf: read failed: Thread list presentation retry failed",
     )
     expect(page.locator('[data-id="arriving"]')).to_have_count(0)
 
@@ -2307,7 +2621,234 @@ def test_package_thread_actions_share_core_admission_and_current_availability(
     ] == ["reply", "resolve", "reply", "reply", "undo"]
 
 
-def package_workspace(serve):
+@pytest.mark.parametrize("surface", ["margin", "outlet"])
+def test_compact_reader_opens_the_native_interactive_message(browser, serve, surface):
+    """A compact reader's button addresses message content, not its own reply row."""
+    target = "jobs" if surface == "outlet" else "notes"
+    source = (
+        SEATED_QUESTION_PAGE
+        if surface == "outlet"
+        else leaf_page("Native reply", '<h1>Native reply</h1><p id="notes">Notes</p>')
+    )
+    url = serve(source)
+    for event in [
+        {
+            "id": "native-thread",
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Which channel?",
+            "anchor": {"section": target},
+        },
+        {
+            "id": "native-message",
+            "kind": "reply",
+            "author": "agent",
+            "revision": 1,
+            "parent": "native-thread",
+            "text": "Choose a channel.",
+            "markup": '<lf-options id="native-channel" choose><lf-option id="native-email">Email</lf-option></lf-options>',
+        },
+    ]:
+        append_carried_log_record(serve.page_dir, event)
+    page = open_page(browser, url)
+    if surface == "margin":
+        page.get_by_role(
+            "button", name=re.compile("Thread, On you to answer")
+        ).first.click()
+        compact = page.locator(".lf-margin-thread")
+    else:
+        compact = page.locator('#jobs .lf-page-thread[data-thread="native-thread"]')
+    panel = page.locator(".lf-thread-panel")
+    expect(panel).not_to_have_class(re.compile(r"\bopen\b"))
+    button = compact.get_by_role("button", name="Open interactive reply")
+    expect(button).to_be_visible()
+    button.focus()
+    button.press("Enter")
+    panel_settled(page)
+    expect(panel).to_have_class(re.compile(r"\bopen\b"))
+    message = panel.locator('.lf-msg[data-mid="native-message"]')
+    expect(message).to_be_focused()
+    email = message.locator("#native-email")
+    expect(email).to_be_in_viewport()
+    with sending(page, "answer the native interactive reply"):
+        email.click()
+    expect(email.get_by_role("checkbox")).to_be_checked()
+
+
+@pytest.mark.parametrize("width", [693, 1440])
+def test_panel_authored_message_button_reaches_primary_reader(browser, serve, width):
+    """The panel's compact message routes to the primary that owns its widget."""
+    page = open_page(browser, package_workspace(serve))
+    page.set_viewport_size({"width": width, "height": 900})
+    workspace = page.locator("#workspace")
+    page.evaluate("window.nativeEmail = document.querySelector('#email')")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    panel = page.locator(".lf-thread-panel")
+    panel.get_by_role("button", name="Open interactive reply", exact=True).click()
+    message = workspace.locator('.lf-msg[data-event="channel-question"]')
+    expect(message).to_be_focused()
+    email = message.locator("#email")
+    expect(email).to_be_in_viewport()
+    assert email.evaluate("node => node === nativeEmail")
+    with sending(page, "answer in the primary reader reached from Threads"):
+        email.click()
+    expect(email.get_by_role("checkbox")).to_be_checked()
+
+
+@pytest.mark.parametrize("owner", ["root", "middle"])
+def test_frozen_question_reveals_its_exact_message_in_a_selective_primary(
+    browser, serve, owner
+):
+    """A message-only primary materializes the widget's turn, including later replies."""
+    module = """
+    import {registerThreadPresentation, threadTurns} from '/runtime/widget-api.js';
+    customElements.define('lf-message-reader', class extends HTMLElement {
+      connectedCallback() {
+        this.outlet = document.createElement('section');
+        this.append(this.outlet);
+        this.presentation = registerThreadPresentation(this, {
+          render: (collection, parts) => {
+            const thread = collection.threads[0];
+            if (!thread) return;
+            const message = threadTurns(thread).find(message =>
+              message.key === (this.message ?? thread.root.key));
+            parts.message(thread.key, message.key, this.outlet);
+          },
+          reveal: (key, request) => { this.message = request.message; },
+        });
+      }
+      disconnectedCallback() { this.presentation.unregister(); }
+    });
+    """
+    url = serve(
+        leaf_page(
+            "Selective message reader",
+            '<h1>Selective message reader</h1><lf-message-reader id="reader"></lf-message-reader>',
+        ),
+        layer_registry={
+            "lf-message-reader": {
+                **THREAD_READER_DECLARATION,
+                "x-example": '<lf-message-reader id="reader-example"></lf-message-reader>',
+            }
+        },
+        layer_widgets={"lf-message-reader.js": module},
+    )
+    for message in ["root", "middle", "last"]:
+        event = {
+            "id": message,
+            "attempt": f"key-{message}",
+            "kind": "comment" if message == "root" else "reply",
+            "author": "agent",
+            "revision": 1,
+            "text": f"The {message} turn.",
+            **({"parent": "root"} if message != "root" else {}),
+        }
+        if message == owner:
+            event["markup"] = (
+                '<lf-options id="channel" choose>'
+                '<lf-option id="email">Email</lf-option></lf-options>'
+            )
+        append_carried_log_record(serve.page_dir, event)
+    page = open_page(browser, url)
+    reader = page.locator("#reader")
+    expect(reader.locator('.lf-msg[data-event="root"]')).to_be_visible()
+    if owner == "middle":
+        expect(reader.locator("#channel")).to_have_count(0)
+    assert page.evaluate("""async () => {
+      const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      return await api.questionActions.open('widget:channel');
+    }""")
+    assert reader.evaluate("node => node.message") == f"key-{owner}"
+    expect(reader.locator(f'.lf-msg[data-event="{owner}"]')).to_be_visible()
+    email = reader.locator("#email")
+    expect(email).to_be_in_viewport()
+    with sending(page, "answer the Question in its addressed native turn"):
+        email.click()
+    expect(email.get_by_role("checkbox")).to_be_checked()
+
+
+@pytest.mark.parametrize(
+    ("primary", "travel", "source_top", "cross_boundary"),
+    [
+        (True, True, 0, False),
+        (True, True, 200, False),
+        (True, False, 200, False),
+        (False, True, 1000, False),
+        (False, True, 1000, True),
+    ],
+)
+def test_primary_arrival_records_a_return_place_only_when_travelling(
+    browser, serve, primary, travel, source_top, cross_boundary
+):
+    """Back restores the working place left by a jump to the primary reader."""
+    url = package_workspace(
+        serve,
+        before_reader='<p style="min-height:1600px">Earlier page context.</p>',
+        primary=primary,
+    )
+    if not primary:
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "id": "anchored",
+                "kind": "comment",
+                "author": "agent",
+                "revision": 1,
+                "text": "Inspect this passage.",
+                "anchor": {"section": "notes"},
+            },
+        )
+    page = open_page(browser, url)
+    page.set_viewport_size({"width": 1440, "height": 320})
+    heading = page.locator("h1")
+    heading.evaluate(
+        """(node, top) => {
+      node.tabIndex = -1;
+      node.focus({preventScroll:true});
+      window.scrollTo({top, behavior:'instant'});
+    }""",
+        source_top,
+    )
+    if cross_boundary:
+        # Long native frames expose the compositor's one-frame anchor delay as the
+        # contextual card travels into the viewport and changes placement plane.
+        page.context.new_cdp_session(page).send(
+            "Emulation.setCPUThrottlingRate", {"rate": 6}
+        )
+    entries = page.evaluate("history.length")
+    assert page.evaluate(
+        """async ({travel, primary}) => {
+          const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const thread = api.readThreads().threads.find(thread => thread.id === (primary ? 'opening' : 'anchored'));
+          window.returnTripDestination = await api.threadActions.open(thread.key, {part:'reply', travel});
+          return Boolean(returnTripDestination);
+        }""",
+        {"travel": travel, "primary": primary},
+    )
+    assert page.evaluate("""() => {
+      let active = document.activeElement;
+      while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+      return active === returnTripDestination;
+    }""")
+    assert page.evaluate("history.length") == entries + int(travel)
+    if travel:
+        # Back is ordinary input as soon as arrival returns, during smooth placement.
+        page.wait_for_function("top => scrollY !== top", arg=source_top)
+        if cross_boundary:
+            page.wait_for_function("scrollY < 200")
+            expect(page.locator("#lf-margin-preview")).to_be_in_viewport()
+
+        page.go_back()
+        expect(heading).to_be_focused()
+        scroll_settled(page)
+        assert page.evaluate("scrollY") == source_top
+    else:
+        assert page.evaluate("scrollY") == source_top
+
+
+def package_workspace(serve, *, before_reader="", primary=True):
     """Run the shipped package example against real event admission."""
     from render_harness import ROOT
 
@@ -2315,9 +2856,19 @@ def package_workspace(serve):
     url = serve(
         leaf_page(
             "Package reader",
-            '<h1>Package reader</h1><p id="notes">Announcement notes</p><lf-conversation-workspace id="workspace"></lf-conversation-workspace>',
+            '<h1>Package reader</h1><p id="notes">Announcement notes</p>'
+            + before_reader
+            + (
+                '<lf-conversation-workspace id="workspace"></lf-conversation-workspace>'
+                if primary
+                else ""
+            ),
         ),
-        layer_registry=json.loads((companion / "registry.json").read_text()),
+        layer_registry={
+            "lf-conversation-workspace": json.loads(
+                (companion / "registry.json").read_text()
+            )["lf-conversation-workspace"]
+        },
         layer_widgets={
             "lf-conversation-workspace.js": (
                 companion / "widgets/lf-conversation-workspace.js"
@@ -2363,6 +2914,33 @@ def package_workspace(serve):
     return url
 
 
+def test_package_answer_summary_waits_for_widget_completion(browser, serve):
+    """A selected value remains partial until the multiple-choice Question is done."""
+    url = package_workspace(serve)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "id": "partial-question",
+            "kind": "comment",
+            "author": "agent",
+            "revision": 1,
+            "text": "Which extras?",
+            "markup": '<lf-options id="extras" choose multiple><lf-option id="extra-chat" chosen>Chat</lf-option></lf-options>',
+        },
+    )
+    page = open_page(browser, url)
+    workspace = page.locator("#workspace")
+    counts = workspace.locator(".counts")
+    workspace.get_by_role("button", name="Which extras? Chat", exact=True).click()
+    expect(workspace.locator("#extra-chat").get_by_role("checkbox")).to_be_checked()
+    expect(counts).to_have_text("2 Questions on you")
+    with sending(page, "complete the selected extras"):
+        workspace.locator("#extras").get_by_role(
+            "button", name="Done: my picks here are complete", exact=True
+        ).click()
+    expect(counts).to_have_text("1 Questions on you · 1 answered · Chat")
+
+
 @pytest.mark.parametrize("width", [1440, 390])
 def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
     browser, serve, width
@@ -2372,10 +2950,32 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
         has_touch=width < 500,
         is_mobile=width < 500,
     )
-    page = open_page(browser, package_workspace(serve), context=context)
+    url = package_workspace(serve)
+    for question_id, text in [
+        ("tone-question", "Should it stay concise?"),
+        ("followup-question", "When should it send?"),
+    ]:
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "id": question_id,
+                "kind": "reply",
+                "author": "agent",
+                "revision": 1,
+                "parent": "opening",
+                "text": text,
+                "question": True,
+            },
+        )
+    page = open_page(browser, url, context=context)
     workspace = page.locator("#workspace")
     email = workspace.locator("lf-option#email")
     expect(email).to_be_visible()
+    if width < 500:
+        # Playwright's automatic click scroll has no trusted input for the
+        # shift watcher; move the short reader with a user scroll first.
+        workspace.locator(".reader").hover()
+        page.mouse.wheel(0, 100)
     page.evaluate(
         "window.originalOption = document.querySelector('#workspace').querySelector('#email')"
     )
@@ -2399,6 +2999,11 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
             "Control+Enter"
         )
     expect(workspace.get_by_text("A shared draft", exact=True)).to_be_visible()
+    # One reply answers both prose Questions. Counts include them, while the
+    # compact answer summary names only widget choices instead of repeating prose.
+    expect(workspace.locator(".counts")).to_have_text(
+        "0 Questions on you · 3 answered · Email"
+    )
     with sending(page, "create a real conversation from a package"):
         workspace.get_by_role("textbox", name="New conversation").fill(
             "New package conversation"
@@ -2424,7 +3029,7 @@ def test_public_queue_commands_recheck_membership_and_restore_refusals(browser, 
         "api.queueItemKey(api.readQueues().onYou.find(item => item.id === 'proofread'))"
     )
     assert page.evaluate(
-        "api.queueActions.done(api.queueItemKey(api.readQueues().onYou.find(item => item.ends === 'widget'))) === null"
+        "api.queueActions.done(api.queueItemKey(api.readQueues().onYou.find(item => item.question?.source.kind === 'widget'))) === null"
     )
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -2557,7 +3162,11 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
     from render_harness import ROOT
 
     companion = ROOT / "examples/developer/feature-gallery.page"
-    registry = json.loads((companion / "registry.json").read_text())
+    registry = {
+        "lf-conversation-workspace": json.loads(
+            (companion / "registry.json").read_text()
+        )["lf-conversation-workspace"]
+    }
     registry["lf-nested-reader"] = {
         "description": "A declared nested physical reader stage.",
         "type": "object",
@@ -2668,7 +3277,7 @@ def test_queue_ask_arrival_selects_the_primary_reader(browser, serve):
         "async () => { window.api = await window.__lfRuntimeImport('/runtime/widget-api.js'); }"
     )
     assert page.evaluate(
-        "async () => { const item = api.readQueues().onYou.find(item => item.ends === 'widget'); return await api.queueActions.open(api.queueItemKey(item)); }"
+        "async () => { const item = api.readQueues().onYou.find(item => item.question?.source.kind === 'widget'); return await api.queueActions.open(api.queueItemKey(item)); }"
     )
     expect(workspace.locator("lf-option#email")).to_be_visible()
     assert page.evaluate(
@@ -2763,7 +3372,7 @@ def test_primary_reading_holds_remote_changes_before_package_layout(
     editor = workspace.get_by_role("textbox", name="Reply", exact=True)
     write(editor, "Keep this draft while updates wait.")
     assert editor.evaluate("""async editor => {
-      const {scrollerFor, readingRegionFor} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const {scrollerFor, readingRegionFor} = await window.__lfRuntimeImport('/runtime/reading-regions.js');
       const reader = document.querySelector('#workspace').reader;
       return scrollerFor(editor) === reader && readingRegionFor(editor).body === reader;
     }""")
@@ -2819,7 +3428,9 @@ def test_primary_reading_holds_remote_changes_before_package_layout(
         )
     expect(workspace.locator('[data-event="later-answer"]')).to_have_count(0)
     assert editor.bounding_box() == before
-    workspace.get_by_role("button", name="2 new replies", exact=True).click()
+    workspace.get_by_role(
+        "button", name="1 new reply · 1 message edited", exact=True
+    ).click()
     if mode != "Reply only":
         expect(workspace.locator('[data-event="later-answer"]')).to_contain_text(
             "A later turn."
@@ -2831,7 +3442,9 @@ def test_primary_reading_holds_remote_changes_before_package_layout(
             "document.querySelector('#workspace [data-event=answer]') === heldMessage"
         )
     expect(
-        workspace.get_by_role("button", name="2 new replies", exact=True)
+        workspace.get_by_role(
+            "button", name="1 new reply · 1 message edited", exact=True
+        )
     ).to_have_count(0)
     expect(editor).to_have_js_property("value", "Keep this draft while updates wait.")
     rendered(page)
@@ -2860,6 +3473,43 @@ def test_primary_navigation_cancels_while_waiting_for_presentation(browser, serv
       blocked.resolve();
       unregister();
       return result === null;
+    }""")
+
+
+def test_cancelled_primary_travel_adds_no_return_checkpoint(browser, serve):
+    """A newer Tab keeps its focus and history while a primary layout completes."""
+    page = open_page(browser, package_workspace(serve))
+    entries = page.evaluate("history.length")
+    page.evaluate("""async () => {
+      const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const workspace = document.querySelector('#workspace');
+      const present = workspace.present.bind(workspace);
+      const reached = Promise.withResolvers();
+      const blocked = Promise.withResolvers();
+      workspace.present = (...args) => {
+        workspace.present = present;
+        reached.resolve();
+        return blocked.promise.then(() => present(...args));
+      };
+      window.releasePrimaryLayout = blocked.resolve;
+      window.cancelledPrimaryTravel = api.threadActions.open('opening', {part:'reply'});
+      await reached.promise;
+    }""")
+    page.keyboard.press("Tab")
+    page.evaluate("""() => {
+      let active = document.activeElement;
+      while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+      window.newerTabTarget = active;
+    }""")
+    assert page.evaluate("""async () => {
+      releasePrimaryLayout();
+      return await cancelledPrimaryTravel === null;
+    }""")
+    assert page.evaluate("history.length") == entries
+    assert page.evaluate("""() => {
+      let active = document.activeElement;
+      while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+      return active === newerTabTarget;
     }""")
 
 

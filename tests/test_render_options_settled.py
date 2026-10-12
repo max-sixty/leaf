@@ -12,11 +12,13 @@ from render_cases_interaction import (
     live_url,
 )
 from render_cases_navigation import (
+    _publish,
     composer_quote,
 )
 from render_harness import (
     SETTLED_PAGE,
     command_reference_rows,
+    compare_with,
     open_page,
     page_registry,
     panel_settled,
@@ -26,24 +28,55 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 def test_a_reconnected_settled_ask_restores_its_diff_watcher(browser, serve):
-    """Moving the widget restores comparison updates without duplicating its row."""
-    page = open_page(browser, serve(SETTLED_PAGE))
-    page.evaluate("""() => {
-        const group = document.getElementById("transport");
-        group.remove();
-        document.querySelector("main").append(group);
-        const insertion = document.createElement("span");
-        insertion.className = "lf-ins-block";
-        group.querySelector("lf-option").append(insertion);
-        document.dispatchEvent(new CustomEvent("lf-comparison"));
-    }""")
-
-    expect(page.locator("#transport > .lf-settled")).to_have_count(1)
+    """Tabs and settled answers count the comparison, including after reconnection."""
+    first = SETTLED_PAGE.replace(
+        '<lf-ask id="transport-decision">',
+        '<lf-tabs id="views"><lf-tab id="decision" label="Decision">'
+        '<lf-ask id="transport-decision">',
+        1,
+    ).replace(
+        "</lf-ask>",
+        '</lf-ask></lf-tab><lf-tab id="notes" label="Notes">'
+        "<p>Notes.</p></lf-tab></lf-tabs>",
+        1,
+    )
+    second = first.replace("Lax cookie", "Gentle cookie")
+    url = serve(first)
+    _publish(serve.page_dir, 2, second, "Revise the settled answer")
+    page = open_page(browser, url.replace("v1.html", "v2.html"))
+    compare_with(page, 1)
     expect(page.locator("#transport .lf-settled-diff")).to_have_text("Δ1")
+    expect(page.locator('[aria-controls="decision"] .lf-tabdiff')).to_have_text("Δ1")
+    expect(page.locator('[aria-controls="notes"] .lf-tabdiff')).to_have_text("")
+
+    # Stray presentation markers cannot add changes to either count.
+    page.evaluate("""() => {
+        document.getElementById('opt-strict').classList.add('lf-ins-block');
+        document.getElementById('opt-bearer').classList.add('lf-ins-block');
+        document.dispatchEvent(new CustomEvent('lf-comparison'));
+    }""")
+    expect(page.locator("#transport .lf-settled-diff")).to_have_text("Δ1")
+    expect(page.locator('[aria-controls="decision"] .lf-tabdiff')).to_have_text("Δ1")
+
+    page.evaluate("""() => {
+        window.detachedViews = document.getElementById('views');
+        window.detachedViews.remove();
+    }""")
+    compare_with(page, 1)
+    assert (
+        page.evaluate(
+            "() => window.detachedViews.querySelector('.lf-settled-diff').textContent"
+        )
+        == "Δ1"
+    ), "a detached comparison consumer painted"
+    page.evaluate("() => document.querySelector('main').append(window.detachedViews)")
+    expect(page.locator("#transport > .lf-settled")).to_have_count(1)
+    expect(page.locator("#transport .lf-settled-diff")).to_have_count(0)
+    expect(page.locator('[aria-controls="decision"] .lf-tabdiff')).to_have_text("")
 
 
 def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
@@ -80,7 +113,7 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     row.focus()
     page.keyboard.press("?")
     page.keyboard.press("?")
-    settled_help = command_reference_rows(page, "In a settled ask")
+    settled_help = command_reference_rows(page, "On a disclosure")
     expect(settled_help.get_by_text("Open", exact=True)).to_have_count(1)
     expect(
         settled_help.get_by_text(re.compile(r"decision", re.IGNORECASE))

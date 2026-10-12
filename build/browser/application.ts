@@ -4,16 +4,18 @@
  * readings. The existing pure folds derive every published projection synchronously.
  * Promises, rendering instances, and proof of presentation stay outside this owner.
  */
-import { createApplicationPublisher } from "./snapshot.ts";
+import { createApplicationPublisher, type Immutable } from "./snapshot.ts";
 import {
+  coordinateOf,
   foldProjection,
   foldedValue,
   foldWidgetStates,
+  questionValue,
   isProjectionEntry,
+  stateCoordinate,
 } from "../../skills/leaf/assets/runtime/projection/model.js";
 import {
-  stateDefinition,
-  eventSpec,
+  stampedState,
   sameStateDefinition,
   sameStateOperation,
 } from "../../skills/leaf/assets/runtime/registry-contract.js";
@@ -25,8 +27,10 @@ import {
 } from "../../skills/leaf/assets/runtime/thread/model.js";
 import {
   threadForAttempt,
+  editForAttempt,
   isThreadEvent,
-  isMessageEvent,
+  isTurnEvent,
+  turnMessage,
 } from "../../skills/leaf/assets/runtime/pending/model.js";
 import { PENDING } from "../../skills/leaf/assets/runtime/thread/identity.js";
 import {
@@ -41,6 +45,8 @@ import type {
   Event,
   Command,
   LocalMessage,
+  LocalEdit,
+  ThreadGesture,
   Message,
   WidgetEvent,
   LocalAction,
@@ -118,14 +124,31 @@ const UNPRESENTED = new Set<GestureState>(["sending:logged", "accepted:logged"])
 interface LedgerEntry {
   event: Command;
   localId: string;
+  timestamp: string;
   order: number;
   projection: PendingProjection | null;
-  thread: LocalMessage | null;
-  message: LocalMessage | null;
+  /** What the gesture draws in a thread, as `foldThreads` reads it: its message, or
+   * the user's rewrite of one of theirs. */
+  thread: LocalMessage | LocalEdit | null;
   undoTarget: string | null;
   namedParent?: string;
   state: GestureState;
   admitted: Event | null;
+}
+
+// The log's id for a gesture this tab sent: its ledger entry's while it stands, its
+// receipt's once released.
+function admittedId(
+  attempt: string | null | undefined,
+  unresolved: readonly Immutable<LedgerEntry>[],
+  receipts: readonly Immutable<Event>[],
+) {
+  if (!attempt) return null;
+  return (
+    unresolved.find((entry) => entry.event.attempt === attempt)?.admitted?.id ??
+    receipts.find((receipt) => receipt.attempt === attempt)?.id ??
+    null
+  );
 }
 
 // `entry` after `signal`, or null once it leaves the ledger.
@@ -156,29 +179,35 @@ interface WireProjection {
   desired: string[];
 }
 
-/** One wire Ask, as `served_state` serializes it. */
-interface WireAsk {
+/** A request and its contained answer. The source owns the canonical value;
+ * identity includes its kind so authored ids and message ids cannot collide. */
+interface QuestionRecord {
   id: string;
-  seq: number;
-  tag: string;
-  source: string;
-  source_tag: string;
+  source: { kind: "widget" | "reply"; id: string; tag?: string }
+    | { kind: "approval"; version: number };
   thread: string | null;
+  message: string | null;
+  prompt: { text: string | null; target: string };
+  answer: { value: unknown; event: Event | null } | null;
+  status: "open" | "answered" | "withdrawn";
+  next_actor: "user" | "agent" | null;
 }
 
-interface WireAsks {
-  all: WireAsk[];
-  user: WireAsk[];
-  unanswered: WireAsk[];
+interface WireQuestions {
+  all: QuestionRecord[];
+  user: QuestionRecord[];
+  unanswered: QuestionRecord[];
 }
 
 /** One served workflow, as `served_state.browser.served_workflows` serializes it;
  * `AuthoritativeState.workflows` lists them strongest first. */
-export interface WireWorkflow {
+interface WireWorkflow {
   id: string;
   seq: number;
   revision: number | null;
   input: string | null;
+  /** The message a thread input shows on: its own, or the one an edit rewrote. */
+  message: string | null;
   subject: { kind: "thread" | "widget"; id: string };
   thread: string | null;
   holds_thread: boolean;
@@ -225,9 +254,8 @@ export type Workflow = Omit<WireWorkflow, "quiet" | "dropped" | "stage"> & {
 
 /** One task, as `served_state.browser` serves it (`tasks.page_tasks`): `tasks` holds
  * the open ones on either side and `ended_tasks` the ones that ended, with their
- * outcome. A task on the user that an Ask or a thread's question holds has no title of
- * its own. */
-type WireTask = {
+ * outcome. Questions are separate records and never appear in this task list. */
+interface WireTask {
   id: string;
   owner: "agent" | "user";
   subject: { kind: "thread" | "widget"; id: string } | { kind: "page" };
@@ -250,28 +278,6 @@ type WireTask = {
   agent: string | null;
   session: string | null;
   outcome: { id?: string; ts: string | null; detail?: string | null } | null;
-  /** The Ask a task on the user stands for: the widget that answers it, and whether a
-   * thread in that widget's seat holds it with the agent meanwhile. */
-  ask: {
-    tag: string;
-    widget: string;
-    widget_tag: string;
-    held_by_seat: boolean;
-  } | null;
-} & (
-  // The agent's own, an Ask's widget, a question's reply, or the user's Done.
-  | { ends: "agent" | "widget" | "reply" | "done"; approval?: never }
-  // The exact stamped version whose banner approval ends this task (`tasks.py`).
-  | { ends: "approval"; approval: { version: number } }
-);
-
-/** The public Ask record packages read. */
-export interface AskRecord {
-  id: string;
-  tag: string;
-  sourceId: string;
-  sourceTag: string;
-  thread: string | null;
 }
 
 export interface SemanticDocument {
@@ -285,7 +291,8 @@ export interface SemanticDocument {
       [name: string]: unknown;
     }
   > & {
-    $reactions?: { tokens: Record<string, {glyph: string; means?: string}> };
+    $reactions?: { tokens: Record<string, {glyph: string}> };
+    $states: Record<string, Record<string, StampedState>>;
   };
   authored: AuthoredMap;
   descriptors: ReadonlyMap<string, WidgetDescriptor>;
@@ -293,6 +300,12 @@ export interface SemanticDocument {
     string,
     { text: string; document?: { thread: string; message: string } }
   >;
+}
+
+/** One verb's state as composition stamps it (`registry.contract.stamp_states`). */
+interface StampedState {
+  writer: "user" | "agent";
+  definition: unknown;
 }
 
 export interface WidgetDescriptor {
@@ -307,7 +320,7 @@ export interface WidgetDescriptor {
   quoted: boolean;
 }
 
-export interface AuthoritativeState {
+interface AuthoritativeState {
   taken: number;
   layer: { generation: string };
   active: { revision: number; version?: number | null; label?: string | null };
@@ -323,26 +336,23 @@ export interface AuthoritativeState {
         basis: { revision: number; through_seq: number };
         document: {
           projection: WireProjection;
-          asks?: WireAsks;
-          /** The task each of the version's Asks is on the user, open and ended. */
-          tasks?: WireTask[];
-          ended_tasks?: WireTask[];
+          questions: WireQuestions;
         };
-        undo?: { event: Event }[];
+        undo: { event: Event }[];
         coverage: Coverage[];
-        updates?: object[];
-        published_at?: string | null;
+        reports: object[];
+        published_at: string | null;
       }
     >;
     thread: {
       threads: Thread[];
       projection: WireProjection;
-      asks?: WireAsks;
-      done?: Event[];
+      questions: WireQuestions;
+      approval_history: Event[];
     };
     receipts: Event[];
-    tasks?: WireTask[];
-    ended_tasks?: WireTask[];
+    tasks: WireTask[];
+    ended_tasks: WireTask[];
   };
   activity: unknown;
   reading?: string;
@@ -353,10 +363,14 @@ type ServerView = AuthoritativeState["browser"]["views"][string];
 /** A server view with its basis, the transport identity, left off. */
 type PageView = Omit<ServerView, "basis">;
 
+// The server classifies page entries under the shown revision's registry and thread
+// entries under the active revision's. A pinned earlier revision captured its thread
+// widgets under its own registry, so an entry whose operation that registry does not
+// define is one those widgets cannot draw, and it is left out.
 function normalizedProjection(
   view: PageView | null | undefined,
   thread: AuthoritativeState["browser"]["thread"] | undefined,
-  descriptors?: SemanticDocument["descriptors"],
+  document?: Pick<SemanticDocument, "registry" | "descriptors">,
 ) {
   const entries = [];
   const actionIds = [];
@@ -364,20 +378,13 @@ function normalizedProjection(
   const desiredIds = [];
   for (const projection of [view?.document.projection, thread?.projection]) {
     if (!projection) continue;
-    for (const wire of projection.entries ?? []) {
+    for (const wire of projection.entries) {
       const e = wire.event;
-      const descriptor = descriptors?.get(e.widget);
-      const currentSpec = descriptor && eventSpec(descriptor.declaration, e);
-      if (
-        descriptor &&
-        (!currentSpec ||
-          !sameStateOperation(
-            e.meaning?.state,
-            stateDefinition(descriptor.tag, descriptor.declaration, currentSpec),
-          ))
-      )
-        continue;
-      const coordinate = JSON.stringify(wire.coordinate);
+      const descriptor = document?.descriptors.get(e.widget);
+      const stamp =
+        document && descriptor && stampedState(document.registry, descriptor.tag, e);
+      if (descriptor && !sameStateOperation(e.meaning?.state, stamp?.definition)) continue;
+      const coordinate = stateCoordinate(...wire.coordinate);
       entries.push({
         coordinate,
         e,
@@ -393,9 +400,9 @@ function normalizedProjection(
             : wire.value,
       });
     }
-    actionIds.push(...(projection.actions ?? []));
-    reportIds.push(...(projection.reports ?? []));
-    desiredIds.push(...(projection.desired ?? []));
+    actionIds.push(...projection.actions);
+    reportIds.push(...projection.reports);
+    desiredIds.push(...projection.desired);
   }
   return { entries, actionIds, reportIds, desiredIds, coverage: view?.coverage ?? [] };
 }
@@ -407,50 +414,96 @@ function normalizedProjection(
 const appliesTo = (descriptor: WidgetDescriptor, event: WidgetEvent | LocalAction) =>
   event.widget === descriptor.id;
 
-const NO_ASKS: Record<"all" | "user" | "unanswered", AskRecord[]> = {
-  all: [],
-  user: [],
-  unanswered: [],
+const NO_QUESTIONS = {
+  all: [] as QuestionRecord[],
+  user: [] as QuestionRecord[],
+  unanswered: [] as QuestionRecord[],
 };
 
-const askRecord = (ask: WireAsk): AskRecord => ({
-  id: ask.id,
-  tag: ask.tag,
-  sourceId: ask.source,
-  sourceTag: ask.source_tag,
-  thread: ask.thread,
-});
-
-/* The admitted Ask reading, page asks before thread asks.
- *
- * Which Asks a document holds and which of them the user still owes are folded
- * by `leaf.asks` under the same page transaction as the rest of this state. Nothing here folds those declarations
- * again, so an answer reaches these lists when the state its POST returns is
- * adopted — one reading after the widget state the user sees change at once. */
-function normalizedAsks(
+/* The admitted inventory owns membership and widget completion. Approval and its
+ * undo draw their direct result immediately. Widget values come from
+ * the same local-inclusive fold used by their controls, so a partial answer is
+ * visible before its POST settles the Question. */
+function normalizedQuestions(
   view: PageView | null,
   threadView: AuthoritativeState["browser"]["thread"] | undefined,
-) {
-  const page = view?.document.asks;
-  const thread = threadView?.asks;
-  const records = (kind: "all" | "user" | "unanswered") => [
-    ...(page?.[kind] ?? []).map(askRecord),
-    ...(thread?.[kind] ?? []).map(askRecord),
-  ];
+  widgets: ReturnType<typeof foldWidgetStates>,
+  document: SemanticDocument,
+  projection: ReturnType<typeof foldProjection>,
+  local: readonly LedgerEntry[],
+): WireQuestions {
+  const page = view?.document.questions;
+  const thread = threadView?.questions;
+  const all = [...(page?.all ?? []), ...(thread?.all ?? [])].map(
+    (question): QuestionRecord => {
+      if (question.source.kind === "approval") {
+        const version = question.source.version;
+        const undone = new Set(local.flatMap(({ event }) =>
+          event.kind === "undo" ? [event.undoes] : []));
+        const approving = local.some(({ event }) =>
+          event.kind === "done" && event.version === version);
+        if (approving) return { ...question, answer: { value: true, event: null },
+          status: "answered", next_actor: null };
+        if (question.answer?.event && undone.has(question.answer.event.id))
+          return { ...question, answer: null, status: "open", next_actor: "user" };
+        return question;
+      }
+      if (question.source.kind !== "widget") return question;
+      const sourceId = question.source.id;
+      const widget = widgets.get(sourceId);
+      const declaration = document.descriptors.get(question.source.id)?.declaration["x-awaits"] as
+        { value?: string } | undefined;
+      const verb = declaration?.value;
+      if (!verb || !widget) return question;
+      const completed = question.status === "answered" &&
+        !(question.answer?.event && projection.pendingWithdrawals.has(question.answer.event.id));
+      const { value, present } = questionValue(widget, verb, completed);
+      const pendingValue = (widget.entries as { e: Event }[]).some(({ e }) =>
+        e.action === verb && !Number.isInteger(e.seq)) ||
+        [...projection.pendingWithdrawals.values()].some(({ e }) =>
+          e.widget === sourceId &&
+          (e.action === verb || e.id === question.answer?.event?.id));
+      const answer = present
+        ? { value, event: pendingValue ? null : question.answer?.event ?? null }
+        : null;
+      return { ...question, answer };
+    },
+  );
+  const selection = (kind: "user" | "unanswered") => {
+    const admitted = new Set([...(page?.[kind] ?? []), ...(thread?.[kind] ?? [])]
+      .map((question) => question.id));
+    return all.filter((question) => question.source.kind === "approval"
+      ? kind === "user" ? question.next_actor === "user" : question.status === "open"
+      : admitted.has(question.id));
+  };
+  return { all, user: selection("user"), unanswered: selection("unanswered") };
+}
+
+/* Prose sends hand attention to the agent immediately; settlement remains the
+ * server's. Earlier suppressed prompts stay in the complete inventory. */
+function questionAttention(questions: WireQuestions, threads: Pick<Thread, "id" | "resolved" | "attention">[]): WireQuestions {
+  const byThread = new Map(threads.map((thread) => [thread.id, thread]));
+  const user = new Set(questions.user.map((question) => question.id));
+  const all = questions.all.map((question): QuestionRecord => {
+    if (question.source.kind !== "reply" || !user.has(question.id)) return question;
+    const thread = question.thread === null ? undefined : byThread.get(question.thread);
+    return thread?.resolved || thread?.attention?.kind === "waiting"
+      ? { ...question, next_actor: thread?.resolved ? null : "agent" }
+      : question;
+  });
+  const byId = new Map(all.map((question) => [question.id, question]));
   return {
-    all: records("all"),
-    user: records("user"),
-    unanswered: records("unanswered"),
+    all,
+    user: questions.user.map((question) => byId.get(question.id)!)
+      .filter((question) => question.next_actor === "user"),
+    unanswered: questions.unanswered.map((question) => byId.get(question.id)!),
   };
 }
 
-/* Every task, open and ended, as this tab draws them: the shown version's Ask tasks,
- * which come with its view, the page's other tasks beside them, and the Done this tab
- * is still sending or taking back. A task the user is ending stands ended in the
+/* Explicit work, open and ended, including Done this tab is sending or undoing. A task the user is ending stands ended in the
  * gesture's own turn, and one whose Done they are undoing stands open again; a refused
  * gesture leaves the ledger and so puts the task back as the log has it. */
 function localTasks(
-  view: PageView | null,
   state: AuthoritativeState | null,
   local: readonly LedgerEntry[],
 ) {
@@ -460,14 +513,8 @@ function localTasks(
   const undoing = new Set(
     local.flatMap(({ event }) => (event.kind === "undo" ? [event.undoes] : [])),
   );
-  const approving = new Set(
-    local.flatMap(({ event }) => (event.kind === "done" ? [event.version] : [])),
-  );
-  const served = [...(view?.document.tasks ?? []), ...(state?.browser.tasks ?? [])];
-  const ended = [
-    ...(view?.document.ended_tasks ?? []),
-    ...(state?.browser.ended_tasks ?? []),
-  ];
+  const served = state?.browser.tasks ?? [];
+  const ended = state?.browser.ended_tasks ?? [];
   const reopened = (task: WireTask) =>
     task.outcome !== null && undoing.has(task.outcome.id ?? "");
   const open = [
@@ -476,9 +523,7 @@ function localTasks(
       .filter(reopened)
       .map((task) => ({ ...task, state: "open" as const, outcome: null })),
   ];
-  const locallyEnded = (task: WireTask) =>
-    ending.has(task.id) ||
-    (task.ends === "approval" && approving.has(task.approval.version));
+  const locallyEnded = (task: WireTask) => ending.has(task.id);
   return {
     open: open.filter((task) => !locallyEnded(task)),
     ended: [
@@ -510,6 +555,7 @@ function widgetReading(
     : undefined;
   const declaration = descriptor.declaration;
   const actionSpecs = declaration["x-state"] ?? {};
+  const states = root.document.registry.$states[descriptor.tag] ?? {};
   const projection = root.effective.projection;
   const classified = [...projection.classified.values()]
     .filter(
@@ -534,7 +580,7 @@ function widgetReading(
   // state and never as a control.
   const actions = Object.fromEntries(
     Object.entries(actionSpecs)
-      .filter(([, spec]) => spec.writer === "user")
+      .filter(([verb]) => states[verb]?.writer === "user")
       .map(([verb]) => [
         verb,
         {
@@ -592,7 +638,7 @@ export function createSemanticApplication({
   const initial = {
     document: {
       revision: null,
-      registry: {},
+      registry: { $states: {} },
       authored: new Map(),
       descriptors: new Map(),
     } as SemanticDocument,
@@ -608,7 +654,7 @@ export function createSemanticApplication({
     effective: derive(
       {
         revision: null,
-        registry: {},
+        registry: { $states: {} },
         authored: new Map(),
         descriptors: new Map(),
       },
@@ -640,40 +686,6 @@ export function createSemanticApplication({
     const receipts = state?.browser.receipts ?? [];
     const local = unresolved.filter((entry) => DRAWN_LOCALLY.has(entry.state));
     const refused = unresolved.filter((entry) => entry.state === "refused");
-    // An undo withdraws its target by the log's id once the log has named it: the
-    // target entry's while it stands in the ledger, its receipt's once released.
-    const namedTarget = (attempt: string | null) => {
-      const target = unresolved.find((entry) => entry.event.attempt === attempt);
-      return target
-        ? (target.admitted?.id ?? null)
-        : (receipts.find((receipt) => receipt.attempt === attempt)?.id ?? null);
-    };
-    // A revision may reuse a widget/verb with a different operation. Keep its
-    // pending delivery, but stop drawing it against that new declaration. The
-    // server validates durable payloads; speculative state waits for its receipt
-    // when a revised payload schema cannot be compared directly.
-    const compatiblePending = (projection: NonNullable<LedgerEntry["projection"]>) => {
-      const operation = projection.kind === "undo" ? projection.target : projection;
-      const descriptor = document.descriptors.get(operation.e.widget);
-      if (!descriptor) return false;
-      const currentSpec = eventSpec(descriptor.declaration, operation.e);
-      return (
-        currentSpec &&
-        sameStateDefinition(
-          operation.e.meaning?.state,
-          stateDefinition(descriptor.tag, descriptor.declaration, currentSpec),
-        )
-      );
-    };
-    const localProjections = local.flatMap((entry) => {
-      const projection = entry.projection;
-      if (!projection || !compatiblePending(projection)) return [];
-      return [
-        projection.kind === "undo"
-          ? { ...projection, targetId: namedTarget(entry.undoTarget) }
-          : projection,
-      ];
-    });
     // The shown revision's server view, resolved here once for every reader of this
     // document's page state. Its basis is transport identity, which the adoption
     // boundary has already matched to the log reading; left in, a read that only moved
@@ -682,77 +694,126 @@ export function createSemanticApplication({
     const view: PageView | null = served
       ? (({ basis: _basis, ...rest }) => rest)(served)
       : null;
-    const admitted = normalizedProjection(
-      view,
-      state?.browser.thread,
-      document.descriptors,
-    );
+    const admitted = normalizedProjection(view, state?.browser.thread, document);
+    const classifiedIds = new Set(admitted.entries.map(({ e }) => e.id));
+    // A revision may reuse a widget/verb with a different operation. Keep its pending
+    // delivery, but stop drawing it against that new declaration. This tab wrote a
+    // pending action's definition itself, so it draws while the shown declaration
+    // still defines the same one; the server validates the durable payload. An undo
+    // draws while its target draws: in the server's reading of this document, under
+    // the id the log gave it, or as a pending action by the rule above.
+    const drawsAction = (e: ProjectionEntry["e"]) => {
+      const descriptor = document.descriptors.get(e.widget);
+      const state = descriptor && stampedState(document.registry, descriptor.tag, e);
+      return Boolean(state && sameStateDefinition(e.meaning?.state, state.definition));
+    };
+    const localProjections = local.flatMap((entry): PendingProjection[] => {
+      const projection = entry.projection;
+      if (!projection) return [];
+      if (projection.kind !== "undo") return drawsAction(projection.e) ? [projection] : [];
+      const { target } = projection;
+      const targetId = admittedId(entry.undoTarget, unresolved, receipts);
+      const pending = !Number.isInteger(target.e.seq);
+      const draws =
+        classifiedIds.has(targetId ?? target.e.id) || (pending && drawsAction(target.e));
+      return draws ? [{ ...projection, targetId }] : [];
+    });
     const projection = foldProjection({
       ...admitted,
       pendingEntries: localProjections,
     });
-    // Threads and Asks both wait for an admitted reading. Authored markup names every
-    // Ask the page could hold, but only the log says which of them it still holds and
+    // Threads and Questions both wait for an admitted reading. Authored markup names every
+    // Question the page could hold, but only the log says which of them it still holds and
     // whether they are answered, so before that reading there is no inventory to publish.
     const ready = phase === "ready";
-    const messages = local.filter((entry) => entry.message);
+    // The ledger's thread gestures, in the order the user made them.
+    const gestures = local.flatMap(({ event, thread, namedParent }): ThreadGesture[] =>
+      thread
+        ? [thread]
+        : event.kind === "resolve" || event.kind === "unresolve"
+          ? [{ ...event, ...(namedParent ? { localParent: namedParent } : {}) }]
+          : event.kind === "undo"
+            ? [event]
+            : [],
+    );
     const folded = ready
-      ? foldThreads(
-          state?.browser.thread.threads ?? [],
-          messages.flatMap((entry) => (entry.message ? [entry.message] : [])),
-          local.flatMap((entry) => (entry.thread?.token ? [entry.thread] : [])),
-          local.flatMap(({ event, namedParent }) =>
-            event.kind === "resolve" || event.kind === "unresolve"
-              ? [{ ...event, ...(namedParent ? { localParent: namedParent } : {}) }]
-              : [],
-          ),
-          new Set(
-            local.flatMap(({ event }) => (event.kind === "undo" ? [event.undoes] : [])),
-          ),
-        )
+      ? foldThreads(state?.browser.thread.threads ?? [], gestures)
       : [];
     const widgets = foldWidgetStates(document.authored, projection);
-    const asks = ready ? normalizedAsks(view, state?.browser.thread) : NO_ASKS;
-    const tasks = ready ? localTasks(view, state, local) : { open: [], ended: [] };
+    const admittedQuestions = ready
+      ? normalizedQuestions(view, state?.browser.thread, widgets, document, projection, local)
+      : NO_QUESTIONS;
+    const tasks = ready ? localTasks(state, local) : { open: [], ended: [] };
     // Thread attention is the server's reading, and three local facts adjust it. A
     // pending send hands the thread to the agent, which `foldThreads` states. A
-    // structural Ask survives prose sent beside it, so the admitted Ask inventory puts
+    // structural Question survives prose sent beside it, so the admitted Question inventory puts
     // back the independent obligation that still stands in that thread. A refused send
     // hands a thread the server left with the agent back to the user, whose
     // Retry it is.
-    const owed = new Set(asks.user.map((ask) => ask.thread));
-    // The thread a local message is in. A comment opens the thread its own id names. A
-    // reply is in the thread holding its parent, which need not be that thread's id: a
-    // thread that lost its opening message is answered at the reply that survived, and
-    // a reply written against this tab's own comment names it by its pending id until
-    // the log names it. A parent no thread holds is a comment of this tab's that the
-    // log refused, and its pending id named its thread.
+    const owed = new Set(admittedQuestions.user
+      .filter((question) => question.source.kind === "widget")
+      .map((question) => question.thread));
+    // The thread a gesture stands in, of every kind the ledger holds. A message stands
+    // in the thread that draws it, under its pending id or, once the log has it, its
+    // attempt. Until one does, a comment opens the thread its own id names, and a reply
+    // joins the thread holding its parent, which need not be that thread's id: a thread
+    // that lost its opening message is answered at the reply that survived, and a parent
+    // no thread holds is a comment of this tab's that the log refused, whose pending id
+    // named its thread. A rewrite stands in its message's thread, a settlement in the
+    // thread it settles, a move in the thread whose markup froze its widget, and an undo
+    // where the gesture it takes back stood; a page widget's move stands in none.
     const named = threadNames(folded);
-    const threadOf = (message: Message): string =>
-      message.kind === "reply"
-        ? (named.get(message.parent)?.id ?? message.parent)
-        : message.id;
-    // The thread a local gesture stands in: its message's, or the thread whose
-    // markup froze the widget it moved; a page widget's stands in none.
-    const threadOfEntry = (entry: LedgerEntry): string | null => {
-      if (entry.message) return threadOf(entry.message);
-      const held = entry.event.widget
-        ? document.descriptors.get(entry.event.widget)?.document
-        : null;
-      return held?.kind === "thread" ? (held.thread ?? null) : null;
+    const threadOfEvent = (
+      event: Command | Event,
+      drawn: { id: string } | null,
+      namedParent?: string,
+    ): string | null => {
+      const drawnIn = drawn && named.get(drawn.id)?.id;
+      if (drawnIn) return drawnIn;
+      switch (event.kind) {
+        case "comment":
+          return drawn?.id ?? null;
+        case "reply":
+          return named.get(event.parent)?.id ?? event.parent;
+        case "edit":
+          return named.get(event.message)?.id ?? null;
+        case "resolve":
+        case "unresolve":
+          return (
+            named.get(event.parent)?.id ??
+            (namedParent ? named.get(namedParent)?.id : null) ??
+            null
+          );
+        case "undo": {
+          const target = unresolved.find((entry) => entry.localId === event.undoes);
+          if (target) return threadOfEntry(target);
+          const logged = state?.events.find((each) => each.id === event.undoes);
+          return logged ? threadOfEvent(logged, logged) : null;
+        }
+        case "action": {
+          const held = document.descriptors.get(event.widget)?.document;
+          return held?.kind === "thread" ? (held.thread ?? null) : null;
+        }
+        default:
+          return null;
+      }
     };
+    const threadOfEntry = (entry: LedgerEntry): string | null =>
+      threadOfEvent(entry.event, entry.thread, entry.namedParent);
+    // A refused send or move is the user's to retry from the thread it stood in.
     const recovery = new Map<string, string>();
     for (const entry of refused) {
+      if (!isTurnEvent(entry.event) && entry.event.kind !== "action") continue;
       const thread = threadOfEntry(entry);
       if (thread) recovery.set(thread, `rejected:${entry.event.attempt}`);
     }
     const obligated = folded.map((thread): Thread => {
       if (owed.has(thread.id))
-        return thread.attention?.reason === "ask"
+        return thread.attention?.reason === "question"
           ? thread
           : {
               ...thread,
-              attention: { kind: "needs_user", reason: "ask", workflow: null },
+              attention: { kind: "needs_user", reason: "question", workflow: null },
             };
       const retry = recovery.get(thread.id);
       return retry && thread.attention?.kind !== "needs_user"
@@ -762,14 +823,16 @@ export function createSemanticApplication({
           }
         : thread;
     });
-    // A send this tab has not delivered, in the served workflow's shape. A message
-    // holds its thread as every thread input does; a widget move owes no answer until
-    // the server has read it, so it holds none.
+    // A send this tab has not delivered, in the served workflow's shape. A turn holds
+    // its thread as every thread input does; a widget move owes no answer until the
+    // server has read it, so it holds none.
     const localWorkflow = (entry: LedgerEntry, rejected: boolean): Workflow | null => {
-      const message = entry.message;
+      const turn = isTurnEvent(entry.event) ? entry.thread : null;
       const thread = threadOfEntry(entry);
-      const subject: Workflow["subject"] | null = message
-        ? { kind: "thread", id: threadOf(message) }
+      const subject: Workflow["subject"] | null = turn
+        ? thread === null
+          ? null
+          : { kind: "thread", id: thread }
         : entry.event.kind === "action"
           ? { kind: "widget", id: entry.event.widget }
           : null;
@@ -778,19 +841,20 @@ export function createSemanticApplication({
         id: `${rejected ? "rejected" : "pending"}:${entry.event.attempt}`,
         revision: entry.event.revision ?? document.revision,
         seq: entry.order,
-        input: message?.id ?? entry.localId,
+        input: turn?.id ?? entry.localId,
+        message: turn ? turnMessage(turn) : null,
         subject,
         thread,
-        holds_thread: Boolean(message),
-        // The server's list, where the local fold keys a coordinate by its JSON.
-        coordinate: message
+        holds_thread: Boolean(turn),
+        // The server's tuple, where the local fold keys a coordinate.
+        coordinate: turn
           ? ["thread", thread]
           : entry.projection
-            ? JSON.parse(entry.projection.coordinate)
+            ? coordinateOf(entry.projection.coordinate)
             : null,
         answer: null,
         stage: "sending",
-        ts: message?.ts ?? null,
+        ts: turn?.ts ?? null,
         detail: null,
         agent: null,
         session: null,
@@ -806,7 +870,9 @@ export function createSemanticApplication({
     };
     const workflows: Workflow[] = [
       ...(state ? state.workflows : []),
-      ...messages.flatMap((entry) => localWorkflow(entry, false) ?? []),
+      ...local.flatMap((entry) =>
+        isTurnEvent(entry.event) ? (localWorkflow(entry, false) ?? []) : [],
+      ),
       // A refused message or widget move has a destination to send again.
       // Other gestures restore their own control or task when speculation ends.
       ...refused.flatMap((entry) => localWorkflow(entry, true) ?? []),
@@ -819,7 +885,8 @@ export function createSemanticApplication({
       markingRead,
       ready,
     );
-    const selectedQueues = selectQueues({ threads, workflows, tasks: tasks.open });
+    const questions = questionAttention(admittedQuestions, threads);
+    const selectedQueues = selectQueues({ threads, workflows, tasks: tasks.open, questions });
     const workflowById = new Map(workflows.map((workflow) => [workflow.id, workflow]));
     const contextual = <T extends { id: string; kind: string }>(
       items: T[],
@@ -836,27 +903,35 @@ export function createSemanticApplication({
       widgets,
       thread: {
         all: threads,
+        // Historical system rows are event narration, never current approval state.
+        approvalHistory: [
+          ...(state?.browser.thread.approval_history ?? []),
+          ...local.flatMap(({ event, localId, timestamp }) => event.kind === "done"
+            ? [{ ...event, id: localId, ts: timestamp }] : []),
+        ].filter((event) => !local.some(({ event: gesture }) =>
+          gesture.kind === "undo" && gesture.undoes === event.id)),
         collection: {
           phase,
           threads: threads.filter(discussed),
         },
+        // The threads a gesture this tab's ledger still holds stands in, refused ones
+        // included until the reading they restore is drawn (held-news.js, `gesturedOn`).
+        gestured: [
+          ...new Set(unresolved.map(threadOfEntry).filter((id) => id !== null)),
+        ],
       },
-      asks: { phase, ...asks },
+      questions: { phase, ...questions },
       // What is on the user and what is on the agent, selected from the readings
       // above once this tab's sends are folded into them (`runtime/queues.js`).
       queues: {
         phase,
         onYou: contextual(selectedQueues.onYou, true),
         onAgent: contextual(selectedQueues.onAgent),
-        done: contextual(selectDone({ tasks: tasks.ended })),
+        done: contextual(selectDone({ tasks: tasks.ended, questions })),
       },
       // Inside the publication signature, so a read that changes only the view's
-      // updates, publication time, or undo list still reaches its watchers.
+      // reports, publication time, or undo list still reaches its watchers.
       view,
-      acceptedApprovals: state?.browser.thread.done ?? [],
-      pendingApprovals: local
-        .filter((entry) => entry.event.kind === "done")
-        .map((entry) => entry.event),
       // The attempts still waiting for their POST's answer, in ledger order.
       sending: unresolved
         .filter((entry) => SENDING.has(entry.state))
@@ -941,6 +1016,10 @@ export function createSemanticApplication({
 
   const entry = (attempt: string) =>
     publisher.read().unresolved.find((item) => item.event.attempt === attempt);
+  const ledgerAndReceipts = () => {
+    const { unresolved, authoritative } = publisher.read();
+    return [unresolved, authoritative?.browser.receipts ?? []] as const;
+  };
   const update = (attempt: string, change: (entry: LedgerEntry) => LedgerEntry) =>
     publish({
       unresolved: publisher
@@ -1135,7 +1214,9 @@ export function createSemanticApplication({
       const localId = PENDING + event.attempt;
       const thread = isThreadEvent(event)
         ? { ...threadForAttempt(event, timestamp), plainText }
-        : null;
+        : event.kind === "edit"
+          ? editForAttempt(event, timestamp)
+          : null;
       const undoTarget =
         event.kind === "undo"
           ? before.unresolved.find((item) => item.localId === event.undoes)
@@ -1148,9 +1229,15 @@ export function createSemanticApplication({
           : null;
       const widget =
         event.kind === "action" ? before.document.authored.get(event.widget) : null;
+      // The widget's own captured declaration, as its reading (`widgetReading`) and the
+      // projection's meaning check read it.
+      const declaration =
+        event.kind === "action"
+          ? before.document.descriptors.get(event.widget)?.declaration
+          : null;
       const spec =
         event.kind === "action" && widget
-          ? before.document.registry[widget.tag]?.["x-state"]?.[event.action]
+          ? declaration?.["x-state"]?.[event.action]
           : null;
       const unit =
         event.kind === "action" && spec
@@ -1174,16 +1261,15 @@ export function createSemanticApplication({
             ? {
                 unit,
                 spec,
-                coordinate: JSON.stringify([event.widget, unit, event.action]),
+                coordinate: stateCoordinate(event.widget, unit, event.action),
                 localOrder,
                 e: {
                   ...event,
                   id: localId,
                   meaning: {
-                    state: stateDefinition(
-                      widget.tag,
-                      before.document.registry[widget.tag],
-                      spec,
+                    state: structuredClone(
+                      before.document.registry.$states[widget.tag]?.[event.action]
+                        ?.definition,
                     ),
                   },
                 },
@@ -1196,10 +1282,10 @@ export function createSemanticApplication({
           {
             event: structuredClone(event),
             localId,
+            timestamp,
             order: localOrder,
             projection,
             thread,
-            message: isMessageEvent(event) ? thread : null,
             undoTarget: undoTarget?.event.attempt ?? null,
             state: "sending",
             admitted: null,
@@ -1224,7 +1310,7 @@ export function createSemanticApplication({
         .unresolved.filter(
           (item) =>
             item.undoTarget === attempt ||
-            (refused.message?.id && item.event.parent === refused.message.id),
+            (refused.thread && item.event.parent === refused.thread.id),
         )
         .map((item) => item.event.attempt);
       const { unresolved } = transition("refuse", new Map([[attempt, null]]));
@@ -1257,15 +1343,18 @@ export function createSemanticApplication({
           ),
       });
     },
-    nameParent(attempt: string, receipts: Event[]) {
+    // A gesture naming a message this tab sent, by its pending id, names it by the id
+    // the log gave it once the log has answered: a reply's `parent`, or the revision an
+    // edit is written over (`base`), as a second rewrite over a first still sending is.
+    nameParent(attempt: string) {
+      const admitted = (pending: unknown) =>
+        typeof pending === "string" && pending.startsWith(PENDING)
+          ? admittedId(pending.slice(PENDING.length), ...ledgerAndReceipts())
+          : null;
       const item = entry(attempt);
       const parent = item?.event.parent;
-      if (typeof parent !== "string" || !parent.startsWith(PENDING)) return;
-      const parentAttempt = parent.slice(PENDING.length);
-      const named =
-        entry(parentAttempt)?.admitted?.id ??
-        receipts.find((receipt) => receipt.attempt === parentAttempt)?.id;
-      if (named)
+      const named = admitted(parent);
+      if (named && typeof parent === "string")
         update(attempt, (item) =>
           item.event.parent
             ? {
@@ -1275,13 +1364,18 @@ export function createSemanticApplication({
               }
             : item,
         );
+      const base = admitted(item?.event.kind === "edit" ? item.event.base : null);
+      if (base)
+        update(attempt, (item) =>
+          item.event.kind === "edit"
+            ? { ...item, event: { ...item.event, base } }
+            : item,
+        );
     },
-    nameUndo(attempt: string, receipts: Event[]) {
+    nameUndo(attempt: string) {
       const item = entry(attempt);
       if (item?.event.kind !== "undo" || !item.undoTarget) return true;
-      const named =
-        entry(item.undoTarget)?.admitted?.id ??
-        receipts.find((receipt) => receipt.attempt === item.undoTarget)?.id;
+      const named = admittedId(item.undoTarget, ...ledgerAndReceipts());
       if (!named) return false;
       update(attempt, (item) =>
         item.event.kind === "undo"

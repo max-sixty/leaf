@@ -4,6 +4,8 @@
    resolves the current message target and constructs the event. Core controls call
    these same commands. The application ledger remains the one optimistic and
    admission path, so a stale or unavailable command returns null. */
+import { randomId } from "../ids.js";
+import { editable } from "./model.js";
 import { readThreads } from "./state.js";
 
 export function createThreadActions({
@@ -17,7 +19,7 @@ export function createThreadActions({
     const {
       text,
       anchor,
-      attempt = crypto.randomUUID(),
+      attempt = randomId(),
       holds,
       about,
       drawing,
@@ -64,6 +66,24 @@ export function createThreadActions({
     });
   };
 
+  // The user rewriting a message of their own (`message-edit.js`), written over the
+  // revision `base` names. Words the message already says, and none, send nothing.
+  const edit = (key, messageId, text, { attempt, base } = {}) => {
+    if (typeof text !== "string") throw new TypeError("A message edit needs text");
+    if (typeof base !== "string") throw new TypeError("A message edit needs its base");
+    const thread = find(key);
+    if (!thread || thread.settling) return null;
+    const message = thread.msgs.find((item) => item.id === messageId);
+    if (!message || !editable(message) || !text || text === message.text) return null;
+    return post({
+      kind: "edit",
+      message: messageId,
+      text,
+      base,
+      ...(attempt && { attempt }),
+    });
+  };
+
   // A thread that already stands as asked, such as one resolved elsewhere while its
   // card still draws it open (held-news.js), sends nothing.
   const settle = (key, resolved, { attempt } = {}) => {
@@ -94,7 +114,6 @@ export function createThreadActions({
         revision: currentRevision(),
         token,
       },
-      null,
       `${message.agent}'s reply`,
       post,
     );
@@ -109,11 +128,12 @@ export function createThreadActions({
       if (!target) return null;
       return open(
         target.id,
-        message === null ? options : { ...options, focus: "message" },
+        message === null ? options : { ...options, part: "message" },
       );
     },
     create,
     reply,
+    edit,
     resolve: (key, options) => settle(key, true, options),
     reopen: (key, options) => settle(key, false, options),
     setReaction,

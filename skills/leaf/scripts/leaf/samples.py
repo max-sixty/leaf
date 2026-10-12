@@ -2,10 +2,11 @@
 
 A sample owns an ordinary source, revision, data store, and event log. Its parent
 supplies immutable resources and optional selected thread history, never a live
-state projection. Its browser dependency URLs retain the creating parent's exact
-immutable resource namespace, including through nested children; only the document
-and API identity are new. Browser gestures enter the ordinary page event door. The
-HTTP server owns these directories until explicit release or server shutdown.
+state projection. Each unguessable child path is a capability for that child's
+ordinary document, captured dependencies, and APIs. It grants no parent routes.
+Browser gestures enter the ordinary page event door. The HTTP server owns these
+directories until explicit release or server shutdown, and nothing reads one after a
+crash, so a child's revisions are staged without fsync (`revision_artifact.Disposable`).
 """
 
 import json
@@ -18,7 +19,7 @@ from threading import Lock
 
 from .data import source_file
 from .page_memory import PageMemory, memory_of
-from .revision_artifact import RevisionArtifact
+from .revision_artifact import Disposable, RevisionArtifact
 from .revisioning import activate_source
 from .sample_content import initial_sample_events
 from .schema import DATA_DIR, DATA_FILE
@@ -32,7 +33,7 @@ class Sample:
     parent: Path
     layer: dict
     passive: bool
-    asset_root: str
+    asset_root: str | None
     # Held for the sample's life, so the sample keeps its readings however many
     # sibling samples push it out of the process's recent pages (`page_memory`).
     memory: PageMemory
@@ -65,7 +66,7 @@ class Samples:
         data: dict,
         template_id: str,
         passive: bool,
-        asset_root: str,
+        asset_root: str | None,
     ) -> str:
         template = next(
             (
@@ -88,6 +89,8 @@ class Samples:
         source = template["document"].data
         temporary = TemporaryDirectory(prefix="leaf-sample-")
         child = Path(temporary.name)
+        memory = memory_of(child)
+        memory.memo(Disposable).held = True
         try:
             for logical, resource in artifact.resources.items():
                 target = child / logical.removeprefix("/")
@@ -111,7 +114,10 @@ class Samples:
             (child / DATA_DIR).mkdir()
             for name, reading in data["sources"].items():
                 if "value" in reading:
-                    write_json(source_file(child, name), reading["value"])
+                    write_json(
+                        source_file(child, name),
+                        {key: reading[key] for key in ("run", "updated", "value")},
+                    )
             (child / "index.html").write_bytes(source)
             (child / "events.jsonl").write_text(
                 "".join(json.dumps(event) + "\n" for event in seeded),
@@ -135,7 +141,7 @@ class Samples:
                 artifact.registry["$layer"],
                 passive,
                 asset_root,
-                memory_of(child),
+                memory,
             )
         return identity
 

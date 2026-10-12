@@ -3,7 +3,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { initialRender, initialOrigin } from "/runtime/initial-render.js";
-import { tabStore, unmarkedCopy } from "/runtime/storage.js";
+import { unmarkedCopy } from "/runtime/initial-render.js";
+import { tabStore } from "/runtime/storage.js";
 import { adoptRegistry } from "/runtime/registry.js";
 import {
   rememberAuthoredParents,
@@ -112,6 +113,25 @@ test("a runtime arrival uses the same producer and preserves the frozen source",
     unmarkedCopy(host).outerHTML,
     '<lf-later id="later"><p>Later source</p></lf-later>',
   );
+});
+
+test("native idioms never become widget descriptors or authored widget ancestors", () => {
+  document.body.innerHTML =
+    '<main><table id="native"><tbody><tr><td><lf-nested id="nested">Value</lf-nested></td></tr></tbody></table></main>';
+  adoptRegistry({
+    "lf-nested": {},
+    table: { description: "A table idiom.", "x-example": "<table></table>" },
+    "lf-nested.selected": {
+      description: "A selected widget idiom.",
+      "x-example": '<lf-nested class="selected"></lf-nested>',
+    },
+  });
+  const staged = stageWidgetDescriptors(document.querySelector("main"), {
+    kind: "page",
+    revision: 2,
+  });
+  assert.deepEqual([...staged.descriptors.keys()], ["nested"]);
+  assert.deepEqual(staged.descriptors.get("nested").ancestors, []);
 });
 
 test("an arriving source root keeps its declared parent and exhibit fence", () => {

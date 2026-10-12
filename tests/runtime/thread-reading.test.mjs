@@ -56,7 +56,8 @@ test("Thread destinations without a page preview retain canonical targets and sh
   assert.equal(await destinations.openPageThread("detached", { intent }), control);
   assert.equal(arrivals[0].id, "detached");
   assert.equal(arrivals[0].options.intent, intent);
-  assert.equal(arrivals[0].options.focus, "reply");
+  assert.equal(arrivals[0].options.part, "reply");
+  assert.equal(arrivals[0].options.focus, true);
   window.dispatchEvent(new Event("input"));
   assert.equal(await destinations.openPageThread("detached", { intent }), null);
   assert.equal(arrivals.length, 1);
@@ -198,12 +199,12 @@ test("attention names the outstanding question rather than the latest message", 
     kind: "comment",
     text: "Does this crop show enough of the room?",
   });
-  const update = agent("update", {
+  const followup = agent("followup", {
     text: "I also added the room number.",
     seq: 2,
   });
-  const source = servedThread([question, update], {
-    attention: { kind: "needs_user", reason: "ask", workflow: null },
+  const source = servedThread([question, followup], {
+    attention: { kind: "needs_user", reason: "question", workflow: null },
     user_prompt: { message: "question", version: "question" },
   });
   const [thread] = readThreadRecords([source], NO_DOCUMENT, new Map(), []);
@@ -313,7 +314,7 @@ test("narrowing transitions reset what they contradict and counts name each subs
   assert.equal(transition(resolved, "waiting", "user").status, "open");
   assert.equal(transition(DEFAULT_INTENT, "status", "open"), DEFAULT_INTENT);
 
-  const onUser = { kind: "needs_user", reason: "ask" };
+  const onUser = { kind: "needs_user", reason: "question" };
   // A thread the agent has started a move in: the card says Working, so the agent
   // filter lists it.
   const claimed = { kind: "waiting", reason: "workflow", workflow: "working" };
@@ -347,20 +348,23 @@ test("narrowing transitions reset what they contradict and counts name each subs
 
 test("a fold without prose is searchable by its visible label", () => {
   const thread = {
-    ...recentThread("updates", "2026-03-01T00:00:00Z"),
-    summaries: [{ id: "fold", label: "Previous updates", text: "" }],
+    ...recentThread("progress", "2026-03-01T00:00:00Z"),
+    summaries: [{ id: "fold", label: "Previous progress messages", text: "" }],
   };
   const places = new Map([[thread, { gone: false, section: "" }]]);
   const reading = narrowingReading(
-    { ...DEFAULT_INTENT, finding: "previous updates" },
+    { ...DEFAULT_INTENT, finding: "previous progress messages" },
     [thread],
     places,
   );
   assert.deepEqual(
     reading.shown.map(({ id }) => id),
-    ["updates"],
+    ["progress"],
   );
-  assert.deepEqual(threadSearchReading(thread, "previous updates").messages, []);
+  assert.deepEqual(
+    threadSearchReading(thread, "previous progress messages").messages,
+    [],
+  );
 });
 
 test("a pending narrowing reset gives way to a newer reading gesture", async () => {

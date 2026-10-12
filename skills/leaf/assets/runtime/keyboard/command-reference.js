@@ -22,6 +22,7 @@
    The catalog is deliberately frozen while open. A command that becomes live waits until
    the next opening; one that becomes unavailable is rejected by fresh dispatch and causes
    the reference to reopen with an explanation. */
+import { showNativeLayer, closeNativeLayer } from "./layer-stack.js";
 import { scrollIntoView } from "../landing-scroll.js";
 import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
 
@@ -50,7 +51,7 @@ import {
   keySequenceModel,
   keySequenceTemplate,
   neutralStates,
-} from "./presentation.js";
+} from "./key-sequence.js";
 import {
   handBack,
   tabStops,
@@ -101,7 +102,7 @@ commandReferenceDialog.append(commandReferenceSearch);
 
 // Page-key presentation owns this retained native control's changing name and shortcut
 // metadata. The reference template only seats it.
-export const commandReferenceClose = closeControl({
+const commandReferenceClose = closeControl({
   name: "Close the command reference",
   className: "lf-command-reference-close",
 });
@@ -314,10 +315,17 @@ function captureCommandReferenceCatalog() {
       ? routes.has(undefined)
       : alternatives.some((binding) => routes.has(binding));
   };
+  const actionable = (row, route) =>
+    Boolean(
+      (row.run || routedCommand(route)) &&
+      (routedCommand(route)?.row ?? row).runFromCommandReference !== false,
+    );
 
   // One command id is one capability, with potentially several ways to reach it.
-  // Teach a keyboard route rather than an unbound control; among keyboard routes,
-  // prefer the reachable one (an Ask digit can replace a shadowed intrinsic key).
+  // A control's native Enter/Space scope can name that capability without an action of
+  // its own. Prefer a row the reference can invoke, then teach a keyboard route rather
+  // than an unbound control; among keyboard routes,
+  // prefer the reachable one (a Question digit can replace a shadowed intrinsic key).
   // Invoking the reference names the capability, so any executable route makes the
   // entry available even when its displayed sequence has not been entered yet.
   const preferred = new Map();
@@ -329,14 +337,19 @@ function captureCommandReferenceCatalog() {
           row: rowInfo.row,
           binding: route?.binding ?? null,
           available: available(rowInfo, route),
+          actionable: actionable(rowInfo.row, route),
           keyed: rowInfo.declared.length > 0,
         };
         if (candidate.available) executable.add(id);
         const prior = preferred.get(id);
         if (
           !prior ||
-          (!prior.keyed && candidate.keyed) ||
-          (prior.keyed === candidate.keyed && !prior.available && candidate.available)
+          (!prior.actionable && candidate.actionable) ||
+          (prior.actionable === candidate.actionable &&
+            ((!prior.keyed && candidate.keyed) ||
+              (prior.keyed === candidate.keyed &&
+                !prior.available &&
+                candidate.available)))
         )
           preferred.set(id, candidate);
       }
@@ -393,11 +406,7 @@ function captureCommandReferenceCatalog() {
             : null,
           title,
           description,
-          actionable: Boolean(
-            (rowInfo.row.run || routedCommand(route)) &&
-            (routedCommand(route)?.row ?? rowInfo.row).runFromCommandReference !==
-              false,
-          ),
+          actionable: actionable(rowInfo.row, route),
           available: isAvailable,
           unavailableMessage: availableWhere(rowInfo.row, sectionTitle, scope.reach),
           bindingForms: Object.freeze(
@@ -836,7 +845,7 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
     commandReferenceInvoke = invokeCommand;
     for (const popover of openPopovers())
       if (popover.popover !== "manual" && popover.matches(":popover-open"))
-        popover.hidePopover();
+        closeNativeLayer(popover);
     // The origin is read off the scene the reference leaves standing: hiding a popover
     // hands focus back to where the user stood when it opened, and that is the place
     // the reference owes them. A control, or nothing: a user working from the page
@@ -872,7 +881,7 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
     });
   }
   commandReferenceDialog.classList.toggle("open", open);
-  if (open && !commandReferenceDialog.open) commandReferenceDialog.showModal();
+  if (open && !commandReferenceDialog.open) showNativeLayer(commandReferenceDialog);
   // The reference is a bounded interaction rather than a level of the page: it claims the
   // whole keyboard while it stands and hands the user back itself, to the control the
   // press displaced, or to the page where that control has gone — the layer it stood in
@@ -887,7 +896,7 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
     stopReferenceReading = null;
     closeLayer(
       () => {
-        if (commandReferenceDialog.open) commandReferenceDialog.close();
+        if (commandReferenceDialog.open) closeNativeLayer(commandReferenceDialog);
         if (commandReferenceDialog.contains(document.activeElement))
           document.activeElement.blur();
         repaint();
@@ -909,7 +918,7 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
   repaint();
 }
 
-export function moveCommandReferenceFocus(dir) {
+function moveCommandReferenceFocus(dir) {
   const stops = tabStops(commandReferenceDialog);
   if (!stops.length) return focusDestination(commandReferenceDialog, "step");
   const standing = focused();
@@ -935,11 +944,11 @@ const focusedCommandId = () =>
     ? focused().dataset.lfCommand
     : null;
 
-export const commandReferenceCommandActive = () =>
+const commandReferenceCommandActive = () =>
   commandReferenceView.visibleCommands.length > 0 &&
   (focused() === commandReferenceSearch.input || focusedCommandId() !== null);
 
-export function moveCommandReferenceSelection(dir) {
+function moveCommandReferenceSelection(dir) {
   const ids = commandReferenceView.visibleCommands.map(({ entry }) => entry.id);
   if (!ids.length) return;
   const focusedId = focusedCommandId();
@@ -971,7 +980,7 @@ export function moveCommandReferenceSelection(dir) {
   });
 }
 
-export function activateSelectedCommand() {
+function activateSelectedCommand() {
   if (!commandReferenceCommandActive()) return false;
   const id =
     focusedCommandId() ??

@@ -2,7 +2,7 @@
 
    The application supplies the neutral annotation inventory and its live target/action
    directory. This renderer selects clusters and controls from those readings; it does
-   not gather Threads, Asks, workflows or contributed actions. Shared contribution
+   not gather Threads, Questions, workflows or contributed actions. Shared contribution
    controls retain native entries across page and frozen-Thread seats. This renderer's
    Lit view owns direct/disclosed child order; margin-layout.js owns rail/pin posture,
    lanes and packing. Page Map consumes the inventory independently of this renderer.
@@ -38,6 +38,7 @@ import { afterScript, cancelRender, nextRender } from "/runtime/rendering.js";
 import { spokenSubject } from "/runtime/contribution-model.js";
 import {
   layoutMarginRows,
+  marginColumn,
   mountMarginLayer,
   registerMarginRow,
   scheduleMarginEntryLabels,
@@ -98,7 +99,7 @@ import {
 import { el, offer } from "/runtime/widget-elements.js";
 import { keeps, keepsHidden } from "/runtime/keeps.js";
 
-import { PRESS } from "/runtime/keyboard/bindings.js";
+import { PRESS, rowArrows } from "/runtime/keyboard/bindings.js";
 import { beginWalk, listWalkPosition, rowWalk } from "/runtime/walk-position.js";
 
 import { readingRegionFor } from "/runtime/reading-regions.js";
@@ -110,9 +111,8 @@ import { annotationsHidden, watchAnnotations } from "./annotation-layer.js";
 import { repaint } from "/runtime/repaint.js";
 import { chromeRoot, chromeForeground } from "/runtime/chrome.js";
 import { versionBtn } from "/runtime/version-picker.js";
-
-import { askHolding, declareSide, placeOf } from "/runtime/standing-target.js";
-import { readAsks } from "/runtime/asks/model.js";
+import { questionHolding, declareSide, placeOf } from "/runtime/standing-target.js";
+import { readQuestions } from "/runtime/questions/model.js";
 import { closestAcross, inChrome } from "/runtime/passages.js";
 import { visualAt } from "/runtime/anchor-resolution.js";
 import { paintTrace } from "/runtime/target-paint.js";
@@ -126,7 +126,7 @@ import { createMarginClusterViews } from "./margin-cluster-view.js";
 
 import { bannerControlDoor } from "/runtime/banner-toolbar.js";
 
-import { skipped } from "/runtime/geometry.js";
+import { seenRect, shownWindow, skipped, watchRoom } from "/runtime/geometry.js";
 
 import { hostIn, under } from "/runtime/shadow.js";
 import { retainUserIntent } from "/runtime/user-intent.js";
@@ -168,7 +168,7 @@ export function createMarginProjection({
   toolbar.setAttribute("role", "toolbar");
   toolbar.setAttribute(
     "aria-label",
-    "Changes, threads, asks, delivery status, and activity",
+    "Changes, threads, questions, delivery status, and activity",
   );
   nav.append(toolbar);
 
@@ -218,9 +218,6 @@ export function createMarginProjection({
       });
     });
   }
-  // Down the margin's column, which is `main` or, on a page without one, the body, as
-  // the margin's layout reads it (margin-layout.js).
-  const marginColumn = () => document.querySelector("main") || document.body;
   function readSpokenPositions(
     inventory,
     mainRect = marginColumn().getBoundingClientRect(),
@@ -382,6 +379,15 @@ export function createMarginProjection({
           });
           return options.visible.length + (options.spill ? 1 : 0) + 1;
         },
+        // Whether the pin, standing folded, shows its options beside the toggle. The
+        // row's own `data-lf-options-open` describes the face it stands in now, and an
+        // unfolded face shows its peers inline, so a row this pass folds reads it open.
+        open: () =>
+          clusterProjection(row.lfEntry, {
+            expandedKey: expandedOptionsKey,
+            expandedOwner: expandedOptionsOwner,
+            folded: true,
+          }).optionsOpen,
         // Told from inside the layout pass, which has already seated the row at its new
         // size: the cluster is presented again once that pass has written, before the
         // frame paints, however many rows it folded.
@@ -420,11 +426,11 @@ export function createMarginProjection({
     );
   }
 
+  // The rows in front of the user (`seenRect`): one under the banner or the bottom bar,
+  // or scrolled out of a pane, is no row the walk or the rail's way in may land on.
   function visibleRows() {
-    return availableRows().filter((row) => {
-      const box = row.getBoundingClientRect();
-      return box.bottom > 0 && box.top < innerHeight;
-    });
+    const clips = new Map();
+    return availableRows().filter((row) => seenRect(row, clips));
   }
 
   function clusterMarginEntries(host) {
@@ -453,7 +459,7 @@ export function createMarginProjection({
     const buttons = clusterMarginEntries(host);
     const at = buttons.indexOf(active);
     if (at < 0 || buttons.length < 2) return;
-    const direction = binding === "ArrowRight" ? 1 : -1;
+    const direction = binding === rowArrows(active)[1] ? 1 : -1;
     focusDestination(
       buttons[(at + direction + buttons.length) % buttons.length],
       "move",
@@ -628,18 +634,17 @@ export function createMarginProjection({
     const held = candidates.find(
       (row) => row === document.activeElement || row.tabIndex === 0,
     );
+    const room = shownWindow();
+    const distance = (row) => {
+      const box = row.getBoundingClientRect();
+      if (box.bottom < room.top) return room.top - box.bottom;
+      if (box.top > room.bottom) return box.top - room.bottom;
+      return 0;
+    };
     const next =
       focused ??
       held ??
-      candidates.reduce((best, row) => {
-        const distance = (candidate) => {
-          const box = candidate.getBoundingClientRect();
-          if (box.bottom < 0) return -box.bottom;
-          if (box.top > innerHeight) return box.top - innerHeight;
-          return 0;
-        };
-        return distance(row) < distance(best) ? row : best;
-      });
+      candidates.reduce((best, row) => (distance(row) < distance(best) ? row : best));
     holdTabStop(next);
   }
 
@@ -1451,7 +1456,7 @@ export function createMarginProjection({
       intent.handoff(closePreview);
       void held.presented.then(() =>
         openPageThread(held.id, {
-          focus: "thread",
+          part: "thread",
           travel: false,
           intent,
         }),
@@ -1496,9 +1501,9 @@ export function createMarginProjection({
 
   // The margin packs its rows a frame after anything moves them — a row registering,
   // the column resizing under a diagram that finished or a disclosure that opened — and
-  // the card keeps its row clear, as it stood when it opened. margin-layout.js says when
-  // it has moved the rows, and the card follows in that same frame, so a user never sees
-  // it standing over where its controls moved to.
+  // margin-layout.js says when it has moved the rows, and the card follows in that
+  // same frame. comment-placement.js clears the renewed row only where the full
+  // preferred message width fits beyond it; otherwise the message may cover it.
 
   // Standing selection belongs to the reading, not to focus or a particular feature's
   // control. Resolve it through the same inventory that decides which reading is the
@@ -1545,9 +1550,9 @@ export function createMarginProjection({
     ].some((seat) => closestAcross(seat, ".lf-thread-seat[data-lf-thread-seat]"));
   // The innermost target holding the node whose threads the card would show. A thread is
   // about exactly its anchor's target (glossary, Standing target), reached from anywhere
-  // inside it and never from outside: after `q` the user stands on the Ask element, so
-  // the card shows a thread on the Ask but not one on its options or a phrase in its
-  // heading. Treating an Ask as one target for its threads is a possible refinement. It
+  // inside it and never from outside: after `q` the user stands on the Question element, so
+  // the card shows a thread on the Question but not one on its options or a phrase in its
+  // heading. Treating a Question as one target for its threads is a possible refinement. It
   // belongs where a thread's target is decided (anchor-placement), so every
   // reader keeps one definition, not in this or any other single reader.
   // Read from where the node stands (standing-target.js), so chrome that shows a page
@@ -1569,7 +1574,7 @@ export function createMarginProjection({
   };
   // A folded cluster opens while the keyboard stands at its target, as it does when
   // the keyboard arrives on its toggle: what the user stands at offers its actions, and
-  // an Ask's digits name them. It folds again when they stand anywhere else but in the
+  // a Question's digits name them. It folds again when they stand anywhere else but in the
   // cluster itself, where standing keeps it open (the fold beside `arriveAtCluster`).
   let standingUnfolded = null;
   // The arrivals below are the keyboard's: the user's latest input was a key, not a
@@ -1616,8 +1621,8 @@ export function createMarginProjection({
     )
       return;
     const host = closestAcross(active, "[data-lf-margin-for]");
-    // Working an Ask keeps its decisions clear; explicit discussion remains open.
-    if (askHolding(readAsks().all, placeOf(active))) {
+    // Working a Question keeps its decisions clear; explicit discussion remains open.
+    if (questionHolding(readQuestions().all, placeOf(active))) {
       const entry = threadEntryAt(active);
       if (
         previewOpen() &&
@@ -1801,10 +1806,7 @@ export function createMarginProjection({
       },
       { capture: true },
     );
-    document.addEventListener("scroll", () => scheduleRoving(), {
-      capture: true,
-      passive: true,
-    });
+    watchRoom(() => scheduleRoving());
     window.addEventListener("resize", () => scheduleWidthRender());
     renderAnnotations();
     // The card anchors to its row (floating.js), which an anchor may do only to a box

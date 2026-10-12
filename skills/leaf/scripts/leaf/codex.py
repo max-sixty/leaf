@@ -12,7 +12,7 @@ turn's own connection to its end (`CarriedTurn`), the writers that put those
 readings on a claimed page, and the durable records a delivery passes through.
 
 A delivery record under the state home is the handoff between Leaf capturing a
-user's moves and a transport taking them. One record is offered once, accepted once,
+user's updates and a transport taking them. One record is offered once, accepted once,
 and receipted per page batch, whichever transport carried it — an App Server turn or
 the `codex queue` command, or a tool or Stop hook — so preparing, accepting, opening
 and abandoning one live here rather than beside either client. The immutable
@@ -39,7 +39,7 @@ import tempfile
 import time
 from collections.abc import Iterator
 from contextlib import ExitStack, contextmanager
-from dataclasses import asdict, dataclass, field, replace
+from dataclasses import asdict, dataclass, field, fields, replace
 from pathlib import Path
 from typing import ClassVar, Literal
 from urllib.parse import urlsplit
@@ -56,6 +56,7 @@ from .delivery import (
     batch_data,
     current_responses,
     delivery_path,
+    delivery_pointer_prompt,
     freeze_delivery,
     new_delivery_id,
     pages_gone,
@@ -69,11 +70,13 @@ from .delivery import (
 from .files import read_json
 from .harness import Harness
 from .leases import sessions_home
+from .refusals import Refused
 from .service import (
     PageTransaction,
     delivery_reply_attempt,
     owned_pages,
     restore_page_claim,
+    same_claim,
     unacknowledged,
 )
 from .state import (
@@ -90,33 +93,6 @@ START_TIMEOUT = 20
 # Names the App Server a task runs on to the `leaf` commands it runs, so they hand
 # its pages to that server (`private_app_server`, `leaf codex start`).
 APP_SERVER_ENV = "LEAF_CODEX_APP_SERVER"
-# The `config` of a thread Leaf starts, less what Codex loads by default and no such
-# thread uses: the skills list, plugin and app suggestions, other agents, memories,
-# browser and computer use, image generation and web search. Each is context the
-# model reads on every request, and web search reaches the network the hosted task
-# is told to stay off.
-LEAF_THREAD_CONFIG = {
-    "features": {
-        feature: False
-        for feature in (
-            "apps",
-            "browser_use",
-            "computer_use",
-            "goals",
-            "image_generation",
-            "in_app_browser",
-            "memories",
-            "multi_agent",
-            "plugins",
-            "skill_mcp_dependency_install",
-            "skill_search",
-            "tool_suggest",
-            "workspace_dependencies",
-        )
-    },
-    "skills": {"include_instructions": False},
-    "web_search": "disabled",
-}
 # A collecting record holds captured events in the delivery's own shape, so the
 # version moves with it; a record of another version is ignored, and the events
 # its page has not acknowledged are captured afresh.
@@ -150,16 +126,16 @@ def app_server_socket_path(endpoint: str) -> Path | None:
         parsed = urlsplit(endpoint)
         hostname = parsed.hostname
     except ValueError as error:
-        raise RuntimeError("--app-server needs a valid local endpoint") from error
+        raise Refused("--app-server needs a valid local endpoint") from error
     if parsed.query or parsed.fragment or parsed.username or parsed.password:
-        raise RuntimeError("--app-server needs a local WebSocket or Unix endpoint")
+        raise Refused("--app-server needs a local WebSocket or Unix endpoint")
     if parsed.scheme == "ws" and hostname in {"127.0.0.1", "::1", "localhost"}:
         return None
     if parsed.scheme == "unix" and not parsed.netloc and parsed.path:
         path = Path(parsed.path)
         if path.is_absolute():
             return path
-    raise RuntimeError(
+    raise Refused(
         "--app-server needs a local loopback ws:// endpoint or an absolute "
         "unix:/// socket"
     )
@@ -216,9 +192,9 @@ def _wait_for_app_server(path: Path, process: subprocess.Popen, log) -> None:
         if process.poll() is not None:
             log.seek(0)
             detail = log.read().decode(errors="replace").strip()
-            raise RuntimeError(detail or "Codex App Server exited before it was ready")
+            raise Refused(detail or "Codex App Server exited before it was ready")
         time.sleep(0.05)
-    raise RuntimeError("Codex App Server did not become ready")
+    raise Refused("Codex App Server did not become ready")
 
 
 @contextmanager
@@ -380,7 +356,16 @@ def start_app_server_delivery(send, thread_id: str, payload: dict) -> dict:
 
     reply_target = stream_reply_target(payload)
     if reply_target is not None:
-        reserve_delivery_reply(thread_id, payload["id"], reply_target)
+        try:
+            reserve_delivery_reply(
+                thread_id,
+                payload["id"],
+                reply_target,
+                expected_claim=payload.get("correction", {}).get("claim"),
+            )
+        except ReceiptRefused:
+            abandon_uncertain_delivery(thread_id, payload)
+            raise
     try:
         expected = session_record(thread_id)
         started = send("turn/start", app_server_turn_start_params(thread_id, payload))
@@ -966,8 +951,8 @@ class AppServerReplyStream:
                 if (
                     claim is None
                     or claim["id"] != self.session_id
-                    or claim.get("turn") != self.turn_id
-                    or claim.get("turn_closed") is not None
+                    or claim["turn"] != self.turn_id
+                    or claim["turn_closed"] is not None
                 ):
                     return False
                 page.set_stream_reply(
@@ -993,7 +978,7 @@ class AppServerReplyStream:
         """Commit only a completed final, retaining rejected or partial text.
 
         A completed answer retains its delivered response address even when that
-        move was settled during the turn. The reply reopens the thread.
+        update was settled during the turn. The reply reopens the thread.
 
         A commit appends the reply, then clears its binding and draft in a
         separate transaction. Every other way out releases the binding, including
@@ -1009,7 +994,7 @@ class AppServerReplyStream:
                     self._commit(completed_text)
                     committed = True
                     return None
-                except (OSError, RuntimeError, SystemExit, ValueError) as error:
+                except (OSError, Refused) as error:
                     self._set_state("failed", completed_text)
                     return error
             self._set_state(
@@ -1138,7 +1123,7 @@ class TurnFold:
     session generation; an old fold cannot clear or close a newer lifetime that
     reuses the provider ID. Historical answer settlement borrows no live authority.
     `close` closes only that generation and id; delivery acceptance only records which turn
-    took the moves. A client opens a fold's turn only while it runs, so a turn
+    took the updates. A client opens a fold's turn only while it runs, so a turn
     read back from a snapshot after it ended is committed without reopening it.
 
     What differs between clients is only how notifications reach the fold.
@@ -1173,6 +1158,7 @@ class TurnFold:
         self.events = AppServerEvents(session_id, turn_id)
         self.reply_stream: AppServerReplyStream | None = None
         self.last_activity_update = 0.0
+        self.correction: dict | None = None
 
     def open(self) -> bool:
         """Follow the admitted provider identity without introducing another one."""
@@ -1265,6 +1251,19 @@ class TurnFold:
         reply_error = None
         try:
             reply_error = self.settle_reply(terminal)
+            if (
+                reply_error is not None
+                and self.correction is None
+                and self.reply_target is not None
+            ):
+                self.correction = prepare_reply_correction(
+                    self.session_id,
+                    self.turn_id,
+                    self.delivery_id,
+                    self.reply_target,
+                    reply_error,
+                    generation=self.generation,
+                )
         finally:
             self.close(terminal, reply_error)
 
@@ -1386,6 +1385,101 @@ class CarriedTurn(TurnFold):
         raise NotImplementedError
 
 
+def prepare_reply_correction(
+    session_id: str,
+    turn_id: str,
+    delivery_id: str,
+    target: dict,
+    error: BaseException,
+    *,
+    generation: str | None,
+) -> dict | None:
+    """Return a durable repair offer for a rejected final's exact obligation.
+
+    The rejected final wrote no answer. Reuse its immutable response address and
+    captured input, with the admission diagnostic, instead of asking the user to
+    send it again. Its accepted immutable delivery, current ownership, generation
+    and still-current input authorize this retry even after Stop closed its turn.
+    Newer input or a successor never inherits a stale repair. Each failed
+    delivery owns at most one correction, including duplicate terminal callbacks.
+    """
+    if generation is None:
+        return None
+    page_dir = Path(target["page"])
+    accepted = read_task_delivery(session_id, delivery_id)
+    try:
+        with (
+            PageTransaction(page_dir) as page,
+            flocked(delivery_lock_path(session_id)),
+        ):
+            claim = page.active_claim
+            observed = session_record(session_id)
+            if (
+                claim is None
+                or claim["id"] != session_id
+                or observed is None
+                or observed["generation"] != generation
+                or not isinstance(accepted, Opened)
+                or accepted.turn != turn_id
+                or target["responds"] not in current_responses(page_dir, page.events)
+            ):
+                return None
+            for directory in (
+                delivery_dir(session_id),
+                delivery_dir(session_id) / "history",
+            ):
+                for path in directory.glob("*.json"):
+                    if read_record(path) is not None:
+                        candidate = read_delivery(path.stem)
+                        if (
+                            candidate.get("correction", {}).get("delivery")
+                            == delivery_id
+                        ):
+                            return candidate
+            original = read_delivery(delivery_id)
+            batch = next(
+                batch for batch in original["batches"] if batch["page"] == str(page_dir)
+            )
+            captured = {
+                **batch,
+                "events": [
+                    event
+                    for event in batch["events"]
+                    if event["id"] == target["responds"]
+                ],
+            }
+            payload = freeze_delivery(
+                [captured],
+                turn_replies=True,
+                correction={
+                    "delivery": delivery_id,
+                    "turn": turn_id,
+                    "claim": {
+                        key: claim[key] for key in ("id", "generation", "acquisition")
+                    },
+                    "diagnostic": str(error),
+                    "instruction": "The previous final was not published. Correct the reported failure, then answer this same input. Retain completed work; do not repeat edits or external actions already performed.",
+                },
+            )
+            record = Offering(
+                payload["created_at"],
+                (
+                    {
+                        "page": str(page_dir),
+                        "session": session_id,
+                        "events": [
+                            {"seq": event["seq"], "id": event["id"]}
+                            for event in captured["events"]
+                        ],
+                    },
+                ),
+            )
+            write_record(record_path(session_id, payload["id"]), record)
+            return payload
+    except FileNotFoundError:
+        return None
+
+
 def record_path(session_id: str, delivery_id: str) -> Path:
     validate_delivery_id(delivery_id)
     return delivery_dir(session_id) / f"{delivery_id}.json"
@@ -1447,39 +1541,145 @@ class Abandoned(ReceiptOutcome):
     state: ClassVar[str] = "abandoned"
 
 
+RECORD_VARIANTS = {
+    variant.state: variant
+    for variant in (
+        Collecting,
+        Offering,
+        HookOffer,
+        StartingOffer,
+        Accepted,
+        Opened,
+        Abandoned,
+    )
+}
+_STRING = {"type": "string"}
+_ANSWER_FIELDS = {"reply": ("to", "for"), "markup": ("action",)}
+_ANSWER = {
+    "type": "object",
+    "properties": {"kind": {"enum": list(_ANSWER_FIELDS)}},
+    "required": ["kind"],
+    "allOf": [
+        {
+            "if": {"properties": {"kind": {"const": kind}}},
+            "then": {
+                "properties": dict.fromkeys(names, _STRING),
+                "required": list(names),
+            },
+        }
+        for kind, names in _ANSWER_FIELDS.items()
+    ],
+}
+# A collecting record holds the captured events themselves; every other state
+# holds references into its immutable payload.
+_COLLECTED_BATCH = {
+    "properties": {
+        "through_seq": {"type": "integer"},
+        "threads": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"id": _STRING, "title": {"type": ["string", "null"]}},
+                "required": ["id", "title"],
+            },
+        },
+        "events": {
+            "items": {
+                "properties": {
+                    "kind": _STRING,
+                    "threads": {"type": "array", "items": _STRING},
+                    "answer": _ANSWER,
+                },
+                "required": ["kind", "threads"],
+            }
+        },
+    },
+    "required": ["through_seq", "threads"],
+}
+_BATCH = {
+    "type": "object",
+    "properties": {
+        "page": _STRING,
+        "session": _STRING,
+        "events": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "object",
+                "properties": {"id": _STRING, "seq": {"type": "integer"}},
+                "required": ["id", "seq"],
+            },
+        },
+    },
+    "required": ["page", "session", "events"],
+}
+
+
+def _when_variant(holds, then: dict) -> dict:
+    """Apply `then` to the records of every variant `holds` is true of."""
+    states = [state for state, variant in RECORD_VARIANTS.items() if holds(variant)]
+    return {"if": {"properties": {"state": {"enum": states}}}, "then": then}
+
+
+# Objects stay open: a record from another leaf on this machine may carry fields
+# this version ignores, and `format` already names the shape this version reads.
+RECORD_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "format": {"const": RECORD_FORMAT},
+        "state": {"enum": list(RECORD_VARIANTS)},
+        "created_at": {"type": "number"},
+        "batches": {"type": "array", "minItems": 1, "items": _BATCH},
+    },
+    "required": ["format", "state", "created_at", "batches"],
+    "allOf": [
+        _when_variant(
+            lambda variant: variant is Collecting,
+            {"properties": {"batches": {"items": _COLLECTED_BATCH}}},
+        ),
+        _when_variant(
+            lambda variant: issubclass(variant, ReceiptOutcome),
+            {
+                "properties": {
+                    "pending": {
+                        "type": "array",
+                        "items": {"type": "integer", "minimum": 0},
+                    }
+                },
+                "required": ["pending"],
+            },
+        ),
+        _when_variant(
+            lambda variant: "turn" in {item.name for item in fields(variant)},
+            {
+                "properties": {"turn": {"type": "string", "minLength": 1}},
+                "required": ["turn"],
+            },
+        ),
+    ],
+}
+
+
 def read_record(path: Path) -> DeliveryRecord | None:
     """Decode a complete record at the shared-state boundary, ignoring other versions.
 
-    Live and archived records use the same variants. No partial state may enter
-    delivery recovery, and an unreadable record never authorizes deletion.
+    Live and archived records use the same variants. `RECORD_SCHEMA` states each
+    variant's shape; what it cannot state is checked here: receipts are sorted,
+    unique and name a batch, and an offered record's payload is one this version
+    reads. No partial state may enter delivery recovery, and an unreadable record
+    never authorizes deletion.
     """
+    # Codex's hooks import this module between steps (module docstring), so the
+    # validator loads only once a task has a record to read.
+    from .registry.schema import json_validator
+
     try:
         record = read_json(path)
     except ValueError:
         return None
-    variants = {
-        variant.state: variant
-        for variant in (
-            Collecting,
-            Offering,
-            HookOffer,
-            StartingOffer,
-            Accepted,
-            Opened,
-            Abandoned,
-        )
-    }
-    if (
-        not isinstance(record, dict)
-        or record.get("format") != RECORD_FORMAT
-        or not isinstance(record.get("state"), str)
-        or record["state"] not in variants
-        or not isinstance(record.get("created_at"), (int, float))
-        or not isinstance(record.get("batches"), list)
-        or not record["batches"]
-    ):
+    if not json_validator(RECORD_SCHEMA).is_valid(record):
         return None
-    variant = variants[record["state"]]
+    variant = RECORD_VARIANTS[record["state"]]
     if variant is not Collecting:
         try:
             payload = read_json(delivery_path(path.stem))
@@ -1487,78 +1687,16 @@ def read_record(path: Path) -> DeliveryRecord | None:
             return None
         if not readable_delivery(payload, path.stem):
             return None
-    record_fields = {
-        "created_at": record["created_at"],
-        "batches": tuple(record["batches"]),
-    }
+    values = {item.name: record[item.name] for item in fields(variant)}
+    values["batches"] = tuple(values["batches"])
     if issubclass(variant, ReceiptOutcome):
-        pending = record.get("pending")
-        if (
-            not isinstance(pending, list)
-            or any(
-                type(index) is not int or not 0 <= index < len(record["batches"])
-                for index in pending
-            )
-            or pending != sorted(set(pending))
+        pending = values["pending"]
+        if pending != sorted(set(pending)) or any(
+            index >= len(values["batches"]) for index in pending
         ):
             return None
-        record_fields["pending"] = tuple(pending)
-    if variant in {HookOffer, Opened}:
-        if not isinstance(record.get("turn"), str) or not record["turn"]:
-            return None
-        record_fields["turn"] = record["turn"]
-    for batch in record["batches"]:
-        if (
-            not isinstance(batch, dict)
-            or not isinstance(batch.get("page"), str)
-            or not isinstance(batch.get("session"), str)
-            or not isinstance(batch.get("events"), list)
-            or not batch["events"]
-            or any(
-                not isinstance(event, dict)
-                or not isinstance(event.get("id"), str)
-                or not isinstance(event.get("seq"), int)
-                for event in batch["events"]
-            )
-        ):
-            return None
-        if record["state"] == "collecting" and (
-            not isinstance(batch.get("through_seq"), int)
-            or not isinstance(batch.get("threads"), list)
-            or any(
-                not isinstance(thread, dict)
-                or not isinstance(thread.get("id"), str)
-                or "title" not in thread
-                or thread["title"] is not None
-                and not isinstance(thread["title"], str)
-                for thread in batch["threads"]
-            )
-            or any(
-                not isinstance(event.get("kind"), str)
-                or not isinstance(event.get("threads"), list)
-                or any(not isinstance(thread, str) for thread in event["threads"])
-                for event in batch["events"]
-            )
-        ):
-            return None
-        if record["state"] == "collecting":
-            for event in batch["events"]:
-                if "answer" not in event:
-                    continue
-                answer = event["answer"]
-                if not isinstance(answer, dict) or not isinstance(
-                    answer.get("kind"), str
-                ):
-                    return None
-                fields = {
-                    "reply": ("to", "for"),
-                    "markup": ("action",),
-                }.get(answer["kind"])
-                if fields is None or any(
-                    not isinstance(answer.get(key), str) for key in fields
-                ):
-                    return None
-    return variant(**record_fields)
+        values["pending"] = tuple(pending)
+    return variant(**values)
 
 
 def _retire_record_if_gone(path: Path) -> None:
@@ -1647,14 +1785,6 @@ def _collecting_record(session_id: str) -> tuple[Path, Collecting] | None:
             f"Codex task {session_id} has multiple collecting Leaf deliveries"
         )
     return current[0] if current else None
-
-
-def delivery_pointer_prompt(delivery_id: str) -> str:
-    delivery = ElementTree.Element(
-        "leaf-delivery", {"id": delivery_id, "operation": "delivery read"}
-    )
-    pointer = ElementTree.tostring(delivery, encoding="unicode")
-    return f"```xml\n{pointer}\n```"
 
 
 @dataclass(frozen=True)
@@ -1820,37 +1950,45 @@ def append_batch(
     return path, len(record.batches) - 1, entry
 
 
-def offer_hook_delivery(session_id: str, turn_id: str) -> str | None:
+def offer_hook_delivery(
+    session_id: str, expected: dict | None
+) -> tuple[str | None, dict | None]:
     """Offer one plain-reply pointer through a tool or Stop hook, without receipt.
 
-    The agent's actual `delivery read` proves this pointer entered a turn. If the
+    The agent's explicit `delivery ack` confirms complete input in its turn. If the
     hook output arrives after the turn ends, the adapter queues the same frozen
     pointer instead. An offering already owned by another transport is left alone.
+
+    The caller's exact lifecycle owns every renewal and reservation. Return the
+    supplied lifecycle or this operation's last renewal, even without a pointer,
+    so the caller cannot adopt a prompt that arrives during or after the offer.
     """
     lock = delivery_lock_path(session_id)
-    expected = hook_turn(session_id)
-    if not expected or expected["turn"] != turn_id or not expected["running"]:
-        return None
+    if not expected or (
+        expected["turn"] is None
+        or expected["ended"] is not None
+        or expected["turn_closed"] is not None
+    ):
+        return None, expected
     for page_dir in owned_pages(session_id):
         try:
             with PageTransaction(page_dir) as page:
                 if page.active_claim is None or page.active_claim["id"] != session_id:
                     continue
                 with flocked(lock):
-                    if hook_turn(session_id) != expected:
-                        return None
-                    renew_turn(session_record(session_id))
-                    expected = hook_turn(session_id)
+                    if session_record(session_id) != expected:
+                        return None, expected
+                    expected = renew_turn(expected)
                     if batch := unacknowledged(page.events, page.cursor):
                         append_batch(session_id, page_dir, page, batch)
         except FileNotFoundError:
             continue
     with flocked(lock):
         records = delivery_records(session_id)
-        if hook_turn(session_id) != expected:
-            return None
+        if session_record(session_id) != expected:
+            return None, expected
         if any(not isinstance(record, Collecting) for _, record in records):
-            return None
+            return None, expected
         pending = next(
             (
                 (path, record)
@@ -1860,10 +1998,10 @@ def offer_hook_delivery(session_id: str, turn_id: str) -> str | None:
             None,
         )
         if pending is None:
-            return None
+            return None, expected
         path, record = pending
-        prepared = offer_delivery(path, record, transport=HookTurn(turn_id))
-        return prepared.prompt
+        prepared = offer_delivery(path, record, transport=HookTurn(expected["turn"]))
+        return prepared.prompt, expected
 
 
 def finish_codex_batch(
@@ -1983,7 +2121,7 @@ def settle_answered_deliveries(session_id: str) -> bool:
 
 
 def abandon_uncertain_delivery(session_id: str, payload: dict) -> None:
-    """Return an unknown offer to its user without asserting a provider ending.
+    """Return an unstartable or unknown offer without asserting a provider ending.
 
     The abandoned record is durable before page failure receipts, so recovery
     finishes an interrupted abandonment. Archiving retains correlation for late
@@ -1992,7 +2130,7 @@ def abandon_uncertain_delivery(session_id: str, payload: dict) -> None:
     path = record_path(session_id, payload["id"])
     with flocked(delivery_lock_path(session_id)):
         record = read_record(path)
-        if isinstance(record, StartingOffer):
+        if isinstance(record, Offering):
             record = Abandoned(
                 record.created_at, record.batches, tuple(range(len(record.batches)))
             )
@@ -2051,8 +2189,8 @@ def finish_abandoned_batch(path: Path, batch_index: int, batch: dict) -> None:
         _receipt_completed(path, batch_index)
 
 
-def delivery_owed_moves(payload: dict) -> list[dict]:
-    """Every move in one delivery that was owed an answer when it was captured,
+def delivery_owed_updates(payload: dict) -> list[dict]:
+    """Every update in one delivery that was owed an answer when it was captured,
     whatever answer it takes."""
     return [
         {"page": batch["page"], "responds": event["id"]}
@@ -2082,15 +2220,16 @@ def read_task_delivery(session_id: str, delivery_id: str) -> DeliveryRecord | No
 
 
 def prepare_codex_delivery(page_dir: Path, harness: Harness) -> PreparedDelivery:
-    """Claim PAGE and freeze the input for an embedded task's first turn."""
+    """Reuse held input, or claim PAGE to capture an embedded task's first input.
+
+    An immutable pending offer observes ownership; it never reacquires the page.
+    A correction also retains the acquisition that authorized its rejected final.
+    """
     session_id = harness.session
     transition = None
+    pending_id = None
     try:
         with PageTransaction(page_dir) as page:
-            transition = page.take_claim(harness)
-            batch = unacknowledged(page.events, page.cursor)
-            if not batch:
-                raise RuntimeError("the page has no Leaf input to deliver")
             lock = delivery_lock_path(session_id)
             with flocked(lock):
                 pending = next(
@@ -2102,8 +2241,28 @@ def prepare_codex_delivery(page_dir: Path, harness: Harness) -> PreparedDelivery
                     None,
                 )
                 if pending is not None:
+                    pending_id = pending[0].stem
+                    claim = page.active_claim
+                    if claim is None or claim["id"] != session_id:
+                        raise ReceiptRefused(
+                            "the pending delivery no longer owns its page"
+                        )
+                    path, record = pending
+                    if isinstance(record, Offering):
+                        expected = (
+                            read_delivery(path.stem).get("correction", {}).get("claim")
+                        )
+                        if expected is not None and not same_claim(claim, expected):
+                            raise ReceiptRefused(
+                                "the correction's page acquisition has ended"
+                            )
                     offered = offer_delivery(*pending, transport="app-server")
-                    return replace(offered, claim_transition=transition)
+                    return offered
+            transition = page.take_claim(harness)
+            batch = unacknowledged(page.events, page.cursor)
+            with flocked(lock):
+                if not batch:
+                    raise RuntimeError("the page has no Leaf input to deliver")
                 captured = append_batch(
                     session_id,
                     page_dir,
@@ -2117,8 +2276,10 @@ def prepare_codex_delivery(page_dir: Path, harness: Harness) -> PreparedDelivery
                     path, read_record(path), transport="app-server"
                 )
                 return replace(offered, claim_transition=transition)
-    except BaseException:
+    except BaseException as error:
         restore_page_claim(page_dir, transition)
+        if isinstance(error, ReceiptRefused) and pending_id is not None:
+            abandon_uncertain_delivery(session_id, read_delivery(pending_id))
         raise
 
 
@@ -2132,7 +2293,7 @@ def accept_codex_delivery(
     """Accept one exact delivery before completing its recoverable page receipts.
 
     A turn id proves entry into that provider turn; None proves durable queue
-    acceptance. A hook pointer's read also supplies the observation that must
+    acceptance. A hook pointer's confirmation also supplies the observation that must
     still stand under the delivery lock. All transports commit accepted state first,
     then receipt each batch through finish_codex_batch, which recovery also uses.
 

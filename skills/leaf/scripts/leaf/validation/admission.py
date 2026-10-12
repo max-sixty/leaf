@@ -5,6 +5,7 @@ from pathlib import Path
 
 from leaf.activity import answer_command
 from leaf.data_contracts import data_binding_errors
+from leaf.events import build_threads
 from leaf.files import list_revisions
 from leaf.registry.schema import json_value
 from leaf.registry.storage import require_registry
@@ -13,6 +14,7 @@ from leaf.schema import MESSAGE_KINDS
 from leaf.structure import SourceDocument
 from leaf.thread_context import thread_names, thread_structure
 
+from ..refusals import Refused
 from .instances import reference_errors, thread_markup_contract_errors
 from .markup import (
     document_declaration_errors,
@@ -34,9 +36,9 @@ def read_text_arg(page_dir: Path, text, *, allow_empty: bool = False) -> str:
     the runtime resolves one — a path quoted in a sentence stays the author's words."""
     body = text if text is not None else sys.stdin.read()
     if not body and not allow_empty:
-        sys.exit("empty text (pass --text or pipe via stdin)")
+        raise Refused("empty text (pass --text or pipe via stdin)")
     if errs := text_media_errors(body, page_dir):
-        sys.exit(
+        raise Refused(
             "text names media the page won't show:\n"
             + "\n".join(f"  - {e}" for e in errs)
         )
@@ -73,7 +75,7 @@ def logged_id(events: list, value: str, responses: dict) -> str | None:
     The CLI names several kinds of id with bare strings — an element id anchors a
     thread, a message id answers one, and a delivered event id addresses the response
     it owes — and nothing about a value says which namespace it came from. An agent
-    holding the id of the move it was handed reaches for whichever writer it is using,
+    holding the id of the update it was handed reaches for whichever writer it is using,
     and a refusal that only repeats the value leaves it nothing to change but the
     guess. So every writer that refuses an id says what the log holds it as, and where
     it goes instead.
@@ -105,6 +107,14 @@ def logged_id(events: list, value: str, responses: dict) -> str | None:
     if owed is None and kind in MESSAGE_KINDS:
         owed = thread_obligation(events, responses, value)
         if owed is None:
+            thread = build_threads(events, {}).get(thread_names(events)[value])
+            resolution = thread["resolved"] if thread else None
+            if resolution is not None and resolution["kind"] == "resolve":
+                actor = "the user" if resolution["author"] == "user" else "the agent"
+                return (
+                    f"{held}; {actor} resolved the thread at {resolution['ts']}, "
+                    "so no reply is owed"
+                )
             return (
                 f"{held}, and nothing is owed for it — "
                 f"`leaf thread reply <page> {value}` replies to it"
@@ -121,7 +131,7 @@ def logged_id(events: list, value: str, responses: dict) -> str | None:
 def version_ids(page_dir: Path) -> set:
     ids = set()
     for revision in list_revisions(page_dir):
-        ids |= read_revision(page_dir, revision).document.ids
+        ids.update(read_revision(page_dir, revision).inventory.ids)
     return ids
 
 
@@ -163,8 +173,8 @@ def check_markup(
     door refuses `markup` outright, so nothing reaches the log under that name
     unvalidated. Text needs no vocabulary gate — the runtime renders it with every tag
     escaped, so it cannot claim a widget — but its Markdown can still point at a file,
-    which `read_text_arg` asks about wherever a body arrives. Exits with what's
-    wrong."""
+    which `read_text_arg` asks about wherever a body arrives. Refuses with
+    what's wrong."""
     registry = require_registry(page_dir)
     frag = SourceDocument(markup)
     # Frozen markup also renders in historical documents. Validate their captured
@@ -185,7 +195,7 @@ def check_markup(
                 (
                     "thread markup must use vocabulary shared by the active registry "
                     "and every pinned revision; otherwise ask with --text (and "
-                    "--awaits for a reply)"
+                    "--question for a reply)"
                 )
             ]
             if pinned_errors
@@ -208,7 +218,7 @@ def check_markup(
         version_ids(page_dir),
         extra_errors,
     ):
-        sys.exit(error)
+        raise Refused(error)
     return frag
 
 

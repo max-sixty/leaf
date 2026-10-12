@@ -34,7 +34,6 @@ import itertools
 import json
 import math
 import os
-import re
 import shutil
 import subprocess
 import time
@@ -48,18 +47,23 @@ from urllib.parse import parse_qsl, urlencode, urlsplit
 import pytest
 from browser_sources import browser_function
 from click.testing import CliRunner
+from conftest import tier
 from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
+    declare_work,
     package_path,
+    publish,
+    record_claim,
     wait_for,
 )
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
+from leaf import leases as leases_model
+from leaf import machine as machine_model
 from leaf import render_checks as render_checks_model
-from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
@@ -71,7 +75,6 @@ from leaf_dev.browser import (
 from leaf_dev.example_data import regression_sources
 from leaf_dev.page_fixtures import (
     example_media,
-    package_selection_args,
     prepare_page,
     read_fixture,
 )
@@ -80,6 +83,7 @@ from leaf_dev.thread_snapshot_plugin import (
 )
 from model_folds import leaf_page
 from PIL import Image
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 
@@ -113,6 +117,21 @@ def rendering_job_binding_source():
     });"""
 
 
+def document_port_binding_source():
+    """Enroll only endpoints their owner declares as private document channels."""
+    return """(() => {
+      const ports = new WeakMap();
+      Object.defineProperty(HTMLScriptElement.prototype, 'lfDocumentPort', {
+        configurable: true,
+        get() { return ports.get(this); },
+        set(port) {
+          ports.set(this, port);
+          lfInputWork.observeDocumentPort(port);
+        },
+      });
+    })();"""
+
+
 @cache
 def shift_watch_source():
     """Bind the sensor to the runtime's control, clipping, and scroll-space readings."""
@@ -126,7 +145,7 @@ def shift_watch_source():
             (
                 'import { WORKS } from "./skills/leaf/assets/runtime/control-selectors.js";'
                 'import { clippingAxes } from "./skills/leaf/assets/runtime/rect.js";'
-                'import { elementAxes, scrollAxes } from "./skills/leaf/assets/runtime/geometry.js";'
+                'import { elementAxes, scrollAxes } from "./skills/leaf/assets/runtime/element-frame.js";'
                 'import { shadowHost, upFrom, renderedParent } from "./skills/leaf/assets/runtime/shadow.js";'
                 "process.stdout.write(JSON.stringify([WORKS,...[clippingAxes,shadowHost,upFrom,renderedParent,elementAxes,scrollAxes].map(fn=>fn.toString())]));"
             ),
@@ -540,15 +559,7 @@ def serve(tmp_path, monkeypatch, initialized_page):
             package_path(item) if isinstance(item, Path) else item
             for item in selected_packages
         )
-        selection_args = package_selection_args(selected_packages)
         d = tmp_path / f"page{len(servers)}"
-
-        def initialize(target):
-            initialized = CliRunner().invoke(
-                cli_model.cli,
-                ["page", "init", *selection_args, str(target)],
-            )
-            assert initialized.exit_code == 0, initialized.output
 
         def run_leaf(*args, input_text=None):
             result = CliRunner().invoke(cli_model.cli, list(args), input=input_text)
@@ -566,43 +577,14 @@ def serve(tmp_path, monkeypatch, initialized_page):
                 earlier_note="t",
             )
 
-        # Local package contents vary between tests even when their selected path
-        # is the same, so only immutable bundled selections share a template. An
-        # example is a shape of its own, versions stamped and log seeded, since
+        # An example is a shape of its own, versions stamped and log seeded, since
         # preparing one stamps every version it ships: seconds per page, paid once
         # per worker rather than once per test.
-        if (
-            layer_registry is not None
-            or layer_widgets
-            or any(
-                not re.fullmatch(schema_model.HTML_NAME, selected)
-                for selected in selected_packages
-            )
-        ):
-            initialize(d)
-            if fixture:
-                prepare(d)
-        else:
-            template_name = (
-                "examples"
-                if packages is None
-                else "examples-" + ("-".join(selected_packages) or "no-packages")
-            )
-            if fixture:
-                example_name = example.resolve().relative_to(ROOT.resolve()).as_posix()
-                initialized_page(
-                    "--".join(
-                        (
-                            template_name,
-                            example_name.replace("/", "-"),
-                            "seeded" if seed_log else "unseeded",
-                        )
-                    ),
-                    d,
-                    lambda target: (initialize(target), prepare(target)),
-                )
-            else:
-                initialized_page(template_name, d, initialize)
+        initialized_page(
+            d,
+            selected_packages,
+            ((example.resolve(), seed_log), prepare) if fixture else None,
+        )
         if fixture:
             # The page pool can lend a copy hours after it stamped the template.
             # Its current publication is new to this test, so keep the timestamp
@@ -637,18 +619,7 @@ def serve(tmp_path, monkeypatch, initialized_page):
         for event in events:
             append_carried_log_record(d, event)
         if fixture is None:
-            activated = revisioning_model.activate_source(d)
-            assert activated.error is None and activated.revision == 1, activated.error
-            append_carried_log_record(
-                d,
-                {
-                    "kind": "note",
-                    "author": "agent",
-                    "version": 1,
-                    "revision": 1,
-                    "text": "t",
-                },
-            )
+            assert publish(d, "t")["revision"] == 1
         for i in range(comments):
             append_carried_log_record(
                 d,
@@ -1208,33 +1179,37 @@ def draft_key(page, ctx: str) -> str:
     )
 
 
-_STORED_DRAFT_TEXT = """key => {
-  try {
-    const record = JSON.parse(localStorage.getItem(key));
-    return record && !record.settled ? record.text : null;
-  } catch { return null; }
-}"""
-_STORED_DRAFT_SETTLED = """key => {
-  try {
-    return JSON.parse(localStorage.getItem(key))?.settled === true;
-  } catch { return false; }
-}"""
+def stored_draft(page):
+    """The page's own reader of stored drafts (`storedDraft`, runtime/drafts.js)."""
+    return page.evaluate_handle(
+        """async () => (await window.__lfRuntimeImport('/runtime/drafts.js'))
+          .storedDraft"""
+    )
 
 
 def stored_draft_text(page, ctx: str) -> str | None:
     """The words storage holds for the draft at `ctx`, or None once it is settled or
     absent: what another tab or a reload would find, whatever this tab shows."""
-    return page.evaluate(_STORED_DRAFT_TEXT, draft_key(page, ctx))
+    return page.evaluate(
+        """([read, ctx]) => {
+          const record = read(ctx);
+          return record && !record.settled ? record.text : null;
+        }""",
+        [stored_draft(page), ctx],
+    )
+
+
+_STORED_DRAFT_SETTLED = "([read, ctx]) => read(ctx)?.settled === true"
 
 
 def stored_draft_settled(page, ctx: str) -> bool:
     """Whether storage holds the draft at `ctx` as settled (its tombstone)."""
-    return page.evaluate(_STORED_DRAFT_SETTLED, draft_key(page, ctx))
+    return page.evaluate(_STORED_DRAFT_SETTLED, [stored_draft(page), ctx])
 
 
 def until_draft_settled(page, ctx: str) -> None:
     """Wait until storage holds the draft at `ctx` as settled."""
-    page.wait_for_function(_STORED_DRAFT_SETTLED, arg=draft_key(page, ctx))
+    page.wait_for_function(_STORED_DRAFT_SETTLED, arg=[stored_draft(page), ctx])
 
 
 _BROWSER_PROBLEM_LISTS = None
@@ -1242,14 +1217,12 @@ _TEST = None
 
 
 def watches_shifts(test):
-    """Ordinary tests watch shifts; surveyed nightly journeys opt in explicitly.
+    """Unmarked tests watch shifts, whatever tier their cost runs them in; surveyed
+    journeys marked with a tier opt in.
 
     This selection does not lift the watcher's first-presentation exemption.
     """
-    return (
-        test.get_closest_marker("nightly") is None
-        or test.get_closest_marker("watch_shifts") is not None
-    )
+    return tier(test) is None or test.get_closest_marker("watch_shifts") is not None
 
 
 @contextmanager
@@ -1290,47 +1263,60 @@ def judge_watches():
     Chrome hands a frame's shifts to the observer only after it paints, so a test whose
     last act moves the page or takes words away would end before the report. Judgement
     waits for that evidence with a hang deadline; elapsed time cannot count as a
-    completed paint. Scripts-disabled pages have no script-driven sensors to judge.
+    completed paint. A detached frame has no further paint to judge; native frame
+    lifetime, rather than protocol error text, releases its pending read. Scripts-disabled
+    pages have no script-driven sensors to judge.
     `conftest.py` calls this as the test body returns, while the
     pages' servers still answer: a page left painting
     after its server is gone lets its failed fetches reach the console."""
     for page, _ in _BROWSER_PROBLEM_LISTS or ():
         if not page.is_closed() and page.lf_java_script_enabled:
             for frame in page.frames:
-                frame.evaluate(
-                    """ancestorsDrawn => {
-                        const judgement = window.lfWatchJudgement = {
-                          ancestorsDrawn, complete: false, error: null,
-                        };
-                        Promise.resolve().then(async () => {
-                          await window.lfShiftsJudged?.();
-                          await window.lfWordsJudged?.();
-                        }).then(() => { judgement.complete = true; },
-                          error => { judgement.error = error; });
-                    }""",
-                    _frame_owners_drawn(frame),
-                )
-                deadline = (
-                    time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
-                )
-                while True:
-                    complete = frame.evaluate(
-                        """ancestorsDrawn => {
-                            const judgement = window.lfWatchJudgement;
-                            judgement.ancestorsDrawn = ancestorsDrawn;
-                            if (judgement.error) throw judgement.error;
-                            return judgement.complete;
-                        }""",
-                        _frame_owners_drawn(frame),
-                    )
-                    if complete:
-                        break
-                    if time.monotonic() >= deadline:
-                        raise PlaywrightTimeout(
-                            f"health sensors did not drain: {frame.url}"
-                        )
-                    page.wait_for_timeout(100)
-                frame.evaluate("delete window.lfWatchJudgement")
+                try:
+                    _judge_frame_watches(frame)
+                except PlaywrightError:
+                    # Enumeration owns no frame lifetime: a sample or its page can
+                    # disappear across any subsequent protocol request. Native
+                    # lifetime facts release it; every live-frame failure propagates.
+                    if not frame.is_detached() and not page.is_closed():
+                        raise
+
+
+def _judge_frame_watches(frame):
+    """Drain a frame while its page owns it; the caller handles native detachment."""
+    page = frame.page
+    frame.evaluate(
+        """ancestorsDrawn => {
+            const judgement = window.lfWatchJudgement = {
+              ancestorsDrawn, complete: false, error: null,
+            };
+            Promise.resolve().then(async () => {
+              await window.lfShiftsJudged?.();
+              await window.lfWordsJudged?.();
+            }).then(() => { judgement.complete = true; },
+              error => { judgement.error = error; });
+        }""",
+        _frame_owners_drawn(frame),
+    )
+    deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
+    while True:
+        complete = frame.evaluate(
+            """ancestorsDrawn => {
+                const judgement = window.lfWatchJudgement;
+                judgement.ancestorsDrawn = ancestorsDrawn;
+                if (judgement.error) throw judgement.error;
+                return judgement.complete;
+            }""",
+            _frame_owners_drawn(frame),
+        )
+        if complete:
+            break
+        if time.monotonic() >= deadline:
+            raise PlaywrightTimeout(f"health sensors did not drain: {frame.url}")
+        # Judgement usually completes within a frame or two; a 100ms poll cost most
+        # browser tests a tenth of a second.
+        page.wait_for_timeout(10)
+    frame.evaluate("delete window.lfWatchJudgement")
 
 
 def _frame_owners_drawn(frame):
@@ -1376,7 +1362,7 @@ def watched(page, *, java_script_enabled=True):
             errors.append(problem)
 
     page.on("console", console_message)
-    page.on("pageerror", lambda e: errors.append(str(e)))
+    render_gate_model.collect_page_exceptions(page, errors)
     if not java_script_enabled:
         return errors
     render_checks_model.install_window_errors(page)
@@ -1394,6 +1380,8 @@ def watched(page, *, java_script_enabled=True):
         )
         + "\n"
         + rendering_job_binding_source()
+        + "\n"
+        + document_port_binding_source()
     )
     if _TEST is None or watches_shifts(_TEST):
         page.add_init_script(script=shift_watch_source())
@@ -1443,52 +1431,36 @@ def take_browser_errors(page):
 def reported_browser_errors(page, *expected):
     """Wait for the complete report a fault draws, then consume it.
 
-    One fault is reported by every boundary that carried it, and the later words can be
-    separated from the first by whatever the page does on the way: the feed names a read
-    whose application failed only once the queued projection retry that application left
-    behind has finished presenting. A list read at the moment the first word lands is a
-    report still arriving, so an equality assertion over it turns the gap between the
-    boundaries into a race. This waits for the inventory the caller names before taking
-    it, and a problem past that inventory still reaches the browser fixture's own
-    reading.
+    One exception is reported once, but one injected fault can raise several, and the
+    later reports can be separated from the first by whatever the page does on the way.
+    A list read at the moment the first word lands may be a report still arriving, so
+    an equality assertion over it turns that gap into a race. This waits for the
+    inventory the caller names before taking it, and a problem past that inventory
+    still reaches the browser fixture's own reading.
 
     The wait is a Playwright call rather than a sleep, because the sync driver hands
     console messages to this process only while it is inside one."""
     assert expected, "expected browser problems cannot be empty"
     wanted = list(expected)
     deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
-    while page.lf_errors != wanted and time.monotonic() < deadline:
+    while [
+        error.splitlines()[0] for error in page.lf_errors
+    ] != wanted and time.monotonic() < deadline:
         page.wait_for_timeout(25)
     errors = take_browser_errors(page)
-    assert errors == wanted, errors
+    assert [error.splitlines()[0] for error in errors] == wanted, errors
     return errors
 
 
 def consume_browser_errors(page, *expected):
-    """Assert and consume intentional problems, accounting for every entry."""
+    """Assert intentional messages; stack locations cannot authorize a problem."""
     assert expected, "expected browser-error fragments cannot be empty"
     errors = take_browser_errors(page)
     assert errors and all(
-        any(fragment in error for fragment in expected) for error in errors
+        any(fragment in error.splitlines()[0] for fragment in expected)
+        for error in errors
     ), errors
     return errors
-
-
-def xfail_browser_problem(page, *expected, reason):
-    """Quarantine one verified main defect after the journey's assertions finish.
-
-    A fixed defect passes. Any other browser problem, including another report of
-    the named loss, fails. Keep the assertion after xfail so --runxfail exposes
-    the original failure rather than clearing it into a pass.
-    """
-    assert expected, "known browser problems cannot be empty"
-    page.evaluate("lfWordsJudged()")
-    errors = take_browser_errors(page)
-    if not errors:
-        return
-    assert errors == list(expected), errors
-    pytest.xfail(reason)
-    raise AssertionError(errors)
 
 
 # What navigate reports when a ResizeObserver loop notice comes back on the confirming
@@ -1656,7 +1628,9 @@ _ASKS_ANSWERED = """async () => {
   window.__lfAsksAnswered = () => {
     const application = readApplication();
     if (application.phase !== 'ready') return null;
-    const { all, unanswered } = application.effective.asks;
+    const questions = application.effective.questions;
+    const all = questions.all.filter(question => question.source.kind === "widget");
+    const unanswered = questions.unanswered.filter(question => question.source.kind === "widget");
     return `${all.length - unanswered.length}/${all.length}`;
   };
 }"""
@@ -1987,6 +1961,68 @@ def held_events(browser):
     return primed(browser, prepare), held
 
 
+@pytest.fixture
+def one_user(browser):
+    """A browser context two pages can share, which is what makes them tabs.
+
+    `Browser.new_page` opens each page in a context of its own, so two of them are two
+    users with no storage between them — and a draft lives in the user's store now,
+    which is the whole of what these tests are about."""
+    return browser.new_context(
+        viewport={"width": 1200, "height": 900}, color_scheme="light"
+    )
+
+
+@pytest.fixture
+def live_leaf(tmp_path, monkeypatch):
+    """Stands up a live leaf for the banner's panel to find: published, served by
+    a real handler, and written down under the state home the way `server run` writes
+    it — which is the whole of how one page learns another exists. Each claims to be
+    working, freshly, so its row has a judged state to show. A factory rather than one
+    fixture, because a drawer is a list and a walk down it needs somewhere to walk to."""
+    monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
+    served = []
+    waiters = []
+
+    def go(name, title):
+        d = machine_model.state_home() / "pages" / name
+        result = CliRunner().invoke(cli_model.cli, ["page", "init", str(d)])
+        assert result.exit_code == 0, result.output
+        stamp_page(
+            d,
+            LONG_PAGE.replace("<title>long</title>", f"<title>{title}</title>"),
+            "t",
+        )
+        declare_work(d, "running the suite")
+        # A live leaf has a session behind it, and what the drawer's hover says about a
+        # page is the work that session is doing it for — so the fixture's pages come
+        # out of somewhere nameable rather than out of nowhere.
+        record_claim(
+            d,
+            id=f"s-{name}",
+            cwd=str(tmp_path / f"{name}-work"),
+        )
+        waiters.append(
+            leases_model.take_lease(leases_model.waiter_lease_path(d, f"s-{name}"))
+        )
+        # Use the durable server's maintenance loop: the row remains canonical
+        # even while no browser has visited this neighboring page.
+        url = hosting_model.start_server(d, standing=True, harness=None).url
+        served.append(d)
+        return url.split("?")[0].rstrip("/"), d
+
+    yield go
+    for directory in served:
+        hosting_model.cmd_stop(directory)
+    for waiter in waiters:
+        leases_model.release_lease(waiter)
+
+
+@pytest.fixture
+def other_leaf(live_leaf):
+    return live_leaf("other", "The other leaf")
+
+
 def margins_laid_out(page):
     """Run the margin layout the page has scheduled, so a geometry read follows it.
 
@@ -2032,13 +2068,8 @@ def margin_control(scope, owner: str, key: str | None = None, *, visible=True):
     return scope.locator(margin_entry(owner, key) + (":visible" if visible else ""))
 
 
-# A content widget's contribution key is its module's own choice, and these two are the
-# suite's one spelling of each: `lf-draft` registers as `draft:<id>`, `lf-suggestion`
-# as `suggestion:<id>`.
-def draft_owner(draft_id: str) -> str:
-    return f"draft:{draft_id}"
-
-
+# A content widget's contribution key is its module's own choice, and this is the
+# suite's one spelling of `lf-suggestion`'s: `suggestion:<id>`.
 def suggestion_owner(suggestion_id: str) -> str:
     return f"suggestion:{suggestion_id}"
 
@@ -2059,7 +2090,7 @@ def suggestion_control(scope, suggestion_id: str, key=None, *, visible=True):
 
 
 def any_owner_entry(kind: str, key: str | None = None) -> str:
-    """The selector for a margin entry any `kind` widget (`draft`, `suggestion`)
+    """The selector for a margin entry any `kind` widget (such as `suggestion`)
     registered, for a probe that plants one example on a page rather than tracking a
     particular id. `margin_entry` locates one owner exactly."""
     selector = f'[data-lf-margin-entry-owner^="{kind}:"]'
@@ -2116,7 +2147,8 @@ def panel_settled(page, open=True):
 
     The panel stands over the page, so opening or closing it moves nothing else; its own
     slide is the one motion, finished rather than waited out for `edge_settled`'s reason.
-    Closed means the retained panel is no longer visible."""
+    Closed means the retained panel is no longer visible. An occluded child gets no
+    animation frames, so a native timer polls the same actual motion reading there."""
     page.wait_for_function(
         """(open) => {
           const panel = document.querySelector('.lf-thread-panel');
@@ -2125,6 +2157,7 @@ def panel_settled(page, open=True):
             && panel.getAnimations().length === 0;
         }""",
         arg=open,
+        polling=render_checks_model.PROBE_POLL_MS,
     )
 
 

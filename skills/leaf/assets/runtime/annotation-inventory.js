@@ -1,6 +1,6 @@
 /* The current annotation inventory, independent of its page presentation.
 
-   This owner projects the application's published Threads, Asks, provenance and
+   This owner projects the application's published Threads, Questions, provenance and
    workflows together with producer-declared contributions. Frozen readings contain
    no browser capability. Current target/point nodes and generated action capabilities
    stay in this directory; contributed actions resolve through their registration.
@@ -8,17 +8,18 @@
    refreshes after current widget claims and required conversation commits. Mechanical
    paints and immediate contribution updates refresh this same directory. */
 import { replyAvailable } from "./thread/replies.js";
-import { KINDS, excerptWords, labelWords } from "./contribution-model.js";
+import { KINDS } from "./contribution-model.js";
+import { excerptWords, labelWords } from "./words.js";
 import { contributionEntries } from "./contributions.js";
 import { marginInventory } from "./margin-model.js";
 import { standingPoint } from "./pointed-place.js";
 import { ago } from "./presence.js";
 import { runtime } from "./context.js";
 import { elementById, inChrome } from "./passages.js";
-import { addressableLabel, addressableWord } from "./anchor-resolution.js";
+import { addressableLabel, addressableWord } from "./addressable-names.js";
 import { threadList } from "./thread/state.js";
 import { threadKey } from "./thread/model.js";
-import { projectionOrigins } from "./projection/model.js";
+import { projectionOrigins, stateCoordinate } from "./projection/model.js";
 import { authoredStates } from "./projection/authored.js";
 import { currentProjection } from "./projection/state.js";
 import { notice } from "./notifications.js";
@@ -35,17 +36,18 @@ import {
 } from "./thread/workflow.js";
 import { renderedParent, shadowHost, under } from "./shadow.js";
 import { placeOf } from "./standing-target.js";
+import { questionPlace } from "./questions/place.js";
 import { scrollBehavior } from "./motion.js";
+import { comparisonChanges } from "./version.js";
 
 export function createAnnotationInventory({
-  readAsks,
+  readQuestions,
   comparisonBase,
-  comparisonChanges,
   inlineComparison,
   toggleInlineComparison,
   placedAt,
-  showThread,
-  goToAsk,
+  openThread,
+  goToQuestion,
   scrollToElement,
 }) {
   const humanized = (value) =>
@@ -163,7 +165,7 @@ export function createAnnotationInventory({
   };
   // One group per target, and one more for each row inside it that pointing gestures
   // stood threads at (pointed-place.js): those threads stand there together, and
-  // everything else about the target (its other threads, an Ask's marker, a widget's
+  // everything else about the target (its other threads, a Question's marker, a widget's
   // actions) keeps the target's own row. `pointed` is `{ key, element, words }`: the
   // row's key, which its first comment gave it and later ones share, the element it is,
   // and its words as the page reads them, which name it.
@@ -266,7 +268,7 @@ export function createAnnotationInventory({
     const groups = new Map();
     const receiptByCoordinate = new Map();
     for (const receipt of visibleWidgetWorkflows()) {
-      receiptByCoordinate.set(JSON.stringify(receipt.coordinate), receipt);
+      receiptByCoordinate.set(stateCoordinate(...receipt.coordinate), receipt);
     }
     for (const thread of threadList()) {
       if (!threadHasDiscussion(thread) || !thread.anchor || claimed(thread.id))
@@ -315,30 +317,32 @@ export function createAnnotationInventory({
           // Work decorates the thread control; it never replaces the control's
           // comment face or its disclosure action.
           workflowReceipt: onUser ? null : attention?.workflow,
-          activate: () => showThread(id),
+          activate: () => openThread(id),
         },
         pointed,
       );
     }
 
-    const asks = readAsks().user;
-    for (const ask of asks) {
-      const id = ask.id;
-      const target = elementById(id);
+    // Only a widget Question has a place on the page; the rest have no node.
+    for (const question of readQuestions().user) {
+      const id = question.id;
+      const target = questionPlace(question).node;
       if (!target) continue;
       add(groups, target, {
-        kind: "ask",
-        id: `ask:${id}`,
-        // The group this row stands in already names the Ask; the row says why it is
-        // there, since these are the Asks the user owes.
+        kind: "question",
+        id: `question:${id}`,
+        // The group this row stands in already names the Question; the row says why it is
+        // there, since these are the Questions the user owes.
         text: "Waiting on you",
         // The marker's own label is the question, which says more than the kind its
         // glyph already shows.
         label: addressableLabel(target) || null,
         activate: () => {
-          const standing = readAsks().user;
+          const standing = readQuestions().user.filter(
+            (question) => question.source.kind === "widget",
+          );
           const next = standing.find((candidate) => candidate.id === id);
-          if (next) goToAsk(next, standing);
+          if (next) goToQuestion(next, standing);
         },
       });
     }
@@ -471,8 +475,7 @@ export function createAnnotationInventory({
     }
 
     for (const offered of contributionEntries()) {
-      const target =
-        typeof offered.target === "function" ? offered.target() : offered.target;
+      const target = offered.target();
       if (!target?.isConnected || inChrome(target)) continue;
       const group = groupFor(groups, target);
       if (group.offers.some((candidate) => candidate.key === offered.key))

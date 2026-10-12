@@ -9,8 +9,12 @@ Each module owns one concern and states its contract in its header. Callers impo
 the owning module directly; a subpackage's initializer is only a marker, never a
 second API.
 
+Domain code refuses by raising `refusals.Refused` or a subclass; only a process or
+transport boundary exits, prints, or answers HTTP.
+
 ## Owners
 
+- `refusals`: the one refusal exception and the reason it carries;
 - `files`, `revisioning`, `revision_artifact`, `revision_delivery`: atomic page
   files, immutable revisions, their captured inputs and held readings, and delivery
   URLs;
@@ -34,20 +38,20 @@ second API.
 - `page_snapshot`: the transaction-consistent reading one browser preview serves;
 - `agent_state`, `read_state`, `gesture_words`, `history`, `transcript`: agent-facing
   page and thread readings, what the user has not read, what a gesture's ids say,
-  newest moves for `x-history`, and the Markdown export;
+  newest events for `x-history`, and the Markdown export;
 - `thread_context`, `thread`: thread identity, frozen markup, delivery context,
   thread writes, and reply reservations;
 - `work_reading`: the transaction-scoped durable work reading shared by admission,
   serving and delivery;
-- `workflows`, `activity`: unsettled user moves with their evidence, and the
+- `workflows`, `activity`: unsettled updates with their evidence, and the
   page-level fold over workflows, tasks, starts, status, claim, turn, and watcher;
-- `asks`: the one implementation of page and thread Asks, which every surface reads;
+- `questions`: the canonical inventory of widget and prose Questions, including typed
+  answers, completion, withdrawal and attention, which every surface selects;
 - `work`: the subjects work stands on: what an id names, which widgets seat a task,
   and which widget tasks a version would leave without a target;
-- `tasks` (experimental, expected to change a lot): tasks on either side, each with
-  its owner: the agent's the log holds until it ends them, the user's the log, the
-  document's Asks and the threads' questions hold, and the `start` that takes a move
-  or task in hand; their folds, admission gate, and `leaf task`;
+- `tasks` (experimental, expected to change a lot): explicit committed work on either
+  side, held by the log until ended, and the `start` that takes an update or task in
+  hand; their folds, admission gate, and `leaf task`. Questions never become Tasks;
 - `delivery`, `session`, `hooks`, `hook_transport`, `harness`: the delivery envelope
   and its receipt, status and the `leaf wait` watch, the harness hooks' entry, the
   prompt and Stop hooks as a session's transport, and harness declarations;
@@ -73,8 +77,8 @@ second API.
 - `http`: HTTP transport;
 - `layer`, `packages`, `vendoring`: package discovery and composition, package
   authoring gates, and page init and layer transitions;
-- `schema`, `structure`, `styles`: authored-page gates and the complete source
-  reading;
+- `schema`: the layer's JSON schemas and the page-directory vocabulary;
+- `structure`, `styles`: authored-page gates and the complete source reading;
 - `passages`, `anchor_capture`: the file-side text reading and anchor construction;
 - `render_checks`: browser probes;
 - `exporting`: a stamped version as one offline file;
@@ -94,7 +98,8 @@ Within `served_state/`, `context` owns the live or captured inputs every fold re
 `wire` serializes one declared fold, `thread` and `document`
 own their scoped readings, `browser` assembles the requested views, `page` composes
 the served response, `reading` names filesystem changes for freshness reads, and
-`service` owns the page transaction every route reads through.
+`service` owns the page source every route reads through (the live directory, or a
+`page_snapshot` capture) and its state transaction.
 
 Within `render_gate/`, `scheme` owns one browser and color lifecycle, `readings` owns
 the probe readings and their findings, `version` owns retry policy, `page_code` owns
@@ -106,9 +111,10 @@ author, `picture` owns the picture `page picture` draws of a drawing comment,
 
 Within `validation/`, `markup` owns shared document structure, `instances` owns
 registry-declared instance rules, `admission` owns what an agent's writer hands in,
-`compatibility` owns layer changes against the standing log, `source_history` owns
-predecessor readings and automatic anchor relocation,
-`source` composes current-document validation, and `command` owns the CLI and render handoff.
+`composition` validates a composed registry's catalog examples and builds the
+registry `page init` vendors, `source_history` owns predecessor readings and automatic
+anchor relocation, `source` composes current-document validation, and `command` owns
+the CLI and render handoff.
 
 ## Protocol references
 

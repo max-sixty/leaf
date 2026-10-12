@@ -9,7 +9,12 @@
    Enter on a document code block moves keyboard focus to its copy control. */
 import { offer } from "./widget-elements.js";
 import { watchArrivals } from "./arrivals.js";
-import { anchorName, anchorView, refreshAnchorView } from "./anchor-names.js";
+import {
+  anchorReading,
+  nameAnchor,
+  anchorView,
+  refreshAnchorView,
+} from "./css-anchors.js";
 import { focusDestination, onStanding } from "./focus.js";
 import { upFrom } from "./shadow.js";
 import { chromeRoot } from "./chrome.js";
@@ -28,7 +33,7 @@ onStanding((node) => {
   }
 });
 
-export function copyCodeBlock(pre, source) {
+function prepareCodeBlock(pre, source) {
   let copy = controls.get(pre);
   if (!copy) {
     copy = offer("wa-copy-button", "lf-code-copy");
@@ -46,84 +51,98 @@ export function copyCodeBlock(pre, source) {
   }
   const place = () =>
     copy.classList.toggle("lf-code-copy-away", !anchorView(copy, pre, place));
-  place();
-  const name = anchorName(pre);
+  const near = anchorView(copy, pre, place);
+  return { copy, near, anchor: anchorReading(pre) };
+}
+
+function positionCodeBlock({ copy, near, anchor }) {
+  copy.classList.toggle("lf-code-copy-away", !near);
+  const name = nameAnchor(anchor);
   if (copy.style.positionAnchor !== name) copy.style.positionAnchor = name;
   return copy;
+}
+
+export function copyCodeBlock(pre, source) {
+  return positionCodeBlock(prepareCodeBlock(pre, source));
 }
 
 export function watchCodeBlocks() {
   // A widget's shadow stage is its renderer's notation, not an ordinary document
   // block. Its module supplies the source explicitly through copyCodeBlock.
   watchArrivals("pre:has(> code)", ["style"], {
-    arrive(pre) {
-      if (pre.getRootNode() !== document) return;
-      const copy = copyCodeBlock(
-        pre,
-        () => pre.querySelector(":scope > code").textContent,
-      );
-      // Keep the page's authored sibling and child selectors intact. The anchor
-      // still positions this control at its source when it lives in chrome.
-      if (copy.parentNode !== chromeRoot) chromeRoot.append(copy);
-      copy.tabIndex = -1;
-      let route = routes.get(pre);
-      if (!route) routes.set(pre, (route = { keys: false }));
-      claimReachStop(pre);
-      if (!pre.hasAttribute("aria-keyshortcuts")) {
-        pre.setAttribute("aria-keyshortcuts", "Enter");
-        route.keys = true;
-      }
-      if (!wired.has(pre)) {
-        const events = new AbortController();
-        wired.set(pre, events);
-        const options = { signal: events.signal };
-        // Let the browser continue Tab from the source's document position,
-        // rather than from this control's later position in chrome.
-        copy.addEventListener(
-          "keydown",
-          (event) => {
-            if (event.key === "Tab") focusDestination(pre, "step");
-          },
-          options,
-        );
-        pre.addEventListener(
-          "keydown",
-          (event) => {
-            if (
-              event.target !== pre ||
-              event.key !== "Enter" ||
-              event.altKey ||
-              event.ctrlKey ||
-              event.metaKey
-            )
-              return;
-            event.preventDefault();
-            refreshAnchorView(copy);
-            const button = copy.shadowRoot?.querySelector("button");
-            if (button) focusDestination(button, "move");
-          },
-          options,
-        );
-        pre.addEventListener(
-          "pointerenter",
-          () => copy.classList.add("lf-code-copy-hover"),
-          options,
-        );
-        pre.addEventListener(
-          "pointerleave",
-          () => copy.classList.remove("lf-code-copy-hover"),
-          options,
-        );
-        pre.addEventListener(
-          "focus",
-          () => copy.classList.add("lf-code-copy-focused"),
-          options,
-        );
-        pre.addEventListener(
-          "blur",
-          () => copy.classList.remove("lf-code-copy-focused"),
-          options,
-        );
+    arriveBatch(blocks) {
+      // Read every source before anchor names and connected controls change layout.
+      const prepared = blocks
+        .filter((pre) => pre.getRootNode() === document)
+        .map((pre) => [
+          pre,
+          prepareCodeBlock(pre, () => pre.querySelector(":scope > code").textContent),
+        ]);
+      for (const [pre, pending] of prepared) {
+        const copy = positionCodeBlock(pending);
+        // Keep the page's authored sibling and child selectors intact. The anchor
+        // still positions this control at its source when it lives in chrome.
+        if (copy.parentNode !== chromeRoot) chromeRoot.append(copy);
+        copy.tabIndex = -1;
+        let route = routes.get(pre);
+        if (!route) routes.set(pre, (route = { keys: false }));
+        claimReachStop(pre);
+        if (!pre.hasAttribute("aria-keyshortcuts")) {
+          pre.setAttribute("aria-keyshortcuts", "Enter");
+          route.keys = true;
+        }
+        if (!wired.has(pre)) {
+          const events = new AbortController();
+          wired.set(pre, events);
+          const options = { signal: events.signal };
+          // Let the browser continue Tab from the source's document position,
+          // rather than from this control's later position in chrome.
+          copy.addEventListener(
+            "keydown",
+            (event) => {
+              if (event.key === "Tab") focusDestination(pre, "step");
+            },
+            options,
+          );
+          pre.addEventListener(
+            "keydown",
+            (event) => {
+              if (
+                event.target !== pre ||
+                event.key !== "Enter" ||
+                event.altKey ||
+                event.ctrlKey ||
+                event.metaKey
+              )
+                return;
+              event.preventDefault();
+              refreshAnchorView(copy);
+              const button = copy.shadowRoot?.querySelector("button");
+              if (button) focusDestination(button, "move");
+            },
+            options,
+          );
+          pre.addEventListener(
+            "pointerenter",
+            () => copy.classList.add("lf-code-copy-hover"),
+            options,
+          );
+          pre.addEventListener(
+            "pointerleave",
+            () => copy.classList.remove("lf-code-copy-hover"),
+            options,
+          );
+          pre.addEventListener(
+            "focus",
+            () => copy.classList.add("lf-code-copy-focused"),
+            options,
+          );
+          pre.addEventListener(
+            "blur",
+            () => copy.classList.remove("lf-code-copy-focused"),
+            options,
+          );
+        }
       }
     },
     leave(pre) {

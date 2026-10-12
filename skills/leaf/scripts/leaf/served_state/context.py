@@ -15,6 +15,7 @@ from functools import cached_property
 from pathlib import Path
 
 from ..data import read_data
+from ..file_bindings import binding_stamps
 from ..files import (
     active_descriptor,
     document_descriptor,
@@ -36,8 +37,10 @@ class PageRead:
     revisions: frozenset[int]
     revision: Callable[[int], SourceReading]
     registry: dict | None
-    layer: dict
+    stored_layer: Callable[[], dict]
     stored_data: Callable[[], dict]
+    # Each file binding's stamp (`file_bindings.binding_stamps`); a capture binds none.
+    bound_files: Callable[[], dict[str, str]]
     versions: tuple[dict, ...]
     presence: dict
     live_stream: dict | None
@@ -56,7 +59,16 @@ class PageRead:
             self.presence,
             self.now,
             self.live_stream,
+            revisions=self.revisions,
+            revision_reader=self.revision,
         )
+
+    @cached_property
+    def layer(self) -> dict:
+        """The layer identity a page with no active revision is served under. Read
+        on first use, so a reader that never serves the page, such as delivery, does
+        not need the page's vendored registry to be readable."""
+        return self.stored_layer()
 
     @cached_property
     def data(self) -> dict:
@@ -117,7 +129,7 @@ def read_page(
         revisions=revisions,
         revision=lambda revision: read_revision(page_dir, revision),
         registry=registry,
-        layer=(
+        stored_layer=lambda: (
             registry["$layer"]
             if active is not None and registry is not None
             else layer_metadata(page_dir)
@@ -125,6 +137,7 @@ def read_page(
             else layer_identity
         ),
         stored_data=lambda: read_data(page_dir, registry),
+        bound_files=lambda: binding_stamps(page_dir),
         versions=tuple(version_descriptors(events, revisions)),
         presence=present,
         live_stream=live_stream,

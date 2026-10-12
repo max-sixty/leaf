@@ -46,9 +46,19 @@
   // more as `lf-startup-fault`, which a served page's bootstrap answers by waiting for
   // a server that can start the page (bootstrap.js); an export has no server to wait
   // for.
-  const fault = (reason, incomplete) => {
+  const fault = (reason, incomplete, error = null) => {
     if (incomplete) root.toggleAttribute("data-lf-interactive", false);
     root.dataset.lfStartupError = reason;
+    // The attribute is the short display reason; this record retains the actual
+    // exception before modules load, including for an opaque sample's private port.
+    root.lfStartupException =
+      error?.message === undefined
+        ? null
+        : {
+            name: error.name,
+            message: error.message,
+            stack: error.stack,
+          };
     window.dispatchEvent(
       new CustomEvent("lf-startup-fault", { detail: { reason, incomplete } }),
     );
@@ -74,12 +84,17 @@
         fault(
           `${event.message || "uncaught error"} (${event.filename || "?"}:${event.lineno ?? "?"})`,
           false,
+          event.error ?? null,
         );
     },
     true,
   );
   window.addEventListener("lf-startup-failed", (event) =>
-    fault(event.detail?.reason || "the page reported it could not start", true),
+    fault(
+      event.detail?.reason || "the page reported it could not start",
+      true,
+      event.detail?.error ?? null,
+    ),
   );
 
   // Which page this document is, as the prefix of what the browser tab keeps for it.
@@ -97,39 +112,72 @@
 
   // Tab memory has one storage policy, including before the module graph starts.
   // Initial package drawings and their later controllers read the same values.
-  const stored = (open, name, prefix = "") => ({
-    read(key) {
-      try {
-        return { available: true, value: open().getItem(prefix + key) };
-      } catch {
-        return { available: false, value: null };
-      }
-    },
-    get(key) {
-      return this.read(key).value;
-    },
-    set(key, value) {
-      try {
-        if (value === null) open().removeItem(prefix + key);
-        else open().setItem(prefix + key, value);
-        return true;
-      } catch {
-        return false;
-      }
-    },
-    where(key) {
-      return { store: name, key: prefix + key };
-    },
-    keys() {
-      try {
-        return Object.keys(open())
-          .filter((key) => key.startsWith(prefix))
-          .map((key) => key.slice(prefix.length));
-      } catch {
-        return [];
-      }
-    },
-  });
+  // Samples own disposable browser state in their realm. Choosing the backing here
+  // keeps early drawings, widget controllers, drafts and chrome on the same store,
+  // without ever requesting storage denied to an opaque origin.
+  const memoryStores = root.hasAttribute("data-lf-sample") ? new Map() : null;
+  const memoryStore = (name) => {
+    if (!memoryStores.has(name)) {
+      const values = new Map();
+      memoryStores.set(name, {
+        get length() {
+          return values.size;
+        },
+        key(index) {
+          return [...values.keys()][index] ?? null;
+        },
+        getItem(key) {
+          return values.get(key) ?? null;
+        },
+        setItem(key, value) {
+          values.set(key, String(value));
+        },
+        removeItem(key) {
+          values.delete(key);
+        },
+      });
+    }
+    return memoryStores.get(name);
+  };
+  const stored = (nativeOpen, name, prefix = "") => {
+    const open = memoryStores ? () => memoryStore(name) : nativeOpen;
+    return {
+      read(key) {
+        try {
+          return { available: true, value: open().getItem(prefix + key) };
+        } catch {
+          return { available: false, value: null };
+        }
+      },
+      get(key) {
+        return this.read(key).value;
+      },
+      set(key, value) {
+        try {
+          if (value === null) open().removeItem(prefix + key);
+          else open().setItem(prefix + key, value);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      where(key) {
+        return { store: name, key: prefix + key };
+      },
+      keys() {
+        try {
+          const backing = open();
+          return Array.from({ length: backing.length }, (_, index) =>
+            backing.key(index),
+          )
+            .filter((key) => key !== null && key.startsWith(prefix))
+            .map((key) => key.slice(prefix.length));
+        } catch {
+          return [];
+        }
+      },
+    };
+  };
   const tabStore = stored(() => sessionStorage, "session", scope);
   const userStore = stored(() => localStorage, "local", root.dataset.lfUserScope ?? "");
   root.lfStorage = { stored, tabStore, userStore };
@@ -184,6 +232,29 @@
   const removeRuntimeRootStyle = (node, property) => {
     runtimeStyles.get(node)?.delete(property);
     if (node.style.getPropertyValue(property)) node.style.removeProperty(property);
+  };
+  // What an element wears: attributes and custom properties written as one set, so a
+  // later set removes what the earlier one had and the next does not (dress.js). The
+  // root and body wear theirs as runtime root state, so a revision keeps it; any other
+  // element is no root state, and writes plainly.
+  const worn = new WeakMap();
+  const wear = (node, dress) => {
+    const { documentElement, body } = node.ownerDocument;
+    const owned = node === documentElement || node === body;
+    const previous = worn.get(node);
+    for (const name of Object.keys(previous?.attributes ?? {}))
+      if (!Object.hasOwn(dress.attributes, name))
+        (owned ? setRuntimeRootAttribute : keepsAttribute)(node, name, null);
+    for (const name of Object.keys(previous?.properties ?? {}))
+      if (!Object.hasOwn(dress.properties, name))
+        if (owned) removeRuntimeRootStyle(node, name);
+        else node.style.removeProperty(name);
+    for (const [name, value] of Object.entries(dress.attributes))
+      (owned ? setRuntimeRootAttribute : keepsAttribute)(node, name, value);
+    for (const [name, value] of Object.entries(dress.properties))
+      if (owned) setRuntimeRootStyle(node, name, value);
+      else node.style.setProperty(name, value);
+    worn.set(node, dress);
   };
   const origins = new WeakMap();
   const parents = new WeakMap();
@@ -304,11 +375,12 @@
   const residency = () => {
     const body = document.body;
     if (!body) return false;
-    const main = document.querySelector("main");
+    // The page's `main` (passages.js, `pageDocument`), read here before any module runs.
+    const main = document.querySelector("body > main");
     // CSS declares the column's requested shell, without making the runtime read a
     // Layout class or making a root :has() re-check the whole page on every insertion.
     const tracksRequested =
-      main?.parentElement === body &&
+      Boolean(main) &&
       getComputedStyle(main).getPropertyValue("--lf-column-shell").trim() === "grid";
     const shellChanged = body.hasAttribute("data-lf-column-shell") !== tracksRequested;
     if (!sourceShells.has(body)) sourceShells.set(body, body.cloneNode(false));
@@ -466,12 +538,27 @@
     return true;
   };
 
+  // The id a URL fragment spells, for location.hash and for a link's href alike, from
+  // the first script on (`named` below) to every module reading a destination
+  // (`anchor-resolution.js`, `fragmentTarget`). A malformed escape keeps its literal
+  // characters rather than making a durable reference unreadable.
+  const fragmentId = (fragment) => {
+    const raw = fragment.slice(1);
+    try {
+      return decodeURIComponent(raw);
+    } catch {
+      return raw;
+    }
+  };
+
   root.lfInitial = {
+    fragmentId,
     keepsAttribute,
     setRuntimeRootAttribute,
     runtimeRootAttributes: (node) => new Set(runtimeAttributes.get(node) ?? []),
     setRuntimeRootStyle,
     removeRuntimeRootStyle,
+    wear,
     runtimeRootStyles: (node) => new Set(runtimeStyles.get(node) ?? []),
     authoredShell: (node) => sourceShells.get(node) ?? sources.get(node) ?? node,
     residency,
@@ -492,7 +579,12 @@
         if (!parents.has(node)) parents.set(node, node.parentElement);
       rememberSource(authoredCopy(host));
       for (let node = host; node; node = node.parentNode) sourceScopes.add(node);
-      const drawing = render(host, { tabStore, offer, offerElement });
+      const drawing = render(host, {
+        tabStore,
+        offer,
+        offerElement,
+        keeps: keepsAttribute,
+      });
       if (drawing?.then)
         throw new TypeError(
           `initial renderer for <${host.localName}> must be synchronous`,
@@ -541,12 +633,7 @@
   const reloaded = performance.getEntriesByType("navigation")[0]?.type === "reload";
   const named = (members) => {
     if (!location.hash) return null;
-    let target;
-    try {
-      target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
-    } catch {
-      return null;
-    }
+    const target = document.getElementById(fragmentId(location.hash));
     return target && members.find((member) => member.contains(target));
   };
   const kept = (holder, members) => {

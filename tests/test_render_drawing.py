@@ -22,7 +22,6 @@ from render_cases_navigation import (
     UNDO_PAGE,
 )
 from render_harness import (
-    FEATURE_GALLERY,
     draft_key,
     leaf_page,
     nudge,
@@ -36,7 +35,7 @@ from render_harness import (
 )
 from test_render_threads import paste_image
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 STROKE = ((0.22, 0.62), (0.5, 0.25), (0.78, 0.62))
@@ -71,6 +70,30 @@ def draw_over(page, locator, *, steps=8, points=STROKE):
     assert locator.evaluate("el => getComputedStyle(el).cursor") == "crosshair"
     expect(page.locator(".lf-aim")).to_be_hidden()
     return stroke_over(page, locator, steps=steps, points=points)
+
+
+# Two joined options of one Question, with prose around them so the page scrolls them
+# into the middle of the window and on past it.
+FILLER = "\n".join(
+    f"<p id='filler-{i}'>Paragraph {i}. " + "Filler. " * 20 + "</p>" for i in range(12)
+)
+MAP_CHOICE_PAGE = leaf_page(
+    "map choice",
+    """
+<h1 id="title">Field day</h1>
+"""
+    + FILLER.replace("filler-", "before-")
+    + """
+<lf-ask id="map-ask">
+  <h3>Which map should the sample team carry?</h3>
+  <lf-options id="map" choose>
+    <lf-option id="map-street">Street map</lf-option>
+    <lf-option id="map-trail">Trail map</lf-option>
+  </lf-options>
+</lf-ask>
+"""
+    + FILLER.replace("filler-", "after-"),
+)
 
 
 READ_BOX = """selector => {
@@ -134,9 +157,9 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
     and the accepted comment keeps its ink positioned over that anchor. The record
     carries the window it was drawn in, its layout viewport and color scheme, which
     is what lays the page out again for the agent's picture of it."""
-    url = serve(FEATURE_GALLERY)
+    url = serve(MAP_CHOICE_PAGE)
     page = open_page(browser, url, color_scheme="dark")
-    target = page.locator("#bg-choice-trail")
+    target = page.locator("#map-trail")
     target.evaluate("el => { el.style.position = 'relative'; el.style.zIndex = '1'; }")
     scroll_width = page.evaluate("document.documentElement.scrollWidth")
 
@@ -158,7 +181,7 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
 
     event = events_model.read_events(serve.page_dir)[-1]
     assert event["kind"] == "comment"
-    assert event["anchor"] == {"section": "bg-choice-trail"}
+    assert event["anchor"] == {"section": "map-trail"}
     assert event["text"] == "This bend is the part I mean."
     drawing = event["drawing"]
     assert drawing["format"] == "leaf-drawing/3"
@@ -203,17 +226,18 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
     assert stable_mark.evaluate("node => node.isConnected"), (
         "a repaint describing unchanged ink must keep the mark it already painted"
     )
-    relation = mark_relation(page, posted, "#bg-choice-trail")
+    relation = mark_relation(page, posted, "#map-trail")
     page.evaluate("scrollBy(0, 100)")
     rendered(page)
-    assert mark_relation(page, posted, "#bg-choice-trail") == pytest.approx(
+    assert mark_relation(page, posted, "#map-trail") == pytest.approx(
         relation, abs=0.02
     )
     # The scroll carries the mark rather than a repaint redrawing it.
     assert stable_mark.evaluate("node => node.isConnected")
-    page.locator(".lf-threads-toggle").click()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
     panel_settled(page)
-    assert mark_relation(page, posted, "#bg-choice-trail") == pytest.approx(
+    assert mark_relation(page, posted, "#map-trail") == pytest.approx(
         relation, abs=0.02
     )
     expect(target).not_to_have_class(re.compile(r"\blf-mark-el\b"))
@@ -223,7 +247,7 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
 
     returned = open_page(browser, url)
     expect(returned.locator(posted)).to_have_count(1)
-    assert mark_relation(returned, posted, "#bg-choice-trail") == pytest.approx(
+    assert mark_relation(returned, posted, "#map-trail") == pytest.approx(
         relation, abs=0.02
     )
 
@@ -400,7 +424,7 @@ def test_native_frames_resolve_css_positions_in_supported_engines(
         ),
     )
     results = page.evaluate("""async () => {
-      const {elementFrame} = await import('/runtime/geometry.js');
+      const {elementFrame} = await import('/runtime/element-frame.js');
       const image = document.querySelector('#pixels');
       await image.decode();
       const readings = [];
@@ -1327,12 +1351,21 @@ def test_draw_mode_leaves_chrome_controls_usable(browser, serve):
     page = open_page(browser, serve(TARGETS_PAGE))
     page.keyboard.press("w")
 
-    page.locator(".lf-threads-toggle").click()
+    exit_mode = page.get_by_role("button", name="Exit Draw mode")
+    expect(exit_mode).to_be_visible()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
     panel_settled(page)
 
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
+    exit_mode.click()
+    expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
+    threads = page.locator(".lf-banner-actions .lf-threads-toggle")
+    expect(threads).to_be_visible()
+    threads.click()
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
 
 
 def test_draw_mode_keeps_the_separate_design_mode_binding(browser, serve):
@@ -1374,10 +1407,20 @@ def test_draw_mode_leaves_inline_thread_controls_usable(browser, serve):
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
 
 
-def test_draw_mode_leaves_widget_controls_usable(browser, serve):
-    """An offered widget control keeps its pointer action and cursor in Draw mode."""
-    page = open_page(browser, serve(FEATURE_GALLERY))
-    option = page.locator("#bg-choice-trail")
+def test_draw_mode_captures_widget_controls(browser, serve):
+    """A page widget remains drawable; a Draw press never answers its Question."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Drawing over a choice",
+                '<h1>Choose a route</h1><lf-options id="route" choose>'
+                '<lf-option id="trail">Trail</lf-option>'
+                '<lf-option id="street">Street</lf-option></lf-options>',
+            )
+        ),
+    )
+    option = page.locator("#trail")
     control = option.locator(".lf-pick")
     control.scroll_into_view_if_needed()
     box = control.bounding_box()
@@ -1385,18 +1428,53 @@ def test_draw_mode_leaves_widget_controls_usable(browser, serve):
     page.mouse.move(*point)
     page.keyboard.press("w")
 
-    assert control.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
     page.mouse.click(*point)
 
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
-    expect(option).to_have_attribute("chosen", "")
+    assert option.get_attribute("chosen") is None
+    expect(page.locator(".lf-drawing-mark")).to_have_count(0)
+    assert control.evaluate("el => getComputedStyle(el).cursor") == "crosshair"
+    stroke_over(page, control)
+    expect(page.locator(".lf-drawing-mark")).to_have_count(1)
+    assert option.get_attribute("chosen") is None
+
+
+@pytest.mark.parametrize("mode", ["draw", "design"])
+def test_pointer_modes_leave_document_editing_controls_usable(browser, serve, mode):
+    """A widget's source editor is Leaf apparatus wherever the widget seats it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Drawing beside a document editor",
+                '<h1>Review the draft</h1><lf-draft id="draft"><pre>Original words.</pre></lf-draft>',
+            )
+        ),
+    )
+    page.keyboard.press("w" if mode == "draw" else "l")
+    draft = page.locator("#draft")
+    edit = draft.get_by_role("button", name="Edit", exact=True)
+    assert edit.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
+    edit.click()
+    expect(page.locator(".lf-fab-input")).to_be_hidden()
+    editor = draft.get_by_role("textbox", name="Edit draft", exact=True)
+    expect(editor).to_be_focused()
+    assert editor.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
+    editor.click()
+    write(editor, "Revised words.")
+    with sending(page, "document edit"):
+        draft.get_by_role("button", name="Save", exact=True).click()
+    expect(draft.locator(".lf-draft-body")).to_have_text("Revised words.")
+    expect(page.locator("html" if mode == "draw" else "body")).to_have_attribute(
+        f"data-lf-{mode}-mode", ""
+    )
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
 
 
 def test_a_draw_press_uses_the_exact_target_under_its_start(browser, serve):
     """Joined option seams use the target under the pointer when the stroke starts."""
-    page = open_page(browser, serve(FEATURE_GALLERY))
-    trail = page.locator("#bg-choice-trail")
+    page = open_page(browser, serve(MAP_CHOICE_PAGE))
+    trail = page.locator("#map-trail")
     trail.scroll_into_view_if_needed()
     box = trail.bounding_box()
     point = (box["x"] + box["width"] * 0.5, box["y"])
@@ -1404,7 +1482,7 @@ def test_a_draw_press_uses_the_exact_target_under_its_start(browser, serve):
         "([x, y]) => document.elementFromPoint(x, y)?.closest('lf-option')?.id",
         point,
     )
-    assert target in {"bg-choice-street", "bg-choice-trail"}
+    assert target in {"map-street", "map-trail"}
     page.mouse.move(*point)
     page.keyboard.press("w")
     expect(page.locator(".lf-aim")).to_be_hidden()
@@ -1418,8 +1496,8 @@ def test_a_draw_press_uses_the_exact_target_under_its_start(browser, serve):
 
     event = events_model.read_events(serve.page_dir)[-1]
     assert event["anchor"] == {"section": target}
-    assert page.locator("#bg-choice-street").get_attribute("chosen") is None
-    assert page.locator("#bg-choice-trail").get_attribute("chosen") is None
+    assert page.locator("#map-street").get_attribute("chosen") is None
+    assert page.locator("#map-trail").get_attribute("chosen") is None
 
 
 def test_an_active_stroke_re_resolves_a_replaced_target(browser, serve):
@@ -1851,8 +1929,13 @@ def test_sent_drawing_keeps_its_reference_outside_the_retained_text_viewport(
     if not long:
         assert text.bounding_box()["y"] == pytest.approx(before["top"], abs=1)
     assert text.evaluate("node => node.scrollHeight > node.clientHeight + 1") == long
-    assert text.evaluate("node => node.scrollTop") == pytest.approx(
-        before["scroll"], abs=1
+    after = text.evaluate(
+        "node => ({scroll:node.scrollTop, limit:node.scrollHeight - node.clientHeight})"
+    )
+    # The sent card may wrap fewer lines than the draft. Native scrolling clamps a
+    # retained offset to the new scroll range rather than leaving empty space.
+    assert after["scroll"] == pytest.approx(
+        min(before["scroll"], after["limit"]), abs=1
     )
     if long:
         resized(page, 390 if touch else 1280, 600)
@@ -1889,7 +1972,7 @@ def test_a_sent_drawing_keeps_its_pasted_photo_outside_the_text_viewport(
     rendered(page)
     text = card.locator(".lf-msg-text").first
     assert text.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
-    photo = card.get_by_role("button", name="View Pasted image", exact=True)
+    photo = card.get_by_role("button", name="View Attached image", exact=True)
     wait_for(
         lambda: photo.evaluate("""node => {
           const box = node.getBoundingClientRect();

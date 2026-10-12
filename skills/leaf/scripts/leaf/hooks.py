@@ -1,16 +1,17 @@
 """The agent-harness hooks Leaf registers, and the part of each that reads no page.
 
-Every hook marks that it ran for its session (`leases.mark_hooks`), and a wait
-only wakes a session so marked (`Harness.hooks_carry`): a session launched
-without these hooks still gets the envelope printed, rather than waking to an
-empty turn. SessionEnd retires the harness instance without reading pages;
+Every hook marks that it ran for its session (`leases.mark_hooks`), evidence
+that its harness supports hook delivery (`Harness.hooks_carry`). An explicit
+`leaf wait` always prints the envelope; it does not depend on another hook
+running after it. SessionEnd retires the harness instance without reading pages;
 persisted desktop chats retain their generation across instance unloads.
 
 Codex's synchronous prompt hook records the provider turn even before the session
 claims a page. Its native transcript also records turns resumed without input,
 which run no prompt hook. Hooks reconcile that provider evidence before checking
-their turn identity, then offer a pointer between steps or before Stop and leave
-receipt to the agent's actual delivery read.
+their turn identity (`Harness.reconcile_turn`), then offer a pointer between steps
+or before Stop (`Harness.offer_at_step`) and leave receipt to the agent's explicit
+confirmation of complete input.
 An accepted TurnStart opens the same lifecycle as UserPromptSubmit without
 reading or receiving page input. Pi calls it after its SDK reserves the run;
 accepted message finalization or a live turn boundary confirms the receipt.
@@ -22,9 +23,10 @@ that names no turn can state when the turn ended (`ended_at`, in POSIX seconds),
 as the Interrupt from Pi's extension or Leaf's Claude Code hooks module does, and
 then leaves a turn opened or renewed since open.
 
-Hooks with no retained claim avoid page reading. Page-owning prompt and Stop hooks
-reach `hook_transport`; Codex's tool and Stop hooks reach its delivery records
-in `codex`; a second Claude Code Stop hook watches between turns (`cmd_watch`). The
+Hooks with no retained claim avoid page reading, and import the harness
+declarations only once the payload names a session. Page-owning prompt and Stop
+hooks reach `hook_transport`; Codex's tool and Stop hooks reach its delivery
+records in `codex`; a second Claude Code Stop hook watches between turns (`cmd_watch`). The
 application entry routes `leaf hook` here before loading the CLI.
 
 Resume and prompt hooks also inspect retained claims for disconnected pages
@@ -34,9 +36,11 @@ page or reopen a turn at SessionStart, and it persists across session generation
 Each harness's registrations name it (`--harness`) and its payload names the
 session; `harness.hook_harness` says why neither comes from the environment."""
 
+import json
 import time
 
-from .leases import mark_hooks, mark_step_hook
+from .leases import mark_hooks
+from .refusals import Refused
 from .service import claim_records, owned_pages
 from .state import (
     advance_turn,
@@ -54,47 +58,37 @@ def cmd_hook(harness: str, payload: dict) -> None:
     started = time.monotonic()
     event, sid = payload.get("hook_event_name"), payload.get("session_id") or ""
     if sid:
-        # Evidence that this harness runs Leaf's hooks for the session, which is what
-        # lets its `leaf wait` only wake it (`Harness.hooks_carry`).
+        # Capability evidence for hook transport and open-turn activity. An
+        # explicit wait carries its own input even if later hooks fail.
         mark_hooks(sid)
     if event == "SessionEnd":
         end_harness_instance(sid)
         return
     if not sid:
         return
-    expected = session_record(sid)
-    if harness == "codex" and expected is not None and event != "UserPromptSubmit":
-        from .codex_state import sync_transcript_turn
+    from .harness import hook_harness
 
-        expected = sync_transcript_turn(sid, payload.get("transcript_path"))
-    if event == "SessionStart":
-        if payload.get("source") == "resume":
-            from .harness import HOOK_HARNESSES
-            from .reconnect import publishing_notices
-
-            with publishing_notices(harness, sid, expected) as context:
-                if context:
-                    import json
-
-                    print(
-                        json.dumps(
-                            HOOK_HARNESSES[harness].hook_context(
-                                event, "\n\n".join(context)
-                            )
-                        ),
-                        flush=True,
-                    )
-        return
+    hooked = hook_harness(harness, sid)
     turn_id = payload.get("turn_id")
     if event in {"UserPromptSubmit", "TurnStart"}:
         expected = prompt_turn(sid, turn_id)
         if expected is None or event == "TurnStart":
             return
-        if harness == "codex":
-            from .codex_state import sync_transcript_turn
+    else:
+        expected = session_record(sid)
+    expected = hooked.reconcile_turn(payload, expected)
+    if event == "SessionStart":
+        if payload.get("source") == "resume":
+            from .reconnect import publishing_notices
 
-            expected = sync_transcript_turn(sid, payload.get("transcript_path"))
-    elif turn_id:
+            with publishing_notices(harness, sid, expected) as context:
+                if context:
+                    print(
+                        json.dumps(hooked.hook_context(event, "\n\n".join(context))),
+                        flush=True,
+                    )
+        return
+    if turn_id and event != "UserPromptSubmit":
         # A first trusted step can identify an unknown session-scoped turn.
         # Once a prompt/provider named it, late callbacks cannot replace it.
         with flocked(session_lock_path(sid)):
@@ -119,23 +113,10 @@ def cmd_hook(harness: str, payload: dict) -> None:
             sid, turn_id, expected=expected, ended_at=payload.get("ended_at")
         )
         return
-    if harness == "codex" and event in {"PostToolUse", "Stop"} and turn_id:
-        # Both boundaries offer through Codex's one transport reservation.
-        # Empty-input resume can reach Stop without executing another tool.
-        if event == "PostToolUse":
-            mark_step_hook(sid)
-        if owned_pages(sid):
-            from .codex import offer_hook_delivery
-            from .harness import HOOK_HARNESSES
-
-            if prompt := offer_hook_delivery(sid, turn_id):
-                import json
-
-                print(json.dumps(HOOK_HARNESSES[harness].hook_context(event, prompt)))
-                return
-            # Offering renews the observed turn even on a quiet page. Carry the
-            # resulting revision into Stop's independent response-debt check.
-            expected = session_record(sid)
+    prompt, expected = hooked.offer_at_step(event, payload, expected)
+    if prompt:
+        print(json.dumps(hooked.hook_context(event, prompt)))
+        return
     if event == "PostToolUse":
         return
     # Retained claims may need reconnecting after active ownership expired.
@@ -147,11 +128,10 @@ def cmd_hook(harness: str, payload: dict) -> None:
             close_session_turn(sid, turn_id, expected=expected)
         return
     # Prompt and Stop debt and delivery reading belongs to the hook transport.
-    from .harness import HOOK_HARNESSES
     from .hook_transport import carry_turn
 
     ended = carry_turn(
-        HOOK_HARNESSES[harness],
+        hooked,
         event,
         sid,
         payload,
@@ -194,16 +174,17 @@ def cmd_watch(harness: str, payload: dict) -> str | None:
 def main(harness: str, *, watch: bool = False) -> None:
     """Read one harness payload and dispatch it, without importing the CLI.
 
-    Both the application entry and the Click command enter here.
+    The application entry is the only caller.
     A watch owns leases, so it releases them when the harness terminates it.
     """
-    import json
     import sys
 
     try:
         payload = json.load(sys.stdin)
     except json.JSONDecodeError as error:
-        sys.exit(f"hook expects the harness's JSON payload on stdin ({error.msg})")
+        raise Refused(
+            f"hook expects the harness's JSON payload on stdin ({error.msg})"
+        ) from error
     if watch:
         from .leases import release_on_termination
 

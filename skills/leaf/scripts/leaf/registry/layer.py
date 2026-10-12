@@ -1,5 +1,6 @@
 """Layer registry composition and contract validation."""
 
+import json
 import re
 from copy import deepcopy
 
@@ -18,30 +19,31 @@ from leaf.schema import (
     INSTRUCTIONS_SCHEMA,
 )
 
-from .contract import RegistryError, stamp_decisions
-from .kernel import kernel_event_kinds, kernel_event_ownership
+from .contract import RegistryError, is_element_name, stamp_decisions, stamp_states
 from .schema import (
+    check_schema,
     json_validator,
     json_value,
     schema_error_message,
     unresolved_schema_reference,
 )
 
+# The `$events` members a layer may restate; the rest are the kernel's.
+LAYER_OWNED_EVENTS = frozenset({"handling", "answering"})
+
 
 def merge_layer_declarations(merged: dict, declarations: dict) -> None:
     """Fold one layer's top-level registry declarations into the merge.
 
-    An element declaration replaces the earlier one whole; schemas never deep-merge,
-    because a half-old, half-new contract is no layer's vocabulary. A $ declaration
-    holds shared layer facts, so its members merge. Under replace-whole, a project
-    declaring one idiom vendored a $idioms holding exactly that idiom — its theme
-    rules kept styling, theme.css concatenating where the registry did not, while
-    the vendored registry silently dropped the shipped ten. A member that is itself
-    a map merges by its own keys for the same reason one level down:
+    Every authored vocabulary entry replaces the earlier one whole, whether an
+    element schema or a selector idiom: a half-old, half-new entry is no layer's
+    declaration. A $ declaration holds shared layer facts, so its members merge.
+    A member that is itself a map merges by its own keys:
     $languages.paths is indexed by extension, and a layer adding `.svelte` must not
     silently drop every shipped extension with it. Scalar and list members replace
-    whole — a names list is one statement. `$events.kinds` and `$events.ownership`
-    are the exceptions: Leaf's fixed kernel transport contract, which no layer changes.
+    whole — a names list is one statement. `$events` is the exception: every member
+    but `handling` and `answering` is Leaf's fixed kernel transport contract and its
+    `protocol`, which no layer changes.
 
     Inside a map member the merge is JSON merge-patch: a later layer's value
     replaces the key, a new key joins, and `null` removes one — which is the
@@ -54,12 +56,15 @@ def merge_layer_declarations(merged: dict, declarations: dict) -> None:
             merged[name] = entry
             continue
         if name == "$events":
-            for key in ("kinds", "ownership"):
-                if key in entry and entry[key] != earlier.get(key):
+            # Only the kernel's own value passes, compared as JSON so that `true` or
+            # `1.0` is not taken for a protocol of 1, and the kernel's copy is kept.
+            for key in entry.keys() - LAYER_OWNED_EVENTS:
+                if _canonical(entry[key]) != _canonical(earlier.get(key)):
                     raise RegistryError(
                         f"$events.{key} is Leaf's fixed transport contract and cannot be "
                         "changed by a layer"
                     )
+            entry = {key: entry[key] for key in entry.keys() & LAYER_OWNED_EVENTS}
         combined = {**earlier, **entry}
         for key, value in entry.items():
             if isinstance(value, dict) and isinstance(earlier.get(key), dict):
@@ -69,16 +74,22 @@ def merge_layer_declarations(merged: dict, declarations: dict) -> None:
         merged[name] = {k: v for k, v in combined.items() if v is not None}
 
 
+def _canonical(value) -> str:
+    return json.dumps(value, sort_keys=True)
+
+
 def stamp_composition(registry: dict) -> dict:
     """Write into a validated vocabulary what the browser reads rather than derives:
-    `$decisions` (`registry.contract.stamp_decisions`) and `$marks`, the declared marks
+    `$decisions` (`registry.contract.stamp_decisions`), `$states`
+    (`registry.contract.stamp_states`), and `$marks`, the declared marks
     (`schema.DECLARED_MARKS`) it paints on a message it renders.
 
     Each composition that ends in a vocabulary stamps it, `page init`'s layer and a
     page's own declarations over it, overwriting whatever a layer declared under
-    either name.
+    these names.
     """
     stamp_decisions(registry)
+    stamp_states(registry)
     registry["$marks"] = deepcopy(DECLARED_MARKS)
     return registry
 
@@ -130,21 +141,10 @@ def _valid_clauses(clauses) -> bool:
             return False
         if "when" in clause:
             try:
-                Draft202012Validator.check_schema(clause["when"])
+                check_schema(clause["when"])
             except SchemaError:
                 return False
     return True
-
-
-def validate_event_contracts(events: dict, path) -> None:
-    for key, expected in (
-        ("kinds", kernel_event_kinds()),
-        ("ownership", kernel_event_ownership()),
-    ):
-        if events.get(key) != expected:
-            raise RegistryError(
-                f"{path}: $events.{key} must equal Leaf's fixed transport contract"
-            )
 
 
 def validate_layer_declarations(
@@ -169,33 +169,42 @@ def validate_layer_declarations(
             f"lint admits — missing {json_value(sorted(admitted - documented))}, "
             f"unadmitted {json_value(sorted(documented - admitted))}"
         )
-    # An idiom declares the marks `DECLARED_MARKS` admits on one (`idiom`), such as the
-    # room a `.callout` takes, which delivery paints on every element the idiom's
-    # selector matches (`revision_delivery.mark_declared`), so the selector has to be
-    # one delivery can match.
-    admitted = sorted(key for key, mark in DECLARED_MARKS.items() if mark.get("idiom"))
+    # Idioms share author-facing fields with elements; only marks whose readers
+    # consume delivery's paint can be declared on selectors. Validate every selector,
+    # even one without marks, because it remains an authored vocabulary identity.
+    marks = {key for key, mark in DECLARED_MARKS.items() if mark.get("idiom")}
+    allowed = {"description", "x-example", "x-instructions"} | marks
     probe = turbohtml.parse("<p></p>").find("p")
-    for selector, entry in (registry.get("$idioms") or {}).items():
-        if not isinstance(entry, dict):
+    for selector, entry in registry.items():
+        if selector.startswith("$") or is_element_name(selector):
             continue
-        declared = [key for key in entry if key.startswith("x-")]
-        for key in declared:
-            if key not in admitted or not Draft202012Validator(
-                EXTENSION_SCHEMA["properties"][key]
-            ).is_valid(entry[key]):
+        try:
+            probe.matches(selector)
+        except turbohtml.SelectorSyntaxError as error:
+            raise RegistryError(
+                f"{path}: idiom {selector!r} selector cannot be matched: {error}"
+            ) from None
+        if (
+            not isinstance(entry, dict)
+            or set(entry) - allowed
+            or not isinstance(entry.get("description"), str)
+            or not entry["description"].strip()
+            or not isinstance(entry.get("x-example"), str)
+            or not entry["x-example"].strip()
+        ):
+            raise RegistryError(
+                f"{path}: idiom {selector!r} must carry a non-empty description and "
+                "x-example, with optional x-instructions and "
+                + ", ".join(sorted(marks))
+            )
+        for key in set(entry) - {"description"}:
+            if not Draft202012Validator(EXTENSION_SCHEMA["properties"][key]).is_valid(
+                entry[key]
+            ):
                 raise RegistryError(
-                    f"{path}: $idioms {selector!r} declares {key}={json_value(entry[key])}; an "
-                    f"idiom may declare {', '.join(admitted)}, with a value its $keys "
-                    "entry admits"
+                    f"{path}: idiom {selector!r} declares {key}={json_value(entry[key])}; "
+                    "the value must satisfy its $keys declaration"
                 )
-        if declared:
-            try:
-                probe.matches(selector)
-            except turbohtml.SelectorSyntaxError as error:
-                raise RegistryError(
-                    f"{path}: $idioms {selector!r} declares {declared[0]}, and its "
-                    f"selector cannot be matched: {error}"
-                ) from None
     if (
         not isinstance(names, list)
         or not all(isinstance(name, str) for name in names)
@@ -292,7 +301,7 @@ def validate_layer_declarations(
                 f"{schema_error_message(instructions_errors[0])}"
             )
         try:
-            Draft202012Validator.check_schema(declaration["schema"])
+            check_schema(declaration["schema"])
         except SchemaError as error:
             raise RegistryError(
                 f"{path}: $data contract {contract!r} has an invalid JSON Schema: "
@@ -304,26 +313,21 @@ def validate_layer_declarations(
                 "does not resolve within the package; data contracts must be "
                 "self-contained"
             )
-    # Each token whole: the runtime paints `glyph`, the panel's narrowing reads
-    # `settles`, and off-page readers expose `means` only when a package supplies it.
-    # A missing glyph or misspelled behavior would otherwise fail silently.
+    # Each token whole: the runtime paints `glyph` and the panel's narrowing reads
+    # `settles`. A missing glyph or misspelled behavior would otherwise fail silently.
     if not isinstance(tokens, dict) or not all(
         isinstance(name, str)
         and re.fullmatch(HTML_NAME, name)
         and isinstance(entry, dict)
-        and not set(entry) - {"glyph", "means", "settles"}
+        and not set(entry) - {"glyph", "settles"}
         and isinstance(entry.get("glyph"), str)
         and entry["glyph"].strip()
         and len(entry["glyph"]) <= 4
-        and (
-            "means" not in entry
-            or (isinstance(entry["means"], str) and bool(entry["means"]))
-        )
         and isinstance(entry.get("settles", False), bool)
         for name, entry in tokens.items()
     ):
         raise RegistryError(
             f"{path}: $reactions.tokens must map lowercase token names to entries "
-            "with a short `glyph` of at most four code points, optionally a non-empty "
-            "`means`, and optionally a boolean `settles`"
+            "with a short `glyph` of at most four code points and optionally a "
+            "boolean `settles`"
         )

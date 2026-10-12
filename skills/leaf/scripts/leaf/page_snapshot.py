@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -33,6 +34,7 @@ from .served_state.reading import join_reading
 from .service import PageTransaction
 from .state import now_iso
 from .structure import SourceDocument
+from .user_views import FRESH_FOR_S
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,10 +53,59 @@ class PageSnapshot:
     others: tuple[dict, ...]
     reading: str
 
+    # A capture answers what a page server asks of its page
+    # (`served_state.service.PageSource`), from what it froze, and takes no writes.
+    writable = False
+
     def through(self, sequence: int) -> PageSnapshot:
         """This snapshot served as the page stood once event `sequence` was appended
         (`PageRead.through`)."""
         return replace(self, context=self.context.through(sequence))
+
+    def active_revision(self) -> int:
+        return self.context.active["revision"]
+
+    def artifact(self, revision: int) -> RevisionArtifact:
+        return self.artifacts[revision]
+
+    def revision(self, revision: int) -> SourceReading:
+        return self.context.revision(revision)
+
+    def active_registry(self) -> dict:
+        return self.context.registry
+
+    def data_source(self, source: str, registry: dict) -> dict | None:
+        return self.context.data["sources"].get(source)
+
+    def events(self) -> list[dict]:
+        return list(self.context.events)
+
+    def published_versions(self, events: list[dict]) -> set[int]:
+        return {item["version"] for item in self.context.versions}
+
+    def served_document(self) -> tuple[RevisionArtifact, int, int | None]:
+        active = self.context.active
+        return self.artifacts[active["revision"]], active["revision"], active["version"]
+
+    def sample_inputs(self, revision: int) -> tuple[RevisionArtifact, list, dict]:
+        return self.artifacts[revision], list(self.context.events), self.context.data
+
+    def user_views(self) -> dict:
+        # Captured render previews are instruments, not the user's reading.
+        return {"fresh_for_s": FRESH_FOR_S, "sessions": []}
+
+    def news(self) -> str:
+        return self.reading
+
+    def other_pages(self) -> list[dict]:
+        return list(self.others)
+
+    @contextmanager
+    def state_read(self, *, with_token: bool = False):
+        yield self.context, self.reading, None
+
+    def state_reading(self, reading: str, state: dict) -> str:
+        return reading
 
 
 def capture_page_snapshot(
@@ -155,8 +206,9 @@ def capture_page_snapshot(
             revisions=frozenset(readings),
             revision=readings.__getitem__,
             registry=registry,
-            layer=layer,
+            stored_layer=lambda: layer,
             stored_data=lambda: data,
+            bound_files=dict,
             versions=versions,
             presence=copy.deepcopy(present),
             live_stream=copy.deepcopy(live_stream),

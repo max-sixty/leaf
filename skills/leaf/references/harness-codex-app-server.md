@@ -29,11 +29,12 @@ thread at once. Later working messages stay in Codex. Your completed final
 commits the reply through the same durable writer as `leaf response reply`,
 unless an explicit successful reply already answered it.
 
-For a reply needing widgets, a prose question awaiting the user, a title or a
-changed anchor, author it with `leaf response reply <answer.ref>` and the rich
-options in [threads](threads.md). The command validates saved edits and commits
-immediately. The completed final yields to an explicit successful answer already
-in the log; otherwise Leaf commits your opening and final text. A later failure or
+For a reply needing widgets, a prose question awaiting the user (`--question`),
+work promised beyond this turn (`--task`), a title or a changed anchor, author it
+with `leaf response reply <answer.ref>` and the rich options in
+[threads](threads.md). The command validates saved edits and commits immediately.
+The completed final yields to an explicit successful answer already in the log;
+otherwise Leaf commits your opening and final text. A later failure or
 interruption cannot discard an explicit committed reply. Leaf may title an
 untitled thread from its opening before your reply arrives; that name stands.
 
@@ -45,11 +46,13 @@ Other answers in the slice take the operations their delivered `handling`
 clauses name.
 
 Before finishing a turn that changed `index.html`, run `leaf page check <page>`
-and fix every error. The final reply requires valid source, and its refusal arrives
-after the model's turn has ended, when it can no longer correct the edit.
+and fix every error. If automatic publication refuses a final, Leaf sends a
+correction turn with the diagnostic and the same response address. Correct that
+failure and complete the answer.
 
 A `leaf-delivery` pointer queued before Leaf observed the task can still arrive as a
-user message. Read it with `leaf delivery read <id>`: it was frozen for the queue, so
+user message. Read it with `leaf delivery read <id>` and follow its receipt
+instruction: it was frozen for the queue, so
 its reply has `writer: "agent"` for `leaf response reply <answer.ref>`, as `references/harness-codex.md`
 describes.
 

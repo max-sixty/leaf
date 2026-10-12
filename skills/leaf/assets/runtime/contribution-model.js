@@ -2,6 +2,8 @@
    ordering and labels without browser dependencies. The browser registry keeps
    command-scope capabilities outside the normalized records. */
 
+import { excerptWords } from "./words.js";
+
 const entryRecords = new WeakSet();
 export const isContributionEntry = (entry) => entryRecords.has(entry);
 
@@ -74,7 +76,7 @@ export const KINDS = Object.freeze(
         indication: true,
       },
       comment: { label: "Thread", icon: "comment", priority: 1 },
-      ask: { label: "Ask", icon: "question", priority: 2 },
+      question: { label: "Question", icon: "question", priority: 2 },
       sent: {
         label: "Sent",
         icon: "sent",
@@ -109,7 +111,7 @@ export const KINDS = Object.freeze(
         indication: true,
       },
       reported: {
-        label: "Reported update",
+        label: "Reported state",
         icon: "activity",
         priority: 4,
         indication: true,
@@ -326,23 +328,6 @@ export const visibleContributionEntryLabel = ({ behavior, label }) =>
 // A contribution owns its reading IDs; generated readings have no owner.
 export const contributionItemKey = (item) =>
   JSON.stringify([item.owner ?? null, item.id]);
-
-export const labelWords = (value) =>
-  String(value ?? "")
-    .replace(/\s+/g, " ")
-    .trim();
-
-// Words cut to at most `cap` characters, at a word boundary in the second half where
-// there is one, ending in an ellipsis. A long word or unspaced language keeps its prefix.
-export function excerptWords(value, cap) {
-  const words = labelWords(value);
-  const points = [...words];
-  if (points.length <= cap) return words;
-  const excerpt = points.slice(0, cap - 1);
-  const boundary = excerpt.lastIndexOf(" ");
-  const end = boundary >= cap / 2 ? boundary : excerpt.length;
-  return `${excerpt.slice(0, end).join("")}…`;
-}
 
 // Spoken names have a listening budget, independent of the space CSS gives the
 // visible label. Only accessibility presentations use this excerpt; inventory and

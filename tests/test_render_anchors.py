@@ -4,6 +4,7 @@ import io
 import json
 import re
 from html import escape
+from pathlib import Path
 
 import pytest
 from axe_playwright_python.sync_playwright import Axe
@@ -21,6 +22,7 @@ from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
+from leaf_dev.example_data import patch_manifest
 from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -65,7 +67,6 @@ from render_cases_navigation import (
 )
 from render_harness import (
     EXAMPLES,
-    FEATURE_GALLERY,
     INLINE_PAGE,
     LONG_PAGE,
     PASSAGE_SOURCES,
@@ -93,7 +94,7 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 def open_selected_comment(page):
@@ -185,10 +186,11 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
     wait_until_ready(page)
     result = page.evaluate(
         """async () => {
-        const {TEXT_BLOCK, pageRange, pageText} = await window.__lfRuntimeImport('/runtime/passages.js');
+        const {pageRange} = await window.__lfRuntimeImport('/runtime/passages.js');
+        const {TEXT_BLOCK} = await window.__lfRuntimeImport('/runtime/passage-facts.js');
         const {anchorForRange, resolveAnchor} =
             await window.__lfRuntimeImport('/runtime/anchor-resolution.js');
-        const {nextRender, renderingSettled} =
+        const {nextRender, renderingState} =
             await window.__lfRuntimeImport('/runtime/rendering.js');
         const tick = () => new Promise(r => setTimeout(r, 0));
         const rendered = async () => {
@@ -201,13 +203,14 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
                 await Promise.race([deadline, (async () => {
                     await tick();
                     await new Promise(resolve => nextRender(resolve));
-                    while (!renderingSettled()) await tick();
+                    while (!Object.values(renderingState()).every(Boolean)) await tick();
                 })()]);
             } finally {
                 clearTimeout(timer);
             }
         };
-        const fab = document.querySelector('.lf-fab-input');
+        // The composer's field joins the page at its first open.
+        const fab = () => document.querySelector('.lf-fab-input');
         const speaks = el => {
             const near = el.closest('.lf-ui, [data-lf-said]');
             return !near || near.matches('[data-lf-said]');
@@ -262,12 +265,12 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
             range = pageRange(sel);
             // Counted, not shrugged off: a selection the button declines to offer is
             // a passage silently outside this sweep, and the sweep is the coverage.
-            if (fab.style.display !== 'block') {
+            if (fab()?.style.display !== 'block') {
                 skipped.push(range.toString().replace(/\\s+/g, ' ').trim().slice(0, 70));
                 continue;
             }
             const anchor = anchorForRange(range);
-            const resolved = resolveAnchor(anchor, pageText());
+            const resolved = resolveAnchor(anchor);
             // A cross-cell selection remains a real native selection and a writable
             // comment. It must not acquire an exact semantic highlight by ignoring
             // the same fences file capture respects. Generated wordless faces and
@@ -356,7 +359,7 @@ def test_a_block_leaving_the_viewport_keeps_its_focused_comment(browser, serve):
     expect(field).to_be_visible()
     expect(field).to_be_focused()
     label = field.get_attribute("aria-label")
-    assert label and label.startswith("Comment on “4 of 5 checks passing")
+    assert label and label.startswith("Comment on “checks passing 4 of 5")
     draft = "Why does the remaining check need a decision?"
     write(field, draft)
     resized(page, 420, 850)
@@ -582,9 +585,19 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
         expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
 
-def test_gallery_revision_preserves_every_open_quoted_thread(browser, serve):
-    """A served gallery revision keeps two discussions beside their revised subject."""
-    url = live_url(serve(FEATURE_GALLERY))
+# One sentence two quoted threads discuss, which the agent's next revision rewrites.
+REVISED_QUOTES_PAGE = leaf_page(
+    "revised quotes",
+    """
+<h1 id="title">Rollout</h1>
+<p id="revised-quotes">The first draft uses an early estimate for the rollout.</p>
+""",
+)
+
+
+def test_a_revision_preserves_every_open_quoted_thread(browser, serve):
+    """A served revision keeps two discussions beside their revised subject."""
+    url = live_url(serve(REVISED_QUOTES_PAGE))
     roots = []
     for quote in ("first draft", "early estimate"):
         result = CliRunner().invoke(
@@ -594,7 +607,7 @@ def test_gallery_revision_preserves_every_open_quoted_thread(browser, serve):
                 "open",
                 str(serve.page_dir),
                 "--section",
-                "bg-revised-quotes",
+                "revised-quotes",
                 "--quote",
                 quote,
                 "--text",
@@ -604,7 +617,6 @@ def test_gallery_revision_preserves_every_open_quoted_thread(browser, serve):
         assert result.exit_code == 0, result.output
         roots.append(json.loads(result.output))
     page = open_page(browser, url)
-    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     for root in roots:
@@ -618,8 +630,7 @@ def test_gallery_revision_preserves_every_open_quoted_thread(browser, serve):
     )
     note = stamp_page(serve.page_dir, updated, "Refined the rollout wording.")
     wait_for_revision(page, note["revision"])
-    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
-    expect(page.locator("#bg-revised-quotes")).to_have_text(
+    expect(page.locator("#revised-quotes")).to_have_text(
         "The revised plan uses the current forecast for the rollout."
     )
     for root in roots:
@@ -628,7 +639,8 @@ def test_gallery_revision_preserves_every_open_quoted_thread(browser, serve):
         expect(thread.locator(".lf-quote")).to_contain_text(
             f"“{root['anchor']['quote']}” Changed"
         )
-        expect(thread.locator(".lf-quote")).to_have_attribute("aria-disabled", "false")
+        expect(thread.locator(".lf-quote")).to_have_attribute("role", "button")
+        expect(thread.locator(".lf-quote")).to_have_attribute("tabindex", "0")
         expect(thread.locator(".lf-quote.detached")).to_have_count(0)
         expect(thread.locator(".lf-msg")).to_have_count(1)
     moves = [
@@ -637,7 +649,7 @@ def test_gallery_revision_preserves_every_open_quoted_thread(browser, serve):
         if event["kind"] == "reanchor"
     ]
     assert {event["thread"] for event in moves} == {root["id"] for root in roots}
-    assert all(event["anchor"] == {"section": "bg-revised-quotes"} for event in moves)
+    assert all(event["anchor"] == {"section": "revised-quotes"} for event in moves)
 
 
 @pytest.mark.parametrize("panes", [False, True], ids=["ask", "panes"])
@@ -811,8 +823,10 @@ def test_a_selection_around_a_targets_buttons_does_not_deaden_them(browser, serv
         (end["x"] + end["width"] - 6, end["y"] + end["height"] - 6),
         steps=16,
     )
-    wait_for_pending_mark(page)
-    assert "Refill" in pending_text(page)
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    quote = composer_quote(page)
+    assert quote["shown"] and "Refill" in quote["text"]
+    assert "Refill" in page.evaluate("getSelection().toString()")
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
     assert not page.evaluate("getSelection().isCollapsed")
 
@@ -955,12 +969,21 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
     # at rest, since a hover state read against a resting one compares nothing.
     page.mouse.move(4, 4)
 
+    # The slotted shortcut hint keeps the text field's muted placeholder ink.
+    # Typography shared with sent messages must not turn an empty hint into prose.
+    hint_ink = """hint => [getComputedStyle(hint).color,
+        getComputedStyle(hint.querySelector('kbd')).color]"""
+    hint = page.locator(".lf-fab-input .lf-compose-placeholder")
+    expect(hint).to_be_visible()
+    assert len(set(hint.evaluate(hint_ink))) == 1
+
     family = """el => { const s = getComputedStyle(el);
         return Object.fromEntries(["font-family", "font-size",
             "border-top-width", "border-top-style",
             "background-color"].map(p => [p, s.getPropertyValue(p)])); }"""
     raised = page.locator(".lf-fab-input").evaluate(family)
     page.keyboard.press("e")
+    expect(page.locator(".lf-fab-bar .lf-fab-suggest")).to_be_visible()
     adjacent = page.locator(".lf-fab-bar .lf-fab-suggest").evaluate(family)
     assert raised == adjacent, (
         "the floating field and its other responses are drawn differently:\n  "
@@ -974,9 +997,11 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
         f"the response bar speaks in the document's voice: {raised['font-family']}"
     )
     assert (
-        page.locator(".lf-fab-input").evaluate("el => getComputedStyle(el).boxShadow")
+        page.locator(".lf-fab-input").evaluate("el => getComputedStyle(el).filter")
         != "none"
     ), "the field that floats over the page says nothing about its elevation"
+    page.locator(".lf-fab-input").click()
+    assert len(set(hint.evaluate(hint_ink))) == 1
 
 
 # One rendered key face: the geometry a physical press claims wherever Leaf draws it, and
@@ -1592,6 +1617,39 @@ def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
     expect(page).to_have_url(re.compile(r"#destination$"))
 
 
+def test_code_copy_reads_sources_before_positioning_many_controls(browser, serve):
+    blocks = "".join(
+        f"<p>Example {i}</p><pre><code>code {i}</code></pre>" for i in range(60)
+    )
+    url = live_url(serve(leaf_page("Many code blocks", blocks)))
+    page = open_page(
+        browser,
+        url,
+        init_script="""(() => {
+          const events = window.copyPlacementEvents = [];
+          const rect = Element.prototype.getBoundingClientRect;
+          Element.prototype.getBoundingClientRect = function (...args) {
+            if (this.localName === 'pre' && this.querySelector(':scope > code'))
+              events.push('read');
+            return rect.apply(this, args);
+          };
+          Object.defineProperty(CSSStyleDeclaration.prototype, 'anchorName', {
+            configurable: true,
+            get() { return this.getPropertyValue('anchor-name'); },
+            set(value) {
+              if (value?.startsWith('--lf-a')) events.push('write');
+              this.setProperty('anchor-name', value);
+            },
+          });
+        })()""",
+    )
+    expect(page.locator(".lf-chrome > .lf-code-copy")).to_have_count(60)
+    events = page.evaluate("window.copyPlacementEvents")
+    assert events.count("read") >= 60
+    assert "write" in events
+    assert events.index("write") >= 60
+
+
 @pytest.mark.parametrize("holder", ["disclosure", "tab"])
 def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, holder):
     """Hidden and distant sources take no anchored control layout; Copy still works."""
@@ -1629,7 +1687,7 @@ def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, hold
     )
 
     opener = (
-        page.locator("summary")
+        page.locator("main summary")
         if holder == "disclosure"
         else page.get_by_role("tab", name="Code", exact=True)
     )
@@ -2122,7 +2180,7 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
         "the tinted line is the one that says it, and it says it once"
     )
 
-    appearance = page.evaluate("""() => {
+    appearance = page.evaluate(r"""() => {
       const channels = value => value.match(/[0-9.]+/g).slice(0, 3).map(Number);
       const block = document.querySelector('#walk-code pre');
       const line = document.querySelector('#walk-code .lf-code-line');
@@ -2140,7 +2198,7 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
         noteRadius: noteStyle.borderRadius,
         noteFont: noteStyle.fontFamily,
         sansFont: getComputedStyle(document.documentElement)
-          .getPropertyValue('--sans').trim(),
+          .getPropertyValue('--sans').trim().replace(/\s+/g, ' '),
         noteInset: {
           left: noteRect.left - blockRect.left,
           right: blockRect.right - noteRect.right,
@@ -2495,7 +2553,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
       };
     }""")
     assert reading["segmentCount"] > 0, "the passage assertion read no diff text"
-    assert reading["saysPath"] and reading["wrotePath"], reading
+    # The parser supplies the visible file path; it was not written into the page.
+    assert reading["saysPath"] and not reading["wrotePath"], reading
     assert reading["saysStat"] and not reading["wroteStat"], reading
     assert reading["lineNumberWords"] == [], (
         f"line number chrome entered the page reading: {reading}"
@@ -2680,8 +2739,13 @@ def test_a_diff_can_start_with_every_file_collapsed(browser, serve):
     details = page.locator("lf-diff details")
     expect(details).to_have_count(3)
     assert details.evaluate_all("items => items.every(item => !item.open)")
+    # A closed file of a patch text renders only when it opens, as a manifest's does.
+    lines = page.locator("lf-diff [data-line]")
+    expect(lines).to_have_count(0)
     details.first.locator("summary").click()
     expect(details.first).to_have_attribute("open", "")
+    expect(details.first.locator("[data-line]").first).to_be_visible()
+    assert lines.count() == details.first.locator("[data-line]").count()
 
 
 def test_a_diff_keeps_source_markup_inert(browser, serve):
@@ -2717,128 +2781,67 @@ def test_a_diff_keeps_source_markup_inert(browser, serve):
     }
 
 
-def test_a_diff_rejects_incomplete_hunks(browser, serve):
-    """Missing or wrong hunk ranges must fail instead of hiding review evidence."""
-    expected = [
-        {
-            "rendered": False,
-            "error": (
-                "<lf-diff> failed: parsePatchContent: hunk has more lines than expected"
+DIFF_PATCH_CASES = json.loads(
+    (Path(__file__).parent / "diff_patch_cases.json").read_text()
+)["cases"]
+
+
+def test_the_widget_reads_the_diff_patch_table(browser, serve):
+    """`diff_patch_cases.json` states what lf-diff can present, for both of its
+    readers (`test_interact_document.py`, "the manifest reads the diff patch table").
+    The widget draws each accepted patch, under the row's paths, as inline text and
+    as the manifest `patch_manifest.py` builds from it, and refuses each row with a
+    `widget` message without hiding evidence, quoting the patch it could not draw."""
+    accepted = [case for case in DIFF_PATCH_CASES if "files" in case]
+    refused = [case for case in DIFF_PATCH_CASES if "widget" in case]
+    markup = "".join(
+        [
+            *(
+                f'<lf-diff id="text-{case["id"]}"><pre>{escape(case["patch"])}</pre></lf-diff>'
+                for case in [*accepted, *refused]
             ),
-            "source": (
-                "diff --git a/example.js b/example.js\n"
-                "--- a/example.js\n"
-                "+++ b/example.js\n"
-                "@@ -1 +1 @@\n"
-                "-old\n"
-                "+new\n"
-                "+silently-lost"
+            *(
+                f'<lf-diff id="files-{case["id"]}" source="files-{case["id"]}"><pre></pre></lf-diff>'
+                for case in accepted
             ),
-        },
-        {
-            "rendered": False,
-            "error": (
-                "<lf-diff> failed: unsupported hunkless diff for example.js "
-                "(only path-only renames may omit @@ hunks; binary, mode-only, "
-                "and empty added/deleted entries belong in prose; changed files "
-                "need textual @@ hunks)"
-            ),
-            "source": (
-                "diff --git a/example.js b/example.js\n"
-                "--- a/example.js\n"
-                "+++ b/example.js\n"
-                "-old\n"
-                "+new"
-            ),
-        },
-        {
-            "rendered": False,
-            "error": (
-                "<lf-diff> failed: unsupported hunkless rename (only an exact "
-                "path-only block with diff --git, similarity index 100%, rename "
-                "from, and rename to lines may omit textual @@ hunks)"
-            ),
-            "source": (
-                "diff --git a/old.js b/new.js\n"
-                "similarity index 100%\n"
-                "rename from old.js\n"
-                "rename to new.js\n"
-                "--- a/old.js\n"
-                "+++ b/new.js\n"
-                "-before\n"
-                "+after"
-            ),
-        },
-        {
-            "rendered": False,
-            "error": (
-                "<lf-diff> failed: unsupported hunkless rename (only an exact "
-                "path-only block with diff --git, similarity index 100%, rename "
-                "from, and rename to lines may omit textual @@ hunks)"
-            ),
-            "source": ("diff --git a/old.js b/new.js\nsimilarity index 100%"),
-        },
-        {
-            "rendered": False,
-            "error": (
-                "<lf-diff> failed: unsupported hunkless rename (only an exact "
-                "path-only block with diff --git, similarity index 100%, rename "
-                "from, and rename to lines may omit textual @@ hunks)"
-            ),
-            "source": (
-                "diff --git a/old.js b/new.js\n"
-                "similarity index 100%\n"
-                "rename from \n"
-                "rename to "
-            ),
-        },
-        {
-            "rendered": False,
-            "error": (
-                "<lf-diff> failed: unsupported hunkless rename (only an exact "
-                "path-only block with diff --git, similarity index 100%, rename "
-                "from, and rename to lines may omit textual @@ hunks)"
-            ),
-            "source": (
-                "diff --git a/header-old.js b/header-new.js\n"
-                "similarity index 100%\n"
-                "rename from body-old.js\n"
-                "rename to body-new.js"
-            ),
-        },
-    ]
-    identifiers = (
-        "wrong-count-diff",
-        "missing-hunk-diff",
-        "rename-with-missing-hunk-diff",
-        "similarity-only-diff",
-        "empty-rename-paths-diff",
-        "contradictory-rename-paths-diff",
+        ]
     )
-    page = open_page(
-        browser,
-        serve(
-            _diff_page(
-                *(
-                    (identifier, escape(case["source"]))
-                    for identifier, case in zip(identifiers, expected, strict=True)
-                )
-            )
-        ),
-    )
-    result = page.locator("lf-diff").evaluate_all(
-        """hosts => hosts.map(host => ({
+    url = serve(leaf_page("diff patch table", f'<h1 id="cases">Cases</h1>{markup}'))
+    for case in accepted:
+        data_model.cmd_data_set(
+            serve.page_dir, f"files-{case['id']}", patch_manifest(case["patch"])
+        )
+    page = open_page(browser, url)
+    rendered(page)
+    readings = page.locator("lf-diff").evaluate_all(
+        """hosts => Object.fromEntries(hosts.map(host => [host.id, {
           rendered: host.classList.contains('lf-rendered'),
-          error: host.querySelector('.lf-error')?.firstChild?.textContent ?? null,
+          errors: [...new Set([...host.querySelectorAll('.lf-error'),
+            ...(host.shadowRoot?.querySelectorAll('.lf-error') ?? [])]
+            .map(box => box.firstChild?.textContent ?? null))],
           source: host.querySelector('.lf-error pre')?.textContent ?? null,
-        }))"""
+          files: [...(host.shadowRoot?.querySelectorAll('.lf-diff-path') ?? [])].map(
+            path => (path.querySelector('.lf-diff-destination-path') ?? path)
+              .textContent.replaceAll('\\u200b', '')),
+        }]))"""
     )
-    assert result == expected
+    for case in accepted:
+        for form in ("text", "files"):
+            reading = readings[f"{form}-{case['id']}"]
+            assert reading["rendered"] and not reading["errors"], (case["id"], reading)
+            assert reading["files"] == case["files"], (case["id"], reading)
+    for case in refused:
+        assert readings[f"text-{case['id']}"] == {
+            "files": [],
+            "rendered": False,
+            "errors": [f"<lf-diff> failed: {case['widget']}"],
+            "source": case["patch"].rstrip("\n") or None,
+        }, case["id"]
     # Each refusal reaches the author too, naming the diff that could not draw.
     reported = consume_browser_errors(
-        page, *(f'<lf-diff id="{identifier}"> failed: ' for identifier in identifiers)
+        page, *(f'<lf-diff id="text-{case["id"]}"> failed: ' for case in refused)
     )
-    assert len(reported) == len(identifiers), reported
+    assert len(reported) == len(refused), reported
 
 
 def test_a_diff_shows_a_path_only_rename_without_an_empty_disclosure(browser, serve):
@@ -3144,11 +3147,11 @@ def thread_a_press_opened(page):
     The preview card the press opens places itself and only then hands over focus, from
     the placement promise `deferThreadPreviewFocus` waits on — so the thread arrives a
     frame after the press rather than inside it. This states that ordering rather than
-    reading across it. The wait's own timeout is short, and it answers None so a caller
-    still reports which thread opened instead of raising over the reading.
+    reading across it. It answers None rather than raising, so a caller still reports
+    which thread opened instead of raising over the reading.
     """
     try:
-        page.wait_for_function(f"() => {FOCUSED_THREAD} != null", timeout=5000)
+        page.wait_for_function(f"() => {FOCUSED_THREAD} != null")
     except PlaywrightTimeout:
         return None
     return page.evaluate(f"() => {FOCUSED_THREAD}.innerText")
@@ -3599,6 +3602,7 @@ def test_an_ambiguous_revised_passage_keeps_its_section_until_the_agent_moves_it
         [
             "response",
             "reply",
+            "--done",
             response_reference(d, root["id"]),
             "--section",
             "drift",
@@ -3670,6 +3674,7 @@ def test_a_removed_subject_keeps_its_thread_open_and_detached(browser, serve):
         [
             "response",
             "reply",
+            "--done",
             response_reference(d, root["id"]),
             "--detach",
             "--text",
@@ -3687,7 +3692,8 @@ def test_a_removed_subject_keeps_its_thread_open_and_detached(browser, serve):
     quote = page.locator(f'.lf-thread[data-id="{root["id"]}"] .lf-quote')
     expect(quote).to_contain_text("The version stamp never lands")
     expect(quote).to_have_class(re.compile(r"\bdetached\b"))
-    expect(quote).to_have_attribute("aria-disabled", "true")
+    expect(quote).not_to_have_attribute("role", "button")
+    expect(quote).not_to_have_attribute("tabindex", "0")
     expect(quote).to_have_attribute("title", re.compile("no longer"))
 
 
@@ -5128,8 +5134,16 @@ def test_a_version_published_under_an_open_menu_reaches_it(browser, serve):
     menu = page.locator(".lf-version-menu")
     expect(page.locator(".lf-version-row")).to_have_count(2)
 
+    # Popover's deferred toggle handler places its initial focus. Let that
+    # arrival finish before choosing a different row to keep through the update.
+    page.evaluate(
+        """() => document.querySelector('.lf-version-menu').addEventListener(
+          'toggle', () => { window.__lfVersionMenuOpened = true; }, { once: true }
+        )"""
+    )
     banner_control(page, ".lf-version").click()
     expect(menu).to_be_visible()
+    page.wait_for_function("window.__lfVersionMenuOpened === true")
     focused_row = page.locator(".lf-version-row").first
     focused_row.focus()
     focused_row.evaluate("row => window.__lfFocusedVersionRow = row")
@@ -5567,7 +5581,6 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
         {
             "files": [
                 {
-                    "key": "app.py",
                     "path": "app.py",
                     "kind": "patch",
                     "additions": 1,
@@ -5631,6 +5644,31 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
     panel_settled(page, True)
     expect(page.locator(".lf-thread .lf-quote")).to_have_text("§ app.py · file")
     expect(page.locator(".lf-thread")).to_contain_text("Review this file as a whole.")
+
+    # A thread on a line of the file still unloaded is named as its drawn row would be,
+    # not by the widget holding it.
+    post_event(
+        page,
+        url.rsplit("/versions/", 1)[0] + "/api/event",
+        data={
+            "kind": "comment",
+            "revision": 1,
+            "text": "Check the new line.",
+            "anchor": {
+                "section": "patch",
+                "datum": '["app.py","new",1]',
+                "source": "review-patch",
+                "source_revision": revision,
+            },
+        },
+    )
+    expect(page.locator(".lf-thread")).to_have_count(2)
+    expect(page.locator("lf-diff [data-line-type]")).to_have_count(0)
+    quotes = page.locator(".lf-thread .lf-quote").all_text_contents()
+    assert sorted(" ".join(quote.split()) for quote in quotes) == [
+        "§ app.py · file",
+        "§ app.py · new line 1",
+    ]
 
 
 def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
@@ -5926,7 +5964,7 @@ def test_a_drag_across_a_written_diff_line_is_the_passage_c_comments_on(browser,
     the host, and `isCollapsed` says nothing is selected while the words are painted
     selected. Read that way, no Comment field rose over the drag and `c` opened a comment
     on the page with no passage at all. The passage is the composed range the user drew,
-    so the comment carries the words and their neighbours."""
+    so the comment carries those words at the diff line's exact coordinate."""
     patch = (
         "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
         "@@ -1,2 +1,2 @@\n def route(request):\n"
@@ -5986,7 +6024,7 @@ def test_a_drag_across_a_written_diff_line_is_the_passage_c_comments_on(browser,
     ]
     assert comment["anchor"]["section"] == "patch", comment
     assert comment["anchor"]["quote"] == "request.token.id", comment
-    assert comment["anchor"].get("prefix", "").endswith("tok:{"), comment
+    assert comment["anchor"]["datum"] == '["app.py","new",2]', comment
 
 
 @pytest.mark.parametrize("arrived", ["", "#title"], ids=["plain", "fragment"])
@@ -6147,8 +6185,8 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, True)
     panel_thread.locator(".lf-thread-summary").click()
-    inline_send = thread.get_by_role("button", name="Send", exact=True)
-    panel_send = panel_thread.get_by_role("button", name="Send", exact=True)
+    inline_send = thread.locator(".lf-compose-submit")
+    panel_send = panel_thread.locator(".lf-compose-submit")
     expect(inline_send).to_be_disabled()
     expect(panel_send).to_be_disabled()
     write(thread.locator("leaf-text"), "One draft in both views.")
@@ -6199,9 +6237,9 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
         },
     )
     told(page)
-    # The seat holds arrivals that would move the diff on screen behind its notice;
-    # the agent's reply, already read, is not among them.
-    thread.get_by_role("button", name="2 new replies").click()
+    # The seat holds arrivals that would move the diff on screen behind its notice:
+    # the user's own two messages. The agent's reply, already read, is not among them.
+    thread.get_by_role("button", name="2 new messages").click()
     line = ":scope > .lf-msg-head .lf-msg-sending"
     for view, message_attr in ((thread, "data-event"), (panel_thread, "data-mid")):
         expect(
@@ -6305,7 +6343,6 @@ def test_a_datum_comment_reveals_its_shadow_host_and_outer_tab(browser, serve):
 TWO_FILE_MANIFEST = {
     "files": [
         {
-            "key": "first.py",
             "path": "first.py",
             "kind": "patch",
             "additions": 1,
@@ -6319,7 +6356,6 @@ TWO_FILE_MANIFEST = {
 """,
         },
         {
-            "key": "second.py",
             "path": "second.py",
             "kind": "patch",
             "additions": 1,
@@ -6510,7 +6546,6 @@ def test_a_deferred_diff_tracks_each_write_and_retries_a_failed_file(browser, se
         return {
             "files": [
                 {
-                    "key": path,
                     "path": path,
                     "kind": "patch",
                     "additions": 1,
@@ -6581,7 +6616,6 @@ def test_a_deferred_load_keeps_the_manifest_source_revision(browser, serve):
     manifest = {
         "files": [
             {
-                "key": "app.py",
                 "path": "app.py",
                 "kind": "patch",
                 "additions": 1,
@@ -6593,9 +6627,7 @@ def test_a_deferred_load_keeps_the_manifest_source_revision(browser, serve):
     data_model.cmd_data_set(serve.page_dir, "review-patch", manifest)
     prior = source_revision(serve.page_dir, "review-patch")
     page = open_page(browser, url)
-    page.evaluate(
-        "window.priorManifest = document.querySelector('#patch').manifestSnapshot"
-    )
+    page.evaluate("window.priorManifest = document.querySelector('#patch').snapshot")
     replacement = original.replace('return "first"', 'return "replacement"')
     manifest["files"][0]["patch"] = replacement
     data_model.cmd_data_set(serve.page_dir, "review-patch", manifest)
@@ -6610,7 +6642,7 @@ def test_a_deferred_load_keeps_the_manifest_source_revision(browser, serve):
             stale = error.message;
           }
           const current = await loadDeferred(
-            document.querySelector('#patch').manifestSnapshot, 'app.py'
+            document.querySelector('#patch').snapshot, 'app.py'
           );
           return {stale, current};
         }"""
@@ -6625,7 +6657,7 @@ def test_a_deferred_load_keeps_the_manifest_source_revision(browser, serve):
           const {loadDeferred} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const {acceptData, notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
           const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
-          const manifest = document.querySelector('#patch').manifestSnapshot;
+          const manifest = document.querySelector('#patch').snapshot;
           const original = runtime.data;
           const failures = [];
           try {
@@ -6683,7 +6715,6 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
         {
             "files": [
                 {
-                    "key": "second.py",
                     "path": "second.py",
                     "kind": "patch",
                     "additions": 1,
@@ -6744,28 +6775,33 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
 def test_shadow_staging_replaces_all_nodes_without_disturbing_a_retained_editor(
     browser, serve
 ):
-    """Text and comments leave the stage; a retained control keeps its caret."""
+    """Staging retains a Lit container and its editor while other nodes leave."""
     page = open_page(browser, serve(DIFF_PAGE))
     result = page.evaluate(
         """async () => {
-          const {shadowStage} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {html, render, shadowStage} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const host = document.querySelector('lf-diff');
+          const container = document.createElement('div');
           const input = document.createElement('input');
           input.value = 'draft reply';
+          const paint = text => render(html`<p>${text}</p>${input}`, container);
+          paint('Before restaging');
           const old = document.createElement('p');
           old.textContent = 'old reading';
-          shadowStage(host, [old, document.createComment('old stage'), input]);
+          shadowStage(host, [old, document.createComment('old stage'), container]);
           input.focus();
           input.setSelectionRange(2, 5);
           const next = document.createElement('p');
           next.textContent = 'new reading';
-          shadowStage(host, [next, input]);
+          shadowStage(host, [next, container]);
+          paint('After restaging');
           return {
             text: [...host.shadowRoot.childNodes]
               .filter(node => node.localName === 'p')
               .map(node => node.textContent),
             comments: [...host.shadowRoot.childNodes]
               .filter(node => node.nodeType === Node.COMMENT_NODE).length,
+            rendered: container.querySelector('p').textContent,
             focused: host.shadowRoot.activeElement === input,
             value: input.value,
             selection: [input.selectionStart, input.selectionEnd],
@@ -6775,6 +6811,7 @@ def test_shadow_staging_replaces_all_nodes_without_disturbing_a_retained_editor(
     assert result == {
         "text": ["new reading"],
         "comments": 0,
+        "rendered": "After restaging",
         "focused": True,
         "value": "draft reply",
         "selection": [2, 5],

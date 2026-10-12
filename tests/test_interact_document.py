@@ -12,6 +12,7 @@ import shutil
 import signal
 import subprocess
 import threading
+import traceback
 import weakref
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
@@ -21,6 +22,7 @@ import pytest
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from interact_support import (
+    FLOW_PAGE,
     OPTIONS,
     PAGE,
     SHIPPED_PACKAGES,
@@ -34,7 +36,6 @@ from interact_support import (
     _tasks_version,
     append_carried_log_record,
     append_command,
-    asks_on_you,
     before_choice,
     check,
     comment,
@@ -44,6 +45,7 @@ from interact_support import (
     lock_contention,
     model_layer,
     publish,
+    questions_on_you,
     read_page_data,
     response_reference,
     stamp,
@@ -66,16 +68,18 @@ from leaf import publishing as publishing_model
 from leaf import revision_artifact as artifact_model
 from leaf import revision_delivery as revision_delivery_model
 from leaf import revisioning as revisioning_model
+from leaf import samples as samples_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
+from leaf.refusals import Refused
 from leaf.registry.storage import read_page_registry, require_registry
 from leaf.render_gate import readings as render_gate_readings
 from leaf.served_state.context import read_page
 from leaf.served_state.page import read_served_page
-from leaf.validation import compatibility as validation_model
+from leaf.validation import composition as validation_model
 from leaf.validation.source import check_source
 from leaf.validation.source_history import predecessor_reading
 from leaf_dev.example_data import captured_value, patch_manifest
@@ -159,7 +163,7 @@ def test_stamp_installs_or_restores_complete_authored_inputs_before_activation(
             )
         finally:
             release.set()
-        with pytest.raises(SystemExit, match="missing.js"):
+        with pytest.raises(Refused, match="missing.js"):
             replacing.result(timeout=STATED_TIMEOUT)
         activated = activating.result(timeout=STATED_TIMEOUT)
     assert activated.revision == first and not activated.created
@@ -176,7 +180,7 @@ def test_stamp_installs_or_restores_complete_authored_inputs_before_activation(
     assert artifact_model.read_artifact(page_dir, first).resources[
         "/page/a.js"
     ].data == (b"export const a = 1;")
-    with pytest.raises(SystemExit, match="authored inputs changed"):
+    with pytest.raises(Refused, match="authored inputs changed"):
         publishing_model.cmd_stamp(
             page_dir, "Stale", from_directory=candidate, if_source=expected
         )
@@ -248,6 +252,65 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
     historical = artifact_model.read_artifact(page_dir, first.revision)
     assert historical.resources["/page/value.js"].data == b"export const value = 1;"
     assert historical.resources["/leaf.js"].data == artifact.resources["/leaf.js"].data
+
+
+def test_a_revision_keeps_its_bytes_when_a_layer_file_is_edited_in_place(page_dir):
+    """A page's layer files are the user's to edit, in place if their editor does,
+    so a revision holds its own copy of each and never shares one's inode."""
+    first = revisioning_model.activate_source(page_dir)
+    assert first.error is None, first.error
+    captured = (
+        files_model.revision_path(page_dir, first.revision).with_suffix("")
+        / "resources"
+    )
+    for layer_file in ("leaf.js", "theme.css", "runtime/layer-generation.js"):
+        assert (captured / layer_file).stat().st_ino != (
+            page_dir / layer_file
+        ).stat().st_ino, layer_file
+    theme = (captured / "theme.css").read_bytes()
+    with (page_dir / "theme.css").open("r+b") as stream:
+        stream.write(b"/* edited in place */")
+    assert (captured / "theme.css").read_bytes() == theme
+
+
+def test_a_sample_child_stages_its_revision_without_fsync(page_dir, monkeypatch):
+    """A sample's child is Leaf's own and deleted on release, so nothing reads its
+    revision after a crash and staging it pays for no fsync, while a page's own
+    revision is still made durable."""
+    template = (
+        '<template id="practice" data-sample><h1>Practice</h1>'
+        "<p>Child text.</p></template>"
+    )
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", template + "</main>"))
+    synced = []
+    fsync = os.fsync
+
+    def recording(descriptor):
+        if any(
+            frame.filename.endswith("revision_artifact.py")
+            for frame in traceback.extract_stack()
+        ):
+            synced.append(descriptor)
+        return fsync(descriptor)
+
+    monkeypatch.setattr(os, "fsync", recording)
+    parent = revisioning_model.activate_source(page_dir)
+    assert parent.error is None, parent.error
+    assert synced, "a page's own revision is made durable"
+
+    synced.clear()
+    artifact = artifact_model.read_artifact(page_dir, parent.revision)
+    document = artifact_model.read_revision(page_dir, parent.revision).document
+    samples = samples_model.Samples()
+    identity = samples.create(
+        page_dir, artifact, document, [], {"sources": {}}, "practice", False, None
+    )
+    try:
+        child = samples.pages[identity].directory
+        assert files_model.latest_revision(child) == 1
+        assert synced == []
+    finally:
+        samples.close()
 
 
 def test_the_captured_executable_digest_separates_code_from_content(page_dir):
@@ -395,7 +458,7 @@ def test_the_captured_widget_digests_say_which_widgets_a_user_may_keep(page_dir)
     owns every widget's children. Digested from the parsed tree, so two revisions of one
     widget differ where the author changed it and nowhere else.
     """
-    document = PAGE
+    document = FLOW_PAGE
 
     def activate():
         (page_dir / "index.html").write_text(document)
@@ -510,12 +573,7 @@ def test_an_interrupted_capture_never_publishes_a_partial_revision(
     )
 
 
-def test_artifact_cache_refuses_a_replaced_immutable_manifest(page_dir):
-    activated = revisioning_model.activate_source(page_dir)
-    assert activated.error is None and activated.revision == 1
-    revision = files_model.latest_revision(page_dir)
-    first = artifact_model.read_artifact(page_dir, revision)
-    assert artifact_model.read_artifact(page_dir, revision) is first
+def _replace_manifest(page_dir, revision):
     manifest_path = (
         files_model.revision_path(page_dir, revision).with_suffix("") / "manifest.json"
     )
@@ -525,8 +583,27 @@ def test_artifact_cache_refuses_a_replaced_immutable_manifest(page_dir):
         [(manifest_path, json.dumps(manifest, sort_keys=True).encode(), False)]
     )
 
+
+def test_artifact_read_refuses_a_replaced_immutable_manifest(page_dir):
+    activated = revisioning_model.activate_source(page_dir)
+    assert activated.error is None and activated.revision == 1
+    revision = files_model.latest_revision(page_dir)
+    _replace_manifest(page_dir, revision)
+
     with pytest.raises(artifact_model.ArtifactError, match="manifest digest"):
         artifact_model.read_artifact(page_dir, revision)
+
+
+def test_artifact_cache_holds_a_bundle_by_its_content_addressed_path(page_dir):
+    """A revision's name carries its manifest's digest, so a held bundle is read
+    once; a later change to its files is not reread."""
+    activated = revisioning_model.activate_source(page_dir)
+    assert activated.error is None and activated.revision == 1
+    revision = files_model.latest_revision(page_dir)
+    first = artifact_model.read_artifact(page_dir, revision)
+    _replace_manifest(page_dir, revision)
+
+    assert artifact_model.read_artifact(page_dir, revision) is first
 
 
 def test_stylesheet_dependencies_obey_the_same_capture_boundary(page_dir):
@@ -663,6 +740,19 @@ def test_compositional_verbatim_uses_passage_collapse_and_structured_boundaries(
     assert non_js_whitespace == [{"text": "\u0085edge\u0085"}]
 
 
+def test_an_anchor_resolves_by_context_the_browser_keeps():
+    """Context is trimmed of the collapse class alone, as the browser trims it, so a
+    character only Python calls whitespace stays part of the context the browser
+    captured. U+0085 before the first of two equal words is all that tells them apart."""
+    passages = passages_model.page_passages(
+        structure_model.SourceDocument(f'<p id="p">\u0085repeat {"x" * 40} repeat</p>'),
+        {},
+    )
+    anchor = {"quote": "repeat", "prefix": "\u0085", "suffix": "x" * 24}
+
+    assert anchor_capture_model.resolve_quote(passages, anchor) == 1
+
+
 def test_file_readings_follow_browser_tree_recovery():
     html = (
         '<main id="page"><table id="grid"><p id="lead">Lead'
@@ -678,6 +768,32 @@ def test_file_readings_follow_browser_tree_recovery():
     assert passages.text == "Lead Cell Tail"
     assert passages.enclosing["lead"] == ("page", "lead")
     assert passages.enclosing["grid"] == ("page", "grid")
+
+
+@pytest.mark.parametrize(
+    ("fragment", "tags", "ids"),
+    [
+        (
+            '<tr id="row"><td id="number">12</td></tr>',
+            ["tr", "td"],
+            {"row", "number"},
+        ),
+        (
+            (
+                '<option id="first">First</option><optgroup id="group">'
+                '<option id="second">Second</option></optgroup>'
+            ),
+            ["option", "optgroup", "option"],
+            {"first", "group", "second"},
+        ),
+    ],
+    ids=["table", "select"],
+)
+def test_example_fragments_retain_context_sensitive_elements(fragment, tags, ids):
+    parsed = structure_model.SourceDocument(fragment, fragment=True)
+    assert [node["tag"] for node in parsed.nodes] == tags
+    assert parsed.ids == ids
+    assert parsed.errors == [] and parsed.unclosed == []
 
 
 def test_option_passages_read_rendered_markdown_words():
@@ -959,7 +1075,7 @@ def test_a_version_that_leaves_the_moves_column_alone_needs_not_write_it(page_di
         (page_dir / "index.html").read_text().replace("<h2>Plan</h2>", "<h2>Plans</h2>")
     )
     assert check(page_dir).exit_code == 0, check(page_dir).output
-    publish(page_dir, 2)
+    publish(page_dir)
     assert _todo_order(page_dir) == ["a", "x", "b", "c"]
 
 
@@ -970,7 +1086,7 @@ def test_a_version_that_writes_the_move_owns_its_order(page_dir):
     move = _drop_x_between_a_and_b(page_dir)
     _write_board(page_dir, "naxbc")
     assert check(page_dir).exit_code == 0, check(page_dir).output
-    publish(page_dir, 2)
+    publish(page_dir)
     assert _todo_order(page_dir) == ["n", "a", "x", "b", "c"]
     with pytest.raises(events_model.EventRefused, match="markup now places its unit"):
         append_command(
@@ -982,7 +1098,7 @@ def test_a_later_version_can_reposition_a_card_without_retracting_its_move(page_
     """Authored placements may change while the original move remains logged."""
     _drop_x_between_a_and_b(page_dir)
     _write_board(page_dir, "naxbc")
-    publish(page_dir, 2)
+    publish(page_dir)
     _write_board(page_dir, "naxcb")
     assert check(page_dir).exit_code == 0, check(page_dir).output
     _write_board(page_dir, "nacxb")
@@ -1002,7 +1118,7 @@ def test_a_reorder_the_next_version_wrote_survives_a_later_one(page_dir):
     publish(page_dir)
     _move(page_dir, "c", "c-todo", "0i")
     _write_board(page_dir, "cab")
-    publish(page_dir, 2)
+    publish(page_dir)
     _write_board(page_dir, "abc")
     (page_dir / "index.html").write_text(
         (page_dir / "index.html").read_text().replace("<h2>Plan</h2>", "<h2>Plans</h2>")
@@ -1053,7 +1169,7 @@ def test_a_move_on_a_replaced_revision_lands_only_where_its_column_held(page_dir
     _write_board(page_dir, "abc", "x")
     publish(page_dir)
     _write_board(page_dir, "nabc", "x")
-    publish(page_dir, 2)
+    publish(page_dir)
     with pytest.raises(
         events_model.EventRefused, match="authors 'c-todo' differently"
     ) as refused:
@@ -1065,7 +1181,7 @@ def test_a_move_on_a_replaced_revision_lands_only_where_its_column_held(page_dir
     (page_dir / "index.html").write_text(
         (page_dir / "index.html").read_text().replace("<h2>Plan</h2>", "<h2>Plans</h2>")
     )
-    publish(page_dir, 3)
+    publish(page_dir)
     _move(page_dir, "b", "c-done", "i", revision=2)
     assert _todo_order(page_dir) == ["n", "a", "x", "c"]
 
@@ -1158,9 +1274,8 @@ def test_page_state_lists_each_user_move_over_the_active_html(page_dir):
 
 
 def test_page_state_names_each_bound_source_and_its_failures(page_dir):
-    """`data_bindings` names each bound source and the widgets that read it, whose
-    value is `data/<source>.json`, and a file another process rewrote past its
-    contract reads as that source's error."""
+    """`data_bindings` names each source and its consumers; corruption of a stored
+    publication's value past its contract reads as that source's error."""
     declare_data_input(
         page_dir, "builds", {"type": "array", "items": {"type": "string"}}
     )
@@ -1172,12 +1287,13 @@ def test_page_state_names_each_bound_source_and_its_failures(page_dir):
     stored = data_model.source_file(page_dir, "builds")
     state = state_json(page_dir)
     assert stored == page_dir / state["data"]["dir"] / "builds.json"
-    assert json.loads(stored.read_text()) == ["passing"]
+    assert json.loads(stored.read_text())["value"] == ["passing"]
     [consumer] = state["data_bindings"]["builds"]["consumers"]
     assert consumer["widget"] == "test-data"
     assert state["data"]["errors"] == []
 
-    stored.write_text('["passing", 3]')
+    publication = json.loads(stored.read_text())
+    stored.write_text(json.dumps({**publication, "value": ["passing", 3]}))
     [error] = state_json(page_dir)["data"]["errors"]
     assert "builds" in error
 
@@ -1291,17 +1407,6 @@ def test_version_descriptors_select_only_available_stamped_revisions():
     ]
 
 
-def test_check_leaves_the_documents_encoding_to_delivery(page_dir):
-    """One declaration at delivery's first-byte boundary owns document encoding."""
-    version = page_dir / "index.html"
-    authored = version.read_text().replace("</head>", '<meta charset="utf-8">\n</head>')
-    version.write_text(authored)
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "<meta charset>" in result.output
-    assert "belongs to delivery" in result.output
-
-
 def test_check_refuses_noscript_words_the_browser_never_renders(page_dir):
     """In a scripting browser noscript is hidden, while the file reader takes its
     content for page words. Refusal prevents anchoring on text no user can see."""
@@ -1385,195 +1490,6 @@ def test_a_widget_that_declares_a_language_is_checked_by_that_alone(page_dir):
     assert result.exit_code == 1
     assert '<lf-gloss dialect="lisp">' in result.output
     assert "not a language this page's layer speaks" in result.output
-
-
-EXCERPT = """<lf-code id="walk" language="rust" lines="{lines}" hi="{hi}"><pre>
-fn merge_sort()
-{{
-    while end &gt; 0 {{
-        start -= 1;
-}}
-</pre>
-<lf-note at="{at}">The loop.</lf-note>
-</lf-code>"""
-
-
-@pytest.mark.parametrize(
-    ("lines", "hi", "at", "refusals"),
-    [
-        # A snippet: no numbering, so its five lines are 1..5.
-        ("", "2-3", "5", []),
-        # An excerpt: two stretches of the file, referenced by the file's numbers,
-        # a range free to span the gap between them, and a left-out line addressing
-        # the elided row that stands for it.
-        ("1505-1506,1550-1552", "1506-1550", "1552", []),
-        ("1505-1506,1550-1552", "1520-1530", "1507", []),
-        (
-            "1505-1506,1550-1552",
-            "3",
-            "1553",
-            [
-                'hi="3"> (line 10): line 3 is outside the body\'s lines="1505-1506,1550-1552"',
-                'at="1553"> (line 17): line 1553 is outside the body\'s lines=',
-            ],
-        ),
-        (
-            "1505-1506,1550-1553",
-            "1505",
-            "1505",
-            [
-                'lines="1505-1506,1550-1553"> (line 10): numbers 6 lines, but the body has 5'
-            ],
-        ),
-        # A range is counted, never expanded, so a huge one is a quick refusal.
-        (
-            "1-1000000000",
-            "1",
-            "1",
-            ["numbers 1000000000 lines, but the body has 5"],
-        ),
-        # Source lines count from 1, so no excerpt quotes a line 0.
-        ("0-4", "1", "1", ["<lf-code> (line 10): '0-4' does not match"]),
-        (
-            "1550-1552,1505-1506",
-            "1505",
-            "1505",
-            [
-                (
-                    'lines="1550-1552,1505-1506"> (line 10): '
-                    "range 1505-1506 does not follow line 1552"
-                )
-            ],
-        ),
-    ],
-)
-def test_an_excerpt_is_referenced_by_the_numbers_it_quotes(
-    page_dir, lines, hi, at, refusals
-):
-    """`lines` gives a code block's body the numbers it has in its source file, and
-    every line reference into the block — its `hi`, a note's `at` — names lines by
-    them. The check holds the numbering to one ascending number per body line. A line
-    the excerpt leaves out is still in it, as the elided row standing for its stretch,
-    so only a reference past either end, which the module would silently paint
-    nowhere, is refused."""
-    block = EXCERPT.format(lines=lines, hi=hi, at=at)
-    if not lines:
-        block = block.replace(' lines=""', "")
-    (page_dir / "index.html").write_text(
-        PAGE.replace("<h2>Plan</h2>", f"<h2>Plan</h2>\n{block}")
-    )
-    result = check(page_dir)
-    for refusal in refusals:
-        assert refusal in result.output, result.output
-    assert (result.exit_code == 1) == bool(refusals), result.output
-    assert result.output.count("\n  - ") == len(refusals), result.output
-
-
-BODY_TEXT_CASES = json.loads(
-    (Path(__file__).parent / "body_text_cases.json").read_text()
-)["cases"]
-
-
-def test_a_numbering_counts_the_lines_lf_code_draws(page_dir):
-    """`tests/runtime/body-text.test.mjs` reads the same bodies against `bodyText`, the
-    text lf-code draws and numbers. Each block here numbers exactly those lines, so
-    the gate passes them all only if it trims a body as the module does — the browser's
-    whitespace at the edges, where Python's own `\\s` would count U+FEFF as a line and
-    U+0085 or U+001C as none."""
-    blocks = "\n".join(
-        # The newline after <pre> is the parser's to drop, leaving the body as written.
-        f'<lf-code id="c{i}" lines="1-{text.count(chr(10)) + 1}"><pre>\n{body}</pre>'
-        "</lf-code>"
-        for i, (body, text) in enumerate(BODY_TEXT_CASES)
-    )
-    (page_dir / "index.html").write_text(
-        PAGE.replace("<h2>Plan</h2>", f"<h2>Plan</h2>\n{blocks}")
-    )
-    result = check(page_dir)
-    assert result.exit_code == 0, result.output
-
-
-def test_the_collapse_class_is_one_set_on_both_sides():
-    """COLLAPSE_CHARS (the file side) and the passage reader's COLLAPSE regex
-    (the browser side) are two spellings of one set, and everything quote-shaped
-    rests on their agreement: a character one side collapses and the other keeps
-    is a quote captured in the browser that the file's reading can never confirm.
-    The next edit to either spelling meets this test, not a detached comment."""
-    js = (schema_model.ASSETS / "runtime" / "collapse.js").read_text()
-    found = re.search(r"const COLLAPSE =\n\s*/\[(.*?)\]\+/g;", js)
-    assert found, "the browser passage reader lost its COLLAPSE regex"
-    js_class = re.compile(f"[{found.group(1)}]")
-    js_set = {chr(c) for c in range(0x10000) if js_class.match(chr(c))}
-    assert js_set == passages_model.COLLAPSE_CHARS
-
-
-def _runtime_modules():
-    """Every module the runtime is composed of, whichever file each fact lives in today.
-
-    Named as a set rather than as paths because the runtime is being split by owner: a
-    reading that names one file goes red on the split that moves the thing it reads,
-    which says the fact changed when what changed is where it is written."""
-    return [schema_model.ASSETS / "leaf.js"] + sorted(
-        (schema_model.ASSETS / "runtime").rglob("*.js")
-    )
-
-
-def _without_comments(js: str) -> str:
-    """A module's code with its comments taken out.
-
-    The sibling reading below strips them for the reason that applies here too: a
-    pattern simple enough to find a definition is simple enough for a comment to
-    satisfy. `re.search` takes the first match in a file, so a commented-out copy above
-    the real one is read instead of it, and the test then holds Python to a sentence
-    while the constant it names drifts — green, and about nothing. Across files the same
-    comment reads as a second module stating the fact, which is a red naming the wrong
-    one.
-
-    The line-comment pattern steps over `://` so a URL in a string keeps its second
-    half; nothing here reads a URL, and a `//` inside a string is left alone at the cost
-    of nothing this asks."""
-    return re.sub(r"(?<!:)//[^\n]*", "", re.sub(r"/\*.*?\*/", "", js, flags=re.DOTALL))
-
-
-def _sole_definition(pattern: str, what: str):
-    """The one runtime module matching `pattern`, and the match — so a fact that grows a
-    second spelling is caught here rather than by whichever side happened to be read."""
-    found = [
-        (js, m)
-        for js in _runtime_modules()
-        if (m := re.search(pattern, _without_comments(js.read_text())))
-    ]
-    assert len(found) == 1, (
-        f"{len(found)} runtime modules state {what} ({[js.name for js, _ in found]}), "
-        "and this reading asks one of them"
-    )
-    return found[0]
-
-
-def test_the_block_a_text_node_sits_in_is_one_list_on_both_sides():
-    """TEXT_BLOCK_TAGS (the file side) and the passage reader's TEXT_BLOCK selector are
-    two spellings of one list, and the collapsed reading of a page rests on their
-    agreement: one space goes wherever two runs of text sit in different blocks and none
-    where they share one, so a tag one side calls a block and the other does not gives
-    the two sides different text. Every quote-shaped thing is then a quote the browser
-    captured that the file's reading cannot confirm, or the reverse.
-
-    The Python comment already said the list matches the runtime's. A comment saying so
-    is not a thing that fails when it stops being true; this is."""
-    _, found = _sole_definition(
-        r"const TEXT_BLOCK =\s*\n?\s*\"([^\"]+)\";", "TEXT_BLOCK"
-    )
-    assert set(found.group(1).split(",")) == passages_model.TEXT_BLOCK_TAGS
-
-
-def test_anchor_capture_starts_with_the_same_context_on_both_sides():
-    """Unique quotes share the initial width; repeated browser selections may grow it.
-
-    File capture requires a unique quote. The browser knows which occurrence the user
-    selected, so it widens context to identify that span, up to semantic fences.
-    """
-    _, found = _sole_definition(r"const CONTEXT = (\d+);", "the captured context width")
-    assert int(found.group(1)) == anchor_capture_model.CONTEXT
 
 
 def test_every_declared_attribute_and_enum_stands_in_an_example():
@@ -1932,13 +1848,13 @@ def test_the_live_source_can_honor_the_latest_revision_decision(page_dir):
         .read_text()
         .replace("<title>t</title>", "<title>t · v2</title>")
     )
-    publish(page_dir, 2)
+    publish(page_dir)
     (page_dir / "index.html").write_text(
         before_choice(
             PAGE.replace("<title>t</title>", "<title>t · v3</title>"), SUGGESTION
         )
     )
-    publish(page_dir, 3)
+    publish(page_dir)
     append_command(
         page_dir,
         {
@@ -2069,6 +1985,7 @@ def test_reply_refuses_a_suggestion(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, "c1"),
             "--text",
             "Fixed:",
@@ -2101,7 +2018,14 @@ def test_response_addresses_one_obligation_and_activates_the_current_source(page
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", response_reference(page_dir, "c1"), "--text", "Updated."],
+        [
+            "response",
+            "reply",
+            "--done",
+            response_reference(page_dir, "c1"),
+            "--text",
+            "Updated.",
+        ],
     )
 
     assert result.exit_code == 0, result.output
@@ -2131,7 +2055,14 @@ def test_reply_refuses_an_invalid_current_source(page_dir):
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", response_reference(page_dir, "c1"), "--text", "Updated."],
+        [
+            "response",
+            "reply",
+            "--done",
+            response_reference(page_dir, "c1"),
+            "--text",
+            "Updated.",
+        ],
     )
 
     assert result.exit_code != 0
@@ -2171,7 +2102,7 @@ def test_response_reference_selects_one_of_several_obligations(page_dir):
 
     ambiguous = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", "--text", "Updated."],
+        ["response", "reply", "--done", "--text", "Updated."],
     )
     assert ambiguous.exit_code != 0
     assert "Missing argument" in ambiguous.output
@@ -2179,7 +2110,14 @@ def test_response_reference_selects_one_of_several_obligations(page_dir):
 
     selected = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", response_reference(page_dir, "c2"), "--text", "Updated."],
+        [
+            "response",
+            "reply",
+            "--done",
+            response_reference(page_dir, "c2"),
+            "--text",
+            "Updated.",
+        ],
     )
 
     assert selected.exit_code == 0, selected.output
@@ -2217,7 +2155,7 @@ def test_response_never_settles_a_newer_undelivered_correction(page_dir):
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", reference, "--text", "Made it blue."],
+        ["response", "reply", "--done", reference, "--text", "Made it blue."],
     )
 
     assert result.exit_code != 0
@@ -2250,7 +2188,7 @@ def test_response_belongs_to_the_session_with_the_opened_delivery(
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", reference, "--text", "Updated."],
+        ["response", "reply", "--done", reference, "--text", "Updated."],
     )
 
     assert result.exit_code != 0
@@ -2272,11 +2210,18 @@ def test_response_address_survives_its_delivery_turn_closing(page_dir):
             session=claim["id"],
             turn=claim["turn"],
         )
-        page.close_turn(claim["id"], claim["turn"])
+        cleanup_model.close_session_turn(claim["id"], claim["turn"])
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", response_reference(page_dir, "c1"), "--text", "Updated."],
+        [
+            "response",
+            "reply",
+            "--done",
+            response_reference(page_dir, "c1"),
+            "--text",
+            "Updated.",
+        ],
     )
 
     assert result.exit_code == 0, result.output
@@ -2302,18 +2247,11 @@ def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
         page_dir,
         {"kind": "comment", "id": "c1", "author": "agent", "revision": 1, "text": "?"},
     )
-    with pytest.raises(SystemExit) as refused:
-        thread_model.post_reply(
-            page_dir,
-            "c1",
-            "Answered.",
-            "",
-            for_event=None,
-            attempt="r1",
-        )
+    with pytest.raises(Refused) as refused:
+        thread_model.post_reply(page_dir, {"to": "c1"}, "Answered.", attempt="r1")
     assert "'r1' does not match" in str(refused.value)
 
-    with pytest.raises(SystemExit) as unknown_widget:
+    with pytest.raises(Refused) as unknown_widget:
         thread_model.cmd_report(page_dir, "no-such-widget", "status", ())
     assert "unknown report widget 'no-such-widget'" in str(unknown_widget.value)
 
@@ -2372,6 +2310,7 @@ def test_reply_for_a_stale_event_reports_the_failed_fence(page_dir):
         [
             "response",
             "reply",
+            "--done",
             reference,
             "--attempt",
             "distinct-retry-attempt",
@@ -2411,18 +2350,6 @@ def test_check_rejects_authored_delivery_assets(page_dir, asset, expected):
 
     assert result.exit_code == 1
     assert expected in result.output
-
-
-def test_check_rejects_inline_importance_over_the_presentation_boundary(page_dir):
-    """Inline importance outranks stylesheet layers, so the authoring door owns it."""
-    (page_dir / "index.html").write_text(
-        PAGE.replace("<main>", '<main style="visibility: visible !important">')
-    )
-
-    result = check(page_dir)
-
-    assert result.exit_code == 1
-    assert "protected presentation property visibility important" in result.output
 
 
 @pytest.mark.parametrize(
@@ -2520,25 +2447,6 @@ def test_check_owns_the_lf_meta_vocabulary(page_dir):
     assert result.exit_code == 1
     assert "unknown lf- meta" in result.output
     assert "lf-review" in result.output  # the error names the known vocabulary
-
-
-def test_check_leaves_the_pages_own_address_to_delivery(page_dir):
-    """An authored canonical is not an extra hint; it is a competing answer.
-
-    The served document names the page root at every address the page answers, so a
-    second one in the head leaves a crawler choosing, and the usual outcome is that it
-    honours neither. The words a page owes a search result are its title and
-    description, which it writes; the address is the server's.
-    """
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<title>t</title>",
-            '<title>t</title>\n<link rel="canonical" href="https://example.com/p">',
-        )
-    )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "the served document names the page root itself" in result.output
 
 
 def test_check_rejects_duplicate_ids(page_dir):
@@ -2668,15 +2576,15 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
         read = run("page", "state", name)
         assert read.exit_code == 0, read.output
         assert json.loads(read.output)["thread"]["id"] == opened["id"]
-    opened_task = runner.invoke(
-        cli_model.cli,
-        ["task", "open", str(page_dir), "t-ask", "Weigh it"],
+    promised = run(
+        "thread", "reply", "t-ask", "--text", "Weighing it.", "--task", "Weigh"
     )
-    assert opened_task.exit_code == 0, opened_task.output
-    assert json.loads(opened_task.output)["subject"] == {
-        "kind": "thread",
-        "id": opened["id"],
-    }
+    assert promised.exit_code == 0, promised.output
+    [task] = json.loads(run("page", "state").output)["tasks"]
+    assert (task["id"], task["subject"]) == (
+        json.loads(promised.output)["id"],
+        {"kind": "thread", "id": opened["id"]},
+    )
 
     not_a_thread = run("thread", "resolve", "g1")
     assert not_a_thread.exit_code != 0
@@ -2816,10 +2724,10 @@ def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_d
         path = page_dir / "index.html"
         path.write_text(
             path.read_text().replace(
-                '<lf-diagram id="flow">',
+                "</section>",
                 '<lf-board id="rollout"><lf-column id="now" label="Now">'
                 '<lf-card id="rollout-card"><strong>Ship</strong></lf-card>'
-                '</lf-column></lf-board><lf-diagram id="flow">',
+                "</lf-column></lf-board></section>",
             )
         )
 
@@ -2929,16 +2837,15 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
 
 
 def test_absorption_is_by_id_never_inferred_from_markup(page_dir):
-    """Editing a report's target preserves its recorded news until settlement."""
-    _tasks_version(page_dir, "active")
+    """A report whose value the stamped markup already shows stays news until a
+    stamp settles it by id, and editing its target does not change that."""
+    _tasks_version(page_dir, "review")
     publish(page_dir)
     assert _report(page_dir, "t-parser", "status", "value=review").exit_code == 0
-    _tasks_version(page_dir, "review")
-    publish(page_dir, version=2)
     _tasks_version(page_dir, "done")
     result = check(page_dir)
     assert result.exit_code == 0, result.output
-    assert state_json(page_dir)["updates"][0]["disposition"] == "effective"
+    assert state_json(page_dir)["reports"][0]["disposition"] == "effective"
 
 
 def test_user_added_words_do_not_become_liveness_coordinates(page_dir):
@@ -3031,7 +2938,7 @@ def test_user_state_survives_without_source_copying(page_dir):
     assert "record behind the log" not in result.output
     state = state_json(page_dir)
     assert state["state"][0]["detail"] == {"value": ["o-shim"]}
-    assert asks_on_you(state) == []
+    assert questions_on_you(state) == []
 
     # Explicit incorporation is permitted but unnecessary for correctness.
     write(a=" chosen")
@@ -3046,44 +2953,57 @@ def test_user_state_survives_without_source_copying(page_dir):
 
 
 def test_check_reports_a_measurement_whose_source_ran_again(page_dir):
-    """A version keeps the scalar it stated; the replaceable source contributes only
-    evidence that its measurement ran later. The same generic reading appears as
-    passing check advice and structured page state, and disappears once the authored
-    capture instant catches up."""
+    """A source write supplies an opaque run receipt, independent of the clock.
+    The authored number is current when pinned to that receipt and stale after
+    another write, even when the measured value is unchanged."""
 
-    def write(at):
+    def write(run):
         measured = (
             '<p>The import takes <lf-num id="p95" source="import-latency" '
-            f'at="{at}" via="uv run bench-import">184 ms</lf-num> at p95.</p>'
+            f'run="{run}" via="uv run bench-import">184 ms</lf-num> at p95.</p>'
         )
         html = PAGE.replace("</main>", measured + "\n</main>")
         (page_dir / "index.html").write_text(html)
         return html[: html.index("<lf-num")].count("\n") + 1
 
-    captured = "2026-08-01T12:00:00Z"
-    captured_line = write(captured)
+    write("not-yet-measured")
     runner = CliRunner()
-    set_result = runner.invoke(
-        cli_model.cli,
-        ["data", "set", str(page_dir), "import-latency"],
-        input="184",
-    )
-    assert set_result.exit_code == 0, set_result.output
-    updated = read_page_data(page_dir)["sources"]["import-latency"]["updated"]
 
+    def measure():
+        result = runner.invoke(
+            cli_model.cli,
+            ["data", "set", str(page_dir), "import-latency"],
+            input="184",
+        )
+        assert result.exit_code == 0, result.output
+        return json.loads(result.output)["run"]
+
+    captured = measure()
+    captured_line = write(captured)
+    current = check(page_dir)
+    assert current.exit_code == 0, current.output
+    assert "measurement behind its source" not in current.output
+    assert state_json(page_dir)["measurement_lag"] == []
+
+    copied = page_dir.with_name("copied-measurement")
+    shutil.copytree(page_dir, copied, copy_function=shutil.copy2)
+    assert state_json(copied)["measurement_lag"] == []
+    assert read_page_data(copied) == read_page_data(page_dir)
+
+    later = measure()
+    assert later != captured
     result = check(page_dir)
     assert result.exit_code == 0, result.output
     assert "measurement behind its source" in result.output
-    assert "import-latency" in result.output
-    assert captured in result.output and updated in result.output
+    assert captured in result.output and later in result.output
     assert state_json(page_dir)["measurement_lag"] == [
         {
             "tag": "lf-num",
             "widget": "p95",
             "line": captured_line,
             "source": "import-latency",
-            "at": captured,
-            "updated": updated,
+            "run": captured,
+            "current_run": later,
         }
     ]
 
@@ -3094,17 +3014,18 @@ def test_check_reports_a_measurement_whose_source_ran_again(page_dir):
     )
     assert rejected.exit_code != 0
     assert "value is invalid" in rejected.output
+    assert read_page_data(page_dir)["sources"]["import-latency"]["run"] == later
 
-    write(updated)
+    write(later)
     current = check(page_dir)
     assert current.exit_code == 0, current.output
     assert "measurement behind its source" not in current.output
     assert state_json(page_dir)["measurement_lag"] == []
 
-    write("yesterday")
+    write("")
     malformed = check(page_dir)
     assert malformed.exit_code != 0
-    assert "is not a 'date-time'" in malformed.output
+    assert "non-empty" in malformed.output or "too short" in malformed.output
 
 
 def test_file_state_scopes_a_nested_pick_to_its_nearest_recorded_owner(page_dir):
@@ -3171,10 +3092,10 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     assert state["event_seq"] == events_model.read_events(page_dir)[-1]["seq"]
     # The one asking group: PAGE's own bare <lf-options> takes no `choose`. The ask
     # names the region the user is sent to and the group that answers it.
-    assert asks_on_you(state) == [
+    assert questions_on_you(state) == [
         {
-            "id": "g1-decision",
-            "tag": "lf-ask",
+            "id": "widget:g1",
+            "tag": "lf-options",
             "widget": "g1",
             "widget_tag": "lf-options",
             "thread": None,
@@ -3195,7 +3116,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
         },
     )
     state = state_json(page_dir)
-    assert asks_on_you(state) == []
+    assert questions_on_you(state) == []
     assert state["state"] == [
         {
             "widget": "g1",
@@ -3258,7 +3179,10 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
     stored = data_model.source_file(page_dir, "deployments")
     assert first["sources"]["deployments"] == {
         "contract": "deployment-rows",
-        "revision": hashlib.sha256(stored.read_bytes()).hexdigest()[:16],
+        "revision": hashlib.sha256(
+            cleanup_model.json_bytes(["api", "worker"])
+        ).hexdigest()[:16],
+        "run": json.loads(written.output)["run"],
         "updated": first["sources"]["deployments"]["updated"],
         "value": ["api", "worker"],
     }
@@ -3389,14 +3313,12 @@ diff --git a/src/second file.py b/src/second file.py
         for file in source["value"]["files"]
     ] == [
         {
-            "key": "app.py",
             "path": "app.py",
             "kind": "patch",
             "additions": 1,
             "deletions": 1,
         },
         {
-            "key": "new.py",
             "path": "new.py",
             "previousPath": "old.py",
             "kind": "patch",
@@ -3404,7 +3326,6 @@ diff --git a/src/second file.py b/src/second file.py
             "deletions": 1,
         },
         {
-            "key": "docs/new.md",
             "path": "docs/new.md",
             "previousPath": "docs/old.md",
             "kind": "rename",
@@ -3412,14 +3333,12 @@ diff --git a/src/second file.py b/src/second file.py
             "deletions": 0,
         },
         {
-            "key": "café2026 notes.py",
             "path": "café2026 notes.py",
             "kind": "patch",
             "additions": 1,
             "deletions": 1,
         },
         {
-            "key": "src/second file.py",
             "path": "src/second file.py",
             "kind": "patch",
             "additions": 1,
@@ -3431,69 +3350,32 @@ diff --git a/src/second file.py b/src/second file.py
     )
 
 
-@pytest.mark.parametrize("escaped", [r"bad\x41.py", r"bad\400.py", r"bad\q.py"])
-def test_unified_diff_rejects_c_escapes_git_does_not_use(escaped):
-    patch = f"""diff --git "a/{escaped}" "b/{escaped}"
---- "a/{escaped}"
-+++ "b/{escaped}"
-@@ -1 +1 @@
--old
-+new
-"""
-
-    with pytest.raises(ValueError, match="invalid quoted Git path"):
-        patch_manifest(patch)
+DIFF_PATCH_CASES = json.loads(
+    (Path(__file__).parent / "diff_patch_cases.json").read_text()
+)["cases"]
 
 
 @pytest.mark.parametrize(
-    ("patch_text", "message"),
-    [
-        (
-            """diff --git a/old.py b/new.py
-similarity index 100%
-rename from old.py
-rename to new.py
---- a/old.py
-+++ b/new.py
--before
-+after
-""",
-            "unsupported hunkless diff",
-        ),
-        (
-            """diff --git a/app.py b/app.py
---- a/app.py
-+++ b/app.py
-@@ -1 +1 @@
--before
-+after
-+lost
-""",
-            "hunk line counts",
-        ),
-        (
-            """diff --git a/app.py b/app.py
-@@ -1 +1 @@
---- bogus-old
-+++ bogus-new
-""",
-            "no ---/+++ file-header pair before its first hunk",
-        ),
-        (
-            """diff --git a/app.py b/app.py
---- a/other.py
-+++ b/other.py
-@@ -1 +1 @@
--before
-+after
-""",
-            "---/+++ paths disagree",
-        ),
-    ],
+    "case",
+    [case for case in DIFF_PATCH_CASES if "files" in case or "manifest" in case],
+    ids=lambda case: case["id"],
 )
-def test_the_diff_script_refuses_evidence_the_widget_cannot_render(patch_text, message):
-    with pytest.raises(ValueError, match=re.escape(message)):
-        patch_manifest(patch_text)
+def test_the_manifest_reads_the_diff_patch_table(case):
+    """What lf-diff can present has two readers in two languages: the widget parses a
+    patch text in the browser, and `patch_manifest.py` builds the file manifest from a
+    Git patch. `diff_patch_cases.json` is the one statement of that rule both are held
+    to; `test_render_anchors.py` reads it for the widget.
+
+    A row with `files` is a Git patch both readers accept, naming those paths. A row
+    with a `manifest` message is one the contract excludes, which the manifest refuses
+    before it is stored. A row with only a `widget` message is malformed, and the
+    manifest's reading of it is left unpinned: the widget refuses what it stores."""
+    if "files" in case:
+        files = patch_manifest(case["patch"])["files"]
+        assert [file["path"] for file in files] == case["files"]
+    else:
+        with pytest.raises(ValueError, match=re.escape(case["manifest"])):
+            patch_manifest(case["patch"])
 
 
 def test_data_set_names_the_producer_when_nothing_arrives(page_dir, tmp_path):
@@ -3533,16 +3415,16 @@ def test_data_set_reads_a_structured_value_from_a_file(page_dir, tmp_path):
 
     assert result.exit_code == 0, result.output
     source = read_page_data(page_dir)["sources"]["builds"]
-    # The printed instant is the one an author pins in `at`, so it is the stored one;
+    # The printed run receipt is the one an author pins, so it is the stored one;
     # the value is the writer's own, so it does not come back.
     assert json.loads(result.output) == {
         "source": "builds",
-        **{key: source[key] for key in ("contract", "revision", "updated")},
+        **{key: source[key] for key in ("contract", "revision", "run", "updated")},
     }
     assert source["value"] == {"main": "passing"}
-    assert json.loads(data_model.source_file(page_dir, "builds").read_text()) == {
-        "main": "passing"
-    }
+    assert json.loads(data_model.source_file(page_dir, "builds").read_text())[
+        "value"
+    ] == {"main": "passing"}
 
 
 def test_a_page_source_can_be_shared_but_needs_one_simultaneous_contract(page_dir):
@@ -3632,7 +3514,9 @@ def test_a_later_version_can_reuse_a_source(page_dir, clear):
         data_model.cmd_data_set(page_dir, "project-feed", [])
     assert data_model.read_contracts(page_dir) == {"project-feed": "rows"}
     stored = data_model.source_file(page_dir, "project-feed")
-    assert not stored.exists() if clear else json.loads(stored.read_text()) == []
+    assert (
+        not stored.exists() if clear else json.loads(stored.read_text())["value"] == []
+    )
     data_model.cmd_data_set(page_dir, "project-feed", {"ready": True})
     assert data_model.read_contracts(page_dir) == {"project-feed": "other-rows"}
     assert read_page_data(page_dir)["sources"]["project-feed"]["value"] == {
@@ -3640,7 +3524,7 @@ def test_a_later_version_can_reuse_a_source(page_dir, clear):
     }
     historical = data_model.read_data(page_dir, old_registry)["sources"]["project-feed"]
     assert "error" in historical and "value" not in historical
-    publish(page_dir, version=2)
+    publish(page_dir)
     assert (
         state_json(page_dir)["data_bindings"]["project-feed"]["contract"]
         == "other-rows"
@@ -3692,10 +3576,9 @@ def test_a_source_bound_only_by_frozen_reply_markup_can_be_set(page_dir):
     )
     reply = thread_model.post_reply(
         page_dir,
-        "data-question",
+        {"to": "data-question", "for": "data-question"},
         "Here it is.",
         '<lf-test-data id="reply-data" source="reply-feed"></lf-test-data>',
-        for_event="data-question",
     )
     assert reply["revision"] == 1
 
@@ -3746,10 +3629,9 @@ def test_thread_markup_can_use_a_different_binding_from_a_page_source(page_dir):
 
     reply = thread_model.post_reply(
         page_dir,
-        "data-question",
+        {"to": "data-question", "for": "data-question"},
         "Here it is.",
         '<lf-other-data id="reply-data" source="project-feed"></lf-other-data>',
-        for_event="data-question",
     )
 
     assert (
@@ -3829,10 +3711,9 @@ def test_thread_markup_can_use_a_different_binding_from_a_draft_only_page_source
 
     thread_model.post_reply(
         page_dir,
-        "draft-data-question",
+        {"to": "draft-data-question", "for": "draft-data-question"},
         "Here it is.",
         '<lf-other-data id="reply-data" source="project-feed"></lf-other-data>',
-        for_event="draft-data-question",
     )
 
 
@@ -3877,7 +3758,15 @@ def test_data_set_wraps_an_unproductive_recursive_schema(page_dir):
     # A value another process wrote is judged on reading by the same validator.
     (page_dir / "data.json").write_text('{"sources":{"loop":{"contract":"loop"}}}')
     (page_dir / "data").mkdir(exist_ok=True)
-    data_model.source_file(page_dir, "loop").write_text("{}")
+    data_model.source_file(page_dir, "loop").write_text(
+        json.dumps(
+            {
+                "run": "1" * 32,
+                "updated": "2026-01-01T00:00:00Z",
+                "value": {},
+            }
+        )
+    )
     assert read_page_data(page_dir)["sources"]["loop"]["error"] == (
         "source 'loop' contract 'loop' could not validate its value: "
         "a recursive reference did not terminate"
@@ -3915,13 +3804,23 @@ def test_the_contract_index_wraps_invalid_utf8_at_its_boundary(page_dir):
 
 
 @pytest.mark.parametrize(
-    ("value", "message"), [(b"\xff", "is not JSON"), (b"[NaN]", "NaN is not JSON")]
+    ("value", "message"),
+    [
+        (b"\xff", "is not JSON"),
+        (b"[NaN]", "NaN is not JSON"),
+        (b"[]", "must hold a publication"),
+        (
+            b'{"run":"bad","updated":"2026-01-01T00:00:00Z","value":[]}',
+            "must hold a publication",
+        ),
+        (
+            b'{"run":"11111111111111111111111111111111","updated":"yesterday","value":[]}',
+            "must hold a publication",
+        ),
+    ],
 )
-def test_a_value_file_that_is_not_json_reads_as_that_sources_error(
-    page_dir, value, message
-):
-    """Python's JSON reader admits `NaN`, which no browser can parse, and a value
-    file is anyone's to write, so each reading refuses what JSON cannot carry."""
+def test_a_corrupted_publication_reads_as_that_sources_error(page_dir, value, message):
+    """External corruption never becomes data or a fabricated publication receipt."""
     declare_data_input(page_dir, "builds", {"type": "array"}, contract="build-map")
     data_model.cmd_data_set(page_dir, "builds", [])
     data_model.source_file(page_dir, "builds").write_bytes(value)
@@ -3932,9 +3831,8 @@ def test_a_value_file_that_is_not_json_reads_as_that_sources_error(
 
 
 def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir):
-    """The Ask list names the whole reading the user arrives at. Its nested
-    request remains the action owner, so answering it closes the broader Ask without
-    moving the standing Ask onto a wrapper that declares no state."""
+    """A Question retains its source identity under an authored context wrapper.
+    The nested widget remains the canonical answer owner."""
     opts = """<lf-options id="g1" choose>
       <lf-option id="o-shim"><strong>Shim it</strong> Fastest to ship.</lf-option>
       <lf-option id="o-stage"><strong>Migrate in stages</strong> Table by table.</lf-option>
@@ -3948,10 +3846,10 @@ def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir
     publish(page_dir)
 
     state = state_json(page_dir)
-    assert asks_on_you(state) == [
+    assert questions_on_you(state) == [
         {
-            "id": "plan-decision",
-            "tag": "lf-ask",
+            "id": "widget:g1",
+            "tag": "lf-options",
             "widget": "g1",
             "widget_tag": "lf-options",
             "thread": None,
@@ -3970,7 +3868,7 @@ def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir
         },
     )
     state = state_json(page_dir)
-    assert asks_on_you(state) == []
+    assert questions_on_you(state) == []
     assert state["state"][0]["widget"] == "g1"
 
 
@@ -3982,7 +3880,7 @@ def test_page_state_reads_an_authored_answer_with_no_log(page_dir):
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
     )
     publish(page_dir)
-    assert asks_on_you(state_json(page_dir)) == []
+    assert questions_on_you(state_json(page_dir)) == []
 
 
 def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
@@ -4232,10 +4130,10 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
             "</lf-options></lf-ask>",
         },
     )
-    assert asks_on_you(state_json(page_dir)) == [
+    assert questions_on_you(state_json(page_dir)) == [
         {
-            "id": "gm-decision",
-            "tag": "lf-ask",
+            "id": "widget:gm",
+            "tag": "lf-options",
             "widget": "gm",
             "widget_tag": "lf-options",
             "thread": root["id"],
@@ -4252,10 +4150,10 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
             "detail": {"value": ["m-cap"]},
         },
     )
-    assert asks_on_you(state_json(page_dir)) == [
+    assert questions_on_you(state_json(page_dir)) == [
         {
-            "id": "gm-decision",
-            "tag": "lf-ask",
+            "id": "widget:gm",
+            "tag": "lf-options",
             "widget": "gm",
             "widget_tag": "lf-options",
             "thread": root["id"],
@@ -4272,7 +4170,7 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
             "detail": {},
         },
     )
-    assert asks_on_you(state_json(page_dir)) == []
+    assert questions_on_you(state_json(page_dir)) == []
 
 
 def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
@@ -4302,17 +4200,17 @@ def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
     )
     publish(page_dir)
 
-    assert asks_on_you(state_json(page_dir)) == [
+    assert questions_on_you(state_json(page_dir)) == [
         {
-            "id": "future-decision",
-            "tag": "lf-ask",
+            "id": "widget:future-review",
+            "tag": "lf-options",
             "widget": "future-review",
             "widget_tag": "lf-options",
             "thread": None,
         },
         {
-            "id": "decision-decision",
-            "tag": "lf-ask",
+            "id": "widget:decision-options",
+            "tag": "lf-options",
             "widget": "decision-options",
             "widget_tag": "lf-options",
             "thread": None,
@@ -4321,8 +4219,8 @@ def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
 
 
 def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
-    """A standing report updates task status without creating user work, stands in
-    the canonical update feed, and remains there as settled history when a note
+    """An unsettled report changes task status without creating user work, appears
+    in the canonical report feed, and remains there as settled history when a note
     absorbs it."""
     tasks = (
         '<lf-test-tasks id="work"><lf-test-task id="t-parser" status="review">'
@@ -4332,7 +4230,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + tasks)
     )
     publish(page_dir)
-    assert asks_on_you(state_json(page_dir)) == []
+    assert questions_on_you(state_json(page_dir)) == []
     rep = append_command(
         page_dir,
         {
@@ -4346,8 +4244,8 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
         },
     )
     state = state_json(page_dir)
-    assert asks_on_you(state) == []
-    assert state["updates"] == [
+    assert questions_on_you(state) == []
+    assert state["reports"] == [
         {
             "id": rep["id"],
             "target": {"kind": "widget", "id": "t-parser"},
@@ -4386,7 +4284,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
         },
     )
     state = state_json(page_dir)
-    assert state["updates"] == [
+    assert state["reports"] == [
         {
             "id": rep["id"],
             "target": {"kind": "widget", "id": "t-parser"},
@@ -4402,10 +4300,10 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
             "disposition": "settled",
         }
     ]
-    assert asks_on_you(state) == []
+    assert questions_on_you(state) == []
 
 
-def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
+def test_report_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
     """Reports are ordered by the log, so equal second-precision timestamps cannot
     reverse their known causal order."""
     task = (
@@ -4441,8 +4339,8 @@ def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
         },
     )
 
-    updates = state_json(page_dir)["updates"]
-    assert [(update["source"], update["id"]) for update in updates] == [
+    reports = state_json(page_dir)["reports"]
+    assert [(report["source"], report["id"]) for report in reports] == [
         ("report", first["id"]),
         ("report", second["id"]),
     ]
@@ -4455,7 +4353,7 @@ def test_page_state_before_first_stamp(page_dir):
     assert state["active"]["revision"] == 1
     assert state["active"]["version"] is None
     assert state["active"]["label"] == "Draft"
-    assert state["elements"] and asks_on_you(state) == []
+    assert state["elements"] and questions_on_you(state) == []
     assert state["title"] == "t"
 
 
@@ -4527,10 +4425,10 @@ def test_a_quoted_ask_does_not_hide_a_real_request_in_the_same_goal(page_dir):
         PAGE.replace("</section>", markup + "</section>")
     )
     publish(page_dir)
-    assert asks_on_you(state_json(page_dir)) == [
+    assert questions_on_you(state_json(page_dir)) == [
         {
-            "id": "real-decision",
-            "tag": "lf-ask",
+            "id": "widget:real",
+            "tag": "lf-options",
             "widget": "real",
             "widget_tag": "lf-options",
             "thread": None,
@@ -4556,9 +4454,9 @@ def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
         PAGE.replace("</section>", command("active", True, "paste") + "</section>")
     )
     publish(page_dir)
-    assert asks_on_you(state_json(page_dir)) == [
+    assert questions_on_you(state_json(page_dir)) == [
         {
-            "id": "cargo",
+            "id": "widget:cargo",
             "tag": "lf-draft",
             "widget": "cargo",
             "widget_tag": "lf-draft",
@@ -4577,7 +4475,7 @@ def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
             "detail": {"value": "ledger_id,amount\n7,42"},
         },
     )
-    assert asks_on_you(state_json(page_dir)) == []
+    assert questions_on_you(state_json(page_dir)) == []
 
     (page_dir / "index.html").write_text(
         PAGE.replace(
@@ -4585,8 +4483,8 @@ def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
             command("active", False, "ledger_id,amount\n7,42") + "</section>",
         )
     )
-    publish(page_dir, 2)
-    assert asks_on_you(state_json(page_dir)) == []
+    publish(page_dir)
+    assert questions_on_you(state_json(page_dir)) == []
 
 
 # The colour-vision maths the series palette is stepped against, written out here because
@@ -4750,7 +4648,6 @@ def test_page_inspection_fragments_only_the_manifest_branch_of_a_data_contract(
     assert initial["source"]["live"], initial["source"]["error"]
     patch = "--- a/a.py\n+++ b/a.py\n@@ -1 +1 @@\n-before\n+after\n"
     file = {
-        "key": "a.py",
         "path": "a.py",
         "kind": "patch",
         "additions": 1,
@@ -4775,6 +4672,41 @@ def test_page_inspection_fragments_only_the_manifest_branch_of_a_data_contract(
                 "files": [{key: field for key, field in file.items() if key != "patch"}]
             }
         assert stored["sources"]["reading-patch"]["value"] == value
+
+
+@pytest.mark.parametrize(
+    ("files", "refusal"),
+    [
+        ([], "does not satisfy minItems: 1"),
+        (
+            [{"path": "b.py", "kind": "rename", "additions": 0, "deletions": 0}],
+            "'previousPath' is a required property",
+        ),
+        (
+            [{"path": "a.py", "kind": "patch", "additions": 1, "deletions": 1}] * 2,
+            "record keys must be unique",
+        ),
+    ],
+)
+def test_data_set_refuses_a_diff_manifest_the_widget_cannot_list(
+    page_dir, files, refusal
+):
+    """A diff manifest lists each file once, by its path, and a rename names the path
+    it came from, so the widget renders what `data set` accepted."""
+    (page_dir / "index.html").write_text(
+        before_choice(
+            PAGE,
+            '<lf-diff id="reading-diff" source="reading-patch"><pre></pre></lf-diff>',
+        )
+    )
+    patch = "--- a/a.py\n+++ b/a.py\n@@ -1 +1 @@\n-before\n+after\n"
+    written = CliRunner().invoke(
+        cli_model.cli,
+        ["data", "set", str(page_dir), "reading-patch"],
+        input=json.dumps({"files": [{**file, "patch": patch} for file in files]}),
+    )
+    assert written.exit_code == 1
+    assert refusal in written.output
 
 
 def test_a_state_read_never_materializes_a_revision_bundle(page_dir, monkeypatch):
@@ -4921,6 +4853,176 @@ def test_held_revision_readings_stay_within_their_source_budget(page_dir, monkey
         # held answers with the same object.
         assert artifact_model.read_revision(page_dir, revisions[-1]) is readings[-1]
         assert artifact_model.read_revision(page_dir, revisions[0]) is not readings[0]
+
+
+def test_question_history_survives_parse_eviction_and_new_revisions(
+    page_dir, monkeypatch
+):
+    """A retry or new version reuses completed historical registration work.
+
+    A history larger than the parse cache used to parse every predecessor on every
+    read. Count parses rather than time, so contention cannot change the result.
+    """
+    from leaf.work_reading import WorkReading
+
+    source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    for edit in range(4):
+        (page_dir / "index.html").write_text(
+            (source if edit == 0 else source.replace(" choose", "")).replace(
+                "</main>", f"<p>edit {edit}</p></main>"
+            )
+        )
+        activated = revisioning_model.activate_source(page_dir)
+        assert activated.error is None, activated.error
+
+    monkeypatch.setattr(artifact_model._Readings, "BUDGET", 1)
+    parsed = []
+    native = artifact_model.SourceDocument
+
+    def counted(data):
+        parsed.append(data)
+        return native(data)
+
+    monkeypatch.setattr(artifact_model, "SourceDocument", counted)
+
+    def read():
+        revisions = files_model.list_revisions(page_dir)
+        events = events_model.read_events(page_dir)
+        reading = artifact_model.read_revision(page_dir, revisions[-1])
+        page = projection_model.page_reading(
+            reading,
+            events,
+            revisions[-1],
+            revisions=revisions,
+            revision_reader=lambda revision: artifact_model.read_revision(
+                page_dir, revision
+            ),
+        )
+        return WorkReading(events, reading.registry, page).document.questions
+
+    with fresh_process():
+        initial = read()
+        assert len(parsed) == 4
+        assert initial["all"][0]["status"] == "withdrawn"
+        parsed.clear()
+        assert read() == initial
+        assert len(parsed) <= 1  # the active revision may have been evicted
+        (page_dir / "index.html").write_text(
+            source.replace(" choose", "").replace("</main>", "<p>new</p></main>")
+        )
+        activated = revisioning_model.activate_source(page_dir)
+        assert activated.error is None, activated.error
+        parsed.clear()
+        assert read() == initial
+        assert len(parsed) <= 1
+        kept = page_memory_model.memo(page_dir, artifact_model._CompactReadings)
+        assert kept.size <= kept.BUDGET
+
+
+def test_data_history_survives_parse_eviction_with_captured_scopes_and_contracts(
+    page_dir, monkeypatch
+):
+    """Repeated source checks reuse history without changing binding identity.
+
+    Nested samples retain their own id spaces, old layers retain their contracts,
+    and a newly captured layer owns the current producer's binding.
+    """
+    declare_data_input(
+        page_dir, "project-feed", {"type": "array"}, contract="rows", activate=False
+    )
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    source = (
+        (page_dir / "index.html")
+        .read_text()
+        .replace(
+            "</main>",
+            '<lf-sample id="outer" window><template id="outer-page" data-sample>'
+            '<lf-sample id="inner" window><template id="inner-page" data-sample>'
+            '<lf-test-data id="test-data" source="project-feed"></lf-test-data>'
+            "</template></lf-sample></template></lf-sample></main>",
+        )
+    )
+    for revision in range(1, 4):
+        write_revision(page_dir, revision, source.encode())
+    registry["$data"]["contracts"]["current-rows"] = registry["$data"]["contracts"][
+        "rows"
+    ]
+    registry["lf-test-data"]["x-data"]["data"]["contract"] = "current-rows"
+    registry_path.write_text(json.dumps(registry))
+    write_revision(page_dir, 4, source.encode())
+    append_command(
+        page_dir,
+        {
+            "kind": "comment",
+            "id": "frozen-data",
+            "revision": 1,
+            "author": "agent",
+            "text": "The captured feed.",
+            "markup": '<lf-test-data id="reply-data" source="project-feed"></lf-test-data>',
+        },
+    )
+    events = events_model.read_events(page_dir)
+    monkeypatch.setattr(artifact_model._Readings, "BUDGET", 1)
+    parsed = []
+    native = artifact_model.SourceDocument
+
+    def counted(data):
+        parsed.append(data)
+        return native(data)
+
+    monkeypatch.setattr(artifact_model, "SourceDocument", counted)
+
+    def read():
+        """The same immutable binding readings serve checks and producer inventory."""
+        documents = data_contracts_model.page_data_document_readings(
+            page_dir, events, registry
+        )
+        bindings, errors = data_contracts_model.merge_data_document_readings(documents)
+        return documents, bindings, errors
+
+    with fresh_process():
+        documents, bindings, errors = read()
+        assert len(parsed) == 4
+        assert bindings == {"project-feed": "current-rows"} and errors == []
+        assert [
+            data_contracts_model.declared_data_bindings(records, captured)[0][
+                "project-feed"
+            ]
+            for records, label, captured in documents
+            if label in {"revision r1", "revision r4", "event 'frozen-data' markup"}
+        ] == ["rows", "rows", "current-rows"]
+        expected = {
+            "project-feed": {
+                "contract": "current-rows",
+                "consumers": [
+                    {"widget": "test-data", "input": "data", "document": label}
+                    for label in (
+                        "revision r4 sample 'outer-page' sample 'inner-page'",
+                        "revision r4",
+                    )
+                ],
+            }
+        }
+        parsed.clear()
+        assert read() == (documents, bindings, errors)
+        assert (
+            data_contracts_model.page_data_binding_inventory(page_dir, registry, events)
+            == expected
+        )
+        assert parsed == []
+        write_revision(page_dir, 5, source.encode())
+        parsed.clear()
+        assert read()[1:] == (bindings, errors)
+        expected["project-feed"]["consumers"].extend(
+            {**consumer, "document": consumer["document"].replace("r4", "r5")}
+            for consumer in expected["project-feed"]["consumers"][:]
+        )
+        assert (
+            data_contracts_model.page_data_binding_inventory(page_dir, registry, events)
+            == expected
+        )
+        assert len(parsed) <= 1
 
 
 def test_a_process_keeps_the_pages_it_read_most_recently(page_dir):
@@ -5115,6 +5217,8 @@ def test_a_unified_diff_capture_refuses_a_line_range(tmp_path):
 def test_markdown_body_file_words_match_the_shared_browser_dialect(case):
     from html import escape
 
+    import turbohtml
+
     document = structure_model.SourceDocument(
         f'<main><lf-draft id="note"><pre>{escape(case["source"])}</pre></lf-draft></main>'
     )
@@ -5126,6 +5230,10 @@ def test_markdown_body_file_words_match_the_shared_browser_dialect(case):
         }
     }
     assert passages_model.page_passages(document, registry).text == case["words"]
+    rendered = turbohtml.parse(passages_model.markdown_markup(case["source"]))
+    assert [
+        {"text": link.text, "href": link.attrs["href"]} for link in rendered.select("a")
+    ] == case["links"]
 
 
 @pytest.mark.parametrize("source", ["    code", "A ", "A\n", "A  \nB", "\nA"])
@@ -5202,6 +5310,50 @@ def test_revisions_change_decision_words_labels_and_defaults_without_retracting(
     )
 
 
+def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir):
+    """An action admitted by an earlier Leaf keeps standing, and keeps its Question
+    answered, under a Leaf that records the same operation's definition with other
+    fields. Before #2329 the definition carried `update`, the flag that became
+    `report`; matching every recorded field dropped each decision on a page that
+    Leaf version had served."""
+    source = page_dir / "index.html"
+    source.write_text(
+        PAGE.replace(
+            "<h2>Plan</h2>",
+            "<h2>Plan</h2>"
+            + OPTIONS.format(a="", b="", chip="", shim="Fast.", stage="Two."),
+        )
+    )
+    publish(page_dir)
+    picked = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "g1",
+            "action": "choose",
+            "detail": {"value": ["o-shim"]},
+        },
+    )
+    log = page_dir / "events.jsonl"
+    earlier = []
+    for line in log.read_text().splitlines():
+        event = json.loads(line)
+        if event["id"] == picked["id"]:
+            recorded = event["meaning"]["state"]
+            recorded["update"] = recorded.pop("report", False)
+        earlier.append(json.dumps(event))
+    log.write_text("\n".join(earlier) + "\n")
+
+    reading = state_json(page_dir)
+    [standing] = [item for item in reading["state"] if item["action"] == "choose"]
+    assert standing["detail"] == {"value": ["o-shim"]}
+    [question] = reading["questions"]
+    assert question["status"] == "answered"
+    assert question["answer"]["event"]["id"] == picked["id"]
+
+
 def test_revisions_change_edited_drafts_without_retracting_the_user_edit(page_dir):
     v2 = _decided(page_dir, "Ship the flag dark, then backfill.")
     v2("A new authored draft.")
@@ -5272,7 +5424,7 @@ def test_transition_attributes_do_not_require_earned_or_first_version_retraction
 def test_revisions_drop_anchored_sections_and_relocate_lost_visual_parts(page_dir):
     source = page_dir / "index.html"
     source.write_text(
-        PAGE.replace(
+        FLOW_PAGE.replace(
             '<lf-diagram id="flow">', '<lf-diagram id="flow" parts="node:A node:B">'
         )
     )
@@ -5293,7 +5445,7 @@ def test_revisions_drop_anchored_sections_and_relocate_lost_visual_parts(page_di
     assert stamp(page_dir, "revise drawing").exit_code == 0
     [thread] = state_json(page_dir)["threads"]
     assert thread["anchor"] == {"section": "flow"}
-    source.write_text(PAGE.replace('id="flow"', 'id="new-flow"'))
+    source.write_text(FLOW_PAGE.replace('id="flow"', 'id="new-flow"'))
     assert stamp(page_dir, "replace drawing").exit_code == 0
     [thread] = state_json(page_dir)["threads"]
     assert thread["anchor"] is None

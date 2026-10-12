@@ -1,12 +1,21 @@
 import {
-  ADDRESSABLE,
   inChrome,
   matchesWhen,
   quoted,
+  TEXT_BOX,
   textNodesUnder,
-  upFrom,
 } from "/runtime/widget-api.js";
-import { unrevealedVisualParts, visualPartProblems } from "/runtime/check-api.js";
+import {
+  ADDRESSABLE,
+  commandDeclarationsWithin,
+  commandRoutes,
+  pageDocument,
+  unrevealedVisualParts,
+  upFrom,
+  userScrollport,
+  visualPartProblems,
+} from "/runtime/check-api.js";
+import { at as locate } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
 const PAINT_PROBE = "--_leaf-render-paint-value";
@@ -48,7 +57,7 @@ const renderedAt = (element) => {
 // properties. Resolve each value through a temporary custom property in the element's
 // live cascade, then let the browser validate the resulting tokens for that property.
 export function invalidPaints() {
-  if (!document.querySelector("main")) return [];
+  if (!pageDocument()) return [];
   const properties = [
     "color",
     "fill",
@@ -190,21 +199,21 @@ export function undeclaredAttrs(declarations) {
 }
 
 // The two sides of the settlement contract, compared on the rendered page. The mark —
-// data-lf-state on a holder — is the layer's paint of a logged decision (projection
-// reconciliation in leaf.js), and the anchor pass retires slots by it, so whatever it
-// says, the page's
-// reading obeys. What can still go wrong is a family's, and both failures render
-// perfectly: a module that writes the mark where the log decided nothing silences words
-// the user can still see and select, and a settled slot can show its words anyway — a
-// later layer's rule outranking the default hide, a module re-showing what it folded —
-// leaving the user selecting words no comment can anchor to, with the refusal
-// arriving later, at `leaf thread open`, nowhere near the mistake. So the expected outcome
-// comes from the file's reading (`decisions`, folded over this version's log), never
-// from the page, and the page answers only for what it shows.
+// data-lf-state on a holder — is the layer's paint of a logged decision
+// (`projection/presentation.js`, `paintSettlements`) for CSS to style; the anchor pass
+// retires slots by the application's reading of the same decision, never by the mark.
+// What can still go wrong is a family's, and both failures render perfectly: a module
+// that writes the mark where the log decided nothing styles words as settled that the
+// page still reads, and a settled slot can show its words anyway — a later layer's
+// rule outranking the default hide, a module re-showing what it folded — leaving the
+// user selecting words no comment can anchor to, with the refusal arriving later, at
+// `leaf thread open`, nowhere near the mistake. So the expected outcome comes from the
+// file's reading (`decisions`, folded over this version's log), never from the page,
+// and the page answers only for what it shows.
 //
 // The words walk is textNodesUnder's `unsilenced` reading, on purpose: the anchor
-// pass's `says` already skips a marked holder's slots, so asking it whether
-// the retired words are gone would let the mark answer for the screen. What it keeps
+// pass's `says` already skips a settled holder's slots, so asking it whether the
+// retired words are gone would let the decision answer for the screen. What it keeps
 // of that reading is the boundary — declared shadow roots, the same trees replay's
 // elementById marks across, which is why the holders are found through OPEN_ROOTS
 // too — and the chrome test: a declared label is the page's words, so a
@@ -252,8 +261,7 @@ export function retiredSlots(holders) {
       found.push(
         `${at} wears data-lf-state=${JSON.stringify(mark)} where the ` +
           `log records ${log} — the mark is the layer's paint of a logged ` +
-          `decision, and the anchor pass retires slots by it, so a module may ` +
-          `say only what the log decided`,
+          `decision, so a module may say only what the log decided`,
       );
       continue;
     }
@@ -376,4 +384,120 @@ export function changedBoxes() {
     first: { width: first.width, height: first.height },
     now,
   }));
+}
+
+// How tall a block `heldScrollers` adds to a box: taller than any widget's own bound.
+const ADDED_BLOCK = 4000;
+const WRITTEN_IN = `input, select, ${TEXT_BOX}`;
+
+// Whether `box`'s CSS asks it to scroll vertically. Beside an `auto` inline axis CSS
+// computes a `visible` block axis to `auto`, so a box that scrolls only sideways reads
+// as a vertical scroller too; with its inline axis set back to `visible` for one read,
+// only an asked-for vertical scroll remains.
+const asksVerticalScroll = (box) => {
+  const style = box.getAttribute("style");
+  box.style.setProperty("overflow-x", "visible", "important");
+  const asked = userScrollport(getComputedStyle(box).overflowY);
+  if (style === null) box.removeAttribute("style");
+  else box.setAttribute("style", style);
+  return asked;
+};
+
+const overflowsVertically = (box) => box.scrollHeight > box.clientHeight + ROUNDING;
+
+// Each box in one of `tags`' widgets that holds its own height and scrolls inside it
+// without saying so. A widget in ordinary flow grows with its content, and a box that
+// needs a scroll of its own declares `--lf-holds-height: 1`, as a bounded block does
+// (assets/AGENTS.md, "Space and scrolling").
+//
+// A box that scrolls vertically now holds its height, whatever it asked for. A box
+// whose CSS asks for vertical scrolling but whose content fits is asked again with more
+// content: a tall block is added at its end and taken away in the same task, and a box
+// that then overflows kept a height its content did not decide, whether a theme's
+// height, a grid track or a percentage of a held parent set it. So an empty widget whose
+// rows the log has not supplied yet answers as a full one would, and a box that grows
+// into the block, from a minimum height or beside a taller sibling, is not named. A box
+// that asks only for sideways scrolling is not asked again, since its height may be its
+// drawing's.
+//
+// A box is its nearest Leaf widget's, across shadow roots, so a vendored component's
+// scroller answers to the widget that placed it. A field the user writes in keeps its
+// own box as they type, so form controls, text fields and editable regions are left
+// out. This writes the page, so only a page nothing reads again, such as the report's
+// page of worked examples, is read this way.
+export function heldScrollers(tags) {
+  const main = pageDocument();
+  if (!main) return [];
+  const own = new Set(tags);
+  const found = [];
+  for (const tree of openRoots(main))
+    for (const box of tree.querySelectorAll("*")) {
+      if (
+        !(box instanceof HTMLElement) ||
+        box.matches(WRITTEN_IN) ||
+        box.isContentEditable
+      )
+        continue;
+      const style = getComputedStyle(box);
+      if (
+        !userScrollport(style.overflowY) ||
+        /^(inline|contents|none)$/.test(style.display) ||
+        style.getPropertyValue("--lf-holds-height").trim() === "1" ||
+        !shown(box)
+      )
+        continue;
+      let owner = box;
+      while (owner && !owner.localName.startsWith("lf-")) owner = upFrom(owner);
+      if (!owner || !own.has(owner.localName)) continue;
+      let held = overflowsVertically(box);
+      if (!held && asksVerticalScroll(box)) {
+        const block = document.createElement("div");
+        block.style.cssText =
+          `display: block; flex: none; block-size: ${ADDED_BLOCK}px; ` +
+          "inline-size: 0; margin: 0; padding: 0; border: 0";
+        (box.shadowRoot ?? box).append(block);
+        held = overflowsVertically(box);
+        block.remove();
+      }
+      if (held)
+        found.push({
+          tag: owner.localName,
+          id: owner.id,
+          at: locate(box),
+          height: box.clientHeight,
+        });
+    }
+  return found;
+}
+
+// Each command in one of `tags`' widgets that declares context keys and no
+// `bindingBadge`. Context keys are the widget's aliases for pressing a control from
+// elsewhere, as a Question forwards its digits; a key the page never shows works only
+// for a user who already knows it (module-authoring.md, "Commands and keyboard
+// routes"). A route without its own `bindingBadge` takes its row's. The reading is the
+// declaration, not the keys reachable now, so a command whose keys depend on state is
+// read the same in every state. A command belongs to the nearest Leaf widget holding
+// the element that declared it, as a box does in `heldScrollers`, so a dependency's
+// widget nested in one of `tags`' answers for its own commands.
+export function unshownContextKeys(tags) {
+  const own = new Set(tags);
+  const found = [];
+  const seen = new Set();
+  for (const { source, scope } of commandDeclarationsWithin(document.body)) {
+    let owner = source;
+    while (owner && !owner.localName.startsWith("lf-")) owner = upFrom(owner);
+    if (!owner || !own.has(owner.localName)) continue;
+    for (const row of scope.rows)
+      for (const command of [row, ...commandRoutes(row)]) {
+        if (command.contextKeys === undefined) continue;
+        const badge =
+          command.bindingBadge !== undefined ? command.bindingBadge : row.bindingBadge;
+        if (badge !== undefined) continue;
+        const key = `${owner.localName}#${owner.id}#${command.id}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        found.push({ tag: owner.localName, id: owner.id, command: command.id });
+      }
+  }
+  return found;
 }

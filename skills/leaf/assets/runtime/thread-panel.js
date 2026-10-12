@@ -15,6 +15,7 @@ import { retainUserIntent } from "./user-intent.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { closestAcross } from "./passages.js";
 import { declareSide } from "./standing-target.js";
+import { cancelReplyDictation } from "./thread/replies.js";
 
 export function createThreadPanelController({
   auxiliarySurfaces,
@@ -59,6 +60,7 @@ export function createThreadPanelController({
       if (phase === "gesture") slide(panel, "right", "in");
       refreshThread();
     } else {
+      cancelReplyDictation(panel);
       ++viewRequest;
       // The selected surface closes at once so it cannot answer the next page key.
     }
@@ -97,7 +99,7 @@ export function createThreadPanelController({
     // A keyboard press enters the panel's standing thread. A pointer press may carry
     // the page thread it began beside, even after focus moves to this door.
     const inlineThread = keyboard ? null : (pressed ?? threadAtStanding());
-    if (inlineThread) showThread(inlineThread, { focus: "thread" });
+    if (inlineThread) showThread(inlineThread, { part: "thread" });
     else setPanel(true, { focus: keyboard });
   };
   function mountThreadPanel() {

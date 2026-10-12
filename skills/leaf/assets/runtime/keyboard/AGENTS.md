@@ -46,7 +46,7 @@ siblings. Native modal and popover layers keep the browser's order.
   it, and focus decides which answers first.
 - A composer, reply box, or find box exits to its container. An element comment
   composer returns to the subject its anchor resolves, or that subject's declared
-  response proxy; an Ask remains a separate step before the document. A reply box
+  response proxy; a Question remains a separate step before the document. A reply box
   returns to its thread, and the thread to the panel's rungs, which clear narrowing
   before closing.
 - A reply, or the first comment that starts a thread, leaves the user standing on
@@ -67,7 +67,7 @@ siblings. Native modal and popover layers keep the browser's order.
   selected.
 - The versions menu opens from inside More, so More is its parent whichever route
   opened it (`g V` included), and Escape steps back to the version picker there.
-- A selected destination (thread, Ask, heading) has a let-go step back to the
+- A selected destination (thread, Question, heading) has a let-go step back to the
   document, through `letGo`, which lands on the visible block rather than an
   earlier chrome invoker.
 - Cancelling Page Map with Escape or its Close control returns to the opening
@@ -85,21 +85,21 @@ focuses the control that reopens it. `register.js` exposes the innermost step as
 
 Page scope holds commands whose subject is the page; surface scopes hold commands
 about their contents. A page-level letter must stay useful on every page; any
-other control stays reachable through Tab, native activation, Ask digits, or
+other control stays reachable through Tab, native activation, Question digits, or
 Go-to hints. `register.js`'s `PAGE_COMMANDS` is the canonical page vocabulary in
 shortcut-line order. Lowercase advances a walk and Shift goes back. A surface may
 reuse a page key for the same intent with a nearer destination. While the user
-stands in an Ask or its associated margin/thread representative, core forwards only
+stands in a Question or its associated margin/thread representative, core forwards only
 the widget's explicit `contextKeys`. Widgets own `1`–`9` assignments; Decision is a
 semantic role, not an allocator. Ordinary local keys take precedence over context
 aliases in the same attachment, and every context alias follows native editing.
 
 ## Touch routes
 
-Under a coarse pointer, every page capability that a key reaches and no direct gesture
-does has a banner control. A row declares the control's words as `touch`, or a routed
-row declares them on each route that needs its own control; `touch-controls.js` builds
-the control from the row the key uses.
+Every page capability that a key reaches and no direct gesture does has a banner
+control, serving both a finger and a mouse. A row declares the control's words as
+`touch`, or a routed row declares them on each route that needs its own control;
+`touch-controls.js` builds the control from the row the key uses.
 
 - A page command's control is an entry in the banner's More.
 - A page-scope row's control is a step on the banner's row while its scope is the
@@ -115,9 +115,12 @@ More. Choosing a match is the soft keyboard's Enter, or selecting the marked wor
 The ⌥ aim names a target, which a finger does by selecting words or through Select
 element. `c` and `e` act on a selection, the item the user stands on, or the page: a
 selection's Comment on selection step, a thread's own controls, and Comment on the page
-in More all take a tap. One gap is accepted for now: the response bar's other responses, Suggest
-and the reactions on a selection or item, open only by key, since the bar shows no
-ellipsis (`composing/selection.js`; `TODO.md` asks whether to restore a route). Ask
+in More all take a tap. The comment field has one primary action, Dictate when available while
+empty and Send with words: Suggest and reactions on a
+selection or item open by Tab from the field, or `e` while it is unfocused. Omitting
+the ellipsis and its pointer/touch route is a deliberate product decision, including
+on phones. We can reconsider it with the user through a rendered design comparison;
+its absence is not an implementation defect to repair. Question
 digits duplicate the Decision's own control. The command reference and caret browsing
 describe or extend the keyboard itself.
 
@@ -134,7 +137,7 @@ scopes), `register.js` (scope order, page commands, the Escape ladder),
 (native editing claims), `layer-stack.js` (popovers and dialogs over the page),
 `page.js` (the page's own parts and the foot of the ladder), `go-to-sequence.js`
 (the `g` grammar), `control-keys.js`,
-`presentation.js`, `shortcut-bar.js`, `command-reference.js`, `hints.js`,
+`key-sequence.js`, `shortcut-bar.js`, `command-reference.js`, `hints.js`,
 `command-hints.js` (inline hints from reachable command bindings),
 `key-badge-placement.js`, `chip-seats.js` (where key chips stand), `disclosure.js`,
 and `touch-controls.js` (a finger's stand-ins for the keys).

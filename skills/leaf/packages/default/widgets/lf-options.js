@@ -37,7 +37,9 @@
  * the page, it can open a separate thread anchored to that option.
  *
  * The keyboard walk stops at options. This widget assigns 1–9 to authored options,
- * then its add field and Done; generated options receive the remaining numbers.
+ * then its add field and Done; generated options receive the remaining numbers. Each
+ * of them wears its digit in the group's one badge column, Done included: a Question
+ * whose last step showed no key could not be finished by a user reading the keys.
  * Removing or disabling a choice leaves the other bindings intact. Tab remains the
  * platform's path through every control and into that field. There it follows Leaf's
  * shared text-box contract: Shift+Enter writes a newline and Enter adds the option. A
@@ -46,9 +48,9 @@
  * In a thread the existing reply box already owns those words, so Enter from a mark
  * continues into that box. Every `multiple` group grows a Done press: each toggle
  * reaches the agent as it lands, so the press is the one statement that the set
- * is whole, posted as an `answer` action and held as the Ask's closing
+ * is whole, posted as an `answer` action and held as the Question's closing
  * condition (x-awaits.answered). Answered is paint on the press, never a wider word. A
- * second press withdraws that answer through the widget's exact undo, reopening the Ask;
+ * second press withdraws that answer through the widget's exact undo, reopening the Question;
  * the set can still change after either press, and each toggle reaches the agent.
  *
  * That paint goes on the press and nowhere else, which is a rule rather than a
@@ -56,27 +58,24 @@
  * registry declares it as a verb's record form — `chosen` is one, so a version can
  * carry a pick and `page check` can hold the markup against the log's fold — and
  * the entry's `additionalProperties: false` is the whole of what else may stand
- * there. This module wrote two that nothing declared. `answered` recorded the
- * thread-only `answer` verb, and a thread's markup is frozen in the log, so no
- * version could ever have honored a record of it; `open` recorded which way this
- * tab last left the disclosure, which no version carries at all. Each was a second
- * copy of a fact the module already states on the control that carries it — the
- * mark's `aria-checked`, the row's `aria-expanded` — so the theme keys on those,
- * the way lf-tabs' strip already does, and the group's own attributes are the
- * author's again. What the copies cost was a user that believed them:
- * `shallowSigs` excludes exactly what no version can assert, and read both of these
- * as state a version had written.
+ * there. Neither the answered paint nor the disclosure's state is such a record: the
+ * `answer` verb declares no record form, so no version carries it, and which way this
+ * tab left the disclosure is view state no version carries at all. Each is stated
+ * once, on the control that carries it — Done's `aria-pressed`, the settled row's
+ * `aria-expanded` — and the theme keys on those, as lf-tabs' strip does,
+ * leaving the group's own attributes to the author. A copy on the group would also
+ * mislead `shallowSigs`, which excludes exactly what no version can assert and so
+ * reads any other attribute as state a version wrote.
  *
  * The keyboard path: every mark is a checkbox, so Tab reaches it and Space toggles. From a
  * mark, the runtime's row walk moves among the options: ↑/↓ clamp at the ends, and Home and
- * End land on them. This widget owns 1–9; Ask forwards those declarations across the
+ * End land on them. This widget owns 1–9; Question forwards those declarations across the
  * whole question. The column is held whether or not a key is in it, which is the theme's
  * half of this. The rows are
  * declared per mark, on the mark rather than on the group — the group holds the option's
  * own argument too, and a scope over the whole subtree would promise to work an option with
  * focus on a link inside one. An armed `g` sequence keeps its own digits without this module
- * asking: its scopes suspend every scope inside them, where each widget used to have to
- * remember the question.
+ * asking: its scopes suspend every scope inside them.
  *
  * `settled` retires the decision once it has been made and acted on: the group collapses
  * to one line naming the chosen option, with every option — the chosen one included —
@@ -118,6 +117,7 @@ import {
   worksInside,
   wrote,
   focusDestination,
+  scrollIntoView,
 } from "/runtime/widget-api.js";
 
 // What an option is called, in either form: its title where it leads with one, and its
@@ -144,12 +144,12 @@ const DONE_TAG = "lf-options-done";
 customElements.define(
   "lf-options",
   class extends HTMLElement {
-    // What the Ask was answered with: the picked options' names, the group's own in its
+    // What the Question was answered with: the picked options' names, the group's own in its
     // order and then the user's in the order they added them. An option the user added
     // is named by the words its `add` carries, and an authored one by its markup.
-    static answerWords(state, group) {
-      const picked = new Set(state.choose.detail.value);
-      const added = Object.entries(state.add?.units ?? {});
+    static answerWords(value, group) {
+      const picked = new Set(value);
+      const added = Object.entries(group.#controller?.read()?.state.add?.units ?? {});
       const authored = [...group.querySelectorAll(":scope > lf-option")].filter(
         (option) => picked.has(option.id) && !added.some(([id]) => id === option.id),
       );
@@ -310,11 +310,17 @@ customElements.define(
     }
 
     // The one statement a live channel can't derive: the set is whole. Done is a
-    // reversible gesture; its pressed state is the standing answer action.
+    // reversible gesture; its pressed state is the standing answer action. Its digit
+    // is inside the button, as an option's is inside the option, so a press on it is a
+    // press on Done; the seat is out of flow, so it moves neither label nor edges.
     #doneRow() {
       this.#done = offer(DONE_TAG, "lf-options-done");
       const button = offer("button", "lf-btn lf-done", "Done");
+      const bindingBadge = offer("span", "lf-key-badge");
+      bindingBadge.setAttribute("aria-hidden", "true");
+      button.append(bindingBadge);
       this.#done.control = button;
+      this.#done.bindingBadge = bindingBadge;
       this.#done.append(button);
       this.append(this.#done);
     }
@@ -395,7 +401,7 @@ customElements.define(
     }
 
     // From a mark, arrows walk the options and Space toggles. The group owns stable
-    // numbered commands; Ask forwards those same declarations.
+    // numbered commands; Question forwards those same declarations.
     #keys() {
       for (const bindingBadge of this.querySelectorAll(
         ":scope > lf-option > .lf-key-badge",
@@ -473,7 +479,10 @@ customElements.define(
           title: "Another option",
           description: "Write another option",
           when: () => this.#available("choose"),
-          run: () => focusDestination(this.#addition.input, "move", { scroll: true }),
+          run: () => {
+            focusDestination(this.#addition.input, "move");
+            scrollIntoView(this.#addition.input, { block: "nearest" });
+          },
         });
       if (this.#done)
         answerRows.push({
@@ -481,6 +490,7 @@ customElements.define(
           contextKeys: this.#contextKeys("done"),
           control: () => this.#done.control,
           decision: true,
+          bindingBadge: () => this.#done.bindingBadge,
           title: "Done",
           description: () =>
             this.reading?.state.answer?.action
@@ -516,11 +526,9 @@ customElements.define(
       this.#controls.set(option, mark);
       // First, so the row form's table puts it in the cell before the words. A card
       // places its mark out of flow in the header and cannot see this, so one insertion
-      // serves both forms and the theme states each form's placement as it already did.
-      // The mark ends every row at the column the label opens at, where the user is
-      // reading; it stood at the line's end, ~620px away from the words it answers for
-      // in a full-width group, and a group that took several answers drew its boxes
-      // there while a single-pick card drew none at all.
+      // serves both forms and the theme states each form's placement.
+      // The mark stands where the user starts reading the label, not at the line's
+      // end, which in a full-width group is ~620px from the words it answers for.
       option.prepend(mark);
       return mark;
     }
@@ -580,11 +588,6 @@ customElements.define(
       for (const option of created) this.#control(option, this.#choosable);
       this.#syncChoice(detail);
       if (created.length) this.#keys();
-    }
-
-    disconnectedCallback() {
-      this.#addition?.disconnect();
-      this.#settled?.disconnect();
     }
 
     lfWord() {

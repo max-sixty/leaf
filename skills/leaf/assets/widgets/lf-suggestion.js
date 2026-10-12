@@ -21,7 +21,7 @@ import {
   announce,
   commandScope,
   commands,
-  FOLD_MS,
+  foldDuration,
   keeps,
   contributionEntry,
   motion,
@@ -120,9 +120,9 @@ function toRanges(segments, spans) {
 customElements.define(
   "lf-suggestion",
   class extends HTMLElement {
-    // What the Ask was answered with: the decision.
-    static answerWords(state) {
-      return outcomeOf(state) === "accept" ? "Accepted" : "Rejected";
+    // What the Question was answered with: the decision.
+    static answerWords(value) {
+      return value.outcome === "accept" ? "Accepted" : "Rejected";
     }
 
     #deciding = null; // the decision in flight, so a second press joins it
@@ -305,10 +305,10 @@ customElements.define(
           ? [
               {
                 id: `suggestion:${this.id}`,
-                // Before settlement this contribution is the Ask, so suppress the shared
-                // Ask at the same target. Afterwards Undo remains without inventing a
+                // Before settlement this contribution is the Question, so suppress the shared
+                // Question at the same target. Afterwards Undo remains without inventing a
                 // second page-map reading.
-                kind: outcome ? "action" : "ask",
+                kind: outcome ? "action" : "question",
                 ...(outcome ? {} : { represents: true }),
                 text: outcome
                   ? `${outcome === "accept" ? "Accepted" : "Rejected"} suggested change`
@@ -589,7 +589,7 @@ customElements.define(
         going.style.display = "block";
         going.style.boxSizing = "border-box";
         going.style.overflow = "hidden";
-        const played = motion(going, [from, to], FOLD_MS);
+        const played = motion(going, [from, to], foldDuration());
         const done = () => {
           going.style.display = "";
           going.style.boxSizing = "";

@@ -7,6 +7,7 @@
    asynchronous presentation. */
 import { reportPageError } from "./layer-client.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
+import { render, replaceChildren } from "./dom-children.js";
 
 const initialized = new WeakSet();
 
@@ -31,11 +32,8 @@ export function once(el) {
 export const dataBody = (el) => el.querySelector(":scope > pre").textContent;
 
 // The body's text as a module reads its lines: leading blank lines and trailing
-// whitespace are the <pre>'s layout, not lines. `page check` holds an x-numbering to
-// the lines of this same trim (`_body_text`, validation/instances.py). trimEnd removes
-// the class collapse.js's COLLAPSE spells, which Python names outright because its own
-// \s differs at the edges. Notations whose whitespace is content, such as a diff or
-// exact Markdown source, read `dataBody` instead.
+// whitespace are the <pre>'s layout, not lines. Notations whose whitespace is content,
+// such as a diff or exact Markdown source, read `dataBody` instead.
 export const bodyText = (el) => dataBody(el).replace(/^\n+/, "").trimEnd();
 
 // A failed upgrade becomes a visible error box rather than a blank page. A widget failure
@@ -49,7 +47,7 @@ export function failSoft(el, err, source) {
   const owner = widgetOf(el);
   const tag = owner.localName;
   const message = err?.message || err;
-  reportPageError(`<${tag}${owner.id ? ` id="${owner.id}"` : ""}> failed: ${message}`);
+  reportPageError(err, `<${tag}${owner.id ? ` id="${owner.id}"` : ""}> failed`);
   showFailure(el, `<${tag}> failed: ${message}`, source);
 }
 
@@ -75,5 +73,8 @@ function showFailure(el, text, source) {
     pre.textContent = source;
     box.append(pre);
   }
-  el.replaceChildren(box);
+  // A native renderer may have recovered since the previous error, or moved its
+  // error nodes into a shadow stage. Discard that part before starting this fallback.
+  replaceChildren(el);
+  render(box, el);
 }

@@ -1,5 +1,6 @@
-/* Import-free vocabulary of runtime-painted attributes. Readers of a paint name do
-   not start presentation, import widgets or reach transport through its writers. */
+/* Import-free vocabulary of runtime-painted attributes, and the reader of the
+   presented stamp. Readers of a paint name do not start presentation, import widgets
+   or reach transport through its writers. */
 
 // Attributes the runtime may paint onto elements the page owns: the source each runtime
 // writer uses, and with the declared marks (`$marks`) the replay signature's exclusion
@@ -8,7 +9,7 @@
 // must see it.
 export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   class: "class",
-  ask: "data-lf-ask",
+  question: "data-lf-question",
   done: "data-lf-done",
   restated: "data-lf-restated",
   retired: "data-lf-retired",
@@ -24,6 +25,7 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   upgraded: "data-lf-upgraded",
   holds: "data-lf-holds",
   scrolls: "data-lf-scrolls",
+  sticks: "data-lf-sticks",
   moreBefore: "data-lf-more-before",
   moreAfter: "data-lf-more-after",
   scrollDirection: "data-lf-scroll-direction",
@@ -36,3 +38,8 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   mediaWidth: "data-lf-media-width",
   mediaHeight: "data-lf-media-height",
 });
+
+// Whether the page has presented: the stamp presentation.js writes once on `body` and
+// never takes back.
+export const pagePresented = () =>
+  document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);

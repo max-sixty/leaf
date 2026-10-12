@@ -29,12 +29,15 @@
  * changes the words; the second announces the updated value and layout. A
  * write to `value` fires nothing, puts the caret at the end, and starts a new undo
  * history, so undo never walks back into a draft the runtime swapped out.
+ * `edit(text)` replaces the words as external text input, such as dictation: it keeps
+ * undo history and emits the same before-edit/input bracket as native typing.
  * A box owner that takes pasted pictures intercepts paste in capture; otherwise the field pastes
  * the clipboard's text, including text carried beside a picture.
  * `naturalBlockSize` reads the field's intrinsic border-box block size in CSS pixels,
  * before the host's block size or its minimum and maximum constrain the writing room.
  * `writingInlineSize` reads the editor's allocated writing measure, including room
- * reserved for its trailing action, in CSS pixels.
+ * reserved for its trailing action, in CSS pixels. `writingEndRoom` reads that room's
+ * exact width so a sent message can keep the same writing measure.
  *
  * The placeholder is a layer under the words, shown while the field is empty. It reads
  * the `placeholder` attribute, and a child in slot `placeholder` stands in its place when
@@ -63,8 +66,10 @@
  * action too, so there the room is held on every line. A sent message that keeps the
  * draft's wrapping keeps the same room.
  *
- * Enter, Mod+Enter and Escape are not bound here. Leaf's key dispatcher owns them on the
- * document, and cancels the press it acts on; Shift+Enter inserts a line and continues
+ * Leaf's key dispatcher owns submission and Escape. Return inserts a newline unless
+ * its owner cancels `lf-edit-return` to reserve the press for submission. Android's
+ * EditContext supplies no native insertion after CodeMirror handles the press, so this
+ * editing route is explicit. Shift+Enter inserts a line and continues
  * a list or quote. Mod+Z and Mod+Shift+Z walk one history: the words' edits, and the
  * steps an owner records for what its draft holds beside them (`record`), such as a
  * composer's drawing, each taken back or redone in the order it was made.
@@ -95,13 +100,25 @@ import {
   markdownLanguage,
   insertNewlineContinueMarkup,
 } from "../../vendor/codemirror.esm.js";
+import { LeafEditorView } from "../editor-view.js";
 import { TEXT_FIELD } from "../control-selectors.js";
+import { inputCount } from "../focus.js";
 import { loadMarkdown, markdownReady, placedMarkdownTokens } from "../markdown.js";
 import { sizeObserver } from "../rendering.js";
+
+const insertNewline = standardKeymap.find(({ key }) => key === "Enter").run;
 
 const sheet = new CSSStyleSheet();
 sheet.replaceSync(`
   :host { display: block; cursor: text; }
+  /* CodeMirror's provider places its defaults in lf-base. This control owns the
+     unlayered editor face: the host supplies type and colour, and these are the
+     only internal padding declarations before Markdown's explicit insets below. */
+  .cm-editor { font: inherit; color: inherit; background-color: transparent; }
+  .cm-editor.cm-focused { outline: none; }
+  .cm-scroller { font-family: inherit; line-height: inherit; overflow: visible; }
+  .cm-content { padding: 0; caret-color: currentColor; min-height: 1lh; }
+  .cm-line { padding: 0; }
   /* The placeholder is a layer under the words, as a textarea's is, never content in
      the line: a widget in an empty line is what the platform would draw the caret
      against. Both layers share one grid cell, inside the host's padding. */
@@ -144,27 +161,16 @@ sheet.replaceSync(`
   .lf-md-link { color: var(--accent); text-decoration: underline var(--link-underline);
     text-underline-offset: var(--link-underline-offset); }
   .lf-md-quote { border-inline-start: var(--quote-rule); font-style: var(--quote-style);
-    padding-inline-start: var(--quote-inset) !important; color: var(--muted); }
+    padding-inline-start: var(--quote-inset); color: var(--muted); }
   .lf-md-code-block { font-family: var(--mono); font-size: var(--code-size);
     line-height: var(--code-line); color: var(--code-ink); background: var(--pre-bg);
     font-variant-ligatures: none; border-inline: 1px solid var(--code-border);
-    padding-inline: var(--pre-inset) !important; }
+    padding-inline: var(--pre-inset); }
   .lf-md-code-first { border-block-start: 1px solid var(--code-border);
     border-start-start-radius: var(--r); border-start-end-radius: var(--r); }
   .lf-md-code-last { border-block-end: 1px solid var(--code-border);
     border-end-start-radius: var(--r); border-end-end-radius: var(--r); }
 `);
-
-// The editor wears the box's type and colour: the host is the textarea-shaped control
-// the page styles, and CodeMirror only lays the words out inside it. Its own theme
-// mechanism outranks its base theme, which would otherwise set monospace.
-const fieldTheme = EditorView.theme({
-  "&": { font: "inherit", color: "inherit", backgroundColor: "transparent" },
-  "&.cm-focused": { outline: "none" },
-  ".cm-scroller": { fontFamily: "inherit", lineHeight: "inherit", overflow: "visible" },
-  ".cm-content": { padding: "0", caretColor: "currentColor", minHeight: "1lh" },
-  ".cm-line": { padding: "0" },
-});
 
 // A step an owner recorded in the words' history (`record`): `run` makes it happen when
 // the history reaches it, and `back` is the step the other way.
@@ -321,6 +327,7 @@ class LeafText extends HTMLElement {
   #model;
   #view = null;
   #nativeInput = false;
+  #reparentHold = null;
   #root;
   #internals = null;
   #editable = new Compartment();
@@ -444,6 +451,12 @@ class LeafText extends HTMLElement {
             .map(({ value }) => ownerStep.of({ run: value.back, back: value.run })),
         ),
         keymap.of([
+          {
+            key: "Enter",
+            run: (view) =>
+              this.dispatchEvent(new Event("lf-edit-return", { cancelable: true })) &&
+              insertNewline(view),
+          },
           { key: "Shift-Enter", run: insertNewlineContinueMarkup },
           {
             key: "Shift-Enter",
@@ -457,7 +470,6 @@ class LeafText extends HTMLElement {
         new LanguageSupport(markdownLanguage),
         livePreview,
         lastLineRoom,
-        fieldTheme,
         EditorView.lineWrapping,
         this.#editable.of(EditorState.readOnly.of(this.#readOnly)),
         this.#attributes.of(EditorView.contentAttributes.of(this.#contentAttributes())),
@@ -476,7 +488,63 @@ class LeafText extends HTMLElement {
   }
 
   connectedCallback() {
-    if (this.#view) return;
+    if (this.#view) {
+      // Reparenting keeps the CodeMirror view but can leave a pending native
+      // selectionchange that replaces its recorded caret with the DOM's reset 0.
+      // Only a focused editor needs the hold. An unfocused move may produce no
+      // selectionchange, leaving a listener to override a later intentional caret.
+      if (!this.#view.hasFocus) {
+        this.#reparentHold?.stop();
+        return;
+      }
+      // CodeMirror hears that event after reconnecting. Consume it once,
+      // restoring the held selection if needed, unless the user acted first.
+      const intent = inputCount();
+      const previous = this.#reparentHold;
+      if (
+        previous?.view === this.#view &&
+        previous.doc === this.#view.state.doc &&
+        previous.intent === intent
+      )
+        return;
+      previous?.stop();
+      const hold = {
+        view: this.#view,
+        doc: this.#view.state.doc,
+        caret: [this.selectionStart, this.selectionEnd, this.selectionDirection],
+        intent,
+      };
+      const stop = () => {
+        document.removeEventListener("selectionchange", onSelectionChange);
+        if (this.#reparentHold === hold) this.#reparentHold = null;
+      };
+      const restore = () => {
+        if (this.#reparentHold !== hold) return;
+        if (
+          this.#view !== hold.view ||
+          !this.isConnected ||
+          !hold.view.hasFocus ||
+          hold.view.state.doc !== hold.doc ||
+          inputCount() !== hold.intent
+        ) {
+          stop();
+          return;
+        }
+        stop();
+        if (
+          this.selectionStart !== hold.caret[0] ||
+          this.selectionEnd !== hold.caret[1] ||
+          this.selectionDirection !== hold.caret[2]
+        ) {
+          this.setSelectionRange(...hold.caret);
+        }
+      };
+      const onSelectionChange = () => queueMicrotask(restore);
+      hold.stop = stop;
+      this.#reparentHold = hold;
+      document.addEventListener("selectionchange", onSelectionChange);
+      return;
+    }
     if (!this.hasAttribute("role")) this.setAttribute("role", "textbox");
     if (!this.hasAttribute("aria-multiline"))
       this.setAttribute("aria-multiline", "true");
@@ -485,7 +553,7 @@ class LeafText extends HTMLElement {
     if (!this.hasAttribute("tabindex")) this.tabIndex = 0;
     this.#internals ??= this.attachInternals();
     this.#root.adoptedStyleSheets = [sheet];
-    this.#view = new EditorView({
+    this.#view = new LeafEditorView({
       root: this.#root,
       parent: this.#frame,
       state: this.#model,
@@ -526,6 +594,7 @@ class LeafText extends HTMLElement {
   disconnectedCallback() {
     queueMicrotask(() => {
       if (this.isConnected || !this.#view) return;
+      this.#reparentHold?.stop();
       this.#model = this.#view.state;
       this.#sizes.disconnect();
       this.#overflow.disconnect();
@@ -546,22 +615,12 @@ class LeafText extends HTMLElement {
       .filter(Boolean);
   }
 
-  // A focus through the element puts the caret back where it stood, as a textarea's
-  // does. The platform, delegating, lands it at the start of the words; CodeMirror's own
-  // focus leaves the page's selection wherever the user last pressed when its record of
-  // the DOM selection predates that press, and then reads the platform's caret back as
-  // the user's. So the element writes the page's selection from the field's own.
+  // The editor adapter places its recorded caret without native scrolling. The
+  // field reveals itself separately when its caller requests ordinary focus.
   focus(options) {
-    if (!this.#view) return super.focus(options);
-    const view = this.#view;
-    view.focus();
-    if (this.#root.activeElement !== view.contentDOM) return;
-    const { anchor, head } = view.state.selection.main;
-    const from = view.domAtPos(anchor);
-    const to = view.domAtPos(head);
-    // A shadow root answers for its own selection only in Chromium, as CodeMirror reads it.
-    const selection = this.#root.getSelection?.() ?? document.getSelection();
-    selection.setBaseAndExtent(from.node, from.offset, to.node, to.offset);
+    if (!this.#view) return;
+    this.#view.focus();
+    if (this.#root.activeElement !== this.#view.contentDOM) return;
     if (!options?.preventScroll) scrollIntoView(this, { block: "nearest" });
   }
 
@@ -622,8 +681,22 @@ class LeafText extends HTMLElement {
     return lastWithWords(this.#state) ? "last-line" : "none";
   }
 
+  get writingEndRoom() {
+    return parseFloat(getComputedStyle(this).getPropertyValue("--lf-field-end-room"));
+  }
+
   get value() {
     return this.#state.doc.toString();
+  }
+
+  edit(text) {
+    text = String(text).replace(/\r\n?/g, "\n");
+    if (text === this.value) return;
+    this.#apply({
+      changes: { from: 0, to: this.#state.doc.length, insert: text },
+      selection: { anchor: text.length },
+      userEvent: "input.dictation",
+    });
   }
 
   // Records a change the owner has just made outside the words as a step of the words'

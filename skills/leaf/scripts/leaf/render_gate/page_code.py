@@ -5,11 +5,12 @@ with whatever each imports. It can also place a widget whose body is data
 (`x-content: data`): a chart's Plot expression, a diagram's Mermaid source, a diff, in
 a notation only the widget's module reads. No static reading can say whether that code
 throws or whether the module can read that body, and a quick page never reaches
-`--render`, so a module that breaks on its first paint, or a chart whose body fails,
-used to pass the check and reach the user, and its author heard about it only from the
-watcher's `error` event. The check therefore runs the exact candidate once, wherever
-the page carries either: through upgrade, authoritative presentation, and one rendering
-frame after it, at the render viewport in the light scheme.
+`--render`. Without a browser run, a module that breaks on its first paint, or a chart
+whose body fails, would pass the check and reach the user, and its author would hear
+about it only from the watcher's `error` event. The check therefore runs the exact
+candidate once, wherever the page carries either: through upgrade, authoritative
+presentation, and one rendering frame after it, at the render viewport in the light
+scheme.
 
 What fails it is what the runtime would report to the agent. `runtime/layer-client.js`
 posts every uncaught error and unhandled rejection, every widget that fails soft, and
@@ -135,7 +136,7 @@ def run_page_code(browser, url: str) -> list[str]:
     except PlaywrightError as error:
         # A wait that timed out names what never arrived; any other browser error
         # is as much a failed run, and the reports already taken still stand.
-        reports.append(str(error).strip().splitlines()[0])
+        reports.append(str(error).strip())
     finally:
         page.close()
     if reports and network_errors:

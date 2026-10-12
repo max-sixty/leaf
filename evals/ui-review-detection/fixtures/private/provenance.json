@@ -1,0 +1,84 @@
+{
+  "variants": {
+    "timeline-defect": "2ae91d03-0f4b-4df5-b7b0-e5d6d0d7b98f",
+    "timeline-control": "8c39a62b-f394-4ed6-9e9a-95122ac334d8",
+    "shift-defect": "4bd12a2f-1932-4127-b5ab-87517635e931",
+    "shift-control": "fcb9f467-39f5-4f8e-a62c-d3b03aa6cd22"
+  },
+  "sources": {
+    "timeline": {
+      "widget": "skills/leaf/packages/playwright/widgets/lf-trace.js",
+      "theme": "skills/leaf/packages/playwright/theme.css",
+      "data": ".tmp/compact-layout/source.data.json",
+      "mechanism": "Exact rail item geometry (Vis boxes) and suppression of native point dots/stems; control restores Vis native dots/stems. Original action/moment times preserved; capture content and unrelated runtime omitted.",
+      "input_times_ms": [
+        {
+          "key": "t",
+          "time": 663.777
+        },
+        {
+          "key": "Escape",
+          "time": 1387.8250000000007
+        },
+        {
+          "key": "g",
+          "time": 1408.559000000001
+        },
+        {
+          "key": "Shift+g",
+          "time": 1437.9560000000001
+        },
+        {
+          "key": "t",
+          "time": 1649.9390000000003
+        },
+        {
+          "key": "c",
+          "time": 2292.161
+        }
+      ],
+      "moment_times_ms": [
+        {
+          "number": 1,
+          "time": 1360.886,
+          "label": "Thread reached from above"
+        },
+        {
+          "number": 2,
+          "time": 2276.693,
+          "label": "Thread reached from below"
+        },
+        {
+          "number": 3,
+          "time": 2317.829,
+          "label": "Reply focused"
+        }
+      ],
+      "limitation": "Module slice, not the entire live Leaf page. Restored dots/stems are a controlled contrast, not a claim of an approved production design."
+    },
+    "shift": {
+      "git": "152bd8950",
+      "path": "skills/leaf/packages/playwright/widgets/lf-trace.js",
+      "rollout": "/Users/maximilian/.codex/archived_sessions/rollout-2026-10-05T15-15-35-01a10e22-f912-7801-ae35-fefbc94c3c9a.jsonl",
+      "line": 193,
+      "mechanism": "Full historical widget with only imported widget-api adapted. Defective variant reverses the imageHost-first DOM repair. Same synthetic image at checkpoint and intermediate frame isolates image placement from content.",
+      "limitation": "Synthetic two-point recording with SVG content; not exact archived recording. API adapter disables anchoring/comment/event integration; timeline selection and drawing are original."
+    }
+  },
+  "candidate_exposure": "Only public/ fixture assets and staged screenshots/manifest; never give private/ provenance or condition mapping to candidate models.",
+  "sha256": {
+    "public/fcb9f467-39f5-4f8e-a62c-d3b03aa6cd22.js": "e3db7b0bca616c8bbf5497ed88b0fb6dfd0193d856584a82793bb45855904a57",
+    "public/2ae91d03-0f4b-4df5-b7b0-e5d6d0d7b98f.html": "e557129bd3fe64f8b8d9c4920c50e15e8d1637983514cf5d64835e4eb574b8ba",
+    "public/4bd12a2f-1932-4127-b5ab-87517635e931.html": "f7ca8db875067a5e438b9ed1623b4e7f5249b8a5f074c4bb8a5e64a1e88abad1",
+    "public/8c39a62b-f394-4ed6-9e9a-95122ac334d8.html": "cfa65128740874edc49384740d03a444421275eaf3b7b4907c126bcd14b16c15",
+    "public/fcb9f467-39f5-4f8e-a62c-d3b03aa6cd22.html": "95b9e72624df7e3f4e54dd567eb4bc8ebb2150b8cb9847f969e38eef95dddf79",
+    "public/4bd12a2f-1932-4127-b5ab-87517635e931.js": "59870a3d11792c71fd366cd3d947ed3a00126b260c4e8d9ae8cc180de5f81522",
+    "public/assets/widget-api.js": "d165cbb0b56f2c59f8f06f517cba4cfbc7ddfafebf39455570586dfcd4d463f5",
+    "public/assets/scene.svg": "9c53d69b80a275cf737a99744d03a4a7196f34d5caf13c3c04590a5fb4e2c40e"
+  },
+  "dependency": {
+    "commit": "a8ed7fffe91978a92cb1764e7305e80e59312ea8",
+    "path": "skills/leaf/packages/playwright/vendor/timeline.esm.js",
+    "sha256": "68578b4653af1c9f03e100eb9a09a263f5c8015846fc7cf60b51721bf217a546"
+  }
+}

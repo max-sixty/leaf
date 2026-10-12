@@ -26,6 +26,7 @@ import { threadKey } from "./model.js";
 import { closestAcross } from "../passages.js";
 import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
 import { THREAD, SAY_ROW } from "./selectors.js";
+import { editContext } from "./message-edit.js";
 import { offer } from "../widget-elements.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 
@@ -39,6 +40,7 @@ const available = (composition) =>
   composition.controls.input.isConnected;
 function adopt(context, composition) {
   const session = compositions.get(context);
+  if (session?.owner !== composition) session?.owner?.sync.cancelDictation();
   const caret = readCaret(session?.owner?.controls.input);
   if (session) session.owner = composition;
   else compositions.set(context, { owner: composition });
@@ -111,6 +113,12 @@ export function holdReplyCompositions(threads, realize) {
   };
 }
 
+// Whether the thread under `key` holds words the user has not sent: in its reply box,
+// or in a rewrite of one of its messages, `ids`, they closed without saving.
+export const threadHoldsDraft = (key, ids) =>
+  draftHasContent(replyContext(key)) ||
+  ids.some((id) => draftHasContent(editContext(id)));
+
 // Revision admission asks the owner about every native editing session, including
 // one the user left by Tab. Persisted words alone do not create a session.
 export const replyDraftsHold = (retains) =>
@@ -125,9 +133,18 @@ function dismissContext(context) {
   const session = compositions.get(context);
   if (!session) return;
   compositions.delete(context);
+  session.owner?.sync.cancelDictation();
   session.owner?.changed();
 }
 export const dismissReply = (key) => dismissContext(replyContext(key));
+// Withholding an entire surface ends capture without dismissing its editing session
+// or discarding its words. A panel can retain all its reply nodes while it is hidden.
+export function cancelReplyDictation(surface) {
+  for (const instances of views.values())
+    for (const composition of instances)
+      if (surface.contains(composition.controls.input))
+        composition.sync.cancelDictation();
+}
 // A pointer press elsewhere puts the composition away. Keyboard activation emits
 // click too, but Send, Resolve and the declared leave command own their addressed row.
 document.addEventListener(
@@ -170,12 +187,12 @@ const sendReply = (draftCtx, key, text, owns, actions) =>
 // is the thread's `threadKey`, which names its draft; `parent` reads the message the
 // reply answers when it is sent, since the log can name that message after the draft
 // began. The typed action resolves that target from the current reading.
-export function wireReply(
+function wireReply(
   key,
   row,
   input,
   send,
-  { actions, wireInput, landSent, onChange },
+  { actions, wireInput, landSent, onChange, editLast },
 ) {
   row.classList.add("lf-comment-box");
   const draftCtx = replyContext(key);
@@ -213,7 +230,21 @@ export function wireReply(
       landSent(closestAcross(input, THREAD));
       sendLanding(input, focused())();
     },
+    // ↑ from an empty box reaches back to the user's own last words in the thread, to
+    // rewrite them where they stand (`message-edit.js`). A box holding words keeps the
+    // key for its caret.
+    rows: [
+      {
+        id: "message.edit.last",
+        keys: ["ArrowUp"],
+        description: "Edit your last message in the thread",
+        title: "edit last message",
+        when: () => !sync.value() && Boolean(editLast?.available()),
+        run: () => editLast?.open(),
+      },
+    ],
   });
+  composition.sync = sync;
   sync();
   // Construction supplies a mirror, not ownership: a hidden panel mirror cannot
   // take the session from the current route while that route is being replaced.
@@ -233,6 +264,7 @@ export function wireReply(
   return {
     sync,
     dispose: () => {
+      sync.cancelDictation();
       stopMirror();
       row.removeEventListener("focusin", begin);
       instances.delete(composition);
@@ -277,12 +309,25 @@ export async function restoreReplyEditing(editing, land) {
 
 // Native editor construction has one home; cards and package fragments share its
 // draft, input, delivery and recovery lifetime rather than constructing another one.
-export function createReplyView(key, commands, { onChange = () => {} } = {}) {
+export function createReplyView(
+  key,
+  commands,
+  { onChange = () => {}, editLast = null } = {},
+) {
   const row = offer("div", "lf-thread-reply");
   const input = offer(TEXT_FIELD);
   input.name = "reply";
   const send = offer("button", "lf-btn lf-thread-send", "Send");
   row.append(input, send);
-  const lifetime = wireReply(key, row, input, send, { ...commands, onChange });
-  return { node: row, input, dispose: lifetime.dispose };
+  const lifetime = wireReply(key, row, input, send, {
+    ...commands,
+    onChange,
+    editLast,
+  });
+  return {
+    node: row,
+    input,
+    cancelDictation: lifetime.sync.cancelDictation,
+    dispose: lifetime.dispose,
+  };
 }

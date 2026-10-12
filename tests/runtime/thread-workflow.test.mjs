@@ -21,6 +21,7 @@ const workflow = (id, stage, changes = {}) =>
     id,
     seq: 1,
     input: id,
+    message: id,
     subject: { kind: "thread", id: "root" },
     thread: "root",
     coordinate: ["thread", "root"],
@@ -72,7 +73,7 @@ test("workflow labels retain exact input progress and positive conditions", () =
   );
 });
 
-test("thread attention gives a standing user Ask precedence over agent work", () => {
+test("thread attention gives a standing user Question precedence over agent work", () => {
   const work = workflow("a", "working");
   const recovery = workflow("recovery", "sent", {
     condition: { kind: "failed" },
@@ -81,7 +82,7 @@ test("thread attention gives a standing user Ask precedence over agent work", ()
   const thread = {
     resolved: null,
     workflows: [recovery, work],
-    attention: { kind: "needs_user", reason: "ask", workflow: "recovery" },
+    attention: { kind: "needs_user", reason: "question", workflow: "recovery" },
   };
   assert.deepEqual(threadAttention(thread), {
     kind: "needs_user",
@@ -172,7 +173,7 @@ test("a thread the user is still sending waits on that send", () => {
     text: "Question",
     ts: "2026-09-22T10:00:00Z",
   };
-  const [thread] = foldThreads([], [root], [], [], new Set());
+  const [thread] = foldThreads([], [root]);
   const [record] = readThreadRecords(
     [{ ...thread, unread: [] }],
     { revision: 1, registry: {}, descriptors: new Map(), messageBodies: new Map() },
@@ -200,7 +201,7 @@ test("a local prose answer clears accepted user attention until refusal", () => 
     ts: "now",
     pending: true,
   };
-  const [folded] = foldThreads([thread], [reply], [], [], new Set());
+  const [folded] = foldThreads([thread], [reply]);
 
   const [record] = readThreadRecords(
     [folded],
@@ -225,6 +226,131 @@ test("a local prose answer clears accepted user attention until refusal", () => 
   assert.equal(awaitsAgent({ ...record, attention: thread.attention }), false);
 });
 
+test("a local rewrite shows on its message and hands a closed thread to the agent", () => {
+  const asked = {
+    id: "root",
+    kind: "comment",
+    author: "user",
+    text: "Chart 2024.",
+    ts: "then",
+  };
+  const answer = {
+    id: "answer",
+    kind: "reply",
+    parent: "root",
+    author: "agent",
+    agent: "Indexer",
+    text: "Charted.",
+    ts: "then",
+  };
+  const thread = servedThread([asked, answer], {
+    resolved: { id: "closed", kind: "resolve", author: "user" },
+  });
+  const rewrite = {
+    id: "pending:rewrite",
+    kind: "edit",
+    author: "user",
+    message: "root",
+    text: "Chart 2025.",
+    ts: "now",
+  };
+  const [folded] = foldThreads([thread], [rewrite]);
+
+  const [record] = readThreadRecords(
+    [folded],
+    { revision: 1, registry: {}, descriptors: new Map(), messageBodies: new Map() },
+    new Map(),
+    [workflow("pending:rewrite", "sending", { message: "root" })],
+  );
+  assert.deepEqual(
+    record.msgs.map((message) => [message.body.text, Boolean(message.edited)]),
+    [
+      ["Chart 2025.", true],
+      ["Charted.", false],
+    ],
+  );
+  assert.equal(record.root.body.text, "Chart 2025.");
+  assert.deepEqual(
+    record.msgs.map((message) => message.workflows.map(({ id }) => id)),
+    [["pending:rewrite"], []],
+  );
+  assert.equal(record.resolved, null);
+  assert.equal(awaitsAgent(record), true);
+  assert.equal(thread.msgs[0].text, "Chart 2024.", "the served thread stays as served");
+});
+
+test("a local rewrite leaves a question asked since with the user", () => {
+  const asked = { id: "root", kind: "comment", author: "user", text: "A", ts: "then" };
+  const question = {
+    id: "question",
+    kind: "reply",
+    parent: "root",
+    author: "agent",
+    agent: "Indexer",
+    text: "Which year?",
+    ts: "then",
+  };
+  const owed = { kind: "needs_user", reason: "question", workflow: null };
+  const rewrite = {
+    id: "pending:rewrite",
+    kind: "edit",
+    author: "user",
+    message: "root",
+    text: "B",
+    ts: "now",
+  };
+  const [folded] = foldThreads(
+    [servedThread([asked, question], { attention: owed })],
+    [rewrite],
+  );
+  assert.deepEqual(folded.attention, owed);
+  // A reply answers the question, so the thread goes to the agent.
+  const reply = { ...rewrite, id: "pending:reply", kind: "reply", parent: "question" };
+  const [replied] = foldThreads(
+    [servedThread([asked, question], { attention: owed })],
+    [reply],
+  );
+  assert.equal(replied.attention.workflow, "pending:reply");
+});
+
+test("pending thread gestures fold in the order the user made them, as the log will", () => {
+  const asked = { id: "root", kind: "comment", author: "user", text: "A", ts: "then" };
+  const answer = {
+    id: "answer",
+    kind: "reply",
+    parent: "root",
+    author: "agent",
+    agent: "Indexer",
+    text: "Done.",
+    ts: "then",
+  };
+  const rewrite = {
+    id: "pending:rewrite",
+    kind: "edit",
+    author: "user",
+    message: "root",
+    text: "B",
+    ts: "now",
+  };
+  const reply = {
+    id: "pending:reply",
+    kind: "reply",
+    parent: "root",
+    author: "user",
+    text: "C",
+    ts: "now",
+  };
+  const resolve = { kind: "resolve", parent: "root", author: "user" };
+  const fold = (...gestures) =>
+    foldThreads([servedThread([asked, answer])], gestures)[0];
+
+  // The newest turn is the one the agent answers, whichever kind it is.
+  assert.equal(fold(rewrite, reply).attention.workflow, "pending:reply");
+  assert.equal(fold(reply, rewrite).attention.workflow, "pending:rewrite");
+  // A resolve after a rewrite closes the thread the rewrite reopened.
+  assert.deepEqual(fold(rewrite, resolve).resolved, { author: "user", pending: true });
+});
+
 test("a frozen message widget keeps its exact workflow in the message and thread", () => {
   // The server's reading of a card the user moved on a board the agent sent.
   const { threads, workflows } = servedReading("frozen move owes nothing");
@@ -247,7 +373,7 @@ test("a thread this tab opened carries every field a served thread does", () => 
     text: "Question",
     ts: "2026-09-22T10:00:00Z",
   };
-  const [opened] = foldThreads([], [root], [], [], new Set());
+  const [opened] = foldThreads([], [root]);
   assert.deepEqual(
     Object.keys(opened).sort(),
     Object.keys(servedThread([root])).sort(),

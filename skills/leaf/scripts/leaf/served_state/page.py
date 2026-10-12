@@ -16,7 +16,7 @@ class ServedPage(NamedTuple):
     the semantic readings, and the page's stored external data.
 
     `reading` is None before the page has an active revision, when there is no
-    document to read threads, Asks, or widgets against.
+    document to read threads, Questions, or widgets against.
     """
 
     state: dict
@@ -103,6 +103,8 @@ def read_served_page(
         },
         "source_error": source_error,
         "data": browser_data_from(context.data, selected_registry),
+        # Which bound file moved: an editor reads its file only when this stamp does.
+        "files": context.bound_files(),
         **context.presence,
         "activity": activity,
         "workflows": workflows,

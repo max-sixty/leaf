@@ -10,7 +10,9 @@
  * base; the row for the displayed version clears comparison. Block marks show changes,
  * and `inlineComparison` / `toggleInlineComparison` disclose a block's text diff on
  * request. `comparisonBase`, `comparisonChanges`, and `closeVersionMenu` serve other
- * surfaces.
+ * surfaces. `comparisonChanges(owner)` selects changed descendants from the same comparison
+ * reading; `watchComparison(owner, callback)` reads on connection and each comparison
+ * change, pauses while detached, and returns a function that ends the subscription.
  *
  * Executable identity selects the install. An unchanged registry, module graph, and
  * inline module bodies permit an in-place patch; changed executable inputs require a
@@ -28,7 +30,7 @@
  * chip explicitly releases that hold. The chip remains available while activation waits.
  *
  * Retained nodes keep their mechanical state. Replaced nodes use `carry.js`'s authored-id
- * contract, and the Ask view restores the selected Ask by id. Both installs restore these
+ * contract, and the Question view restores the selected Question by id. Both installs restore these
  * readings; the patch passes its retained nodes so restoration skips them. Unnamed
  * replaced controls receive no guessed focus. Authored controls and registered draft
  * editors carry native editing under their existing replacement identity; arbitrary
@@ -36,10 +38,10 @@
  * use their own stores.
  *
  * A fresh-document install stores a page-scoped, one-use handoff: reading position,
- * comparison, pointer, margin standing, mechanical carry, and Ask standing. A newer
+ * comparison, pointer, margin standing, mechanical carry, and Question standing. A newer
  * revision may consume it, but ordinary reloads and history travel cannot replay it.
  * Explicit historical travel carries reading position and the decision landmark, without
- * mechanical carry or Ask standing. State application serializes responses and remains
+ * mechanical carry or Question standing. State application serializes responses and remains
  * pending after navigation starts until the old document is discarded.
  *
  * `captureView` records a place (reading-place.js) for the page and each reading
@@ -48,8 +50,9 @@
  * `landArrival` runs after presentation: a valid revision handoff restores continuity;
  * unexpected mechanical failures report without blocking proved state or deferred
  * arrivals. Otherwise a fresh navigation aimed nowhere restores a saved view from a
- * different revision. Ordinary reloads and history travel keep the browser's restored offset
- * (history.js). Comparison is restored after activation because its base must be
+ * different revision. Ordinary reloads and full-document history travel keep the browser's
+ * restored offset; history.js owns same-document working-place checkpoints.
+ * Comparison is restored after activation because its base must be
  * fetched again. Reading position is restored even after a patch because content above
  * it may have changed height.
  *
@@ -59,7 +62,8 @@
  * rows; an unavailable contributor supplies none.
  */
 import { nextRender } from "./rendering.js";
-import { pageUrl, revisionLabel, runtime } from "./context.js";
+import { whileConnected } from "./arrivals.js";
+import { LIVE_ROOT, layerRoot, pageUrl, revisionLabel, runtime } from "./context.js";
 import {
   documentWidgetDigests,
   servedExecutable,
@@ -75,8 +79,15 @@ import {
 } from "./drafts.js";
 import { heldThreadId, replyDestination } from "./thread/focus.js";
 import { restoreReplyEditing } from "./thread/replies.js";
-import { focusDestination, onStanding, focused, closeLayer } from "./focus.js";
+import {
+  focusDestination,
+  onStanding,
+  onUserInput,
+  focused,
+  closeLayer,
+} from "./focus.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
+import { focusedInView } from "./user-place.js";
 import { patchTree, patchRetains } from "./dom-children.js";
 import { labelOf, PRESS } from "./keyboard/bindings.js";
 import { commandShortcut } from "./keyboard/control-keys.js";
@@ -87,18 +98,19 @@ import {
   authored,
   elementById,
   inChrome,
+  pageDocument,
   readingFrom,
-  TEXT_BLOCK,
   textNodesUnder,
   wrote,
 } from "./passages.js";
-import { registry, stateSpecs, tagsDeclaring } from "./registry.js";
+import { TEXT_BLOCK } from "./passage-facts.js";
+import { registry, tagsDeclaring } from "./registry.js";
 import {
   paintMarkdown,
   prepareDeclaredMarkdown,
   formatDeclaredMarkdown,
 } from "./markdown.js";
-import { pageScroller } from "./scrolling.js";
+import { moveScrollerBy, pageScroller } from "./scrolling.js";
 import {
   containingReadingRegionFor,
   effectiveScroller,
@@ -111,10 +123,10 @@ import {
   shownRegionBounds,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
-import { LIVE_ROOT, PAGE_SCOPE, tabStore, unmarkedCopy } from "./storage.js";
-import { initialOrigin, restoreInitialSource } from "./initial-render.js";
+import { PAGE_SCOPE, tabStore } from "./storage.js";
+import { initialOrigin, restoreInitialSource, unmarkedCopy } from "./initial-render.js";
 import { alignInlineText } from "./text-alignment.js";
-import { el, layoutChanged, quoted, reveal } from "./widget-elements.js";
+import { el, layoutChanged, reveal } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
 import { returnToBannerControl, showNews } from "./banner-toolbar.js";
 import { allButCommandReference, pageScope } from "./keyboard/register.js";
@@ -126,15 +138,12 @@ import { projectView, readApplication } from "./semantic-state.js";
 import { ADDRESSABLE, anchoringIsReady, fragmentTarget } from "./anchor-resolution.js";
 import { scrollToFragment } from "./anchor-travel.js";
 import { rowWalk } from "./walk-position.js";
-import {
-  domValue,
-  rememberAuthoredParents,
-  stageAuthoredStates,
-  stateCoordinate,
-} from "./projection/authored.js";
+import { rememberAuthoredParents, stageAuthoredStates } from "./projection/authored.js";
+import { foldWidgetStates, questionValue } from "./projection/model.js";
 import { runtimeRootState } from "./root-state.js";
 import {
   commitWidgetDescriptors,
+  quoted,
   stageWidgetDescriptors,
 } from "./widget-descriptors.js";
 import {
@@ -165,6 +174,31 @@ import {
 } from "./reading-place.js";
 
 const PRIVATE_REVISION_PARAM = "_leaf-revision";
+
+// The comparison owns these identities; CSS marks are only their rendering.
+const diffMarked = new Set();
+let diffOn = false;
+
+export function comparisonChanges(owner = null) {
+  const changes = diffOn ? [...diffMarked] : [];
+  return owner
+    ? changes.filter((block) => block !== owner && under(block, owner))
+    : changes;
+}
+
+export function watchComparison(owner, callback) {
+  if (!(owner instanceof Element))
+    throw new TypeError("A comparison watcher needs an Element owner");
+  if (typeof callback !== "function")
+    throw new TypeError("A comparison watcher needs a callback");
+  const read = () => {
+    if (owner.isConnected) callback();
+  };
+  return whileConnected(owner, (signal) => {
+    document.addEventListener("lf-comparison", read, { signal });
+    read();
+  });
+}
 
 // The document roots may carry authored classes, data attributes, and inline custom
 // properties that page-local styles read. The live document also paints its own facts
@@ -226,13 +260,7 @@ const pairSources = (source, live, pairs) => {
   }
   return pairs;
 };
-// Where a delivered document's captured resources are addressed: the directory its
-// registry probe names, which is the revision's own root.
-const artifactRoot = (root) =>
-  root
-    .querySelector("script[data-lf-runtime][data-lf-probe]")
-    ?.dataset.lfProbe.replace(/registry\.json$/, "") ?? "";
-const servedMain = document.querySelector("body > main");
+const servedMain = pageDocument();
 const initialDocument = {
   authoredBodyAttributes: authoredAttributes(document.body),
   authoredHeadNodes: new Set([...document.head.children].filter(versionedHeadNode)),
@@ -254,8 +282,8 @@ export function createVersionController({
   syncLayout,
   captureRetainedStanding = () => null,
   restoreRetainedStanding = () => false,
-  captureAskStanding = () => null,
-  restoreAskStanding = () => {},
+  captureQuestionStanding = () => null,
+  restoreQuestionStanding = () => {},
 }) {
   let { authoredBodyAttributes, authoredHeadNodes, authoredHtmlAttributes } =
     initialDocument;
@@ -263,7 +291,7 @@ export function createVersionController({
   // for. Both are replaced by every revision this document takes on.
   let authoredWidgets = servedWidgets;
   let authoredSource = initialDocument.source;
-  let authoredRoot = artifactRoot(document);
+  let authoredRoot = layerRoot(document);
   let sourcePairs = initialPairs;
   // Semantic reading position preserved across authored-document replacement.
   const VIEW_KEY = "lf-view";
@@ -313,9 +341,7 @@ export function createVersionController({
   const versionsOffered = () => versionCount() > 0;
   const versionsToWalk = () => versionCount() > 1;
   const behindCurrent = () =>
-    runtime.active !== null &&
-    runtime.currentRevision !== null &&
-    runtime.active.revision !== runtime.currentRevision;
+    runtime.active !== null && runtime.currentRevision !== null && !runtime.showsActive;
   // A menu is a transient reading of the picker, not a layer over the next control a
   // user Tabs to. Its comparison checkboxes are real internal Tab stops, so offer an
   // exit only from the boundary control in the direction being travelled. The native row
@@ -529,7 +555,7 @@ export function createVersionController({
   const goActive = () => {
     if (!runtime.active) return;
     if (LIVE_ROOT) {
-      if (runtime.active.revision === runtime.currentRevision) return;
+      if (runtime.showsActive) return;
       forceActivation = true;
       closeVersionMenu();
       readAndApply();
@@ -688,9 +714,7 @@ export function createVersionController({
   // the pair — the picker's word and paint, each row's press, the rail down the span —
   // comes from the immutable picker model and is read back by nothing.
   let diffBase = null;
-  let diffOn = false;
   let diffPendingBase = null;
-  const diffMarked = [];
   // What each marked block said in the base version, and which of those readings the
   // user has open. The marks say a block changed; these say what it changed from, at
   // the block, so learning it costs no travel to the other version and back.
@@ -780,25 +804,64 @@ export function createVersionController({
     if (!answer.browser) throw new Error(`revision r${baseRevision} has no projection`);
     return answer.browser;
   }
-  function applyDiff(doc, baseVersion, baseReading) {
+  // The longest run of `after` that keeps the order `before` gave the same units:
+  // the units that did not move.
+  function inOrder(before, after) {
+    const lengths = before.map(() => after.map(() => 0));
+    const at = (i, j) => lengths[i]?.[j] ?? 0;
+    for (let i = before.length - 1; i >= 0; i--)
+      for (let j = after.length - 1; j >= 0; j--)
+        lengths[i][j] =
+          before[i] === after[j]
+            ? at(i + 1, j + 1) + 1
+            : Math.max(at(i + 1, j), at(i, j + 1));
+    const kept = new Set();
+    for (let i = 0, j = 0; i < before.length && j < after.length;)
+      if (before[i] === after[j]) {
+        kept.add(before[i]);
+        i++;
+        j++;
+      } else if (at(i + 1, j) >= at(i, j + 1)) i++;
+      else j++;
+    return kept;
+  }
+  function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
     const baseRevision = stamped(baseVersion)?.revision;
     if (baseRevision == null)
       throw new Error(`version v${baseVersion} has no revision`);
     const baseView = baseReading?.views?.[String(baseRevision)];
     if (!baseView) throw new Error(`revision r${baseRevision} has no projection`);
+    // The base version's widget state, folded as the publisher folds the current one:
+    // its authored values, staged before its Markdown was formatted, under the
+    // projection the server read for it. A report standing at the base painted there
+    // just as an action did, so what the user saw includes it. The server reads each
+    // event under the declaration it was admitted with, and the base's authored values
+    // are decoded under this document's; an entry whose verb was declared otherwise
+    // then has no value here to compare, so the fold leaves it out.
     const baseProjection = projectView(baseView, baseReading.thread);
+    const declaredAlike = ({ e, spec }) => {
+      const current = baseAuthored.get(e.widget)?.specs.get(e.action);
+      return (
+        current?.unit === spec.unit &&
+        JSON.stringify(current.record ?? null) === JSON.stringify(spec.record ?? null)
+      );
+    };
+    const baseWidgets = foldWidgetStates(baseAuthored, {
+      ...baseProjection,
+      desired: new Map(
+        [...baseProjection.desired].filter(([, entry]) => declaredAlike(entry)),
+      ),
+    });
     // The before surface holds the same accepted body projection as its version
-    // would show. Use the event's exact source, never its collapsed comparison value.
-    for (const { tag, verb, spec } of stateSpecs()) {
-      if (spec.record?.kind !== "body") continue;
-      for (const widget of doc.querySelectorAll(tag)) {
-        const body = widget.querySelector(":scope > .lf-markdown-body");
-        const writer = baseProjection.desired.get(
-          stateCoordinate(widget.id, widget.id, verb),
-        );
-        if (body && writer) paintMarkdown(body, writer.e.detail.value);
+    // would show: the event's exact source, never a collapsed comparison value.
+    for (const [id, { state, specs }] of baseWidgets)
+      for (const [verb, spec] of specs) {
+        if (spec.record?.kind !== "body" || !state[verb].action) continue;
+        const body = doc
+          .getElementById(id)
+          ?.querySelector(":scope > .lf-markdown-body");
+        if (body) paintMarkdown(body, state[verb].value);
       }
-    }
     // Multiset membership rather than an alignment: an unchanged block that
     // merely moved stays unmarked; a changed or new one has no base twin.
     const base = new Map();
@@ -808,46 +871,60 @@ export function createVersionController({
       if (left > 0) base.set(key, left - 1);
       else {
         b.classList.add("lf-ins-block");
-        diffMarked.push(b);
+        diffMarked.add(b);
       }
     }
     // The state half: block keys catch words, and a pure state change — a card
     // in a different column, a pick on a different option — has no text of its
-    // own. Compare declared state instead: the base version's state (its markup
-    // plus both folds as of it — a report standing at the base painted there
-    // just as an action did, so what the user saw includes it) against the
-    // live DOM, which already wears the current folds. Body records are words and
-    // the block keys above own them.
-    for (const { tag, verb, spec } of stateSpecs()) {
-      if (!spec.record || spec.record.kind === "body") continue;
-      for (const widget of document.body.querySelectorAll(tag)) {
-        if (inChrome(widget) || quoted(widget)) continue;
-        const units =
-          spec.unit === "widget"
-            ? widget.id
-              ? [widget]
-              : []
-            : [...widget.querySelectorAll(`${spec.record.within} > [id]`)];
-        for (const el of units) {
-          const baseEl = doc.getElementById(el.id);
-          if (!baseEl) continue; // new to this version: the content half marks it
-          // The verb's one writer stands here: the user's action, or the agent's
-          // newest live report. The verb's coordinate means an unrelated fact on
-          // this unit never enters the choice.
-          const coordinate = stateCoordinate(widget.id, el.id, verb);
-          const writer = baseProjection.desired.get(coordinate);
-          const before = writer ? writer.value : domValue(baseEl, spec.record);
-          const now = domValue(el, spec.record);
-          if (before === now) continue;
-          // The element the change reads on: the option now picked, or the moved
-          // card itself.
-          const target =
-            (spec.record.kind === "attribute" && now && elementById(now)) || el;
-          if (!target.classList.contains("lf-ins-block")) {
-            target.classList.add("lf-ins-block");
-            diffMarked.push(target);
+    // own. Compare declared state instead: the base fold above against the
+    // publisher's current one. Body records are words and the block keys above own
+    // them.
+    const mark = (target) => {
+      if (diffMarked.has(target)) return;
+      target.classList.add("lf-ins-block");
+      diffMarked.add(target);
+    };
+    for (const [id, now] of readApplication().effective.widgets) {
+      const before = baseWidgets.get(id);
+      const widget = elementById(id);
+      // New to this version: the content half marks it.
+      if (!before || !widget || inChrome(widget) || quoted(widget)) continue;
+      for (const [verb, spec] of now.specs) {
+        if (!spec.record || spec.record.kind === "body" || !before.specs.has(verb))
+          continue;
+        if (spec.record.kind === "position") {
+          // The moved card itself is where the change reads: one in another
+          // container, or one out of order among those its container held at the
+          // base, the fewest cards whose moving explains the new order.
+          const was = before.state[verb].value;
+          const placed = Object.values(was).flat();
+          for (const [container, ids] of Object.entries(now.state[verb].value)) {
+            const stayed = was[container] ?? [];
+            const kept = inOrder(
+              stayed.filter((unit) => ids.includes(unit)),
+              ids.filter((unit) => stayed.includes(unit)),
+            );
+            for (const unit of ids) {
+              if (!placed.includes(unit) || kept.has(unit)) continue;
+              const moved = elementById(unit);
+              if (moved) mark(moved);
+            }
           }
+          continue;
         }
+        const { value } = questionValue(now, verb, true);
+        if (
+          JSON.stringify(value) ===
+          JSON.stringify(questionValue(before, verb, true).value)
+        )
+          continue;
+        // The option now picked is where a pick reads; anything else reads on its
+        // widget.
+        const picked =
+          spec.record.kind === "attribute" && value.length === 1
+            ? elementById(value[0])
+            : null;
+        mark(picked ?? widget);
       }
     }
     // One pass over everything marked, after both halves, because the two halves mark
@@ -861,7 +938,7 @@ export function createVersionController({
       const baseBlock = doc.getElementById(block.id);
       diffBefore.set(block, baseBlock ? wrote(baseBlock) : null);
     }
-    return diffMarked.length;
+    return diffMarked.size;
   }
   // ---------- one marked block's inline comparison ----------
   // `wrote` is the authority for the two texts. This companion reading keeps the same
@@ -1029,7 +1106,7 @@ export function createVersionController({
       for (const target of [...inlineOpen.keys()]) closeInlineComparison(target);
       diffBefore.clear();
       for (const b of diffMarked) b.classList.remove("lf-ins-block");
-      diffMarked.length = 0;
+      diffMarked.clear();
     }
     presentPicker();
     // Consumers read the settled comparison projection: on/off and its marks move
@@ -1063,6 +1140,7 @@ export function createVersionController({
     const documentRequest = authoredDocument(baseVersion.url);
     let doc;
     let reading;
+    let baseAuthored;
     try {
       while (mine === diffRequest) {
         const throughSeq = runtime.lastEventSeq;
@@ -1076,6 +1154,8 @@ export function createVersionController({
         if (runtime.lastEventSeq === throughSeq) break;
       }
       if (mine !== diffRequest) return;
+      // Typed authored state reads the source before its Markdown is formatted.
+      baseAuthored = stageAuthoredStates(doc, new Map());
       await prepareDeclaredMarkdown(doc);
     } catch {
       if (mine === diffRequest) {
@@ -1086,7 +1166,7 @@ export function createVersionController({
       return;
     }
     if (mine !== diffRequest) return;
-    const n = applyDiff(doc, base, reading);
+    const n = applyDiff(doc, baseAuthored, base, reading);
     setDiff(true, base);
     notice(
       n
@@ -1107,7 +1187,6 @@ export function createVersionController({
   // Selection leads the documents it needs. Menu focus follows that immediate reading,
   // while the public projection above stays paired with the marks that have settled.
   const selectedBase = () => diffPendingBase ?? comparisonBase();
-  const comparisonChanges = () => (diffOn ? [...diffMarked] : []);
 
   // ---------- another version's document ----------
   // Comparison reads an inert document. A revision keeps the layer it captured, and the
@@ -1288,9 +1367,9 @@ export function createVersionController({
   // equality. A retained subject is proved through every containing owner, not by an
   // id or a matching digest alone.
   function patchRules(doc) {
-    const source = doc.querySelector("body > main");
+    const source = pageDocument(doc);
     const arrivingWidgets = documentWidgetDigests(doc);
-    const arrivingRoot = artifactRoot(doc);
+    const arrivingRoot = layerRoot(doc);
     const heldKeys = widgetKeys(authoredSource);
     const arrivingKeys = widgetKeys(source);
     return {
@@ -1308,15 +1387,18 @@ export function createVersionController({
   }
 
   // Patch against the authored baselines. Retained nodes keep their live state;
-  // replacement nodes recover eligible state through carry and Ask restoration.
+  // replacement nodes recover eligible state through carry and Question restoration.
   function captureEditingContinuity() {
     const draftEditing = captureDraftEditing();
     return {
       draftEditing,
       replyThread: draftEditing?.mirrored ? heldThreadId() : null,
-      // Ask standing is the fallback for unnamed controls. An exact editor already
-      // has a replacement identity, so its parent Ask does not also own focus.
-      askStanding: draftEditing ? null : captureAskStanding(),
+      // A replaced reply box takes focus back either way, but is brought into view only
+      // where it marked the user's place (user-place.js, `focusedInView`).
+      replyInView: focusedInView() !== null,
+      // Question standing is the fallback for unnamed controls. An exact editor already
+      // has a replacement identity, so its parent Question does not also own focus.
+      questionStanding: draftEditing ? null : captureQuestionStanding(),
     };
   }
 
@@ -1327,14 +1409,14 @@ export function createVersionController({
     try {
       await land();
     } catch (error) {
-      reportPageError(`Revision continuity failed: ${error?.message ?? error}`);
+      reportPageError(error, `Revision continuity failed`);
     }
   }
 
   async function restoreEditingContinuity(continuity, currentIntent) {
     if (!currentIntent()) return;
-    const { draftEditing, replyThread, askStanding } = continuity;
-    restoreAskStanding(askStanding);
+    const { draftEditing, replyThread, replyInView, questionStanding } = continuity;
+    restoreQuestionStanding(questionStanding);
     const mayRestore = restrictUserIntent(currentIntent, () =>
       draftEditingStands(draftEditing),
     );
@@ -1346,7 +1428,9 @@ export function createVersionController({
           // Present that session before its route reads the annotation directory.
           await refreshThread();
           return mayRestore()
-            ? replyDestination(replyThread, openThread, mayRestore)
+            ? replyDestination(replyThread, openThread, mayRestore, {
+                scroll: replyInView,
+              })
             : null;
         })
       : draftEditingDestination(draftEditing, mayRestore.handoff);
@@ -1363,12 +1447,12 @@ export function createVersionController({
     // authored page changes, then restore that base against the arriving revision.
     const comparedFrom = selectedBase();
     if (comparedFrom !== null) setDiff(false);
-    const live = document.querySelector("body > main");
+    const live = pageDocument();
     // Capture before replacing nodes, using the outgoing source as the baseline.
     const carry = captureCarry(live, authoredSource);
-    const source = doc.querySelector("body > main");
+    const source = pageDocument(doc);
     const arrivingWidgets = documentWidgetDigests(doc);
-    const arrivingRoot = artifactRoot(doc);
+    const arrivingRoot = layerRoot(doc);
     const rules = patchRules(doc);
     retireProjectionCoverage();
     revisionDocuments.delete(target.revision);
@@ -1575,11 +1659,9 @@ export function createVersionController({
       // spends nothing on a fetch while the user is looking at the page. Inside this
       // try, because the loader keeps a rejected import: one 404 on a module an arriving
       // revision introduces would otherwise reject every later state read for good.
-      await preloadWidgets(doc.querySelector("body > main"));
+      await preloadWidgets(pageDocument(doc));
     } catch (error) {
-      reportPageError(
-        `revision ${target.revision} failed to load: ${error?.message ?? error}`,
-      );
+      reportPageError(error, `revision ${target.revision} failed to load`);
       return null;
     }
     return {
@@ -1590,12 +1672,7 @@ export function createVersionController({
             // Installation closes inline comparisons, which can own the comment’s
             // rendered subject independently of the authored patch.
             selectedBase() === null &&
-            patchRetains(
-              authoredSource,
-              doc.querySelector("body > main"),
-              node,
-              patchRules(doc),
-            ),
+            patchRetains(authoredSource, pageDocument(doc), node, patchRules(doc)),
         ),
       install: () => {
         forceActivation = false;
@@ -1619,8 +1696,7 @@ export function createVersionController({
         view,
         retainedStanding: captureRetainedStanding(),
         ...editingContinuity,
-        carry: captureCarry(document.querySelector("body > main"), authoredSource)
-          .records,
+        carry: captureCarry(pageDocument(), authoredSource).records,
         comparison: selectedBase(),
         pointer: pointerAt(),
       }),
@@ -1663,7 +1739,7 @@ export function createVersionController({
     const regions = new Map(readingRegions().map((region) => [region.id, region]));
     const active =
       regions.get(view.activeRegion) ??
-      containingReadingRegionFor(focused()) ??
+      containingReadingRegionFor(focusedInView()) ??
       readingRegionFor(pageReadingBlock());
     if (active) reveal(active.host, currentIntent);
     const restored = new Set();
@@ -1724,7 +1800,7 @@ export function createVersionController({
   // reads no text at all. `moved` names the scrollers that moved; none names every one.
   function recordRegions(moved = null) {
     dropGoneRegions();
-    const main = document.querySelector("body > main");
+    const main = pageDocument();
     const shown = readingRegions().filter(
       (region) =>
         under(region.host, main) &&
@@ -1756,12 +1832,15 @@ export function createVersionController({
   // still names its own pane to d/u through userReadingRegion; because the furniture does
   // not live in that pane's scroller, a posture change preserves the outer region that
   // geometrically contains it. The same distinction keeps an inline response outside a
-  // nested region body with the outer scroller that actually carries it.
+  // nested region body with the outer scroller that actually carries it. Focus names the
+  // region only while in view (user-place.js, `focusedInView`): regions sharing the page
+  // scroller restore the active one's reading for it, and a pane the reader scrolled
+  // away from, though it keeps their focus, would take them back to it.
   const activeReadingRegion = (
     candidates = readingRegions(),
     blocks = textBlocks(),
   ) => {
-    const focusedRegion = containingReadingRegionFor(focused());
+    const focusedRegion = containingReadingRegionFor(focusedInView());
     if (focusedRegion && candidates.some(({ id }) => id === focusedRegion.id))
       return focusedRegion;
     const recent = candidates.find(({ id }) => id === recentReadingRegion()?.id);
@@ -1780,14 +1859,19 @@ export function createVersionController({
   // that a box two regions share lands where that one left it. Inside a composition,
   // only the composition's own scrollers are restored: document travel belongs to the
   // navigation that changed it, including native history.
-  function restoreRegions(candidates, currentIntent, owner = null) {
+  function restoreRegions(
+    candidates,
+    currentIntent,
+    owner = null,
+    views = regionViews,
+  ) {
     const active = activeReadingRegion(candidates);
     const ordered = active
       ? [active, ...candidates.filter(({ id }) => id !== active.id)]
       : candidates;
     const restored = new Set();
     for (const region of ordered) {
-      const reading = regionViews.get(region.id);
+      const reading = views.get(region.id);
       const box = effectiveScroller(region);
       if (owner && !under(box, owner)) continue;
       if (!reading || restored.has(box)) continue;
@@ -1802,13 +1886,21 @@ export function createVersionController({
   // restores that reading. A visible focused element is itself a live reading landmark;
   // focus retained on an element the reader scrolled past is not.
   // A composition change in progress owns any shift inside it.
-  function restoreShifted(shifted, currentIntent) {
+  //
+  // The page shifts with the window. The browser's scroll anchoring holds its words where
+  // they stood in the window, but a place stands below the landing band, which moves when
+  // the banner takes another row: the line the user was reading went under it. So the
+  // page moves with its band first, and a region the page carries lands against the new
+  // band from its own record.
+  function restoreShifted(shifted, currentIntent, views) {
     if (compositionChanges.size) return;
     if (!currentIntent()) return;
+    const page = shifted.find(({ region }) => !region);
+    if (page?.band) moveScrollerBy(pageScroller, -page.band);
     const candidates = shifted
       .map(({ region }) => region)
-      .filter((region) => shownRegionBounds(region));
-    restoreRegions(candidates, currentIntent);
+      .filter((region) => region && shownRegionBounds(region));
+    restoreRegions(candidates, currentIntent, null, views);
     recordRegions();
   }
 
@@ -1824,7 +1916,10 @@ export function createVersionController({
     // region and resize what the observer watches, so it waits for the next frame.
     if (phase === "shift") {
       const currentIntent = retainUserIntent();
-      nextRender(() => restoreShifted(shifted, currentIntent));
+      // A resize can cause a scroll event before this frame. Keep the pre-shift
+      // reading now, so that event cannot replace it with the moved geometry.
+      const views = new Map(regionViews);
+      nextRender(() => restoreShifted(shifted, currentIntent, views));
       return;
     }
     // A composition change captures the intact view before hiding any region, and its
@@ -1877,21 +1972,26 @@ export function createVersionController({
     // the queued record runs. Record again after any seat or layout commits.
     const recordStanding = () => {
       const at = focused();
-      if (at && under(at, document.querySelector("body > main"))) {
+      if (at && under(at, pageDocument())) {
         if (!compositionChanges.size && regionsSettled()) recordRegions();
         queueRecord();
       }
     };
     onStanding(recordStanding);
     onReadingInput(recordStanding);
-    document.addEventListener("input", recordStanding);
+    // Caret and selection keys are work in the same focused destination even
+    // when they change no text and produce no input or focus event.
+    onUserInput((event) => {
+      if (event.type === "keydown" || event.type === "input") recordStanding();
+    });
     queueRecord();
   }
 
   function installArrival() {
     installReadingContinuity();
-    // Ordinary reload and history travel keep the offset the browser restores
-    // (history.js). The root is its document scrollport, so native restoration is both
+    // Ordinary reload and full-document history travel keep the browser's restored
+    // offset; history.js owns same-document working-place checkpoints. The root is
+    // its document scrollport, so native restoration is both
     // more complete and less surprising than a parallel session-store reading. Leaf
     // intervenes for two semantic cases the platform cannot know: a fresh URL aimed at a
     // target a widget generates, hides, or moves (`aimArrival`), and travel to a
@@ -2040,7 +2140,6 @@ export function createVersionController({
     inlineComparison,
     toggleInlineComparison,
     comparisonBase,
-    comparisonChanges,
     prepareActivation,
     aimArrival,
     installArrival,

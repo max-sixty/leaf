@@ -53,11 +53,17 @@
    and a group's one Tab stop (`rove`).
 
    The selector vocabulary lives in control-selectors.js, which imports nothing.
-   This module imports only that vocabulary, rendering.js and keeps.js: importing a
+   In a sample, only the document already holding input may place focus. A trusted
+   pointer or keyboard entry gives the child that ownership before Leaf handles the
+   gesture; remote commands and delayed work cannot borrow it from the parent. This
+   is a rule for Leaf placements, not a restriction on authored browser scripts.
+
+   Its dependencies are structural vocabulary, rendering and writes; importing a
    gesture owner would cycle through its focus dependency. */
-import { nextRender } from "./rendering.js";
+import { afterScript, nextRender } from "./rendering.js";
 import { keeps } from "./keeps.js";
 import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
+import { renderedParent } from "./shadow-tree.js";
 
 // The stops Tab walks inside `root` right now, in document order: the candidates above
 // that are in the order, enabled, and drawn. A modal's own Tab loop reads this.
@@ -67,7 +73,7 @@ export const tabStops = (root) =>
       node.tabIndex >= 0 &&
       !node.matches(":disabled") &&
       !node.inert &&
-      node.checkVisibility(),
+      node.checkVisibility({ visibilityProperty: true }),
   );
 
 // Put the user on an element, saying what moved them there. Every focus the runtime and
@@ -111,17 +117,23 @@ export const tabStops = (root) =>
 // that the focus and the place inside it land in one act rather than in two. Passing no
 // caret leaves the platform's, which is what a first arrival wants.
 //
-// The placement keeps the page still unless `scroll` asks the browser to bring the
-// element into view, as a list whose rows run past its box does for the row it lands on.
+// Placements never ask the browser to reveal their target: native focus scrolling
+// crosses browsing contexts. A caller needing reveal uses document-local scrolling.
+export const canPlaceFocus = () =>
+  !document.documentElement.lfSample || document.hasFocus();
 const CAUSES = new Set(["move", "step", "return", "press"]);
 export function focusDestination(
   destination,
   cause,
-  { caret = null, scroll = false } = {},
+  { caret = null, ...unknown } = {},
 ) {
   if (!CAUSES.has(cause)) throw new TypeError(`focusDestination: no cause ${cause}`);
+  const unexpected = Object.keys(unknown);
+  if (unexpected.length)
+    throw new TypeError(`focusDestination: unknown options ${unexpected.join(", ")}`);
+  if (!canPlaceFocus()) return;
   placed(cause, () => {
-    destination.focus({ preventScroll: !scroll });
+    destination.focus({ preventScroll: true });
     if (!landedOn(destination) && lendable(destination)) lendStop(destination);
   });
   if (caret && holdsCaret(destination)) destination.setSelectionRange(...caret);
@@ -131,6 +143,7 @@ export function focusDestination(
 // arrival is the one that gave the node its focus, so the node it lands on takes that
 // arrival's cause, whether a placement or the user's own Tab or press gave it.
 export function forwardFocus(destination) {
+  if (!canPlaceFocus()) return;
   placed(placing ?? cause(destination), () =>
     destination.focus({ preventScroll: true }),
   );
@@ -156,7 +169,7 @@ const placed = (cause, move) => {
 const landedOn = (node) =>
   node === document.body
     ? node.matches(":focus")
-    : node.getRootNode().activeElement === node ||
+    : Node.prototype.getRootNode.call(node).activeElement === node ||
       Boolean(node.shadowRoot?.activeElement);
 
 // A stop is lent only to a drawn element that is no control of its own: a control that
@@ -177,7 +190,7 @@ export const wearsLentStop = (element) => lent.has(element);
 // element in light or shadow DOM, in Chromium, Firefox and WebKit.
 export function whenLeft(element, leave) {
   const blur = () => {
-    if (element.getRootNode().activeElement === element) return;
+    if (Node.prototype.getRootNode.call(element).activeElement === element) return;
     element.removeEventListener("blur", blur);
     leave();
   };
@@ -231,8 +244,8 @@ export const deepFocus = (at = document.activeElement) => {
 // click. Those in-between nodes are no new standing: until the press lands, the user
 // stands on the element they stood on, for every reader of where they stand, every hold
 // and every key. The press leaves DOM focus alone and keeps the platform's default, so a
-// drag still selects a label's words. `onLabelPress` hears the held element as the press
-// begins and null as it ends, for the paint that keeps its focus ring on.
+// drag still selects a label's words. The standing's focus paint stays on that held
+// element and its composed ancestry until the press lands.
 //
 // It lands at the label's click, whose default focuses the control, which a tap delivers
 // after its release, or at a release off the label, which no click on it follows, or at
@@ -240,14 +253,11 @@ export const deepFocus = (at = document.activeElement) => {
 // (which puts the user back on the held element) and a runtime placement each end it
 // too. A second contact meanwhile is no part of it.
 let labelPress = null;
-const labelPressReaders = new Set();
-export const onLabelPress = (read) => labelPressReaders.add(read);
 const heldByLabel = () => (labelPress?.held.isConnected ? labelPress.held : null);
 function finishLabelPress() {
   const press = labelPress;
   if (!press) return null;
   labelPress = null;
-  for (const read of labelPressReaders) read(null);
   return press;
 }
 // Standing is read once more a task after the press lands, when the control's focus at
@@ -269,6 +279,37 @@ function landLabelPress() {
 // Where the user stands: the element holding focus, inside any open shadow tree, or the
 // element a press on a label holds them on.
 export const focused = () => heldByLabel() ?? deepFocus();
+
+// The selection the user drew in the tree `node` stands in, where the browser keeps it.
+const selectionOf = (node) => {
+  const root = Node.prototype.getRootNode.call(node);
+  return (root instanceof ShadowRoot && root.getSelection?.()) || getSelection();
+};
+
+// Where the user stands, nearest first: the focused node, unless focus rests on the
+// body, then the ends of a selection they drew, its focus before its anchor, a caret a
+// click left included, since a selection names where a reader is as surely as focus
+// does. Each reader takes these by its own rule: the first that is a place on the page
+// (`standingPlace`, standing-target.js), or any that lies in a node (`standsOn`).
+export function standingNodes() {
+  const at = focused();
+  const selection = getSelection();
+  return [
+    at && at !== document.body ? at : null,
+    selection?.focusNode ?? null,
+    selection?.anchorNode ?? null,
+  ].filter(Boolean);
+}
+
+// Whether the user stands on `node` or on something in it: where they stand
+// (`standingNodes`) is inside it, or a selection they drew reaches into it. A change
+// that puts `node` away would take that place from them.
+export function standsOn(node) {
+  if (!node) return false;
+  if (standingNodes().some((at) => at === node || node.contains(at))) return true;
+  const selection = selectionOf(node);
+  return Boolean(selection?.rangeCount && selection.getRangeAt(0).intersectsNode(node));
+}
 
 // Holding the user's place across a change to the tree they stand in. Moving a node
 // blurs whatever it holds to the body in the same call, and hiding one does the same a
@@ -373,7 +414,81 @@ export const onStanding = (read) => readers.add(read);
 let published = null;
 let departed = false;
 let readings = 0;
+// Paint follows the same standing as keyboard routing. Native :focus also matches
+// retargeting shadow hosts and the intermediate node of a held label press, neither
+// of which receives that input. Dedicated attributes leave component classes with
+// their owners. Public shadow parts expose both marks too, so vendor-part rules
+// can choose a carrier on the actual focus ancestry rather than its whole host.
+// Standing is synchronous, but its paint uses the gesture's final destination:
+// a layer can return focus in one microtask and move it again in another during one
+// gesture. Painting those intermediate arrivals would restore unchanged marks.
+let paintDestination = null;
+let paintedFocus = null;
+let paintedWithin = new Set();
+function markFocus(node, name, present) {
+  keeps(node, `data-lf-${name}`, present ? "" : null);
+  if (!present) node.part?.remove(`lf-${name}`);
+  else if (
+    Node.prototype.getRootNode.call(node).nodeType === Node.DOCUMENT_FRAGMENT_NODE &&
+    node.hasAttribute("part")
+  )
+    node.part.add(`lf-${name}`);
+}
+function paintFocus(node) {
+  const next =
+    node === document.body || node === document.documentElement ? null : node;
+  if (next !== paintedFocus) {
+    if (paintedFocus) markFocus(paintedFocus, "focus", false);
+    if (next) markFocus(next, "focus", true);
+    paintedFocus = next;
+  }
+  const within = new Set();
+  for (let owner = next; owner; owner = renderedParent(owner)) within.add(owner);
+  for (const owner of paintedWithin) {
+    if (!within.has(owner)) markFocus(owner, "focus-within", false);
+  }
+  for (const owner of within) {
+    if (!paintedWithin.has(owner)) markFocus(owner, "focus-within", true);
+  }
+  paintedWithin = within;
+}
+// Retained moves preserve native focus without emitting a focus event. Recompute
+// only its derived ancestry when the rendered tree changes, including slot moves.
+// Attribute paint is outside this observation, so it cannot schedule itself.
+const refreshFocusPaint = () =>
+  paintFocus(paintDestination?.isConnected ? paintDestination : null);
+let returnPaintPending = false;
+const paintAfterScript = () => {
+  if (!returnPaintPending) refreshFocusPaint();
+};
+const queueFocusPaint = () => afterScript(paintAfterScript);
+const queueReturnFocusPaint = () => {
+  if (returnPaintPending) return;
+  returnPaintPending = true;
+  nextRender(() => {
+    if (!returnPaintPending) return;
+    returnPaintPending = false;
+    refreshFocusPaint();
+  });
+};
+function watchFocusPaintIn(root) {
+  new MutationObserver(queueFocusPaint).observe(root, {
+    childList: true,
+    subtree: true,
+  });
+  root.addEventListener("slotchange", queueFocusPaint);
+}
+watchFocusPaintIn(document);
 function publish(node, cause) {
+  paintDestination = node;
+  // A command-reference return may precede the command's own focus move in this
+  // gesture. Its ring waits for the frame; a forward move supersedes that return
+  // and still paints after the current script, before the next frame is shown.
+  if (cause === "return") queueReturnFocusPaint();
+  else {
+    returnPaintPending = false;
+    queueFocusPaint();
+  }
   if (node === published && !departed) return;
   departed = false;
   const left = published;
@@ -452,6 +567,7 @@ document.addEventListener("focusin", stand, true);
 // A shadow stage reads the moves inside it, which reach the document as no event.
 export function watchStandingIn(root) {
   root.addEventListener("focusin", stand, true);
+  watchFocusPaintIn(root);
 }
 // Leaving for nowhere from a node still drawn is the user's own move, and so a
 // placement: body holds no stop, so a press on the page's words takes focus off the
@@ -527,6 +643,26 @@ export const inputCount = () => inputs.count;
 // Mechanical owners may stop motion at the input edge, before a command or drawing
 // handler consumes it. Observation adds no binding and never claims the event.
 export const onUserInput = (read) => inputs.observe(read);
+
+// Where the caret stood, as a key went down, in each box the key went down in, before
+// the box's own handling moved it. A command whose meaning hangs on the caret's place,
+// as ↑ from the start of a box walks out of it, reads this rather than the caret the
+// field has already moved by the time the command's row is asked. It holds until the
+// task after the key's, so a row read outside a key falls back to the live caret.
+let keyCarets = null;
+onUserInput((event) => {
+  if (event.type !== "keydown") return;
+  const carets = new Map();
+  for (const node of event.composedPath()) {
+    const caret = node instanceof Element && readCaret(node);
+    if (caret) carets.set(node, caret);
+  }
+  keyCarets = carets;
+  setTimeout(() => {
+    if (keyCarets === carets) keyCarets = null;
+  });
+});
+export const caretAtKey = (node) => keyCarets?.get(node) ?? null;
 onUserInput((event) => {
   if (event.type !== "blur") return;
   landLabelPress();
@@ -581,7 +717,6 @@ addEventListener(
     const held = label && deepFocus();
     if (!held || held === document.body) return;
     labelPress = { held, pointerId: event.pointerId, label };
-    for (const read of labelPressReaders) read(held);
   },
   { capture: true, passive: true },
 );
@@ -700,7 +835,10 @@ export function holdFocus(scope, { key = null } = {}) {
   if (!item || item === scope || !within(scope, item)) return restore;
   // The items are read in the tree the held one stands in, which is the scope's own or a
   // shadow tree inside it.
-  const tree = item.getRootNode() === scope.getRootNode() ? scope : item.getRootNode();
+  const tree =
+    Node.prototype.getRootNode.call(item) === Node.prototype.getRootNode.call(scope)
+      ? scope
+      : Node.prototype.getRootNode.call(item);
   const items = () =>
     [...tree.querySelectorAll(`[${key}]`)].filter((item) => within(scope, item));
   // A key marking several nodes of one place counts once, where it first stands.
@@ -710,8 +848,10 @@ export function holdFocus(scope, { key = null } = {}) {
   // In an item, the control like the one the user stood on, as Remove for Remove, read
   // in the item's own tree, or the item itself where it holds none.
   let control = node;
-  while (control.getRootNode() !== item.getRootNode()) {
-    const host = shadowHostOf(control.getRootNode());
+  while (
+    Node.prototype.getRootNode.call(control) !== Node.prototype.getRootNode.call(item)
+  ) {
+    const host = shadowHostOf(Node.prototype.getRootNode.call(control));
     if (!host) break; // Slotted document controls already name their native kind.
     control = host;
   }
@@ -771,7 +911,8 @@ const heldIn = (scope) => {
   const held = heldByLabel();
   if (held) return within(scope, held) ? held : null;
   const standing = deepFocus(
-    scope.getRootNode().activeElement ?? scope.ownerDocument.activeElement,
+    Node.prototype.getRootNode.call(scope).activeElement ??
+      scope.ownerDocument.activeElement,
   );
   if (standing && standing !== document.body && within(scope, standing))
     return standing;
@@ -998,10 +1139,10 @@ export function controlNavigationKeys(node) {
 
 // Landing the user in the document. One act at both ends of the ladder, and for every
 // step that would otherwise leave them on Leaf's own apparatus, because standing on an
-// Ask out on the page and standing on a banner button are the same state — the user
+// Question out on the page and standing on a banner button are the same state — the user
 // holding something — reached from either side of the chrome. What those rungs do not
 // share is the word, and neither word is the other's: leaving the chrome names where the
-// user lands, since that is the whole of what the rung is for, and letting go of an Ask
+// user lands, since that is the whole of what the rung is for, and letting go of a Question
 // names the act, since they were on the page all along.
 //
 // Where they land is the block they are reading in the page region they last acted in

@@ -21,10 +21,10 @@
  * walk. The theme's column heading is CSS generated content with empty alt
  * text, so the label reaches the tree once, as the list's name, rather than
  * twice. */
-import { scrollIntoView } from "/runtime/widget-api.js";
 import Sortable from "/vendor/sortable.esm.js";
 import {
   once,
+  move,
   offer,
   quoted,
   says,
@@ -42,6 +42,7 @@ import {
   motionPreview,
   scrollerFor,
   PRESS,
+  rowArrows,
   onMotionPreferenceChange,
   rankAt,
   reducedMotion,
@@ -50,6 +51,8 @@ import {
   keepsHidden,
   keepsText,
   focusDestination,
+  scrollIntoView,
+  whileConnected,
 } from "/runtime/widget-api.js";
 
 customElements.define(
@@ -61,19 +64,10 @@ customElements.define(
     #rows = new WeakMap(); // grip → its declared rows, for the grab announcement
     #namesObserver = null;
     #sortables = new Set();
-    #stopMotion = null;
     #resumeProjection = null;
 
     connectedCallback() {
-      if (!once(this)) {
-        if (!quoted(this)) {
-          for (const col of this.querySelectorAll(":scope > lf-column"))
-            this.#sortable(col);
-        }
-        this.#observeNames();
-        this.#observeMotion();
-        return;
-      }
+      if (!once(this)) return;
       this.#structure();
       // A quoted board is an exhibit: no grips, no sortable, no grip keys in
       // the command reference dialog — it stays the static board the theme renders anyway.
@@ -96,17 +90,26 @@ customElements.define(
         this.style.setProperty("--lf-grip-room", Math.ceil(box.width) + "px");
         this.style.setProperty("--lf-grip-block", Math.ceil(box.height) + "px");
       });
-      for (const col of this.querySelectorAll(":scope > lf-column"))
-        this.#sortable(col);
       this.#controller.subscribe(this.#paintAvailability);
-      this.#observeMotion();
       this.#names();
       // Grip names come from where their cards sit, so column child-list mutations
       // restate them — not the four paths that move a card (arrow step, drag, cancel,
       // replay), any of which would eventually forget. #names writes an aria-label on
       // the grip, which is not a child-list mutation and cannot feed this pass back
       // into itself.
-      this.#observeNames();
+      whileConnected(this, () => {
+        for (const col of this.querySelectorAll(":scope > lf-column"))
+          this.#sortable(col);
+        this.#observeNames();
+        const stopMotion = this.#observeMotion();
+        return () => {
+          this.#namesObserver?.disconnect();
+          this.#namesObserver = null;
+          stopMotion?.();
+          for (const sortable of this.#sortables) sortable.destroy();
+          this.#sortables.clear();
+        };
+      });
     }
 
     // What a board is, said in roles: each column a labeled list, each card an
@@ -188,22 +191,16 @@ customElements.define(
     // drop a live grab here or it holds the page's drag for good — freezing action
     // replay and version-follow.
     disconnectedCallback() {
-      this.#namesObserver?.disconnect();
-      this.#namesObserver = null;
-      this.#stopMotion?.();
-      this.#stopMotion = null;
       if (this.#grabbed) this.#cancel();
       this.#superseded = null;
       this.#finishGesture();
-      for (const sortable of this.#sortables) sortable.destroy();
-      this.#sortables.clear();
     }
 
     #observeMotion() {
-      if (this.#stopMotion || !this.#sortables.size) return;
+      if (!this.#sortables.size) return;
       for (const sortable of this.#sortables)
         sortable.option("animation", reducedMotion() ? 0 : 150);
-      this.#stopMotion = onMotionPreferenceChange((reduced) => {
+      return onMotionPreferenceChange((reduced) => {
         for (const sortable of this.#sortables)
           sortable.option("animation", reduced ? 0 : 150);
       });
@@ -287,13 +284,17 @@ customElements.define(
           title: "move",
           when: held,
           repeat: true,
-          run: (binding) =>
+          // Columns run the way the page's words do, so left is the previous column
+          // only in left-to-right text.
+          run: (binding) => {
+            const [back, ahead] = rowArrows(this);
             this.#step(
               card,
               grip,
-              { ArrowLeft: -1, ArrowRight: 1 }[binding] ?? 0,
+              { [back]: -1, [ahead]: 1 }[binding] ?? 0,
               { ArrowUp: -1, ArrowDown: 1 }[binding] ?? 0,
-            ),
+            );
+          },
         },
         {
           id: "board.drop",
@@ -443,8 +444,7 @@ customElements.define(
     }
 
     // The one writer of "no card is held", so the grip's rows change back here and nowhere
-    // else — a drop and a cancel each used to restate it, and a third way out would have
-    // had to remember.
+    // else: a drop, a cancel, and any later way out of a grab all end through it.
     #release() {
       this.#grabbed.card.classList.remove("lf-lift");
       this.#grabbed = null;
@@ -465,7 +465,7 @@ customElements.define(
         });
       const first = card.getBoundingClientRect();
       const rest = this.#cards(col).filter((c) => c !== card);
-      col.moveBefore(card, rest[index] ?? null);
+      move(col, card, rest[index] ?? null);
       if (grip) {
         focusDestination(grip, "return");
         scrollIntoView(card, {
@@ -615,7 +615,7 @@ customElements.define(
         order.forEach((id, index) => {
           const card = cards.find((candidate) => candidate.id === id);
           if (card && this.#cards(column)[index] !== card)
-            column.moveBefore(card, this.#cards(column)[index] ?? null);
+            move(column, card, this.#cards(column)[index] ?? null);
         });
       }
       restoreFocus?.();

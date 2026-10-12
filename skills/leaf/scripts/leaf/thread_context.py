@@ -88,7 +88,7 @@ def id_subject(
 
     A thread is named by its own id, any message in it, a widget frozen into its
     markup, or any other event whose history it is part of
-    (`thread_memberships`). An event on a page widget, a move or a worker's report,
+    (`thread_memberships`). An event on a page widget, an action or a worker's report,
     names that widget, and an undo names what the gesture it withdraws named. A page id cannot collide with any of these:
     `validation.markup.id_errors` refuses an authored id in the shape the log mints,
     and message markup and versions refuse each other's ids."""
@@ -123,7 +123,7 @@ def thread_names(events: list) -> dict:
     rest of the page around it.
 
     Two readings of the panel's own document resolve a message to its thread, and
-    they must answer alike: an Ask and a question naming different threads for one
+    they must answer alike: a Question and a question naming different threads for one
     message is a disagreement no reader could account for. (`build_threads` walks
     the same relation to a different end — the thread object itself, with its
     resolution — so it keeps its own walk, and answers the same way where the log
@@ -172,6 +172,15 @@ def thread_structure(events: list) -> ThreadStructure:
     return ThreadStructure(ids, by_id, fragments)
 
 
+def widget_messages(structure: ThreadStructure) -> dict:
+    """Widget id → the message whose immutable markup declares it."""
+    return {
+        widget: message
+        for message, fragment in structure.fragments.items()
+        for widget in fragment.by_id
+    }
+
+
 def thread_widgets(structure: ThreadStructure, names: dict) -> dict:
     """Widget id → the thread whose frozen markup holds it.
 
@@ -181,10 +190,9 @@ def thread_widgets(structure: ThreadStructure, names: dict) -> dict:
     rather than the log, so the caller that already holds them does not parse
     every fragment a second time."""
     return {
-        widget: names[event_id]
-        for event_id, fragment in structure.fragments.items()
-        if event_id in names
-        for widget in fragment.by_id
+        widget: names[message]
+        for widget, message in widget_messages(structure).items()
+        if message in names
     }
 
 
@@ -238,7 +246,7 @@ def thread_memberships(
     resolution still comes from `build_threads`; membership says which raw
     records explain that fold rather than becoming another state projection.
     Read state and the history feed read the direct relation, `event_threads`:
-    a move the user made in a thread, rather than every thread it changed.
+    an update the user made in a thread, rather than every thread it changed.
     """
     memberships: dict[str, list[str]] = {}
     settled_by_coordinate: dict[tuple, list[str]] = {}

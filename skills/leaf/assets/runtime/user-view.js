@@ -6,7 +6,8 @@
    must never share a lease. */
 import { darkPreference, shownScheme } from "./color-scheme.js";
 import { offlineInteractive, passiveSample, pageUrl, runtime } from "./context.js";
-import { seenRect, shownWindow } from "./geometry.js";
+import { layoutWindow, seenRect, shownWindow, watchRoom } from "./geometry.js";
+import { randomId } from "./ids.js";
 import { sessionIsActive } from "./layer-client.js";
 import { onMotionPreferenceChange, reducedMotion } from "./motion.js";
 import { pageReadiness } from "./presentation.js";
@@ -20,22 +21,19 @@ const rectangle = ({ x, y, width, height }) => ({ x, y, width, height });
 
 export function observeUserView() {
   if (offlineInteractive || passiveSample) return;
-  const session = [...crypto.getRandomValues(new Uint8Array(16))]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
+  const session = randomId();
   let sequence = 0;
   let pending = null;
   let reading = null;
   let loading = null;
   let checks = null;
   let checkedBasis = null;
+  let lastSent = null;
 
   function context() {
     const visual = window.visualViewport;
-    const viewport = {
-      width: document.documentElement.clientWidth,
-      height: document.documentElement.clientHeight,
-    };
+    const { right: width, bottom: height } = layoutWindow();
+    const viewport = { width, height };
     if (
       viewport.width <= 0 ||
       viewport.height <= 0 ||
@@ -128,6 +126,11 @@ export function observeUserView() {
           });
       }
     }
+    // A change that leaves the reading as it stood sends nothing; the heartbeat keeps
+    // it live.
+    const said = JSON.stringify({ ...view, sequence: null, checks });
+    if (!inspect && !keepalive && said === lastSent) return;
+    lastSent = said;
     send(view, keepalive);
   }
 
@@ -152,11 +155,8 @@ export function observeUserView() {
   watchSemantic(() => {
     if (document.visibilityState !== "hidden") schedule();
   });
-  window.addEventListener("resize", schedule);
+  watchRoom(schedule);
   window.addEventListener("pageshow", schedule);
-  document.addEventListener("scroll", schedule, { passive: true, capture: true });
-  window.visualViewport.addEventListener("resize", schedule);
-  window.visualViewport.addEventListener("scroll", schedule);
   onMotionPreferenceChange(schedule);
   for (const preference of [darkPreference, coarsePointer])
     preference.addEventListener("change", schedule);

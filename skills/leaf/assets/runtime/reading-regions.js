@@ -21,9 +21,13 @@
    scroller but rewraps, which moves its words under the reader just the same. Each
    region's host is watched for size, and a region whose scroller is no longer the one
    last seen, or whose width is not, is announced to watchers as a `shift`, after the new
-   geometry exists. Continuity owners record the user's place
-   continuously and restore it on a shift; this module stores no landmarks or scroll
-   offsets. `preserveReadingRegions` brackets a composition change with the same
+   geometry exists. A viewport height change shifts every shown region, including
+   flowing bodies whose own size stays the same while their visible band shrinks. The
+   page is watched the same way and shifts with no region: its width, and the top of its
+   landing band, which the banner moves when the window's width gives it another row.
+   Continuity owners record the user's place continuously and restore it on a shift;
+   this module stores no landmarks or scroll offsets. `preserveReadingRegions` brackets
+   a composition change with the same
    watchers, as `before` and `after`, retaining only scrollers inside that composition
    when regions become hidden or visible. Hidden connected regions remain registered and
    return null bounds. Cleanup removes live DOM bindings, so a replacement can reclaim an
@@ -33,11 +37,12 @@
    It includes unfocusable words, which update the reading region without a focus
    arrival. Mechanical returns, programmatic arrivals and scrolling are not choices
    of another passage. Each consumer interprets that target in its own domain. */
-import { sizeObserver } from "./rendering.js";
-import { shownRect, skipped } from "./geometry.js";
+import { nextRender, sizeObserver } from "./rendering.js";
+import { landingBand, shownRect, skipped, userScrollport } from "./geometry.js";
 import { pageScroller } from "./scrolling.js";
 import { reachReadingScroller } from "./reach.js";
 import { under, renderedUnder, renderedParent } from "./shadow.js";
+import { pageDocument } from "./passages.js";
 import { deepFocus, onStanding, pressing } from "./focus.js";
 
 const regions = new Map();
@@ -51,6 +56,11 @@ const depthOf = (node) => {
 
 const live = (region) => region?.host?.isConnected && region.body?.isConnected;
 
+// Three questions about a region's visibility, each asked where its cost and answer fit:
+// `concealed` reads the page's own attributes alone, so the inventory decides what to
+// sample without asking any geometry; `shown` (below) asks whether the browser draws
+// the host at all, which a region scrolled out of the window still is; `hidden` asks
+// whether the region has bounds to give now, concealed or clipped away entirely.
 const concealed = (region) =>
   region.host.hidden ||
   region.host.closest?.("[hidden], [aria-hidden='true']") !== null;
@@ -93,7 +103,7 @@ export function registerReadingRegion({ id, host, body }) {
 // Chrome layout asks on every pass, since a revision can replace `main`'s children.
 let layoutRegion = null;
 export function syncLayoutRegion() {
-  const main = document.querySelector("main");
+  const main = pageDocument();
   const body = main
     ? [...main.children].find(
         (child) =>
@@ -168,14 +178,13 @@ export const onReadingInput = (read) => readingInputReaders.add(read);
 const readingInput = (node) => {
   for (const read of readingInputReaders) read(node);
 };
-const pageRoot = () => document.querySelector("body > main");
 const actedAt = (at, arriving) => {
   const region = readingRegionFor(at);
   if (region) {
     recentRegionId = region.id;
-    if (under(region.host, pageRoot())) pageRegionId = region.id;
+    if (under(region.host, pageDocument())) pageRegionId = region.id;
   } else if (
-    (at === document.body || under(at, pageRoot())) &&
+    (at === document.body || under(at, pageDocument())) &&
     !(arriving && at === document.body && pressing())
   )
     recentRegionId = pageRegionId = null;
@@ -201,13 +210,13 @@ export const recentReadingRegion = () => readingRegion(recentRegionId);
 const shown = (region) => (region?.host.checkVisibility() ? region : undefined);
 export const pageReadingRegion = () => {
   const at = deepFocus();
-  if (under(at, pageRoot())) return readingRegionFor(at);
+  if (under(at, pageDocument())) return readingRegionFor(at);
   return shown(readingRegion(pageRegionId));
 };
 export const userReadingRegion = () => {
   const at = deepFocus();
   const region = readingRegionFor(at);
-  if (region || under(at, pageRoot())) return region;
+  if (region || under(at, pageDocument())) return region;
   return shown(recentReadingRegion()) ?? pageReadingRegion();
 };
 
@@ -231,7 +240,7 @@ const asRegion = (regionOrNode) =>
     : (regions.get(regionOrNode?.id) ??
       regions.get(readingRegionFor(regionOrNode)?.id));
 
-const scrolls = (box) => /auto|scroll/.test(getComputedStyle(box).overflowY);
+const scrolls = (box) => userScrollport(getComputedStyle(box).overflowY);
 
 // "bounded" when the region's own body scrolls, "flow" when something outside it does.
 export const readingPosture = (regionOrNode) => {
@@ -278,6 +287,16 @@ export function* scrollersOf(node) {
     if (box === pageScroller) return;
     node = box;
   }
+}
+
+// The boxes a scroll passes to once each inner one is spent, as native input chains it
+// at a box whose overscroll-behavior lets it go: `scrollersOf`'s, then the page's. A
+// fixed box ends `scrollersOf` because the page's scroll leaves it standing, but its
+// scroll still chains to the page, the box its containing block, the viewport, scrolls.
+export function* scrollChainOf(node) {
+  let last = null;
+  for (last of scrollersOf(node)) yield last;
+  if (last !== pageScroller) yield pageScroller;
 }
 
 export function shownRegionBounds(regionOrNode) {
@@ -329,14 +348,38 @@ export async function preserveReadingRegions(owner, change) {
 // Whether a region is scrolled by the box last seen for it, at the width last seen.
 const asSeen = (region, scroller, width) =>
   region.scroller === scroller && region.width === width;
+let viewportHeight = innerHeight;
 
-// Whether every region stands as last seen. A layout that has handed a region to another
-// scroller or rewrapped it, before the observer below has announced it, is not a place
-// to record the user's position in: the words have already moved under the reader (a
-// flow page clamps as its content leaves), and the restore the announcement brings
-// would return them to that moved place. A region hidden from layout shows no words to
-// move, and measuring one in skipped content would lay out what it skips.
+// The page's width and the top of its landing band as last seen, or null before the
+// first delivery. The page needs no registration: the root is always there, and its
+// size changes only with the window's.
+let pageSeen = null;
+const pageGeometry = () => ({
+  width: pageScroller.clientWidth,
+  band: landingBand(pageScroller)?.top ?? 0,
+});
+// A band that moves with the window's width shifts the page. One that moves without
+// it, as a page tab strip arriving does (`--lf-root-headers`, lf-tabs.js), comes with
+// the content that moved it, whose owner keeps the reader's place across it, so it is
+// taken as seen wherever it is read: no size need change with it, and left unseen it
+// would read as unsettled, recording nothing, until the window next changed.
+const pageMoved = (now = pageGeometry()) => {
+  if (pageSeen === null) return false;
+  if (now.width !== pageSeen.width) return true;
+  pageSeen = now;
+  return false;
+};
+
+// Whether the page and every region stand as last seen. A layout that has handed a
+// region to another scroller or rewrapped it or the page, before the observer below has
+// announced it, is not a place to record the user's position in: the words have already
+// moved under the reader (a flow page clamps as its content leaves), and the restore the
+// announcement brings would return them to that moved place. A region hidden from layout
+// shows no words to move, and measuring one in skipped content would lay out what it
+// skips.
 export const regionsSettled = () =>
+  viewportHeight === innerHeight &&
+  !pageMoved() &&
   [...regions.values()].every(
     (region) =>
       !live(region) ||
@@ -345,18 +388,20 @@ export const regionsSettled = () =>
       asSeen(region, effectiveScroller(region), region.host.offsetWidth),
   );
 
-// Every shown region's scroller and width as last seen, so a size change that hands a
-// region to a different scroller, or rewraps it, is announced once, after layout has
-// produced it. A hidden region keeps what was last seen of it and is compared again once
-// it shows. Read on the observer's delivery, which follows layout; nothing here writes a
-// box it observes.
-const sizes = sizeObserver(() => {
+// Every shown region's scroller and width as last seen, and the page's geometry, so a
+// size change that hands a region to a different scroller, or rewraps it or the page, is
+// announced once, after layout has produced it. A hidden region keeps what was last seen
+// of it and is compared again once it shows. Read on the observer's delivery, which
+// follows layout; nothing here writes a box it observes.
+function measureRegions() {
+  const viewportChanged = viewportHeight !== innerHeight;
+  viewportHeight = innerHeight;
   const shifted = [];
   for (const region of regions.values()) {
     if (!live(region) || !shown(region)) continue;
     const scroller = effectiveScroller(region);
     const width = region.host.offsetWidth;
-    if (region.scroller && !asSeen(region, scroller, width))
+    if (region.scroller && (viewportChanged || !asSeen(region, scroller, width)))
       shifted.push({
         region: regionRecord(region),
         from: region.scroller,
@@ -365,5 +410,13 @@ const sizes = sizeObserver(() => {
     region.scroller = scroller;
     region.width = width;
   }
+  const now = pageGeometry();
+  if (pageMoved(now)) shifted.push({ region: null, band: now.band - pageSeen.band });
+  pageSeen = now;
   if (shifted.length) notify({ phase: "shift", shifted });
-});
+}
+const sizes = sizeObserver(measureRegions);
+sizes.observe(pageScroller);
+// A flowing region need not resize when only the window's height changes.
+// Share the observer's comparison so one reflow produces one shift reading.
+addEventListener("resize", () => nextRender(measureRegions), { passive: true });

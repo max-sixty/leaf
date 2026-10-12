@@ -11,7 +11,7 @@ import { applicationState, readApplication } from "../semantic-state.js";
 /** @typedef {import("../../../../../build/browser/domain.ts").Command} Command */
 /** @typedef {NonNullable<ReturnType<typeof applicationState.entry>>} Entry */
 /** @typedef {{
- * event: Command, message: Entry["message"], admitted: Event | null,
+ * event: Command, admitted: Event | null,
  * answer: Promise<Event | null>, read: Promise<Event>,
  * resolve: (value: Event | null) => void, resolveRead: (value: Event) => void,
  * }} DeliveryHandle */
@@ -38,9 +38,6 @@ export function createPendingLedger({ newAttempt, enqueue }) {
         get event() {
           return current()?.event ?? attempted;
         },
-        get message() {
-          return current()?.message ?? null;
-        },
         get admitted() {
           return current()?.admitted ?? null;
         },
@@ -57,7 +54,6 @@ export function createPendingLedger({ newAttempt, enqueue }) {
       return handle;
     },
     snapshot,
-    sending,
     nextSending: () => {
       const [attempt] = sending();
       return attempt ? handles.get(attempt) : null;
@@ -82,13 +78,13 @@ export function createPendingLedger({ newAttempt, enqueue }) {
         if (receipt.attempt) handles.get(receipt.attempt)?.resolveRead(receipt);
       return left.length > 0;
     },
-    /** @param {DeliveryHandle} entry @param {Event[]} receipts */
-    nameParent(entry, receipts) {
-      applicationState.nameParent(entry.event.attempt, receipts);
+    /** @param {DeliveryHandle} entry */
+    nameParent(entry) {
+      applicationState.nameParent(entry.event.attempt);
     },
-    /** @param {DeliveryHandle} entry @param {Event[]} receipts */
-    nameUndo(entry, receipts) {
-      return applicationState.nameUndo(entry.event.attempt, receipts);
+    /** @param {DeliveryHandle} entry */
+    nameUndo(entry) {
+      return applicationState.nameUndo(entry.event.attempt);
     },
   };
 }

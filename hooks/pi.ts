@@ -1,6 +1,6 @@
 /**
  * Leaf's watcher and hook transport in Pi: the extension does for a Pi session what `hooks.json`
- * and `scripts/loop-guard.py` do for a Claude Code one (`PiHarness` in
+ * and `scripts/background-watch.py` do for a Claude Code one (`PiHarness` in
  * `skills/leaf/scripts/leaf/harness.py`).
  *
  * Highly experimental: a trial of Leaf on Pi. The site and most references

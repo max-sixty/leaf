@@ -22,8 +22,9 @@ from leaf import passages as passages_model
 from leaf import service as service_model
 from leaf import structure as structure_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_gate.scheme import collect_page_exceptions
 from leaf.served_state import context as served_context
-from leaf.validation import compatibility as validation_model
+from leaf.validation import composition as validation_model
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -108,7 +109,7 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 # One page for each reason an aimed press can still reach the page underneath it. The
@@ -174,7 +175,7 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
     Drive that example itself through the whole gesture, from outline to anchored
     composer."""
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
-    sidenote = registry["$idioms"]["aside.sidenote"]["example"]
+    sidenote = registry["aside.sidenote"]["x-example"]
     html = LONG_PAGE.replace(
         '<h1 id="t">Long</h1>', f'<h1 id="t">Long</h1>\n{sidenote}'
     )
@@ -735,11 +736,11 @@ def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
 
 # Where the side comment and what it holds stand: the bar's edges, the field's top and
 # its scroll (the first line stands at that top only while the field is unscrolled), and
-# Send's top.
+# The visible action's top.
 SIDE_COMMENT = """() => {
   const bar = document.querySelector('.lf-fab-bar').getBoundingClientRect();
   const field = document.querySelector('.lf-fab-input');
-  const send = document.querySelector('.lf-fab-bar .lf-compose-submit');
+  const send = document.querySelector('.lf-fab-bar .lf-compose-field > button:not([hidden])');
   return {top: bar.top, bottom: bar.bottom, field: field.getBoundingClientRect().top,
           height: field.getBoundingClientRect().height, scrolled: field.scrollTop,
           send: send.getBoundingClientRect().top};
@@ -1057,51 +1058,48 @@ def test_a_long_comment_stays_in_view_when_its_target_fills_the_viewport(
     assert field.evaluate("node => node.scrollHeight > node.clientHeight")
 
 
-TALL_DIFF_PAGE = leaf_page(
-    "A tall diff",
-    '<h1>Review</h1><p>One file, commented on whole.</p><lf-diff id="whole"><pre>'
-    "diff --git a/src/lib.rs b/src/lib.rs\n--- a/src/lib.rs\n+++ b/src/lib.rs\n"
-    "@@ -0,0 +1,80 @@\n"
-    + "\n".join(f"+    let value_{n} = compute({n});" for n in range(80))
-    + "\n</pre></lf-diff><p>After the diff.</p>",
+TALL_ROWS_PAGE = leaf_page(
+    "A tall section",
+    "<h1>Review</h1><p>These rows are commented on as one section.</p>"
+    '<section id="whole"><h2>Rows</h2>'
+    + "".join(f"<p>Row {n}: compute({n});</p>" for n in range(80))
+    + "</section><p>After the rows.</p>",
 )
 # Where the pointed row, the comment box and the margin cluster stand in the window.
 POINTED_ROW = """() => {
-  const row = document.querySelector('lf-diff').shadowRoot
-    .querySelectorAll('[data-line]')[50].getBoundingClientRect();
+  const row = document.querySelectorAll('#whole p')[50].getBoundingClientRect();
   const top = (selector) =>
     document.querySelector(selector)?.getBoundingClientRect().top ?? null;
   return { row: row.top, height: row.height, bar: top('.lf-fab-bar'),
            cluster: top('.lf-margin-cluster'), card: top('.lf-margin-preview'),
-           diff: document.querySelector('lf-diff').getBoundingClientRect().top };
+           section: document.querySelector('#whole').getBoundingClientRect().top };
 }"""
 
 
 def test_a_comment_on_a_whole_target_stands_by_the_row_it_was_pointed_at(
     browser, serve
 ):
-    """⌥-clicking a line deep in an unbound diff comments on the whole diff, which is
-    the target the registry gives it, but the user pointed at that line. The box to
-    write in, the cluster the sent comment leaves and the card it opens stand level with
-    it rather than at the diff's top, a screen above; `t` travels back to that row. The
-    event still names the whole diff: where the comment stands is presentation."""
-    page = open_page(browser, serve(TALL_DIFF_PAGE))
+    """⌥-clicking a row deep in a section comments on the whole section, while
+    the user pointed at that row. The box to write in, the cluster the sent
+    comment leaves and the card it opens stand level with it rather than at the
+    section's top, a screen above; `t` travels back to that row.
+    The event still names the whole section: where the comment stands is presentation."""
+    page = open_page(browser, serve(TALL_ROWS_PAGE))
     resized(page, 1440, 900)
-    expect(page.locator("lf-diff.lf-rendered")).to_have_count(1)
-    row = page.locator("lf-diff [data-line]").nth(50)
+    row = page.locator("#whole p").nth(50)
     row.scroll_into_view_if_needed()
     rendered(page)
     row.click(modifiers=["Alt"], position={"x": 60, "y": 5})
     field = open_compact_comment(page)
     rendered(page)
     at = page.evaluate(POINTED_ROW)
-    assert at["diff"] < -at["height"] * 20, f"the diff's top must be off screen: {at}"
+    assert at["section"] < -at["height"] * 20, at
     assert abs(at["bar"] - at["row"]) <= 2 * at["height"], (
         f"the comment box stands {at['row'] - at['bar']:.0f}px from the row: {at}"
     )
 
     write(field, "Why this line?")
-    with sending(page, "the comment on the whole diff"):
+    with sending(page, "the comment on the whole section"):
         page.keyboard.press("Enter")
     sent = events_model.read_events(serve.page_dir)[-1]
     assert (sent["kind"], sent["anchor"]) == ("comment", {"section": "whole"})
@@ -1160,18 +1158,18 @@ def test_a_pointed_comment_moves_only_its_own_row(browser, serve, case):
         url, target = serve(TALL_ASK_PAGE), "way"
         row = f"#{target} p >> nth=25"
     else:
-        url, target = serve(TALL_DIFF_PAGE), "whole"
+        url, target = serve(TALL_ROWS_PAGE), "whole"
         first = append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "comment",
                 "author": "user",
                 "revision": 1,
-                "text": "The whole diff first.",
+                "text": "The whole section first.",
                 "anchor": {"section": "whole"},
             },
         )["id"]
-        row = "lf-diff [data-line] >> nth=50"
+        row = "#whole p >> nth=50"
     page = open_page(browser, url)
     resized(page, 1440, 900)
     rendered(page)
@@ -1220,16 +1218,14 @@ def test_a_pointed_comment_moves_only_its_own_row(browser, serve, case):
         assert abs(card["y"] - top) <= 60, (card, top)
 
 
-def test_a_pointed_comment_finds_its_row_again_after_a_revision_rewrites_it(
+def test_a_pointed_comment_finds_its_row_again_after_a_revision_replaces_it(
     browser, serve
 ):
-    """A revision that rewrites the diff replaces every row the comment was pointed at.
-    The comment's row keeps its place by the words of the row it was pointed at, which
-    the new rendering still holds, rather than falling back to the diff's top."""
-    page = open_page(browser, live_url(serve(TALL_DIFF_PAGE)))
+    """A revision replaces the pointed row's DOM nodes but keeps its words.
+    The comment keeps its place beside that row."""
+    page = open_page(browser, live_url(serve(TALL_ROWS_PAGE)))
     resized(page, 1440, 900)
-    expect(page.locator("lf-diff.lf-rendered")).to_have_count(1)
-    row = page.locator("lf-diff [data-line]").nth(50)
+    row = page.locator("#whole p").nth(50)
     row.scroll_into_view_if_needed()
     rendered(page)
     row.click(modifiers=["Alt"], position={"x": 60, "y": 5})
@@ -1238,22 +1234,16 @@ def test_a_pointed_comment_finds_its_row_again_after_a_revision_rewrites_it(
         page.keyboard.press("Enter")
     page.keyboard.press("Escape")
     rendered(page)
-    page.evaluate(
-        "() => { window.__row = document.querySelector('lf-diff').shadowRoot"
-        ".querySelectorAll('[data-line]')[50]; }"
-    )
-
+    page.evaluate("() => { window.__row = document.querySelectorAll('#whole p')[50]; }")
     (serve.page_dir / "index.html").write_text(
-        TALL_DIFF_PAGE.replace("A tall diff", "A tall diff, revised").replace(
-            "compute(3);", "compute(3 + 0);"
-        )
+        TALL_ROWS_PAGE.replace("A tall section", "A tall section, revised")
+        .replace('<section id="whole">', '<article id="whole">')
+        .replace("</section>", "</article>")
     )
     told(page)
-    expect(page).to_have_title("A tall diff, revised")
+    expect(page).to_have_title("A tall section, revised")
     page.wait_for_function(
-        "() => { const rows = document.querySelector('lf-diff').shadowRoot"
-        ".querySelectorAll('[data-line]'); return rows.length === 80"
-        " && rows[50] !== window.__row; }"
+        "() => document.querySelectorAll('#whole p')[50] !== window.__row"
     )
     rendered(page)
     at = page.evaluate(POINTED_ROW)
@@ -1264,8 +1254,8 @@ def test_a_pointed_comment_finds_its_row_again_after_a_revision_rewrites_it(
 
 
 def point_a_comment(page, text, x=60):
-    """⌥-click row 51 of the tall diff at `x` and send `text`, leaving the card."""
-    row = page.locator("lf-diff [data-line]").nth(50)
+    """⌥-click row 51 of the tall section at `x` and send `text`, leaving the card."""
+    row = page.locator("#whole p").nth(50)
     row.scroll_into_view_if_needed()
     rendered(page)
     row.click(modifiers=["Alt"], position={"x": x, "y": 5})
@@ -1278,11 +1268,11 @@ def point_a_comment(page, text, x=60):
 
 def test_a_pointed_cards_reply_brings_the_pointed_row_back(browser, serve):
     """Typing in a card scrolled away brings it back, and for a pointed comment what it
-    stands by is its row: the diff around it still overlaps the window, so bringing the
-    diff into view moved nothing and left the reply below the window."""
-    page = open_page(browser, serve(TALL_DIFF_PAGE))
+    stands by is its row: the section around it still overlaps the window, so bringing
+    the section into view moved nothing and left the reply below the window."""
+    page = open_page(browser, serve(TALL_ROWS_PAGE))
     resized(page, 1440, 900)
-    expect(page.locator("lf-diff.lf-rendered")).to_have_count(1)
+    expect(page.locator("#whole p")).to_have_count(80)
     point_a_comment(page, "Why this line?")
     page.evaluate("() => scrollTo({ top: 0, behavior: 'instant' })")
     rendered(page)
@@ -1308,11 +1298,11 @@ def test_a_pointed_cards_reply_brings_the_pointed_row_back(browser, serve):
 
 def test_comments_pointed_at_one_row_stand_as_one_margin_row(browser, serve):
     """Two comments pointed at one line, at two places along it, stand as one margin row
-    at the line, as two comments on the diff's own top share its row; the row the first
+    at the line, as two comments on the section's own top share its row; the row the first
     made is the one the second joins."""
-    page = open_page(browser, serve(TALL_DIFF_PAGE))
+    page = open_page(browser, serve(TALL_ROWS_PAGE))
     resized(page, 1440, 900)
-    expect(page.locator("lf-diff.lf-rendered")).to_have_count(1)
+    expect(page.locator("#whole p")).to_have_count(80)
     point_a_comment(page, "First about this line.", x=60)
     first = page.evaluate(ROWS_ON, ["whole"])
     point_a_comment(page, "Second about this line.", x=200)
@@ -1324,18 +1314,17 @@ def test_comments_pointed_at_one_row_stand_as_one_margin_row(browser, serve):
 
 def test_a_pointed_row_is_announced_where_it_stands_and_by_its_words(browser, serve):
     """A listener places a margin row by how far down the page it is and tells rows
-    apart by their names. A pointed row stands two-thirds of the way down the diff, and
-    it is named by the line it stands by, not only by the diff the target's own row
+    apart by their names. A pointed row stands two-thirds of the way down the section, and
+    it is named by the line it stands by, not only by the section the target's own row
     names."""
-    page = open_page(browser, serve(TALL_DIFF_PAGE))
+    page = open_page(browser, serve(TALL_ROWS_PAGE))
     resized(page, 1440, 900)
-    expect(page.locator("lf-diff.lf-rendered")).to_have_count(1)
+    expect(page.locator("#whole p")).to_have_count(80)
     point_a_comment(page, "Why this line?")
     spoken = page.evaluate(
         """() => {
           const main = document.querySelector('main');
-          const row = document.querySelector('lf-diff').shadowRoot
-            .querySelectorAll('[data-line]')[50].getBoundingClientRect();
+          const row = document.querySelectorAll('#whole p')[50].getBoundingClientRect();
           const host = [...document.querySelectorAll('[data-lf-margin-for]')]
             .find((host) => host.lfTarget?.id === 'whole');
           return {
@@ -1347,7 +1336,7 @@ def test_a_pointed_row_is_announced_where_it_stands_and_by_its_words(browser, se
     )
     said = re.search(r"(\d+) percent down", spoken["name"])
     assert said and abs(int(said[1]) - spoken["at"]) <= 3, spoken
-    assert "let value_50 = compute(50);" in spoken["name"], spoken
+    assert "Row 50: compute(50);" in spoken["name"], spoken
 
 
 POINTED_WITHIN = {
@@ -1509,20 +1498,20 @@ def test_a_reflow_keeps_a_pointed_comment_in_its_row_and_its_card_open(browser, 
 def test_undoing_a_settle_brings_a_pointed_comment_back_to_its_row(browser, serve):
     """Settling a pointed comment and taking that back returns it where it stood, next to
     its line, whatever else is open on the target."""
-    url = serve(TALL_DIFF_PAGE)
+    url = serve(TALL_ROWS_PAGE)
     append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "text": "Another thread, still open on the diff.",
+            "text": "Another thread, still open on the section.",
             "anchor": {"section": "whole"},
         },
     )
     page = open_page(browser, live_url(url))
     resized(page, 1440, 900)
-    expect(page.locator("lf-diff.lf-rendered")).to_have_count(1)
+    expect(page.locator("#whole p")).to_have_count(80)
     point_a_comment(page, "Why this line?")
     pointed = page.evaluate(ROWS_ON, ["whole"])
     assert len(pointed) == 2, pointed
@@ -2512,7 +2501,7 @@ def test_design_mode_owns_every_platform_control_from_the_shared_boundary(
     )
     page.keyboard.press("Escape")
     expect(page.locator(".lf-composer")).to_be_hidden()
-    disclosure = page.locator("details")
+    disclosure = page.locator("main details")
     summary = disclosure.locator("summary")
     summary.click()
     assert not disclosure.evaluate("el => el.open"), (
@@ -2561,9 +2550,8 @@ def test_repeated_design_control_names_keep_context_without_inventing_identity(
     page.keyboard.press("s")
     inventory = page.evaluate("""async () => {
       const {aimTargets, resolveAnchor} = await import('/runtime/anchor-resolution.js');
-      const {pageText} = await import('/runtime/passages.js');
       return aimTargets({design: true}).filter(t => t.anchor.section === 'rows' && t.anchor.part).map(t => t.capture ? t.capture() : t).map(t => ({
-        anchor: t.anchor, label: t.label, resolution: (() => { const resolved = resolveAnchor(t.anchor, pageText()); return {exact: resolved?.exact, status: resolved?.status}; })()
+        anchor: t.anchor, label: t.label, resolution: (() => { const resolved = resolveAnchor(t.anchor); return {exact: resolved?.exact, status: resolved?.status}; })()
       }));
     }""")
     assert len(inventory) == 3
@@ -2626,8 +2614,7 @@ def test_repeated_design_control_names_keep_context_without_inventing_identity(
         resolution = page.evaluate(
             """async anchor => {
           const {resolveAnchor} = await import('/runtime/anchor-resolution.js');
-          const {pageText} = await import('/runtime/passages.js');
-          const result = resolveAnchor(anchor, pageText());
+          const result = resolveAnchor(anchor);
           return {exact: result.exact, status: result.status, owner: result.element.id};
         }""",
             event["anchor"],
@@ -2862,9 +2849,9 @@ def test_design_mode_leaves_the_chrome_working(browser, serve):
     A remark on the banner or a panel has no reader who can act on it, and a mode that
     took the chrome took the way out of the panel its own send opened: on a phone that
     panel covers the page, the banner goes inert under it, and its close was a comment.
-    So under the mode the Threads button opens the panel rather than a composer, nothing
-    under the pointer promises a comment there, the panel's edge draws it wider, and its
-    close closes it."""
+    The active mode's Exit control displaces the reading-loop controls on the banner.
+    The Threads key still opens the panel, where nothing under the pointer promises a
+    comment, the panel's edge draws it wider, and its close closes it."""
     edge = EDGES[0]
     page = open_page(browser, serve(LONG_PAGE, comments=1))
     resized(page, 1280, 800)
@@ -2886,10 +2873,11 @@ def test_design_mode_leaves_the_chrome_working(browser, serve):
     page.keyboard.press("Escape")
     expect(composer).to_be_hidden()
 
-    threads = page.locator(".lf-banner .lf-threads-toggle")
-    threads.hover()
+    exit_mode = page.get_by_role("button", name="Exit Design mode")
+    exit_mode.hover()
     expect(page.locator(".lf-inspect")).to_be_hidden()
-    threads.click()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
     panel = page.locator(".lf-thread-panel")
     panel_settled(page)
     expect(panel).to_be_visible()
@@ -2907,6 +2895,12 @@ def test_design_mode_leaves_the_chrome_working(browser, serve):
     expect(panel).to_be_hidden()
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     assert comments() == seeded, "a press on the chrome posted a comment"
+    exit_mode.click()
+    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode")
+    threads = page.locator(".lf-banner-actions .lf-threads-toggle")
+    expect(threads).to_be_visible()
+    threads.click()
+    expect(panel).to_be_visible()
 
 
 def test_design_mode_leaves_leaves_surfaces_working_inside_a_widget(browser, serve):
@@ -4966,7 +4960,7 @@ def test_selected_words_grow_context_until_the_exact_span_resolves(
       const range = document.createRange();
       range.setStart(text, start); range.setEnd(text, start+6);
       const anchor = A.anchorForRange(range);
-      const resolved = A.resolveAnchor(anchor, P.pageText());
+      const resolved = A.resolveAnchor(anchor);
       const wanted = P.spanIn(P.pageText(), P.segmentsIn(range));
       const found = resolved && P.spanIn(P.pageText(), resolved.segments);
       return {anchor, wanted, found};
@@ -5015,7 +5009,7 @@ def test_a_detached_selection_still_has_a_live_writable_composer(
         ),
     )
     errors = []
-    page.on("pageerror", lambda error: errors.append(str(error)))
+    collect_page_exceptions(page, errors)
     anchor = page.evaluate("""async () => {
       const P = await import('/runtime/passages.js');
       const A = await import('/runtime/anchor-resolution.js');
@@ -5027,7 +5021,7 @@ def test_a_detached_selection_still_has_a_live_writable_composer(
       range.setStart(text, start); range.setEnd(text, start+6);
       const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range);
       const anchor = A.anchorForRange(range);
-      if (A.resolveAnchor(anchor, P.pageText()) !== null) throw Error('fixture must stay ambiguous');
+      if (A.resolveAnchor(anchor) !== null) throw Error('fixture must stay ambiguous');
       return anchor;
     }""")
     assert anchor["detached"] is True
@@ -5083,7 +5077,7 @@ def test_a_detached_selection_still_has_a_live_writable_composer(
             """async anchor => {
           const A = await import('/runtime/anchor-resolution.js');
           const P = await import('/runtime/passages.js');
-          return A.resolveAnchor(anchor, P.pageText()) === null;
+          return A.resolveAnchor(anchor) === null;
         }""",
             anchor,
         )
@@ -5106,8 +5100,7 @@ def test_a_detached_selection_still_has_a_live_writable_composer(
     assert page.evaluate(
         """async anchor => {
       const {resolveAnchor} = await import('/runtime/anchor-resolution.js');
-      const {pageText} = await import('/runtime/passages.js');
-      return resolveAnchor(anchor, pageText()) === null;
+      return resolveAnchor(anchor) === null;
     }""",
         anchor,
     )
@@ -5225,7 +5218,7 @@ def test_design_captures_a_repeated_controls_real_associated_label(
     inventory = page.evaluate("""async () => {
       const A = await import('/runtime/anchor-resolution.js');
       const P = await import('/runtime/passages.js');
-      return A.aimTargets({design:true}).filter(t => t.anchor.part).map(t => t.capture()).map(t => ({anchor:t.anchor, label:t.label, exact:A.resolveAnchor(t.anchor,P.pageText())?.exact}));
+      return A.aimTargets({design:true}).filter(t => t.anchor.part).map(t => t.capture()).map(t => ({anchor:t.anchor, label:t.label, exact:A.resolveAnchor(t.anchor)?.exact}));
     }""")
     assert len(inventory) == 2
     assert all(t["exact"] and t["anchor"]["quote"] == "Notify me" for t in inventory)
@@ -5336,7 +5329,7 @@ def test_design_can_comment_on_a_generated_tab_with_a_repeated_summary(browser, 
         """async anchor => {
       const A=await import('/runtime/anchor-resolution.js');
       const P=await import('/runtime/passages.js');
-      const target=A.resolveAnchor(anchor,P.pageText());
+      const target=A.resolveAnchor(anchor);
       return target.exact===false && target.status==='fallback';
     }""",
         event["anchor"],
@@ -5353,7 +5346,7 @@ def test_design_can_comment_on_a_generated_tab_with_a_repeated_summary(browser, 
         """async anchor => {
       const A=await import('/runtime/anchor-resolution.js');
       const P=await import('/runtime/passages.js');
-      const target=A.resolveAnchor(anchor,P.pageText());
+      const target=A.resolveAnchor(anchor);
       return target.exact===false && target.status==='fallback';
     }""",
         event["anchor"],
@@ -5400,7 +5393,7 @@ def test_design_control_speech_uses_its_captured_context_and_visible_label(
     page.keyboard.press("s")
     inventory = page.evaluate("""async () => {
       const A=await import('/runtime/anchor-resolution.js');const P=await import('/runtime/passages.js');
-      return A.aimTargets({design:true}).filter(t=>t.anchor.part).map(t=>t.capture()).map(t=>({anchor:t.anchor, label:t.label, exact:A.resolveAnchor(t.anchor,P.pageText())?.exact}));
+      return A.aimTargets({design:true}).filter(t=>t.anchor.part).map(t=>t.capture()).map(t=>({anchor:t.anchor, label:t.label, exact:A.resolveAnchor(t.anchor)?.exact}));
     }""")
     assert len(inventory) == 2
     if shape == "clipped":
@@ -5461,7 +5454,7 @@ def test_a_unique_anonymous_control_captures_its_visible_face(browser, serve, ro
     target = page.evaluate("""async () => {
       const A=await import('/runtime/anchor-resolution.js');const P=await import('/runtime/passages.js');
       const target=A.aimTargetAt(document.querySelector('[aria-label="Choice B"]'),{design:true});
-      const resolved=A.resolveAnchor(target.anchor,P.pageText());
+      const resolved=A.resolveAnchor(target.anchor);
       return {anchor:target.anchor,label:target.label,exact:resolved.exact};
     }""")
     assert target["exact"] and target["anchor"]["quote"] == "Choice B"
@@ -5551,7 +5544,7 @@ def test_design_regions_keep_distinct_comments_and_ordinary_interaction(
       return [...document.querySelectorAll('#drafts > div')].map(el=>{
         const t=A.aimTargetAt(el,{design:true});
         return {anchor:t.anchor,label:t.label,
-          exact:A.resolveAnchor(t.anchor,P.pageText()).exact,
+          exact:A.resolveAnchor(t.anchor).exact,
           offered:inventory.some(i=>i.controlElement===el)};
       });
     }""")
@@ -5616,7 +5609,7 @@ def test_design_regions_keep_distinct_comments_and_ordinary_interaction(
         """async anchor=>{
       const A=await import('/runtime/anchor-resolution.js');
       const P=await import('/runtime/passages.js');
-      const r=A.resolveAnchor(anchor,P.pageText());
+      const r=A.resolveAnchor(anchor);
       return {exact:r.exact,status:r.status};
     }""",
         event["anchor"],
@@ -5657,7 +5650,7 @@ def test_automatic_design_capture_never_borrows_mutable_editor_context(
       const P=await import('/runtime/passages.js');
       return [...document.querySelectorAll('#controls > *')].map(el=>{
         const t=A.aimTargetAt(el,{design:true});
-        return {anchor:t.anchor,exact:A.resolveAnchor(t.anchor,P.pageText()).exact};
+        return {anchor:t.anchor,exact:A.resolveAnchor(t.anchor).exact};
       });
     }""")
     passages = passages_model.page_passages(structure_model.SourceDocument(markup))
@@ -5882,7 +5875,7 @@ def test_a_native_cross_cell_selection_sends_its_quote_without_claiming_location
         """async anchor=>{
       const A=await import('/runtime/anchor-resolution.js');
       const P=await import('/runtime/passages.js');
-      return A.resolveAnchor(anchor,P.pageText()) === null;
+      return A.resolveAnchor(anchor) === null;
     }""",
         event["anchor"],
     )
@@ -5993,7 +5986,7 @@ def test_native_textarea_defaults_never_supply_design_passage_context(browser, s
             fields:[...document.querySelectorAll('textarea')].map(el=>{
               const target=A.aimTargetAt(el,{design:true});
               return {anchor:target.anchor,label:target.label,
-                exact:A.resolveAnchor(target.anchor,P.pageText()).exact,
+                exact:A.resolveAnchor(target.anchor).exact,
                 says:P.textNodesUnder(el).map(s=>s.node.data).join('')};
             }),
             button:A.aimTargetAt(document.querySelector('#fields button'),{design:true}).anchor,

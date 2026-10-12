@@ -1,5 +1,3 @@
-# Edit a real file
-
 Select `--package file-editor` when the reader should edit a UTF-8 file on the
 machine serving the page. Bind each file explicitly; the browser receives a label
 and contents, never its absolute path.
@@ -10,7 +8,7 @@ leaf file bind PAGE notes ./research-notes.md
 ```
 
 ```html
-<lf-file id="notes-file" binding="notes"></lf-file>
+<lf-file-editor id="notes-file" binding="notes"></lf-file-editor>
 ```
 
 Tell the reader that edits save automatically. Keep the surrounding page quiet:

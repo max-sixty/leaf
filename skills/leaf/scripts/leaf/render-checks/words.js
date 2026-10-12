@@ -1,11 +1,10 @@
+import { says, textNodesUnder } from "/runtime/widget-api.js";
 import {
   quoteFrom,
-  says,
-  textNodesUnder,
   upFrom,
   verbatimBoundaryIdentity,
   verbatimOwnerIdentity,
-} from "/runtime/widget-api.js";
+} from "/runtime/check-api.js";
 import { at, place } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
@@ -212,7 +211,7 @@ export function coveredWords({
 
 // Inspect the theme's actual token paint, including declared widget shadow roots.
 // Shiki supplies styles; page CSS resolves their variables. A theme may intentionally
-// give a token the surrounding ink, so the gate checks legibility rather than requiring
+// give a token the surrounding ink, so the suite checks legibility rather than requiring
 // every syntax category to look different. Group identical styles by painted surface.
 //
 // What a colour is comes back from the browser painting it, not from a parse of how it
@@ -403,7 +402,7 @@ export function shrunkLabelReading() {
 // <defs>; a run laid out under visibility or opacity has a box and paints nothing. The
 // `hidden` attribute is no separate case: on an HTML ancestor it is display: none, and on
 // an SVG element Chrome draws the words anyway.
-export function shrunkLabels(floor) {
+function shrunkLabels(floor) {
   const chrome = (el) => {
     for (let node = el; node; node = node.getRootNode().host)
       if (node.closest(".lf-chrome")) return true;

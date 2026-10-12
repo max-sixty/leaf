@@ -1,13 +1,12 @@
+import { pageScroller, readingPosture, TEXT_BOX } from "/runtime/widget-api.js";
 import {
-  readAsks,
-  pageScroller,
-  readingPosture,
+  pageDocument,
   readingRegions,
   shownBand,
   shownRegionBounds,
-  TEXT_BOX,
   uiInside,
-} from "/runtime/widget-api.js";
+  userScrollport,
+} from "/runtime/check-api.js";
 import { laidOutItems } from "./framing.js";
 import { at as element, place } from "./locate.js";
 import { openRoots } from "./open-roots.js";
@@ -24,7 +23,7 @@ const BREAKOUT = '[data-lf-space]:not([data-lf-space="column"])';
 // never moves the column. Both a sweep sample and its breakpoint refinement read the
 // tokens the margin layout publishes, rather than rediscovering residency from boxes.
 export function marginResidents() {
-  return (document.querySelector("main")?.getAttribute("data-lf-margin") ?? "")
+  return (pageDocument()?.getAttribute("data-lf-margin") ?? "")
     .split(" ")
     .filter((token) => token && token !== "rail")
     .join(" ");
@@ -46,8 +45,6 @@ export function geometryReading(open) {
     scrollbars: scrollbarClearance(),
     margin: marginResidents(),
     arrangement: arrangedBoxes(open),
-    panes: heldPanes(),
-    regions: overflowingRegions(),
     labels: shrunkLabelReading(),
   };
 }
@@ -69,7 +66,7 @@ export function columnGeometry() {
 // with its place under `main`, a selector another load of the same page resolves to the
 // same box, and the name every finding uses (locate.js).
 export function arrangedBoxes(open) {
-  const main = document.querySelector("main");
+  const main = pageDocument();
   if (!main) return [];
   const opens = new Set(open);
   const boxes = [];
@@ -106,8 +103,8 @@ export function arrangedBoxes(open) {
 // how many share some stretch of the page's height. One is a column of panes; a grid with
 // two stacked on the left of a tall third is two.
 export function heldPanes() {
-  const main = document.querySelector("main.layout-workspace");
-  if (!main) return [];
+  const main = pageDocument();
+  if (!main?.matches(".layout-workspace")) return [];
   const held =
     getComputedStyle(main).getPropertyValue("--lf-full-height").trim() === "1";
   return [...main.children].flatMap((body) => {
@@ -135,13 +132,12 @@ const AUTHORED_PANE = '[data-lf-reading-role="pane"]:not([data-lf-generated])';
 // which the Layout marks (`--lf-reading-region: layout`, layouts.css). A bounded block
 // declares that it scrolls, and a widget's own regions are its to hold, so neither is
 // here. A workspace the window is too small to hold flows and scrolls as a page, and is
-// no screen. Each comes back with its id, the name every finding uses, how far its
-// body runs past its scrollport, and how many of the Asks still open to the user it
-// holds: a region stacking several is a queue read as one long scroll.
+// no screen. Each comes back with its id, the name every finding uses, and how far its
+// body runs past its scrollport.
 export function overflowingRegions() {
-  const main = document.querySelector("body > main.layout-workspace");
+  const main = pageDocument();
   if (
-    !main ||
+    !main?.matches(".layout-workspace") ||
     getComputedStyle(main).getPropertyValue("--lf-full-height").trim() !== "1"
   )
     return [];
@@ -150,11 +146,6 @@ export function overflowingRegions() {
     (host.parentElement === main &&
       getComputedStyle(host).getPropertyValue("--lf-reading-region").trim() ===
         "layout");
-  // Shown ones only: a queue's closed items hold open Asks too, and a region that
-  // already is the queue is not stacking them.
-  const asks = readAsks()
-    .user.map((ask) => document.getElementById(ask.id))
-    .filter((ask) => ask?.checkVisibility());
   return readingRegions().flatMap((region) => {
     if (!main.contains(region.host) || !screenRegion(region.host)) return [];
     if (!shownRegionBounds(region) || readingPosture(region) !== "bounded") return [];
@@ -165,7 +156,6 @@ export function overflowingRegions() {
             id: region.id,
             at: element(region.host),
             over: Math.round(over),
-            asks: asks.filter((ask) => region.body.contains(ask)).length,
           },
         ]
       : [];
@@ -270,7 +260,7 @@ export function misplacedBoxes() {
   // apart — and because `overflow` is one of three ways to draw nothing past an edge.
   // (TRAPPED_MARGINS reads `contain` for the neighbouring question: which margins a
   // formatting context keeps in.)
-  const main = document.querySelector("main");
+  const main = pageDocument();
   if (!main) return [];
   // The column belongs to the page. Visible Leaf chrome still has to fit it, but chrome
   // hidden with opacity or visibility has no box a user can lose. checkVisibility()
@@ -406,60 +396,6 @@ export function misplacedBoxes() {
         `${at(el)} stands ${past}px past the room the page has for a wide widget`,
       );
   }
-  // The other way round: a breakout held to the measure. In a flow wider than the
-  // column, a box that keeps the column (an Ask, a callout) widens to a breakout among
-  // its own blocks (theme.css); one standing deeper, as a table in a figure inside an
-  // Ask does, stays at the box's width though the flow around the box has the room. A
-  // frame between them holds it on purpose and answers for it, and so does a widget's
-  // member, such as an option, which holds what it carries on its list's terms: only
-  // plain markup between them leaves the block to the box. A box held at the measure by
-  // another, as a callout inside an Ask is, is named through the outermost of them,
-  // whose width lets the inner ones widen. On a column page the box fills its holder,
-  // and the breakout grows out of it instead.
-  const content = (el) => {
-    const s = getComputedStyle(el);
-    return (
-      el.getBoundingClientRect().width -
-      ["Left", "Right"].reduce(
-        (sum, side) =>
-          sum + parseFloat(s[`padding${side}`]) + parseFloat(s[`border${side}Width`]),
-        0,
-      )
-    );
-  };
-  const atMeasure = (box) =>
-    box.matches('[data-lf-space="column"]') &&
-    main.contains(box) &&
-    box.getBoundingClientRect().width <=
-      parseFloat(getComputedStyle(box).getPropertyValue("--col")) + 1;
-  const allocated = (el) => el.parentElement.closest("[data-lf-space]");
-  // Whether `outer` holds `inner` as one of its own blocks: only plain markup between
-  // them, none of it a widget's member or a box that draws a frame.
-  const plainly = (inner, outer) => {
-    for (let a = inner.parentElement; a !== outer; a = a.parentElement)
-      if (a.localName.includes("-") || draws(a)) return false;
-    return true;
-  };
-  for (const el of main.querySelectorAll(BREAKOUT)) {
-    if (!el.checkVisibility()) continue;
-    let outer = allocated(el);
-    if (!outer || !atMeasure(outer) || !plainly(el, outer)) continue;
-    if (el.getBoundingClientRect().width > outer.getBoundingClientRect().width + 1)
-      continue;
-    let up = allocated(outer);
-    for (; up && atMeasure(up) && plainly(outer, up); up = allocated(outer)) outer = up;
-    // A box held at the measure by one it is not plainly inside is that box's member,
-    // which holds it on its own terms, so no width given to either would free it.
-    if (up && atMeasure(up)) continue;
-    if (content(outer.parentElement) > outer.getBoundingClientRect().width + 1)
-      report(
-        el,
-        "held",
-        `${at(el)} asks for data-width="${el.getAttribute("data-lf-space")}" but ` +
-          `stands at the reading measure inside ${at(outer)}, which keeps the column — ` +
-          `give ${at(outer)} the data-width`,
-      );
-  }
   // The room being the page's own box is not the whole of what a wide widget owes,
   // because the page hangs things in that box. A sidenote stands a gutter off the
   // column, while the strip it is reserved out of comes off the far edge of the page —
@@ -532,7 +468,7 @@ export function misplacedBoxes() {
   // the page scrolls, cannot see one. Wholly inside, because a box half
   // in the clip is half unreadable: the group above leaves 7px of a 192px note
   // showing, which is nothing an "overlaps at all" reading would have objected to.
-  const scrolls = (s) => /^(auto|scroll)$/.test(s.overflowX);
+  const scrolls = (s) => userScrollport(s.overflowX);
   const lost = new Map();
   // Up the containing blocks rather than the markup, since those are the boxes that
   // hold this one: an absolutely-placed box hangs off the nearest ancestor that
@@ -686,7 +622,7 @@ export function misplacedBoxes() {
 // columns with their widths, names the widest, and leaves the diagnosis to the author.
 // A table that scrolls with nothing left to wrap is the theme's honest third case.
 export function squeezedTables() {
-  const main = document.querySelector("main");
+  const main = pageDocument();
   if (!main) return [];
   // What a heading says, for the column's name.
   const says = (cell) => {

@@ -19,7 +19,7 @@ const { readingIsContinuous, readingReturn, completeReadingReturn } =
 
 let taken = 0;
 const emptyProjection = () => ({ entries: [], actions: [], reports: [], desired: [] });
-const noAsks = () => ({ all: [], user: [], unanswered: [] });
+const noQuestions = () => ({ all: [], user: [], unanswered: [] });
 const state = (reading) => ({
   taken: ++taken,
   reading,
@@ -31,13 +31,13 @@ const state = (reading) => ({
   browser: {
     basis: { through_seq: 0 },
     receipts: [],
-    thread: { threads: [], projection: emptyProjection(), asks: noAsks() },
+    thread: { threads: [], projection: emptyProjection(), questions: noQuestions() },
     views: {
       1: {
         basis: { revision: 1, through_seq: 0 },
         coverage: [],
         undo: [],
-        document: { asks: noAsks(), projection: emptyProjection() },
+        document: { questions: noQuestions(), projection: emptyProjection() },
       },
     },
   },
@@ -147,14 +147,10 @@ test("a return stays interrupted until its refreshed reading is actually present
         applying = false;
       };
       const feed = createStateFeed({
-        projectionDeferred: () => false,
-        retryProjection: () => false,
         stateApplying: () => applying,
-        releasePending: async () => {},
         invalidateDom: async () => {},
         receiveState,
         prepareActivation: async () => null,
-        notifyDataSubscribers: async () => {},
         renderStatus: (status) => statuses.push(status),
       });
       feed.startFeed(async () => {}, Promise.resolve({ state: state("initial") }));

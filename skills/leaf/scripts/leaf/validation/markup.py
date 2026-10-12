@@ -3,21 +3,16 @@
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from markdown_it import MarkdownIt
-
+from leaf.passages import block_markdown
 from leaf.registry.schema import json_value
 from leaf.schema import MEDIA_DIR, SERVED_PATH
 from leaf.structure import (
-    PAGE_ALLOCATIONS,
     POINTABLE_TAGS,
     SECTIONING_TAGS,
     SourceDocument,
     allocation_expects,
     links_with_rel,
 )
-from leaf.styles import inline_presentation_override_errors
-
-_message_markdown = MarkdownIt("commonmark")
 
 
 def reserved_marker_errors(parser) -> list:
@@ -175,54 +170,12 @@ def page_boundary_errors(parser: SourceDocument) -> list:
 
 
 def authored_allocation_errors(parser: SourceDocument) -> list:
-    """Authored allocations use the layer's named values, and a page's own allocation
-    stands on its `body`."""
-    return (
-        [
-            f"{at(item, item['attr'] + '=' + json_value(item['value']))} has an invalid value; "
-            f"expected {expected}"
-            for item in parser.authored_allocations
-            if (expected := allocation_expects(item["attr"], item["value"]))
-        ]
-        + [
-            f"{at(item, item['attr'])} states the height of a widget that draws into "
-            f"its box, and <{item['tag']}> is not one: a block takes the height of what "
-            "it holds"
-            for item in parser.authored_allocations
-            if item["attr"] == "data-height" and not item["tag"].startswith("lf-")
-        ]
-        + [
-            f"{at(item, item['attr'])} belongs on <body>, where it says whether the page "
-            f"keeps a rail"
-            for item in parser.authored_allocations
-            if item["attr"] in PAGE_ALLOCATIONS and item["tag"] != "body"
-        ]
-        + [
-            f"{at(item, item['attr'])} sizes a block in the page's flow, and <main> is the "
-            "page: its width is a Layout class on it (layout-wide, layout-sidebar, "
-            "layout-workspace)"
-            for item in parser.authored_allocations
-            if item["attr"] not in PAGE_ALLOCATIONS | {"data-height"}
-            and item["tag"] == "main"
-        ]
-    )
-
-
-def unarranged_main(parser: SourceDocument) -> list:
-    """Advice for a `main` with no Layout class. Nothing arranges such a page, so its
-    blocks run the window's width; the page's own CSS may mean exactly that, which is
-    why this is advice rather than an error."""
-    main = next((node for node in parser.nodes if node["tag"] == "main"), None)
-    if main is None or any(
-        name.startswith("layout-") for name in main["attrs"].get("class", "").split()
-    ):
-        return []
+    """Authored allocations use the layer's named values."""
     return [
-        (
-            "<main> has no Layout class, so nothing arranges the page and its blocks "
-            'run the window\'s width; class="layout-column" sets the reading column, '
-            "unless the page's own CSS arranges it"
-        )
+        f"{at(item, item['attr'] + '=' + json_value(item['value']))} has an invalid value; "
+        f"expected {expected}"
+        for item in parser.authored_allocations
+        if (expected := allocation_expects(item["attr"], item["value"]))
     ]
 
 
@@ -230,14 +183,12 @@ def fragment_style_errors(parser: SourceDocument) -> list:
     """A message may not dress the document it is put into.
 
     A version's <style> is the page's own, and the gates a version answers to read
-    it as such — syntax, the column it may not overflow, the presentation
-    properties the theme keeps. A fragment has no page of its own: the runtime
-    parses an agent's reply markup into a template and moves those nodes into the
-    message body, where a <style> among them becomes a document stylesheet like
-    any other. `<style>main h1 { color: red !important }</style>` in a reply was
-    accepted here and repainted the version's own heading, past every gate the
-    same rule in a version answers to; an inline `!important` on a protected
-    property outranked the theme's first cascade layer the same way.
+    it as such — its syntax and the column it may not overflow. A fragment has no
+    page of its own: the runtime parses an agent's reply markup into a template and
+    moves those nodes into the message body, where a <style> among them becomes a
+    document stylesheet like any other. `<style>main h1 { color: red !important
+    }</style>` in a reply was accepted here and repainted the version's own heading,
+    past every gate the same rule in a version answers to.
 
     Nothing is lost by refusing them. The layer already dresses a widget an agent
     sends — that is what an element declaration and its theme rules are for — and a rule
@@ -255,11 +206,7 @@ def fragment_style_errors(parser: SourceDocument) -> list:
             "<link rel=stylesheet> in message markup dresses the whole document it is "
             "put into; the page serves the one vendored theme it was reviewed with"
         )
-    return (
-        errors
-        + authored_allocation_errors(parser)
-        + inline_presentation_override_errors(parser)
-    )
+    return errors + authored_allocation_errors(parser)
 
 
 def media_errors(parser: SourceDocument, page_dir: Path) -> list:
@@ -294,7 +241,7 @@ def text_media_errors(text: str, page_dir: Path) -> list:
     and unused definitions as text, so neither asks for a file the page will not load."""
     refs = {
         url
-        for token in _message_markdown.parse(text)
+        for token in block_markdown().parse(text)
         for child in token.children or ()
         if child.type in {"link_open", "image"}
         if (url := child.attrGet("href" if child.type == "link_open" else "src"))

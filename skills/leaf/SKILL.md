@@ -10,7 +10,7 @@ You author a live HTML page for the user, whose directions override your choices
 of content and presentation. The user reads, comments on exact passages, and acts
 through widgets while you revise it in place. Write the page, check it, hand over
 its URL with a status saying what you want back, and wait.
-Answer each delivered user move on the page and in its thread, stamp checkpoints,
+Answer each delivered update on the page and in its thread, stamp checkpoints,
 and idle the page when it is finished.
 
 Anything you need from the user must appear in **Questions**. Zero Questions
@@ -61,28 +61,28 @@ directory explicitly; export or copy anything that must outlive the page directo
    `page init` with a selection adds it to a page already written.
 2. Read `references/page-authoring.md`, then the authoring reference each part
    of the page needs, listed under "Author a version" below. Follow "Read the
-   registry" there to discover widgets and load selected instructions before
-   authoring. Write
+   registry" there to select elements and class idioms and read their examples
+   and selected instructions before authoring. Write
    `<page>/index.html` in the registry's vocabulary. Each valid save becomes the
    active immutable revision; an invalid save leaves the last valid one live and
    reports its diagnostic in page state and the browser. You write `index.html` and
    `page/`; Leaf alone writes revisions and version mappings.
-3. Check the page according to how long the user will rely on it. A quick page
-   revised or dropped after an immediate reaction needs only
-   `leaf page check <page>`; fix every failure and hand it over without stamping
-   or a browser review. A finished record used beyond the conversation needs
+3. **Quick pages and records.** Check the page according to how long the user
+   will rely on it. A quick page revised or dropped after an immediate reaction
+   needs only `leaf page check <page>`; fix every failure and hand it over without
+   stamping or a browser review. A finished record used beyond the conversation needs
    `leaf page check <page> --render`, the reading in "Pre-handover review" in
    `references/page-authoring.md`, and then
    `leaf page stamp <page> --text "<changelog>"`. The check establishes that the
    page renders; the reading establishes that it shows the intended content.
    Review a record before its first handoff and at every later stamp, covering
-   the views and Asks that stamp adds. Review a quick page when a stamp makes it
+   the views and Questions that stamp adds. Review a quick page when a stamp makes it
    a record. A revision that answers a user's message needs only
    `leaf page check` before the reply, even on a record, because each valid save
    is already live on the user's page and further checking only delays the answer
    they are waiting for. Stamp a record again, with its render check and reading,
    at a checkpoint the user would name, such as sign-off (step 6), and wherever a
-   reference requires a stamped version, as taking in an answer to a page Ask
+   reference requires a stamped version, as taking in an answer to a page Question
    does (`references/authoring-revisions.md`). A page declaring
    `<meta name="lf-review" content="sign-off">` is always a record, since
    approval requires a stamped version.
@@ -143,9 +143,9 @@ by side on a wide page, or a workspace, a screen the user moves through rather t
 scrolls. A Layout class
 on `main` or a block arranges each of these, and the page's own CSS adjusts it;
 `references/page-authoring.md`, "Composing a page", owns the concrete choices, and
-`references/authoring-asks.md` owns where each Ask goes.
+`references/authoring-questions.md` owns where each Question goes.
 
-Include only controls and gestures that advance the user's task. Widget moves,
+Include only controls and gestures that advance the user's task. Widget actions,
 resolutions and sign-offs can be undone; sent words remain in the log.
 
 ## Keep the user current
@@ -184,18 +184,18 @@ so a phase does not depend on discovering a chain of references.
 ### Author a version
 
 - `references/page-authoring.md`: before writing or revising any version.
-- `references/authoring-asks.md`: when the page needs an answer from the user or
+- `references/authoring-questions.md`: when the page needs an answer from the user or
   sign-off, before choosing its widgets.
 - `references/authoring-revisions.md`: before changing a handed-over page,
   proposing a rewrite, using a user-owned draft, or revising standing state.
-- `references/authoring-evidence.md`: before drawing a figure, or using measured
-  facts, diagrams, charts, source files or text edits, images, recordings, or
-  before/after captures.
+- `references/authoring-evidence.md`: for work updates or reviews, before drawing
+  a figure, or using measured facts, diagrams, charts, source files or text edits,
+  images, recordings, or before/after captures.
 
 ### First handoff
 
 - `references/conversation-loop.md`: before a page handoff, starting work on the page,
-  work long enough to delegate, or asking the user to do something no Ask or thread
+  work long enough to delegate, or asking the user to do something no Question or thread
   question answers.
 - The contract selected by "Harness selection": before the first handoff and
   when a delivery arrives.

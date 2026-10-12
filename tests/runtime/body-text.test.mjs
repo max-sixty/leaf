@@ -1,9 +1,5 @@
-/* A data body's text, the lines a module draws and numbers.
-
-   `page check` counts the same lines to hold an lf-code `lines` numbering to its
-   body, and `test_interact_document.py` reads these cases against that gate. The
-   whitespace at the edges is where the two runtimes' own `\s` differ, so a body ending
-   in one of those characters is numbered here exactly as the gate counts it. */
+/* A data body's text, the lines a module draws and numbers: leading blank lines and
+   trailing whitespace are the <pre>'s layout, and each case pins one such edge. */
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -35,6 +31,7 @@ test("a rendered Markdown caret keeps its exact source position in long and stru
     "A **bold &amp; repeated word300** and `one & two`.",
     "- [x] **word300**\n- [ ] Next",
     "https://example.com before reader@example.com and word300.",
+    "`AGENTS.md` and example.com before **word300** and https://AGENTS.md.",
     "<div>\n**word300**\n</div>",
     "| First | Second |\n| --- | --- |\n| other | **word300** |",
     "\\* literal, &amp; then word300 and *later*.",
@@ -85,12 +82,23 @@ test("Markdown body readings share file dialect, safe destinations and native st
   const cases = JSON.parse(
     readFileSync(new URL("../markdown_body_cases.json", import.meta.url)),
   );
-  for (const { source, words } of cases)
+  for (const { source, words, links } of cases) {
+    const body = document.createElement("div");
+    body.innerHTML = renderMarkdown(source);
+    assert.deepEqual(
+      [...body.querySelectorAll("a")].map((link) => ({
+        text: link.textContent,
+        href: link.getAttribute("href"),
+      })),
+      links,
+      source,
+    );
     assert.equal(
-      renderedWords(renderMarkdown(source)).replace(/\s+/g, " ").trim(),
+      renderedWords(body.innerHTML).replace(/\s+/g, " ").trim(),
       words,
       source,
     );
+  }
   const body = document.createElement("div");
   body.innerHTML = renderMarkdown("<div>\n**bold**\n</div>\n\n<div>\nHeading\n---");
   assert.equal(

@@ -36,11 +36,17 @@ const isOneOf = (names) => `^(?:${names.map(modulePath).map(escaped).join("|")})
 const exactClosures = {
   "queued-work.js": [],
   "control-selectors.js": [],
+  "shadow-tree.js": [],
   "image-difference.js": [],
-  "contribution-model.js": [],
-  "margin-model.js": ["contribution-model.js"],
-  "margin-map-model.js": ["margin-model.js", "contribution-model.js"],
-  "projection/model.js": ["collapse.js"],
+  "contribution-model.js": ["words.js", "passage-facts.js"],
+  "margin-model.js": ["contribution-model.js", "words.js", "passage-facts.js"],
+  "margin-map-model.js": [
+    "margin-model.js",
+    "contribution-model.js",
+    "words.js",
+    "passage-facts.js",
+  ],
+  "projection/model.js": ["passage-facts.js"],
   "projection/state.js": ["semantic-state.js", "queued-work.js"],
   "thread/model.js": [
     "anchor-coordinate.js",
@@ -57,6 +63,7 @@ const exactClosures = {
     "queued-work.js",
     "focus.js",
     "control-selectors.js",
+    "shadow-tree.js",
     "keeps.js",
     "keyboard/bindings.js",
     "keyboard/layer-stack.js",
@@ -67,10 +74,11 @@ const exactClosures = {
     "pointer.js",
     "user-intent.js",
     "registry.js",
+    "registry-contract.js",
     "rendering.js",
+    "sample-visibility.js",
     "repaint.js",
     "shadow.js",
-    "storage.js",
   ],
 };
 
@@ -81,7 +89,7 @@ const applicationOwners = [
   "keyboard/controller.js",
   "thread-panel.js",
   "pending/state.js",
-  "projection/commands.js",
+  "undo.js",
   "state-application.js",
   "state-feed.js",
 ];
@@ -111,6 +119,7 @@ const forbiddenClosures = Object.fromEntries([
     "projection/presentation.js",
   ].map((root) => [root, applicationOwners]),
   ...[
+    "addressable-names.js",
     "anchor-resolution.js",
     "anchor-controls.js",
     "anchor-paint.js",

@@ -1,4 +1,5 @@
-import { shownBox, shownParts, TEXT_BOX } from "/runtime/widget-api.js";
+import { shownParts, TEXT_BOX } from "/runtime/widget-api.js";
+import { shownBox, userScrollport } from "/runtime/check-api.js";
 import { at } from "./locate.js";
 import { coveredWords } from "./words.js";
 
@@ -93,8 +94,8 @@ export function clippedControls() {
       // (MISPLACED_BOXES reads the same fact for its ancestors), and it denies
       // the way in exactly where the axis has no scroller of its own.
       const contained = /paint|strict|content/.test(s.contain);
-      const scrollX = s.overflowX === "auto" || s.overflowX === "scroll";
-      const scrollY = s.overflowY === "auto" || s.overflowY === "scroll";
+      const scrollX = userScrollport(s.overflowX);
+      const scrollY = userScrollport(s.overflowY);
       const across =
         s.overflowX === "hidden" || s.overflowX === "clip" || (contained && !scrollX);
       const down =
@@ -223,12 +224,7 @@ export function unmarkableElements() {
 // which is the same reason it wears .lf-ui at all, and it lands inside a widget
 // whenever a comment does. The thread panel is out of scope: a widget in a reply is
 // markup frozen in the event log, not the document.
-//
-// And a declared label inside a form control is out of reach whatever it is marked:
-// Chrome starts no pointer selection inside one, which is why `offer` builds a press
-// as a span wearing role="button". A widget reaching for <button> anyway is the one
-// mistake the marker cannot fix, so it is reported separately and says why.
-export function unreachableWords() {
+function unreachableWords() {
   const found = [];
   for (const el of document.querySelectorAll("*")) {
     if (!el.tagName.startsWith("LF-")) continue;
@@ -250,7 +246,6 @@ export function unreachableWords() {
   // The anchor pass's own rule: the nearest element that answers wins.
   const speaks = (el) =>
     Boolean(el.closest(".lf-ui, [data-lf-said]")?.matches("[data-lf-said]"));
-  const FORM = `button, ${TEXT_BOX}, input, select`;
   // Where a control's own words may sit: the control a widget declared (data-lf-offer,
   // asked instead of the role it wears, because lf-tabs overwrites `offer`'s
   // role="button" with "tab" and a Δ badge in a tab then read as a heading somebody
@@ -260,7 +255,7 @@ export function unreachableWords() {
   // an element beside it. lf-shot's flip is a checkbox, so that it keeps working in a page
   // whose script is gone. The line counting a passage's comments is one of these too —
   // the runtime builds it through `offer`, as a widget builds its own.
-  const CONTROL = `${FORM}, label, a[href], [data-lf-offer]`;
+  const CONTROL = `button, ${TEXT_BOX}, input, select, label, a[href], [data-lf-offer]`;
   const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   for (let n = walk.nextNode(); n; n = walk.nextNode()) {
     const el = n.parentElement;
@@ -292,14 +287,25 @@ export function unreachableWords() {
         `under .lf-ui, where no comment can reach it`,
     );
   }
-  // FORM rather than CONTROL: a <label>'s words select like any others, and a widget
-  // that declared a box a control has said nothing about what element it is.
-  for (const el of document.querySelectorAll("[data-lf-said]")) {
-    if (!el.closest(FORM) || !widget(el)) continue;
-    found.push(
-      `${at(widget(el))} says ${JSON.stringify(el.textContent.trim().slice(0, 40))} ` +
-        `inside a form control, where no selection can reach it`,
-    );
-  }
   return [...new Set(found)];
+}
+
+// A declared label inside a form control is out of reach whatever it is marked: Chrome
+// starts no pointer selection inside one, which is why `offer` builds a press as a span
+// wearing role="button". A widget module reaching for <button> anyway puts its label
+// where no selection can go. The suite asks it of Leaf's own widgets over the shipped
+// pages; an authored page has never been found doing it.
+export function wordsInFormControls() {
+  const form = `button, ${TEXT_BOX}, input, select`;
+  return [...document.querySelectorAll("[data-lf-said]")]
+    .filter((el) => el.closest(form))
+    .map((el) => {
+      let widget = el;
+      while (widget && !widget.tagName.startsWith("LF-")) widget = widget.parentElement;
+      return widget
+        ? `${at(widget)} says ${JSON.stringify(el.textContent.trim().slice(0, 40))} ` +
+            `inside a form control, where no selection can reach it`
+        : null;
+    })
+    .filter(Boolean);
 }

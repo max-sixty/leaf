@@ -1,10 +1,17 @@
 #!/usr/bin/env node
 /**
  * Build Leaf's committed browser framework from locked contributor dependencies.
+ * Invoke through pnpm run build:browser or check:browser; pnpm verifies that the
+ * installed dependencies match the manifest and lock before either script runs.
  *
  * Run with --check to compare a fresh, typechecked build with committed bytes
  * without writing them. This module owns its source root, outputs, and their layer
- * paths; Leaf installation, vendoring, activation, and export never invoke this tool.
+ * paths, and writes and checks every other committed Node-built output beside them:
+ * the initial renderers (`build/initial.mjs`), the stylesheets (`build/styles.mjs`),
+ * the modules generated from the registry (`build/registry.mjs`), and the
+ * third-party bundles (`build/vendor.mjs`). The layer's `vendor/` and each package's
+ * hold nothing else, so a file there that no build writes is stale. Leaf
+ * installation, vendoring, activation, and export never invoke this tool.
  *
  * Each TypeScript module compiles to one JavaScript module, its types blanked to
  * whitespace, so every line keeps its source line number and two branches conflict
@@ -16,16 +23,12 @@
  * into the kernel (`build/runtime-bundle.mjs`), so its file count costs a
  * development checkout requests and nothing else.
  *
- * The framework's third-party packages are minified builds, which change only when
- * the lock does. `vendor/lit.js` is the page's one copy of Lit: every public Lit
- * module in one namespace, shaped like Lit's own `lit-all` bundle, where the
- * static-html tags are renamed `staticHtml`, `staticSvg`, and `staticMathml` so they
- * do not shadow the ordinary ones. The framework imports Lit from it, and so does
- * the Web Awesome bundle (`build/webawesome/build.mjs`), so a page registers one
- * LitElement, one template cache, and one version. Signals are the framework's own
- * and sit inside its directory. `shipped.mjs` decides whether each output's imports
- * resolve on every page and writes the notices for the packages that reached them,
- * as it does for every bundle `build/vendor.py` makes.
+ * The framework's third-party packages are minified builds from the lock and the
+ * adaptations below. `vendor/lit.js` is the page's one copy of Lit (`build/lit.mjs`);
+ * the framework imports Lit from it, as Web Awesome's bundle does. Signals are the
+ * framework's own and sit inside its directory. `shipped.mjs` decides whether each
+ * output's imports resolve on every page and writes the notices for the packages
+ * that reached them, as it does for every vendored bundle.
  */
 import { readFile, readdir, mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -36,6 +39,10 @@ import { transformSync } from "amaro";
 import { build } from "esbuild";
 import { eventTypes } from "./event-types.mjs";
 import { initialOutputs } from "../initial.mjs";
+import { litNamespace, litPath } from "../lit.mjs";
+import { registryOutputs } from "../registry.mjs";
+import { styleOutputs } from "../styles.mjs";
+import { adapt, seam, vendorOutputs } from "../vendor.mjs";
 import { bundledPackages, checkModule, licenseNotices } from "./shipped.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
@@ -50,7 +57,7 @@ export const inFramework = (layerPath) =>
   layerPath === facade || layerPath.startsWith(`${frameworkDirectory}/`);
 /** The layer path each package the framework imports is vendored at. */
 const packages = {
-  lit: "vendor/lit.js",
+  lit: litPath,
   "@preact/signals-core": `${frameworkDirectory}/signals-core.js`,
 };
 
@@ -105,7 +112,7 @@ function compileModule(text, source) {
     if (!edge.startsWith(".")) edge = `./${edge}`;
     code = code.slice(0, node.start) + JSON.stringify(edge) + code.slice(node.end);
   }
-  const trailer = `// Generated from ${source} by npm run build:browser.\n`;
+  const trailer = `// Generated from ${source} by build/browser/build.mjs.\n`;
   return {
     code: code.endsWith("\n") ? code + trailer : `${code}\n${trailer}`,
     imports,
@@ -113,57 +120,76 @@ function compileModule(text, source) {
 }
 
 /**
- * Build `lit.js` from Lit's published exports.
+ * Build `lit.js` (`build/lit.mjs`), adapting the locked published modules in memory.
  *
- * Star exports would make static-html's tags ambiguous with the ordinary ones and
- * drop both, so that module is exported by name instead; the polyfill module patches
- * browsers older than any Leaf supports.
+ * Backport lit/lit#5218 while 3.3.0 avoids the repeat marker leak (#5298). Route
+ * keyed and child-part insertions, and the root marker, through
+ * `runtime/dom-move.js`, preserving native state during moves and bypassing named
+ * form properties.
  */
-function litModule(lit) {
-  const stars = Object.keys(lit.exports)
-    .filter(
-      (subpath) => !["./static-html.js", "./polyfill-support.js"].includes(subpath),
-    )
-    .map((subpath) => `export * from "lit${subpath.slice(1)}";`);
-  const contents = [
-    ...stars,
-    'export { html as staticHtml, svg as staticSvg, mathml as staticMathml, literal, unsafeStatic, withStatic } from "lit/static-html.js";',
-  ].join("\n");
-  return {
-    name: "leaf-lit",
-    setup(build) {
-      build.onResolve({ filter: /^leaf:lit$/ }, () => ({
-        path: "lit",
-        namespace: "leaf-lit",
-      }));
-      build.onLoad({ filter: /.*/, namespace: "leaf-lit" }, () => ({
-        contents,
-        resolveDir: root,
-      }));
+async function litModule() {
+  const contents = await litNamespace();
+  const move = 'import {move as leafMove} from "/runtime/dom-move.js";\n';
+  return [
+    {
+      name: "leaf-lit",
+      setup(build) {
+        build.onResolve({ filter: /^leaf:lit$/ }, () => ({
+          path: "lit",
+          namespace: "leaf-lit",
+        }));
+        build.onLoad({ filter: /.*/, namespace: "leaf-lit" }, () => ({
+          contents,
+          resolveDir: root,
+        }));
+      },
     },
-  };
+    adapt([
+      {
+        file: /[/\\]lit-html[/\\]directives[/\\]ref\.js$/,
+        edit: (source) =>
+          seam(
+            seam(
+              source,
+              "e&&void 0!==this.G&&this.rt(void 0)",
+              "e&&this.rt(void 0)",
+              "Lit ref",
+            ),
+            "rt(t){if(this.isConnected",
+            "rt(t){if(void 0===this.G)return;if(this.isConnected",
+            "Lit ref",
+          ),
+      },
+      {
+        file: /[/\\]lit-html[/\\]lit-html\.js$/,
+        edit: (source) =>
+          move +
+          seam(
+            seam(
+              source,
+              "this._$AA.parentNode.insertBefore(t,this._$AB)",
+              "leafMove(this._$AA.parentNode,t,this._$AB)",
+              "Lit move",
+            ),
+            "i.insertBefore(l(),t)",
+            "leafMove(i,l(),t)",
+            "Lit root marker",
+          ),
+      },
+      {
+        file: /[/\\]lit-html[/\\]directive-helpers\.js$/,
+        edit: (source) =>
+          move + seam(source, "e.insertBefore(o,l)", "leafMove(e,o,l)", "Lit move"),
+      },
+    ]),
+  ];
 }
 
 export async function buildOutputs() {
   const contractPath = path.join(root, sourceRoot, "event-contract.d.ts");
   const contract = await eventTypes(new URL("../../", import.meta.url));
   if ((await readFile(contractPath, "utf8")) !== contract)
-    throw new Error("Stale kernel event types; run npm run build:browser");
-  const packageJson = JSON.parse(
-    await readFile(path.join(root, "package.json"), "utf8"),
-  );
-  const lock = JSON.parse(await readFile(path.join(root, "package-lock.json")));
-  for (const [name, version] of Object.entries(packageJson.devDependencies)) {
-    const installed = JSON.parse(
-      await readFile(path.join(root, "node_modules", name, "package.json"), "utf8"),
-    );
-    if (
-      installed.version !== version ||
-      lock.packages[`node_modules/${name}`].version !== version
-    ) {
-      throw new Error(`${name} does not match its exact dependency pin; run npm ci`);
-    }
-  }
+    throw new Error("Stale kernel event types; run pnpm run build:browser");
   const typecheck = spawnSync(
     process.execPath,
     [
@@ -191,9 +217,6 @@ export async function buildOutputs() {
     pending.push(...imports);
   }
 
-  const lit = JSON.parse(
-    await readFile(path.join(root, "node_modules/lit/package.json"), "utf8"),
-  );
   const result = await build({
     absWorkingDir: root,
     entryPoints: Object.fromEntries(
@@ -203,7 +226,8 @@ export async function buildOutputs() {
       ]),
     ),
     outdir: `${assets}/vendor`,
-    plugins: [litModule(lit)],
+    plugins: await litModule(),
+    external: ["/runtime/dom-move.js"],
     platform: "browser",
     format: "esm",
     target: "es2022",
@@ -216,40 +240,62 @@ export async function buildOutputs() {
   });
   for (const file of result.outputFiles) {
     const name = path.relative(root, file.path).split(path.sep).join("/");
-    if (result.metafile.outputs[name].imports.length)
+    if (
+      result.metafile.outputs[name].imports.some(
+        ({ path }) => path !== "/runtime/dom-move.js",
+      )
+    )
       throw new Error(`${name} imports another module`);
     checkModule(file.text, name);
     outputs.set(name, Buffer.from(file.contents));
   }
   const packageRoots = bundledPackages(result.metafile, root);
-  for (const packageRoot of packageRoots) {
-    const pkg = JSON.parse(
-      await readFile(path.join(packageRoot, "package.json"), "utf8"),
-    );
-    if (lock.packages[path.relative(root, packageRoot)].version !== pkg.version) {
-      throw new Error(`${pkg.name} does not match package-lock.json; run npm ci`);
-    }
-  }
   outputs.set(
     `${assets}/vendor/browser-runtime.LICENSES.txt`,
     Buffer.from(licenseNotices("browser-runtime", packageRoots)),
   );
-  for (const [name, bytes] of await initialOutputs()) outputs.set(name, bytes);
+  for (const producer of [initialOutputs, styleOutputs, registryOutputs, vendorOutputs])
+    for (const [name, bytes] of await producer()) outputs.set(name, bytes);
   return outputs;
 }
 
+const missing = (error) => {
+  if (error.code !== "ENOENT") throw error;
+  return [];
+};
+
+/**
+ * The directories this build owns whole: the layer's `vendor/` and each package's.
+ * Every file in them is an output, so one the build no longer writes is stale.
+ */
+async function vendorDirectories(directory) {
+  const packages = "skills/leaf/packages";
+  return [
+    `${assets}/vendor`,
+    ...(
+      await readdir(path.join(directory, packages), { withFileTypes: true }).catch(
+        missing,
+      )
+    )
+      .filter((entry) => entry.isDirectory())
+      .map(({ name }) => `${packages}/${name}/vendor`),
+  ];
+}
+
 export async function checkOutputs(outputs, directory = root) {
-  // The framework's directory holds only what this build writes.
-  const stale = (
-    await readdir(path.join(directory, assets, frameworkDirectory), {
+  const stale = [];
+  for (const owned of await vendorDirectories(directory))
+    for (const file of await readdir(path.join(directory, owned), {
       recursive: true,
-    }).catch((error) => {
-      if (error.code !== "ENOENT") throw error;
-      return [];
-    })
-  )
-    .map((file) => `${assets}/${frameworkDirectory}/${file.split(path.sep).join("/")}`)
-    .filter((name) => !outputs.has(name));
+      withFileTypes: true,
+    }).catch(missing))
+      if (file.isFile()) {
+        const name = path
+          .relative(directory, path.join(file.parentPath, file.name))
+          .split(path.sep)
+          .join("/");
+        if (!outputs.has(name)) stale.push(name);
+      }
   for (const [name, expected] of outputs) {
     let actual;
     try {
@@ -261,14 +307,14 @@ export async function checkOutputs(outputs, directory = root) {
   }
   if (stale.length)
     throw new Error(
-      `Stale browser output; run npm run build:browser:\n${stale.join("\n")}`,
+      `Stale browser output; run pnpm run build:browser:\n${stale.join("\n")}`,
     );
 }
 
 async function main(args) {
   if (args.length === 1 && args[0] === "--help") {
     console.log(
-      "Usage: node build/browser/build.mjs [--check]\n\nBuild committed browser ESM, or check it without writing. Run npm ci first.",
+      "Usage: node build/browser/build.mjs [--check]\n\nBuild committed browser ESM, or check it without writing. Run pnpm install --frozen-lockfile first.",
     );
     return;
   }
@@ -283,10 +329,8 @@ async function main(args) {
   const outputs = await buildOutputs();
   if (args[0] === "--check") await checkOutputs(outputs);
   else {
-    await rm(path.join(root, assets, frameworkDirectory), {
-      force: true,
-      recursive: true,
-    });
+    for (const owned of await vendorDirectories(root))
+      await rm(path.join(root, owned), { force: true, recursive: true });
     for (const [name, bytes] of outputs) {
       const destination = path.join(root, name);
       await mkdir(path.dirname(destination), { recursive: true });

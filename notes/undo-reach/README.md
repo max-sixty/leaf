@@ -28,7 +28,7 @@ server's `browser_undo_candidates`
 undoable gestures newest first and marks the head `newest` only when it is the
 user's newest event that isn't bookkeeping, an undo, or already withdrawn. So a
 reply sent since then ends the walk. `undoable()` in
-`skills/leaf/assets/runtime/projection/commands.js` takes the head only when it
+`skills/leaf/assets/runtime/undo.js` takes the head only when it
 carries `newest`. A widget's own Undo control can still withdraw an older gesture
 it names. #1407 puts the view back where a thread settlement moved it when that
 settlement is undone, in the same tab only.
@@ -36,7 +36,7 @@ settlement is undone, in the same tab only.
 The remaining problem: on a page the user left three weeks ago, the first `z`
 reopens a thread they resolved then, possibly below the fold, and the shortcut
 bar and notice name only the gesture's kind (`undoSentence` and the per-kind words
-in `commands.js`), not which thread or how old.
+in `undo.js`), not which thread or how old.
 
 Undo is one-way. Nothing puts back what an undo took:
 
@@ -80,9 +80,9 @@ Ctrl-R" (newest + name + redo), "Show, then take, with redo", and "Changes panel
 
 ## What each design changes
 
-- **Last 7 days.** `commands.js` compares the head's `ts` with the clock. The 7 is
+- **Last 7 days.** `undo.js` compares the head's `ts` with the clock. The 7 is
   the arbitrary limit the user wants to avoid.
-- **This visit only.** `commands.js` records the undo candidates present at the
+- **This visit only.** `undo.js` records the undo candidates present at the
   first reading, and `undoable()` refuses a head among them. Browser only.
 - **Say what `z` takes.** `document.py` adds each candidate's words from
   `GestureWords.says` (`skills/leaf/scripts/leaf/gesture_words.py`). Today
@@ -90,7 +90,7 @@ Ctrl-R" (newest + name + redo), "Show, then take, with redo", and "Changes panel
   that shows history, so every state read would pay for them. `undoSentence` and
   the notice read them in place of the per-kind words.
 - **Show, then take.** `document.py` marks each candidate the agent has picked up,
-  from the delivery evidence the workflows already read. `commands.js` holds an
+  from the delivery evidence the workflows already read. `undo.js` holds an
   armed state that the next gesture or key clears, and so does a scroll that takes
   the target out of view. The first press reveals the target the way an
   `lf-activity` row's link does: a thread opens, a widget scrolls into view and is
@@ -142,7 +142,7 @@ It has three costs:
 The rest of the redo change: `UndoReading.error` admits an undo naming the user's
 own standing undo when folding without it changes the page; `document.py` serves a
 redo list; `projection/model.js` lets a local redo override the server's reading
-that the target is withdrawn, as a pending forward action does; `commands.js`
+that the target is withdrawn, as a pending forward action does; `undo.js`
 binds `Z`; `lf-activity.js`'s "undone" label
 (`skills/leaf/packages/default/widgets/lf-activity.js`), `events.md`, and
 `skills/leaf/references/event-batches.md` learn the redo.
@@ -170,7 +170,7 @@ withdraws by parity newest first, so an undo naming an undo is a redo, and reads
 each effect (choose, resolve, unresolve, reply) at its own log position, so a
 later reply reopens its thread and makes Redo unavailable, as cost 1 says. The
 simulation's reach rules, words, and notices are page-local; today's notice words
-come from `commands.js`.
+come from `undo.js`.
 
 Serve it to the user with:
 
@@ -185,8 +185,8 @@ keep the preview running as their handoff contract requires. Follow `/developing
 fresh page and log; answer pending feedback before restarting.
 
 `bin/leaf page check --render` on the page passes on main's runtime as of
-e2fdf6ee2. It still advises against the `.sim-page` scroller; that scroller is the
-simulated viewport the "What's in view" rule depends on, so it stays.
+e2fdf6ee2. Its `.sim-page` scroller is the simulated viewport the "What's in view"
+rule depends on, so it stays.
 
 ## Next steps
 
@@ -195,7 +195,7 @@ simulated viewport the "What's in view" rule depends on, so it stays.
 2. Build in the task's current checkout, and read the current undo owners before
    editing them.
 3. Build the pick in the runtime and Python owners named above, with the door's
-   rule in `events.md`'s Undo section and the shortcut words in `commands.js`.
+   rule in `events.md`'s Undo section and the shortcut words in `undo.js`.
    Every new action gets a keyboard and a touch route (root `AGENTS.md`).
 4. Hand the user a live `--user` preview of `review-a-plan` showing the new
    behavior, then delete this note and the playground.

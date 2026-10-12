@@ -19,6 +19,8 @@ from render_harness import (
 )
 
 ROOT = Path(__file__).parent.parent
+# What these journeys cost would move them off the landing gates (`run_tier`).
+pytestmark = pytest.mark.landing
 
 
 def test_a_shipped_page_passes_the_real_browser_gate(browser, serve):

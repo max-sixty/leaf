@@ -13,10 +13,11 @@
    record through `openDraft`. Every path that discards words empties
    the box first, so those hide silently.
 
-   Boot constructs the command owner with explicit travel, delivery, and repaint
-   capabilities. Importing this module exposes only passive nodes and live draft
+   The response surface (composing/surface.js) constructs the command owner with its bar's
+   commands and boot's travel, delivery, and repaint capabilities. Importing this module exposes only passive nodes and live draft
    readings. mount binds the field and its controls after those owners exist. */
 import { el, responseAction } from "../widget-elements.js";
+import { anchorKey } from "../anchor-coordinate.js";
 import { keeps, keepsHidden } from "../keeps.js";
 
 import {
@@ -37,7 +38,7 @@ import { anchorForRange } from "../anchor-resolution.js";
 import { THREAD } from "../thread/selectors.js";
 import { keys, paintKeys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
-import { PRESS } from "../keyboard/bindings.js";
+import { PRESS, rowArrows } from "../keyboard/bindings.js";
 import {
   onStanding,
   takesLetters,
@@ -61,12 +62,10 @@ import { textField } from "./text-field.js";
 // Tab from the field, or `e` while it stands unfocused, unfolds every other response
 // the target offers. The field is the group's stable primary control; reaction
 // vocabulary changes the choices, not the disclosure or the field's place.
-//
-// The bar shows no ellipsis (⋯) on any pointer: the field spans the bar, so a sent
-// message keeps the card's whole measure rather than ending a button's width short of
-// its Reply field. The keys are the only route to Suggest and the reactions, so a mouse
-// or a finger alone has none. That gap is accepted for now; whether to make them more
-// available is open (TODO.md, keyboard/AGENTS.md "Touch routes").
+// The comment field deliberately has one primary action: Dictate when available while empty,
+// Send with words, including on phones. Suggest and
+// reactions retain keyboard routes; reconsidering a pointer or touch disclosure is
+// a product decision ("Touch routes" in keyboard/AGENTS.md).
 // One affordance, raised only where the user has already pointed: a native text
 // selection or an explicit Comment target gesture on an item or visual part.
 export const fabBar = el("div", "lf-ui lf-fab-bar lf-target-paint");
@@ -122,7 +121,13 @@ const composerInput = fabInput;
 // pointed a user at it.
 composerInput.setAttribute("aria-describedby", composerQuote.id);
 const composerSend = el("button", "lf-btn", "Comment");
-composer.append(composerQuote, suggestRow, composerInput, composerSend);
+// The field, and the shelf and controls `wireInput` gathers around it, wait outside the
+// page until the composer first opens (`showComposer`), since a connected field builds
+// its editor: a page whose composer never opens builds none. Everything that reads the
+// field before then reads its words and draft, which it holds unconnected.
+const composerField = document.createDocumentFragment();
+composerField.append(composerInput);
+composer.append(composerQuote, suggestRow, composerSend);
 fabBar.prepend(composer);
 
 export let pendingAnchor = null;
@@ -174,15 +179,11 @@ export function createSelectionComposer({
   // would each overwrite the other's words, so the key says which passage and the record
   // says the rest: the anchor itself (a version that drops the passage still has to say
   // what the draft was about), the mode it was written in, and when it was last touched,
-  // which is what picks the one to reopen at load.
+  // which is what picks the one to reopen at load. The key is the anchor's identity, so a
+  // draft follows an identified subject across a data replacement as `sameAnchor` does;
+  // reopened on the re-minted anchor, it posts that anchor, the rendering last aimed at.
   const COMPOSER_KEY = "composer:";
-  const composerCtx = (anchor) =>
-    COMPOSER_KEY +
-    JSON.stringify(
-      Object.entries(anchor ?? {})
-        .filter(([, value]) => ["string", "number", "boolean"].includes(typeof value))
-        .sort(([left], [right]) => left.localeCompare(right)),
-    );
+  const composerCtx = (anchor) => COMPOSER_KEY + anchorKey(anchor);
   let syncComposer;
   const composerDraftValue = (text = syncComposer.value()) =>
     JSON.stringify({
@@ -271,7 +272,7 @@ export function createSelectionComposer({
   }
   let composerEpoch = 0;
   // What the box holds that a user would miss, asked once. The complete draft, because a
-  // pasted image is in it and not in the field, plus a drawing, which stands beside the
+  // attached image is in it and not in the field, plus a drawing, which stands beside the
   // words rather than in them. Three places ask: the send's own guard, the sentence a
   // hiding box says about what became of the words, and the word Escape's row shows. They
   // had a spelling each, and the one over the field alone read a box holding a picture
@@ -306,7 +307,7 @@ export function createSelectionComposer({
     if (suggestCheck.checked && syncComposer.hasMedia()) {
       suggestCheck.checked = false;
       syncSuggestMode();
-      notice("Remove pasted images before suggesting replacement text");
+      notice("Remove attached images before suggesting replacement text");
       focusDestination(composerInput, "return");
       return;
     }
@@ -338,8 +339,9 @@ export function createSelectionComposer({
     const choices = tabbing && field ? [field, ...options] : options;
     if (!choices.length) return;
     const at = choices.indexOf(focused());
-    const backward =
-      binding === "Shift+Tab" || binding === "ArrowLeft" || binding === "ArrowUp";
+    const backward = ["Shift+Tab", rowArrows(choices[0])[0], "ArrowUp"].includes(
+      binding,
+    );
     const next =
       at < 0
         ? backward
@@ -410,6 +412,8 @@ export function createSelectionComposer({
   // a guard testing for one of them ran on every mousedown in the page and swallowed the
   // click. Painting hangs off the same call, so the mark and the box are up together.
   function showComposer(open) {
+    if (open && composerField.hasChildNodes()) composer.append(composerField);
+    if (!open) syncComposer?.cancelDictation();
     // Hiding keeps the words and used to say nothing at all, so a press on the banner took
     // the box off screen with the user's sentence in it and left no sign the sentence
     // still existed — recoverable only by reselecting that exact passage on that exact
@@ -455,7 +459,7 @@ export function createSelectionComposer({
     closeReactions();
     // A box holding nothing but the machine's seed is a box holding nothing. Asked of the
     // seed rather than of the box, because an empty seed matches an empty field, and a
-    // draft that is one pasted image and no words has exactly that field.
+    // draft that is one attached image and no words has exactly that field.
     if (seededQuote && composerInput.value === seededQuote) syncComposer.load("");
     seededQuote = "";
     const ctx = composerCtx(anchor || null);
@@ -534,6 +538,14 @@ export function createSelectionComposer({
       rememberWriting(composerInput);
     }
   }
+  // A capture arrives with its passage and bytes together. Opening and attaching in one
+  // synchronous turn binds delivery to that draft's arrival generation, while carrying
+  // unsent words under the same rule as an explicit Comment gesture. Upload completion
+  // cannot retarget the picture if the user moves this composer to another passage.
+  function openComposerWithMedia(anchor, images, options = {}) {
+    openComposer(anchor, "", { carry: true, ...options });
+    return syncComposer.addMedia(images);
+  }
   // The box is one view of the draft standing on this passage, and it follows the plain
   // boxes' rule with one thing of its own: the composer is chrome as well as a box, so a
   // draft settled in another tab — sent, or discarded — leaves it nothing to be open about
@@ -579,7 +591,7 @@ export function createSelectionComposer({
     if (discard) clearDraft(composerCtx(pendingAnchor)); // before the anchor goes: the key is the anchor
     composerWatch?.();
     composerWatch = null;
-    syncComposer.load(""); // the whole draft, so a pasted image does not outlive its send
+    syncComposer.load(""); // the whole draft, so an attached image does not outlive its send
     seededQuote = "";
     suggestCheck.checked = false;
     pendingAnchor = null;
@@ -735,7 +747,8 @@ export function createSelectionComposer({
         // settling.
         if (shouldReveal || panelIsOpen()) {
           const destination = await revealSent({
-            focus: shouldReveal ? "thread" : false,
+            part: shouldReveal ? "thread" : "reply",
+            focus: shouldReveal,
             travel: false,
             flash: false,
             intent: shouldReveal
@@ -853,17 +866,13 @@ export function createSelectionComposer({
     setDraftDrawing,
     draftKey: composerCtx,
     composerHolds,
-    setSuggestionMode,
     responseOptionsAreOpen,
     responseOptionsAvailable,
-    responseOptionButtons,
-    focusedResponseOption,
-    responseReactionButtons,
-    stepResponseOptions,
     setResponseOptions,
     syncResponseOptions,
     resetResponseOptions,
     openComposer,
+    openComposerWithMedia,
     hideComposer,
     detachComposer,
     carryComposerToReply,

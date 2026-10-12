@@ -2,12 +2,19 @@
    retains their command scopes and presented controls, independently of the renderer
    that seats them. Every projection uses this directory for control, focus and
    containment, so a producer updates one registration whichever surface shows it. */
-import { html, render } from "../vendor/browser-runtime.js";
+import {
+  Directive,
+  PartType,
+  directive,
+  html,
+  nothing,
+  render,
+} from "../vendor/browser-runtime.js";
 import { iconElement } from "./icons.js";
 import { offer } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
 import { focusDestination } from "./focus.js";
-import { reducedMotion } from "./motion.js";
+import { agentArrivalDuration, reducedMotion } from "./motion.js";
 import { isCommandScope, projectCommandScope } from "./keyboard/scopes.js";
 import {
   commandAvailable,
@@ -119,11 +126,11 @@ const iconNodes = new WeakMap();
 const contributorClasses = new WeakMap();
 
 /** Create the native host for one generated margin entry reading. */
-export function createContributionControl(record, className = "") {
+function createContributionControl(record, className = "") {
   return offer(record.behavior === "status" ? "span" : "button", className);
 }
 
-export const contributionControlMatches = (control, record) =>
+const contributionControlMatches = (control, record) =>
   record.behavior === "status"
     ? control instanceof HTMLSpanElement
     : control instanceof HTMLButtonElement;
@@ -143,7 +150,7 @@ export function contributionControlKey(control) {
 export function contributionEntrySource(control) {
   const offered = controlContributions.get(control);
   if (!offered) return null;
-  return typeof offered.source === "function" ? offered.source() : offered.source;
+  return offered.source();
 }
 
 // Agent workflow is projection state. One claim gets one shared arrival window so the
@@ -174,7 +181,7 @@ function syncAgentArrival(control, claim, stage) {
   const elapsed = performance.now() - claimArrivals.get(claim);
   if (controlArrivals.get(control) === claim) return;
   controlArrivals.set(control, claim);
-  if (elapsed >= 520 || reducedMotion()) return;
+  if (elapsed >= agentArrivalDuration() || reducedMotion()) return;
   control.style.setProperty("--lf-agent-arrival-delay", `${-elapsed}ms`);
   keeps(control, "data-lf-agent-arrival", "1");
   control.addEventListener(
@@ -357,6 +364,47 @@ export function presentContributionHost(
   projectCommandScope(control, CONTRIBUTION_ENTRY, commandScopes.get(record));
   return record;
 }
+
+// Template hosts use the same writer as retained margin controls. Templates own the
+// body and event bindings; this directive owns the record's host attributes and scope.
+export const contributionHost = directive(
+  class extends Directive {
+    constructor(part) {
+      super(part);
+      if (part.type !== PartType.ELEMENT)
+        throw new TypeError("contributionHost belongs in a template's element part");
+    }
+    render() {
+      return nothing;
+    }
+    update(part, [record, options, paint]) {
+      presentContributionHost(part.element, record, options);
+      paint?.(part.element);
+      return nothing;
+    }
+  },
+);
+
+// Items and entry hosts share receipt paint, independently of entry semantics.
+export const contributionReceipts = directive(
+  class extends Directive {
+    constructor(part) {
+      super(part);
+      if (part.type !== PartType.ELEMENT)
+        throw new TypeError(
+          "contributionReceipts belongs in a template's element part",
+        );
+    }
+    render() {
+      return nothing;
+    }
+    update(part, [receipt, awaitsUser]) {
+      syncContributionAgentWorkflow(part.element, receipt);
+      syncContributionTurn(part.element, awaitsUser);
+      return nothing;
+    }
+  },
+);
 
 export function presentContributionEntry(control, offered, options = {}) {
   const record = presentContributionHost(control, offered, options);

@@ -22,7 +22,6 @@ import {
   PRESENTATION_HELD,
   PRESENTATION_ORDER,
 } from "../semantic-state.js";
-import { runtime } from "../context.js";
 import { decisionFor } from "../registry.js";
 import { dragHeld, watchDragRelease } from "../widget-elements.js";
 import { widgetElement } from "../widget-descriptors.js";
@@ -33,7 +32,7 @@ import {
   pageQueryAll,
   renderRetired,
 } from "../passages.js";
-import { isPagePaint, renderQuiet } from "../presentation.js";
+import { isPagePaint, renderQuiet } from "../declared-words.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { keeps } from "../keeps.js";
 
@@ -197,19 +196,10 @@ export function createProjectionPresentation({ onDeferredReady }) {
   // A throw leaves this region pending and preserves the application error boundary;
   // the next claim supersedes the hold and tries the current semantic root again.
   function paintReading(snapshot) {
-    const prior = runtime.restoringState;
-    if (
-      snapshot.unresolved.some((entry) => entry.state === "refused" && entry.projection)
-    )
-      runtime.restoringState = true;
-    try {
-      const projection = presentCurrent(snapshot);
-      // A drag holds this region open at the user's own gesture rather than
-      // committing a document-wide reading their own controller has not taken yet.
-      return projectionDeferred() ? PRESENTATION_HELD : projection;
-    } finally {
-      runtime.restoringState = prior;
-    }
+    const projection = presentCurrent(snapshot);
+    // A drag holds this region open at the user's own gesture rather than
+    // committing a document-wide reading their own controller has not taken yet.
+    return projectionDeferred() ? PRESENTATION_HELD : projection;
   }
 
   function present() {
@@ -218,7 +208,7 @@ export function createProjectionPresentation({ onDeferredReady }) {
 
   // `present` stays in here. The region has two ways in — its own subscription above,
   // and `presentDocument` for a caller that changed the document and has no business
-  // knowing which regions are alive. A third, handed to one caller, is how the Ask
+  // knowing which regions are alive. A third, handed to one caller, is how the Question
   // inventory came to be left out of a document-wide repaint.
   return {
     retireProjectionCoverage,

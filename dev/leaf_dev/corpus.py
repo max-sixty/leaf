@@ -18,12 +18,13 @@ import shutil
 import sys
 
 import click
+from leaf.registry.contract import is_element_name
 from leaf.registry.layer import merge_layer_declarations
 from leaf.structure import SourceDocument
 from leaf.thread_context import sample_events, thread_ids
 
 from leaf_dev import ROOT
-from leaf_dev.example_data import regression_sources
+from leaf_dev.example_data import data_file, page_files, regression_sources, seed_log
 
 EXAMPLES_DIR = ROOT / "examples"
 CORPUS = EXAMPLES_DIR / "corpus.html"
@@ -49,7 +50,6 @@ PUBLIC_TABS = [
     ("rust-sort", "Sort film"),
     ("security-boundary", "Security"),
     ("command-hub", "Command"),
-    ("annotation-workspace", "Annotation workspace"),
 ]
 # Focused chrome galleries with several live child pages stay separate; their
 # underlying widget and thread states already stand in the feature gallery.
@@ -114,7 +114,7 @@ def build_data() -> dict:
     sources = {}
     captures = {}
     for source, _ in TABS:
-        companion = source.with_suffix(".data.json")
+        companion = data_file(source)
         if not companion.exists():
             continue
         document = json.loads(companion.read_text(encoding="utf-8"))
@@ -209,21 +209,21 @@ def build_page() -> dict[str, bytes]:
     declarations = {}
     files = {}
     for source, _ in TABS:
-        page = source.with_suffix(".page")
+        page = page_files(source)
         if not page.is_dir():
             continue
         registry = json.loads((page / "registry.json").read_text(encoding="utf-8"))
         owned = {
             tag: entry
             for tag, entry in registry.items()
-            if (page / "widgets" / f"{tag}.js").is_file()
+            if is_element_name(tag) and (page / "widgets" / f"{tag}.js").is_file()
         }
-        if not owned:
+        shared = {
+            key: entry for key, entry in registry.items() if not is_element_name(key)
+        }
+        if not owned and not shared:
             continue
-        merge_layer_declarations(
-            declarations,
-            {key: entry for key, entry in registry.items() if key.startswith("$")},
-        )
+        merge_layer_declarations(declarations, shared)
         for tag, entry in owned.items():
             if tag in declarations:
                 sys.exit(f"corpus examples both declare {tag!r}")
@@ -262,7 +262,7 @@ def build_events() -> str:
             continue
         events = [
             json.loads(line)
-            for line in source.with_suffix(".jsonl").read_text().splitlines()
+            for line in seed_log(source).read_text().splitlines()
             if line.strip()
         ]
         # A declaration naming nothing is a typo here and nothing else: the history

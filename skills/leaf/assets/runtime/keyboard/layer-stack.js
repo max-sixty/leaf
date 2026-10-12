@@ -31,7 +31,14 @@
    layers the browser is holding, because that is the one fact about the scene that its
    own DOM cannot be asked for in order. */
 
-import { releaseFocus, holdFocus, closeLayer } from "../focus.js";
+import {
+  releaseFocus,
+  holdFocus,
+  closeLayer,
+  focused,
+  handBack,
+  canPlaceFocus,
+} from "../focus.js";
 import { renderedUnder } from "../shadow.js";
 
 const entries = [];
@@ -57,7 +64,7 @@ function pushNativeLayer(node) {
   const standing = at < 0 ? null : entries[at];
   if (standing?.active()) return;
   prune();
-  const holding = document.activeElement;
+  const holding = focused();
   entries.push({
     root: node,
     get kind() {
@@ -65,6 +72,7 @@ function pushNativeLayer(node) {
     },
     active: () => held(node),
     fromNowhere: !holding || holding === document.body,
+    opener: holding && holding !== document.body ? holding : null,
   });
 }
 
@@ -82,7 +90,9 @@ function closing(event) {
   if (
     entry?.kind === "popover" &&
     entry.fromNowhere &&
-    renderedUnder(document.activeElement, event.target)
+    !document.documentElement.inert &&
+    canPlaceFocus() &&
+    renderedUnder(focused(), event.target)
   )
     releaseFocus();
 }
@@ -97,6 +107,75 @@ HTMLElement.prototype.showPopover = function (...args) {
   return nativePopoverShow.apply(this, args);
 };
 
+// Leaf opens native layers through this operation. A sample suppresses the
+// platform's automatic focusing steps before opening: they can reveal the containing
+// frame even when the child already holds focus. Its owner places focus explicitly
+// through focusDestination, which prevents native scrolling. Restoring the layer
+// afterward moves no focus. Authored
+// scripts keep the native methods; this is the runtime's navigation contract.
+export function showNativeLayer(layer, { source, modal = true } = {}) {
+  const withholdFocus = Boolean(document.documentElement.lfSample) && !layer.inert;
+  if (withholdFocus) layer.inert = true;
+  try {
+    if (layer instanceof HTMLDialogElement) {
+      if (modal) layer.showModal();
+      else layer.show();
+    } else layer.showPopover(source ? { source } : undefined);
+  } finally {
+    if (withholdFocus) layer.inert = false;
+  }
+}
+
+// Closing a native layer may return focus to a remembered opener, including one
+// in another modal that escapes ancestor inertness. Inhibit those roots only for
+// an actual native close; generic disclosure closes have no native return to stop.
+export function closeNativeLayer(layer) {
+  const dialog = layer instanceof HTMLDialogElement;
+  if (dialog ? !layer.open : !layer.matches(":popover-open")) return;
+  const standing = focused();
+  const returnTo = entries.find((entry) => entry.root === layer)?.opener;
+  const returnLocally =
+    document.documentElement.lfSample && standing && renderedUnder(standing, layer);
+  const inhibited = document.documentElement.lfSample
+    ? [
+        document.documentElement,
+        ...nativeLayers()
+          .filter((entry) => entry.kind === "modal")
+          .map((entry) => entry.root),
+      ].filter((node) => !node.inert)
+    : [];
+  closeLayer(
+    () => {
+      for (const node of inhibited) node.inert = true;
+      try {
+        if (dialog) layer.close();
+        else layer.hidePopover();
+      } finally {
+        for (const node of inhibited) node.inert = false;
+      }
+    },
+    returnLocally &&
+      (() => {
+        if (!canPlaceFocus()) return;
+        if (returnTo) handBack(returnTo);
+        else releaseFocus();
+      }),
+  );
+}
+
+// Each native layer once it has opened or closed, in the document or any stage, where
+// `toggle` does not reach the document: what a modal admits changes with it
+// (`nativeModalAdmits`). Returns the call that stops listening.
+const changeListeners = new Set();
+export function watchLayerChanges(listener) {
+  changeListeners.add(listener);
+  return () => changeListeners.delete(listener);
+}
+const changed = (event) => {
+  if (!event.target?.matches?.("[popover], dialog")) return;
+  for (const listener of changeListeners) listener(event);
+};
+
 export function watchLayers(root) {
   if (watchedRoots.has(root)) return;
   watchedRoots.add(root);
@@ -109,6 +188,7 @@ export function watchLayers(root) {
   root.addEventListener("beforetoggle", opened, true);
   root.addEventListener("beforetoggle", closing, true);
   root.addEventListener("toggle", opened, true);
+  root.addEventListener("toggle", changed, true);
 }
 
 watchLayers(document);
@@ -146,19 +226,15 @@ export function transitionNativeAncestor(root, transition) {
     (layer) => layer.root !== root && renderedUnder(layer.root, root),
   );
   const held = holdFocus(root);
-  closeLayer(() => {
-    for (const layer of descendants.toReversed())
-      if (layer.kind === "modal") layer.root.close();
-      else layer.root.hidePopover();
-    transition();
-    for (const layer of descendants)
-      if (layer.root instanceof HTMLDialogElement) layer.root.showModal();
-      else
-        layer.root.showPopover(
-          layer.root.lfInvoker ? { source: layer.root.lfInvoker } : undefined,
-        );
-  });
-  held?.();
+  closeLayer(
+    () => {
+      for (const layer of descendants.toReversed()) closeNativeLayer(layer.root);
+      transition();
+      for (const layer of descendants)
+        showNativeLayer(layer.root, { source: layer.root.lfInvoker });
+    },
+    () => held?.(),
+  );
 }
 
 // Modal owners close pre-existing popovers before establishing a new floor.

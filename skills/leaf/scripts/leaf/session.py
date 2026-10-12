@@ -26,8 +26,11 @@ from .harness import Harness, claim_harness, session_harness
 from .leases import release_lease, take_lease, waiter_lease_path
 from .locations import path_location, paths_same
 from .machine import state_home
+from .presence import nudge_unwatched
+from .refusals import Refused
 from .schema import (
     ANSWER_ASK_INSTRUCTION,
+    MESSAGE_KINDS,
     SERVICE_FILE,
     VIEWED_FILE,
 )
@@ -35,7 +38,6 @@ from .served_state.reading import page_reading
 from .server import running_server
 from .service import (
     PageTransaction,
-    claim_page,
     owned_pages,
     read_status,
     session_claims,
@@ -55,17 +57,17 @@ STOP_HOOK_S = 20
 
 def cmd_waiting(page_dir: Path, detail: str) -> tuple[dict, list[dict]]:
     """Declare the page waiting on its user, putting down every start that stands
-    (`tasks.put_down`), and return the declaration, with the user moves still owed an
+    (`tasks.put_down`), and return the declaration, with the updates still owed an
     answer, which the page goes on showing over it."""
     from .revisioning import activate_source
-    from .served_state.work import live_work
+    from .served_state.context import read_page
     from .tasks import put_down
 
     with PageTransaction(page_dir) as page:
         activate_source(page_dir, transaction=page)
         put_down(page)
         status = page.set_status("waiting", detail)
-        return status, live_work(page_dir, page.events).obligations
+        return status, read_page(page_dir, page.events).work.obligations
 
 
 def cmd_idle(page_dir: Path, detail: str) -> dict:
@@ -76,18 +78,18 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
     owed one — unread, or read and left. The watcher's whole batch, not the
     user-facing count, so a worker's report cannot be left standing as
     provisional state forever either. The answers it holds the page for are
-    `activity.blocking_obligations`, a started move's included: the Stop hook lets
+    `activity.blocking_obligations`, a started update's included: the Stop hook lets
     the turn that started one end over it, but closing the page answers nothing. It
     holds the page for every open task too, which only its ending discharges.
     The check and the transition share the log lock, so an event arriving
     or an acknowledgement advancing the cursor orders against them."""
     from .activity import blocking_obligations, unanswered
-    from .served_state.work import live_work
+    from .served_state.context import read_page
     from .tasks import put_down
 
     with PageTransaction(page_dir) as page:
         events = page.events
-        work = live_work(page_dir, events)
+        work = read_page(page_dir, events).work
         state = {**work.presence, "activity": work.activity}
         claim = page.active_claim
         harness = claim_harness(claim) if claim is not None else None
@@ -98,7 +100,7 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
                 if harness
                 else "`leaf wait` prints them."
             )
-            sys.exit(
+            raise Refused(
                 f"{pending} event{'s' if pending != 1 else ''} nobody has picked up, "
                 f"so the page cannot idle yet. {remedy}"
             )
@@ -108,7 +110,7 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
             and harness.watcher_live(listening=state["listening"]),
         )
         if owed:
-            sys.exit(
+            raise Refused(
                 f"{unanswered(owed, 'acknowledged')}; answer before idling. "
                 + ANSWER_ASK_INSTRUCTION
             )
@@ -116,7 +118,7 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
         # standing on a page nobody holds.
         if tasks := work.durable.log.owed:
             named = "; ".join(f"{task['id']} ({task['title']})" for task in tasks)
-            sys.exit(
+            raise Refused(
                 f"{len(tasks)} open task{'s' if len(tasks) != 1 else ''}: {named}. "
                 "End each before idling with "
                 '`leaf task end <page> <id> done "<where the result is>"`, or '
@@ -152,7 +154,7 @@ class Watch:
     `watch_state` is ownership/lifetime; `lost` separately says the server is
     down with nothing left to bring it back: never served, or dead after a
     revival that did not hold. A stopped service is not lost: `server stop` is
-    the agent's own move, and `page init` stops a served page to re-vendor it and
+    the agent's own choice, and `page init` stops a served page to re-vendor it and
     starts it again, so the wait watches a disabled service without reviving it.
 
     Between passes native subscriptions follow this session's claim partition,
@@ -423,9 +425,10 @@ def wait_acknowledgement(harness: Harness | None) -> Callable[[str], str]:
     def acknowledge(delivery_id: str) -> str:
         return (
             "Whoever ran the `leaf wait` that printed this delivery acknowledges "
-            "it; until then the user's moves read Sent rather than Picked up. If "
-            "the output was cut off, acknowledge nothing and rerun the wait with room "
-            "for the whole envelope. If you handle it, acknowledge before any other "
+            "it; until then the user's updates read Sent rather than Picked up. If "
+            f"the output was cut off, reread it with `leaf delivery read {delivery_id}`. "
+            "Follow any `next` commands before confirming. If you handle it, "
+            "acknowledge before any other "
             "work; if you forward it, acknowledge once it durably arrives there. To "
             f"acknowledge, {run_ack(delivery_id)}: it confirms this delivery and "
             "waits for the next."
@@ -435,14 +438,14 @@ def wait_acknowledgement(harness: Harness | None) -> Callable[[str], str]:
 
 
 def delivery_json(reading: PageTick, harness: Harness | None) -> str:
-    """Freeze and serialize a watcher reading as one delivery envelope."""
-    from .delivery import batch_data, freeze_delivery
+    """Freeze a watcher reading and present its bounded first part."""
+    from .delivery import batch_data, delivery_reading, freeze_delivery
 
     payload = freeze_delivery(
         [batch_data(reading.page_dir, reading.transaction, reading.batch)],
         acknowledge=wait_acknowledgement(harness),
     )
-    return json.dumps(payload, ensure_ascii=False)
+    return json.dumps(delivery_reading(payload), indent=2, ensure_ascii=False)
 
 
 def read_watch_pass[DeliveryResult](
@@ -550,8 +553,8 @@ def new_input_line(page_dir: Path) -> str:
 def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
     """Confirm a complete delivery, if given, then watch for the next batch.
 
-    A named initial wait claims that page. A receipt resumes the session's
-    current ownership set without taking any page back from a successor. A
+    A named wait observes that page without taking ownership. A receipt resumes
+    the session's current ownership set. A
     standalone consumer watches the pages its delivery names. Exit 0 carries
     the next immutable delivery; exit 2 names why the watch ended. A refused
     receipt raises before a watch starts, leaving that page's cursor unchanged.
@@ -563,8 +566,6 @@ def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
         from .delivery import receive_delivery
 
         received = receive_delivery(ack)
-    if page_dir is not None:
-        claim_page(page_dir)
     harness = session_harness()
     explicit = (page_dir,) if page_dir else tuple(received) if harness is None else ()
     named = explicit[0] if len(explicit) == 1 else None
@@ -575,12 +576,13 @@ def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
         return 2
 
     def print_delivery(reading: PageTick) -> None:
-        """Print immutable input; only the consumer can confirm receipt. Where the
-        harness's hook carries input into the turn, the wait only wakes it."""
-        if harness and harness.hooks_carry():
-            print(new_input_line(reading.page_dir), flush=True)
-        else:
-            print(delivery_json(reading, harness), flush=True)
+        """Print immutable input; only the consumer can confirm receipt.
+
+        An explicit wait is a complete delivery route. Earlier successful hooks
+        cannot prove that a later one will run, so it never delegates its input
+        to the next hook. The native between-turn watch owns hook wakes.
+        """
+        print(delivery_json(reading, harness), flush=True)
 
     try:
         while True:
@@ -603,19 +605,19 @@ def wake_inputs(page: PageTransaction, batch: list[dict]) -> list[dict]:
     workflow. A completed receipt advances the cursor, so handed input is already
     absent from this unreceived batch. An opened record without the completed
     cursor write does not prove delivery. Other admitted attention (including
-    reports, errors, reactions and widget moves) remains
+    reports, errors, reactions and widget actions) remains
     transport input, independent of whether it carries a response obligation.
     """
-    from .served_state.work import live_work
+    from .served_state.context import read_page
 
     agent_inputs = {
         item["input"]
-        for item in live_work(page.page_dir, page.events).durable.workflows
+        for item in read_page(page.page_dir, page.events).work.durable.workflows
         if item["next_actor"] == "agent"
     }
     pending = []
     for event in batch:
-        if event["kind"] in {"comment", "reply"} and event["id"] not in agent_inputs:
+        if event["kind"] in MESSAGE_KINDS and event["id"] not in agent_inputs:
             continue
         pending.append(event)
     return pending
@@ -649,7 +651,7 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
             return True
         claim = reading.transaction.active_claim
         return (
-            (claim is not None and claim.get("turn_closed") is not None)
+            (claim is not None and claim["turn_closed"] is not None)
             or any(
                 datetime.fromisoformat(event["ts"]).timestamp() >= began
                 for event in pending
@@ -680,7 +682,5 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
     for page_dir in owned_pages(harness.session):
         with contextlib.suppress(FileNotFoundError), PageTransaction(page_dir) as page:
             if wake_inputs(page, unacknowledged(page.events, page.cursor)):
-                from .event_endpoint import nudge_unwatched
-
                 nudge_unwatched(page)
     return None

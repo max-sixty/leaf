@@ -1,9 +1,9 @@
 """Relocate upstream theme variables without promoting root appearance to hosts.
 
-Web Awesome's root color and typography are inherited defaults. A component host
-needs its variable definitions, while its own shadow styles must own ordinary
-properties and state presentation. Parse the bundled stylesheet, retaining only
-custom declarations and the rules that contain them; root selectors become scope.
+Web Awesome's root appearance is not a component's state presentation. Keep its
+variable definitions; leaf-theme.css supplies Leaf's inherited typography defaults
+while component shadows own sizing and state ink. Parse the bundled stylesheet,
+retaining only custom declarations and their rules; root selectors become scope.
 """
 
 import sys

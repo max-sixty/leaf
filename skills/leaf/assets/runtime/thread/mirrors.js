@@ -4,6 +4,7 @@
    the original Thread. Optional consumers reconcile their outlets and async
    preparation independently of the core panel, margin, and read presentation. A later reading or
    unregister aborts its predecessor before any DOM from that predecessor commits. */
+import { randomId } from "../ids.js";
 import { reportPageError } from "../layer-client.js";
 import { under, renderedUnder, shadowHost } from "../shadow.js";
 import { clearThreadMirrors, renderThreadMirrors } from "./inline.js";
@@ -17,7 +18,8 @@ import { readApplication, whenWidgetsPresented } from "../semantic-state.js";
 import { elementById } from "../passages.js";
 import { SAY_BOX } from "./selectors.js";
 import { orderChildren } from "../dom-children.js";
-import { HeldNews, growthInsideIsSeen, newsNotice } from "./held-news.js";
+import { growthIsSeen } from "../geometry.js";
+import { HeldNews, newsNotice } from "./held-news.js";
 
 const registrations = new WeakMap();
 
@@ -43,9 +45,7 @@ export function registerMirrorConsumer(owner, render, { commands }) {
     outlets = new Set();
   };
   const report = (error) =>
-    reportPageError(
-      `Thread mirrors in ${owner.localName}#${owner.id} failed: ${error?.message ?? error}`,
-    );
+    reportPageError(error, `Thread mirrors in ${owner.localName}#${owner.id} failed`);
 
   async function reconcile() {
     const current = ++generation;
@@ -166,7 +166,7 @@ export function createPrimaryReader(owner, render, commands, update) {
                 changed.has(part.messageKey) ||
                 folds.messages.includes(part.messageKey) ||
                 folds.summaries.length) &&
-              growthInsideIsSeen([part.node]),
+              growthIsSeen(part.node),
           ),
       };
     },
@@ -381,7 +381,7 @@ export function createPrimaryReader(owner, render, commands, update) {
         let slot = slots[depth];
         if (!slot) {
           slot = document.createElement("slot");
-          slot.name = "lf-thread-part-" + crypto.randomUUID();
+          slot.name = "lf-thread-part-" + randomId();
           slots.push(slot);
         }
         keeps(slot, "slot", previous?.name ?? null);
@@ -407,7 +407,7 @@ export function createPrimaryReader(owner, render, commands, update) {
       .map((descriptor) => descriptor.id);
     await whenWidgetsPresented(widgets);
   }
-  const destination = (key, { message = null, focus = null } = {}) => {
+  const destination = (key, { message = null, part = null } = {}) => {
     const parts = destinations.get(key) ?? [];
     if (message) {
       const id = shown.get(key)?.source.msgs.find((item) => item.key === message)?.id;
@@ -418,7 +418,7 @@ export function createPrimaryReader(owner, render, commands, update) {
       }
       return null;
     }
-    if (focus !== "thread")
+    if (part !== "thread")
       for (const view of parts) {
         const input = view.node.querySelector(SAY_BOX);
         if (input && !view.node.hidden) return input;

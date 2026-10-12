@@ -71,9 +71,10 @@ PROSE_TAGS = {"p", "h1", "h2", "h3", "h4", "h5", "h6"}
 SECTIONING_TAGS = {"section", "article", "main", "body"}
 # The allocations a page occurrence may state, each attribute with the values it takes:
 # a block's width in the page's flow, whether it bounds its own height, the height in
-# CSS pixels of a widget that draws into a box of a stated height (x-height), and, on
-# `body` alone, the selected annotation presentation and whether the page claims the
-# overlay rail or keeps that margin for its own residents.
+# CSS pixels of a widget that draws into a box of a stated height (x-height), and, read
+# from `body`, the selected annotation presentation and whether the page claims the
+# overlay rail or keeps that margin for its own residents. Delivery honours a width,
+# bound or height only where it means something (`authored_on`, schema.DECLARED_MARKS).
 AUTHORED_ALLOCATIONS = {
     "data-width": ("column", "wide", "available"),
     "data-bound": ("start", "end"),
@@ -245,6 +246,24 @@ def rewrite_attribute_references(
     return value
 
 
+def pre_body(element) -> str | None:
+    """The text of `element`'s first `<pre>` child: the body a Markdown-bodied element
+    renders and a `body` state record reads, or None where it has none."""
+    pre = next(
+        (
+            child
+            for child in element.children
+            if isinstance(child, turbohtml.Element) and child.tag == "pre"
+        ),
+        None,
+    )
+    if pre is None:
+        return None
+    return "".join(
+        child.data for child in pre.children if isinstance(child, turbohtml.Text)
+    )
+
+
 class SourceDocument:
     """One browser-compatible structural reading of authored HTML.
 
@@ -255,9 +274,12 @@ class SourceDocument:
     exact authored construction. It does not maintain a second element stack or
     tree-building grammar, and it keeps foreign SVG as exact source rather than
     reconstructing it.
+
+    Registry examples are fragments, so `fragment=True` parses in template context:
+    table rows, cells and select options survive without a surrounding document.
     """
 
-    def __init__(self, source: str):
+    def __init__(self, source: str, *, fragment: bool = False):
         self.html = source
         self.data = source.encode("utf-8")
         self.digest = f"sha256:{hashlib.sha256(self.data).hexdigest()}"
@@ -281,7 +303,6 @@ class SourceDocument:
         # document metadata alike: one index of what the head names, so a user
         # after a description does not need a second parse of the same head.
         self.named_metas = []
-        self.encoding_metas = []  # {charset, line} per authored encoding declaration
         # The authored page lives under one direct body > main because that is the
         # element the first-replay presentation boundary withholds. Both assets that
         # establish that boundary belong in head; anything paintable outside main would
@@ -328,7 +349,7 @@ class SourceDocument:
         # (start, end) of the first html, head, and body start tag the source spells:
         # where delivery writes into the document.
         self.wrapper_tags = {}
-        self._finish()
+        self._finish(fragment=fragment)
 
     @staticmethod
     def _position(element) -> tuple[int, int]:
@@ -462,8 +483,6 @@ class SourceDocument:
             self.named_metas.append(
                 {"name": attrs["name"], "content": attrs.get("content"), "line": line}
             )
-        if tag == "meta" and attrs.get("charset"):
-            self.encoding_metas.append({"charset": attrs["charset"], "line": line})
         if attrs.get("style"):
             self.inline_styles.append(
                 {"tag": tag, "line": line, "style": attrs["style"]}
@@ -541,20 +560,8 @@ class SourceDocument:
             elif isinstance(child, turbohtml.Text) and child.data.strip():
                 record["text"] = True
                 record["direct"].append("#text")
-        pre = next(
-            (
-                child
-                for child in element.children
-                if isinstance(child, turbohtml.Element) and child.tag == "pre"
-            ),
-            None,
-        )
-        if pre is not None:
-            record["body"] = "".join(
-                child.data
-                for child in pre.children
-                if isinstance(child, turbohtml.Text)
-            )
+        if (body := pre_body(element)) is not None:
+            record["body"] = body
 
     def _sample_resources(self, template) -> None:
         """Read the complete child document without merging its identity space.
@@ -736,8 +743,17 @@ class SourceDocument:
         elif element.tag == "title":
             self.title += element.text
 
-    def _finish(self):
-        self.tree = turbohtml.parse(self._source, scripting=True, source_locations=True)
+    def _finish(self, *, fragment: bool):
+        self.tree = (
+            turbohtml.parse_fragment(
+                self._source,
+                context="template",
+                scripting=True,
+                source_locations=True,
+            ).parent
+            if fragment
+            else turbohtml.parse(self._source, scripting=True, source_locations=True)
+        )
         self._source_errors()
         for child in self.tree.children:
             if isinstance(child, turbohtml.Element):

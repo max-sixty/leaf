@@ -47,26 +47,19 @@ records its identities under `$layer`:
   and date with `leaf --version`.
 - `runtime` is the SHA-256 identity of the kernel runtime modules the payload vendored
   from, read from its own `assets/runtime/` rather than recomposed from the page's
-  selections. A page's server runs the Leaf that started it against the runtime the
-  page carries, and the render gate serves its probe modules from the Leaf running the
-  command against the same runtime, so every page server — durable, temporary, and the
-  gate's ephemeral one — compares this identity with its own payload's when it binds
-  the page (`http.page_endpoint`, `layer.foreign_runtime`) and refuses a page carrying
-  another Leaf's runtime, naming `leaf page init`. Served across the two, the page
-  would break in the browser on every read: a renamed field in the state the server
-  sends, or an export the page's runtime does not have. `fingerprint` cannot answer
-  that question, because a package selection recorded beside it resolves against the
-  project `page init` ran in and cannot be recomposed anywhere else. A page vendored
-  before this identity existed records none and is refused the same way; `page init`
-  records it again. The identity covers `assets/runtime/` alone: a contract change
-  made only in the Python server, the boot `leaf.js`, the theme, or a package's
-  widgets passes it. A checkout whose runtime modules were edited refuses every page
-  vendored before the edit until each is re-vendored.
+  selections. The render gate serves its probe modules from the Leaf running the
+  command, and they import the page's runtime modules by name, so the gate alone
+  requires this exact identity (`layer.foreign_runtime`) and refuses another, naming
+  `leaf page init`. `fingerprint` cannot answer that question, because a package
+  selection recorded beside it resolves against the project `page init` ran in and
+  cannot be recomposed anywhere else.
 - `server` is the SHA-256 identity of the payload's Python serving code,
-  `pyproject.toml`, `uv.lock`, and interpreter version. Initialization reads these inputs whether
-  invoked directly or by a preview, so a server-only edit requires a new generation
+  `pyproject.toml`, and `uv.lock`. It excludes the interpreter version because a site
+  builds pages on one Python release and serves them from a container on another.
+  Initialization reads these inputs whether invoked directly or by a preview,
+  so a server-only edit requires a new generation
   even when the installed browser files are unchanged. This identity decides
-  re-vendoring; the runtime identity still owns the server's bind check.
+  re-vendoring, never whether a page may be served or written.
 
 HTTP responses also identify the serving incarnation in `Leaf-Server`. Every
 document that runs the runtime, served or exported, carries an inline prepaint that
@@ -78,17 +71,45 @@ disappears. A rejected or unchanged re-vendor preserves its running server and
 layer, so neither triggers a reload. Source files carry neither
 script, and an export no supervisor.
 
+## Page protocol
+
+The kernel registry's `$events.protocol` numbers the contract between a page and any
+Leaf that serves it or writes its log: the kernel event records and their ownership
+beside it, the reading the server serves the page's runtime, and each runtime module
+the server relies on. The page carries the number in the `$events` it was vendored
+with, which no layer can change, and every page server — durable, temporary, the
+gate's ephemeral one, and the website's — and the one append door compare it with
+the running Leaf's own when they bind the page or admit an event
+(`layer.incompatible_layer`), refusing another number and naming `leaf page init`.
+Each reads the registry it would serve the page under: a snapshot's captured one, or
+else the vendored layer.
+
+Any other Leaf at the same number serves and writes the page, so a plugin update
+leaves open pages working: admission validates a kernel record against the running
+Leaf's own `$events` (`registry.kernel`), so a field a newer Leaf writes passes on a
+page an older one vendored. Bump the number when a page an older Leaf vendored at it
+would break under this one: the served state, a runtime module the server relies on,
+or an event drops, renames or changes the meaning of something the other side reads,
+or a field the page's runtime sends becomes required, as a new drawing `format` does.
+Adding a field or kind the older code ignores needs no bump. The promise runs one
+way: an older Leaf serving a page a newer one vendored may refuse a field it does not
+know. Every page vendored before a bump, and one vendored before the number was
+declared, is refused until `leaf page init` re-vendors it.
+
 ## Composition stamps
 
-Every composition writes two facts the browser reads instead of deriving
+Every composition writes these facts the browser reads instead of deriving
 (`registry/layer.stamp_composition`):
 
 - `$decisions`, each widget's deciding `x-state` verb and the member tags each of its
   outcomes retires;
+- `$states`, each `x-state` verb's writer and the operation definition an admitted
+  event records, which the browser compares a recorded definition with;
 - `$marks`, each declaration a stylesheet reads, with the attribute it is painted as,
   the attribute an occurrence overrides it with, and whether it holds in a thread
   message, and whether an idiom may declare it (`schema.DECLARED_MARKS`).
 
 `page init` stamps them into the layer, and a page's composition stamps them again
-over its own declarations, overwriting any declared `$decisions` or `$marks`.
+over its own declarations, overwriting any declared `$decisions`, `$states` or
+`$marks`.
 Delivery paints a page document's marks from the same table.

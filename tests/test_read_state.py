@@ -5,6 +5,7 @@ import json
 from interact_support import fetch, published, record_claim, state_json
 from leaf import event_endpoint as endpoint_model
 from leaf import event_log as event_log_model
+from leaf import harness as harness_model
 from leaf import service as service_model
 from leaf import thread as thread_model
 
@@ -46,7 +47,7 @@ def test_read_acknowledges_only_the_named_content_version_without_agent_work(
     assert answer["state"]["pending"] == 0
     assert service_model.unacknowledged(event_log_model.read_events(page_dir), 0) == []
 
-    edit = thread_model.cmd_edit(page_dir, original, "Revised answer.")
+    [edit] = thread_model.cmd_edit(page_dir, original, "Revised answer.")
     status, answer = _post_read(server, {"message": original, "version": original})
     assert status == 200, answer  # a delayed older acknowledgement remains valid
     assert _unread(answer["state"], original) == [
@@ -89,7 +90,7 @@ def test_what_the_user_does_in_a_thread_acknowledges_what_it_said(page_dir, serv
     assert _unread(answer["state"], root) == []
 
     reply = thread_model.post_reply(
-        page_dir, None, "Mounts first, then.", None, for_event=_last_id(page_dir)
+        page_dir, {"for": _last_id(page_dir)}, "Mounts first, then."
     )["id"]
     assert state_json(page_dir)["threads"][0]["unread"] == [reply]
     status, answer = _post(
@@ -98,9 +99,9 @@ def test_what_the_user_does_in_a_thread_acknowledges_what_it_said(page_dir, serv
     assert status == 200, answer
     assert _unread(answer["state"], root) == []
 
-    later = thread_model.post_reply(
-        page_dir, None, "Done.", None, for_event=_last_id(page_dir)
-    )["id"]
+    later = thread_model.post_reply(page_dir, {"for": _last_id(page_dir)}, "Done.")[
+        "id"
+    ]
     status, answer = _post(server, {"kind": "resolve", "parent": root})
     assert status == 200, answer
     assert _unread(answer["state"], root) == []
@@ -112,7 +113,7 @@ def test_what_the_user_does_in_a_thread_acknowledges_what_it_said(page_dir, serv
     assert status == 200, answer
     assert _unread(answer["state"], root) == []
 
-    edit = thread_model.cmd_edit(page_dir, later, "Done, and tested.")
+    [edit] = thread_model.cmd_edit(page_dir, later, "Done, and tested.")
     assert state_json(page_dir)["threads"][0]["unread"] == [later]
     status, answer = _post_read(server, {"message": later, "version": edit["id"]})
     assert status == 200, answer
@@ -151,15 +152,13 @@ def test_read_does_not_nudge_a_closed_agent_turn(page_dir, monkeypatch):
     )
     nudges = []
 
-    class Harness:
-        def nudge(self, page):
-            nudges.append(page)
-            return True
+    def nudge(self, page):
+        nudges.append(page)
+        return True
 
-        def title_generator(self):
-            return None
-
-    monkeypatch.setattr(endpoint_model, "claim_harness", lambda claim: Harness())
+    harness = harness_model.HARNESSES["claude-code"]
+    monkeypatch.setattr(harness, "nudge", nudge)
+    monkeypatch.setattr(harness, "title_generator", lambda self: None)
     status, answer = endpoint_model.accept_event(
         page_dir,
         {

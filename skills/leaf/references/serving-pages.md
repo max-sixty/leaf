@@ -6,8 +6,9 @@ URL returned by `leaf server start`.
 
 ## Exported files
 
-When `$ARGUMENTS` asks for `--export`, build the page as a finished record (the
-main skill's "Operate", step 3), since only a stamped version exports, then run:
+When `$ARGUMENTS` asks for `--export`, build the page as a finished record (the main
+skill's "Quick pages and records" step), since only a stamped version exports, then
+run:
 
 ```bash
 leaf page export <page> -o <file>
@@ -34,10 +35,12 @@ so sharing one page URL grants access to every Leaf page on that machine.
 Leaf serves only on networks the machine already joins and creates no public
 tunnel. Binding beyond loopback exposes the port to that network.
 
-A page retains its host and port in `<page>/service.json`, and its key in the
-machine's state home. Re-serving, re-vendoring and reviving it use the same URL.
-`--host` changes the hostname while preserving the port. A recorded port occupied
-by another process makes serving refuse; it never silently moves the page.
+The OS chooses a page's first port. Leaf retains its host and port in
+`<page>/service.json`, and its key in the machine's state home. Re-serving,
+re-vendoring and reviving it use the same URL. `--host` changes the hostname while
+preserving the port. A restart waits for TCP to release that port. If the port
+stays occupied beyond the startup wait, serving refuses rather than moving the
+page. A stop issued during startup waits for that preparation.
 
 ## Unreachable URLs and `--host`
 
@@ -64,8 +67,10 @@ file.
 
 ## Re-vendoring and layer epochs
 
-After a Leaf update or a checkout runtime edit, re-vendor the page from its
-owning session:
+A Leaf update leaves open pages served and writable until it changes the page
+protocol; then serving or writing the page refuses, naming the command that
+re-vendors it. Re-vendor the page from its owning session then, or to adopt a
+newer runtime, theme or package:
 
 ```bash
 leaf page init <page>
@@ -82,7 +87,8 @@ session owns it. If its previous session has ended, init leaves it stopped;
 serve it from the session that will now own it. An enabled standing service
 restarts independently of session ownership.
 
-Serving an older runtime refuses with the same init command. If restart fails,
+Serving or writing a page vendored at another protocol refuses with the same init
+command. If restart fails,
 follow init's diagnostic; an enabled page's watcher also tries one revival.
 Init reads the log under Leaf's kernel transport contract. If an earlier page's
 log cannot be read or the page misbehaves after an update, initialize a new
@@ -114,7 +120,7 @@ conversation follows `page-checkpoints.md`, "Sign-off and ending".
 
 ## Resuming a standing or foreign page
 
-Resume a page from one session only. A named `leaf wait <page>` moves the claim to
+Resume a page from one session only. `leaf page claim <page>` moves the claim to
 whichever session runs it, and a watcher another session still runs stops watching
 that page. First read the page:
 
@@ -123,10 +129,10 @@ leaf page state <page>
 ```
 
 Read the active revision's HTML (`active.file`) and the standing `state` over it,
-then open Asks, current thread state, and `measurement_lag` for figures whose sources
+then open Questions, current thread state, and `measurement_lag` for figures whose sources
 have run again. Before editing, follow `authoring-revisions.md`'s "Read
-before editing" section. Then run `leaf wait <page>` to claim it, or, where your
-harness contract says its own hook watches between turns, `leaf page claim <page>`. Starting a server
+before editing" section. Then run `leaf page claim <page>` and follow your harness
+contract for watching it. Starting a server
 when the standing one is already live prints its URL without changing its lifetime.
 
 ## Inspecting interactions

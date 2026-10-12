@@ -59,57 +59,57 @@ def _launch(read):
         return f"Playwright's driver did not start: {error}. {driver_hint()}"
 
 
-def _in_browser(
-    gate: str,
-    read,
+def browser_check(
     page_dir: Path,
     document: SourceDocument,
     revision: int,
     artifact: RevisionArtifact,
-) -> tuple[list[str], str] | None:
-    """Serve the candidate source and return what `read` finds there (`in_browser`)."""
+    *,
+    page_code: bool,
+    render: bool,
+) -> int:
+    """Serve the candidate source once and, in one browser, run the page's own code
+    (`page_code` says which run and which errors fail it), then the render invariants,
+    saving the screens the pre-handover review reads for a page they pass. Page code
+    that fails ends the check before the render reading."""
+    gates = [
+        gate
+        for gate, wanted in (("page code", page_code), ("render check", render))
+        if wanted
+    ]
+
+    def read(browser, url: str):
+        errors = run_page_code(browser, url) if page_code else []
+        if errors or not render:
+            return errors, None
+        reading = render_version(browser, url)
+        if reading.failures:
+            return errors, (reading, None)
+        return errors, (reading, save_screens(browser, url, reading, page_dir))
+
     with preview_server(
         page_dir, document, revision, transition_held=True, artifact=artifact
     ) as url:
-        return in_browser(gate, lambda browser: read(browser, url))
-
-
-def page_code_check(
-    page_dir: Path,
-    document: SourceDocument,
-    revision: int,
-    artifact: RevisionArtifact,
-) -> int:
-    """Run the page's own code once and fail on every error it reports
-    (`page_code` says which run and which errors)."""
-    ran = _in_browser(
-        "page code", run_page_code, page_dir, document, revision, artifact
-    )
+        ran = in_browser(" and ".join(gates), lambda browser: read(browser, url))
     if ran is None:
         return 0
-    errors, browser_name = ran
+    (errors, rendered), browser_name = ran
+    if page_code and _page_code_verdict(errors, browser_name):
+        return 1
+    return _render_verdict(*rendered, browser_name) if rendered else 0
+
+
+def _page_code_verdict(errors: list[str], browser_name: str) -> int:
     if errors:
         print(
             f"Error: page code reported {len(errors)} error{'s' if len(errors) != 1 else ''}",
             file=sys.stderr,
         )
         for error in errors:
-            print(f"  - {error}", file=sys.stderr)
+            print("  - " + error.replace("\n", "\n    "), file=sys.stderr)
         return 1
     print(f"✓ page code: no errors in {browser_name}")
     return 0
-
-
-def _read_and_shoot(page_dir: Path):
-    """The gate's reading, and, for a page it passes, the screens the author reads."""
-
-    def read(browser, url: str):
-        reading = render_version(browser, url)
-        if reading.failures:
-            return reading, None
-        return reading, save_screens(browser, url, reading, page_dir)
-
-    return read
 
 
 def _screen_lines(screens) -> list[str]:
@@ -137,32 +137,14 @@ def _screen_lines(screens) -> list[str]:
     )
 
 
-def render_check(
-    page_dir: Path,
-    document: SourceDocument,
-    revision: int,
-    artifact: RevisionArtifact,
-) -> int:
-    """Serve candidate source to the host's browser, run the render invariants on it,
-    and save the screens the pre-handover review reads."""
-    ran = _in_browser(
-        "render check",
-        _read_and_shoot(page_dir),
-        page_dir,
-        document,
-        revision,
-        artifact,
-    )
-    if ran is None:
-        return 0
-    (reading, screens), browser_name = ran
+def _render_verdict(reading, screens, browser_name: str) -> int:
     if reading.failures:
         print(
             f"Error: index.html has {len(reading.failures)} render issue{'s' if len(reading.failures) != 1 else ''}",
             file=sys.stderr,
         )
         for f in reading.failures:
-            print(f"  - {f}", file=sys.stderr)
+            print("  - " + f.replace("\n", "\n    "), file=sys.stderr)
         for line in reading.advice:
             print(f"  · {line}", file=sys.stderr)
         return 1

@@ -11,9 +11,8 @@ only the runtime, theme and server differ between the two stills of a state. Wit
 changes to page markup are visible as well. Each
 capture starts with a fresh authored fixture and event log, so a prior gesture cannot
 change another state's initial condition.
-Message delivery belongs to thread_journey and test_render_thread_snapshots: its
-held checkpoints replace the former panel/card sent stills, whose unrestricted
-POSTs could complete before capture.
+Message delivery belongs to thread_journey and test_render_thread_snapshots, whose
+held checkpoints capture a send before its POST completes; a still cannot hold one.
 
 A state is an example, a viewport, a color scheme and a pointer, and the input that
 brings a fresh tab there (`DRIVERS`, which `leaf-dev probe --do drive:NAME` also runs).
@@ -151,6 +150,20 @@ def playground_text(page: Page) -> None:
     expect(field).to_have_value("Deployment ready")
 
 
+def banner_more(page: Page) -> None:
+    """The banner's More icon with its keyboard focus paint."""
+    page.keyboard.press("Tab")
+    page.locator(".lf-banner-more").focus()
+
+
+def playground_choice(page: Page) -> None:
+    """Keyboard focus on the choice's whole labelled hit target."""
+    page.keyboard.press("Tab")
+    radio = page.locator(".lf-playground-radio").first
+    radio.scroll_into_view_if_needed()
+    radio.focus()
+
+
 def card_by_pointer(page: Page) -> None:
     """The first margin card, opened by a click on its marker."""
     page.locator(".lf-margin-marker").first.click()
@@ -177,13 +190,18 @@ def card_more_room(page: Page) -> None:
     page.set_viewport_size({"width": 1440, "height": 600})
 
 
-def card_reply(page: Page) -> None:
-    """The first margin card with a reply being typed."""
+def card_reply_empty(page: Page) -> None:
+    """The first margin card's empty reply, ready for typing or dictation."""
     card_by_keyboard(page)
     page.keyboard.press("Enter")
     page.wait_for_function(
         "() => document.activeElement?.matches('.lf-margin-preview leaf-text')"
     )
+
+
+def card_reply(page: Page) -> None:
+    """The first margin card with a reply being typed."""
+    card_reply_empty(page)
     page.keyboard.insert_text("A reply being drafted, long enough to wrap onto a line")
 
 
@@ -255,7 +273,7 @@ def progress_messages(page: Page) -> None:
     page.locator("#bg-gallery-tabs").get_by_role(
         "tab", name="Threads", exact=True
     ).click()
-    page.locator('#bg-panel-presets [data-view="updates"]').click()
+    page.locator('#bg-panel-presets [data-view="progress"]').click()
     frame = page.frame_locator("#bg-panel-sample iframe")
     frame.locator(
         '.lf-thread[data-id="bg-progress-question"] .lf-summary-expand'
@@ -305,8 +323,8 @@ def panel_by_keyboard(page: Page) -> None:
     )
 
 
-def composer(page: Page) -> None:
-    """A comment being typed on a passage selected by pointer."""
+def composer_resting(page: Page) -> None:
+    """An empty anchored comment opened by selecting a passage, without focus."""
     box = page.locator("#triage-lede").bounding_box()
     y = box["y"] + 10
     page.mouse.move(box["x"] + 2, y)
@@ -317,9 +335,43 @@ def composer(page: Page) -> None:
     # arrives on a later frame, so the pointer decides, not whether it is there yet.
     if page.evaluate("matchMedia('(pointer: coarse)').matches"):
         page.get_by_role("button", name="Comment on selection").click()
+
+
+def composer_empty(page: Page) -> None:
+    """An empty comment on a passage selected by pointer, with its field focused."""
+    composer_resting(page)
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer leaf-text").focus()
+
+
+def composer(page: Page) -> None:
+    """A comment being typed on a passage selected by pointer."""
+    composer_empty(page)
     page.keyboard.insert_text("A comment being drafted on the selected words")
+
+
+def page_comment_empty(page: Page) -> None:
+    """The page comment card's empty field and trailing action."""
+    page.keyboard.press("c")
+    expect(page.locator(".lf-page-comment-card leaf-text")).to_be_focused()
+
+
+def page_comment_resting(page: Page) -> None:
+    """The page comment's empty hint and resting frame after tabbing out."""
+    page_comment_empty(page)
+    page.keyboard.press("Tab")
+    page.keyboard.press("Tab")
+    page.wait_for_function(
+        "() => !document.querySelector('.lf-page-comment-card').matches(':focus-within')"
+    )
+
+
+def composer_space(page: Page) -> None:
+    """A narrow comment whose trailing space still fits beside Send."""
+    composer(page)
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.insert_text("this is a nice feature; is it in leaf, or you")
+    page.keyboard.press("Space")
 
 
 # A draft of two paragraphs whose lines run past the composer's width, so every field
@@ -463,7 +515,7 @@ def theme_hierarchy(page: Page) -> None:
     summary = page.locator("#bg-theme-support summary")
     for _ in range(12):
         page.keyboard.press("Tab")
-        if summary.evaluate("el => el.matches(':focus-visible')"):
+        if summary.evaluate("el => el.matches(':focus')"):
             break
     else:
         raise AssertionError("Tab did not reach the supporting disclosure")
@@ -532,7 +584,7 @@ def code_copy_by_pointer(page: Page) -> None:
 
 
 def code_copy_by_keyboard(page: Page) -> None:
-    """Code's corner control with the keyboard focus ring visible."""
+    """Code's corner control focused from the keyboard."""
     code_note(page)
     page.keyboard.press("Tab")
     page.locator("lf-code .lf-code-copy").first.get_by_role("button").focus()
@@ -614,6 +666,31 @@ def more_menu(page: Page) -> None:
     page.locator(".lf-banner-menu").wait_for()
 
 
+def capture_area(page: Page) -> None:
+    """Select a page area, with its confirmation and cancellation controls visible."""
+    page.locator("#plan-context").scroll_into_view_if_needed()
+    more_menu(page)
+    page.get_by_role("button", name="Capture area", exact=True).click()
+    page.locator(".lf-region-selection").wait_for(state="visible")
+    page.mouse.move(100, 200)
+    page.mouse.down()
+    page.mouse.move(360, 350, steps=4)
+    page.mouse.up()
+
+
+def capture_small_drag(page: Page) -> None:
+    """Hold a small selection over words, which must remain visible during the drag."""
+    page.locator("#plan-current").scroll_into_view_if_needed()
+    more_menu(page)
+    page.get_by_role("button", name="Capture area", exact=True).click()
+    page.locator(".lf-region-selection").wait_for(state="visible")
+    target = page.locator("#plan-current").bounding_box()
+    left, top = round(target["x"]) + 45, round(target["y"]) + 8
+    page.mouse.move(left, top)
+    page.mouse.down()
+    page.mouse.move(left + 88, top + 44, steps=8)
+
+
 def versions_menu(page: Page) -> None:
     """The Versions menu, opened from More: a row for each version, with its note."""
     page.locator(".lf-banner-more").click()
@@ -657,69 +734,6 @@ def draft_edit(page: Page) -> None:
     page.locator("#rn-cli .lf-draft-body").click()
     page.keyboard.press("Tab")
     page.locator("#rn-cli .lf-draft-edit").focus()
-
-
-DRIVERS: dict[str, Callable[[Page], None]] = {
-    drive.__name__.replace("_", "-"): drive
-    for drive in (
-        at_rest,
-        tab_by_keyboard,
-        tab_by_pointer,
-        boxed_tab_by_keyboard,
-        drawing_comment,
-        drawing_photo_comment,
-        share_link,
-        diff_filter,
-        playground_text,
-        card_by_pointer,
-        card_by_keyboard,
-        card_more_room,
-        card_reply,
-        card_reply_large,
-        card_reply_resolved,
-        threads_panel,
-        progress_messages,
-        progress_messages_expanded,
-        image_preview,
-        retained_quote,
-        retained_quote_full,
-        screenshot_comparison,
-        panel_by_keyboard,
-        composer,
-        composer_long,
-        composer_sent,
-        composer_sent_zoomed,
-        card_reply_long,
-        panel_reply_long,
-        page_comment_long,
-        option_long,
-        options_in_pane,
-        ask_by_keyboard,
-        card_grabbed,
-        code_note,
-        frame_edges,
-        theme_hierarchy,
-        gallery_metrics,
-        gallery_plans,
-        wide_passage,
-        multiline_passage,
-        code_copy_by_pointer,
-        code_copy_by_keyboard,
-        diff_path_by_keyboard,
-        diff_file_reply,
-        code_source_by_touch,
-        pane_focused,
-        aim_cut_by_pane,
-        element_thread,
-        more_menu,
-        versions_menu,
-        go_to,
-        contents_by_keyboard,
-        widget_inline_hints,
-        draft_edit,
-        hub_workers,
-    )
-}
 
 
 def playground_controls(page: Page) -> None:
@@ -796,6 +810,43 @@ class State:
 
 
 STATES = (
+    State(
+        "banner-more",
+        "developer/feature-gallery",
+        banner_more,
+        region=".lf-banner-more",
+    ),
+    State(
+        "banner-more-phone-dark",
+        "developer/feature-gallery",
+        banner_more,
+        viewport=(390, 844),
+        scheme="dark",
+        touch=True,
+        region=".lf-banner-more",
+    ),
+    State(
+        "playground-choice",
+        "notification-playground",
+        playground_choice,
+        region=".lf-playground-choice-face:has(> input:focus)",
+    ),
+    State(
+        "playground-choice-phone-dark",
+        "notification-playground",
+        playground_choice,
+        viewport=(390, 844),
+        scheme="dark",
+        touch=True,
+        region=".lf-playground-choice-face:has(> input:focus)",
+    ),
+    State(
+        "trace-transport-icons",
+        "developer/playwright-trace-gallery",
+        trace_controls,
+        viewport=(540, 720),
+        region=".lf-trace-toolbar",
+    ),
     State(
         "drawing-photo-comment",
         "developer/feature-gallery",
@@ -926,6 +977,17 @@ STATES = (
         contents_by_keyboard,
         scheme="dark",
     ),
+    # Where the margin has no room for the map, and where a coarse pointer keeps the
+    # sidebar's contents in the flow, at a roomy width and on a phone.
+    State("contents-narrow", "developer/feature-gallery", at_rest, viewport=(900, 900)),
+    State("contents-coarse", "developer/feature-gallery", at_rest, touch=True),
+    State(
+        "contents-phone",
+        "developer/feature-gallery",
+        at_rest,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State("playground-controls", "notification-playground", playground_controls),
     State(
         "playground-controls-phone",
@@ -1003,6 +1065,12 @@ STATES = (
     State("plan-dark", "review-a-plan", at_rest, scheme="dark"),
     State("plan-beside", "review-a-plan", at_rest, viewport=BESIDE),
     State("plan-card", "review-a-plan", card_by_pointer),
+    State(
+        "plan-card-message-width",
+        "review-a-plan",
+        card_by_pointer,
+        viewport=(1920, 900),
+    ),
     State("plan-card-keyboard", "review-a-plan", card_by_keyboard),
     State("plan-card-keyboard-dark", "review-a-plan", card_by_keyboard, scheme="dark"),
     State("plan-card-reply", "review-a-plan", card_reply),
@@ -1020,6 +1088,19 @@ STATES = (
     State("plan-go-to", "review-a-plan", go_to, viewport=(1024, 768)),
     State("plan-narrow", "review-a-plan", at_rest, viewport=(360, 740)),
     State("plan-touch", "review-a-plan", at_rest, viewport=(390, 844), touch=True),
+    State("plan-more", "review-a-plan", more_menu),
+    State("plan-capture", "review-a-plan", capture_area),
+    State(
+        "plan-capture-drag", "review-a-plan", capture_small_drag, viewport=(390, 740)
+    ),
+    State("plan-capture-dark", "review-a-plan", capture_area, scheme="dark"),
+    State(
+        "plan-capture-touch",
+        "review-a-plan",
+        capture_area,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State(
         "plan-more-touch", "review-a-plan", more_menu, viewport=(390, 844), touch=True
     ),
@@ -1050,9 +1131,54 @@ STATES = (
         "plan-panel-reply-long-dark", "review-a-plan", panel_reply_long, scheme="dark"
     ),
     State("plan-page-comment-long", "review-a-plan", page_comment_long),
+    State(
+        "plan-page-comment-empty",
+        "review-a-plan",
+        page_comment_empty,
+        region=".lf-page-comment-card",
+    ),
+    State(
+        "plan-page-comment-resting",
+        "review-a-plan",
+        page_comment_resting,
+        region=".lf-page-comment-card",
+    ),
+    State(
+        "plan-page-comment-resting-dark",
+        "review-a-plan",
+        page_comment_resting,
+        scheme="dark",
+        region=".lf-page-comment-card",
+    ),
+    State(
+        "plan-card-reply-empty",
+        "review-a-plan",
+        card_reply_empty,
+        region=".lf-margin-preview .lf-thread-reply",
+    ),
     State("plan-card-reply-resolved", "review-a-plan", card_reply_resolved),
     State("triage", "triage-board", at_rest),
     State("triage-composer", "triage-board", composer),
+    State(
+        "triage-composer-empty",
+        "triage-board",
+        composer_empty,
+        region=".lf-composer .lf-compose-field",
+    ),
+    State(
+        "triage-composer-resting",
+        "triage-board",
+        composer_resting,
+        region=".lf-fab-bar",
+    ),
+    State(
+        "triage-composer-resting-dark",
+        "triage-board",
+        composer_resting,
+        scheme="dark",
+        region=".lf-fab-bar",
+    ),
+    State("triage-composer-space", "triage-board", composer_space, viewport=(362, 900)),
     State("triage-composer-long", "triage-board", composer_long),
     State("triage-composer-long-dark", "triage-board", composer_long, scheme="dark"),
     State(
@@ -1170,6 +1296,11 @@ STATES = (
     State("sort-pane-dark", "rust-sort", pane_focused, scheme="dark"),
     State("sort-aim-cut", "rust-sort", aim_cut_by_pane),
 )
+
+# Every state's input by name, for `leaf-dev probe --do drive:NAME`.
+DRIVERS: dict[str, Callable[[Page], None]] = {
+    state.drive.__name__.replace("_", "-"): state.drive for state in STATES
+}
 
 
 def capture(browser, address: str, state: State, path: Path) -> dict | None:

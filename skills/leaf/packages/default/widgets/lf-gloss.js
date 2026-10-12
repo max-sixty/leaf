@@ -12,11 +12,14 @@
  * CSS anchors keep the card with its phrase. */
 import {
   keeps,
+  showNativeLayer,
+  closeNativeLayer,
   offer,
   once,
   paintKeys,
   reachedForWords,
   worksInside,
+  whileConnected,
 } from "/runtime/widget-api.js";
 
 let nextId = 0;
@@ -26,7 +29,6 @@ customElements.define(
   class extends HTMLElement {
     #bubble = null;
     #dismissed = false;
-    #events = null;
     #focused = false;
     #hovered = false;
     #mark = null;
@@ -34,18 +36,18 @@ customElements.define(
     #shown = false;
 
     connectedCallback() {
-      if (once(this)) this.#build();
-      this.#listen();
-      this.#sync();
-    }
-
-    disconnectedCallback() {
-      this.#events?.abort();
-      this.#events = null;
-      this.#hovered = false;
-      this.#focused = false;
-      this.#pinned = false;
-      this.#shown = false;
+      if (!once(this)) return;
+      this.#build();
+      whileConnected(this, (signal) => {
+        this.#listen(signal);
+        this.#sync();
+        return () => {
+          this.#hovered = false;
+          this.#focused = false;
+          this.#pinned = false;
+          this.#shown = false;
+        };
+      });
     }
 
     #build() {
@@ -87,11 +89,7 @@ customElements.define(
       });
     }
 
-    #listen() {
-      if (this.#events || !this.#mark) return;
-      this.#events = new AbortController();
-      const { signal } = this.#events;
-
+    #listen(signal) {
       this.addEventListener(
         "pointerenter",
         (event) => {
@@ -171,9 +169,9 @@ customElements.define(
       paintKeys();
 
       if (show) {
-        this.#bubble.showPopover();
+        showNativeLayer(this.#bubble);
       } else {
-        if (this.#bubble.matches(":popover-open")) this.#bubble.hidePopover();
+        if (this.#bubble.matches(":popover-open")) closeNativeLayer(this.#bubble);
       }
     }
   },

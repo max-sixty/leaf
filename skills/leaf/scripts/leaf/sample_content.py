@@ -15,9 +15,11 @@ from pathlib import Path
 from .anchor_capture import capture_anchor
 from .data_contracts import data_document_errors, initial_data_document_readings
 from .event_contracts import admitted_event, command_error
+from .event_log import EventRefused
 from .event_meaning import AdmissionReadings
 from .page_view import InitialPageView
 from .projection import generated_children, retirement_outcomes, rewritten_bodies
+from .registry.kernel import kernel_event_kinds
 from .registry.schema import aware_instant, json_value
 from .state import now_iso
 from .structure import SourceDocument
@@ -134,7 +136,7 @@ def initial_sample_events(
     child = template["document"]
     view = InitialPageView(child, registry, contracts)
     events = []
-    kinds = registry["$events"]["kinds"]
+    kinds = kernel_event_kinds()
     constructed_at = now_iso()
     for seq, command in enumerate(commands, 1):
         try:
@@ -193,7 +195,7 @@ def initial_sample_events(
                         f"message widget ids already taken by events: {json_value(sorted(collision))}"
                     )
             events.append(admitted_event(view, events, event))
-        except ValueError as error:
+        except (ValueError, EventRefused) as error:
             raise ValueError(
                 f"data-sample-events {reference!r}, event {seq}: {error}"
             ) from error

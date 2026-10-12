@@ -63,7 +63,7 @@ has tried; settle that before building it.
   [the comparison finding](notes/comparisons.md#phone-annotation-placement-2026-10-05).
 - **Make the next move and its result apparent.** Play through `review-a-plan`,
   `triage-board`, `pr-walkthrough`, and `ship-review`; fix dead ends and moves whose
-  result is hidden. Decide whether a page needs one progress reading across Asks,
+  result is hidden. Decide whether a page needs one progress reading across Questions,
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
 - **Keep Tab off page content a panel beside the page covers.** Threads and the
@@ -71,8 +71,9 @@ has tried; settle that before building it.
   (2026-10-06): the panels dominate focus, so moving focus never closes or changes a
   standing panel, focus never lands on page content a panel covers, and Threads still
   stands beside a full-width workspace. A comment box already refuses a covered seat
-  (`underOccluder`, geometry.js). Tab still walks onto `annotation-workspace`'s rail
-  under Threads, or the Questions panel that shares its right edge, at 1440×900. Making what a panel covers inert was built and withdrawn: it left the visible
+  (`underOccluder`, geometry.js). Tab walked onto page content under Threads, or the
+  Questions panel that shares its right edge, at 1440×900 on an example since retired;
+  no surviving page has been checked for it. Making what a panel covers inert was built and withdrawn: it left the visible
   part of a partly covered element dead to clicks and selection, and focus still reached
   chrome markers, sample frames, overflowing children and content an attribute revealed.
   Decide between laying the page out in the width a panel leaves beside it, which
@@ -82,6 +83,13 @@ has tried; settle that before building it.
 
 ### Agent and author experience
 
+- **Decide whether `page check` should still refuse an `lf-ask` without a leading
+  heading.** The heading is the Question's title in the Questions panel, the banner
+  and the `q` announcement, which all show an empty title without one, and the
+  `lf-ask` instructions already ask for it. Wait until the other narrow checks
+  removed in October 2026 have been gone a while; if pages written since still
+  carry the heading, remove this check too. It fired in 4 sessions, 2 of them on
+  user pages, between 2026-07-22 and 2026-10-11.
 - **Consider a reminder when revising decided content.** An optional `--force`
   acknowledgment could make an agent pause over an existing decision. Revisions
   currently remain unrestricted; decide whether such a reminder helps before
@@ -137,6 +145,10 @@ has tried; settle that before building it.
 
 ### User continuity and mobile access
 
+- **Bring back a rewrite Escape discarded.** Escape drops a rewrite's changed words, as
+  in Slack, Discord and Telegram, so an accidental press loses a long rewrite. Offer a
+  way back, such as `g D` restoring the last discarded rewrite into its editor (the
+  user's suggestion, 2026-10-06).
 - **Decide when a page merits a separate phone composition.** Many pages are
   ephemeral and authored for a user reading on a large screen, so a bespoke phone
   animation may not repay its cost. Decide how the agent weighs the user's viewing
@@ -156,24 +168,15 @@ has tried; settle that before building it.
   handoff and reproduce the interactive-reply crash on a real iPhone. Browser emulation
   covers element targeting, commenting, passage geometry, and viewport sizing, but cannot
   show the native selection menu or software keyboard.
-- **Finish what a phone user still cannot reach.** Give touch users visible passage
-  threads, and remove keyboard-only hints, hover-only reasons, clipped diagram content,
-  and remaining undersized touch targets. Hover-only today: why Approve version is
-  disabled, and "Press z" once approved; a reaction's word before it is sent; a margin
-  marker's label and its status (Sent, Stalled); the diff's line "+"; and the
-  latest-edit error, a dead passage's reason, a disabled More entry's reason, and the
-  compare state. A finger also lacks exits a key has: a mode's or search's steps take
-  Threads off the row until it ends, Android's back gesture closes nothing
-  (the Escape ladder could answer it), Draw mode blocks scrolling and zoom, and an
-  `lf-draft` has no close that keeps the edit.
-- **Decide whether the response bar's reactions and Suggest need a pointer route.**
-  The floating comment bar shows no ellipsis (⋯), so its field spans the bar and a sent
-  message keeps the card's measure. Its other responses, Suggest and the emoji
-  reactions, open only by key: Tab from the field, or `e`. A mouse alone has no
-  route to them, and a finger has none at all. Decide whether to make them more
-  available, such as a banner control under a coarse pointer, a reaction row on the
-  sent card, or a control that keeps the field's measure
-  (`skills/leaf/assets/runtime/composing/selection.js`).
+- **Finish what a phone user still cannot reach.** Remove keyboard-only hints,
+  hover-only reasons, clipped diagram content, and remaining undersized touch targets.
+  Hover-only today: why Approve version is disabled, and "Press z" once approved; a
+  reaction's word before it is sent; a margin marker's label and its status (Sent,
+  Stalled); the diff's line "+"; and the latest-edit error, a dead passage's reason, a
+  disabled More entry's reason, and the compare state. A finger also lacks exits a key
+  has: a mode's or search's steps take Threads off the row until it ends, Android's back
+  gesture closes nothing (the Escape ladder could answer it), Draw mode blocks scrolling
+  and zoom, and an `lf-draft` has no close that keeps the edit.
 - **Reconsider thread navigation.** Decide how the Threads panel should change
   before refining it (`skills/leaf/assets/AGENTS.md`, "Space and scrolling").
 
@@ -188,11 +191,9 @@ and its chrome coordinate.
   newcomer out of view rather than pushing down the card being read. The user sees
   it only in the count; give that arrival a visible route while preserving the
   current reading.
-- **Hold the shipped workspaces to the overflow advice.** `page check --render` still
-  advises that `rust-sort`'s stage pane runs 100px past its region at 720px. Fit it,
-  then make `test_page_fixture_renders` fail on that advice for workspace examples,
-  with `rust-sort`'s source pane the one reader allowed to scroll; today it asserts only
-  the gate's failures ([plan](notes/chrome-and-covers.md)).
+- **Fit `rust-sort`'s stage pane.** At 720px it runs 100px past its region, which
+  `page-authoring.md` asks an author to trim or split
+  ([plan](notes/chrome-and-covers.md)).
 - **Decide whether the desktop bottom bar goes.** Its key hints would move behind `?`
   and its status into the banner; the bar is how a desktop user learns the keys
   without asking, which is the trade to weigh ([plan](notes/chrome-and-covers.md)).
@@ -231,7 +232,7 @@ and its chrome coordinate.
     growing along it and changed cells outlined. `lf-visual-review` steps through one
     case at a time, so the grid is a new view, in that package or beside it.
   - For comment placement alone, an SVG atlas of the side `comment-placement.js`
-    chooses (`commentSide`) over a grid of inputs, which `npm run test:runtime` can
+    chooses (`commentSide`) over a grid of inputs, which `pnpm run test:runtime` can
     draw without a browser.
 
   How to keep the candidates maintainable is not yet thought through, and comes before
@@ -249,7 +250,12 @@ and its chrome coordinate.
   keeping its comments. They hold if revisions happen by ordinary composition. Include
   a cold agent asked for "a dashboard", the likeliest trigger for over-tiling. Run it
   with the agent-usability baseline (#19), by extending the document, dashboard and
-  queue tasks in `evals/`.
+  queue tasks in `evals/`. For a workspace, also measure what a screenshot of the
+  document cannot show: each pane's contents through its own scroll, how much of each
+  pane is empty, and whether a reader reaches every pane by key. The arrangement
+  judge sees only the first screen of a pane that scrolls and is told not to infer
+  interaction, so no case yet measures whether a workspace works as a screen. The
+  plain-HTML control (`--condition html`) has never run.
 - **Layout values that wait for a task:** a selection-and-detail component whose phone
   form shows one side at a time; canvas regions, whose reading position is
   two-dimensional; slides as a presentation of `lf-tabs`.
@@ -269,12 +275,12 @@ that changes size after first paint, with its cause.
   a synchronous source reading, or whether a summary can serve the reader who came
   to read it. The activity feed now opens log-sized rows deliberately and holds later
   growth with `HeldReading`.
-- **Decide the contents' form before first paint.** `lf-toc` changes size because the
-  margin pass decides after first paint whether it is the fixed map in the margin or
-  the outline in the flow (`data-lf-margin`, `margin-layout.js`), from the room
-  it measures at that point. A held summary does not answer that cause. Check first whether a
-  container or media query on the space beside the column can make the same decision
-  in CSS.
+- **Draw the contents before first paint.** `lf-toc` is written empty and builds its
+  list from the page's headings as its module upgrades, so it first paints with no box
+  and then takes its full one (`tests/known_widget_findings.py`). Residency
+  (`data-lf-margin`, prepaint.js) already decides its form before that paint; what is
+  left is an initial renderer (`lfInitial.register`) that draws the list from the
+  authored headings.
 - **Check that margin markers paint in place in their first frame.** The shift watch
   exempts the page until it is presented (`tests/shift_watch.js`), and #1603 records
   startup shifts only as diagnostics, so a marker drawn in the wrong place in its first
@@ -287,9 +293,9 @@ A queue is one `lf-tabs list="side"` beside its open item (`page-authoring.md`, 
 workspace"). The first real one, a 21-item triage page, showed these. Its list's
 height and where a switch lands wait on the workspace decision under Layout.
 
-- **Start `a` from the open item's Ask.** From a row, `a` goes to the queue's first
-  open Ask, and `1` then picks for an item the user isn't looking at. The walk
-  measures from focus (`askPosition` in `asks/view.js`), and the row precedes every
+- **Start `q` from the open item's Question.** From a row, `q` goes to the queue's first
+  open Question, and `1` then picks for an item the user isn't looking at. The walk
+  measures from focus (`queue-walk.js`), and the row precedes every
   panel; `t` and `T` measure the same way. A tab could stand at the view it opens for
   the walks (`standing-target.js`), while `c` on a row still names the row.
 - **Keep the open item's group named on a phone.** In the one-row strip a group's
@@ -360,14 +366,23 @@ on 2026-10-07.
   them, but nothing runs them first. Write `evals/` cases in which agents author each
   kind and measure how often what they write fails to draw, then run the kinds agents
   get wrong and stop running those they reliably get right.
-- **Derive the waiting banner from the page's open Ask.** Consider using the Ask's
+- **Derive the waiting banner from the page's open Question.** Consider using the Question's
   words when no explicit waiting detail is needed. **Unconfirmed:** try pages with
-  several open Asks and an informational page before choosing how the banner
+  several open Questions and an informational page before choosing how the banner
   explains who owes the next move. Keep explicit agent status available when the
-  Ask alone does not explain the wait.
+  Question alone does not explain the wait.
 
 ### Development velocity
 
+- **Make test tiering much simpler.** Cost tiers went in as a stopgap to cut the
+  suite's cost quickly: a test's tier is the later of its `main`/`nightly` marks and
+  the tier its measured CI cost names in `tests/cost_tiers.json` (307 KB), with a
+  `landing` pin, a `leaf-dev cost-tiers` refresh, and a junit property to feed it
+  (`dev/leaf_dev/cost_tiers.py`). That is three encodings of one decision, and a
+  test's tier is invisible where the test is written. Find one encoding a reader can
+  see beside the test, likely by making browser tests cheap enough that fewer need
+  moving, and by decoupling shift watching from tier marks
+  (`render_harness.watches_shifts`), which is what kept these tiers out of source.
 - **Check what handing over on chosen tests costs.** Since 2026-10-04 a handover runs
   the tests the agent picks for its change, and the broad selection runs only at
   landing (`tests/AGENTS.md`, "Run what the change needs"). Before that, 25 of the
@@ -401,21 +416,46 @@ on 2026-10-07.
   into a page by hand. It is an experiment: the alternative is for the command to
   print the samples' rows and leave the chart to the agent writing the page. Keep it
   if it gets used for later readings; otherwise reduce it to the rows.
-- **Consider bundling the browser runtime.** A navigation loads about 220 JS modules
-  over HTTP/1.1's six connections. A prototype bundling `leaf.js` with esbuild cut a
-  widgetless page from 217 requests to 38 and its open from 332–483 ms to 238–258 ms,
-  roughly 10% of browser-test time. The bundle would hold `assets/runtime/` and Leaf's
-  own packages; custom packages stay unbuilt and import only `/runtime/widget-api.js`,
-  a bundle entry, which `page check` would then enforce, since any other runtime import
-  loads a second runtime. **Unconfirmed:** it needs automatic rebuilds on preview, test
-  and merge, since a committed bundle would conflict across concurrent runtime PRs.
-  Untested alternative: `modulepreload` hints.
+- **Choose how installs get the compiled kernel before a proper release.** Installs
+  follow `main` and load about 260 source modules; only the website compiles them
+  into one kernel (`leaf_dev.distribution`). On `pr-walkthrough` (2026-10-11, 8
+  paired runs on a loaded Mac), the kernel's 57 JS requests presented about 755 ms
+  after document receipt, against about 940 ms for source modules; `modulepreload`
+  hints for the 222 statically imported modules recovered only about 35 ms. A
+  CI-built `prepared` branch carried the kernel to installs from #1963 until
+  2026-10-11, when it was dropped to keep installs on `main`. Candidates: CI commits
+  the kernel to `main` after each runtime merge, and installs serve source modules
+  while it is stale; CI publishes each `main` commit to npm, which Claude Code, Codex
+  and Pi accept as a plugin source; or the first run builds it, which adds Node to
+  the host's requirements. Committing the kernel in each pull request conflicts too
+  often: of 25 replayed pairs of consecutive runtime commits, the minified chunks
+  conflicted in 20, and one unminified file per entry conflicted in 3 and merged one
+  more cleanly into bytes that differ from a rebuild. The suite and previews would
+  gain from the same kernel (next item).
+- **Run the suite and previews on the compiled kernel.** They boot about 245 source
+  modules and 4 MB, where the kernel `leaf_dev.distribution` compiles for the website
+  is 46 runtime files and 1.9 MB. On the triage board at a 4× CPU throttle the kernel
+  of the same commit opened 16% sooner (748 ms against 886) and 30% sooner
+  unthrottled, which would be roughly 6% of the suite's cost. The blocker is that the
+  suite reads private runtime modules from inside the page,
+  `window.__lfRuntimeImport('/runtime/…')` at 518 sites in about 30 files, including
+  the harness's own readings of state (`semantic-state.js`) and focus (`focus.js`); the
+  kernel bundles those modules into chunks, so with it compiled into a copy of the tree
+  121 of 479 tests in `test_render_widgets`, `test_render_drawing` and
+  `test_render_aim` failed on such imports. Move those readings onto what the page
+  exposes to every reader, then build the kernel once per suite run, which takes about
+  2 s, so local and CI runs test what ships.
 
 ## Etc
 
 Revisit these when their stated trigger becomes real; they are not an active queue.
 
 ### Product and harness ideas
+
+- **Link filenames to their repository context.** When a page or thread knows the
+  repository and revision, offer a GitHub source link for a filename such as
+  `AGENTS.md` rather than treating it as a web domain. Establish how that context
+  reaches Markdown before inferring a destination from the filename alone.
 
 - **Assess whether automatic measurement freshness is useful (#7 in the simplification audit).**
   Keep the current `lf-num` source/write-time reminder for now. Look for cases where
@@ -447,7 +487,7 @@ Revisit these when their stated trigger becomes real; they are not an active que
   [What needs you](notes/what-needs-you/page.html#task-hierarchy)). Trigger: a page
   whose work the user wants to see broken down.
 - **Tell the agent when to ask before ending its own task.** The agent ends its tasks
-  itself, and asks first, with an Ask or a thread question, when the result needs the
+  itself, and asks first, with a Question or a thread question, when the result needs the
   user's sign-off
   ([What needs you](notes/what-needs-you/page.html#task-done)). The shipped
   instructions don't yet say when that is. Trigger: an agent ends a task as done that
@@ -471,10 +511,15 @@ Revisit these when their stated trigger becomes real; they are not an active que
   building a feed or presence on it.
 - **Show which pane has focus, and move between panes by key.** A terminal marks
   its active pane and one key moves to the next. In a workspace today the arrow keys
-  walk a side list, `a` reaches the next open Ask, and a pane body that scrolls is a
+  walk a side list, `q` reaches the next open Question, and a pane body that scrolls is a
   Tab stop, but nothing marks the active pane and no key moves from one pane to the
-  next. Pane focus belongs to the panes and the keyboard layer, not the Layout, so it
-  works the same wherever panes stand. Draw it as a playground before building it.
+  next. The runtime already tracks it: `userReadingRegion` (`reading-regions.js`) is the
+  pane holding focus, or else the last one pressed, wheeled or touched, and `j`/`k`/`d`/`u`
+  scroll it. Until the user picks a pane those keys reach the page, which a workspace
+  doesn't scroll, so they appear to do nothing. The feature is a mark on that region and
+  a key that moves it. Pane focus belongs to the
+  panes and the keyboard layer, not the Layout, so it works the same wherever panes
+  stand. Draw it as a playground before building it.
   Trigger: a user loses track of the active pane, or tabs through a pane to reach the
   next one.
 - **Expand everything waiting with a keypress.** A held notice, a collapsed summary,
@@ -542,6 +587,12 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **#6 — Codex supervision:** separate hosted and local turn supervision only
   if hosted delivery becomes a product priority; the App Server protocol is
   already shared.
+- **Make a leaf.page dispatch survive its container.** The Worker acknowledges an
+  accepted event and hands its Codex turn to `waitUntil` (`worker/src/agent.ts`,
+  `dispatchAgentTask`). Nothing records the event and turn identity in the
+  container's Durable Object, and nothing recovers a dispatch whose container
+  disappears or outlives the `waitUntil` window. Trigger: a hosted answer lost that
+  way.
 - **#7 — Runtime fold tests:** add focused Node tests as rules change; extend
   `tests/runtime/dom.mjs` only when a test needs another module.
 - **Claude Code tool observation:** consider a cheap hook for sessions holding

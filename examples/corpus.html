@@ -469,6 +469,7 @@
       .query-table-frame {
         min-width: 0;
         overflow-x: auto;
+        padding-bottom: 15px;
         --lf-block-frame: 1;
       }
 
@@ -1149,6 +1150,21 @@
         color: var(--danger-ink);
       }
 
+      #pr-flow-diagram .node.removed rect {
+        fill: var(--del-tint);
+        stroke: var(--danger);
+      }
+      #pr-flow-diagram .node.removed text {
+        fill: var(--danger-ink);
+      }
+      #pr-flow-diagram .node.added rect {
+        fill: var(--ok-tint);
+        stroke: var(--ok);
+      }
+      #pr-flow-diagram .node.added text {
+        fill: var(--ok-ink);
+      }
+
       .pr-scale-facts {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
@@ -1342,7 +1358,7 @@
         font: 14px / 21px var(--mono);
         cursor: pointer;
       }
-      lf-merge-film .film-terminal-line:focus-visible {
+      lf-merge-film .film-terminal-line[data-lf-focus] {
         outline-offset: -2px;
       }
       lf-merge-film .film-phone-line {
@@ -1727,51 +1743,19 @@
       });
       followLine();
     </script>
+<!-- security-boundary.html authored styles -->
+<style>
+      #security-before-flow .node.danger rect {
+        fill: var(--danger-tint);
+        stroke: var(--danger);
+      }
+      #security-before-flow .node.danger text {
+        fill: var(--danger-ink);
+      }
+</style>
 <!-- command-hub.html authored styles -->
 <style>
       @import url("/page/theme.css");
-</style>
-<!-- annotation-workspace.html authored styles -->
-<style>
-      #aw-regions {
-        display: grid;
-        grid-template-columns: minmax(0, 2fr) minmax(20rem, 1fr);
-        min-block-size: 0;
-      }
-      #aw-research,
-      #aw-conversations {
-        min-inline-size: 0;
-        min-block-size: 0;
-      }
-      #aw-conversations {
-        display: flex;
-        flex-direction: column;
-        gap: var(--sp-3);
-      }
-      #aw-conversations > h2 {
-        margin: 0;
-        flex: none;
-      }
-      #aw-annotations {
-        inline-size: 100%;
-        block-size: 100%;
-        min-block-size: 0;
-        flex: 1 1 0;
-      }
-      #aw-navigation {
-        display: flex;
-        flex-wrap: wrap;
-        gap: var(--sp-3);
-      }
-      @media (width < 720px), (height < 480px) {
-        #aw-regions {
-          grid-template-columns: minmax(0, 1fr);
-        }
-        #aw-annotations {
-          block-size: clamp(18rem, 55svh, 30rem);
-          flex: none;
-        }
-      }
 </style>
 <!-- current-proposed-comparison.html authored styles -->
 <style>
@@ -1815,6 +1799,8 @@
 </style>
 <!-- feature-gallery.html authored styles -->
 <style>
+      @import url("/page/theme.css");
+
       #bg-metrics > dl {
         margin: 0;
         padding: var(--sp-3);
@@ -2083,44 +2069,6 @@
         opacity: 1;
       }
 
-      .interaction-keypress {
-        position: absolute;
-        z-index: 4;
-        right: 18px;
-        bottom: 18px;
-        padding: 7px 10px;
-        border: 1px solid var(--border-2);
-        border-radius: 8px;
-        background: var(--card);
-        box-shadow: 0 4px 14px var(--shade);
-        color: var(--ink);
-        font: 650 var(--t-6) / 1 var(--sans);
-        pointer-events: none;
-      }
-
-      .interaction-keypress[hidden] {
-        display: none;
-      }
-
-      .interaction-pointer {
-        position: absolute;
-        z-index: 5;
-        top: 0;
-        left: 0;
-        width: 22px;
-        height: 28px;
-        background: var(--ink);
-        clip-path: polygon(0 0, 78% 71%, 47% 73%, 63% 100%, 49% 100%, 34% 76%, 0 100%);
-        filter: drop-shadow(0 1px 0 var(--paper)) drop-shadow(0 2px 3px var(--shade));
-        pointer-events: none;
-        transform-origin: 2px 2px;
-        will-change: transform, opacity;
-      }
-
-      .interaction-pointer[hidden] {
-        display: none;
-      }
-
       .interaction-demo figcaption {
         max-width: 66ch;
         margin-top: 13px;
@@ -2134,8 +2082,7 @@
       }
 
       @media print {
-        .lf-interaction-controls,
-        .interaction-pointer {
+        .lf-interaction-controls {
           display: none !important;
         }
 
@@ -2191,7 +2138,18 @@
     </script>
 <!-- feature-gallery.html authored script -->
 <script type="module">
-      import { afterPresentation, commands } from "/runtime/widget-api.js";
+      import {
+        afterPresentation,
+        commands,
+        readQuestions,
+      } from "/runtime/widget-api.js";
+
+      document.querySelector("#bg-read-question").addEventListener("click", () => {
+        const question = readQuestions().all.find((q) => q.id === "widget:bg-choice");
+        const output = document.querySelector("#bg-question-reading");
+        output.textContent = JSON.stringify(question, null, 2);
+        output.hidden = false;
+      });
 
       const localNote = document.querySelector("#bg-shortcut-note");
       const focusNote = document.querySelector("#bg-shortcut-focus-note");
@@ -2272,7 +2230,7 @@
           you: "2be2443f0bb6cc49fc86b52f340e6073",
           resolved: "bab3cdfcfb8c02aacbb27da731de947a",
           summary: "9ee465bb3f9c1fa309ea9cb1767fa365",
-          updates: "bg-progress-question",
+          progress: "bg-progress-question",
         }[view];
         void sample.showThread(thread, {
           surface: "panel",
@@ -2582,8 +2540,8 @@ catalog.</p>
             pays twice.
           </p>
           <p>
-            Every other card is either cosmetic, has a safe retry, or affects one
-            customer who has a workaround. None gets worse by waiting a week.
+            None of the other cards gets worse by waiting a week. Each is cosmetic for
+            most users, safe to retry, has a manual workaround, or has few reports.
           </p>
         </section>
         <section class="panel" id="triage-moves">
@@ -4202,11 +4160,7 @@ max-sixty/worktrunk #3865
                 <span>unchanged boundary</span>
                 <span class="pr-added">+ new path</span>
               </p>
-              <lf-diagram
-                id="pr-flow-diagram"
-                data-height="541"
-                parts="node:Row node:Mode node:Working node:Unified node:Prepared node:History node:Temp node:Staged node:Unstaged node:Untracked node:Tabs"
-              >
+              <lf-diagram id="pr-flow-diagram" data-height="541" parts="all">
                 <pre>
 flowchart TB
   accTitle: Unified diff preparation
@@ -4221,8 +4175,6 @@ flowchart TB
   Temp --> Staged[Staged]
   Temp --> Unstaged[Unstaged]
   Temp --> Untracked[Untracked]
-  classDef removed fill:var(--del-tint),stroke:var(--danger),color:var(--danger)
-  classDef added fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)
   class Working removed
   class Unified,Prepared,Temp added
 </pre>
@@ -5004,11 +4956,7 @@ unsafe fn merge&lt;T, F&gt;(v: &amp;mut [T], mid: usize, buf: *mut T, compare: &
           one known consumer while Git, PATH entries, language startup files, action
           manifests, and setup-generated shims remained open paths into runner work.
         </p>
-        <lf-diagram
-          id="security-before-flow"
-          data-height="117"
-          parts="node:R0 node:R1 node:A1 node:R2 node:P1"
-        >
+        <lf-diagram id="security-before-flow" data-height="117" parts="all">
           <pre>
 flowchart LR
   accTitle: Shared checkout crosses the sandbox boundary
@@ -5017,7 +4965,6 @@ flowchart LR
   R1 --> A1[Same tree handed to agent]
   A1 --> R2[Same tree returned to runner]
   R2 --> P1[Runner tail and action POSTs]
-  classDef danger fill:var(--danger-tint),stroke:var(--danger),color:var(--danger-ink)
   class A1,R2,P1 danger
 </pre>
         </lf-diagram>
@@ -5151,10 +5098,7 @@ flowchart LR
 
         <section id="security-states">
           <h2 id="security-states-heading">Sandbox execution and cleanup</h2>
-          <lf-diagram
-            id="security-proposed-states"
-            parts="node:S0 node:S1 node:S2 node:S3 node:S4 node:S5 node:S6 node:S7 node:F"
-          >
+          <lf-diagram id="security-proposed-states" parts="all">
             <pre>
 stateDiagram-v2
   accTitle: Sandbox execution and cleanup states
@@ -6222,7 +6166,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
             <dd><output data-atlas-count="stopped">0</output></dd>
           </dl>
           <button type="button" class="button atlas-refresh" disabled>
-            Show updates
+            Show latest
           </button>
           <details class="atlas-stopped">
             <summary>Stopped work</summary>
@@ -6235,90 +6179,6 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
           <lf-activity id="atlas-record"></lf-activity>
         </section>
       </aside>
-</lf-tab>
-
-<lf-tab id="corpus-annotation-workspace" label="Annotation workspace">
-<header>
-        <h1>Measurement review</h1>
-        <nav id="aw-navigation" aria-label="Review regions">
-          <a href="#aw-finding">Finding</a>
-          <a href="#aw-next-run">Next run</a>
-          <a href="#aw-conversations">Conversations</a>
-        </nav>
-      </header>
-
-      <div id="aw-regions">
-        <lf-pane id="aw-research" label="Sampling evidence">
-          <header><h2>Repeat before changing the calibration</h2></header>
-          <div id="aw-evidence">
-            <p id="aw-finding">
-              The third block has a wider range. Repeat with unchanged calibration
-              before treating it as a persistent change.
-            </p>
-            <table id="aw-measurements">
-              <caption>
-                Illustrative sensor readings from one bench session
-              </caption>
-              <thead>
-                <tr>
-                  <th scope="col">Block</th>
-                  <th scope="col">Readings (mV)</th>
-                  <th scope="col">Range (mV)</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <th scope="row">First</th>
-                  <td>10.1, 10.2, 10.0, 10.1</td>
-                  <td>0.2</td>
-                </tr>
-                <tr>
-                  <th scope="row">Second</th>
-                  <td>10.2, 10.1, 10.3, 10.2</td>
-                  <td>0.2</td>
-                </tr>
-                <tr>
-                  <th scope="row">Third</th>
-                  <td>9.7, 10.5, 10.0, 10.6</td>
-                  <td>0.9</td>
-                </tr>
-              </tbody>
-            </table>
-            <section id="aw-run-decision">
-              <lf-ask id="aw-next-run">
-                <h3>How should the repeat be sampled?</h3>
-                <p>
-                  Keep the sensor, calibration and interval fixed. Four readings match
-                  the earlier blocks; eight give more evidence about the range.
-                </p>
-                <lf-options id="aw-sampling" choose>
-                  <lf-option id="aw-four-readings">
-                    Four readings · two minutes
-                  </lf-option>
-                  <lf-option id="aw-eight-readings">
-                    Eight readings · four minutes
-                  </lf-option>
-                </lf-options>
-              </lf-ask>
-            </section>
-          </div>
-        </lf-pane>
-
-        <aside
-          id="aw-conversations"
-          aria-labelledby="aw-conversations-heading"
-          tabindex="-1"
-        >
-          <h2 id="aw-conversations-heading">Conversations and actions</h2>
-          <lf-annotation-rail id="aw-annotations"></lf-annotation-rail>
-        </aside>
-      </div>
-      <footer>
-        <p id="aw-comment-route">
-          Select a reading or passage to comment on it. Conversations stay in this
-          workspace; Threads opens the complete discussion.
-        </p>
-      </footer>
 </lf-tab>
 
 <lf-tab id="corpus-current-proposed-comparison" label="Current Proposed Comparison">
@@ -6443,6 +6303,29 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
           </lf-options>
         </lf-ask>
       </footer>
+</lf-tab>
+
+<lf-tab id="corpus-playwright-paired-results" label="Playwright Paired Results">
+<h1>Compare reviewed results</h1>
+      <p>
+        These two views deliberately pair different Review outcomes in one recording.
+        Selecting Reviewed result aligns the declared checkpoints, whose native times
+        remain distinct.
+      </p>
+      <lf-trace-compare id="matched-results"
+        ><lf-trace id="paired-before" label="Before" source="release-journey"
+          ><lf-trace-bookmark
+            label="Reviewed result"
+            key="reviewed"
+            target="trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-phase-trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-call-4e380b5061c4982e-after"
+          ></lf-trace-bookmark></lf-trace
+        ><lf-trace id="paired-after" label="After" source="release-journey"
+          ><lf-trace-bookmark
+            label="Reviewed result"
+            key="reviewed"
+            target="trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-phase-trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-call-0684e283ed722175-after"
+          ></lf-trace-bookmark></lf-trace
+      ></lf-trace-compare>
 </lf-tab>
 
 <lf-tab id="corpus-review-queue" label="Review Queue">
@@ -7012,7 +6895,11 @@ observe --cohort staff</code></pre>
           which version to keep when edits overlap.
         </p>
       </header>
-      <lf-file id="research-file" binding="research-notes" data-height="480"></lf-file>
+      <lf-file-editor
+        id="research-file"
+        binding="research-notes"
+        data-height="480"
+      ></lf-file-editor>
       <details id="file-editing-setup">
         <summary>Connect a local file</summary>
         <p>
@@ -7086,33 +6973,34 @@ observe --cohort staff</code></pre>
           <section id="bg-core-surfaces">
             <p class="eyebrow bg-feature-elements">lf-ask · lf-options · lf-option</p>
             <h2>
-              <strong>Asks</strong
+              <strong>Questions</strong
               ><span class="bg-feature-detail">: decisions and answers</span>
             </h2>
             <p id="bg-core-surfaces-guide">
-              An <code>lf-ask</code> is one complete Ask: its heading names the
-              question, and one nested widget owns the answer. This sample uses
-              <code>lf-options</code>, which records a choice Leaf can replay as page
-              state. Press <kbd>q</kbd> for the next question waiting on you, in page
-              order: an open Ask, a thread whose question is yours to answer, such as
-              the gallery thread that asks about a pasted image, a to-do the agent put
-              on you, or a move whose reply failed and needs sending again. The banner's
-              <strong>Questions</strong> door, beside Threads, counts them, and the
-              agent's Tasks count follows its status. Press either, or press
-              <kbd>g</kbd> then <kbd>Shift+Q</kbd>, to see both lists in the panel
-              Threads also opens in, with answered Asks and finished tasks folded under
-              Done; Enter on a row goes where <kbd>q</kbd> would. A stamped page asking
-              for sign-off also lists its version approval as a Question. That row
-              reaches the banner's Approve control; approving ends it, and Undo brings
-              it back. The Questions panel is experimental. Within a view,
+              An <code>lf-ask</code> adds a heading and context to a Question whose
+              nested widget owns the answer. The Question keeps that widget’s identity
+              and typed value; the widget can also pose it without the wrapper. This
+              sample uses <code>lf-options</code>, which records a choice Leaf can
+              replay as page state. Press <kbd>q</kbd> for the next question waiting on
+              you, in page order: an open Question, a thread whose question is yours to
+              answer, such as the gallery thread that asks about a pasted image, a to-do
+              the agent put on you, or a move whose reply failed and needs sending
+              again. The banner's <strong>Questions</strong> door, beside Threads,
+              counts them, and the agent's Tasks count follows its status. Press either,
+              or press <kbd>g</kbd> then <kbd>Shift+Q</kbd>, to see both lists in the
+              panel Threads also opens in, with answered Questions and finished tasks
+              folded under Done; Enter on a row goes where <kbd>q</kbd> would. The
+              Questions panel is experimental. A stamped page asking for sign-off also
+              lists its version approval as a Question. That row reaches the banner's
+              Approve control; approving answers it, and Undo reopens it. Within a view,
               <kbd>q</kbd> scrolls to the question. When it opens another view, the
               question appears immediately and its tab name briefly highlights.
               <kbd>Shift+Q</kbd> walks back. Reduced motion removes the glide and
-              highlight. When <kbd>q</kbd> reaches a commented Ask, its discussion stays
-              closed while you read and choose, including when Tab enters its controls.
-              Press <kbd>c</kbd> to reply in that existing discussion, <kbd>t</kbd> to
-              read it, or its Thread marker to open it under a finger. Returning to an
-              Ask you have answered also keeps its controls clear.
+              highlight. When <kbd>q</kbd> reaches a commented Question, its discussion
+              stays closed while you read and choose, including when Tab enters its
+              controls. Press <kbd>c</kbd> to reply in that existing discussion,
+              <kbd>t</kbd> to read it, or its Thread marker to open it under a finger.
+              Returning to a Question you have answered also keeps its controls clear.
             </p>
             <lf-ask id="bg-choice-ask">
               <h3>Which map should the sample team carry?</h3>
@@ -7121,6 +7009,17 @@ observe --cohort staff</code></pre>
                 <lf-option id="bg-choice-trail">Trail map</lf-option>
               </lf-options>
             </lf-ask>
+            <details id="bg-question-api">
+              <summary>Inspect the Question record</summary>
+              <p>
+                The map's Question is <code>widget:bg-choice</code> whether or not it
+                has an <code>lf-ask</code> wrapper. Choose a map, then read its current
+                record: <code>answer.value</code> contains option ids, and
+                <code>prompt.target</code> names the surrounding context.
+              </p>
+              <button id="bg-read-question" type="button">Read current Question</button>
+              <pre id="bg-question-reading" hidden></pre>
+            </details>
             <section id="bg-task-on-you">
               <h3>A task on you</h3>
               <p>
@@ -7128,14 +7027,14 @@ observe --cohort staff</code></pre>
                 <code>leaf task open … --on user</code>: check that the trail map marks
                 the shelter. Nothing here answers it, so it ends at your Done. It waits
                 under Questions in the Questions panel, as a To do whose row has a Done
-                button, and <kbd>q</kbd> reaches it after the Ask above. Where
+                button, and <kbd>q</kbd> reaches it after the Question above. Where
                 <kbd>q</kbd> lands on it, press <kbd>x</kbd>, or under a finger the
                 banner's <strong>Done</strong>. Done moves it under the panel's Done
                 fold and tells the agent.
               </p>
             </section>
             <section id="bg-widget-shortcut-hints">
-              <h3>Inline hints outside an Ask</h3>
+              <h3>Inline hints outside a Question</h3>
               <p>
                 Tab into this sample to see <kbd>1</kbd> beside its button. Press it to
                 focus the note: the hint disappears and digits type normally. Leaving
@@ -7270,13 +7169,15 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               ><span class="bg-feature-detail">: short verdicts on a passage</span>
             </h2>
             <p id="bg-reactions-guide">
-              Select words and press <kbd>E</kbd>, or hover an agent reply and use its
-              corner control. The picker is feedback for the agent, not chat decoration.
-              Press and hold a reaction to read its word; slide to another to read that
-              one, and let go on the one you mean, or off the picker to choose none. A
-              saved passage reaction leaves only its emoji; press it to reveal the
-              separate “Remove” control, then press that control to take the reaction
-              back.
+              Select words and press <kbd>E</kbd>, or focus the comment field and press
+              <kbd>Tab</kbd> for Suggest and reactions. The field keeps one primary
+              action, Dictate when available or Send; these other responses have no
+              mouse or touch opener. An agent reply has its own corner control. The
+              picker is feedback for the agent, not chat decoration. Press and hold a
+              reaction to read its word; slide to another to read that one, and let go
+              on the one you mean, or off the picker to choose none. A saved passage
+              reaction leaves only its emoji; press it to reveal the separate “Remove”
+              control, then press that control to take the reaction back.
             </p>
             <p id="bg-react-ok">
               <strong>1 · 👍 · keep.</strong> The spare key is with reception.
@@ -7331,7 +7232,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 ><span class="bg-feature-detail">: approve a version</span>
               </h3>
               <p id="bg-signoff-guide">
-                This gallery deliberately leaves sample Asks unanswered, so
+                This gallery deliberately leaves sample Questions unanswered, so
                 <strong>Approve version</strong> remains unavailable. On a settled page
                 it records approval for the current version; <kbd>z</kbd>, or “Undo” in
                 “More page controls” on a touch screen, takes that approval back.
@@ -7355,6 +7256,21 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 the card away, keeping what you wrote for the next time it opens. With
                 Threads open, the same press opens the same card over the panel. On a
                 phone, “Comment on the page” is in “More page controls”.
+              </p>
+            </section>
+
+            <section id="bg-comment-dictation">
+              <h3>Dictate a comment</h3>
+              <p id="bg-comment-dictation-guide">
+                In a browser with speech recognition, every empty comment or reply box
+                offers a microphone where Send will stand. Press it and speak: the empty
+                box says “Listening…”, then your words appear with the microphone lit.
+                Press the microphone again to stop and review. Typing takes over
+                immediately. Send submits the words shown; Escape leaves the box with
+                its draft kept. If dictation fails, an empty box names the reason and
+                offers Retry dictation. Words already heard stay editable. Try this in
+                the page comment card, on a passage, and in a thread reply; each uses
+                the same control.
               </p>
             </section>
 
@@ -7394,7 +7310,27 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 <kbd>w</kbd> again and start over this guide: the stroke joins the kept
                 drawing rather than replacing it. On a touch screen, “Draw mode” is in
                 “More page controls”, and “Undo stroke” and “Exit Draw mode” stand on
-                the banner while the mode holds.
+                the banner while the mode holds. Try drawing over a choice control: the
+                stroke marks the choice without selecting it. Leaf’s comment box and
+                draft editing controls remain usable while Draw mode holds.
+              </p>
+            </section>
+
+            <section id="bg-area-capture">
+              <h3>
+                <strong>Capture area</strong
+                ><span class="bg-feature-detail">: attach part of the page</span>
+              </h3>
+              <p id="bg-area-capture-guide">
+                Open “More page controls” and choose “Capture area”. Drag a rectangle
+                around this guide or a nearby widget, then choose “Attach capture” in
+                the banner. The selected image appears in an anchored comment: add
+                words, remove the image, or send it alone. Arrow keys move the
+                rectangle;
+                <kbd>Shift</kbd> with an arrow resizes it. <kbd>Enter</kbd> attaches the
+                image, and <kbd>Escape</kbd> or “Cancel capture” leaves without a
+                capture. Try a scrolled pane or a diagram to inspect the captured visual
+                state.
               </p>
             </section>
 
@@ -7409,10 +7345,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 Select some words in this guide, or focus its heading, then scroll until
                 it sits lower on screen. Press <kbd>g</kbd> and <kbd>z</kbd>, or choose
                 Align current item at top in More page controls: its reading block moves
-                just below the banner, keeping your focus and selection. A focused Ask
-                aligns its question; a focused thread in Threads aligns its card inside
-                the panel. A bounded reading area aligns within its own scroller.
-                Browser Back has no new stop to undo. Inside an editor, typing
+                just below the banner, keeping your focus and selection. A focused
+                Question aligns its question; a focused thread in Threads aligns its
+                card inside the panel. A bounded reading area aligns within its own
+                scroller. Browser Back has no new stop to undo. Inside an editor, typing
                 <kbd>g</kbd><kbd>z</kbd> writes those letters.
               </p>
             </section>
@@ -7522,7 +7458,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <button
                 type="button"
                 class="button"
-                data-view="updates"
+                data-view="progress"
                 aria-pressed="false"
               >
                 Progress messages
@@ -7556,7 +7492,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   <strong>A summarized discussion.</strong> The workshop planning thread
                   keeps its earlier decisions in a summary.
                 </p>
-                <p id="bg-thread-updates">
+                <p id="bg-thread-progress">
                   <strong>Progress messages.</strong> Show the folded checks from the
                   answer’s header, then hide them again.
                 </p>
@@ -7564,46 +7500,6 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </lf-sample>
           </section>
 
-          <section id="bg-page-annotations">
-            <p class="eyebrow bg-feature-elements">lf-annotation-rail</p>
-            <h3>Page-owned annotations</h3>
-            <p>
-              Alt-click the recommendation in this practice window to comment. The reply
-              and actions stay in the allocated annotation area. Choose a route, then
-              use Undo to return to the open question.
-            </p>
-            <lf-sample
-              id="bg-page-annotations-sample"
-              label="practice route review"
-              window
-            >
-              <template
-                id="bg-page-annotations-page"
-                data-sample
-                data-annotations="page"
-              >
-                <style>
-                  #bg-page-annotations-rail {
-                    display: block;
-                    inline-size: 100%;
-                    block-size: 20rem;
-                  }
-                </style>
-                <h1>Workshop route</h1>
-                <p id="bg-page-annotations-finding">
-                  The shorter path leaves more time to inspect the cooling loop.
-                </p>
-                <lf-ask id="bg-page-annotations-ask">
-                  <h2>Which path should the inspection take?</h2>
-                  <lf-options id="bg-page-annotations-options" choose>
-                    <lf-option id="bg-page-annotations-short">Short path</lf-option>
-                    <lf-option id="bg-page-annotations-long">Full circuit</lf-option>
-                  </lf-options>
-                </lf-ask>
-                <lf-annotation-rail id="bg-page-annotations-rail"> </lf-annotation-rail>
-              </template>
-            </lf-sample>
-          </section>
           <section id="bg-threads">
             <h2>
               <strong>Threads</strong
@@ -7646,12 +7542,12 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <p class="eyebrow bg-feature-elements">lf-conversation-workspace</p>
               <h3>Package conversation readers</h3>
               <p id="bg-thread-api-guide">
-                Switch between Conversation, Shelf, and Feed. Answer the channel Ask
-                inside its message, write a reply, and change layouts before sending:
-                the same draft follows the conversation. Start a conversation and mark
-                the proofreading task Done. The package's queues and Leaf's Questions
-                panel show the same outcomes. First unread and question navigation
-                arrive in this reader.
+                Switch between Conversation, Shelf, and Feed. Answer the channel
+                Question inside its message, write a reply, and change layouts before
+                sending: the same draft follows the conversation. Start a conversation
+                and mark the proofreading task Done. The package's queues and Leaf's
+                Questions panel show the same outcomes. First unread and question
+                navigation arrive in this reader.
               </p>
               <script id="bg-thread-api-history" type="application/json">
                 [
@@ -7747,8 +7643,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               page opens: its status-line notice also reaches the live region without
               moving focus. A new question, response failure, or return to page activity
               uses that same line. Replies still unread when the page opens are
-              announced once on arrival; rereading a stage or tool update creates no new
-              notice.
+              announced once on arrival; rereading a stage change or tool activity
+              creates no new notice.
             </p>
             <p id="bg-reply-lifetime">
               <strong>An unfinished reply.</strong> Open a thread inline or in Threads
@@ -7801,6 +7697,23 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
   title: "Keep",
   description: "keep the active card",
 };</code></pre>
+            <p id="bg-rewrite-guide">
+              <strong>Rewriting your own words.</strong> The thread on the line below
+              holds a message of yours and the agent's answer. Double-click your
+              message, or press the Edit control at the end of its header, to open its
+              words where they stand: a finger always sees that control, and a pointer
+              finds it on hover. In the thread's empty reply box,
+              <kbd>&uarr;</kbd> opens your latest message the same way, and
+              <kbd>&uarr;</kbd> from the start of an open rewrite opens your message
+              before it. Nothing around the message moves: its words stay where they
+              were, and Cancel and Save take its header. <kbd>Enter</kbd> saves.
+              <kbd>Escape</kbd> and Cancel leave the message as it was and drop your
+              words; words a reload interrupts wait as an "unsaved edit". Each puts you
+              back in the reply box. The new words show at once, labelled edited, whose
+              tooltip says what it said before, and the agent owes the message, as it
+              now reads, an answer.
+            </p>
+            <p id="bg-rewrite">The kickoff runs from nine to eleven.</p>
             <p id="bg-markdown-draft">
               <strong>Markdown as you type.</strong> Every box Leaf gives you to write
               in shows the draft the way the sent message will read. Type
@@ -7872,7 +7785,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                     <strong>An existing thread.</strong> The sample agenda has room for
                     one more topic. Its speech-bubble control is green, and hovering it
                     shows “On you” under the label. The image question still needs an
-                    answer even though the agent added a later progress update. In
+                    answer even though the agent added a later progress message. In
                     Threads, “On you” still says to answer the question. Open the
                     control and reply: the control turns blue as the thread comes back
                     to the agent. The same reading fills the panel’s “On you” filter and
@@ -7946,7 +7859,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 latest exchange stays below the summary, and keyboard focus can reach
                 the disclosure.
               </p>
-              <p id="bg-thread-updates">
+              <p id="bg-thread-progress">
                 <strong>Progress messages.</strong> The ephemeral schedule checks fold
                 automatically when their final answer arrives, without adding a digest.
                 Choose “Progress messages” in the practice page, then use “Show 2
@@ -7977,7 +7890,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               Compare the filled conclusion with its unfilled supporting detail in
               either color scheme. Open the disclosure by click, tap, or Tab and Enter:
               its hairline and chevron remain, and the conclusion keeps the stronger
-              fill.
+              fill. Click or Tab between the summaries: the same focus ring follows the
+              summary that receives keyboard input.
             </p>
             <details id="bg-theme-support">
               <summary>Inspect the supporting calculation</summary>
@@ -8042,14 +7956,14 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
           <section id="bg-ask-track">
             <p class="eyebrow bg-feature-elements">lf-ask · lf-chart · lf-options</p>
             <h2>
-              <strong>An Ask beside its figure</strong
+              <strong>A Question beside its figure</strong
               ><span class="bg-feature-detail">: the options track</span>
             </h2>
             <p id="bg-ask-track-guide">
-              This Ask holds a chart and ends in one option list, and it takes the wide
-              measure. In a window wide enough for both, the list stands in a column
-              beside the chart and stays put while the evidence scrolls past it; narrow
-              the window and the list drops below the chart again.
+              This Question holds a chart and ends in one option list, and it takes the
+              wide measure. In a window wide enough for both, the list stands in a
+              column beside the chart and stays put while the evidence scrolls past it;
+              narrow the window and the list drops below the chart again.
             </p>
             <lf-ask id="bg-track-ask" data-width="wide">
               <h3>Which trail should the sample team hike on Saturday?</h3>
@@ -8104,10 +8018,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               The tab list stands left of the open item, each row its name and summary,
               and each run of rows sharing a <code>group</code> under its heading. Walk
               it with the up and down arrows, which pass the headings by. Answer the
-              first item's Ask and its row shows a check and the option you picked, and
-              undo takes them away; narrow the window below the set's 36rem and the list
-              becomes a row above the item, with each group's name before its first row
-              and the rows keeping only the check.
+              first item's Question and its row shows a check and the option you picked,
+              and undo takes them away; narrow the window below the set's 36rem and the
+              list becomes a row above the item, with each group's name before its first
+              row and the rows keeping only the check.
             </p>
             <lf-tabs id="bg-side-queue" list="side">
               <lf-tab
@@ -8177,13 +8091,13 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               control; a status face carries the same workflow when no control survives.
               Face anatomy shows the icon-or-glyph choice, a related-reading count, and
               the transient label with its quieter context. User interaction compares
-              rest, hover or keyboard focus, an open disclosure, and a selected page
-              reading. Hover and <kbd>Tab</kbd> onto the live samples to exercise their
-              real feedback. The projection sample stands at this exhibit's margin; open
-              Page Map to see that same contributed control as a full labeled row.
-              Reload to see the one-time pulse as “Working” arrives. A control dims only
-              while its user action is waiting for the log to confirm it. Open a thread
-              and shorten the window: its messages scroll between the header and reply
+              rest, hover or focus, an open disclosure, and a selected page reading.
+              Click and <kbd>Tab</kbd> onto the live samples to exercise their real
+              feedback. The projection sample stands at this exhibit's margin; open Page
+              Map to see that same contributed control as a full labeled row. Reload to
+              see the one-time pulse as “Working” arrives. A control dims only while its
+              user action is waiting for the log to confirm it. Open a thread and
+              shorten the window: its messages scroll between the header and reply
               field, and the scrollbar spans those messages alone. Scroll the page to
               give a short conversation more room; the card expands once all its
               messages fit. The reply field keeps the same inset at both sides and below
@@ -8243,9 +8157,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               ><span class="bg-feature-detail">: annotations beside their targets</span>
             </h3>
             <p id="bg-margin-layer-guide">
-              Leaf places threads, unanswered Asks, actions, changes, and delivery or
-              work status beside the content they concern. With enough room beside the
-              reading column, their controls stand in the rail. Where the rail is
+              Leaf places threads, unanswered Questions, actions, changes, and delivery
+              or work status beside the content they concern. With enough room beside
+              the reading column, their controls stand in the rail. Where the rail is
               absent, the same controls appear as pins near their targets on the page.
               Every annotation uses the same filled teardrop face as a pin. Its glyph
               and label keep their meaning: a Thread opens a conversation, Accept acts
@@ -8277,7 +8191,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <strong>Action pins without a rail.</strong> This practice page has no
               rail. The suggestion's “Accept” and “Reject” controls appear as pins
               beside the proposed wording. Choose either, then use “Undo” to restore the
-              suggestion. These annotations work without a thread or an Ask.
+              suggestion. These annotations work without a thread or a Question.
             </p>
             <lf-sample id="bg-margin-layer-actions" label="suggestion without a rail">
               <template id="bg-margin-layer-actions-page" data-sample data-rail="none">
@@ -8707,8 +8621,8 @@ gallery/
                 reactions, user actions, and published versions. The board move near the
                 end was taken back, so its row stays struck through and marked “undone”.
                 Press a thread row to open its thread, or a widget row to travel to the
-                widget. New updates wait behind the fixed control while you read; press
-                it to reveal them.
+                widget. New rows wait behind the fixed control while you read; press it
+                to reveal them.
               </p>
               <lf-activity id="bg-activity"></lf-activity>
             </section>
@@ -8925,8 +8839,9 @@ gallery/
                 <p id="bg-live-sample-guide">
                   Enter the practice page, accept its suggestion, and add a comment. Its
                   decisions and Threads belong to that page alone. Close any open
-                  controls and press <kbd>Escape</kbd> to return here; “Reset” clears
-                  the practice page.
+                  controls and press <kbd>Escape</kbd> to return here. Try “Full view”
+                  to use the whole window, then “Return to page”; your choices and
+                  drafts stay. “Reset” clears the practice page.
                 </p>
                 <lf-sample id="bg-live-sample" label="practice release note">
                   <template id="bg-live-sample-page" data-sample>
@@ -9241,11 +9156,11 @@ switch --readers checkout-api,orders-api</code></pre>
                 <lf-num
                   id="bg-latency"
                   source="gallery-latency"
-                  at="2000-01-01T00:00:00Z"
+                  run="a41f103e236c985b"
                   via="uv run bench-gallery"
                   >184 ms</lf-num
-                >, its timestamp, and the command that produced it. Because the source
-                has a newer update, <code>page check</code> reports that the measurement
+                >, its run receipt, and the command that produced it. Because the source
+                has a newer value, <code>page check</code> reports that the measurement
                 is behind its source.
               </p>
             </section>
@@ -9375,7 +9290,6 @@ switch --readers checkout-api,orders-api</code></pre>
                       tabindex="-1"
                       aria-hidden="true"
                     ></iframe>
-                    <span class="interaction-pointer" hidden aria-hidden="true"></span>
                   </div>
                   <figcaption>
                     The pointer presses Accept; Leaf folds away the retired wording and
@@ -9408,7 +9322,6 @@ switch --readers checkout-api,orders-api</code></pre>
                       tabindex="-1"
                       aria-hidden="true"
                     ></iframe>
-                    <span class="interaction-pointer" hidden aria-hidden="true"></span>
                   </div>
                   <figcaption>
                     The pointer finds the card’s grip, then Leaf plays the same
@@ -9421,6 +9334,7 @@ switch --readers checkout-api,orders-api</code></pre>
                 <figure
                   class="interaction-demo"
                   data-interaction-demo="send-comment"
+                  data-interaction-keypress="Enter"
                   data-interaction-target="bg-thread-text"
                   data-interaction-thread-id="2be2443f0bb6cc49fc86b52f340e6073"
                 >
@@ -9444,12 +9358,6 @@ switch --readers checkout-api,orders-api</code></pre>
                       tabindex="-1"
                       aria-hidden="true"
                     ></iframe>
-                    <kbd
-                      class="interaction-keypress"
-                      data-interaction-keypress="Enter"
-                      hidden
-                    ></kbd>
-                    <span class="interaction-pointer" hidden aria-hidden="true"></span>
                   </div>
                   <figcaption>
                     Leaf’s real response field submits with <kbd>Enter</kbd>, then
@@ -9483,7 +9391,6 @@ switch --readers checkout-api,orders-api</code></pre>
                       tabindex="-1"
                       aria-hidden="true"
                     ></iframe>
-                    <span class="interaction-pointer" hidden aria-hidden="true"></span>
                   </div>
                   <figcaption>
                     The pointer presses the real top-bar control inside a zoomed-out
@@ -9511,8 +9418,8 @@ switch --readers checkout-api,orders-api</code></pre>
         <p>
           This ordinary website has two buttons named Review. Playwright recorded each
           click; Leaf's comments identify the captured action, image or saved element.
-          Play the captured sequence, or drag the blue handle to scrub and pause on a
-          detail.
+          Each click is a bar spanning its recorded call, so the review shows what the
+          page looked like before, during and after it.
         </p>
       </header>
       <section id="trace-review">
@@ -9540,9 +9447,14 @@ switch --readers checkout-api,orders-api</code></pre>
             individual page filters; a single-page recording needs no selector.
           </li>
           <li>
-            Select Documentation reviewed or API reviewed on the timeline. Hover or
-            focus each number to read its name and time; close moments stay separate.
-            Zoom in to spread their times and Whole recording to restore the overview.
+            Select Documentation reviewed or API reviewed on the timeline. Hover a flag
+            to read its moments' names and times; moments too close to label apart share
+            one flag. Zoom in, or pinch, to separate them; scroll sideways to pan, and
+            Whole recording restores the overview.
+          </li>
+          <li>
+            Drag along the ruler, or drag the playhead, to scrub. Between captures the
+            readout names the capture on screen and when it was taken.
           </li>
           <li>
             Start playback and scroll down over the captured image until the controls
@@ -9557,8 +9469,9 @@ switch --readers checkout-api,orders-api</code></pre>
             tree shows its own capture time.
           </li>
           <li>
-            Enable Show intermediate frames to include the browser’s filmstrip on that
-            same timeline. Left and Right step through the displayed stops.
+            Intermediate filmstrip images share the action timeline. Left and Right step
+            through its captured stops; Home keeps the first available image visible
+            with its capture time.
           </li>
           <li>
             Comment on one saved Review button, move to another action, and follow the

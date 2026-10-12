@@ -11,17 +11,22 @@
 // attachment; a watch confirms the value that field's input commits.
 // Parent input bridges belong to the child document. Pagehide releases them before
 // its realm goes away; a back-forward cache return reconnects the same bridges.
+// Explicitly enrolled document ports carry the exact scheduling source between
+// instrumented browser realms, including opaque frames. Their private envelope is
+// removed before application listeners run. Unclassified ports retain native traffic.
 // The watch's own scheduling uses the saved platform methods and is never counted.
 (() => {
   "use strict";
-  const { later: task, microtask } = window.lfWatchPlatform;
+  const { later: task, microtask, listen, performance: clock } = window.lfWatchPlatform;
   const finishing = new Set();
   const nativeDefaults = new Map();
   const finished = new Set();
   const subscribers = new Set();
   const editSubscribers = new Set();
   const sources = new WeakMap();
-  let order = 0;
+  // Native input creation order is comparable across document realms. Delivery
+  // can be delayed beyond a newer edit, so arrival must never mint a newer input.
+  const inputOrder = () => clock.timeOrigin + clock.now();
   const then = Promise.prototype.then;
   const parents = [];
   const parentConnections = [];
@@ -30,11 +35,11 @@
     parentConnections.push(connect);
     stopParents.push(connect());
   };
-  addEventListener("pagehide", () => {
+  listen(window, "pagehide", () => {
     for (const stop of stopParents) stop();
     stopParents.length = 0;
   });
-  addEventListener("pageshow", (event) => {
+  listen(window, "pageshow", (event) => {
     if (event.persisted)
       for (const connect of parentConnections) stopParents.push(connect());
   });
@@ -43,7 +48,7 @@
   const localSource = (source) => {
     let local = sources.get(source.event);
     if (!local) {
-      local = { event: source.event, node: source.node, order: ++order };
+      local = { event: source.event, node: source.node, order: source.order };
       sources.set(source.event, local);
     }
     return source.nativeDefault
@@ -124,6 +129,80 @@
     "summary,a[href],audio[controls],button,details,embed,iframe," +
     'img[usemap],img[controls],input:not([type="hidden" i]),label,select,textarea,video[controls]';
 
+  // A details toggle is queued by the platform after summary activation, outside
+  // the click dispatch. Retain that exact activation until its toggle is delivered.
+  // Scripted changes replace it with their own callback source, including null:
+  // passive work must not borrow an earlier click on this same disclosure. The
+  // actual activation can be a synthetic click inside a prevented key or pointer
+  // handler; only cancellation of that activation cancels its native default.
+  const detailsToggles = new WeakMap();
+  const observedDetails = new WeakSet();
+  const observeDetailsToggle = (owner) => {
+    if (observedDetails.has(owner)) return;
+    observedDetails.add(owner);
+    // Retirement belongs to platform delivery even when the page has no listener.
+    // Cache that delivery's source before its property or registered handlers run.
+    nativeAdd.call(owner, "toggle", captureDispatch, true);
+  };
+  const activatedDetails = (node) => {
+    const summary = node?.closest?.(nativeActivation);
+    const details = summary?.parentElement;
+    return details?.localName === "details" &&
+      summary.localName === "summary" &&
+      details.querySelector(":scope > summary") === summary
+      ? details
+      : null;
+  };
+  const pendingDetailsToggle = (owner) => {
+    let pending = detailsToggles.get(owner);
+    while (pending?.activation?.defaultPrevented) pending = pending.previous;
+    return pending;
+  };
+  const retainDetailsActivation = (owner, source, activation) => {
+    observeDetailsToggle(owner);
+    detailsToggles.set(owner, {
+      source,
+      activation,
+      previous: pendingDetailsToggle(owner),
+    });
+  };
+  const recordDetailsChange = (owner, before, source) => {
+    if (owner.open !== before) {
+      observeDetailsToggle(owner);
+      detailsToggles.set(owner, { source, activation: null });
+    }
+  };
+  const detailsOpen = Object.getOwnPropertyDescriptor(
+    HTMLDetailsElement.prototype,
+    "open",
+  );
+  Object.defineProperty(HTMLDetailsElement.prototype, "open", {
+    ...detailsOpen,
+    set(value) {
+      const before = this.open;
+      const source = current();
+      detailsOpen.set.call(this, value);
+      recordDetailsChange(this, before, source);
+    },
+  });
+  for (const name of [
+    "setAttribute",
+    "removeAttribute",
+    "toggleAttribute",
+    "setAttributeNS",
+    "removeAttributeNS",
+  ]) {
+    const mutate = Element.prototype[name];
+    Element.prototype[name] = function (...args) {
+      if (!(this instanceof HTMLDetailsElement)) return mutate.apply(this, args);
+      const before = this.open;
+      const source = current();
+      const result = mutate.apply(this, args);
+      recordDetailsChange(this, before, source);
+      return result;
+    };
+  }
+
   const handlerOriginals = new WeakMap();
   const handlerWrappers = new WeakMap();
   const handler = (callback) => {
@@ -138,13 +217,24 @@
     }
     return wrapped;
   };
+  const captureDispatch = (event) => {
+    // Reusing an Event starts another dispatch. Platform events become untrusted
+    // when redispatched too, so only this dispatch's executing caller can own it.
+    if (!event.isTrusted) sources.delete(event);
+    sources.set(event, eventSource(event));
+    // Parser-created handler attributes bypass the property setter. Adopt them
+    // at dispatch, before target callbacks, under the same source as listeners.
+    const name = `on${event.type}`;
+    for (const node of event.composedPath())
+      if (typeof node?.[name] === "function") node[name] = node[name];
+  };
   for (const prototype of [
     HTMLElement.prototype,
     SVGElement.prototype,
     Document.prototype,
     Window.prototype,
   ]) {
-    for (const type of inputTypes) {
+    for (const type of [...inputTypes, "toggle"]) {
       const name = `on${type}`;
       const property = Object.getOwnPropertyDescriptor(prototype, name);
       if (!property?.set) continue;
@@ -186,15 +276,12 @@
           )
         : [],
     );
-    const summary =
-      source.event.type === "click" ? source.node?.closest?.(nativeActivation) : null;
-    const details = summary?.parentElement;
-    const closesDetails =
-      details?.localName === "details" &&
-      summary.localName === "summary" &&
-      details.querySelector(":scope > summary") === summary &&
-      details.open;
-    if (closesDetails) closes.add(details);
+    const details =
+      source.event.type === "click" ? activatedDetails(source.node) : null;
+    if (details) {
+      retainDetailsActivation(details, source, source.event);
+      if (details.open) closes.add(details);
+    }
     if (closes.size) nativeDefaults.set(source, closes);
     task(() => {
       // The dispatch is over. A native await continuation since dispatch is not owned by
@@ -219,7 +306,7 @@
     checkpoint(null, event.type !== "input");
     // A new gesture ends what an earlier one retained.
     if (GESTURES.has(event.type)) nativeDefaults.clear();
-    const source = { event, node, order: ++order };
+    const source = { event, node, order: inputOrder() };
     sources.set(event, source);
     if (edit) for (const subscriber of editSubscribers) subscriber(source);
     microtask(() => checkpoint(source));
@@ -228,6 +315,20 @@
   };
   const eventSource = (event) => {
     if (sources.has(event)) return sources.get(event);
+    if (
+      event.isTrusted &&
+      event.type === "toggle" &&
+      detailsToggles.has(event.target)
+    ) {
+      const pending = pendingDetailsToggle(event.target);
+      detailsToggles.delete(event.target);
+      // A held-word release already activated its synthetic click before the
+      // browser's following click is swallowed. A cancelled later activation
+      // cannot erase that earlier default from the coalesced toggle.
+      const source = pending?.source ?? null;
+      sources.set(event, source);
+      return source;
+    }
     // EditContext's trusted textupdate does not travel through a DOM capture path.
     // Its attached element owns rendering. Expose the field a composed DOM event
     // would expose outside its closed shadow roots, without consulting the runtime.
@@ -247,7 +348,85 @@
         return beginSource(event, node, true);
       }
     }
-    return current();
+    const source = current();
+    // A keyboard command activates a native summary with click(), whose synthetic
+    // event still starts the platform's default. Its source is the calling key;
+    // a passive click() has null as its source and replaces any earlier activation.
+    if (event.type === "click") {
+      const details = activatedDetails(event.composedPath()[0]);
+      if (details) {
+        retainDetailsActivation(details, source, event);
+        sources.set(event, source);
+      }
+    }
+    return source;
+  };
+
+  // DOM nodes and Events cannot be cloned across an opaque frame boundary. Retain
+  // their identity and creation order at the sending realm. A round trip recovers
+  // the original node and Event.
+  const realm = crypto.getRandomValues(new Uint32Array(4)).join(":");
+  const sourceIds = new WeakMap();
+  const messageSources = new Map();
+  let nextSource = 0;
+  const packSource = (source) => {
+    if (!source) return null;
+    let id = sourceIds.get(source.event);
+    if (!id) {
+      id = `${realm}:${++nextSource}`;
+      sourceIds.set(source.event, id);
+      messageSources.set(id, source);
+    }
+    const { type, key, code, defaultPrevented } = source.event;
+    return { id, order: source.order, event: { type, key, code, defaultPrevented } };
+  };
+  const unpackSource = (packed) => {
+    if (!packed) return null;
+    let source = messageSources.get(packed.id);
+    if (!source) {
+      source = { event: packed.event, node: null, order: packed.order };
+      messageSources.set(packed.id, source);
+      sourceIds.set(source.event, packed.id);
+    }
+    return source;
+  };
+  const nativeAdd = EventTarget.prototype.addEventListener;
+  const post = MessagePort.prototype.postMessage;
+  const onmessage = Object.getOwnPropertyDescriptor(MessagePort.prototype, "onmessage");
+  const adoptedPorts = new WeakSet();
+  const adoptPort = (port) => {
+    if (adoptedPorts.has(port)) return;
+    adoptedPorts.add(port);
+    nativeAdd.call(port, "message", (event) => {
+      const envelope = event.data;
+      if (envelope?.lfInputWorkMessage !== true) return;
+      Object.defineProperty(event, "data", { value: envelope.value });
+      sources.set(event, unpackSource(envelope.source));
+    });
+    Object.defineProperty(port, "postMessage", {
+      configurable: true,
+      writable: true,
+      value(value, ...args) {
+        return post.call(
+          this,
+          { lfInputWorkMessage: true, value, source: packSource(current()) },
+          ...args,
+        );
+      },
+    });
+    Object.defineProperty(port, "onmessage", {
+      ...onmessage,
+      get() {
+        const callback = onmessage.get.call(this);
+        return handlerOriginals.get(callback) ?? callback;
+      },
+      set(callback) {
+        onmessage.set.call(
+          this,
+          typeof callback === "function" ? handler(callback) : callback,
+        );
+      },
+    });
   };
   for (let view = window; ; view = view.parent) {
     try {
@@ -277,22 +456,20 @@
     const callbacks = [];
     for (const type of inputTypes) {
       const callback = (event) => {
-        if (!event.isTrusted) return;
-        beginSource(
-          event,
-          event.composedPath()[0],
-          event.type === "beforeinput" || editorCommands.includes(event.type),
-        );
-        // The browser compiles handler attributes without invoking our setter.
-        // Adopt those callbacks before target dispatch, preserving getter identity.
-        for (const node of event.composedPath()) {
-          const name = `on${type}`;
-          if (typeof node?.[name] === "function") node[name] = node[name];
-        }
+        if (event.isTrusted) {
+          beginSource(
+            event,
+            event.composedPath()[0],
+            event.type === "beforeinput" || editorCommands.includes(event.type),
+          );
+        } else if (event.type !== "click") return;
+        // Synthetic clicks can still activate a native disclosure. Capture their
+        // caller even when the page has no click listener to enter that source.
+        captureDispatch(event);
       };
       callbacks.push([type, callback]);
     }
-    const listen = () => {
+    const connect = () => {
       for (const [type, callback] of callbacks)
         view.addEventListener(type, callback, true);
       return () => {
@@ -300,14 +477,15 @@
           view.removeEventListener(type, callback, true);
       };
     };
-    if (view === window) listen();
-    else connectParent(listen);
+    if (view === window)
+      for (const [type, callback] of callbacks) listen(view, type, callback, true);
+    else connectParent(connect);
     if (view === view.parent) break;
   }
-  addEventListener("storage", (event) => {
+  listen(window, "storage", (event) => {
     if (!event.isTrusted) return;
     checkpoint(null);
-    const source = { event, node: null, order: ++order };
+    const source = { event, node: null, order: inputOrder() };
     sources.set(event, source);
     microtask(() => checkpoint(source));
     endDispatch(source);
@@ -415,6 +593,7 @@
   };
   window.lfInputWork = {
     current,
+    observeDocumentPort: adoptPort,
     capture: (callback) => wrap(callback, current()),
     // A generic scheduler can observe enqueue/run/finish without replacing its
     // callbacks. Capture at enqueue, enter at run, and checkpoint before release.

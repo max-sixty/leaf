@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { applicationState } from "/runtime/semantic-state.js";
-import { createProjectionCommands } from "/runtime/projection/commands.js";
+import { createUndo } from "/runtime/undo.js";
 
 const spec = { unit: "widget" };
 const action = (attempt, extra = {}) => ({
@@ -21,7 +21,7 @@ const action = (attempt, extra = {}) => ({
   ...extra,
 });
 const earlier = action("earlier", { id: "e0", seq: 1 });
-const noAsks = () => ({ all: [], user: [], unanswered: [] });
+const noQuestions = () => ({ all: [], user: [], unanswered: [] });
 let taken = 0;
 // A reading whose log holds `events`, each standing and each the user's to take back.
 const reading = (events) => ({
@@ -37,7 +37,7 @@ const reading = (events) => ({
     thread: {
       threads: [],
       projection: { entries: [], actions: [], reports: [], desired: [] },
-      asks: noAsks(),
+      questions: noQuestions(),
     },
     views: {
       1: {
@@ -45,7 +45,7 @@ const reading = (events) => ({
         coverage: [],
         undo: events.map((event) => ({ event })).reverse(),
         document: {
-          asks: noAsks(),
+          questions: noQuestions(),
           projection: {
             entries: events.map((event) => ({
               event,
@@ -71,7 +71,10 @@ test("Undo waits while a logged action is unpresented, whichever answer came fir
   applicationState.identify(1);
   applicationState.captureDocument({
     ...applicationState.read().document,
-    registry: { "lf-choice": { "x-state": { decide: { ...spec, writer: "user" } } } },
+    registry: {
+      "lf-choice": { "x-state": { decide: { ...spec, writer: "user" } } },
+      $states: { "lf-choice": { decide: { writer: "user", definition: {} } } },
+    },
     authored: new Map([
       [
         "choice",
@@ -87,7 +90,7 @@ test("Undo waits while a logged action is unpresented, whichever answer came fir
   });
   applicationState.adopt(reading([earlier]));
   const posted = [];
-  const { withdraw } = createProjectionCommands({
+  const { withdraw } = createUndo({
     post: (event) => {
       posted.push(event.undoes);
       return Promise.resolve(null);

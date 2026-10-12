@@ -20,9 +20,10 @@ import json
 import os
 import re
 import shutil
+import urllib.error
 import urllib.request
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 import leaf_website as website_server
 import pytest
@@ -46,6 +47,7 @@ from leaf_dev.leaf_assets import pinned_assets, raw_prefix, specification
 from leaf_dev.page_fixtures import source_packages
 from PIL import Image
 from playwright.sync_api import expect
+from render_cases_interaction import GALLERY_THREAD_TEXT, serve_interaction_gallery
 from render_cases_layout import banner_control
 
 # The suite's own page primitives, so a navigation here waits on what every other
@@ -76,11 +78,36 @@ DEVELOPER_PAGES = tuple(sorted((EXAMPLES / "developer").glob("*.html")))
 # The theme's paper, light and dark, as the browser reports a background.
 PAPER = {"light": "rgb(250, 249, 245)", "dark": "rgb(25, 24, 21)"}
 PHONE = {"width": 390, "height": 844}
-GALLERY_THREAD_TEXT = "Gallery thread: I moved the practice exercise before lunch"
+
 
 # The module-scoped build and host are one shared setup, so they belong to one
 # xdist work unit rather than being rebuilt independently on every worker.
-pytestmark = [pytest.mark.nightly, pytest.mark.xdist_group(name="site")]
+pytestmark = [pytest.mark.main, pytest.mark.xdist_group(name="site")]
+
+
+def sample_address(frame):
+    """The child's HTTP root, independent of private bootstrap fragment settings."""
+    return (frame.get_attribute("src") or "\0").partition("#")[0]
+
+
+def sample_allocation(page, url, template):
+    """Capture a template's child root before its allocation response is delivered.
+
+    Request callbacks read this producer-owned URL rather than querying iframe DOM
+    while a reload or mount may still be replacing it.
+    """
+    allocation = {"url": None}
+
+    def allocated(route):
+        if route.request.post_data_json["template"] == template:
+            response = route.fetch()
+            allocation["url"] = urljoin(url, response.json()["url"])
+            route.fulfill(response=response)
+        else:
+            route.continue_()
+
+    page.route("**/api/samples", allocated)
+    return allocation
 
 
 def pages_under(directory):
@@ -152,7 +179,8 @@ class ReleasedAssetEndpoint(website_server.WebsitePageEndpoint):
     the adapter up alone serves a document whose runtime nothing answers for.
 
     The rewrite is `releaseAssetRoute`'s: the key after the release names the page,
-    and what follows it is that page's own published path under the asset tree.
+    and what follows it is that page's own published path under the asset tree. The
+    delivery headers are `stampDelivery`'s, which the runtime's probes read.
     """
 
     def __init__(self, request, server, *, asset_tree: Path, **bound) -> None:
@@ -177,7 +205,16 @@ class ReleasedAssetEndpoint(website_server.WebsitePageEndpoint):
             ctype = schema_model.CONTENT_TYPES[file.suffix]
             if ctype not in schema_model.BINARY_TYPES:
                 ctype += "; charset=utf-8"
-            return self._content(200, ctype, file.read_bytes())
+            response = self._content(200, ctype, file.read_bytes())
+            response.headers.update(
+                {
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Expose-Headers": "*",
+                    "Leaf-Layer": page["layer"],
+                    "Leaf-Release": self.release,
+                }
+            )
+            return response
         return None
 
 
@@ -568,7 +605,7 @@ def test_every_published_page_keeps_its_canonical_page_record(site):
         assert set(contracts) == {operation["source"] for operation in operations}
         for operation in operations:
             stored = data_model.source_file(page_dir, operation["source"])
-            assert json.loads(stored.read_text()) == operation["value"]
+            assert json.loads(stored.read_text())["value"] == operation["value"]
 
         for name in (
             "events.jsonl",
@@ -658,9 +695,7 @@ def test_a_nested_page_keeps_one_draft_across_its_version_addresses(
 
     opened(page, f"{url}versions/v1.html")
     expect(page.locator(".lf-version")).to_have_text("Showing v1")
-    expect(
-        page.locator(".lf-page-comment-card .lf-general leaf-text")
-    ).to_have_js_property("value", "Kept across addresses")
+    expect(page_comment(page)).to_have_js_property("value", "Kept across addresses")
 
 
 def test_the_published_notification_example_runs_its_authored_module(
@@ -690,7 +725,7 @@ def test_published_visual_evidence_loads_from_its_page(served_example, browser):
         expect(option).to_be_visible()
         option.click()
         # Web Awesome finishes hiding the listbox after it records the selection.
-        expect(case_select.locator('[part="listbox"]')).to_have_attribute("hidden", "")
+        expect(case_select.locator('[part~="listbox"]')).to_have_attribute("hidden", "")
         expect(case_select).to_have_js_property("value", case_id)
         comparison = review.locator(".lf-vr-case:not([hidden]) lf-shot")
         expect(comparison).to_be_visible()
@@ -1063,7 +1098,7 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
 
 
 def test_the_product_diagram_fits_without_its_own_scroll(hosted, browser):
-    """The architecture is one sequence, so the diagram must fit its content box."""
+    """The architecture diagram fits its content box without scrolling sideways."""
     page = browser.new_page()
     page.set_viewport_size({"width": 1200, "height": 900})
     page.goto(product_url(hosted, "how-it-works.html"), wait_until="load")
@@ -1111,6 +1146,27 @@ def test_a_link_that_reaches_nothing_stops_the_build(staged_site):
     with pytest.raises(SystemExit) as stopped:
         site_build.check_links(staged_site)
     assert "whats-new.html" in str(stopped.value)
+
+
+@pytest.mark.parametrize(
+    "target", ["/examples/triage-board/events.jsonl", "/_leaf/site.json"]
+)
+def test_a_link_to_a_built_file_the_server_does_not_route_stops_the_build(
+    staged_site, hosted, target
+):
+    """The build holds each page's log and the site's own manifest, but the server
+    routes only a page's document and served resources, so these links 404 live."""
+    assert (staged_site / target.lstrip("/")).is_file()
+    with pytest.raises(urllib.error.HTTPError) as missing:
+        urllib.request.urlopen(f"{hosted}{target}")
+    assert missing.value.code == 404
+    (site_build.product_page(staged_site, "index.html") / "index.html").write_text(
+        f'<a href="{target}">record</a>'
+    )
+
+    with pytest.raises(SystemExit) as stopped:
+        site_build.check_links(staged_site)
+    assert target in str(stopped.value)
 
 
 def test_a_directory_link_with_no_index_stops_the_build(staged_site):
@@ -1310,7 +1366,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
     dispatching its input gesture, so a developer can inspect the transition without
     the demonstration becoming durable page state.
     """
-    url = serve(FEATURE_GALLERY)
+    url = serve_interaction_gallery(serve)
     page_dir = serve.page_dir
     # Let every child present before starting the timed sequence. Otherwise the
     # first replay can finish while open_page still waits for another sample.
@@ -1333,7 +1389,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
 
     page.emulate_media(reduced_motion="no-preference")
     expect(status).to_have_text("Playing")
-    expect(gallery.locator(".interaction-pointer").first).to_be_visible()
+    expect(accept_frame.locator(".interaction-pointer")).to_be_visible()
     expect(accept_frame_element).to_have_attribute("data-interaction-ready", "")
     accept_controls = accept_frame.locator('[data-lf-margin-for="bg-motion-accept"]')
     expect(accept_controls).to_be_visible()
@@ -1349,41 +1405,37 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         """frame => ({
                 displayedWidth: frame.getBoundingClientRect().width,
                 layoutWidth: frame.offsetWidth,
-                viewportWidth: frame.contentWindow.innerWidth,
-                columnWidth: frame.contentDocument
-                    .querySelector('#bg-motion-accept-copy').getBoundingClientRect().width,
-                declaredColumnWidth: parseFloat(getComputedStyle(
-                    frame.contentDocument.documentElement).getPropertyValue('--col')),
-                columnRight: frame.contentDocument
-                    .querySelector('#bg-motion-accept-copy').getBoundingClientRect().right,
-                controlsLeft: frame.contentDocument
-                    .querySelector('[data-lf-margin-for="bg-motion-accept"]')
+            })"""
+    )
+    child_geometry = accept.evaluate(
+        """suggestion => ({
+                viewportWidth: innerWidth,
+                columnWidth: document.querySelector('#bg-motion-accept-copy').getBoundingClientRect().width,
+                declaredColumnWidth: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--col')),
+                columnRight: document.querySelector('#bg-motion-accept-copy').getBoundingClientRect().right,
+                controlsLeft: document.querySelector('[data-lf-margin-for="bg-motion-accept"]')
                     .getBoundingClientRect().left,
-                mainBoxSizing: getComputedStyle(
-                    frame.contentDocument.querySelector('main')).boxSizing,
+                mainBoxSizing: getComputedStyle(document.querySelector('main')).boxSizing,
+                pointerWidth: parseFloat(getComputedStyle(document.querySelector('.interaction-pointer')).width),
             })"""
     )
     assert zoom["layoutWidth"] >= zoom["displayedWidth"] * 1.9
-    assert abs(zoom["viewportWidth"] - zoom["layoutWidth"]) <= 1
-    assert zoom["columnWidth"] == zoom["declaredColumnWidth"]
-    assert zoom["columnRight"] < zoom["controlsLeft"]
-    assert zoom["mainBoxSizing"] == "content-box"
-    assert accept_stage.evaluate(
-        """stage => {
-                const pointer = stage.querySelector('.interaction-pointer');
-                const frame = stage.querySelector('.interaction-frame');
-                return getComputedStyle(pointer).zIndex === '5'
-                    && getComputedStyle(frame).zIndex === 'auto';
-            }"""
-    )
+    assert abs(child_geometry["viewportWidth"] - zoom["layoutWidth"]) <= 1
+    assert child_geometry["columnWidth"] == child_geometry["declaredColumnWidth"]
+    assert child_geometry["columnRight"] < child_geometry["controlsLeft"]
+    assert child_geometry["mainBoxSizing"] == "content-box"
+    assert abs(child_geometry["pointerWidth"] / 2 - 22) <= 1
+    # The browser can inspect either document, but the page cannot reach through its
+    # opaque sandbox. Playback controls exercise the structured bridge instead.
+    assert accept_frame_element.evaluate("frame => frame.contentDocument === null")
     toggle_box = toggle.bounding_box()
     assert toggle_box["y"] + toggle_box["height"] <= 900
-    gallery.locator(".interaction-stage").first.evaluate(
-        "stage => { window.pauseProbe = stage.animate([{}, {}], {duration: 10000}); }"
+    accept.evaluate(
+        "suggestion => { window.pauseProbe = suggestion.animate([{}, {}], {duration: 10000}); }"
     )
     toggle.click()
     expect(status).to_have_text("Paused")
-    assert page.evaluate("window.pauseProbe.playState") == "paused"
+    assert accept.evaluate("() => window.pauseProbe.playState") == "paused"
     paused_suggestion = """suggestion => {
             const retired = suggestion.querySelector('lf-old');
             const style = getComputedStyle(retired);
@@ -1396,12 +1448,19 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
                 ),
             };
         }"""
+    # A paused animation's time is fixed at the frame its pause commits, so the
+    # reading waits for every pause to stop pending.
+    accept_frame_element.element_handle().content_frame().wait_for_function(
+        """() => document.querySelector('#bg-motion-accept')
+            .getAnimations({subtree: true}).every(animation => !animation.pending)"""
+    )
     frozen = accept.evaluate(paused_suggestion)
     page.wait_for_timeout(800)
     assert accept.evaluate(paused_suggestion) == frozen
     toggle.click()
-    assert page.evaluate("window.pauseProbe.playState") == "running"
-    page.evaluate("window.pauseProbe.cancel()")
+    expect(status).to_have_text("Playing")
+    assert accept.evaluate("() => window.pauseProbe.playState") == "running"
+    accept.evaluate("() => window.pauseProbe.cancel()")
     expect(status).to_have_text("Complete", timeout=HANDOVER_DEADLINE_MS)
     expect(toggle).to_have_text("Replay")
     expect(toggle).to_be_enabled()
@@ -1462,12 +1521,11 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
             """frame => ({
                     displayedWidth: frame.getBoundingClientRect().width,
                     layoutWidth: frame.offsetWidth,
-                    viewportWidth: frame.contentWindow.innerWidth,
                 })"""
         )
         assert abs(scaled["displayedWidth"] - displayed_width) <= 1
         assert abs(scaled["layoutWidth"] / displayed_width - int(size)) <= 0.02
-        assert abs(scaled["viewportWidth"] - scaled["layoutWidth"]) <= 1
+        assert abs(accept.evaluate("() => innerWidth") - scaled["layoutWidth"]) <= 1
     viewport.select_option("2")
 
     move_tab = gallery.get_by_role("tab", name="Move a card")
@@ -1541,17 +1599,17 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
     leaves the next key they press going somewhere they cannot see.
     """
     context = browser.new_context()
-    news_frames = []
+    news_requests = []
     context.on(
         "request",
         lambda request: (
-            news_frames.append(request.frame.name)
+            news_requests.append(request.url)
             if request.url.endswith("/api/news")
             else None
         ),
     )
     page = open_page(
-        browser, f"{serve(FEATURE_GALLERY)}#bg-interactions", context=context
+        browser, f"{serve_interaction_gallery(serve)}#bg-interactions", context=context
     )
     # The user's own standing intent, written the way a user writes it. It has to
     # survive out here for the frames' silence about it to say anything.
@@ -1565,28 +1623,29 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
     expect(page.locator("body")).to_have_attribute(
         "data-lf-auxiliary-surface", "threads"
     )
-    assert page.evaluate(
-        """() => [...document.querySelectorAll('[data-interaction-frame]')].map(
-                 (frame) => frame.contentDocument?.body.hasAttribute('data-lf-auxiliary-surface'))"""
-    ) == [False, False, False, False]
+    for frame in ready.all():
+        expect(frame.content_frame.locator("body")).not_to_have_attribute(
+            "data-lf-auxiliary-surface", "threads"
+        )
     assert page.evaluate("() => document.activeElement?.tagName") != "IFRAME"
     # The positive ready edge is where each inner page would open its own news
     # freshness checks and two-second heartbeat. Hold through that interval: only the outer
     # page and operable sample own live leases; the passive replays stop after one read.
     page.wait_for_timeout(2_200)
-    assert news_frames and not any(
-        name.startswith("interaction-") for name in news_frames
+    passive_roots = [
+        sample_address(frame)
+        for frame in gallery.locator("[data-interaction-frame]").all()
+    ]
+    assert news_requests and not any(
+        request.startswith(root) for request in news_requests for root in passive_roots
     )
-    assert page.evaluate(
-        """() => [...document.querySelectorAll('[data-interaction-frame]')].every(
-                frame => {
-                    const traffic = JSON.parse(
-                        frame.contentDocument.documentElement.dataset.lfTraffic
-                    );
-                    return traffic.asked === 1 && traffic.heard === 1;
-                }
-            )"""
-    )
+    for frame in ready.all():
+        assert frame.content_frame.locator("html").evaluate(
+            """root => {
+                const {asked, heard} = JSON.parse(root.dataset.lfTraffic);
+                return {asked, heard};
+            }"""
+        ) == {"asked": 1, "heard": 1}
 
     # Arrival is the easy half. The Threads replay opens a <dialog> in the frame, and
     # a shown dialog runs the browser's own focusing steps whatever the page around
@@ -1637,7 +1696,7 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
 
 
 def test_reduced_motion_leaves_gallery_play_explicit(serve, browser):
-    url = serve(FEATURE_GALLERY)
+    url = serve_interaction_gallery(serve)
     context = browser.new_context(
         reduced_motion="reduce", viewport={"width": 1280, "height": 900}
     )
@@ -1682,7 +1741,7 @@ def test_the_interaction_gallery_reads_where_it_is_now(serve, browser):
     the rest of the page's life. The arrival scroll crosses the gallery out of view and
     back on its own, which is how a loaded machine hands both crossings over together.
     """
-    url = serve(FEATURE_GALLERY)
+    url = serve_interaction_gallery(serve)
     page = open_page(browser, url, init_script=COALESCED_VIEW_RECORDS)
     gallery = page.locator("#bg-interactions")
     status = gallery.locator("[data-interaction-status]")
@@ -1696,7 +1755,7 @@ def test_the_interaction_gallery_reads_where_it_is_now(serve, browser):
 
 def test_interaction_gallery_contains_page_chrome(serve, browser):
     """A replay changes its zoomed-out Leaf document, not the gallery around it."""
-    url = serve(FEATURE_GALLERY)
+    url = serve_interaction_gallery(serve)
     context = browser.new_context(
         reduced_motion="reduce", viewport={"width": 1280, "height": 900}
     )
@@ -1796,28 +1855,34 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
 
 def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
     """A remembered chrome demo cannot replay before its inner Leaf page is ready."""
-    url = serve(FEATURE_GALLERY)
+    url = serve_interaction_gallery(serve)
     context = browser.new_context(reduced_motion="reduce")
     page = open_page(browser, f"{url}#bg-interactions", context=context)
     gallery = page.locator("#bg-interactions")
     gallery.get_by_role("tab", name="Send a comment").click()
     held = []
-    held_once = False
+    allocation = sample_allocation(page, url, "bg-motion-comment-page")
 
-    def hold_restored_state(route):
-        nonlocal held_once
-        if route.request.frame.name == "interaction-send-comment" and not held_once:
-            held_once = True
+    def is_restored_entry(request):
+        return (
+            allocation["url"] is not None
+            and request.frame.url.partition("#")[0] == allocation["url"]
+            and urlsplit(request.url).path.endswith("/leaf.js")
+        )
+
+    def hold_restored_entry(route):
+        if is_restored_entry(route.request):
             held.append(route)
-            return
-        route.continue_()
+        else:
+            route.continue_()
 
-    page.route("**/api/state*", hold_restored_state)
+    # State may remain pending after deliberate offline presentation. The runtime
+    # entry is a true prerequisite of readiness, independent of restoration time.
+    # Frame identity is supplied by the browser request, without a DOM query or
+    # intercepting the native navigation response (which changes its address space).
+    page.route("**/leaf.js", hold_restored_entry)
     with page.expect_request(
-        lambda request: (
-            request.frame.name == "interaction-send-comment"
-            and "/api/state" in request.url
-        ),
+        is_restored_entry,
         timeout=HANDOVER_DEADLINE_MS,
     ):
         page.reload(wait_until="domcontentloaded")
@@ -1830,11 +1895,17 @@ def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
         "Loading", timeout=HANDOVER_DEADLINE_MS
     )
     expect(toggle).to_be_disabled(timeout=HANDOVER_DEADLINE_MS)
-    assert held, "the restored frame never requested its state"
+    assert held, "the restored frame never requested its runtime entry"
+    bootstrap = gallery.locator("#bg-interaction-comment iframe").content_frame.locator(
+        "script[data-lf-entry]"
+    )
+    assert held[0].request.url == urljoin(
+        allocation["url"], bootstrap.get_attribute("data-lf-entry")
+    )
     held.pop().continue_()
     page.wait_for_load_state("load", timeout=HANDOVER_DEADLINE_MS)
     wait_until_ready(page)
-    page.unroute("**/api/state*", hold_restored_state)
+    page.unroute("**/leaf.js", hold_restored_entry)
     expect(gallery.locator("[data-interaction-status]")).to_have_text(
         "Ready — motion will start only when you press Play",
         timeout=HANDOVER_DEADLINE_MS,
@@ -1849,15 +1920,20 @@ def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
 
 def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser):
     """A healthy contained page may present after an arbitrarily slow state read."""
-    url = serve(FEATURE_GALLERY)
+    url = serve_interaction_gallery(serve)
     context = browser.new_context(reduced_motion="reduce")
     page = context.new_page()
     held = []
     held_once = False
+    allocation = sample_allocation(page, url, "bg-motion-accept-page")
 
     def hold_first_contained_state(route):
         nonlocal held_once
-        if route.request.frame.name == "interaction-accept" and not held_once:
+        if (
+            allocation["url"] is not None
+            and route.request.url.startswith(allocation["url"])
+            and not held_once
+        ):
             held_once = True
             held.append(route)
             return
@@ -1867,79 +1943,151 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
     try:
         with page.expect_request(
             lambda request: (
-                request.frame.name == "interaction-accept"
+                allocation["url"] is not None
+                and request.url.startswith(allocation["url"])
                 and "/api/state" in request.url
             )
         ):
             page.goto(f"{url}#bg-interactions", wait_until="domcontentloaded")
         gallery = page.locator("#bg-interactions")
-        expect(gallery.locator("[data-interaction-status]")).to_have_text("Loading")
-        assert held, "no contained state read was held"
+        holding(page, held, 1, "the contained page's first state read")
         held.pop().continue_()
         page.wait_for_load_state("load")
         wait_until_ready(page)
         expect(gallery.locator("iframe[data-interaction-ready]")).to_have_count(
             4, timeout=HANDOVER_DEADLINE_MS
         )
-        assert gallery.locator("iframe[data-interaction-ready]").evaluate_all(
-            """frames => frames.every(frame =>
-                !frame.hasAttribute('srcdoc')
-                && frame.contentDocument.doctype?.name === 'html'
-                && frame.contentDocument.scrollingElement
-            )"""
-        )
+        for frame in gallery.locator("iframe[data-interaction-ready]").all():
+            assert not frame.get_attribute("srcdoc")
+            assert frame.content_frame.locator("html").evaluate(
+                "() => document.doctype?.name === 'html' && Boolean(document.scrollingElement)"
+            )
         page.evaluate("sessionStorage.setItem('lf-view', 'outer reading')")
-        storage_url = page.locator("script[data-lf-entry]").evaluate(
-            "entry => new URL('runtime/storage.js', "
-            "new URL(entry.dataset.lfEntry, location.href)).href"
-        )
         contained = gallery.locator(
             "iframe[data-interaction-ready]"
         ).first.content_frame
         contained_document = contained.locator("html")
         storage = contained_document.evaluate(
-            """async (_document, storageUrl) => {
-                const {LIVE_ROOT, PAGE_SCOPE} = await import(storageUrl);
+            """async () => {
+                const {LIVE_ROOT} = await window.__lfRuntimeImport('/runtime/context.js');
+                const {PAGE_SCOPE, tabStore, draftStore, userStore} =
+                    await window.__lfRuntimeImport('/runtime/storage.js');
+                for (const [name, store] of Object.entries({tabStore, draftStore, userStore})) {
+                    if (!store.set('isolation-test', name) || store.get('isolation-test') !== name)
+                        throw new Error(`${name} did not retain sample working state`);
+                    if (!store.keys().includes('isolation-test'))
+                        throw new Error(`${name} did not enumerate its retained state`);
+                    store.set('isolation-test', null);
+                    if (store.get('isolation-test') !== null)
+                        throw new Error(`${name} did not clear its retained state`);
+                }
                 return {liveRoot: LIVE_ROOT, pageScope: PAGE_SCOPE};
-            }""",
-            storage_url,
+            }"""
         )
         assert storage["liveRoot"] is True
         assert "/api/samples/" in storage["pageScope"]
-        contained_document.evaluate(
-            "dispatchEvent(new PageTransitionEvent('pagehide'))"
-        )
+        interaction_url = f"{sample_address(gallery.locator('iframe[data-interaction-ready]').first)}api/interaction"
+        with page.expect_response(
+            lambda response: (
+                response.url == interaction_url
+                and any(
+                    entry["type"] == "pagehide"
+                    for entry in response.request.post_data_json["entries"]
+                )
+            )
+        ) as departure:
+            contained_document.evaluate(
+                "dispatchEvent(new PageTransitionEvent('pagehide'))"
+            )
+        assert departure.value.ok
         assert page.evaluate("sessionStorage.getItem('lf-view')") == "outer reading"
         assert (
             page.evaluate(
                 "scope => sessionStorage.getItem(scope + 'lf-view')",
                 storage["pageScope"],
             )
-            is not None
+            is None
         )
     finally:
         for route in held:
             route.abort()
 
 
+def test_a_sample_keeps_ephemeral_storage_and_presents_uploaded_media(serve, browser):
+    """Opaque children retain working state and display authenticated uploaded bytes."""
+    source = """<!doctype html><html><head><title>Sample state</title></head><body><main>
+      <lf-sample id="practice" label="practice page">
+        <template id="practice-page" data-sample><p id="copy">Practice here.</p></template>
+      </lf-sample>
+    </main></body></html>"""
+    page = open_page(browser, serve(source))
+    sample = page.locator("#practice")
+    frame = sample.locator("iframe")
+    child = frame.content_frame.locator("html")
+    assert frame.evaluate("frame => frame.contentDocument === null")
+    result = child.evaluate(
+        """async () => {
+          const {tabStore, draftStore, userStore} = await window.__lfRuntimeImport('/runtime/storage.js');
+          const {uploadMedia} = await window.__lfRuntimeImport('/runtime/layer-client.js');
+          const {scopedMediaUrl} = await window.__lfRuntimeImport('/runtime/media.js');
+          const denied = ['localStorage', 'sessionStorage'].every(name => {
+            try { window[name]; return false; } catch { return true; }
+          });
+          const retained = [tabStore, draftStore, userStore].every((store, index) => {
+            const value = `child-${index}`;
+            return store.set('isolation-test', value)
+              && store.get('isolation-test') === value
+              && store.keys().includes('isolation-test');
+          });
+          const canvas = document.createElement('canvas');
+          canvas.width = canvas.height = 2;
+          canvas.getContext('2d').fillRect(0, 0, 2, 2);
+          const bytes = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+          const path = await uploadMedia(new File([bytes], 'practice.png', {type: bytes.type}));
+          const image = document.createElement('img');
+          image.src = scopedMediaUrl(path);
+          document.body.append(image);
+          await image.decode();
+          return {denied, retained, path, url: image.src,
+            shown: image.naturalWidth === 2 && image.naturalHeight === 2};
+        }"""
+    )
+    assert result["denied"] and result["retained"] and result["shown"]
+    assert result["path"].startswith("/media/")
+    assert result["url"].startswith(f"{sample_address(frame)}media/")
+    sample.get_by_role("button", name="Reset", exact=True).click()
+    sample.evaluate("async sample => { await sample.ready; }")
+    assert child.evaluate(
+        """async () => {
+          const {tabStore, draftStore, userStore} = await window.__lfRuntimeImport('/runtime/storage.js');
+          return [tabStore, draftStore, userStore].every(store => store.get('isolation-test') === null);
+        }"""
+    )
+
+
 def test_a_contained_page_retries_a_failed_first_state_read(serve, browser):
     """A sample retries startup state without retaining a live page feed."""
-    url = serve(FEATURE_GALLERY)
+    url = serve_interaction_gallery(serve)
     context = browser.new_context(reduced_motion="reduce")
     page = context.new_page()
     failed = []
-    news_frames = []
+    allocation = sample_allocation(page, url, "bg-motion-accept-page")
+    news_requests = []
     context.on(
         "request",
         lambda request: (
-            news_frames.append(request.frame.name)
+            news_requests.append(request.url)
             if request.url.endswith("/api/news")
             else None
         ),
     )
 
     def fail_first_contained_reads(route):
-        if route.request.frame.name == "interaction-accept" and len(failed) < 2:
+        if (
+            allocation["url"] is not None
+            and route.request.url.startswith(allocation["url"])
+            and len(failed) < 2
+        ):
             failed.append(route.request.url)
             route.fulfill(status=200, content_type="application/json", body="{")
         else:
@@ -1952,33 +2100,38 @@ def test_a_contained_page_retries_a_failed_first_state_read(serve, browser):
         4, timeout=HANDOVER_DEADLINE_MS
     )
     page.wait_for_timeout(2_200)
-    target = gallery.locator('[name="interaction-accept"]')
-    assert target.evaluate(
-        """frame => {
-                const {asked, heard} = JSON.parse(
-                    frame.contentDocument.documentElement.dataset.lfTraffic
-                );
+    target = gallery.locator("#bg-interaction-accept iframe")
+    assert target.content_frame.locator("html").evaluate(
+        """root => {
+                const {asked, heard} = JSON.parse(root.dataset.lfTraffic);
                 return {asked, heard};
             }"""
     ) == {"asked": 3, "heard": 3}
     assert len(failed) == 2
-    assert news_frames and not any(
-        name.startswith("interaction-") for name in news_frames
+    passive_roots = [
+        sample_address(frame)
+        for frame in gallery.locator("[data-interaction-frame]").all()
+    ]
+    assert news_requests and not any(
+        request.startswith(root) for request in news_requests for root in passive_roots
     )
     errors = consume_browser_errors(page, "leaf: read failed:")
     assert len(errors) == 2
 
 
-def test_gallery_reports_sample_document_without_leaf(serve, browser):
+@pytest.mark.parametrize("document_status", [200, 503])
+def test_gallery_reports_sample_document_without_leaf(serve, browser, document_status):
     """A failed contained page is reported without blocking the other demos."""
-    url = serve(FEATURE_GALLERY)
+    url = serve_interaction_gallery(serve)
     context = browser.new_context(reduced_motion="reduce")
     page = context.new_page()
 
+    allocation = sample_allocation(page, url, "bg-motion-comment-page")
+
     def fail_inner_document(route):
-        if route.request.frame.name == "interaction-send-comment":
+        if route.request.url == allocation["url"]:
             route.fulfill(
-                status=503,
+                status=document_status,
                 content_type="text/html",
                 body="<html><body>Unavailable</body></html>",
             )
@@ -1987,6 +2140,7 @@ def test_gallery_reports_sample_document_without_leaf(serve, browser):
 
     page.route(re.compile(r"/api/samples/[^/]+/$"), fail_inner_document)
     page.goto(f"{url}#bg-interactions", wait_until="domcontentloaded")
+    wait_until_ready(page)
     gallery = page.locator("#bg-interactions")
     gallery.get_by_role("tab", name="Send a comment").click()
     expect(gallery.locator("[data-interaction-status]")).to_have_text("Could not play")
@@ -1999,7 +2153,7 @@ def test_gallery_reports_sample_document_without_leaf(serve, browser):
     expect(status).to_have_text("Complete", timeout=HANDOVER_DEADLINE_MS)
     expect(toggle).to_have_text("Replay")
     expect(toggle).to_be_enabled()
-    consume_browser_errors(page, "503", "Leaf sample document did not start")
+    consume_browser_errors(page, "503", "The sample document did not start Leaf")
 
 
 def test_every_published_page_stands_as_a_live_page(served_example, browser):
@@ -2116,7 +2270,9 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
         "links => links.map(link => link.getAttribute('href'))"
     ) == ["/examples/", "/#install"]
     expect(page.locator(".sitenote")).to_have_count(0)
-    expect(page.locator(".lf-banner .lf-dot")).to_have_class(re.compile(r"^lf-dot\s*$"))
+    assert page.locator(".lf-banner .lf-dot").evaluate("dot => [...dot.classList]") == [
+        "lf-dot"
+    ]
     state = page.evaluate("() => fetch('api/state').then(r => r.json())")
     assert state["publication"] == {
         "kind": "example",
@@ -2188,7 +2344,8 @@ def test_shipped_data_opens_in_its_package_projection(site, served_example, brow
         site / "examples" / "command-hub", "atlas-worktrees"
     )
     assert (
-        json.loads(stored.read_text())["tree-w-1"]["branch"] == "atlas/xml-declarations"
+        json.loads(stored.read_text())["value"]["tree-w-1"]["branch"]
+        == "atlas/xml-declarations"
     )
 
     _, url = served_example("command-hub")

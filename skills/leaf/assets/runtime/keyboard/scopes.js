@@ -21,6 +21,12 @@
    Preserve the order of that list because the dispatcher and shortcut bar walk inward to
    outward while the full reference groups the same scopes for reading. */
 import {
+  AsyncDirective,
+  PartType,
+  directive,
+  nothing,
+} from "../../vendor/browser-runtime.js";
+import {
   activeRows,
   ariaShortcuts,
   bindings,
@@ -43,7 +49,7 @@ import {
   word,
 } from "./bindings.js";
 import { nativeClaimAt } from "./text-entry.js";
-import { focused, onLabelPress } from "../focus.js";
+import { focused } from "../focus.js";
 import { hostIn, renderedParent } from "../shadow.js";
 import { repaint } from "../repaint.js";
 import { keeps } from "../keeps.js";
@@ -231,7 +237,7 @@ function wireDeclaredButtons(scope) {
 const either = (a, b) => (a && b ? () => a() || b() : undefined);
 export const elementScopes = new WeakMap();
 // The scopes other owners project onto an element, keyed by the owner, so one control can
-// carry several: a margin entry holds its widget's scope and an Ask's digit route at once.
+// carry several: a margin entry holds its widget's scope and a Question's digit route at once.
 const projectedScopes = new WeakMap();
 const commandScopeCapabilities = new WeakSet();
 export const scopeIdentity = (scope) => scope.identity ?? scope;
@@ -522,6 +528,44 @@ export function keys(where, title, rows, options) {
   return attachScope(where, declaredScope(title, rows, options));
 }
 
+// Template scopes use the same attachment as `keys`, replacing the whole declaration
+// on each paint: titles, rows, callbacks and availability all belong to that reading.
+// Removing the directive withdraws only its own attachment, including when Lit keeps
+// the element. Temporary disconnection restores that declaration on reconnection.
+export const commandsOn = directive(
+  class extends AsyncDirective {
+    #element;
+    #arguments;
+    #scope;
+    constructor(part) {
+      super(part);
+      if (part.type !== PartType.ELEMENT)
+        throw new TypeError("commandsOn belongs in a template's element part");
+    }
+    render() {
+      return nothing;
+    }
+    update(part, args) {
+      this.#element = part.element;
+      this.#arguments = args;
+      if (this.isConnected) this.reconnected();
+      return nothing;
+    }
+    reconnected() {
+      keys(this.#element, ...this.#arguments);
+      this.#scope = elementScopes.get(this.#element);
+    }
+    disconnected() {
+      if (elementScopes.get(this.#element) !== this.#scope) return;
+      unpainted.delete(this.#scope);
+      elementScopes.delete(this.#element);
+      if (!projectedScopes.has(this.#element)) forgetScopedElement(this.#element);
+      reflectElementShortcuts(this.#element);
+      paintKeys();
+    }
+  },
+);
+
 /** Declare a command scope that presentation owners attach to generated controls.
  *
  * The declaration is browser state, not a hidden source element. Margin and Page Map
@@ -569,7 +613,7 @@ export function projectCommandScope(control, projector, capability = null) {
 // declaring scope beside each row: a control presentation may be hoisted elsewhere,
 // while Decision ownership still belongs to the source that declared the command.
 // This is the shared capability reading: the dispatcher, shortcut bar and reference use
-// the same rows directly, while projections such as Asks select the role they need.
+// the same rows directly, while projections such as Questions select the role they need.
 // A scope may sit on a nested control rather than the widget itself, so containment
 // follows the runtime's cross-shadow parent walk instead of a light-DOM selector.
 function scopesWithin(root, activeOnly) {
@@ -606,7 +650,7 @@ export function commandsWithin(root) {
 // Every declaration on one element is painted as one native shortcut attribute. A local
 // declaration and any number of projected ones can coexist, so none may erase another's
 // bindings. Each scope's live rows are read and refused on their own; the attribute is
-// their union, since two scopes on one control may name one press: an Ask's route names
+// their union, since two scopes on one control may name one press: a Question's route names
 // the intrinsic key of the command it routes to, which that command's own scope names.
 function reflectElementShortcuts(element) {
   const available = scopesAt(element).filter((scope) => !scope.when || scope.when());
@@ -654,10 +698,7 @@ function reflectElementShortcuts(element) {
       ),
     ),
   ].join(" ");
-  if (shortcuts) {
-    if (element.getAttribute("aria-keyshortcuts") !== shortcuts)
-      element.setAttribute("aria-keyshortcuts", shortcuts);
-  } else element.removeAttribute("aria-keyshortcuts");
+  keeps(element, "aria-keyshortcuts", shortcuts || null);
 }
 // Ahead of standing content, so an ambiguous declaration is refused under its own title
 // rather than under whichever surface reads its rows first.
@@ -716,28 +757,6 @@ const spoken = (row) => {
     return active.map(spokenBinding).join(" or ");
   return word(row.label) ?? active.map(spokenBinding).join(" or ");
 };
-
-const FOCUS = "lf-focus";
-const FOCUS_VISIBLE = "lf-focus-visible";
-const FOCUS_WITHIN = "lf-focus-within";
-// A press on a label holds the user on the element they stood on until it lands
-// (focus.js, `focused`). The element keeps the focus pseudo-classes' paint for that
-// press, as classes, since DOM focus has moved through the label's in-between nodes.
-let painted = [];
-onLabelPress((held) => {
-  for (const node of painted) node.classList.remove(FOCUS, FOCUS_VISIBLE, FOCUS_WITHIN);
-  painted = [];
-  if (!held) {
-    repaint();
-    return;
-  }
-  held.classList.add(FOCUS);
-  if (held.matches(":focus-visible")) held.classList.add(FOCUS_VISIBLE);
-  for (let node = held; node; node = renderedParent(node)) {
-    node.classList.add(FOCUS_WITHIN);
-    painted.push(node);
-  }
-});
 
 // Document readings want the host of a control staged in a shadow tree. Retarget the
 // logical reading every time, so a label transaction and an ordinary shadow focus take

@@ -10,22 +10,26 @@
    encounter with the message's visible surface, not exhaustive inspection.
    Each observation pass batches newly completed versions into one `read` event, which
    the application sends outside the gesture queue (delivery.js). A refused receipt
-   leaves the message unread and is retried only on a new visit. The shared auxiliary
-   reach reading also schedules exposure: closing a nonmodal surface can reveal a body
-   without moving it or closing its permanent native ancestor.
+   leaves the message unread and is retried only on a new visit. A pass runs on each
+   change to what the page shows of its window (geometry.js, `watchRoom`), which
+   includes a nonmodal surface closing: it can reveal a body without moving it or
+   closing its permanent native ancestor.
 
    The first unread destination belongs to this reading too. Its Go-to route (`g u`)
    and the panel's visible control share the same exact-message arrival. Ordinary
    `u` remains paired with `d` in whichever reading region the user stands in. */
 import { nextRender, sizeObserver } from "../rendering.js";
-import { seenRect, shownBand } from "../geometry.js";
-import { SLIDE_END } from "../motion.js";
+import { containingView, presented, seenRect, watchRoom } from "../geometry.js";
+import { intersect } from "../rect.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { moved } from "./model.js";
 import { readThreads } from "./state.js";
-import { excludedByInert, renderedParent } from "../shadow.js";
-import { nativeModalAdmits } from "../keyboard/layer-stack.js";
 import { keeps, keepsHidden } from "../keeps.js";
+import {
+  onSampleVisibility,
+  sampleVisibility,
+  readSampleVisibility,
+} from "../sample-visibility.js";
 
 const keyOf = (item) => `${item.message}\u0000${item.version}`;
 const EPSILON = 1;
@@ -41,68 +45,8 @@ function mergeIntervals(intervals) {
   return merged;
 }
 
-// A child viewport does not know how much of it the parent page shows. Walk each
-// containing frame and cut this viewport down to what its owner shows of it, through
-// every clipping ancestor, in this window's coordinates. The climb ends at the owner's
-// root element, whose shown band is the owner's viewport (`shownBand`). A frame taller
-// than its owner's viewport, as a live sample is, shows a band of its page the way the
-// top page's own viewport does.
-function frameBand() {
-  let band = { left: 0, top: 0, right: innerWidth, bottom: innerHeight };
-  let x = 0;
-  let y = 0;
-  for (let current = window; current !== current.top;) {
-    let frame;
-    try {
-      frame = current.frameElement;
-    } catch {
-      return null;
-    }
-    if (
-      !frame ||
-      !frame.checkVisibility() ||
-      excludedByInert(frame) ||
-      !nativeModalAdmits(frame)
-    )
-      return null;
-    const owner = frame.ownerDocument.defaultView;
-    const box = frame.getBoundingClientRect();
-    x += box.left + frame.clientLeft;
-    y += box.top + frame.clientTop;
-    const cut = (rect) => {
-      band = {
-        left: Math.max(band.left, rect.left - x),
-        top: Math.max(band.top, rect.top - y),
-        right: Math.min(band.right, rect.right - x),
-        bottom: Math.min(band.bottom, rect.bottom - y),
-      };
-    };
-    for (
-      let ancestor = renderedParent(frame);
-      ancestor;
-      ancestor = renderedParent(ancestor)
-    ) {
-      const style = owner.getComputedStyle(ancestor);
-      if (
-        ancestor.getAttribute?.("aria-hidden") === "true" ||
-        style.visibility === "hidden" ||
-        style.display === "none"
-      )
-        return null;
-      const shown = shownBand(ancestor);
-      if (shown) cut(shown);
-    }
-    if (band.right <= band.left || band.bottom <= band.top) return null;
-    current = owner;
-  }
-  return band;
-}
-
 function visibleInterval(body, clips, band) {
-  if (!body.checkVisibility() || excludedByInert(body) || !nativeModalAdmits(body))
-    return null;
-  for (let owner = body; owner; owner = renderedParent(owner))
-    if (owner.getAttribute?.("aria-hidden") === "true") return null;
+  if (!presented(body)) return null;
   const box = body.getBoundingClientRect();
   // Sticky headers, the open thread panel standing over the right of the page, and the
   // banner and shortcut bar are left out of what is seen (geometry.js), so a message any
@@ -110,12 +54,7 @@ function visibleInterval(body, clips, band) {
   // withholds it.
   const clipped = seenRect(body, clips);
   if (!clipped || box.width <= 0 || box.height <= 0) return null;
-  const shown = {
-    left: Math.max(clipped.left, band.left),
-    top: Math.max(clipped.top, band.top),
-    right: Math.min(clipped.right, band.right),
-    bottom: Math.min(clipped.bottom, band.bottom),
-  };
+  const shown = intersect(clipped, band);
   if (shown.bottom <= shown.top) return null;
   if (shown.left > box.left + EPSILON || shown.right < box.right - EPSILON) return null;
   return {
@@ -129,20 +68,21 @@ function visibleInterval(body, clips, band) {
   };
 }
 
-export function createReadTracking({ markRead, showThread, firstUnreadBtn }) {
+export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
   let coverage = new WeakMap();
   const renderedBodies = new Map();
   const refusedThisVisit = new Set();
   const sizes = sizeObserver(() => scheduleScan());
   const frameWatches = [];
   let committedThreads = [];
-  let presented = false;
+  let threadsPresented = false;
   let presentationGeneration = 0;
   let visitGeneration = 0;
   let scheduled = false;
 
   function resetExposure() {
     visitGeneration++;
+    exposureGeneration++;
     coverage = new WeakMap();
     refusedThisVisit.clear();
   }
@@ -156,7 +96,7 @@ export function createReadTracking({ markRead, showThread, firstUnreadBtn }) {
       })),
     );
   // Unread in what the page has presented and still unread in the current reading: a
-  // version this tab is marking read, or another tab or move already did, is not
+  // version this tab is marking read, or another tab or update already did, is not
   // offered again.
   const actionableUnread = () => {
     const live = new Set(
@@ -169,7 +109,7 @@ export function createReadTracking({ markRead, showThread, firstUnreadBtn }) {
     const target = actionableUnread().sort(
       (a, b) => moved(a.message).seq - moved(b.message).seq,
     )[0];
-    if (target) void showThread(target.item.message, { focus: "message" });
+    if (target) void openThread(target.item.message, { part: "message" });
   }
 
   const firstUnreadCommand = {
@@ -184,11 +124,15 @@ export function createReadTracking({ markRead, showThread, firstUnreadBtn }) {
     run: firstUnread,
   };
 
-  function scan() {
-    if (!presented || document.visibilityState !== "visible" || !document.hasFocus())
+  function scan(sampleBand) {
+    if (
+      !threadsPresented ||
+      document.visibilityState !== "visible" ||
+      !document.hasFocus()
+    )
       return;
-    const band = frameBand();
-    if (!band) return;
+    const band = sampleBand ?? containingView();
+    if (!band || sampleBand?.visible === false) return;
     const candidates = new Map(
       actionableUnread().map(({ item }) => [item.message, item]),
     );
@@ -251,62 +195,47 @@ export function createReadTracking({ markRead, showThread, firstUnreadBtn }) {
     }
   }
 
+  let exposureGeneration = 0;
+
   function scheduleScan() {
+    exposureGeneration++;
     if (scheduled) return;
     scheduled = true;
     nextRender(() => {
       scheduled = false;
-      scan();
+      if (!sampleVisibility()) return scan();
+      // The containing page owns its clips and chrome. Ask it when this scan runs;
+      // a rectangle from an earlier threshold crossing cannot acknowledge words.
+      const generation = exposureGeneration;
+      void readSampleVisibility().then((reading) => {
+        if (generation === exposureGeneration) scan(reading);
+      }, reportError);
     });
   }
 
   function mount() {
-    addEventListener("scroll", scheduleScan, true);
-    addEventListener("resize", scheduleScan);
+    frameWatches.push(watchRoom(scheduleScan));
     addEventListener("focus", scheduleScan);
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState !== "visible") resetExposure();
       else scheduleScan();
     });
-    document.addEventListener("close", scheduleScan, true);
-    document.addEventListener(SLIDE_END, scheduleScan, true);
     addEventListener("blur", resetExposure);
     addEventListener("load", scheduleScan, true);
-    // What a containing page shows of this one changes without a scroll or resize
-    // inside it: the owner scrolls a frame taller than its viewport through the band
-    // (frameBand), and moving the frame changes it without any scroll at all. Watch
-    // each containing page's scrolling and each frame in its owner's viewport.
-    for (let current = window; current !== current.top;) {
-      let frame;
-      try {
-        frame = current.frameElement;
-      } catch {
-        break;
-      }
-      if (!frame) break;
-      const owner = frame.ownerDocument.defaultView;
-      const observer = new owner.IntersectionObserver(scheduleScan, {
-        threshold: [0, 1],
-      });
-      observer.observe(frame);
-      owner.addEventListener("scroll", scheduleScan, true);
-      owner.addEventListener("resize", scheduleScan);
-      frameWatches.push(() => {
-        observer.disconnect();
-        owner.removeEventListener("scroll", scheduleScan, true);
-        owner.removeEventListener("resize", scheduleScan);
-      });
-      current = owner;
-    }
-    addEventListener(
-      "pagehide",
-      () => {
-        sizes.disconnect();
-        for (const unwatch of frameWatches) unwatch();
-        frameWatches.length = 0;
-      },
-      { once: true },
+    frameWatches.push(
+      onSampleVisibility(() => {
+        if (sampleVisibility()?.visible) scheduleScan();
+        else resetExposure();
+      }),
     );
+    // A page kept for back and forward comes back with its watches.
+    addEventListener("pagehide", (event) => {
+      exposureGeneration++;
+      if (event.persisted) return;
+      sizes.disconnect();
+      for (const unwatch of frameWatches) unwatch();
+      frameWatches.length = 0;
+    });
   }
 
   function observeMessage(body, message) {
@@ -334,7 +263,7 @@ export function createReadTracking({ markRead, showThread, firstUnreadBtn }) {
       .then(() => {
         if (generation !== presentationGeneration) return;
         committedThreads = threads;
-        presented = true;
+        threadsPresented = true;
         const unread = unreadIn(threads);
         const current = new Set(unread.map(({ item }) => keyOf(item)));
         for (const key of refusedThisVisit)
@@ -355,12 +284,13 @@ export function createReadTracking({ markRead, showThread, firstUnreadBtn }) {
 
   function begin() {
     presentationGeneration++;
-    presented = false;
+    exposureGeneration++;
+    threadsPresented = false;
   }
 
   function abort() {
     presentationGeneration++;
-    presented = false;
+    threadsPresented = false;
     resetExposure();
   }
 
@@ -371,6 +301,5 @@ export function createReadTracking({ markRead, showThread, firstUnreadBtn }) {
     present,
     observeMessage,
     firstUnreadCommand,
-    exposureChanged: scheduleScan,
   };
 }

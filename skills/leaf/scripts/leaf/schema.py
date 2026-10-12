@@ -18,7 +18,7 @@ UNDOABLE_KINDS = {"resolve", "unresolve", "action", "done", "task_end"}
 MESSAGE_KINDS = {"comment", "reply"}
 # The kinds a widget owns, admitted against the page's registry before they append.
 WIDGET_KINDS = {"action", "report"}
-# The operations that settle a user move the agent owes, as `workflows` and
+# The operations that settle an update the agent owes, as `workflows` and
 # `activity` address them and `$events.answering` explains them. Reply writer custody
 # is separate: a provider turn may own its opening and final messages.
 ANSWER_KINDS = ("reply", "markup")
@@ -86,7 +86,7 @@ _RECORD_VALUE = {
 }
 
 # A `when` predicate selects instances by attribute values (or by a flag's being
-# present or absent). One condition shape serves Asks and threads because they
+# present or absent). One condition shape serves Questions and threads because they
 # ask the same question of the same authored attributes.
 AWAITING_CONDITION = {
     "type": "object",
@@ -99,7 +99,7 @@ AWAITING_CONDITION = {
     },
 }
 
-# When a local Ask is answered: a map from each answering x-state verb to the
+# When a local Question is answered: a map from each answering x-state verb to the
 # condition its standing state meets. An empty condition means the verb's state stands
 # (a non-empty attribute or value record, otherwise a standing action). `when` narrows
 # the verb to instances whose attributes match; `empty` holds when the one member
@@ -190,8 +190,8 @@ STATE_SCHEMA = {
             },
             "writer": {"const": "agent"},
             "creates": ACTION_CREATES,
-            # The effect owns the payload; update adds required nonempty detail.text.
-            "update": {"const": True},
+            # The effect owns the payload; report adds required nonempty detail.text.
+            "report": {"const": True},
         },
         "required": ["unit"],
         "allOf": [
@@ -207,8 +207,8 @@ STATE_SCHEMA = {
         # the stamped version owns and a rank reads between the neighbours a widget
         # shows the user. Its record is required: the gate compares record forms,
         # and a recordless report would be a claim nothing could check a version
-        # against. Only the user adds children, and only a report carries update
-        # prose.
+        # against. Only the user adds children, and only an agent verb
+        # declares `report` text.
         "if": {"required": ["writer"]},
         "then": {
             "required": ["record"],
@@ -217,16 +217,19 @@ STATE_SCHEMA = {
                 "creates": False,
             },
         },
-        "else": {"properties": {"update": False}},
+        "else": {"properties": {"report": False}},
     },
 }
 AWAITS_SCHEMA = {
     "type": "object",
     "properties": {
         "when": AWAITING_CONDITION,
+        "value": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "answered": ANSWERED_SCHEMA,
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        "retired": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     },
+    "required": ["value", "answered"],
     "additionalProperties": False,
 }
 # Package and data-contract instructions address their declared audiences. Widget
@@ -256,12 +259,12 @@ DATA_INPUTS_SCHEMA = {
 MEASURED_SCHEMA = {
     "type": "object",
     "properties": {
-        # The x-data input whose source timestamp says whether another run landed.
+        # The x-data input whose source receipt identifies the current run.
         "input": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-        # The widget attribute holding the source value's recorded instant.
-        "at": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        # The widget attribute holding the source write's opaque receipt.
+        "run": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     },
-    "required": ["input", "at"],
+    "required": ["input", "run"],
     "additionalProperties": False,
 }
 
@@ -274,7 +277,7 @@ _ATTRIBUTE_NAME = {"type": "string", "pattern": f"^{HTML_NAME}$"}
 EXTENSION_SCHEMA = {
     "type": "object",
     "properties": {
-        "x-ask-surface": {"const": True},
+        "x-question-context": {"const": True},
         "x-awaits": AWAITS_SCHEMA,
         "x-thread-seat": {
             "type": "object",
@@ -294,12 +297,7 @@ EXTENSION_SCHEMA = {
         "x-inline": {"type": "boolean"},
         "x-language": _ATTRIBUTE_NAME,
         "x-reading-role": {"enum": ["pane"]},
-        # Attributes holding line references into the nearest data body — the element's
-        # own <pre>, or its enclosing data element's (lf-note's `at` names a line of its
-        # lf-code) — by the numbers x-numbering gives that body, 1-based without it.
-        # `page check` refuses one outside the body (line_ref_errors).
-        "x-lines": _ATTRIBUTE_LIST,
-        "x-numbering": _ATTRIBUTE_NAME,
+        "x-resident": {"enum": ["map"]},
         "x-measured": MEASURED_SCHEMA,
         # Attributes the theme renders as paint alone — a status marker's tint or an
         # event's kind. The runtime speaks each as a clipped word (renderQuiet), the
@@ -331,6 +329,7 @@ EXTENSION_SCHEMA = {
                     "type": "object",
                     "properties": {
                         "parts": _ATTRIBUTE_NAME,
+                        "all": {"type": "string", "pattern": "^\\S+$"},
                         "complete": {"const": True},
                     },
                     "required": ["parts"],
@@ -427,9 +426,7 @@ EXTENSION_SCHEMA = {
 # to say about each than that it exists.
 ATTRIBUTE_KEYS = (
     "x-language",
-    "x-lines",
     "x-name",
-    "x-numbering",
     "x-paints",
     "x-refers",
     "x-says",
@@ -438,19 +435,26 @@ ATTRIBUTE_KEYS = (
 # The declarations a stylesheet reads, each painted on the element as `paint`: the room
 # it takes (x-space), whether it sets inline among words (x-inline), quotes what it holds
 # (x-exhibit), holds its own height (x-bound), draws into a box of a stated height
-# (x-height), the reading structure it supplies (x-reading-role), and whether it shows
+# (x-height), the reading structure it supplies (x-reading-role), the margin posture it
+# takes where it stands in a column's sidebar (x-resident), and whether it shows
 # one member at a time (x-views). Neither a stylesheet nor the prepaint, which runs
 # before the registry has loaded (`runtime/prepaint.js`), can read the registry, so
 # each is painted where a selector can ask. `authored` is
-# the attribute an occurrence writes to override its tag's or idiom's declaration.
+# the attribute an occurrence writes to override its tag's or idiom's declaration, and
+# `authored_on` where that override means something, so elsewhere it is inert:
+# `content`, a block inside `main`, since the room and the bound size a block in the
+# page's flow and on `main` or `body` would size the page itself; `declared`, an element
+# whose tag declares the mark, since a stated height reserves room for a module's
+# drawing and a block no module draws into would be clipped to it for good.
 # `message` says
 # whether the mark holds in a thread's message too:
-# each is the element's own fact wherever it renders, except the room, which is the
-# document's to hand out; a message renders in the panel, whose width bounds it.
-# `idiom` says an `$idioms` entry may declare the mark for the elements its selector
+# each is the element's own fact wherever it renders, except the room and the margin
+# posture, which are the document's to hand out; a message renders in the panel, whose
+# width bounds it and which has no margin.
+# `idiom` says a selector entry may declare the mark for the elements its selector
 # matches, as `.callout` declares the room: the mark's every reader reads its paint and
 # nothing paints it in a message, so delivery's paint is the whole of it. The others
-# are also read by tag (the asks fold, the render checks, the runtime's descriptors).
+# are also read by tag (the Questions fold, the render checks, the runtime's descriptors).
 #
 # Delivery paints a page's document from this (`revision_delivery.mark_declared`).
 # Composition stamps it into the vocabulary as `$marks` (`registry.layer.
@@ -458,17 +462,31 @@ ATTRIBUTE_KEYS = (
 # paint from the author's attributes (`isPagePaint`). The paint names are also the
 # theme's contract: the stylesheets that read them spell them out.
 DECLARED_MARKS = {
+    "x-content": {"paint": "data-lf-content", "message": True},
+    "x-verbatim": {"paint": "data-lf-verbatim", "message": True},
     "x-space": {
         "paint": "data-lf-space",
         "authored": "data-width",
+        "authored_on": "content",
         "message": False,
         "idiom": True,
     },
     "x-inline": {"paint": "data-lf-inline", "message": True},
     "x-exhibit": {"paint": "data-lf-exhibit", "message": True},
-    "x-bound": {"paint": "data-lf-bound", "authored": "data-bound", "message": True},
-    "x-height": {"paint": "data-lf-height", "authored": "data-height", "message": True},
+    "x-bound": {
+        "paint": "data-lf-bound",
+        "authored": "data-bound",
+        "authored_on": "content",
+        "message": True,
+    },
+    "x-height": {
+        "paint": "data-lf-height",
+        "authored": "data-height",
+        "authored_on": "declared",
+        "message": True,
+    },
     "x-reading-role": {"paint": "data-lf-reading-role", "message": True},
+    "x-resident": {"paint": "data-lf-resident", "message": False},
     "x-views": {"paint": "data-lf-views", "message": True},
 }
 

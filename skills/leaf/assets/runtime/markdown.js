@@ -281,7 +281,7 @@ function renderedElement(markup, tag) {
 
 // Native Markdown tokens are the editor's reading, too. Link admission annotates the
 // opening token before it reaches either renderer, so both draw the same safe label.
-export const markdownTokens = (text) => tokenize?.(text) ?? null;
+const markdownTokens = (text) => tokenize?.(text) ?? null;
 
 // Source spans are recorded where the parser consumes them, before its presentation
 // passes join text tokens or recognize bare links. No second Markdown grammar lives
@@ -508,6 +508,8 @@ function makeMarkdown(module, breaks) {
     module.taskLists,
     { enabled: false },
   );
+  // Linkify 6 leaves bare domains unlinked by default; page prose keeps them clickable.
+  markdown.linkify.set({ fuzzyLink: true });
   // Message paragraphs preserve typed spaces. A break has one visible carrier:
   // MarkdownIt's formatting newline after <br> would become a second line there.
   markdown.renderer.rules.softbreak = (_tokens, _at, options) =>

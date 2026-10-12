@@ -25,20 +25,16 @@ from leaf.event_log import (
 )
 from leaf.files import read_json, unfinished_publications
 from leaf.machine import pid_alive, state_home
-from leaf.schema import (
-    STATUS_FILE,
-    UNNAMED_AGENT,
-)
+from leaf.refusals import Refused
+from leaf.schema import STATUS_FILE
 from leaf.state import (
     CLAIMED_SUFFIX,
     EVENTS_FILE,
     chat_exists,
-    close_session_turn,
     ensure_session,
     flocked,
     fsync_parents,
     now_iso,
-    open_session_turn,
     page_key,
     session_file,
     session_lock_path,
@@ -104,7 +100,7 @@ def publish_claim(page_dir: Path, claim: dict) -> None:
 # lifetime keys `claim_is_active` cascades on, and a `harness` whose value
 # `harness.claim_harness` looks up in `HARNESSES`.
 CLAIM_IDENTITY = frozenset(
-    {"page", "ts", "released", "id", "harness", "agent", "generation", "acquisition"}
+    {"page", "ts", "id", "harness", "agent", "generation", "acquisition"}
 )
 CLAIM_LIFETIMES = frozenset({"job", "chat", "pid"})
 
@@ -112,24 +108,16 @@ CLAIM_LIFETIMES = frozenset({"job", "chat", "pid"})
 def readable_claim(claim: dict | None) -> dict | None:
     """The record if this version can read it as a claim, else None.
 
-    The claims directory is one per machine, and several worktrees, harnesses and
-    sessions write it at once, each running the leaf it was built from. So a
-    record here can have been written by another version, and Stage owes nothing
-    to what an older one wrote: there is no migration and no shim that reads the
-    old shape. What follows is this — a record the readings above can take their
-    answers from is a claim, and any other record is not one this version can
-    read, so the page reads as unclaimed until something claims it again.
-    Dropping it is what deleting the stale state would have done, without the
-    deletion.
+    Another version may have written the record (root AGENTS.md, "Stage"). One the
+    readings above cannot take their answers from is not a claim, so the page reads
+    as unclaimed until something claims it again.
 
-    A harness the table no longer holds is that same record. The name is a value
-    this version dispatches on rather than a field it reads, and renaming one is
-    what renaming the field around it already proved reachable, so it is decided
-    here with the rest instead of raising two calls further in.
+    A harness the table no longer holds is such a record: the name is a value this
+    version dispatches on, so it is decided here rather than raising two calls
+    further in.
 
-    Every reader goes through `page_claim` or `claim_records`, so this is the
-    only place that decides it, and a session is never taken down by a record it
-    does not own."""
+    Every reader goes through `page_claim` or `claim_records`, so this is the only
+    place that decides it."""
     if not isinstance(claim, dict) or not CLAIM_IDENTITY <= claim.keys():
         return None
     from leaf.harness import HARNESSES
@@ -141,7 +129,6 @@ def readable_claim(claim: dict | None) -> dict | None:
         return {**claim, "turn": None, "turn_opened": None, "turn_closed": None}
     return {
         **claim,
-        "released": claim["released"] or record["ended"],
         **record["lifetime"],
         "turn": record["turn"],
         "turn_opened": record["turn_opened"],
@@ -150,7 +137,7 @@ def readable_claim(claim: dict | None) -> dict | None:
 
 
 def page_claim(page_dir: Path) -> dict | None:
-    """The page's last claim, including one released or whose lifetime ended."""
+    """The page's last claim, including one whose session or lifetime ended."""
     return readable_claim(read_json(claim_path(page_dir)))
 
 
@@ -161,17 +148,15 @@ def claim_is_active(claim: dict | None) -> bool:
     reading of that rule: cold hooks and the CLI both call it, so a harness that
     states its lifetime a new way joins here alone, beside the one constructor
     above that writes what this reads."""
-    if not claim or claim["released"] is not None:
+    if not claim:
         return False
-    record = None
-    if "generation" in claim:
-        record = session_record(claim["id"])
-        if (
-            not record
-            or record["generation"] != claim["generation"]
-            or record["ended"] is not None
-        ):
-            return False
+    record = session_record(claim["id"])
+    if (
+        not record
+        or record["generation"] != claim["generation"]
+        or record["ended"] is not None
+    ):
+        return False
     if "job" in claim:
         return (Path(claim["job"]) / "state.json").is_file()
     if claim.get("chat") is True:
@@ -181,8 +166,8 @@ def claim_is_active(claim: dict | None) -> bool:
 
 def claim_names_session(claim: dict | None, session_id: str) -> bool:
     """Whether the page is still `session_id`'s to record what its task took from
-    the page and answered there: the claim names that session, and neither a
-    release nor the session's end has let the page go.
+    the page and answered there: the claim names that session, and the session
+    has not ended.
 
     Unlike `claim_is_active`, this survives the session's own restart. A new
     lifetime begins its generation before it publishes that generation's claim,
@@ -190,7 +175,7 @@ def claim_names_session(claim: dict | None, session_id: str) -> bool:
     claim may name an older generation, or a lifetime that has gone, of a session
     still running. What that session's task received and answered stays its own
     to record; only another session's claim takes the page from it."""
-    if not claim or claim["id"] != session_id or claim["released"] is not None:
+    if not claim or claim["id"] != session_id:
         return False
     record = session_record(session_id)
     return record is not None and record["ended"] is None
@@ -349,9 +334,7 @@ class PageTransaction:
         with flocked(session_lock_path(claim["id"])):
             projected = readable_claim(claim)
             if not claim_is_active(projected):
-                raise RuntimeError(
-                    "the prepared acquisition no longer has a live session"
-                )
+                raise Refused("the prepared acquisition no longer has a live session")
             previous = self.claim
             yield previous, projected
             publish_claim(self.page_dir, claim)
@@ -382,32 +365,13 @@ class PageTransaction:
         """Whether this transaction may act for the given waiter."""
         return claimant_matches(self.active_claim, harness)
 
-    def release_claim(self) -> None:
-        claim = self.claim
-        if claim and claim["released"] is None:
-            write_json(
-                claim_path(self.page_dir),
-                {**read_json(claim_path(self.page_dir)), "released": now_iso()},
-            )
-
-    def close_turn(self, session_id: str, turn_id: str | None = None) -> None:
-        claim = self.claim
-        if claim and claim["id"] == session_id and claim_is_active(claim):
-            close_session_turn(session_id, turn_id)
-
-    def open_turn(self, session_id: str, turn_id: str | None = None) -> str | None:
-        claim = self.claim
-        if not claim or claim["id"] != session_id or not claim_is_active(claim):
-            return None
-        record = open_session_turn(session_id, turn_id)
-        return record["turn"] if record else None
-
     def note_messaged(self, ending: str) -> None:
         """Record that input reaching this page messaged its session after a turn
         ended.
 
-        Browser-event admission sends at most one such message per ending of a
-        turn (`session-lifetime.md`, Watchers). `ending` names the claim's turn id
+        `presence.nudge_unwatched` sends at most one such message per ending of a
+        turn (`session-lifetime.md`, Watchers), from browser-event admission or
+        from a watch giving up its lease. `ending` names the claim's turn id
         and its close stamp, or for an interrupted turn its last opening, so a
         later ending, whether a close under a new id or an interrupt after a new
         prompt renewed the same one, never matches the ending a message already
@@ -433,23 +397,6 @@ class PageTransaction:
             status["stream"] = stream
         write_json(self.page_dir / STATUS_FILE, status)
         return status
-
-    def voice(self) -> dict:
-        """Who a line written on this page speaks as: the posting session where
-        one is running, which need not be the claimant, and the page's claimant
-        otherwise — a line written by a server speaks in the name of whoever
-        holds the page. `UNNAMED_AGENT` covers a page nothing has claimed,
-        where there is no name to use and inventing one would put words in a
-        program's mouth."""
-        from leaf.harness import message_identity
-
-        identity = message_identity()
-        claim = self.claim
-        return {
-            "agent": identity.get("agent")
-            or (claim["agent"] if claim else UNNAMED_AGENT),
-            "session": identity.get("session") or (claim["id"] if claim else None),
-        }
 
     def set_stream_activity(
         self, session_id: str, turn_id: str, activity: dict
@@ -702,13 +649,9 @@ class PageTransaction:
         is the one caller — every writer reaches the log through that door, and
         nothing else here may append."""
         try:
-            accepted, appended = _append_event_unlocked(self._log, event, self.events)
-        except Exception:
+            return _append_event_unlocked(self._log, event, self.events)
+        finally:
             self._events = None
-            raise
-        if appended:
-            self._events = None
-        return accepted
 
     @property
     def cursor(self) -> int:
@@ -739,7 +682,6 @@ def prepare_claim(harness: Harness, page_dir: Path) -> dict:
     return {
         "page": str(page_dir),
         "ts": now_iso(),
-        "released": None,
         "id": harness.session,
         "generation": session["generation"],
         "acquisition": secrets.token_hex(16),
@@ -752,9 +694,8 @@ def prepare_claim(harness: Harness, page_dir: Path) -> dict:
 def take_page_claim(page_dir: Path) -> tuple[dict | None, dict] | None:
     """Make the harness session the page's watcher, if a harness supplied one.
 
-    `server start`, a named `leaf wait` and `page claim` claim; authoring
-    commands do not. A
-    bare-shell serve makes no claim and therefore starts as standing.
+    `server start` and `page claim` claim; waiting and authoring commands do not.
+    A bare-shell serve makes no claim and therefore starts as standing.
     """
     from leaf.harness import session_harness
 

@@ -26,10 +26,11 @@
  * it instead of loading in front of a user who never opens that panel. */
 import {
   bodyText,
-  cancelRender,
+  frameFor,
+  whileConnected,
   failSoft,
+  inBaseLayer,
   measure,
-  nextRender,
   once,
   sizeObserver,
   widgetController,
@@ -78,22 +79,13 @@ customElements.define(
   "lf-chart",
   class extends HTMLElement {
     connectedCallback() {
-      if (!once(this)) {
-        this.watching?.observe(this);
-        return;
-      }
+      if (!once(this)) return;
       // A chart is drawn to the room it has, so the first draw waits for a box. On the
       // page that box is there already and this settles inside the upgrade, holding the
       // view restore and the first anchor pass until the drawing is in and the page's
       // geometry is final. In a shut panel there is no box at all and measure holds the
       // draw instead of the page.
       measure(this, () => widgetController(this).present(this.draw()));
-    }
-
-    disconnectedCallback() {
-      this.watching?.disconnect();
-      cancelRender(this.paintFrame);
-      this.paintFrame = 0;
     }
 
     async draw() {
@@ -117,27 +109,21 @@ customElements.define(
         // height is stated and stays. The redraw is scheduled after ResizeObserver
         // delivery, so the layout a paint reads never lands inside the delivery cycle
         // that asked for it, which the browser reports as undelivered notifications.
-        this.watching = sizeObserver(() => {
-          const width = Math.round(this.clientWidth);
-          if (!width || width === this.drawn || this.paintFrame) return;
-          this.paintFrame = nextRender(() => {
-            this.paintFrame = 0;
-            if (
-              !this.isConnected ||
-              !this.clientWidth ||
-              Math.round(this.clientWidth) === this.drawn
-            )
-              return;
-            try {
-              this.paint(Plot, body);
-            } catch (err) {
-              this.watching.disconnect();
-              this.watching = null;
-              failSoft(this, err, source);
-            }
-          });
+        let watching;
+        const paint = frameFor(this, () => {
+          if (!this.clientWidth || Math.round(this.clientWidth) === this.drawn) return;
+          try {
+            this.paint(Plot, body);
+          } catch (err) {
+            watching.disconnect();
+            failSoft(this, err, source);
+          }
         });
-        this.watching.observe(this);
+        whileConnected(this, () => {
+          watching = sizeObserver(paint);
+          watching.observe(this);
+          return () => watching.disconnect();
+        });
       } catch (err) {
         failSoft(this, err, source);
       }
@@ -189,17 +175,11 @@ customElements.define(
         named.removeAttribute("aria-label");
       }
       drawing.setAttribute("role", "img");
-      // Plot styles its legends and its paper from a <style> of its own, unlayered, and
-      // every theme rule sits in a cascade layer, which loses to any unlayered rule however
-      // specific. So the page's face and paper are set on those elements directly, where
-      // the author's own `style` has not set them: Plot's legends would stay in its system
-      // face, and its halos and tips would be filled white on a dark page.
-      for (const legend of built.querySelectorAll(
-        '[class$="-swatches"], [class*="-swatches "]',
-      ))
-        legend.style.fontFamily ||= "inherit";
-      if (!drawing.style.getPropertyValue("--plot-background"))
-        drawing.style.setProperty("--plot-background", "var(--paper)");
+      // Dependency defaults join the same tier as widget defaults. Leaf's chart
+      // face and paper remain stylesheet-owned; authored Plot style options keep
+      // their inline priority, including legend styles.
+      for (const style of built.querySelectorAll("style"))
+        style.textContent = inBaseLayer(style.textContent);
       return built;
     }
   },

@@ -8,17 +8,11 @@ import struct
 import zlib
 from types import SimpleNamespace
 
-import pytest
 from axe_playwright_python.sync_playwright import Axe
 from browser_sources import browser_function
-from click.testing import CliRunner
-from interact_support import declare_work, record_claim
-from leaf import cli as cli_model
-from leaf import hosting as hosting_model
-from leaf import leases as leases_model
-from leaf import machine as machine_model
 from leaf import render_checks as render_checks_model
 from leaf.registry import storage as registry_storage
+from leaf.registry.contract import element_declarations
 from leaf.render_checks import rendered
 from leaf.render_gate import scheme as render_gate_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -31,7 +25,6 @@ from render_harness import (
     SHELL_BOX,
     banner_control,
     leaf_page,
-    stamp_page,
 )
 
 CUSTOM_WIDGET_PAGE = leaf_page(
@@ -135,19 +128,13 @@ def arrival_findings(browser, url):
     notices = []
 
     def console_message(message):
-        if message.type != "error":
+        if (error := render_gate_model.console_error(message)) is None:
             return
-        target = (
-            notices if render_gate_model.resize_observer_error(message.text) else errors
-        )
-        target.append(message.text)
+        target = notices if render_gate_model.resize_observer_error(error) else errors
+        target.append(error)
 
     page.on("console", console_message)
-    page.on("pageerror", lambda e: errors.append(str(e)))
-    page.on(
-        "response",
-        lambda r: errors.append(f"{r.status} {r.url}") if r.status >= 400 else None,
-    )
+    render_gate_model.collect_page_exceptions(page, errors)
     render_checks_model.install_window_errors(page)
     found = []
     # A first visit, from which to read the restore cases. Reported
@@ -441,7 +428,7 @@ OVER_ITS_CONTAINER = LONG_PAGE.replace(
     "</main>",
     "<div id='clipping' style='width: 300px; overflow: hidden'>"
     "<div id='eaten' style='width: 420px'>Nobody sees the end of this.</div></div>"
-    "<div id='scrolling' style='width: 300px; overflow-x: auto'>"
+    "<div id='scrolling' style='width: 300px; overflow-x: auto; padding-bottom: 15px'>"
     "<div id='reachable' style='width: 420px'>This one scrolls into view.</div></div>"
     "<div id='holding' style='width: 300px; height: 40px; overflow: hidden'>"
     "<div id='hung' style='position: absolute; width: 420px'>Placed, so this one "
@@ -561,7 +548,7 @@ HIDDEN_SCROLLERS = {
 }
 SCROLLED_CONTAINER = LONG_PAGE.replace(
     "</main>",
-    "<div id='rolled' style='width: 300px; overflow-x: auto'>"
+    "<div id='rolled' style='width: 300px; overflow-x: auto; padding-bottom: 15px'>"
     "<div id='riding' style='width: 900px'>Where the content of a scrolled box "
     "starts.</div></div>\n</main>",
 )
@@ -803,18 +790,18 @@ NEIGHBOUR = (
 PRESS = "[data-lf-offer], [role=tab], [role=button], .lf-btn, .lf-pick, button, summary"
 
 # The controls a press is aimed *past*: the ones sharing its row, standing on the same
-# line, and on screen at both ends of the gesture. A target margin entry's row is its cluster;
+# line, and rendered at both ends of the gesture. A target margin entry's row is its cluster;
 # contribution and options wrappers do not split the visible row. The playground's action
 # group can wrap in a narrow rail, but its controls still share that group. Other controls
-# use their parent. Hold identity across the press, and measure relative to the group:
-# content above may move the whole row without moving a neighbour within it.
+# use their parent. Hold identity across the press and measure on the screen: moving
+# the containing row carries every neighbour out from under the user's aim too.
 #
-# On screen is the load-bearing half. A control inside a fold the press opens was nowhere
+# Being rendered is the load-bearing half. A control inside a fold the press opens was nowhere
 # the user could aim, and one the press puts away — a suggestion's ✗ Reject, once ✓
 # Accept has settled the pair — is not a control that moved. Both are the press doing what
 # it was pressed for. `[hidden]` is asked separately because hidden="until-found", which is
 # what a folded region wears, measures zero and still reports itself visible.
-ON_SCREEN = "(n) => n.checkVisibility() && !n.closest('[hidden]') && n.offsetWidth > 0"
+RENDERED = "(n) => n.checkVisibility() && !n.closest('[hidden]') && n.offsetWidth > 0"
 NAMED = browser_function("control_name.js", "named")
 NEIGHBOURHOOD = f"""(el, sel) => {{
   const band = el.getBoundingClientRect();
@@ -822,16 +809,15 @@ NEIGHBOURHOOD = f"""(el, sel) => {{
     const r = n.getBoundingClientRect();
     return Math.min(r.bottom, band.bottom) - Math.max(r.top, band.top) > 1;
   }};
-  window.__lfOnScreen = {ON_SCREEN};
+  window.__lfRendered = {RENDERED};
   const cluster = el.closest('.lf-margin-cluster, .lf-diff-file, .lf-playground-actions');
-  window.__lfOrigin = cluster || el.parentElement;
   const candidates = cluster ? [...cluster.querySelectorAll(sel)]
       : [...el.parentElement.children]
           .filter((n) => n !== el && !n.contains(el))
           .flatMap((n) => (n.matches(sel) ? [n] : [...n.querySelectorAll(sel)]));
   window.__lfNeighbours = candidates
       .filter((n) => n !== el && !n.contains(el) && !el.contains(n))
-      .filter((n) => window.__lfOnScreen(n) &&
+      .filter((n) => window.__lfRendered(n) &&
           (cluster?.matches('.lf-playground-actions') || sameLine(n)));
   return {{ names: window.__lfNeighbours.map({NAMED}), boxes: window.__lfBoxes() }};
 }}"""
@@ -839,23 +825,23 @@ NEIGHBOURHOOD = f"""(el, sel) => {{
 # chrome is showing, held by identity so the news can rewrite their words without
 # changing who they are.
 BANNER_WATCH = f"""(sel) => {{
-  window.__lfOnScreen = {ON_SCREEN};
-  window.__lfOrigin = null;
+  window.__lfRendered = {RENDERED};
   window.__lfNeighbours = [...document.querySelector(".lf-banner").querySelectorAll(sel)]
-      .filter(window.__lfOnScreen);
+      .filter(window.__lfRendered);
   return {{ names: window.__lfNeighbours.map({NAMED}), boxes: window.__lfBoxes() }};
 }}"""
 # One reading, named once, so the rendered-frame wait and the assertion cannot measure
 # differently. The words ride along so `displaced` can tell a box whose own content
-# changed from one that was pushed.
+# changed from one that was pushed. Read every dimension from the screen rectangle;
+# ancestor movement and transforms are part of what the user sees, not an origin to
+# subtract. A rendered control carried beyond the viewport still moved.
 DEFINE_BOXES = """() => { window.__lfBoxes = () => window.__lfNeighbours.map(
     (n) => {
-      if (!window.__lfOnScreen(n)) return null;
+      if (!window.__lfRendered(n)) return null;
       const box = n.getBoundingClientRect();
-      const origin = window.__lfOrigin?.getBoundingClientRect();
-      return [Math.round(box.left - (origin?.left || 0)),
-              Math.round(box.top - (origin?.top || 0)),
-              n.offsetWidth, n.offsetHeight, (n.textContent || '').trim()];
+      return [Math.round(box.left), Math.round(box.top),
+              Math.round(box.width), Math.round(box.height),
+              (n.textContent || '').trim()];
     }); }"""
 
 
@@ -908,7 +894,7 @@ def page_at_rest(page):
 def displaced(before, boxes, news=False):
     """Which of the watched controls are somewhere else, in the failure's own words.
 
-    A control that has gone off screen reads None and is left out: it was put away
+    A control that is hidden or removed reads None and is left out: it was put away
     rather than moved, which is a thing both sweeps below deliberately allow.
 
     `news` reads the rule for a change nobody gestured (`skills/leaf/assets/AGENTS.md`,
@@ -943,9 +929,7 @@ def aim_targets(page_dir):
     clicking its prose. The vocabulary is read from the page's own registry rather than
     listed, so the twelfth widget is swept by existing. Prose has no handler at all, so
     one press into it proves what fifty would."""
-    tags = ", ".join(
-        t for t in registry_storage.load_registry(page_dir) if not t.startswith("$")
-    )
+    tags = ", ".join(element_declarations(registry_storage.load_registry(page_dir)))
     return f":is({PRESS}, {tags}):not(.lf-chrome *)"
 
 
@@ -1288,56 +1272,6 @@ def mark_edges(page, ident, ink):
     }
 
 
-@pytest.fixture
-def live_leaf(tmp_path, monkeypatch):
-    """Stands up a live leaf for the banner's panel to find: published, served by
-    a real handler, and written down under the state home the way `server run` writes
-    it — which is the whole of how one page learns another exists. Each claims to be
-    working, freshly, so its row has a judged state to show. A factory rather than one
-    fixture, because a drawer is a list and a walk down it needs somewhere to walk to."""
-    monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
-    served = []
-    waiters = []
-
-    def go(name, title):
-        d = machine_model.state_home() / "pages" / name
-        result = CliRunner().invoke(cli_model.cli, ["page", "init", str(d)])
-        assert result.exit_code == 0, result.output
-        stamp_page(
-            d,
-            LONG_PAGE.replace("<title>long</title>", f"<title>{title}</title>"),
-            "t",
-        )
-        declare_work(d, "running the suite")
-        # A live leaf has a session behind it, and what the drawer's hover says about a
-        # page is the work that session is doing it for — so the fixture's pages come
-        # out of somewhere nameable rather than out of nowhere.
-        record_claim(
-            d,
-            id=f"s-{name}",
-            cwd=str(tmp_path / f"{name}-work"),
-        )
-        waiters.append(
-            leases_model.take_lease(leases_model.waiter_lease_path(d, f"s-{name}"))
-        )
-        # Use the durable server's maintenance loop: the row remains canonical
-        # even while no browser has visited this neighboring page.
-        url = hosting_model.start_server(d, standing=True, harness=None).url
-        served.append(d)
-        return url.split("?")[0].rstrip("/"), d
-
-    yield go
-    for directory in served:
-        hosting_model.cmd_stop(directory)
-    for waiter in waiters:
-        leases_model.release_lease(waiter)
-
-
-@pytest.fixture
-def other_leaf(live_leaf):
-    return live_leaf("other", "The other leaf")
-
-
 # Twenty-four things waiting, which is more than any shipped example asks and the point: the
 # room a list reserves at its foot is invisible until the list is longer than the drawer.
 MANY_ASKS_PAGE = leaf_page(
@@ -1548,7 +1482,7 @@ BADGE_CHROME = """      const row = document.createElement("div");
 # refused at the header, which is where the widget fails soft on any page, gated or not.
 UNPARSABLE_DIAGRAM = LONG_PAGE.replace(
     "</main>",
-    "<lf-diagram id='d-broken'><pre>\nsankey-beta\n  Ada,Review,3\n</pre></lf-diagram>\n</main>",
+    "<lf-diagram id='d-broken'><pre>\nleaf-unsupported\n  Ada,Review,3\n</pre></lf-diagram>\n</main>",
 )
 # The thread list is reconciled, not rebuilt, and the tests below are its faces: a
 # send is a gesture and reveals what it made; an arrival is news and moves nothing; a

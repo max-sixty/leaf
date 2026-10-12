@@ -2,13 +2,13 @@
  * Pages own their task and worker vocabulary through $work.widgets; this reader
  * owns progress, assignments, report age and stopped-work meaning independently
  * of how a dashboard composes those facts. */
-import { declarationFor, elementsDeclaring, layerFact } from "./registry.js";
-import { readAsks } from "./asks/model.js";
+import { declarationFor, elementsDeclaring, layerFact, registry } from "./registry.js";
+import { readQuestions } from "./questions/model.js";
 import { quietSince } from "./presence.js";
-import { quoted } from "./widget-elements.js";
-import { saidAt, updateSequence } from "./updates.js";
+import { quoted } from "./widget-descriptors.js";
+import { saidAt, reportSequence } from "./reports.js";
 import { widgetController } from "./widget-controller.js";
-import { addressableName } from "./anchor-resolution.js";
+import { addressableName } from "./addressable-names.js";
 
 const widgets = () => layerFact("$work")?.widgets ?? {};
 
@@ -45,7 +45,9 @@ export function workAncestor(element, role) {
 function stateReport(element, role) {
   const verb = stateVerb(element, role);
   const spec = declarationFor(element, "x-state")[verb];
-  return spec.writer === "agent" ? [verb, spec] : [null, null];
+  return registry.$states[element.localName][verb].writer === "agent"
+    ? [verb, spec]
+    : [null, null];
 }
 
 function stateVerb(element, role) {
@@ -68,9 +70,9 @@ function stateVerb(element, role) {
 const roleState = (element, role, read) =>
   read(element).state[stateVerb(element, role)]?.value ?? null;
 
-const reportUpdates = (element, action) =>
-  updateSequence(element).filter(
-    (update) => update.source === "report" && update.action === action,
+const actionReports = (element, action) =>
+  reportSequence(element).filter(
+    (report) => report.source === "report" && report.action === action,
   );
 
 function workerView(worker, read) {
@@ -78,7 +80,7 @@ function workerView(worker, read) {
   const state = roleState(worker, "worker", read);
   const focus = role.on && worker.getAttribute(role.on);
   const [reportVerb] = stateReport(worker, "worker");
-  const reports = reportVerb ? reportUpdates(worker, reportVerb) : [];
+  const reports = reportVerb ? actionReports(worker, reportVerb) : [];
   const heard = reports.at(-1)?.ts ?? saidAt(worker);
   const running = role.running.includes(state);
   const scope = workAncestor(worker, "scope");
@@ -145,7 +147,7 @@ function goalView(goal, open, read) {
   const role = workRole(goal, "goal");
   const state = roleState(goal, "goal", read);
   const [reportVerb] = stateReport(goal, "goal");
-  const reports = reportVerb ? reportUpdates(goal, reportVerb) : [];
+  const reports = reportVerb ? actionReports(goal, reportVerb) : [];
   const latestReport = reports.at(-1);
   const reportedStoppedAt =
     latestReport?.disposition === "effective" &&
@@ -177,7 +179,11 @@ export function readWork(scope) {
     if (!readings.has(element)) readings.set(element, widgetController(element).read());
     return readings.get(element);
   };
-  const open = new Set(readAsks().user.map((ask) => ask.sourceId));
+  const open = new Set(
+    readQuestions()
+      .user.filter((question) => question.source.kind === "widget")
+      .map((question) => question.source.id),
+  );
   const goals = workElements(scope, "goal").map((goal) => goalView(goal, open, read));
   const byElement = new Map(goals.map((goal) => [goal.element, goal]));
   const workers = workElements(scope, "worker").map((worker) =>

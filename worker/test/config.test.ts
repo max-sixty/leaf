@@ -50,7 +50,7 @@ const workerSource = readFileSync(
   "utf8",
 );
 const packageManifest = JSON.parse(
-  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+  readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
 ) as { dependencies: Record<string, string> };
 
 describe("deployment configuration", () => {
@@ -114,13 +114,13 @@ describe("deployment configuration", () => {
     ]);
   });
 
-  it("ships the pinned Codex harness and the ready Leaf CLI without the authoring plugin", () => {
-    expect(packageManifest.dependencies["@openai/codex"]).toBe("0.153.4");
+  it("ships the pinned Codex harness, ready Leaf CLI, and complete Leaf plugin", () => {
+    expect(packageManifest.dependencies["@openai/codex"]).toMatch(/^\d+\.\d+\.\d+$/);
     expect(dockerfile).toContain("/app/.venv/bin/leaf --version");
-    expect(dockerfile).not.toContain("codex plugin add leaf@leaf");
+    expect(dockerfile).toContain("codex plugin add leaf@leaf --json");
     expect(dockerfile).toContain("codex-resources /codex-bin/codex-resources");
     expect(dockerfile).toContain("test -x /codex-bin/codex-resources/bwrap");
-    expect(dockerfile).not.toContain("/opt/leaf-plugin");
+    expect(dockerfile).toContain("codex plugin marketplace add /app --json");
     expect(codexConfig).not.toHaveProperty("plugins");
   });
 

@@ -4,13 +4,15 @@ import hashlib
 import json
 import re
 import subprocess
-import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import NamedTuple
 
 from .locations import located, locations_overlap
 from .machine import package_store
+from .refusals import Refused
+from .registry.contract import element_declarations, is_element_name
+from .registry.kernel import kernel_protocol
 from .schema import (
     ASSETS,
     BROWSER_DIRS,
@@ -53,7 +55,7 @@ def resolve_packages(selected: tuple[str, ...]) -> list[Path]:
         if re.fullmatch(HTML_NAME, value):
             named = named_package(value)
             if named is None:
-                sys.exit(
+                raise Refused(
                     f"unknown package {value!r}; run `leaf package install` to add "
                     f"it, or use './{value}' for a project-relative package path"
                 )
@@ -62,7 +64,7 @@ def resolve_packages(selected: tuple[str, ...]) -> list[Path]:
             continue
         package_path = Path(value)
         if package_path.is_absolute():
-            sys.exit(
+            raise Refused(
                 f"package {value!r} is absolute; use a bundled name, "
                 "explicit project-relative path, or ~ path so the vendored registry "
                 "does not publish a machine path"
@@ -71,7 +73,7 @@ def resolve_packages(selected: tuple[str, ...]) -> list[Path]:
         if not root.is_absolute():
             root = Path.cwd() / root
         if not (root.exists() or root.is_symlink()):
-            sys.exit(f"package {value!r} is not a directory")
+            raise Refused(f"package {value!r} is not a directory")
         packages.append(root)
     return packages
 
@@ -92,29 +94,29 @@ def checked_inputs(inputs: list[Path]) -> list[Path]:
         if not (root.exists() or root.is_symlink()):
             continue
         if not root.is_dir():
-            sys.exit(f"{root} must be a directory")
+            raise Refused(f"{root} must be a directory")
         for name in VENDORED_FILES:
             path = root / name
             if (path.exists() or path.is_symlink()) and not path.is_file():
-                sys.exit(f"{path} must be a file")
+                raise Refused(f"{path} must be a file")
         for sub in PACKAGE_DIRS:
             directory = root / sub
             if not (directory.exists() or directory.is_symlink()):
                 continue
             if not directory.is_dir():
-                sys.exit(f"{directory} must be a directory")
+                raise Refused(f"{directory} must be a directory")
             if sub == INSTRUCTIONS_DIR:
                 for path in directory.iterdir():
                     if not path.is_file():
-                        sys.exit(f"{path} must be a file")
+                        raise Refused(f"{path} must be a file")
                     if not INSTRUCTIONS_FILE.fullmatch(path.name):
-                        sys.exit(f"{path} must be named <audience>.md")
+                        raise Refused(f"{path} must be named <audience>.md")
                 continue
             for path in directory.rglob("*"):
                 if path.is_dir() and not path.is_symlink():
                     continue
                 if not path.is_file():
-                    sys.exit(f"{path} must be a file or real directory")
+                    raise Refused(f"{path} must be a file or real directory")
         roots.append(root)
     return roots
 
@@ -192,9 +194,9 @@ def _sheet(source: Path) -> str:
     try:
         css = source.read_text(encoding="utf-8")
     except UnicodeDecodeError:
-        sys.exit(f"{source} must be UTF-8")
+        raise Refused(f"{source} must be UTF-8")
     if errors := css_syntax_errors(css, str(source)):
-        sys.exit(errors[0])
+        raise Refused(errors[0])
     return css if css.endswith("\n") else css + "\n"
 
 
@@ -206,9 +208,7 @@ def widget_confinement(root: Path) -> tuple[str, str] | None:
     """
     registry = root / "registry.json"
     tags = (
-        sorted(
-            tag for tag in json.loads(registry.read_text()) if not tag.startswith("$")
-        )
+        sorted(element_declarations(json.loads(registry.read_text())))
         if registry.is_file()
         else []
     )
@@ -246,7 +246,7 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     from .styles import scoped
 
     if not any((root / "theme.css").is_file() for root in inputs):
-        sys.exit("the incoming layer has no theme.css")
+        raise Refused("the incoming layer has no theme.css")
     order = f"@layer {', '.join(CASCADE_LAYERS)};\n"
     theme = [order]
     shadow = [order]
@@ -292,7 +292,7 @@ def composed_instructions(inputs: list[Path]) -> dict[str, bytes]:
             try:
                 instructions = path.read_text(encoding="utf-8")
             except UnicodeDecodeError:
-                sys.exit(f"{path} must be UTF-8")
+                raise Refused(f"{path} must be UTF-8")
             if instructions.strip():
                 parts.setdefault(path.name, []).append(
                     f"# Package `{root.name}`\n\n{instructions.strip()}\n"
@@ -305,7 +305,7 @@ def checked_layer_inputs(inputs: list[Path]) -> list[Path]:
     roots = checked_inputs(inputs)
     if overlap := overlapping_inputs(roots):
         left_root, left, right_root, right = overlap
-        sys.exit(
+        raise Refused(
             f"layer inputs {left_root} and {right_root} overlap at {left} and "
             f"{right}; package scopes must be separate"
         )
@@ -373,11 +373,11 @@ def payload_runtime_fingerprint() -> str:
 
     The kernel is the payload's own directory, so this reads the same from any working
     directory and on any machine, and a page's selected packages cannot move it. That
-    is what a page's server and the browser gates need: each runs out of the Leaf
-    running the command against the runtime out of the page, and a page's recorded
-    layer fingerprint cannot be recomposed away from the project its packages were
-    resolved in. `page init` records this reading under `$layer.runtime`, and
-    `foreign_runtime` compares the two.
+    is what the render gate needs: it runs out of the Leaf running the command
+    against the runtime out of the page, and a page's recorded layer fingerprint
+    cannot be recomposed away from the project its packages were resolved in.
+    `page init` records this reading under `$layer.runtime`, and `foreign_runtime`
+    compares the two.
     """
     runtime = ASSETS / "runtime"
     return files_identity(
@@ -399,33 +399,54 @@ def payload_server_inputs(root: Path) -> list[Path]:
 
 
 def payload_server_fingerprint() -> str:
-    """Identify the serving inputs and interpreter independently of a Git commit."""
+    """Identify serving inputs independently of a Git commit or Python build.
+
+    A site builds pages on the CI host and serves them from a container with a
+    different interpreter. The vendored event contract depends on the payload's
+    files, not that interpreter's version string.
+    """
     return files_identity(
         {
-            "$python": sys.version.encode(),
-            **{
-                path.relative_to(PLUGIN_ROOT).as_posix(): path.read_bytes()
-                for path in payload_server_inputs(PLUGIN_ROOT)
-            },
+            path.relative_to(PLUGIN_ROOT).as_posix(): path.read_bytes()
+            for path in payload_server_inputs(PLUGIN_ROOT)
         }
     )
 
 
+def incompatible_layer(page_dir: Path, registry: dict) -> str | None:
+    """Why this Leaf can neither serve a page nor write its log, given the registry it
+    would serve the page under: that registry's `$events` were vendored at another
+    `protocol` than this Leaf's own (`registry.kernel.kernel_protocol`). None when it
+    may.
+
+    A Leaf serves and writes any page vendored at its own number, whichever Leaf
+    vendored it, so a plugin update leaves open pages working. Every page server, the
+    gate's and the website's included (`http.page_endpoint`,
+    `leaf_website.page_binding`), and the one append door (`event_contracts`) refuse
+    on this one reading. A page vendored before the number was declared names none,
+    and is refused too.
+    """
+    vendored = registry.get("$events", {}).get("protocol")
+    running = kernel_protocol()
+    if type(vendored) is int and vendored == running:
+        return None
+    return (
+        f"{page_dir} was vendored by a Leaf at page protocol "
+        f"{vendored if vendored is not None else 'none'}, and this Leaf "
+        f"({PLUGIN_ROOT}) speaks protocol {running}, so it cannot serve the page or "
+        f"write its log. Re-vendor it with `leaf page init {page_dir}`."
+    )
+
+
 def foreign_runtime(page_dir: Path, layer: dict) -> str | None:
-    """Why this Leaf cannot serve a page, given its recorded `$layer`: the page's
-    runtime came from another Leaf. None when the page carries this Leaf's own.
+    """Why the render gate cannot probe a page, given its recorded `$layer`: the
+    page's runtime modules are not this Leaf's own. None when they are.
 
-    Whatever serves a page runs the Leaf that started it, while the page's browser
-    runtime is whatever its last `page init` copied in, and the two speak one
-    contract: the state a server sends and the probe modules the render gate serves
-    beside the page's runtime. Served by another Leaf, the page breaks in the
-    browser on every read, in a way that reads as a defect in the page. Every page
-    server, the gate's and the website's included, refuses on this one reading
-    (`http.page_endpoint`, `leaf_website.page_binding`).
-
-    It compares only the runtime's modules (`payload_runtime_fingerprint`), so a
-    contract change made on the Python side alone passes it. A page vendored before
-    the identity was recorded names none, and is refused too.
+    The gate's probe modules come from this Leaf and import the runtime's modules
+    out of the page by name, an internal coupling no protocol covers, so the gate
+    needs the exact runtime (`payload_runtime_fingerprint`), where a server needs
+    only a compatible one (`incompatible_layer`). A page vendored before the
+    identity was recorded names none, and is refused too.
     """
     vendored = layer.get("runtime")
     running = payload_runtime_fingerprint()
@@ -434,7 +455,7 @@ def foreign_runtime(page_dir: Path, layer: dict) -> str | None:
     return (
         f"{page_dir} was vendored from another Leaf's runtime: its layer names "
         f"{vendored or 'no runtime identity'}, and this Leaf ({PLUGIN_ROOT}) ships "
-        f"{running}. Leaf serves and checks a page only against the runtime it "
+        f"{running}. The render gate probes a page only against the runtime it "
         f"ships, so re-vendor it with `leaf page init {page_dir}`."
     )
 
@@ -541,11 +562,10 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
     """Read and validate the complete layer produced by checked inputs."""
     from .revision_artifact import (
         JAVASCRIPT_SUFFIXES,
-        ArtifactError,
         dependency_path,
         javascript_imports,
     )
-    from .validation.compatibility import incoming_registry
+    from .validation.composition import incoming_registry
 
     protected = kernel_runtime_paths()
     private_modules = {"/leaf.js", *(f"/runtime/{name}" for name in protected)} - {
@@ -562,7 +582,7 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
         if (root / "leaf.js").exists():
             replacements.append("leaf.js")
         if replacements:
-            sys.exit(
+            raise Refused(
                 f"package {root} replaces private kernel modules: "
                 + ", ".join(sorted(replacements))
                 + "; use /runtime/widget-api.js and package-owned modules"
@@ -572,29 +592,24 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
                 if not module.is_file() or module.suffix not in JAVASCRIPT_SUFFIXES:
                     continue
                 path = "/" + module.relative_to(root).as_posix()
-                try:
-                    for _, _, specifier in javascript_imports(
-                        module.read_bytes(), path
-                    ):
-                        dependency = dependency_path(specifier, path, module=True)
-                        if dependency in private_modules:
-                            sys.exit(
-                                f"{module} imports private kernel module {specifier!r}; "
-                                "use /runtime/widget-api.js"
-                            )
-                except ArtifactError as error:
-                    sys.exit(str(error))
+                for _, _, specifier in javascript_imports(module.read_bytes(), path):
+                    dependency = dependency_path(specifier, path, module=True)
+                    if dependency in private_modules:
+                        raise Refused(
+                            f"{module} imports private kernel module {specifier!r}; "
+                            "use /runtime/widget-api.js"
+                        )
     incoming = incoming_registry(roots)
     directory_sources = {sub: composed_dir_files(roots, sub) for sub in BROWSER_DIRS}
     missing_modules = sorted(
         tag
         for tag, entry in incoming.items()
-        if tag.startswith("lf-")
+        if is_element_name(tag)
         and entry["x-upgrade"]
         and f"{tag}.js" not in directory_sources["widgets"]
     )
     if missing_modules:
-        sys.exit(
+        raise Refused(
             "the incoming registry marks widgets as upgraded but their modules "
             "are missing:\n"
             + "\n".join(f"  - widgets/{tag}.js" for tag in missing_modules)
@@ -609,7 +624,7 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
             None,
         )
         if source is None:
-            sys.exit(f"the incoming layer has no {name}")
+            raise Refused(f"the incoming layer has no {name}")
         top_files[name] = source.read_bytes()
     directory_files = {
         sub: {
@@ -619,7 +634,7 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
     }
     client = directory_files["runtime"].get("layer-generation.js", b"")
     if client.count(LAYER_PLACEHOLDER) != 1:
-        sys.exit(
+        raise Refused(
             "the incoming runtime/layer-generation.js must contain exactly one "
             "layer-generation placeholder"
         )

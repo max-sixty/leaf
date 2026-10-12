@@ -18,9 +18,6 @@ from __future__ import annotations
 import itertools
 import json
 import os
-import socket
-import subprocess
-import sys
 import time
 from collections.abc import Callable
 from contextlib import contextmanager
@@ -30,9 +27,16 @@ from pathlib import Path
 from typing import ClassVar
 
 from leaf.files import read_json
-from leaf.leases import adapter_is_live, hooks_ran, step_hook_ran, wait_is_live
+from leaf.leases import (
+    adapter_is_live,
+    hooks_ran,
+    mark_step_hook,
+    step_hook_ran,
+    wait_is_live,
+)
 from leaf.machine import ancestry, pid_alive, process_argv
 from leaf.page_memory import Slot
+from leaf.refusals import Refused
 
 
 @dataclass(frozen=True)
@@ -62,11 +66,10 @@ class Harness:
     - the host, a program that drives App Server and starts every turn itself.
 
     The *transport* is how one delivery enters a turn's context: the hooks
-    (`hook_delivers`, or Codex's tool hook offering a pointer), the wait's
-    output, Codex's queue, or a turn Leaf starts over App Server. The envelope
-    states what the transport decides (`../../references/event-batches.md`).
-    The methods below answer for each
-    harness's watcher and transports:
+    (`hook_delivers`, or Codex's tool hook offering a pointer, `offer_at_step`),
+    the wait's output, Codex's queue, or a turn Leaf starts over App Server. The
+    envelope states what the transport decides (`../../references/event-batches.md`).
+    The methods below answer for each harness's watcher and transports:
 
     - Claude Code runs Leaf's Stop hooks as each turn ends: one watches the
       session's pages in the background and wakes the session when input arrives
@@ -93,7 +96,7 @@ class Harness:
 
     name: ClassVar[str]
     # Whether the harness's hooks can carry input into the turn: they freeze and
-    # hand over the whole delivery, and `leaf wait` only wakes the session.
+    # hand over the whole delivery. Explicit waits carry their own envelope.
     # `hooks_carry` says whether they do for this session.
     hook_delivers: ClassVar[bool] = False
 
@@ -144,10 +147,11 @@ class Harness:
         yield
 
     def hooks_carry(self) -> bool:
-        """Whether this session's hooks carry its input: its harness runs hooks that
-        can, and one has run for this session. Until one has, `leaf wait` prints
-        the delivery for its reader to confirm, so a session whose hooks never run
-        still reads its input rather than being woken to an empty turn."""
+        """Whether the harness supports hook delivery and a hook has run here.
+
+        This is capability evidence for hook transport and turn activity, not
+        proof that a future hook will succeed. Explicit waits deliver directly.
+        """
         return self.hook_delivers and hooks_ran(self.session)
 
     def turn_takes_input(self) -> bool:
@@ -157,16 +161,15 @@ class Harness:
         (`activity.takes_input`)."""
         return self.hooks_carry()
 
-    def receive_pointer(self, payload: dict) -> None:
-        """Confirm a pointer this session read whose `acknowledge` names nobody,
-        the receipt its hooks left to the read.
+    def receive_pointer(self, payload: dict) -> list[Path]:
+        """Confirm the reader's complete-reading attestation for a pointer whose
+        original `acknowledge` names nobody, the receipt its hooks left to the reader.
 
-        Hooks that deliver confirm each batch the session still holds; a harness
-        whose hooks hand nothing over has no pointer of its own to confirm."""
-        if self.hook_delivers:
-            from .delivery import receive_held
+        Explicit reader confirmation is strict: a transferred page or ended turn
+        reports refusal rather than silently accepting a partial receipt."""
+        from .delivery import receive
 
-            receive_held(payload, self.session)
+        return receive(payload, self.session)
 
     def input_unpicked(self, page_dir: Path, *, listening: bool) -> str:
         """What to do about events past this page's cursor that nothing will
@@ -214,6 +217,25 @@ class Harness:
             "hookSpecificOutput": {"hookEventName": event, "additionalContext": message}
         }
 
+    def reconcile_turn(self, payload: dict, expected: dict | None) -> dict | None:
+        """The session's lifecycle as a hook goes on to read it, from `expected`, the
+        record as the hook found it. A harness that records turns its hooks never
+        see applies them here. A prompt hook reconciles after recording its own
+        turn, every other hook before checking the turn its payload names."""
+        return expected
+
+    def offer_at_step(
+        self, event: str, payload: dict, expected: dict | None
+    ) -> tuple[str | None, dict | None]:
+        """Offer the session's pending page input through hook `event` ahead of the
+        hook transport (`hook_transport.carry_turn`), where this harness's hooks do.
+
+        Returns what the hook puts in the turn's context, which ends the hook, and
+        the lifecycle the hook goes on with otherwise: `expected`, or the renewal
+        an offer made under it. Where the hook transport carries every input,
+        nothing is offered here."""
+        return None, expected
+
     def nudge(self, page_dir: Path) -> bool:
         """Put this page's new input in front of the session, and say whether
         anything took it.
@@ -229,7 +251,7 @@ class Harness:
         as the comment is admitted (`thread_titles`), or None where it cannot.
 
         Only a harness whose model any process on the machine can ask has one. The
-        website's host names the thread instead, as the move opening it is
+        website's host names the thread instead, as the update opening it is
         dispatched to it, since only it can reach the App Server it owns."""
         return None
 
@@ -306,7 +328,7 @@ class ClaudeCodeHarness(EnvironmentHarness):
         if job := os.environ.get("CLAUDE_JOB_DIR"):
             record = read_json(Path(job) / "state.json")
             if record is None:
-                sys.exit(
+                raise Refused(
                     f"CLAUDE_JOB_DIR names no job record ({job}/state.json); "
                     "leaf takes a background job's lifetime from it"
                 )
@@ -453,42 +475,20 @@ class CodexHarness(EnvironmentHarness):
             yield
 
     def lifetime(self) -> dict:
-        """Codex states no process, so this one is discovered: the nearest
-        ancestor running the `codex` program.
+        """CLI sessions live with their nearest Codex ancestor, not the shell
+        running a tool command, which can exit before the session does.
 
-        The launcher cannot hand it over, because a shell tool's $PPID is a fact
-        about the *shape* of the command rather than about the session. Measured
-        through `codex exec` at 0.147.0: a bare command, an `&&` chain and a
-        `bash -lc` all reported the codex process, because the shell it wraps
-        them in can exec a last simple command in place; `leaf … | cat` reported
-        the wrapping shell itself, which exits with the pipeline. Recording that
-        one would have taken the page's server down a second after the command
-        that started it, and the page would have told its user no session
-        holds it while the session sat there working.
-
-        Codex has a second shape with no session process at all. The ChatGPT app
-        runs one `codex ... app-server` per app launch and multiplexes every
-        conversation through it: its children are node, uv and zsh, never a
-        per-conversation `codex`. The ancestry walk still reaches that process,
-        so recording its pid gave every session in the app one shared lifetime,
-        and one that ends only when the app quits — measured on a machine with
-        133 claims naming a single app-server pid and 49 session-managed servers
-        that could never retire. Nothing else there is per-conversation either:
-        the app holds every thread's writer lock under
-        `~/.codex/thread-writer-locks` for its own lifetime rather than the
-        thread's, so those are pinned the same way.
-
-        Such a session belongs to a persisted chat, whose native transcript the
-        hooks validate and publish in the session record. That file survives an
-        idle instance unloading and an unattended night. Archival moves it and
-        deletion removes it, ending ownership without an inactivity timeout.
-        Missing native evidence cannot establish a new desktop lifetime."""
+        Desktop chats share an App Server process and its writer locks, so neither
+        identifies one chat's lifetime. Its native transcript, validated by hooks
+        and published in the session record, survives idle instance unloading.
+        Archive moves that file and delete removes it. Starting a desktop page
+        requires that validated source to exist."""
         if (pid := self.process_pid()) is not None:
             if "app-server" in (process_argv(pid) or []):
                 from .state import chat_exists, session_record
 
                 if not chat_exists(session_record(self.session)):
-                    sys.exit(
+                    raise Refused(
                         "Leaf cannot establish this desktop Codex chat's lifetime: "
                         "its validated native transcript is unavailable. Run a new "
                         "prompt with Leaf's Codex hooks enabled, then retry."
@@ -500,7 +500,7 @@ class CodexHarness(EnvironmentHarness):
         # LEAF_SESSION_ID with no codex above it is a hand-built environment, so
         # say what was walked.
         chain = " → ".join(program for _, program in ancestry())
-        sys.exit(
+        raise Refused(
             "LEAF_SESSION_ID names a Codex session but no codex process runs "
             f"above this one ({chain}); leaf takes the session's lifetime from it"
         )
@@ -511,10 +511,10 @@ class CodexHarness(EnvironmentHarness):
         its Stop hook keeps the turn going over input nothing else will carry."""
         return step_hook_ran(self.session)
 
-    def receive_pointer(self, payload: dict) -> None:
-        from .codex_state import accept_codex_delivery_read
+    def receive_pointer(self, payload: dict) -> list[Path]:
+        from .codex_state import confirm_codex_pointer
 
-        accept_codex_delivery_read(self.session, payload["id"])
+        return confirm_codex_pointer(self.session, payload)
 
     def watcher_live(self, *, listening: bool) -> bool:
         """A wait lease says only that some process can read page events. The
@@ -538,6 +538,46 @@ class CodexHarness(EnvironmentHarness):
         if event == "Stop":
             return {"decision": "block", "reason": message}
         return super().hook_context(event, message)
+
+    def reconcile_turn(self, payload: dict, expected: dict | None) -> dict | None:
+        """Codex's native transcript also records turns resumed without input,
+        which run no prompt hook (`codex_state.sync_transcript_turn`)."""
+        if expected is None:
+            return None
+        from .codex_state import sync_transcript_turn
+
+        return sync_transcript_turn(self.session, payload.get("transcript_path"))
+
+    def offer_at_step(
+        self, event: str, payload: dict, expected: dict | None
+    ) -> tuple[str | None, dict | None]:
+        """Both the tool hook and Stop offer a pointer through Codex's one transport
+        reservation (`codex.offer_hook_delivery`), since empty-input resume can
+        reach Stop without running another tool. A tool hook also proves that
+        Codex runs Leaf's hooks for this task (`turn_takes_input`). Stop offers
+        only where the turn would continue for it (`hook_transport.stop_continues`).
+        """
+        if event not in {"PostToolUse", "Stop"} or not payload.get("turn_id"):
+            return None, expected
+        if event == "PostToolUse":
+            mark_step_hook(self.session)
+        from .service import owned_pages
+
+        if not owned_pages(self.session):
+            return None, expected
+        if event == "Stop":
+            from .hook_transport import read_plans, stop_continues
+
+            plans = read_plans(self.session)
+            if not stop_continues(
+                plans,
+                [plan.batch for plan in plans if plan.batch],
+                repeated=bool(payload.get("stop_hook_active")),
+            ):
+                return None, expected
+        from .codex import offer_hook_delivery
+
+        return offer_hook_delivery(self.session, expected)
 
     @classmethod
     def run_ack(cls, delivery_id: str) -> str:
@@ -595,7 +635,7 @@ class PiHarness(EnvironmentHarness):
 
     def lifetime(self) -> dict:
         if (pid := self.process_pid()) is None:
-            sys.exit(
+            raise Refused(
                 "PI_SESSION_ID names a Pi session but LEAF_PI_PID is unset: Leaf's "
                 "Pi extension (hooks/pi.ts) is not loaded in it"
             )
@@ -630,10 +670,9 @@ class EmbeddedHarness(Harness):
     itself, supplying its own display name and the App Server process its
     session lives and dies with.
 
-    The Stop hook never reaches a page this holds: the container's Codex runs
-    with no Leaf plugin and so no Leaf hooks (`worker/codex-config.toml`), even
-    though its agent does run `leaf` commands. The two remedies say what is true
-    rather than what to type."""
+    The host owns turn pickup and observes completion directly. It installs the
+    ordinary Leaf plugin for the agent's skills and tools; its remedies describe
+    host-owned delivery rather than asking the agent to start another watcher."""
 
     pid: int
 
@@ -863,6 +902,8 @@ def resume_claude_code_job(session_id: str, text: str) -> bool:
         for record in claude_code_session_records(session_id)
     ):
         return False
+    import subprocess
+
     try:
         subprocess.Popen(
             ["claude", "--bg", "--resume", session_id, text],
@@ -899,6 +940,8 @@ def message_claude_code_session(session_id: str, text: str) -> bool:
     between reading its record and connecting, so a file that vanished, was
     caught mid-write, lacks a field this reads, or names a socket nobody listens
     on skips that record."""
+    import socket
+
     sessions = claude_code_sessions()
     for record in claude_code_session_records(session_id):
         try:

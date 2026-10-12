@@ -1,6 +1,7 @@
 """Declaration-driven state and retirement projections."""
 
 import re
+from collections.abc import Callable, Iterable
 from typing import NamedTuple
 
 from leaf.events import (
@@ -37,10 +38,10 @@ from leaf.thread_context import (
 )
 
 
-def _report_updates(projection) -> list[dict]:
+def _reports(projection) -> list[dict]:
     if projection is None:
         return []
-    standing = {
+    unsettled = {
         event["id"]
         for entries in projection.reports.values()
         for event, _spec in entries
@@ -50,18 +51,18 @@ def _report_updates(projection) -> list[dict]:
         for event, _spec in projection.desired.values()
         if event["kind"] == "report"
     }
-    updates = []
+    reports = []
     for _coordinate, (event, spec) in projection.classified.values():
         if event["kind"] != "report":
             continue
-        updates.append(
+        reports.append(
             {
                 "id": event["id"],
                 "target": {"kind": "widget", "id": event["widget"]},
                 "source": "report",
                 "action": event["action"],
                 "detail": event["detail"],
-                "text": event["detail"]["text"] if spec.get("update") else None,
+                "text": event["detail"]["text"] if spec.get("report") else None,
                 "ts": event["ts"],
                 "revision": event["revision"],
                 "seq": event["seq"],
@@ -70,18 +71,18 @@ def _report_updates(projection) -> list[dict]:
                 "disposition": (
                     "effective"
                     if event["id"] in effective
-                    else "standing"
-                    if event["id"] in standing
+                    else "outranked"
+                    if event["id"] in unsettled
                     else "settled"
                 ),
             }
         )
-    return updates
+    return reports
 
 
-def canonical_updates(projection) -> list[dict]:
-    """Normalize projected reports into the one update feed, in log order."""
-    return sorted(_report_updates(projection), key=lambda update: update["seq"])
+def canonical_reports(projection) -> list[dict]:
+    """Normalize projected reports into the one report feed, in log order."""
+    return sorted(_reports(projection), key=lambda report: report["seq"])
 
 
 def enclosing_widgets(rec: dict):
@@ -187,6 +188,7 @@ class PageReading(NamedTuple):
     revision: int
     events: list
     projection: StateProjection
+    prior: Callable[[], Iterable[tuple[int, SourceReading]]] | None = None
 
     @property
     def document(self) -> SourceDocument:
@@ -231,7 +233,7 @@ class FrozenThreadReading(NamedTuple):
         ]
 
     def subject_thread(self, subject: dict) -> str | None:
-        """The thread a workflow or update subject stands in: a thread subject is
+        """The thread a workflow or report subject stands in: a thread subject is
         its own, a widget frozen into a message is its thread's, and a page widget
         stands in none."""
         if subject["kind"] == "thread":
@@ -298,9 +300,9 @@ def state_projection(
             continue
         # Admission already checked this payload. Only a changed domain needs
         # the validator again; it may broaden without losing the old operation.
-        if not same_state_definition(recorded, current) and schema_error(
-            detail_schema(registry[rec["tag"]], spec), event["detail"]
-        ):
+        if not same_state_definition(
+            recorded.get("detail"), current["detail"]
+        ) and schema_error(detail_schema(registry[rec["tag"]], spec), event["detail"]):
             continue
         coordinate = event_coordinate(event)
         entry = (event, spec)
@@ -561,8 +563,52 @@ def folded_value(e: dict, spec: dict):
     return value
 
 
+def question_value(
+    owner, verb, spec, byid, spk, registry, projection, *, answered=False
+):
+    """Read a Question's typed value and presence from the canonical state fold.
+
+    Widget units use their declared record or custom action detail. Member units
+    form one mapping; positions retain every container, including empty ones.
+    Empty authored values need completion to count as an answer; a standing value
+    action counts even while completion is outstanding. Null never holds a value.
+    """
+    actions = {
+        coordinate: held
+        for coordinate, held in projection.actions.items()
+        if coordinate[0] == owner and coordinate[2] == verb
+    }
+    record = spec.get("record")
+    if spec["unit"] == "widget":
+        held = actions.get((owner, owner, verb))
+        value = (
+            (folded_value(*held) if record else held[0]["detail"])
+            if held is not None
+            else markup_value(owner, spec, byid, spk, registry)
+        )
+    elif (record or {}).get("kind") == "position":
+        value = folded_positions(owner, verb, record, byid, spk, registry, projection)
+    else:
+        value = {
+            coordinate[1]: folded_value(*held) if record else held[0]["detail"]
+            for coordinate, held in sorted(actions.items())
+        }
+    present = (
+        value is not NO_RECORD
+        and value is not None
+        and (value not in ("", [], {}) or answered or bool(actions))
+    )
+    return (value if value is not NO_RECORD else None), present
+
+
 def page_reading(
-    reading: SourceReading, events: list, revision: int, *, withdrawn: set | None = None
+    reading: SourceReading,
+    events: list,
+    revision: int,
+    *,
+    withdrawn: set | None = None,
+    revisions: Iterable[int] = (),
+    revision_reader: Callable[[int], SourceReading] | None = None,
 ) -> PageReading:
     """Read one page's markup and log window through one construction.
 
@@ -570,7 +616,9 @@ def page_reading(
     `page check` share declarations, floors, and the log window. The document's
     own reading (`SourceReading`) travels with the projection for callers that need
     its authored construction; a stored revision's is held across reads, so only
-    the fold over the log is taken here."""
+    the fold over the log is taken here. Revision history is optional transaction
+    input: this owner selects predecessors newest first and reads each under its
+    captured vocabulary, lazily when Question registration needs it."""
     return PageReading(
         reading,
         revision,
@@ -583,6 +631,15 @@ def page_reading(
             revision,
             withdrawn=withdrawn,
         ),
+        (
+            lambda: (
+                (previous, revision_reader(previous))
+                for previous in sorted(revisions, reverse=True)
+                if previous < revision
+            )
+        )
+        if revision_reader is not None
+        else None,
     )
 
 

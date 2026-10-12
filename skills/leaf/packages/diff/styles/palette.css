@@ -1,0 +1,6 @@
+/* Resolve fills at the widget root so its local semantic colors survive
+ * inheritance into its shadow renderer. Both adapters consume these private fills. */
+:where(:scope, :scope:host) {
+  --lf-code-add-fill: color-mix(in srgb, var(--ok) 16%, var(--pre-bg));
+  --lf-code-del-fill: color-mix(in srgb, var(--danger) 16%, var(--pre-bg));
+}

@@ -4,11 +4,13 @@ import {
   DISCLOSE,
   HIDDEN,
   commands,
+  comparisonChanges,
   keeps,
   keepsText,
   relabel,
   selectableOffer,
   tabStore,
+  watchComparison,
 } from "/runtime/widget-api.js";
 
 const SETTLED_KEY = "lf-settled:";
@@ -20,7 +22,6 @@ export class SettledOptions {
   #title = null;
   #count = null;
   #isOpen = false;
-  #diffEvents = null;
 
   constructor(host, { label }) {
     this.#host = host;
@@ -28,18 +29,9 @@ export class SettledOptions {
   }
 
   connect() {
-    if (!this.#row) this.#build();
-    if (!this.#diffEvents) {
-      this.#diffEvents = new AbortController();
-      document.addEventListener("lf-comparison", () => this.#delta(), {
-        signal: this.#diffEvents.signal,
-      });
-    }
-  }
-
-  disconnect() {
-    this.#diffEvents?.abort();
-    this.#diffEvents = null;
+    if (this.#row) return;
+    this.#build();
+    watchComparison(this.#host, () => this.#delta());
   }
 
   #build() {
@@ -50,7 +42,7 @@ export class SettledOptions {
     this.#row.append(this.#title, this.#count);
     this.#row.setAttribute("aria-expanded", "false");
     this.#row.onclick = () => this.#open(!this.#isOpen, true);
-    commands(this.#row, "In a settled ask", [
+    commands(this.#row, "In a settled question", [
       {
         id: "option.toggle-settled",
         keys: () => DISCLOSE(this.#row),
@@ -96,7 +88,7 @@ export class SettledOptions {
 
   #delta() {
     let chip = this.#row.querySelector(".lf-settled-diff");
-    const n = this.#host.querySelectorAll(".lf-ins-block").length;
+    const n = comparisonChanges(this.#host).length;
     if (!n) return chip?.remove();
     if (!chip) {
       chip = document.createElement("span");

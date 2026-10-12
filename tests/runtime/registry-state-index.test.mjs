@@ -9,11 +9,11 @@
    by these declarations and by nothing else a page might have vendored. */
 
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
   adoptRegistry,
+  elementDeclarations,
   recordedWidgetSelector,
   registry,
   stateSpecs,
@@ -33,9 +33,28 @@ test("a vocabulary that has not loaded has no state index to give", () => {
   assert.throws(stateSpecs, /state vocabulary requested before registry loaded/);
 });
 
+test("authoring selectors and shared facts never enter widget state", () => {
+  const idiom = { description: "An authored shape.", "x-example": "<table></table>" };
+  load("mixed-vocabulary", {
+    "lf-index-owner": { "x-state": { set: {} } },
+    "lf-index-owner.selected": idiom,
+    table: idiom,
+    ".eyebrow": idiom,
+    $keys: { "x-state": "State meanings." },
+  });
+  assert.deepEqual(
+    elementDeclarations().map(([name]) => name),
+    ["lf-index-owner"],
+  );
+  assert.deepEqual(
+    stateSpecs().map(({ tag }) => tag),
+    ["lf-index-owner"],
+  );
+});
+
 // The generation is the index's cache key, and in the product it is a content
 // fingerprint, so no two vocabularies here share one either.
-test("both writers contribute, each resolved, and only recorded declarations own a selector", () => {
+test("both writers contribute, and only recorded declarations own a selector", () => {
   load("writers", {
     "lf-index-action": { "x-state": { set: { record: { role: "value" } } } },
     "lf-index-report": {
@@ -45,16 +64,11 @@ test("both writers contribute, each resolved, and only recorded declarations own
   });
 
   assert.deepEqual(
-    stateSpecs().map(({ tag, verb, spec }) => [
-      tag,
-      verb,
-      spec.writer,
-      Boolean(spec.record),
-    ]),
+    stateSpecs().map(({ tag, verb, spec }) => [tag, verb, Boolean(spec.record)]),
     [
-      ["lf-index-action", "set", "user", true],
-      ["lf-index-report", "measure", "agent", true],
-      ["lf-index-recordless", "settle", "user", false],
+      ["lf-index-action", "set", true],
+      ["lf-index-report", "measure", true],
+      ["lf-index-recordless", "settle", false],
     ],
   );
   assert.deepEqual(recordedWidgetSelector().split(","), [
@@ -76,17 +90,4 @@ test("a later generation inherits nothing from the index warmed before it", () =
     ["lf-index-fresh"],
   );
   assert.equal(recordedWidgetSelector(), "");
-});
-
-// The writer each verb resolves to at intake, held to the cases `test_interact_contract.py`
-// holds Python's `verb_writer` to, so both runtimes read an unstated writer as the user.
-test("an unstated writer is the user, as Python's verb_writer reads it", () => {
-  const cases = JSON.parse(
-    readFileSync(new URL("../verb_writer_cases.json", import.meta.url)),
-  );
-  load("writer-cases", structuredClone(cases.declarations));
-  assert.deepEqual(
-    stateSpecs().map(({ tag, verb, spec }) => [tag, verb, spec.writer]),
-    cases.writers,
-  );
 });

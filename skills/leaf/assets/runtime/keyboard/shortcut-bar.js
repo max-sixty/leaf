@@ -69,7 +69,7 @@ import {
   neutralStates,
   progressStates,
   rowSteps,
-} from "./presentation.js";
+} from "./key-sequence.js";
 import { el } from "../widget-elements.js";
 import { keeps, keepsHidden } from "../keeps.js";
 import { lineOwner, shadow, stack, executeCommand } from "./dispatch.js";
@@ -91,7 +91,7 @@ import {
 import { repaint } from "../repaint.js";
 import { walkPosition } from "../walk-position.js";
 import { declareBottomBar } from "../geometry.js";
-import { pagePresented } from "../presentation.js";
+import { pagePresented } from "../page-paint.js";
 import { closeLayer, focusDestination } from "../focus.js";
 import {
   BANNER_CONTROL_RANK,
@@ -218,12 +218,12 @@ export const bottomChromeBoxes = () => [
   ...boxesOf([shortcutBarEl]),
   ...standingStatusBoxes(),
 ];
-declareBottomBar(bottomChromeBoxes);
+declareBottomBar(bottomChromeBoxes, [shortcutBarEl, bottomStatusEl]);
 
 // ---------- the shortcut bar ----------
 // The rows the line shows, innermost scope first: the ones carrying a word for it. Each
 // keeps only bindings no nearer scope has named, so an inner meaning wins while a grouped
-// row's other presses remain visible — for example, an Ask's numbered pick replaces the
+// row's other presses remain visible — for example, a Question's numbered pick replaces the
 // page's ordinary digit meaning without hiding the option row's other keys.
 const sourceRows = new WeakMap();
 const sourceRow = (row) => sourceRows.get(row) ?? row;

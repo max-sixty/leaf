@@ -42,7 +42,6 @@ export const chromeSheet = constructSheet(sheets.chrome, "chrome");
 export const chromeSharedClasses = Object.freeze([
   "lf-aiming",
   "lf-btn",
-  "lf-focus-visible",
   "lf-ins-block",
   "lf-over-item",
   "lf-react-mark",

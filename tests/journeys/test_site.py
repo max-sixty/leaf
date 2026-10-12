@@ -309,7 +309,7 @@ def test_published_product_page_renders(site, browser, name):
     with hosting_model.TemporaryPageServer(product) as server:
         url = f"{server.origin}/versions/v1.html?t={server.token}"
         failures = render_gate_model.render_version(browser, url).failures
-    assert failures == [], "\n".join(failures)
+    assert failures == [], "\n".join(map(str, failures))
 
 
 def test_published_examples_keep_the_site_theme_out_of_their_layer(site):

@@ -18,12 +18,7 @@ export function relativeReplays() {
     try {
       widget.renderState(state);
     } catch (error) {
-      found.push(
-        exceptionText(
-          error,
-          `${at(widget)} renderState threw when the complete state was rendered a second time`,
-        ),
-      );
+      found.push({ code: "render-threw", at: at(widget), error: exceptionText(error) });
     }
   }
   const now = shallowSigs(document.body);
@@ -43,9 +38,10 @@ export function relativeReplays() {
   });
   return [
     ...found,
-    ...[...groups].map(
-      ([who, moved]) =>
-        `${who} renderState is relative — rendering the same complete state changed ${[...moved].join(", ")}. Render the supplied values without stepping from the DOM.`,
-    ),
+    ...[...groups].map(([who, moved]) => ({
+      code: "relative-render",
+      at: who,
+      changed: [...moved],
+    })),
   ];
 }

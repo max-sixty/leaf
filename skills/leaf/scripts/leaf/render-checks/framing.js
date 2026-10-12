@@ -1,6 +1,6 @@
 import { declarationFor, inChrome } from "/runtime/widget-api.js";
 import { upFrom } from "/runtime/check-api.js";
-import { at } from "./locate.js";
+import { at, unique } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
 const generated = ".lf-ui, [data-lf-gen]";
@@ -261,7 +261,7 @@ export function splitEdges() {
 // comes first or next, so a code block's highlighting or the mark ending a link's words
 // is not this.
 export function apparatusAmongAuthored() {
-  const found = new Set();
+  const found = [];
   for (const el of document.querySelectorAll(`main :is(${generated})`)) {
     const parent = el.parentElement;
     if (
@@ -272,7 +272,7 @@ export function apparatusAmongAuthored() {
     )
       continue;
     if (getComputedStyle(parent).display === "inline") continue;
-    found.add(`${at(el)} stands among the children of ${at(parent)}`);
+    found.push({ code: "apparatus-among-authored", at: at(el), parent: at(parent) });
   }
-  return [...found];
+  return unique(found);
 }

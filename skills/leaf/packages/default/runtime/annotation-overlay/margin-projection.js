@@ -53,7 +53,7 @@ import {
   contributionEntrySource,
   presentContributionEntry,
   activateContributionControl as activateSharedContribution,
-  syncContributionAgentWorkflow,
+  presentContributionReceipts,
   syncContributionSelection,
   syncContributionUnread,
 } from "/runtime/contribution-controls.js";
@@ -184,7 +184,6 @@ export function createMarginProjection({
   });
   const preview = card.element;
   const previewOpen = card.isOpen;
-  let workflowCarriers = new Set();
   let selectedReadingCarriers = new Set();
   const readingMarginEntries = new Map();
   const hosts = new Map();
@@ -838,15 +837,11 @@ export function createMarginProjection({
         rank: "reading",
         state: readingState(choice),
         count: items.length,
-        workflowReceipt: workflowReceipt(items),
         accessibleLabel,
       }),
-      {
-        writesRelation: false,
-        writesSeat,
-        awaitsUser: awaitingUser(items),
-      },
+      { writesRelation: false, writesSeat },
     );
+    presentContributionReceipts(node, workflowReceipt(items), awaitingUser(items));
     syncReadingRelation(node, choice);
     syncContributionUnread(node, unreadIn(items));
     return behavior;
@@ -955,7 +950,6 @@ export function createMarginProjection({
         clusterMarginEntries(host)[0],
       );
     }
-    return primary;
   }
 
   // Moving a focused cluster between lanes, when its target's scroller changes, blurs
@@ -1010,7 +1004,6 @@ export function createMarginProjection({
         host.remove();
         hosts.delete(key);
       }
-    const nextWorkflowCarriers = new Set();
     pageInventory.forEach((entry, order) => {
       if (!entryHasMarginHost(entry)) return;
       let host = hosts.get(entry.key);
@@ -1100,16 +1093,8 @@ export function createMarginProjection({
         expandedOptionsKey = null;
         expandedOptionsOwner = null;
       }
-      const primary = presentCluster(host, marker, more, entry, projection, focus);
-      if (primary && entry.workflowCarrier) {
-        syncContributionAgentWorkflow(primary, entry.workflowReceipt);
-        nextWorkflowCarriers.add(primary);
-      }
+      presentCluster(host, marker, more, entry, projection, focus);
     });
-    for (const control of workflowCarriers)
-      if (!nextWorkflowCarriers.has(control))
-        syncContributionAgentWorkflow(control, null);
-    workflowCarriers = nextWorkflowCarriers;
     nameMarkers(readSpokenPositions(pageInventory));
     keepsHidden(nav, pageInventory.length === 0);
     keeps(nav, "aria-label", `Page Map, ${pageInventory.length} locations`);

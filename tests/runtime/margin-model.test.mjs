@@ -272,6 +272,33 @@ test("declared representation and a workflow carrier suppress only duplicate rea
       ["review", reviewReceipt],
     ],
   );
+  // A control's own receipt returns when another control takes the primary seat, and
+  // the margin's cluster, its focused options, and the Page Map all read it the same.
+  const displaced = inventory({
+    items,
+    workflowReceipt,
+    offers: [
+      offer("widget", [
+        control("apply", { workflowReceipt: reviewReceipt }),
+        control("approve", { rank: "complete" }),
+      ]),
+    ],
+  });
+  const expected = { approve: workflowReceipt, apply: reviewReceipt };
+  const receipts = (controls) =>
+    Object.fromEntries(controls.map((item) => [item.record.key, item.receipt]));
+  assert.deepEqual(receipts(displaced.controls), expected);
+  assert.deepEqual(
+    receipts(
+      clusterProjection(displaced, { expandedKey: "target", expandedOwner: "widget" })
+        .options.items,
+    ),
+    expected,
+  );
+  assert.deepEqual(
+    receipts(map([displaced])[0].actions.filter((action) => action.kind === "control")),
+    expected,
+  );
   const withoutControl = inventory({ items, workflowReceipt });
   assert.equal(withoutControl.workflowCarrier, null);
   assert.ok(withoutControl.items.some((item) => item.id === "receipt"));

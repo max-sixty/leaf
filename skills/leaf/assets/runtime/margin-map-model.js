@@ -11,16 +11,10 @@ import {
 import { contributionItemKey } from "./contribution-model.js";
 import { annotationItems } from "./margin-model.js";
 
-function dialogControls(entry) {
-  const records = entry.offers
-    .flatMap((offered) =>
-      offered.reading.entries
-        .filter((record) => record.visible)
-        .map((record) => Object.freeze({ record, offered })),
-    )
-    .sort(compareContributionEntryRecords);
-  return records;
-}
+// The margin's control items, before and after the target alike, in one canonical
+// order; each already carries its receipt (margin-model.js, `controlReceipt`).
+const dialogControls = (entry) =>
+  [...entry.controls, ...entry.afterControls].sort(compareContributionEntryRecords);
 
 const dialogItemKey = (entry, item) =>
   JSON.stringify(["item", entry.key, contributionItemKey(item)]);
@@ -31,12 +25,6 @@ function dialogControlKey(entry, offered, record) {
 
 const dialogControlId = (entry, offered, record) =>
   `lf-page-map-entry-${encodeURIComponent(dialogControlKey(entry, offered, record))}`;
-
-// The margin shows its target's agent work on one control (margin-model.js,
-// `workflowCarrier`); the map shows that receipt on the same control's row, and every
-// other control's own.
-const isWorkflowCarrier = (carrier, record) =>
-  carrier?.key === record.key && carrier.owner === record.owner;
 
 export function marginMapGroups(entries, faceFor, searchTextByKey) {
   return Object.freeze(
@@ -62,7 +50,7 @@ export function marginMapGroups(entries, faceFor, searchTextByKey) {
             awaitsUser: Boolean(item.userAttention),
           };
         }),
-        ...controls.map(({ offered, record }) => ({
+        ...controls.map(({ offered, record, receipt }) => ({
           kind: "control",
           key: dialogControlKey(entry, offered, record),
           id: dialogControlId(entry, offered, record),
@@ -74,9 +62,7 @@ export function marginMapGroups(entries, faceFor, searchTextByKey) {
           label: record.accessibleLabel,
           visibleLabel: visibleContributionEntryLabel(record),
           context: record.context,
-          receipt: isWorkflowCarrier(entry.workflowCarrier, record)
-            ? entry.workflowCarrier.receipt
-            : record.workflowReceipt,
+          receipt,
           awaitsUser: false,
         })),
       ];

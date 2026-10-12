@@ -15,7 +15,8 @@
  * explicitly focused contribution uses those seats alone; an open thread keeps its
  * aggregate control inside the budget. Thread membership retains thread order.
  * A contributed representation suppresses the matching generated kind. Workflow
- * receipts use the surviving primary when available, before any control is painted.
+ * receipts are chosen here, before any control is painted: each control item carries
+ * the target's receipt on the surviving primary and its own on every other control.
  * Expansion and an open thread are explicit mechanical inputs, not application facts.
  */
 import {
@@ -80,19 +81,27 @@ const deriveEntryState = (entry) => {
 const entryState = (entry) => entry.state;
 export const entryEngaged = (entry) => entry.state !== "idle";
 
-const contributionItem = (offered, record, surface = "margin", cluster = null) =>
+// A target's agent work rides on its primary control (`workflowCarrier`); every other
+// control shows the receipt its contribution gave it. Each control item carries the
+// receipt this rule gives it, and the margin and the Page Map both paint that one.
+const controlReceipt = (carrier, record) =>
+  carrier?.key === record.key && carrier.owner === record.owner
+    ? carrier.receipt
+    : record.workflowReceipt;
+const contributionItem = (offered, record, carrier, cluster = null) =>
   Object.freeze({
     cluster,
     kind: "contribution",
     offered,
     record,
-    surface,
+    receipt: controlReceipt(carrier, record),
+    surface: "margin",
   });
-const controlItems = (offers) =>
+const visibleRecords = (offers) =>
   offers.flatMap((offered) =>
     offered.reading.entries
       .filter((record) => record.visible)
-      .map((record) => contributionItem(offered, record)),
+      .map((record) => ({ offered, record })),
   );
 export const choosePrimary = (entry) => entry.controls[0] ?? null;
 export const entryHasMarginHost = (entry) => entry.hasMarginHost;
@@ -243,7 +252,9 @@ function optionItems(entry, primary, focusedOffer = null) {
   if (focusedOffer) {
     return focusedOffer.reading.entries
       .filter((record) => record.visible)
-      .map((record) => contributionItem(focusedOffer, record, "margin", entry));
+      .map((record) =>
+        contributionItem(focusedOffer, record, entry.workflowCarrier, entry),
+      );
   }
   return [
     ...entry.controls
@@ -408,15 +419,10 @@ export function marginInventory(groups) {
           (offered) => offered.reading.side === "after" && !offered.reading.hasReadings,
         )
         .sort(compareContributions);
-      const controls = Object.freeze(
-        controlItems(direct).sort(compareContributionEntryRecords),
+      const directRecords = visibleRecords(direct).sort(
+        compareContributionEntryRecords,
       );
-      const afterControls = Object.freeze(
-        after.flatMap((offered) =>
-          controlItems([offered]).sort(compareContributionEntryRecords),
-        ),
-      );
-      const primary = controls[0];
+      const primary = directRecords[0];
       const receipt = group.workflowReceipt;
       const workflowCarrier =
         primary && receipt
@@ -426,6 +432,16 @@ export function marginInventory(groups) {
               receipt,
             })
           : null;
+      const controlsFrom = (records) =>
+        records.map(({ offered, record }) =>
+          contributionItem(offered, record, workflowCarrier),
+        );
+      const controls = Object.freeze(controlsFrom(directRecords));
+      const afterControls = Object.freeze(
+        after.flatMap((offered) =>
+          controlsFrom(visibleRecords([offered]).sort(compareContributionEntryRecords)),
+        ),
+      );
       if (workflowCarrier)
         items = items.filter((item) => !(item.workflowFace && item.carriesWorkflow));
       return Object.freeze({

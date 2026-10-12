@@ -15,6 +15,7 @@ import {
   contributionControlKey,
   contributionEntryRecord,
   materializeContributionControls,
+  presentContributionReceipts,
 } from "./contribution-controls.js";
 import { declareSide } from "./standing-target.js";
 import { under } from "./shadow.js";
@@ -87,7 +88,11 @@ export function createAnnotationView(owner, render, inventory, invalidate, retir
               );
               return offered.reading.entries
                 .filter((item) => item.visible)
-                .map((item) => controls.get(item.key));
+                .map((item) => {
+                  const control = controls.get(item.key);
+                  presentContributionReceipts(control, item.workflowReceipt, false);
+                  return control;
+                });
             });
         },
       });

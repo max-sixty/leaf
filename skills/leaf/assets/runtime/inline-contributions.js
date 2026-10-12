@@ -10,6 +10,7 @@ import {
   activateContributionControl,
   clearContributionControls,
   materializeContributionControls,
+  presentContributionReceipts,
 } from "./contribution-controls.js";
 import { compareContributions, spokenSubject } from "./contribution-model.js";
 import { addressableWord } from "./addressable-names.js";
@@ -77,7 +78,11 @@ export function createInlineContributions({ targetPath }) {
             );
             return offered.reading.entries
               .filter((entry) => entry.visible)
-              .map((entry) => materialized.get(entry.key));
+              .map((entry) => {
+                const control = materialized.get(entry.key);
+                presentContributionReceipts(control, entry.workflowReceipt, false);
+                return control;
+              });
           });
       const nodes = [...controls("before"), ...controls("after")];
       for (const node of nodes) node.removeAttribute("data-lf-margin-entry-primary");

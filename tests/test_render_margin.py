@@ -4240,6 +4240,104 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     expect(workflow).to_have_attribute("title", f"Working · {detail}")
 
 
+def test_margin_and_page_map_agree_on_each_controls_receipt(browser, serve):
+    """A package control's own workflow receipt reads the same in both projections.
+
+    The target's agent work rides on its primary control, and every other control shows
+    the receipt its contribution gave it. The contrast is a control that gives up the
+    primary seat: it goes back to its own receipt in the margin as in the Page Map.
+    """
+    page = open_page(
+        browser,
+        live_url(
+            serve(
+                ASK_PAGE,
+                events=[
+                    {**COMMENT_ON_ASK, "id": "1" * 32},
+                    {
+                        **COMMENT_ON_ASK,
+                        "id": "2" * 32,
+                        "text": "Check the return visit too.",
+                    },
+                ],
+            )
+        ),
+    )
+    resized(page, 1440, 900)
+    roots = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    record_claim(serve.page_dir)
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        delivery_model.record_pickup(transaction, roots)
+    claimed = CliRunner().invoke(
+        cli_model.cli,
+        ["task", "start", str(serve.page_dir), roots[0]["id"], "Checking the visit."],
+    )
+    assert claimed.exit_code == 0, claimed.output
+    told(page)
+    cluster = page.locator('[data-lf-margin-for="bracket"]')
+    expect(cluster.locator(":scope > .lf-margin-marker")).to_have_attribute(
+        "data-lf-agent-workflow", "working"
+    )
+    page.evaluate("""async () => {
+      const {contributionEntry, registerContribution} =
+        await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
+      const ownReceipt = runtime.workflows.find(item => item.stage === 'picked_up');
+      let approving = false;
+      const contribution = registerContribution({
+        key: 'receipt-probe', target: document.querySelector('#bracket'),
+        read: () => ({entries: [
+          ...(approving ? [contributionEntry({key: 'approve', icon: 'check',
+            label: 'Approve', rank: 'complete'})] : []),
+          contributionEntry({key: 'edit', icon: 'edit', label: 'Edit',
+            workflowReceipt: ownReceipt}),
+        ]}), activate: () => {}
+      });
+      window.offerApproval = () => {
+        approving = true;
+        contribution.update({immediate: true});
+      };
+    }""")
+
+    def receipts():
+        margin = {
+            key: cluster.locator(f'[data-lf-margin-entry-key="{key}"]').get_attribute(
+                "data-lf-agent-workflow"
+            )
+            for key in ("approve", "edit")
+            if cluster.locator(f'[data-lf-margin-entry-key="{key}"]').count()
+        }
+        page.keyboard.press("g")
+        page.keyboard.press("Shift+m")
+        dialog = page.locator(".lf-page-map-dialog")
+        expect(dialog).to_be_visible()
+        rows = dialog.locator("[data-lf-map-margin-entry]")
+        mapped = {
+            key: rows.filter(has_text=label).get_attribute("data-lf-agent-workflow")
+            for key, label in (("approve", "Approve"), ("edit", "Edit"))
+            if rows.filter(has_text=label).count()
+        }
+        page.keyboard.press("Escape")
+        expect(dialog).to_be_hidden()
+        return margin, mapped
+
+    carrying = {"edit": "working"}
+    expect(cluster.locator('[data-lf-margin-entry-key="edit"]')).to_have_attribute(
+        "data-lf-agent-workflow", "working"
+    )
+    assert receipts() == (carrying, carrying)
+    page.evaluate("window.offerApproval()")
+    expect(cluster.locator('[data-lf-margin-entry-key="approve"]')).to_have_attribute(
+        "data-lf-agent-workflow", "working"
+    )
+    displaced = {"approve": "working", "edit": "picked_up"}
+    assert receipts() == (displaced, displaced)
+
+
 def _margin_entry_paint(control):
     return control.evaluate("""node => {
       const style = getComputedStyle(node);

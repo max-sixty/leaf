@@ -612,6 +612,9 @@ def test_shim_dispatches_every_command_through_one_uv_run(tmp_path, monkeypatch,
     fake_uv.chmod(0o755)
     monkeypatch.setenv("PATH", f"{tmp_path}:{os.environ['PATH']}")
     shim = PLUGIN_ROOT / "bin" / "leaf"
+    selected = tmp_path / "selected-leaf"
+    selected.symlink_to(shim)
+    monkeypatch.setenv("LEAF_HOST_LAUNCHER", str(selected))
 
     result = subprocess.run(
         [shim, *args],
@@ -641,7 +644,61 @@ def test_shim_dispatches_every_command_through_one_uv_run(tmp_path, monkeypatch,
     ]
 
 
-def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(tmp_path):
+def test_the_launcher_uses_the_hosts_selected_leaf_for_commands_and_hooks(
+    tmp_path, monkeypatch
+):
+    """A native plugin must retain the host's Python environment and hook stdin."""
+    launcher = tmp_path / "plugin" / "bin" / "leaf"
+    launcher.parent.mkdir(parents=True)
+    shutil.copy2(PLUGIN_ROOT / "bin" / "leaf", launcher)
+    interpreter = launcher.parent.parent / ".venv" / "bin" / "python"
+    interpreter.parent.mkdir(parents=True)
+    interpreter.write_text("#!/bin/sh\nexit 3\n")
+    interpreter.chmod(0o755)
+    selected = tmp_path / "selected leaf"
+    selected.write_text(
+        f"#!{sys.executable}\n"
+        "import sys\n"
+        'sys.stdout.write("".join(f"{arg}\\n" for arg in sys.argv[1:]) + sys.stdin.read())\n'
+        "sys.exit(23)\n"
+    )
+    selected.chmod(0o755)
+    monkeypatch.setenv("LEAF_HOST_LAUNCHER", str(selected))
+    for args, payload in [
+        (["page", "check", "a page"], ""),
+        (["hook", "--harness", "codex"], '{"session_id":"hosted"}'),
+    ]:
+        result = subprocess.run(
+            [launcher, *args],
+            input=payload,
+            capture_output=True,
+            text=True,
+            timeout=STATED_TIMEOUT,
+            check=False,
+        )
+        assert (result.returncode, result.stdout, result.stderr) == (
+            23,
+            "".join(f"{arg}\n" for arg in args) + payload,
+            "",
+        )
+    monkeypatch.setenv("LEAF_HOST_LAUNCHER", "leaf")
+    refused = subprocess.run(
+        [launcher, "--version"],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=False,
+    )
+    assert (refused.returncode, refused.stdout, refused.stderr) == (
+        2,
+        "",
+        "LEAF_HOST_LAUNCHER must name an absolute launcher path\n",
+    )
+
+
+def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(
+    tmp_path, monkeypatch
+):
     """Which copy of leaf answered is otherwise unknowable from outside it. A
     harness session runs the payload its plugin cache holds and a checkout stands
     beside it; `bin/leaf` is identical across versions and nothing the CLI
@@ -657,6 +714,12 @@ def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(tm
     Eager and page-free, so it answers with no page named and nothing written
     where it ran, which is the whole of what a session asking the question has.
     """
+    # Pi exposes LEAF as the agent's locator; explicit launchers still name their
+    # own payload, even when another install supplied that locator.
+    selected = tmp_path / "installed-leaf"
+    selected.write_text("#!/bin/sh\nexit 99\n")
+    selected.chmod(0o755)
+    monkeypatch.setenv("LEAF", str(selected))
     cached_commit = "123456789abc"
     cached = install_payload(
         tmp_path / "plugins" / "cache" / "marketplace" / "leaf" / cached_commit
@@ -679,7 +742,8 @@ def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(tm
             check=False,
         )
 
-    here = asked(LEAF_COMMAND, "--root")
+    checkout_launcher = [str(PLUGIN_ROOT / "bin" / "leaf")]
+    here = asked(checkout_launcher, "--root")
     assert here.returncode == 0, here.stderr
     assert here.stdout.strip() == str(PLUGIN_ROOT.resolve())
 
@@ -695,7 +759,7 @@ def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(tm
         == f"leaf {cached_commit}, installed 2026-09-21T14:13:20+00:00"
     )
 
-    checkout = asked(LEAF_COMMAND, "--version")
+    checkout = asked(checkout_launcher, "--version")
     assert checkout.returncode == 0, checkout.stderr
     assert re.fullmatch(
         r"leaf [0-9a-f]{12}\+?, committed "

@@ -6835,7 +6835,14 @@ def test_commenting_on_the_same_selection_preserves_the_existing_suggestion(
 
 @pytest.mark.parametrize(
     "change",
-    ["widget", "revision", "hidden-revision", "window-revision", "reloaded-revision"],
+    [
+        "widget",
+        "revision",
+        "dragged-revision",
+        "hidden-revision",
+        "window-revision",
+        "reloaded-revision",
+    ],
 )
 def test_saved_widget_words_cannot_dismiss_an_unfinished_comment(
     browser, serve, change
@@ -6882,6 +6889,23 @@ def test_saved_widget_words_cannot_dismiss_an_unfinished_comment(
     editor.press("Shift+ArrowRight")
     caret = editor.evaluate("e => [e.selectionStart, e.selectionEnd]")
     rendered(page)
+    if change == "dragged-revision":
+        before_drag = editor.bounding_box()
+        grip = page.locator(".lf-fab-bar > .lf-surface-grip").bounding_box()
+        x, y = grip["x"] + grip["width"] / 2, grip["y"] + 2
+        page.mouse.move(x, y)
+        page.mouse.down()
+        page.mouse.move(x - 60, y + 80, steps=8)
+        page.mouse.up()
+        page.wait_for_function(
+            """before => {
+              const box = document.querySelector('.lf-fab-input').getBoundingClientRect();
+              return Math.abs(box.x - before.x + 60) < 1 &&
+                     Math.abs(box.y - before.y - 80) < 1;
+            }""",
+            arg=before_drag,
+        )
+        expect(editor).to_be_focused()
     if change == "window-revision":
         resized(page, 480, 900)
         page.keyboard.press("g")
@@ -6904,7 +6928,7 @@ def test_saved_widget_words_cannot_dismiss_an_unfinished_comment(
     told(page)
     if change != "widget":
         rendered(page)
-        if change in {"revision", "window-revision"}:
+        if change in {"revision", "dragged-revision", "window-revision"}:
             page.keyboard.press("Control+Alt+r")
         wait_for_revision(page, 2)
     if change == "reloaded-revision":

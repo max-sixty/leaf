@@ -49,7 +49,8 @@
    where the boundary shifted the box in, the edge against that boundary. Content that
    grows the box then moves only its free edges, in the layout that grows it. Stood by
    its top-left corner, a box that grows at its left or top would paint grown the wrong
-   way for a frame, until the placement that follows the resize carried it back.
+   way for a frame, until the placement that follows the resize carried it back. A `hold`
+   that carries an inline offset names that axis's edge too (`inline`).
 
    Neither surface stands before the user acts, so the bundle stays off the presentation
    path and loads as soon as the page has presented, as an arrival the page answers for.
@@ -142,8 +143,9 @@ function holderOf({ edge, at }, context, overflowAncestors) {
 // The edges that hold the box where the answer stands it, one per axis, with the box's
 // size and its containing block's, which an inset on a right or bottom edge is measured
 // from. It runs after the surface's middleware, so it reads the box as sized and shifted.
-// A surface middleware named `hold` that keeps a block edge still reports it as `edge`;
-// an edge the boundary shifted the box against outranks it.
+// A surface middleware named `hold` that keeps a block edge still reports it as `edge`,
+// and one that carries an inline offset its inline edge as `inline`; an edge the
+// boundary shifted the box against outranks either.
 const held = {
   name: "held",
   async fn(state) {
@@ -155,6 +157,7 @@ const held = {
         ? { x: aligned("left", "right"), y: side === "top" ? "bottom" : "top" }
         : { x: side === "left" ? "right" : "left", y: aligned("top", "bottom") };
     edges.y = middlewareData.hold?.edge ?? edges.y;
+    edges.x = middlewareData.hold?.inline ?? edges.x;
     const shifted = middlewareData.shift ?? {};
     if (Math.abs(shifted.x ?? 0) >= 0.5) edges.x = shifted.x < 0 ? "right" : "left";
     if (Math.abs(shifted.y ?? 0) >= 0.5) edges.y = shifted.y < 0 ? "bottom" : "top";

@@ -42,6 +42,7 @@ import { LAYOUT } from "../../widget-elements.js";
 import { under } from "../../shadow.js";
 import { union } from "../../rect.js";
 import { floatingPlacement, floatingUi } from "../floating.js";
+import { surfaceGrip } from "../surface-grip.js";
 import {
   commentAttachment,
   commentReference,
@@ -82,6 +83,27 @@ export function createFloatingResponsePlacement({
   let editingAttachment = null;
   // An explicit open on a hidden subject retains a window seat until it returns.
   let windowPosture = false;
+  // The reading region the last placement stood the box in, whose boundary holds a
+  // carry in.
+  let fabRegion = null;
+  // Carried by its grip, the box stands where the user drops it, relative to its
+  // passage, and its card opens there on Send.
+  fabBar.append(
+    surfaceGrip({
+      surface: fabBar,
+      bounds: () => floatBoundary(fabRegion),
+      dropped(box) {
+        if (!response.anchor || !response.floating) return;
+        if (box && response.open)
+          fabPlacement.adopt({
+            box,
+            placement: { ...fabPlacement.capture(), moved: true },
+          });
+        nativeAttachment = false;
+        placeFab();
+      },
+    }),
+  );
   // The browser's selected Range is a mechanical place even when its durable quote
   // is ambiguous. Keep it for this response transaction, only while its original
   // endpoints survive. A revision replacing them retires it; semantic resolution
@@ -158,7 +180,13 @@ export function createFloatingResponsePlacement({
   }
 
   function scheduleFabPosition() {
-    if (fabPositionFrame || !response.anchor || !response.floating) return;
+    if (
+      fabPositionFrame ||
+      !response.anchor ||
+      !response.floating ||
+      fabBar.hasAttribute("data-lf-carried")
+    )
+      return;
     fabPositionFrame = nextRender(() => {
       fabPositionFrame = 0;
       placeFab();
@@ -353,6 +381,7 @@ export function createFloatingResponsePlacement({
     if (response.open && nativeAttachment && geometry && !windowPosture) return true;
     const boundary = place.region ? floatBoundary(place.region) : windowBoundary;
     if (boundary.width <= 0 || boundary.height <= 0) return false;
+    fabRegion = place.region;
     // Width before coordinates: the side is chosen from the card's minimum, then the size
     // pass gives CSS that side's actual inline room. If a later resize makes the chosen
     // side narrower than the bar's minimum, use the whole boundary and let shift overlap
@@ -378,7 +407,7 @@ export function createFloatingResponsePlacement({
         layoutPx(Math.max(0, boundary.height / scale)),
       );
     };
-    const { hold } = fabPlacement.choose({
+    fabPlacement.choose({
       clear: place.clear,
       row: place.row,
       column: place.column,
@@ -406,7 +435,6 @@ export function createFloatingResponsePlacement({
           column: place.column,
           margin: place.margin,
           boundary,
-          hold: hold ? () => hold : null,
           fit({ width, scale }) {
             if (!stillCurrent()) return;
             setWidth(width, scale.x);

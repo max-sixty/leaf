@@ -100,9 +100,17 @@
         port.postMessage({ type: "connected", nonce });
         bridge.install();
         dress(settings.dress);
+        root.lfInitial.setRuntimeRootAttribute(root, "data-lf-sample-connecting", null);
         readyResolve();
         for (const value of queued.splice(0)) port.postMessage(value);
       };
+      // What the document wears, its dress and whether it stands as a block, comes in
+      // the containing page's answer, which can land frames after the document could
+      // first paint. Until it does the document paints nothing (theme.css), so no frame
+      // shows a playground's candidate undressed. Opened as a window of its own, it
+      // has no containing page to answer and paints at once.
+      if (window.parent !== window)
+        root.lfInitial.setRuntimeRootAttribute(root, "data-lf-sample-connecting", "");
       window.addEventListener("message", connect);
       window.parent.postMessage({ type: "leaf-sample-connect", sample, nonce }, "*");
       window.addEventListener("pagehide", () => send({ type: "departed" }));

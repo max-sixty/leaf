@@ -6902,16 +6902,30 @@ def test_a_playground_dresses_each_sample_child_and_never_its_own_page(browser, 
 
     # The reset child has an opaque origin. Collect its paints there, then request
     # the whole sequence after Reset completes across the browsing-context boundary.
+    # The parent's answer to the child's connection is held for a few frames, as a
+    # busy machine holds it: no frame the child shows meanwhile may be undressed.
     page.add_init_script("""(() => {
       if (window === top) return;
       const paints = [];
       let sampling = true;
       const tick = () => {
         const note = document.getElementById('child-note');
-        if (note) paints.push(getComputedStyle(note).color);
+        if (note?.checkVisibility({visibilityProperty: true, opacityProperty: true}))
+          paints.push(getComputedStyle(note).color);
         if (sampling) requestAnimationFrame(tick);
       };
       requestAnimationFrame(tick);
+      window.addEventListener('message', event => {
+        if (event.source !== parent || !event.ports.length || event.lfHeld) return;
+        event.stopImmediatePropagation();
+        setTimeout(() => {
+          const held = new MessageEvent('message', {
+            data: event.data, source: event.source, ports: [...event.ports],
+          });
+          held.lfHeld = true;
+          window.dispatchEvent(held);
+        }, 200);
+      }, true);
       window.addEventListener('message', event => {
         if (event.source !== parent || event.data?.type !== 'lf-test-tone-read')
           return;

@@ -1500,7 +1500,7 @@ def reported_browser_errors(page, *expected):
 def _names(fragment, line):
     """Whether an expected fragment names a browser problem's first line. An HTTP
     status names the entry a failed response is recorded as, `"<status> <url>"`
-    (`render_gate.findings`, `failed-load`), by its start: elsewhere in a line, a port
+    (`leaf.findings`, `failed-load`), by its start: elsewhere in a line, a port
     or a stack's address can hold the same digits."""
     if fragment.isdigit():
         return line.startswith(f"{fragment} ")

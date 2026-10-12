@@ -10914,6 +10914,60 @@ def test_a_zoomed_window_places_floating_surfaces_by_their_held_edges(browser, s
         )
 
 
+@pytest.mark.parametrize("surface", ["card", "composer"])
+def test_a_dropped_surface_keeps_its_box_until_placement_commits(
+    browser, serve, surface
+):
+    """Release transfers the carried box without a visit to its old placement.
+
+    Firefox drops hover during that visit, then restarts the delayed border tint.
+    Read when the carry ends, before asynchronous placement can hide a gap.
+    The comment box shares the same handoff even where hover happens to survive.
+    """
+    url = serve(PANEL_PAGE)
+    panel_comment(serve.page_dir, "Keep this explanation.", {"section": "how-store"})
+    page = open_page(browser, url)
+    if surface == "card":
+        page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
+        holder = page.locator(".lf-margin-preview")
+        expect(holder).to_have_attribute("data-lf-thread-placement", re.compile(".+"))
+    else:
+        select_words(page, "#how-cap")
+        page.keyboard.press("c")
+        holder = page.locator(".lf-fab-bar")
+        expect(holder.locator(".lf-fab-input")).to_be_focused()
+    grip = holder.locator(":scope > .lf-surface-grip")
+    box = grip.bounding_box()
+    x, y = box["x"] + 25, box["y"] + (6 if surface == "card" else 2)
+    page.mouse.move(x, y)
+    page.mouse.down()
+    expect(holder).to_have_attribute("data-lf-carried", "")
+    page.mouse.move(x - 100, y - 30, steps=6)
+    one_frame(page)
+    held = holder.bounding_box()
+    holder.evaluate(
+        """surface => {
+          const observer = new MutationObserver(() => {
+            if (surface.hasAttribute('data-lf-carried')) return;
+            surface.lfDroppedBox = surface.getBoundingClientRect().toJSON();
+            observer.disconnect();
+          });
+          observer.observe(surface, {attributes:true, attributeFilter:['data-lf-carried']});
+        }"""
+    )
+    page.mouse.up()
+    released = holder.evaluate("surface => surface.lfDroppedBox")
+    assert released is not None, "the release never reached the grip"
+    for axis in ("x", "y"):
+        assert released[axis] == pytest.approx(held[axis], abs=0.5), (
+            f"{surface} returned to its old {axis} at release: {held} -> {released}"
+        )
+    expect(holder).not_to_have_attribute("data-lf-carried", "")
+    landed = holder.bounding_box()
+    for axis in ("x", "y"):
+        assert landed[axis] == pytest.approx(held[axis], abs=0.5), (held, landed)
+
+
 @pytest.mark.parametrize(
     ("zoom_home", "width"),
     [("root", 605), ("transformed-holder", 315)],

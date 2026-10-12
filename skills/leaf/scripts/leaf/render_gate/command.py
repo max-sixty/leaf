@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
+from leaf.findings import Finding
 from leaf.revision_artifact import RevisionArtifact
 from leaf.structure import SourceDocument
 
@@ -19,7 +20,6 @@ from .browser import (
     launch_browser,
     playwright_driver,
 )
-from .findings import Finding
 from .page_code import run_page_code
 from .preview import preview_server
 from .readings import SWEEP_WIDTHS
@@ -255,33 +255,72 @@ def _render_verdict(reading: RenderReading, screens, browser_name: str) -> int:
     return 0
 
 
-def widget_quality_report(package: Path) -> int:
-    """Print what the widget quality checks find in the package's own widgets
-    (`widget_quality`). A finding is advice and leaves the status 0; a page of worked
-    examples that cannot be drawn leaves nothing to read, and is 1."""
-    from .widget_quality import CHECKS, UnreadablePage, own_tags, widget_findings
+@dataclass(frozen=True, slots=True)
+class WidgetQuality:
+    """What `package check --render` read of the package's `widgets`: its findings
+    and the browser that drew the worked examples, or why no browser could. A finding
+    is advice for the widgets' author, apart from examples that could not be drawn
+    (`unreadable-examples`), which leave nothing to read and fail the check."""
 
+    widgets: int
+    browser: str | None = None
+    unavailable: str | None = None
+    findings: tuple[Finding, ...] = ()
+
+    @property
+    def status(self) -> int:
+        return 1 if any(f.severity == "error" for f in self.findings) else 0
+
+    def json(self) -> dict:
+        """The browser reading, in the shape `BrowserCheck.json` gives it."""
+        ran = [] if self.unavailable is not None else ["widget quality"]
+        reading = {"asked": ["widget quality"], "ran": ran, "browser": self.browser}
+        if self.unavailable is not None:
+            reading["unavailable"] = self.unavailable
+        return reading
+
+
+def widget_quality(package: Path) -> WidgetQuality:
+    """Read the widget quality checks (`widget_quality`) of the package's own
+    widgets in the host's browser."""
+    from .widget_quality import UnreadablePage, own_tags, widget_findings
+
+    def read(browser):
+        try:
+            return widget_findings(browser, package)
+        except UnreadablePage as error:
+            return [Finding("unreadable-examples", values={"error": str(error)})]
+
+    widgets = len(own_tags(package))
     try:
-        ran = in_browser(
-            "widget quality", lambda browser: widget_findings(browser, package)
-        )
-    except UnreadablePage as error:
-        print(
-            f"Error: widget examples could not be drawn: {error}",
-            file=sys.stderr,
-        )
-        return 1
-    if ran is None:
+        findings, browser_name = run_in_browser(read)
+    except NoBrowser as error:
+        return WidgetQuality(widgets, unavailable=str(error))
+    return WidgetQuality(widgets, browser_name, findings=tuple(findings))
+
+
+def print_widget_quality(check: WidgetQuality) -> int:
+    """Say what the widget quality checks found, for a reader, and return the
+    status."""
+    from .widget_quality import CHECKS
+
+    if check.unavailable is not None:
+        not_run("widget quality", check.unavailable)
         return 0
-    findings, browser_name = ran
-    widgets = f"{len(own_tags(package))} widget(s)"
-    if not findings:
-        print(f"✓ widget quality: {widgets} pass {', '.join(CHECKS)} in {browser_name}")
+    if check.status:
+        for finding in check.findings:
+            print(f"Error: {finding}", file=sys.stderr)
+        return check.status
+    widgets = f"{check.widgets} widget(s)"
+    if not check.findings:
+        print(
+            f"✓ widget quality: {widgets} pass {', '.join(CHECKS)} in {check.browser}"
+        )
         return 0
     print(
-        f"widget quality: {len(findings)} finding(s) for {widgets} in {browser_name}, "
-        "advice for the widgets' author:"
+        f"widget quality: {len(check.findings)} finding(s) for {widgets} in "
+        f"{check.browser}, advice for the widgets' author:"
     )
-    for finding in findings:
+    for finding in check.findings:
         print(f"  · {finding}")
     return 0

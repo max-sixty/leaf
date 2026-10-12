@@ -33,7 +33,7 @@ import {
   threadAttention,
   workflowLabel,
 } from "./thread/workflow.js";
-import { renderedParent, shadowHost, under } from "./shadow.js";
+import { renderedOrder, shadowHost, under } from "./shadow.js";
 import { placeOf } from "./standing-target.js";
 import { questionPlace } from "./questions/place.js";
 import { scrollBehavior } from "./motion.js";
@@ -94,34 +94,7 @@ export function createAnnotationInventory({
     if (left === right) return 0;
     if (!left) return 1;
     if (!right) return -1;
-    // compareDocumentPosition calls nodes in separate shadow trees disconnected and
-    // leaves their order implementation-specific. Build each composed ancestry instead:
-    // the first divergent nodes share a document or shadow root and therefore have a
-    // stable order. Keeping every inner step also distinguishes a target in an outer
-    // tree from a later target inside one of its nested shadow hosts.
-    const ancestry = (target) => {
-      const chain = [];
-      for (let node = target; node;) {
-        chain.push(node);
-        node = renderedParent(node);
-      }
-      return chain.reverse();
-    };
-    const leftChain = ancestry(left);
-    const rightChain = ancestry(right);
-    let index = 0;
-    while (
-      index < leftChain.length &&
-      index < rightChain.length &&
-      leftChain[index] === rightChain[index]
-    )
-      index += 1;
-    if (index === leftChain.length || index === rightChain.length)
-      return leftChain.length - rightChain.length;
-    return leftChain[index].compareDocumentPosition(rightChain[index]) &
-      Node.DOCUMENT_POSITION_FOLLOWING
-      ? -1
-      : 1;
+    return renderedOrder(left, right);
   }
 
   // Targets and generated-reading callbacks stay outside the model. Registered

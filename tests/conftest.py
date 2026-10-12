@@ -437,7 +437,8 @@ def isolated_session(tmp_path_factory, monkeypatch):
     by the loop guard. Isolate XDG_STATE_HOME, where Leaf stores claims and installed
     packages, and CODEX_HOME, where Codex reads its configuration and sessions,
     while retaining HOME so subprocesses share the host's uv cache. Clear the
-    developer's App Server endpoint so a fake task cannot connect to it.
+    developer's App Server endpoint and host launcher override so a fake task
+    cannot use them.
 
     The session the tests run as is this worker: a synthetic id, so nothing of
     the developer's answers for it, and the worker's own pid. Every page a test
@@ -457,6 +458,7 @@ def isolated_session(tmp_path_factory, monkeypatch):
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path_factory.mktemp("state")))
     monkeypatch.setenv("CODEX_HOME", str(tmp_path_factory.mktemp("codex")))
     monkeypatch.delenv(codex_model.APP_SERVER_ENV, raising=False)
+    monkeypatch.delenv("LEAF_HOST_LAUNCHER", raising=False)
     for name in harness_model.IDENTITY_VARIABLES:
         monkeypatch.delenv(name, raising=False)
     # Claude Code's session registry, where a live turn is read

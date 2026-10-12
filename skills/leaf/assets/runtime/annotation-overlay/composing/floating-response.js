@@ -94,22 +94,21 @@ export function createFloatingResponsePlacement({
   let fabRegion = null;
   // Carried by its grip, the box stands where the user drops it, relative to its
   // passage, and its card opens there on Send.
-  fabBar.append(
-    surfaceGrip({
-      surface: fabBar,
-      bounds: () => floatBoundary(fabRegion),
-      dropped(box) {
-        if (!response.anchor || !response.floating) return;
-        if (box && response.open)
-          fabPlacement.adopt({
-            box,
-            placement: { ...fabPlacement.capture(), moved: true },
-          });
-        nativeAttachment = false;
-        placeFab();
-      },
-    }),
-  );
+  const carry = surfaceGrip({
+    surface: fabBar,
+    bounds: () => floatBoundary(fabRegion),
+    dropped(box) {
+      if (!response.anchor || !response.floating) return;
+      if (box && response.open)
+        fabPlacement.adopt({
+          box,
+          placement: { ...fabPlacement.capture(), moved: true },
+        });
+      nativeAttachment = false;
+      placeFab();
+    },
+  });
+  fabBar.append(carry.grip);
   // The browser's selected Range is a mechanical place even when its durable quote
   // is ambiguous. Keep it for this response transaction, only while its original
   // endpoints survive. A revision replacing them retires it; semantic resolution
@@ -168,6 +167,7 @@ export function createFloatingResponsePlacement({
   // Native-seat readiness belongs to composition; stopping this presenter retires
   // only its observers and geometry, never a handoff waiting for an inline seat.
   function stopFabPositioning({ reset = false } = {}) {
+    carry.placed();
     nativeAttachment = false;
     if (fabBar.style.height) fabBar.style.removeProperty("height");
     fabPosition.stop();
@@ -468,6 +468,7 @@ export function createFloatingResponsePlacement({
         // Intrinsic sizing keeps moving that inset from masquerading as content resize.
         fabBar.style.height = response.open ? "max-content" : "";
         fabPosition.stand(position);
+        carry.placed();
         nativeAttachment = response.open && fabPosition.follows();
         positioned(true);
         stoodAgain();

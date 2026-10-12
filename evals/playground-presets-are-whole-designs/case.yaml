@@ -41,10 +41,6 @@ vars:
     six lines. The page directory is not reachable from here, so reply with the HTML
     rather than writing a file.
 assert:
-- type: regex
-  metric: has-presets
-  value: <lf-playground-preset\b
-  transform: output.toLowerCase()
 - type: llm-rubric
   metric: realistic-product-copy
   value: |

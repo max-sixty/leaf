@@ -850,7 +850,8 @@ opening's automatic focus, so place the intended arrival with `focusDestination`
 popover keeps its `source` when Leaf re-seats it, as it does when a panel starts or stops
 covering the page. Close a native dialog or popover with `closeNativeLayer(layer)`,
 which inside a sample keeps the platform's return from taking focus from the containing
-page.
+page. `isNativeLayer(node)` asks whether a popover is open or a dialog stands modal; lint
+refuses a selector that asks it again.
 
 A layer closes with `closeLayer(close, land)`. `close` hides it, and `land`, a function,
 puts a user who stood in it where the close takes them, usually
@@ -1305,7 +1306,8 @@ Each record contains:
   message: null,
   prompt: {text: "When should this ship?", target: "release-context"},
   answer: {value: ["release-later"], event: null},
-  status: "answered", // open | answered | withdrawn
+  status: "answered", // open | answered | answered_elsewhere | withdrawn
+  end: null,          // a prose ask the agent ended: {detail, event}
   next_actor: null,   // user | agent | null
 }
 ```
@@ -1318,8 +1320,11 @@ Each record contains:
   wrapper contributes the ask's heading and arrival target without changing its identity
   or answer owner; `lf-ask` is one such wrapper.
 - A prose ask has `source.kind === "reply"` and its agent message's id as `source.id`. Its
-  answer holds the settling user message or reaction and its event reference. A message
-  carrying a widget ask does not also pose a prose ask.
+  answer holds the settling user message or reaction and its event reference. When the
+  agent ends it with `leaf task end` instead, `answer` stays `null`, `status` is
+  `answered_elsewhere` for `done` and `withdrawn` for `dropped`, and `end.detail` says
+  where the answer is or why it no longer applies. A message carrying a widget ask does
+  not also pose a prose ask.
 - An approval ask has `source.kind === "approval"`, `source.version` naming the stamped
   version, and id `approval:v<version>`. Its answer is `null` until that version's approval
   settles it with typed `answer.value === true`; Undo reopens it. Its arrival reaches the
@@ -1373,7 +1378,7 @@ panel uses.
 Leaf's arrival, and resolves to `false` for an unavailable row. `queueActions.done(key)`
 returns an admission promise only for a current to-do on `questions`, one the agent opened
 on the user, and `null` otherwise. A widget ask ends through its widget, a prose ask through
-a reply or settling reaction, and an approval ask through its version's banner approval.
+a reply, a settling reaction or the agent's `leaf task end`, and an approval ask through its version's banner approval.
 Done removes its to-do optimistically, a duplicate cannot send again, and a refusal restores
 the admitted reading; the server stays final. Collections keep their shape while `phase` is
 `waiting`, `ready` or `offline`; activate only a ready collection.

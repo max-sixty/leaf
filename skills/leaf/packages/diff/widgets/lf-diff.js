@@ -1024,8 +1024,9 @@ customElements.define(
     }
 
     // A patch that fails to load may load on Retry. One this widget cannot draw never
-    // will, so it offers no Retry and reports to the agent, which stored it: the
-    // manifest's producer leaves judging a patch to this widget.
+    // will, so it offers no Retry, and `applyEntry` reports it to the agent, which stored
+    // it, once the current rendering shows it: the manifest's producer leaves judging a
+    // patch to this widget.
     async prepareEntry(snapshot, record, renderKey, sharedStyles) {
       let patch;
       if (!record.parsed)
@@ -1041,7 +1042,6 @@ customElements.define(
           renderKey === nextKey ? null : await renderFile(file, sharedStyles);
         return { renderKey: nextKey, rendered };
       } catch (error) {
-        reportFailure(this, error);
         return { error };
       }
     }
@@ -1255,6 +1255,7 @@ customElements.define(
         entry.failed = true;
         // Reopening retries a load; nothing loads a patch this widget refused again.
         entry.refused = !retry;
+        if (entry.refused) reportFailure(this, error);
         entry.lines = [];
         entry.renderKey = null;
         deferredError(

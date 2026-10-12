@@ -7,6 +7,8 @@ import sys
 from html.parser import HTMLParser
 from pathlib import Path
 
+from leaf.structure import SourceDocument
+
 from leaf_dev import ROOT
 
 TEST_PAGES = ROOT / "tests" / "fixtures" / "pages"
@@ -64,6 +66,23 @@ def catalog_sources() -> list[Path]:
     catalog = Catalog()
     catalog.feed((ROOT / "docs" / "examples.html").read_text(encoding="utf-8"))
     return catalog.sources
+
+
+def document_metadata(source: Path) -> tuple[str, str]:
+    """The authored title and description a page's link card and catalog caption show."""
+    parsed = SourceDocument(source.read_text(encoding="utf-8"))
+    title = parsed.title.strip()
+    description = next(
+        (
+            (meta["content"] or "").strip()
+            for meta in parsed.named_metas
+            if meta["name"] == "description"
+        ),
+        "",
+    )
+    if not title or not description:
+        sys.exit(f"{source}: a published page needs a <title> and a description")
+    return title, description
 
 
 # An authored source's companions, named beside it whether or not it has each

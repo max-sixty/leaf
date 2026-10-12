@@ -598,7 +598,7 @@ function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
   // event under the declaration it was admitted with, and the base's authored values
   // are decoded under this document's; an entry whose verb was declared otherwise
   // then has no value here to compare, so the fold leaves it out.
-  const baseProjection = projectView(baseView, baseReading.thread);
+  const baseProjection = projectView(baseView);
   const declaredAlike = ({ e, spec }) => {
     const current = baseAuthored.get(e.widget)?.specs.get(e.action);
     return (

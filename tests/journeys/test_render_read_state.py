@@ -5,7 +5,7 @@ import re
 import time
 
 import pytest
-from interact_support import append_carried_log_record, wait_for
+from interact_support import append_carried_log_record, served_thread, wait_for
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import thread as thread_model
@@ -516,7 +516,7 @@ def _read_by_the_sample(page, child):
     expect(child.locator(".lf-first-unread")).to_be_hidden()
     round_trip(child)
     state = page.request.get(f"{child.url}api/state").json()
-    (thread,) = state["browser"]["thread"]["threads"]
+    (thread,) = served_thread(state["browser"])["threads"]
     assert thread["id"] == SAMPLE_READER
     assert thread["unread"] == []
 

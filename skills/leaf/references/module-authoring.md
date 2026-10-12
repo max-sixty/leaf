@@ -213,7 +213,11 @@ A behavior module follows these rules:
   In templates, `commandsOn(title, rows, options)` attaches that same command scope
   to its element. It attaches once per connection, takes the current declaration on
   each render, and withdraws its attachment when the directive leaves; projected
-  commands on the element remain.
+  commands on the element remain. When rows read the element they stand on, pass a
+  function of that element in place of the rows:
+  `commandsOn(title, (summary) => [{ keys: () => DISCLOSE(summary), … }])`. It runs
+  on each render, so it only builds rows. Declare a template's scope there rather
+  than looking its element up after rendering.
 
 Each helper's header under `runtime/` explains its contract.
 
@@ -970,8 +974,11 @@ checks connection again before painting. Returning permits fresh scheduling; it 
 not replay cancelled work.
 
 Both helpers decide departures at the arrival mutation batch: a move within that
-batch retains resources. Teardown that must happen synchronously, such as cancelling
-a grab or removing hoisted dialog content, belongs in `disconnectedCallback`.
+batch retains resources. A connecting or returning element's `start` runs only after
+every element that left before it has released, so a widget a revision replaces hands
+a registration only one element may hold, such as `registerThreadPresentation`, to its
+replacement. Teardown that must happen synchronously, such as cancelling a grab or
+removing hoisted dialog content, belongs in `disconnectedCallback`.
 
 ## Data subscriptions and projections
 
@@ -1357,7 +1364,7 @@ A widget declares `"x-thread-surface": true` to place Thread UI beside its own
 projected data. Leaf registers each instance once its module has upgraded it and
 retires it when it leaves the page, so the module neither registers nor unregisters.
 On each reconciliation pass core calls the element's own
-`threadOutlets(targets, {signal, collection})` with one ordered batch of admitted local
+`threadOutlets(targets, {signal, collection, onCommit})` with one ordered batch of admitted local
 targets; return an array of matching outlet Elements or `null` in that same order.
 Each target supplies `{anchor, placement, thread}`; `placement.datumElement` is the
 exact rendered datum, and `thread` is its current Thread record or `null` for the
@@ -1366,10 +1373,10 @@ the widget's own method, which finds or creates the outlet beside the datum (`lf
 `threadOutletFor` is the worked example):
 
 ```js
-threadOutlets(targets) {
+threadOutlets(targets, { onCommit }) {
   this.beginThreadSurface();
   const outlets = targets.map((target) => this.outletFor(target));
-  this.endThreadSurface();
+  onCommit(() => this.retireUnusedOutlets());
   return outlets;
 }
 ```
@@ -1381,7 +1388,11 @@ outlet would move what the user is reading: that thread waits in the margin unti
 user presses its marker, adds a turn of their own, or scrolls the datum out of the window.
 The composer may precede any Thread at its datum. The widget owns outlet creation,
 removal, and layout; it returns `null` for data that is filtered, collapsed, or not yet
-hydrated. Core maps each returned outlet to its target and validates target ownership
+hydrated. An outlet the widget stops returning may still hold the composer the user is
+typing in, until core moves it at commit. Remove such an outlet only from a function
+passed to `onCommit`, which runs once this batch's placement commits, and keep every
+returned outlet in the document when the widget redraws the data around it; moving an
+outlet with `move` keeps the user in it. Core maps each returned outlet to its target and validates target ownership
 and outlet containment before committing placements.
 Core moves its one composer node or renders retained messages, replies, reactions,
 settlement controls, and receipts into each outlet. A claimed thread does not also
@@ -1393,10 +1404,12 @@ into the panel.
 Returning `null` keeps lazy widgets lazy and restores the margin-projection fallback.
 Deliberate thread travel may reveal the datum through `lfRevealDatum`; the ordinary reconciliation pass
 then calls `threadOutlets` again. `threadSurface(this).update()` invalidates layout-only
-visibility changes. `threadOutlets` may return a Promise for its outlet array. Its second argument supplies
-`{signal, collection}`: the abort signal marks a preparation superseded or left behind by a widget that left the page,
-and the immutable complete collection supports retained layout allocations. Returning
-outlets after cancellation cannot claim or move content.
+visibility changes. `threadOutlets` may return a Promise for its outlet array. Its second
+argument supplies `{signal, collection, onCommit}`: the abort signal marks a preparation
+superseded or left behind by a widget that left the page, the immutable complete
+collection supports retained layout allocations, and `onCommit(run)` registers work for
+the commit, which a cancelled preparation never reaches. Returning outlets after
+cancellation cannot claim or move content.
 If `threadOutlets` throws, Leaf reports a page error, clears that widget's core-owned
 views, and returns its threads to the margin. Other surfaces continue, and the
 next ordinary reconciliation calls it again. Outlets must remain inside their
@@ -1415,7 +1428,8 @@ Escape may return focus. Widgets do not receive draft, submission, or event APIs
 With `data-annotations="page"` on `body`, one connected Element may register
 `placePageThreads(owner, render)` to nominate page-owned conversation outlets; both
 registrations in this section throw on a page without it.
-Its callback receives the same admitted target batch and `{signal, collection}` context,
+Its callback receives the same admitted target batch and `{signal, collection, onCommit}`
+context,
 and returns the same matching outlet array as a widget-local surface. Page targets
 include exact passages and visual details, as well as projected data. The complete
 collection remains available for holding a row's allocation while its live target is

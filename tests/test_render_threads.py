@@ -11268,8 +11268,16 @@ def test_a_thread_resolved_while_its_reply_is_written_keeps_the_user_on_it(
     expect(thread.locator(".lf-msg", has_text="Half tr a thought")).to_be_visible()
 
 
+@pytest.mark.parametrize(
+    "patch",
+    [
+        SEAT_DIFF + "@@ -9 +9 @@\n-old = 1\n+new = 1\n",
+        SEAT_DIFF.replace('+return "new"', '+return "newer"'),
+    ],
+    ids=["elsewhere", "on-the-line"],
+)
 def test_a_comment_being_written_on_a_diff_line_stays_in_hand_across_a_new_patch(
-    browser, serve
+    browser, serve, patch
 ):
     """The same drop one surface over: the comment box a diff seats on a line went
     with the rebuilt diff, and the user was left on the page. The draft stays about
@@ -11295,26 +11303,19 @@ def test_a_comment_being_written_on_a_diff_line_stays_in_hand_across_a_new_patch
     box = page.locator(".lf-fab-input")
     expect(page.locator("lf-diff .lf-diff-thread-outlet .lf-fab-input")).to_be_focused()
     write(box, "Half a thought")
-    box.evaluate("box => box.setSelectionRange(4, 4)")
-    # Whether the page, at any task after the box leaves, holds the user nowhere: a
-    # key arriving then would run as a page command.
-    page.evaluate(
-        """() => {
-          window.__strandedAt = [];
-          document.addEventListener('focusout', () => setTimeout(() => {
-            if (document.activeElement === document.body)
-              window.__strandedAt.push(performance.now());
-          }), true);
-        }"""
-    )
-    data_model.cmd_data_set(
-        serve.page_dir, "review-patch", SEAT_DIFF + "@@ -9 +9 @@\n-old = 1\n+new = 1\n"
-    )
+    box.evaluate("""box => {
+      box.setSelectionRange(4, 4);
+      window.blurs = 0;
+      box.addEventListener('blur', () => window.blurs++);
+    }""")
+    data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
     told(page)
+    expect(page.locator("lf-diff .lf-diff-thread-outlet")).to_have_count(0)
     expect(box).to_be_focused()
     expect(box).to_have_js_property("value", "Half a thought")
     assert box.evaluate("box => [box.selectionStart, box.selectionEnd]") == [4, 4]
-    assert page.evaluate("() => window.__strandedAt") == []
+    # The editor never leaves the document, so nothing has to put the user back.
+    assert page.evaluate("window.blurs") == 0
     page.keyboard.type(" tr")
     expect(box).to_have_js_property("value", "Half tr a thought")
     expect(box).to_be_focused()

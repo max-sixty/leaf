@@ -832,12 +832,13 @@
                 <p>
                   Leaf registers the widget when it upgrades and retires it when it
                   leaves the page. On each reconciliation pass Leaf calls the element's
-                  own <code>threadOutlets(targets, {signal, collection})</code> with one
-                  ordered batch of the admitted targets anchored exactly to its items,
-                  and the method returns for each target an element to place it in (an
-                  outlet), or null. Leaf maps each outlet to its thread or to the open
-                  comment box and controls where it is placed and how long it stays. The
-                  widget reads its registration with
+                  own
+                  <code>threadOutlets(targets, {signal, collection, onCommit})</code>
+                  with one ordered batch of the admitted targets anchored exactly to its
+                  items, and the method returns for each target an element to place it
+                  in (an outlet), or null. Leaf maps each outlet to its thread or to the
+                  open comment box and controls where it is placed and how long it
+                  stays. The widget reads its registration with
                   <code>threadSurface(element)</code>: <code>update()</code> says its
                   seats changed, and <code>open(datum, {origin})</code> opens Comment on
                   one of its items. Leaf owns anchors, drafts, response modes, sending,

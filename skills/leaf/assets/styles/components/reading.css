@@ -141,10 +141,8 @@
 :where(:root, .lf-thread-transcript) table:where([data-lf-space], [data-lf-space] *) { --lf-fills-frame: 1; }
 /* A table granted room of its own (`data-width`) fills only a drawn frame: elsewhere it
    keeps its columns' natural width within that room rather than spreading the room
-   between them, and layouts.css sizes its box to them. A list item, which its
-   list's padding indents from the column that placement measures from, draws no frame
-   to hold it, so a table in one fills its room as before (layouts.css). */
-:where(:root, .lf-thread-transcript) table:where([data-lf-space]:not([data-lf-space="column"])):where(:not(li table)) {
+   between them, and layouts.css sizes its box to them. */
+:where(:root, .lf-thread-transcript) table:where([data-lf-space]:not([data-lf-space="column"])) {
   --lf-fills-frame: 0; }
 @container style(--lf-block-frame: 1) {
   :where(:root, .lf-thread-transcript) table { --lf-fills-frame: 1; }
@@ -188,7 +186,7 @@
      color: var(--muted); font-weight: 600;
      border-bottom-color: var(--border-2); }
 :where(:root, .lf-thread-transcript) th[scope="row"] { font-weight: 600; }
-:where(:root, .lf-thread-transcript) :is(ul, ol) { margin: 10px 0; padding-left: 24px; }
+:where(:root, .lf-thread-transcript) :is(ul, ol) { margin: 10px 0; padding-inline-start: 24px; }
 :where(:root, .lf-thread-transcript) li { margin: 6px 0; }
 :where(:root, .lf-thread-transcript) hr { border: none; border-top: 1px solid var(--rule); margin: 40px 0; }
 

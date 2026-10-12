@@ -41,6 +41,7 @@ import {
   layoutChanged,
   loadDeferred,
   listWalkPosition,
+  move,
   offer,
   once,
   paintKeys,
@@ -455,32 +456,68 @@ function rowSpan(node) {
 // A file's datum owns its controls even when its evidence changes kind. Only the
 // inner presentation changes; a focus that no longer has a line or disclosure lands
 // on that same file, while surviving controls keep their own native focus.
-// Supplied outlets belong to core thread/composition presentation. It carries focus
-// when one leaves this file; the file's source fallback must not replace that standing.
-function holdFileFocus(entry, outlets) {
-  for (const { outlet } of outlets?.values() ?? []) if (holdFocus(outlet)) return null;
-  return holdFocus(entry.node, { key: LINE_KEY });
-}
+//
+// Thread outlets hold core's composer and thread views, so neither replacement takes one
+// out of the document: an outlet stays in its file until the thread surface has placed
+// what stands in it and retires it (`retireThreadOutlets`). The user writing in one
+// keeps their place natively, and no hold of this file's stands in for theirs.
+const holdFileFocus = (entry) => holdFocus(entry.node, { key: LINE_KEY });
 
-function replaceFileRendering(entry, row, outlets) {
-  const restore = holdFileFocus(entry, outlets);
+function replaceFileRendering(entry, row) {
+  const restore = holdFileFocus(entry);
   unwatchPathCut(entry.details);
-  setChildren(entry.node, [entry.node.firstElementChild, row]);
+  // Out of the replaced row first, which takes everything still in it.
+  const outlets = [...entry.node.querySelectorAll(".lf-diff-thread-outlet")];
+  for (const outlet of outlets)
+    if (outlet.parentNode !== entry.node) move(entry.node, outlet, null);
+  setChildren(entry.node, [entry.node.firstElementChild, row, ...outlets]);
   entry.details = row.matches("details") ? row : null;
   entry.lines = [];
   entry.renderKey = null;
   return () => restore?.(entry.details?.firstElementChild, entry.node);
 }
 
+// The line each thread outlet in a file's `content` column follows once the file is
+// drawn anew, as `{lead, after}`: its own datum's line in `rows` where that is drawn
+// again, which its record now names, or else the line that stood before it, or `lead`,
+// the column's start, where none did.
+function outletPlaces(content, rows, outlets) {
+  const lead = [];
+  const after = new Map();
+  let last = null;
+  for (const child of content?.children ?? []) {
+    const key = child.getAttribute(LINE_KEY);
+    if (key !== null) {
+      if (rows.has(key)) last = key;
+      continue;
+    }
+    const datum = child.dataset.lfThreadDatum;
+    const record = outlets?.get(datum);
+    if (record?.outlet !== child) continue;
+    if (rows.has(datum)) record.row = rows.get(datum);
+    const place = rows.has(datum) ? datum : last;
+    if (place === null) lead.push(record);
+    else after.set(place, [...(after.get(place) ?? []), record]);
+  }
+  return { lead, after };
+}
+
 // A file's evidence goes under its kept disclosure, whose summary the record paints.
 function replaceFileContent(entry, rendered, pairs, outlets) {
-  const restore = holdFileFocus(entry, outlets);
+  const restore = holdFileFocus(entry);
   const details = entry.details;
   const pre = details.querySelector("pre");
   const nextPre = rendered.pre;
   const prior = new Map(entry.lines.map((record) => [diffDatumKey(record), record]));
   const retained = new Map();
   const gutters = new Map();
+  // Read by the index each had before any is given its new one below: a hunk added
+  // above kept lines gives them indices other kept rows held.
+  const priorGutters = new Map(
+    [...(pre?.querySelectorAll("[data-gutter] > [data-line-index]") ?? [])].map(
+      (gutter) => [gutter.dataset.lineIndex, gutter],
+    ),
+  );
   for (const next of rendered.lines) {
     const previous = prior.get(diffDatumKey(next));
     if (!previous || previous.node.innerHTML !== next.node.innerHTML) continue;
@@ -488,15 +525,22 @@ function replaceFileContent(entry, rendered, pairs, outlets) {
     const nextGutter = nextPre.querySelector(
       `[data-gutter] [data-line-index="${next.node.dataset.lineIndex}"]`,
     );
-    const gutter = pre.querySelector(
-      `[data-gutter] [data-line-index="${previous.node.dataset.lineIndex}"]`,
-    );
+    const gutter = priorGutters.get(previous.node.dataset.lineIndex);
     gutters.set(nextGutter, gutter);
     keeps(previous.node, "data-line-index", next.node.dataset.lineIndex);
     keeps(gutter, "data-line-index", next.node.dataset.lineIndex);
     next.node = previous.node;
     next.comment = previous.comment;
   }
+  const rows = new Map(rendered.lines.map((line) => [diffDatumKey(line), line.node]));
+  const { lead, after } = outletPlaces(
+    pre?.querySelector("[data-content]"),
+    rows,
+    outlets,
+  );
+  const keyAt = new Map(
+    rendered.lines.map((line) => [line.node.dataset.lineIndex, diffDatumKey(line)]),
+  );
   if (pre && nextPre) {
     // The fresh render's attributes, and whatever the runtime painted on the kept box,
     // which a fresh render never carries (a scroller's marks, reach.js).
@@ -523,25 +567,22 @@ function replaceFileContent(entry, rendered, pairs, outlets) {
             if (!current) return column;
             const content = code.querySelector("[data-content]");
             const pair = pairs?.get(content);
+            // A column holding outlets takes its rows from `layoutThreadOutlets`.
             if (pair) {
               pair[`${kind}Rows`] = rowSpan(column);
               pair[`${kind}GridRow`] = column.style.gridRow;
-            }
-            current.style.gridRow = column.style.gridRow;
+            } else current.style.gridRow = column.style.gridRow;
             const kept = kind === "content" ? retained : gutters;
-            const children = [...column.childNodes].flatMap((child) => {
-              const previous = kept.get(child);
-              if (!previous) return [child];
-              const outlets = [];
-              for (
-                let sibling = previous.nextElementSibling;
-                sibling?.matches(".lf-diff-thread-outlet, .lf-diff-thread-gutter");
-                sibling = sibling.nextElementSibling
-              )
-                outlets.push(sibling);
-              return [previous, ...outlets];
-            });
-            setChildren(current, children);
+            const part = kind === "content" ? "outlet" : "gutterRow";
+            // A line's row in either column carries the line's index.
+            setChildren(current, [
+              ...lead.map((record) => record[part]),
+              ...[...column.childNodes].flatMap((child) => {
+                const node = kept.get(child) ?? child;
+                const line = keyAt.get(node.dataset?.lineIndex);
+                return [node, ...(after.get(line) ?? []).map((record) => record[part])];
+              }),
+            ]);
             return current;
           }),
         );
@@ -826,8 +867,12 @@ customElements.define(
         }
         return () => {
           this.rendering = (this.rendering ?? 0) + 1;
-          for (const target of this.threadSizeTargets ?? [])
-            threadSizes.unobserve(target);
+          // Leaf retires this surface on the same departure, taking core's views out of
+          // every outlet, so all of them go.
+          if (this.threadSeats) {
+            for (const record of this.threadSeats.values()) record.active = false;
+            this.retireThreadOutlets();
+          }
           this.threadSizeTargets = null;
           this.threadSeats = null;
           this.threadPairs = null;
@@ -906,8 +951,7 @@ customElements.define(
                 : !entry?.details
             ) {
               const row = rename ? renameNode(record) : summaryNode(record, open);
-              if (entry)
-                restores.push(replaceFileRendering(entry, row, this.threadSeats));
+              if (entry) restores.push(replaceFileRendering(entry, row));
               else fresh.push((entry = fileEntry(row)));
             }
             Object.assign(entry, {
@@ -936,6 +980,7 @@ customElements.define(
             ...entries.map(({ node }) => node),
           ]);
           this.replaceChildren();
+          this.layoutThreadOutlets();
           this.stageFiles();
           this.projectFiles();
           this.classList.toggle("lf-rendered", true);
@@ -996,27 +1041,24 @@ customElements.define(
       );
     }
 
-    // x-thread-surface: Leaf asks for one outlet, or null, per target it hands over.
-    threadOutlets(targets) {
+    // x-thread-surface: Leaf asks for one outlet, or null, per target it hands over, and
+    // the outlets this placement no longer uses come down once it commits.
+    threadOutlets(targets, { onCommit }) {
       this.beginThreadSurface();
       const outlets = targets.map((target) => this.threadOutletFor(target));
-      this.endThreadSurface();
+      this.layoutThreadOutlets();
+      onCommit(() => this.retireThreadOutlets());
       return outlets;
     }
 
+    // One outlet per datum, kept beside its datum's drawn node for as long as the thread
+    // surface returns it. One the surface stops returning still holds the composer or
+    // a thread view core placed there, until that placement commits; only then does it
+    // come down, so the user's editor never leaves the document with it.
     beginThreadSurface() {
       this.threadSeats ??= new Map();
       this.threadPairs ??= new Map();
-      for (const [key, record] of this.threadSeats) {
-        if (
-          !record.outlet.isConnected ||
-          (record.gutterRow && !record.gutterRow.isConnected)
-        ) {
-          this.threadSeats.delete(key);
-          continue;
-        }
-        record.active = false;
-      }
+      for (const record of this.threadSeats.values()) record.active = false;
       for (const [content, pair] of this.threadPairs)
         if (!content.isConnected || !pair.gutter.isConnected)
           this.threadPairs.delete(content);
@@ -1060,15 +1102,9 @@ customElements.define(
       )
         return null;
 
+      const row = placement.datumElement;
       let record = this.threadSeats.get(anchor.datum);
-      if (record && record.row !== placement.datumElement) {
-        record.outlet.remove();
-        record.gutterRow?.remove();
-        this.threadSeats.delete(anchor.datum);
-        record = null;
-      }
       if (!record) {
-        const row = placement.datumElement;
         const outlet = document.createElement("section");
         outlet.className = `lf-diff-thread-outlet lf-ui${
           file ? " lf-diff-file-thread-outlet" : ""
@@ -1079,35 +1115,50 @@ customElements.define(
           "aria-label",
           `Thread on ${row.dataset.lfDatumLabel || (file ? "file" : "diff line")}`,
         );
-        if (file) {
-          entry.node.append(outlet);
-          record = { active: true, gutterRow: null, outlet, pair: null, row };
-        } else {
-          const { gutterRow: lineGutter, pair } = this.threadPair(row);
-          const gutterRow = document.createElement("div");
+        let gutterRow = null;
+        if (!file) {
+          gutterRow = document.createElement("div");
           gutterRow.className = "lf-diff-thread-gutter lf-ui";
           gutterRow.dataset.lfGen = "1";
           gutterRow.setAttribute("aria-hidden", "true");
-          row.after(outlet);
-          lineGutter.after(gutterRow);
-          record = { active: true, gutterRow, outlet, pair, row };
         }
+        record = { gutterRow, outlet, pair: null, row: null };
         this.threadSeats.set(anchor.datum, record);
+      }
+      // A datum drawn anew takes its outlet along, which keeps whoever stands in it.
+      if (record.row !== row) {
+        if (file) move(entry.node, record.outlet, null);
+        else {
+          const { gutterRow: lineGutter, pair } = this.threadPair(row);
+          move(row.parentNode, record.outlet, row.nextSibling);
+          move(lineGutter.parentNode, record.gutterRow, lineGutter.nextSibling);
+          record.pair = pair;
+        }
+        record.row = row;
       }
       record.active = true;
       return record.outlet;
     }
 
-    endThreadSurface() {
-      for (const [key, record] of this.threadSeats ?? []) {
+    // Take down the outlets the committed placement no longer uses.
+    retireThreadOutlets() {
+      for (const [key, record] of this.threadSeats) {
         if (record.active) continue;
         record.outlet.remove();
         record.gutterRow?.remove();
         this.threadSeats.delete(key);
       }
+      this.layoutThreadOutlets();
+    }
+
+    // Each line outlet takes a grid row of its own beside its line, in the content and
+    // the gutter columns alike. A file drawn anew sets its columns' rows from the fresh
+    // render alone, so the outlets it kept take theirs again here.
+    layoutThreadOutlets() {
       const counts = new Map();
-      for (const record of this.threadSeats?.values() ?? [])
-        if (record.pair) counts.set(record.pair, (counts.get(record.pair) ?? 0) + 1);
+      for (const { outlet, pair } of this.threadSeats?.values() ?? [])
+        if (pair && outlet.parentNode === pair.content)
+          counts.set(pair, (counts.get(pair) ?? 0) + 1);
       const targets = new Set();
       for (const pair of this.threadPairs?.values() ?? []) {
         const count = counts.get(pair) ?? 0;
@@ -1155,6 +1206,7 @@ customElements.define(
         entry.loading = null;
         entry.prepared = prepared;
         const restore = this.applyEntry(entry);
+        this.layoutThreadOutlets();
         this.stageFiles();
         this.projectFiles();
         restore?.();

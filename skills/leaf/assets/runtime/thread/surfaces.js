@@ -4,10 +4,10 @@
    upgraded: `watchThreadSurfaces` registers it once its module has defined it and
    retires it when it leaves, over the same arrival lifetime every element owner holds
    (`watchArrivals`, arrivals.js), so a move within one batch keeps it. The runtime asks
-   the widget itself for outlets, `owner.threadOutlets(targets, {signal, collection})`,
-   and the widget reaches its registration through `threadSurface(owner)` to say its
-   seats changed (`update()`) or to open a comment on one of its datums
-   (`open(node, {origin})`). The selected page presentation registers explicitly
+   the widget itself for outlets with
+   `owner.threadOutlets(targets, {signal, collection, onCommit})`, and the widget
+   reaches its registration through `threadSurface(owner)` to say its seats changed
+   (`update()`) or to open a comment on one of its datums (`open(node, {origin})`). The selected page presentation registers explicitly
    (`placePageThreads`).
 
    A placement claims one Thread's page position, so reconciliation joins the core
@@ -259,6 +259,7 @@ export function renderSurfaces(collection, placements, commands) {
       const cancelled = aborted(abort.signal);
       registration.cancelRender = () => abort.abort();
       let compositionOutlet = null;
+      const committed = [];
       try {
         const byKey = new Map(collection.threads.map((thread) => [thread.key, thread]));
         const targets = new Map();
@@ -298,6 +299,7 @@ export function renderSurfaces(collection, placements, commands) {
         const rendering = render(Object.freeze(batch), {
           signal: abort.signal,
           collection,
+          onCommit: (run) => committed.push(run),
         });
         const outlets = rendering?.then
           ? await Promise.race([rendering, cancelled])
@@ -336,11 +338,16 @@ export function renderSurfaces(collection, placements, commands) {
         if (registration.kind === "page") throw error;
         // A failed widget can yield to the selected page phase. Clearing its prior
         // seats belongs to the same eventual commit as that fallback.
-        plans.push({ registration, byOutlet: new Map(), compositionOutlet: null });
+        plans.push({
+          registration,
+          byOutlet: new Map(),
+          compositionOutlet: null,
+          committed: [],
+        });
         reportFailure(registration, error);
         continue;
       }
-      plans.push({ registration, byOutlet, compositionOutlet });
+      plans.push({ registration, byOutlet, compositionOutlet, committed });
     }
     return current() ? plans : null;
   }
@@ -452,6 +459,16 @@ export function renderSurfaces(collection, placements, commands) {
       }
       throw error;
     }
+    // Only now has the composer left every outlet a widget stopped returning, so the
+    // widget can take those outlets down without taking the user's editor with them.
+    for (const { registration, committed } of plans)
+      for (const run of committed) {
+        try {
+          run();
+        } catch (error) {
+          reportFailure(registration, error);
+        }
+      }
   }
 }
 

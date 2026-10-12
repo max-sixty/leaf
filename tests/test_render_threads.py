@@ -23,6 +23,7 @@ from leaf import leases as leases_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import thread as thread_model
+from leaf.read_state import content_version
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -181,7 +182,7 @@ def test_held_news_keeps_an_agent_header_and_resizes_its_notice(browser, serve):
     reachable beside the root message's reaction and the thread's Resolve action.
     """
     url = serve(PANEL_PAGE)
-    root = append_carried_log_record(
+    opening = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -190,7 +191,19 @@ def test_held_news_keeps_an_agent_header_and_resizes_its_notice(browser, serve):
             "revision": 1,
             "text": "Which jobs should start first?",
         },
-    )["id"]
+    )
+    root = opening["id"]
+    # This test measures the held replies; the opening agent comment is already read.
+    # Its long-name arrival notice would otherwise expire during the phone layout
+    # measurement and replace the status text with an unrelated reply notice.
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "read",
+            "author": "user",
+            "messages": [{"message": root, "version": content_version(opening)}],
+        },
+    )
     page = open_page(browser, url)
     resized(page, 1440, 900)
     page.locator(".lf-threads-toggle").click()

@@ -606,11 +606,13 @@
 }
 
 /* skills/leaf/packages/default/styles/options.css */
+@property --lf-option-line { syntax: "<length>"; inherits: true; initial-value: 0px; }
 :scope:is(lf-options) {
   display: block;
   margin: 14px 0;
   --lf-joined: 0;
   --lf-option-font: var(--t-4)/1.6 var(--serif);
+  --lf-option-line: 1lh;
   container-type: inline-size;
 }
 :scope:is(lf-options):not(:has(> lf-option > strong)) {
@@ -636,6 +638,9 @@
     border: 1px solid var(--rule);
     border-radius: var(--r);
     background: var(--card);
+  }
+  :scope:is(lf-options):has(> lf-option > strong) > .lf-another {
+    border: 1px solid transparent;
   }
 }
 @container not (style(--lf-density: working) and (width >= 30rem)) {
@@ -725,17 +730,24 @@
 @media screen {
   :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > strong) {
     --lf-card-state-room: 80px;
+    --lf-card-state-height: 22px;
     & > :is(lf-option, .lf-another) {
       padding-inline-start: var(--sp-3);
     }
     & > lf-option {
       padding-bottom: var(--sp-3);
     }
+    & > .lf-another:not([hidden]) {
+      padding-block: var(--sp-3);
+    }
+    & > .lf-another > .lf-compose-field {
+      min-height: var(--lf-card-state-height);
+    }
     & > lf-option::before {
       content: "";
       float: inline-end;
       width: var(--lf-card-state-room);
-      height: 22px;
+      height: var(--lf-card-state-height);
       pointer-events: none;
     }
     & > lf-option > .lf-pick {
@@ -779,10 +791,11 @@
       inset-inline-start: auto;
       inset-inline-end: var(--lf-option-add-badge-inset);
       top: auto;
-      bottom: var(--lf-option-add-badge-inset);
+      bottom: var(--lf-option-add-badge-end);
       margin: 0;
     }
     & > .lf-another {
+      --lf-option-add-seat-end: calc(var(--sp-3) + (var(--lf-option-line) - var(--lf-option-action-size)) / 2);
       --lf-option-action-room: calc(var(--lf-option-write-badge-inset) + var(--lf-key-badge-size) + var(--sp-2));
     }
     & > .lf-another:has(.lf-compose-submit:not([data-lf-empty])) > .lf-key-badge {
@@ -899,10 +912,10 @@
     border: 1px solid var(--border-2);
     border-radius: var(--r);
     overflow: clip;
-    --lf-add-cell-height: 32px;
+    --lf-add-cell-height: calc(var(--lf-option-line) + 2 * 5px);
     --lf-done-cell-height: 32px;
     &:has(> lf-option > strong) {
-      --lf-add-cell-height: 44px;
+      --lf-add-cell-height: calc(max(var(--lf-option-line), var(--lf-card-state-height)) + 2 * var(--sp-3));
     }
     &:where([data-lf-interactive] *)::after {
       content: "";
@@ -972,7 +985,9 @@
   .lf-another {
     --lf-option-action-size: max(28px, var(--aim-floor));
     --lf-option-add-seat-inset: var(--sp-1);
+    --lf-option-add-seat-end: var(--lf-option-add-seat-inset);
     --lf-option-add-badge-inset: calc(var(--lf-option-add-seat-inset) + (var(--lf-option-action-size) - var(--lf-key-badge-size)) / 2);
+    --lf-option-add-badge-end: calc(var(--lf-option-add-seat-end) + (var(--lf-option-action-size) - var(--lf-key-badge-size)) / 2);
     --lf-option-write-badge-inset: calc(var(--lf-option-add-seat-inset) + var(--lf-option-action-size) + var(--sp-2));
     --lf-option-action-room: calc(var(--lf-option-add-seat-inset) + var(--lf-option-action-size) + var(--sp-2));
     position: relative;
@@ -1009,15 +1024,17 @@
     background: transparent;
     color: inherit;
     font: var(--lf-option-font);
+    line-height: var(--lf-option-line);
     resize: none;
   }
   .lf-another .lf-compose-placeholder {
     font: var(--lf-option-font);
+    line-height: var(--lf-option-line);
   }
   .lf-another .lf-compose-submit {
     --lf-icon-action-hit: var(--lf-option-action-size);
     inset-inline-end: var(--lf-option-add-seat-inset);
-    inset-block-end: var(--lf-option-add-seat-inset);
+    inset-block-end: var(--lf-option-add-seat-end);
   }
   .lf-another .lf-compose-submit[data-lf-empty]:not([data-lf-focus]) {
     visibility: hidden;

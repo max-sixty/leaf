@@ -49,6 +49,7 @@ import {
   projectedDatum,
   placeThreads,
   readingPaint,
+  releaseOutlets,
   reserve,
   retainUserIntent,
   scrollBehavior,
@@ -718,7 +719,11 @@ async function parsedFiles(source) {
   return files;
 }
 
+// The box takes the place of the file's lines, so core's composer leaves their outlets
+// first: a user writing about one of them stays in it, and the hold below, which
+// would hand them to Retry, finds them outside the file.
 function deferredError(details, error, retry) {
+  releaseOutlets(details);
   const restore = holdFocus(details);
   const box = document.createElement("div");
   box.className = "lf-error";
@@ -901,6 +906,7 @@ customElements.define(
       this.rendering = rendering;
       try {
         if (source === null) {
+          releaseOutlets(this);
           this.fileEntries = null;
           this.sharedStyles = null;
           this.diffTools = null;
@@ -983,6 +989,9 @@ customElements.define(
           for (const entry of fresh) this.attachEntryControls(entry);
           for (const entry of entries) this.attachDisclosure(entry);
           this.filesBody ??= diffBody([]);
+          // A file the patch dropped goes with its outlets, which core's composer leaves first.
+          for (const entry of prior.values())
+            if (!entries.includes(entry)) releaseOutlets(entry.node);
           setChildren(this.filesBody, [
             this.diffTools.search,
             ...entries.map(({ node }) => node),

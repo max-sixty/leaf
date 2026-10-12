@@ -28,6 +28,7 @@ import { html, render } from "../../vendor/browser-runtime.js";
 import { keySequenceModel, keySequenceTemplate } from "./presentation.js";
 import { clamp, overlaps, overlapsAcross } from "../rect.js";
 import { chipSeats } from "./chip-seats.js";
+import { layoutWindow } from "../geometry.js";
 import { scrolling, watchScrollEnds } from "../arrivals.js";
 import { announce } from "../notifications.js";
 import { repaint } from "../repaint.js";
@@ -100,18 +101,7 @@ function nearestOpenTop(box, preferred, barriers, top, bottom, gap) {
 // each seat stands (chip-seats.js), its `box` a barrier for a following pass.
 // `placement` chooses the corner, below, before, or above the target;
 // outside seats keep the target clear.
-function spreadHints(
-  seats,
-  hints,
-  {
-    barriers = [],
-    lineBox,
-    viewportLeft = 0,
-    viewportTop = 0,
-    viewportRight = document.documentElement.clientWidth,
-    viewportBottom = document.documentElement.clientHeight,
-  } = {},
-) {
+function spreadHints(seats, hints, { barriers = [], lineBox, viewportTop = 0 } = {}) {
   const band =
     parseFloat(
       getComputedStyle(document.documentElement).getPropertyValue("--focus-ring-w"),
@@ -125,12 +115,7 @@ function spreadHints(
     barriers,
     lineBox,
     band,
-    viewport: {
-      left: viewportLeft,
-      top: viewportTop,
-      right: viewportRight,
-      bottom: viewportBottom,
-    },
+    viewport: { ...layoutWindow(), top: viewportTop },
   });
   return hints.map(({ seat, at, target, element }, index) => ({
     seat,

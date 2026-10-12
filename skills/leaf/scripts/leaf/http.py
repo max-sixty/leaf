@@ -842,7 +842,9 @@ class PageEndpoint:
         return self._reading(revision).registry
 
     def _artifact_root(self, revision: int) -> str:
-        name = self._revision_name(revision).removesuffix(".html")
+        return self._named_root(self._revision_name(revision).removesuffix(".html"))
+
+    def _named_root(self, name: str) -> str:
         return self.page_root.rstrip("/") + f"/revisions/{name}"
 
     def _document_asset_root(self, revision: int) -> str:
@@ -899,8 +901,8 @@ class PageEndpoint:
         )
         if match is None:
             return None
-        revision = int(match.group("revision"))
-        if self.source.revision_names.get(revision) != match.group("name") + ".html":
+        revision, name = int(match.group("revision")), match.group("name")
+        if self.source.revision_names.get(revision) != name + ".html":
             return None
         artifact = self._artifact(revision)
         self.response_layer = artifact.registry["$layer"]["generation"]
@@ -908,7 +910,7 @@ class PageEndpoint:
         resource = delivered_resource(
             artifact,
             logical,
-            DeliveryAddress(self.page_root, self._artifact_root(revision)),
+            DeliveryAddress(self.page_root, self._named_root(name)),
         )
         if resource is None:
             return None

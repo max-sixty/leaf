@@ -7,9 +7,12 @@ export const pageScroller = document.scrollingElement;
 // The furthest a box scrolls down: its scroll height less what its scrollport shows.
 export const scrollLimit = (box) => Math.max(0, box.scrollHeight - box.clientHeight);
 
+// How far short of a scroll edge a box still stands at it: fractional layout and scaled
+// displays leave the browser a pixel short of where a scroll was aimed.
+export const SCROLL_SLACK = 2;
 // The end is a reading destination, rather than the pixel offset it occupies before
-// a box is resized. Fractional layout can leave the browser a pixel short.
-export const atScrollEnd = (box) => scrollLimit(box) - box.scrollTop <= 2;
+// a box is resized.
+export const atScrollEnd = (box) => scrollLimit(box) - box.scrollTop <= SCROLL_SLACK;
 export const scrollToEnd = (box, behavior = "instant") =>
   box.scrollTo({ top: box.scrollHeight, behavior });
 

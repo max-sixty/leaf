@@ -43,7 +43,6 @@ from render_cases_interaction import (
     SUGGESTION_PAGE,
     executable_revision,
     live_url,
-    serve_interaction_gallery,
 )
 from render_cases_layout import (
     SHADOWED_DIFF,
@@ -268,51 +267,6 @@ def test_a_live_page_refuses_a_same_site_parent_at_another_port(browser, serve):
     )
 
 
-def test_a_gallery_import_settles_before_initial_presentation(browser, serve):
-    """The page-interface barrier includes loading its optional owner's module."""
-    source = leaf_page(
-        "Deferred gallery",
-        """<h1>Deferred gallery</h1>
-<section data-interaction-gallery data-interaction-viewport="2">
-  <lf-tabs id="gallery-tabs"><lf-tab id="demo" label="Accept a suggestion">
-    <figure data-interaction-demo="accept">
-      <template id="sample-page" data-sample>
-        <p>The importer <lf-suggestion id="bg-motion-accept"><lf-old>usually finishes</lf-old><lf-new>finishes</lf-new></lf-suggestion>.</p>
-      </template>
-      <div class="interaction-stage">
-        <iframe data-interaction-frame title="Contained suggestion"></iframe>
-        <span class="interaction-pointer" hidden></span>
-      </div>
-    </figure>
-  </lf-tab></lf-tabs>
-</section>
-<div style="height: 1000px"></div>
-<section id="destination"><h2>Requested destination</h2><p>Read this next.</p></section>""",
-    )
-    page = browser.new_page()
-    watched(page)
-    page.add_init_script(
-        "document.addEventListener('lf-page-interface', () => { window.interfaceStarted = true; });"
-    )
-    held = []
-    page.route("**/runtime/interaction-gallery.js", lambda route: held.append(route))
-    page.goto(live_url(serve(source)) + "#destination", wait_until="domcontentloaded")
-    page.wait_for_function("() => window.interfaceStarted === true")
-    assert held, "the positive control did not hold the optional owner import"
-    page.evaluate(
-        """async () => {
-          const {nextFrame} = await window.__lfRuntimeImport('/runtime/rendering.js');
-          await new Promise(resolve => nextFrame(() => nextFrame(resolve)));
-        }"""
-    )
-    expect(page.locator("body")).not_to_have_attribute("data-lf-upgraded", "1")
-    expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
-    held.pop().continue_()
-    wait_until_ready(page)
-    expect(page.locator("[data-interaction-ready]")).to_have_count(1)
-    expect(page.locator("#destination")).to_be_in_viewport()
-
-
 def test_a_website_example_names_its_limited_agent(browser, serve):
     page = open_page(
         browser,
@@ -469,9 +423,7 @@ def test_a_website_example_shows_its_public_session_reference(browser, serve):
     page.route("**/api/state*", identify)
     page.goto(url, wait_until="load")
     wait_until_ready(page)
-    expect(page.locator(".lf-banner .lf-status-detail")).not_to_contain_text(
-        "239383829012"
-    )
+    expect(page.locator(".lf-banner .lf-status-detail")).to_have_count(0)
     reference = page.locator(".lf-session-reference")
     expect(reference).not_to_be_visible()
     page.get_by_role("button", name="More page controls", exact=True).click()
@@ -1737,53 +1689,33 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
 
 
 def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
-    """Optional page interface preparation holds the first widget upgrade."""
-    url = serve_interaction_gallery(serve)
-    held = []
-    release_state = False
+    """Page interface preparation holds the first widget upgrade."""
     page = browser.new_page(viewport={"width": 1440, "height": 900})
     watched(page)
     page.add_init_script(
         """
-        if (window === window.top) {
-          document.addEventListener('lf-page-interface', event => {
-            event.detail.present(new Promise(resolve => {
-              window.releaseHeldPageInterface = resolve;
-            }));
-          });
-        }
+        document.addEventListener('lf-page-interface', event => {
+          event.detail.present(new Promise(resolve => {
+            window.releaseHeldPageInterface = resolve;
+          }));
+        });
         """
     )
-
-    def hold_parent_state(route):
-        if route.request.frame == page.main_frame and not release_state:
-            held.append(route)
-        else:
-            route.continue_()
-
-    page.route("**/api/state*", hold_parent_state)
-    page.goto(url, wait_until="load")
-    holding(page, held, 1, "the first state response")
-    expect(page.locator("body")).not_to_have_attribute("data-lf-upgraded", "1")
-    gallery = page.locator("#bg-interactions")
-    expect(gallery).to_have_attribute("data-interaction-installed", "1")
-    controls = gallery.locator(".lf-interaction-controls")
-    expect(controls).to_have_count(1)
-    expect(controls).to_be_hidden()
-    expect(page.locator(".lf-status-detail")).to_contain_text("Connecting")
-    release_state = True
-    for route in held:
-        route.continue_()
+    page.goto(
+        serve(leaf_page("Held interface", "<h1>Held interface</h1>")),
+        wait_until="load",
+    )
     page.wait_for_function("() => window.releaseHeldPageInterface !== undefined")
+    page.evaluate(
+        """async () => {
+          const {nextFrame} = await window.__lfRuntimeImport('/runtime/rendering.js');
+          await new Promise(resolve => nextFrame(() => nextFrame(resolve)));
+        }"""
+    )
     expect(page.locator("body")).not_to_have_attribute("data-lf-upgraded", "1")
-    expect(controls).to_be_hidden()
+    expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     page.evaluate("releaseHeldPageInterface()")
     wait_until_ready(page)
-    page.locator("#bg-gallery-tabs").get_by_role(
-        "tab", name="Interactions", exact=True
-    ).click()
-    expect(controls).to_be_visible()
-    expect(page.locator(".lf-status-detail")).not_to_contain_text("Connecting")
 
 
 def test_playground_joins_initial_widget_settlement(browser, serve):
@@ -1825,17 +1757,8 @@ def test_a_broken_optional_page_interface_does_not_withhold_presentation(
     browser, serve
 ):
     """Optional page surfaces fail independently rather than blanking every generated
-    control. The known gallery owner still reports its malformed markup once."""
-    source = leaf_page(
-        "broken optional interface",
-        """
-<h1>Still a readable page</h1>
-<section data-interaction-gallery>
-  <h2>Malformed gallery without tabs</h2>
-  <p>The authored explanation remains available.</p>
-</section>
-""",
-    )
+    control. The failure is still reported, once."""
+    source = leaf_page("broken optional interface", "<h1>Still a readable page</h1>")
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
     page.add_init_script(
@@ -1848,16 +1771,8 @@ def test_a_broken_optional_page_interface_does_not_withhold_presentation(
     page.goto(serve(source), wait_until="load")
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     expect(page.get_by_role("heading", name="Still a readable page")).to_be_visible()
-    errors = consume_browser_errors(
-        page, "interaction gallery failed to start", "optional sibling failed"
-    )
-    matching = [
-        error for error in errors if "interaction gallery failed to start" in error
-    ]
-    assert len(matching) == 1, errors
-    assert (
-        len([error for error in errors if "optional sibling failed" in error]) == 1
-    ), errors
+    errors = consume_browser_errors(page, "optional sibling failed")
+    assert len(errors) == 1, errors
 
 
 def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
@@ -2475,10 +2390,13 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     # replayed onto it, so what the press restores is the accept, not a blank slate.
     undo(page)
     expect(page.locator("#sug-fix")).to_have_attribute("data-lf-state", "accept")
-    # The undo is no gesture on the thread, so its card stays where it stands, holding
-    # the resolution behind its notice.
-    expect(reopened.get_by_role("button", name="Resolved", exact=True)).to_be_visible()
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
+    # The undo concerns this thread, so its resolved card leaves Open as the user's
+    # own move. Resolved still offers the conversation and its settled state.
+    expect(reopened).not_to_be_visible()
+    page.locator(".lf-thread-filter-toggle").click()
+    page.locator('[data-filter-value="resolved"]').click()
+    expect(reopened).to_have_attribute("data-resolved", "true")
     # What the log holds is the three gestures and not one word about the thread:
     # it was reopened and closed again by that log being read.
     assert [
@@ -5820,6 +5738,45 @@ customElements.define(TAG, class extends HTMLElement {
     consume_browser_errors(page, "watchData(lf-array-feed, data) requires rows")
 
 
+def test_a_returning_subscriber_is_repainted_only_where_its_departure_cut_the_paint(
+    browser, serve
+):
+    """A widget abandons its unfinished paint when it leaves, so its return owes that
+    reading again. A finished paint stands, so a refused reading is not refused and
+    reported a second time."""
+    page = open_page(browser, data_projection_page(serve))
+    result = page.evaluate(
+        """async () => {
+          const {watchData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const widget = document.querySelector('lf-feed');
+          const leaveAndReturn = async () => {
+            const parent = widget.parentNode;
+            const next = widget.nextSibling;
+            widget.remove();
+            await new Promise((resolve) => setTimeout(resolve));
+            parent.insertBefore(widget, next);
+            await new Promise((resolve) => setTimeout(resolve));
+          };
+          let paints = 0;
+          let finish;
+          const finished = new Promise((resolve) => { finish = resolve; });
+          const stop = watchData(widget, 'rows', () => {
+            paints += 1;
+            return finished;
+          });
+          await leaveAndReturn();
+          const interrupted = paints;
+          finish();
+          await finished;
+          await leaveAndReturn();
+          const kept = paints;
+          stop();
+          return {interrupted, kept};
+        }"""
+    )
+    assert result == {"interrupted": 2, "kept": 2}
+
+
 def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
     browser, serve
 ):
@@ -5964,7 +5921,8 @@ def test_projection_subscriptions_follow_their_owner_and_cancel_queued_reads(
 
 
 def test_data_subscriptions_follow_their_owner_and_stop_permanently(browser, serve):
-    """Detachment releases data/clock work; reattachment restores the newest reading.
+    """Detachment releases data/clock work; reattachment keeps a finished paint, whose
+    time readings tick again, and delivers a reading that changed while away.
 
     Refresh can acquire a clock dependency absent from the initial paint.
     A move in one mutation batch retains the original subscription. Removing an owner
@@ -6016,6 +5974,8 @@ def test_data_subscriptions_follow_their_owner_and_stop_permanently(browser, ser
           const detached = deliveries.length;
           await changed(() => home.append(widget));
           const resumed = deliveries.length;
+          await tickClock(message => { throw new Error(message); });
+          const ticked = deliveries.length;
           const next = structuredClone(runtime.data);
           next.version = 'held-owner-version';
           next.sources.deployments.revision = 'held-owner';
@@ -6045,7 +6005,7 @@ def test_data_subscriptions_follow_their_owner_and_stop_permanently(browser, ser
           clock += 1;
           await tickClock(message => { throw new Error(message); });
           return {initial, untracked, subscribed, clocked,
-            moved, detached, resumed, held, absent, restored, refreshed, stagingKept,
+            moved, detached, resumed, ticked, held, absent, restored, refreshed, stagingKept,
             stopped: deliveries.length};
         }"""
     )
@@ -6056,7 +6016,8 @@ def test_data_subscriptions_follow_their_owner_and_stop_permanently(browser, ser
         "clocked": 3,
         "moved": 3,
         "detached": 3,
-        "resumed": 4,
+        "resumed": 3,
+        "ticked": 4,
         "held": "held-owner",
         "absent": 6,
         "restored": "newest-owner",

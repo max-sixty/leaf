@@ -68,7 +68,7 @@ if (child) {
     document.documentElement.lfInitial.setRuntimeRootAttribute(
       document.documentElement,
       "data-lf-sample-block",
-      !child.settings.passive && !asWindow ? "" : null,
+      asWindow ? null : "",
     );
     measure();
     return { height };
@@ -84,10 +84,7 @@ if (child) {
     presented = true;
     child.present();
     measure();
-    if (!child.settings.passive) {
-      const observer = new window.ResizeObserver(measure);
-      observer.observe(document.body);
-    }
+    new window.ResizeObserver(measure).observe(document.body);
     sampleNotice("ready", {
       height,
       block: document.documentElement.hasAttribute("data-lf-sample-block"),

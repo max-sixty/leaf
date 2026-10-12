@@ -122,21 +122,21 @@ def _bind_reply(workflows: list[dict], reply: dict | None) -> None:
     )
 
 
-def reply_binding_stands(
-    binding: dict | None, session: str | None, turn: str | None, closed: str | None
+def reply_reservation_stands(
+    reservation: dict | None, session: str | None, turn: str | None, closed: str | None
 ) -> bool:
     """Whether the exact claim turn still reserves an automatic provider answer.
 
-    Before the provider reply opens, its binding names the claim turn standing
+    Before the provider reply opens, its reservation names the claim turn standing
     at reservation; afterward it names the delivery's turn. A different or closed
     claim turn cannot retain that reservation. A client still following its turn
     commits before closing it (`codex.TurnFold.commit`).
     """
     return bool(
-        binding
+        reservation
         and closed is None
-        and binding.get("session") == session
-        and binding.get("turn") == turn
+        and reservation.get("session") == session
+        and reservation.get("turn") == turn
     )
 
 
@@ -442,7 +442,7 @@ def canonical_activity(
     now_iso: str,
     stream: dict | None = None,
     reply: dict | None = None,
-    bindings: dict | None = None,
+    reservations: dict | None = None,
     *,
     task_reading=None,
 ) -> dict:
@@ -453,9 +453,9 @@ def canonical_activity(
     the starts running on them (`tasks.TaskReading`). Both come back aged, as
     `workflows` and `tasks`.
 
-    `bindings` reserve automatic replies from the claimant's exact App Server
-    turn (`reply_binding_stands`). Their workflows keep the `reply` answer kind
-    and add `writer: "turn"` and the binding's attempt. An explicit addressed
+    `reservations` reserve automatic replies from the claimant's exact App Server
+    turn (`reply_reservation_stands`). Their workflows keep the `reply` answer kind
+    and add `writer: "turn"` and the reservation's attempt. An explicit addressed
     answer may commit first; the automatic final then yields to it."""
     from .tasks import TaskReading
 
@@ -485,12 +485,12 @@ def canonical_activity(
     tasks, task_aging = _canonical_tasks(log.owed, present, now, held=held, turn=turn)
     _bind_reply(workflows, reply)
     for item in workflows:
-        binding = (bindings or {}).get(item.get("input"))
+        reservation = (reservations or {}).get(item.get("input"))
         if (
             item["answer"] is not None
             and item["answer"]["kind"] == "reply"
-            and reply_binding_stands(
-                binding,
+            and reply_reservation_stands(
+                reservation,
                 present.get("claim_session"),
                 present.get("claim_turn"),
                 present.get("turn_closed"),
@@ -499,7 +499,7 @@ def canonical_activity(
             item["answer"] = {
                 **item["answer"],
                 "writer": "turn",
-                "attempt": binding["attempt"],
+                "attempt": reservation["attempt"],
             }
 
     # The items in hand: each Working update, by the start that holds it, and each task

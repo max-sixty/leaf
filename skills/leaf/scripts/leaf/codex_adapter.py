@@ -32,7 +32,7 @@ item can neither settle an answer nor prove absence. Accepted or abandoned deliv
 without a successful exact reply hydrate from it too, even when the first resume omits
 their turns or the user resolved the thread. When complete history and a fresh idle
 reading show no matching delivery, Leaf abandons its own attempt, releases its reply
-seat, and reports that the delivery could not be confirmed and is not retried, without
+reservation, and reports that the delivery could not be confirmed and is not retried, without
 claiming that a provider turn failed (`codex.abandon_uncertain_delivery`). A manual
 reply retires an unknown offer through receipt recovery, even while disconnected. Only
 a start or the task's exact offered delivery introduces live authority, and an ordinary
@@ -161,12 +161,12 @@ class TaskConnection:
 
     A delivery record is marked `starting` before its request goes out. A start
     whose response is lost is never sent blindly again, even after a restart or
-    with no streamed reply seat; a rejected stale snapshot never marks the
+    with no reply reservation; a rejected stale snapshot never marks the
     observer running. A dropped connection is unknown provider state, never a
     failed turn: it disconnects the turn's reply and clears live activity without
     inventing an ending or releasing a running turn's reservation. A later
     provider completion settles that turn, and a later session turn withdraws its
-    reply binding, so an explicit reply wins over a recovered final message.
+    reply reservation, so an explicit reply wins over a recovered final message.
     Resuming reconciles running and completed turns from their exact delivery
     identities.
     Live provider observations adopt the subscription's lifecycle token before
@@ -800,7 +800,7 @@ def _offer_queued_delivery(
         return False
     if connection is not None:
         return connection.start_delivery(prepared.payload)
-    # The embedded client reserves its reply seat independently of adapter intent.
+    # The embedded client makes its own reply reservation, whatever the adapter intends.
     # Read it outside the delivery lock: capture takes a page transaction first.
     target = stream_reply_target(prepared.payload)
     if target is not None and delivery_reply_reserved(

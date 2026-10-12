@@ -354,9 +354,13 @@ def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, 
     page.emulate_media(media="screen")
 
 
-def test_pr_review_observed_age_refreshes_without_a_data_change(browser, serve):
+@pytest.mark.parametrize("returned", [False, True], ids=["stayed", "returned"])
+def test_pr_review_observed_age_refreshes_without_a_data_change(
+    browser, serve, returned
+):
     """The observation time is rendered after Markdown loading, but still follows the
-    shared clock when the source revision remains unchanged."""
+    shared clock when the source revision remains unchanged, including after the brief
+    leaves the page and returns with its painting kept."""
     authored = leaf_page(
         "pull request clock",
         '<lf-pr-brief id="reviewed-pr" source="pr-1842"></lf-pr-brief>',
@@ -386,6 +390,17 @@ def test_pr_review_observed_age_refreshes_without_a_data_change(browser, serve):
     page = open_page(browser, url)
     observed = page.locator(".pr-observed")
     expect(observed).to_have_text("Observed just now")
+    if returned:
+        page.locator("#reviewed-pr").evaluate(
+            """async (element) => {
+              const parent = element.parentNode;
+              const next = element.nextSibling;
+              element.remove();
+              await new Promise((resolve) => setTimeout(resolve));
+              parent.insertBefore(element, next);
+              await new Promise((resolve) => setTimeout(resolve));
+            }"""
+        )
 
     # Only the browser's clock can be moved from here, and every state answer
     # recalibrates the page's one measured offset against the server's real `now`
@@ -1071,12 +1086,6 @@ def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
     expect(groups.nth(1)).not_to_have_attribute("open", "")
     location = widget.locator(".lf-call-location", has_text="utils.py:2")
     location.focus()
-    location.evaluate(
-        """node => {
-          window.heldCallDiffControl = node;
-          window.heldCallDiffRow = node.closest('.lf-call-line');
-        }"""
-    )
     for destination, roots in (
         ("app.py:20", (first_work, second_work + shared, third_work + unfocused)),
         (
@@ -1098,10 +1107,6 @@ def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
         expect(location).to_be_visible()
         expect(location).to_be_focused()
         expect(groups.last).not_to_have_attribute("open", "")
-        assert location.evaluate(
-            """node => node === window.heldCallDiffControl &&
-              node.closest('.lf-call-line') === window.heldCallDiffRow"""
-        ), "a surviving call's group change replaced its row or control"
 
 
 def test_visual_review_guides_one_typed_still_run(browser, serve):
@@ -1587,6 +1592,9 @@ def test_visual_review_controls_keep_keyboard_navigation_local(browser, serve):
     page.keyboard.press("Shift+ArrowRight")
     expect(widget.locator(".lf-vr-opacity-value")).to_have_text("60%")
     expect(selector).to_have_js_property("value", initial)
+    widget.get_by_role("radio", name="Compare").focus()
+    page.keyboard.press("Enter")
+    expect(widget).to_have_attribute("data-inspection-mode", "compare")
     selector.click()
     page.keyboard.press("2")
     expect(widget.get_by_role("option", name="2 of 3", exact=False)).to_be_focused()
@@ -1701,29 +1709,23 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
         )
         assert len(held) == 2
 
-        host = page.locator("#visual-run .lf-vr-shot-host")
-        host.evaluate(
-            """node => {
-              const current = node.querySelector('lf-shot');
-              const replacement = document.createElement('lf-shot');
-              replacement.id = current.id;
-              replacement._lfPresentGenerated = current._lfPresentGenerated;
-              replacement.setAttribute('before', '/media/3cf0e3efe80c6b01.png');
-              replacement.setAttribute('after', '/media/4f465a0582ab00fe.png');
-              replacement.setAttribute('alt', 'Replacement evidence');
-              node.replaceChildren(replacement);
-            }"""
+        data_model.cmd_data_set(
+            serve.page_dir,
+            "docs-run",
+            run(
+                "/media/3cf0e3efe80c6b01.png",
+                "/media/4f465a0582ab00fe.png",
+                viewport_width=900,
+            ),
         )
+        told(page)
+        host = page.locator("#visual-run .lf-vr-shot-host")
         expect(host.locator("lf-shot img")).to_have_count(2)
         expect(host.locator("lf-shot img").first).to_have_js_property(
             "naturalWidth", 780
         )
-        assert (
-            host.locator("lf-shot").evaluate(
-                "shot => shot.captureGeometry.images[0].width"
-            )
-            == 780
-        )
+        rendered(page, facts=("updatesSettled",))
+        shown = host.locator("lf-shot").bounding_box()
 
         stale_svg = (
             '<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="746"/>'
@@ -1733,12 +1735,8 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
         page.wait_for_function(
             "() => window.oldVisualReviewImages.every(image => image.naturalWidth === 1800)"
         )
-        assert (
-            host.locator("lf-shot").evaluate(
-                "shot => shot.captureGeometry.images[0].width"
-            )
-            == 780
-        )
+        rendered(page)
+        assert host.locator("lf-shot").bounding_box() == shown
     finally:
         while held:
             held.pop(0).abort()

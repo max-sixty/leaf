@@ -270,7 +270,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Notices and announcements | `semantic-news.js`, `notifications.js`, `keyboard/shortcut-bar.js` |
 | Reactions and design review | `reactions.js`, `design.js`, `design-readings.js` |
 | Presentation and validation | `presentation.js`, `declared-words.js`, `validation.js`, `projection-watch.js`, `retained-face.js` |
-| Child pages and gallery playback | `sample.js`, `interaction-gallery*.js` |
+| Child pages | `sample*.js` |
 | Shadow trees and styles | `shadow.js`, `shadow-stage.js`, `stylesheets.js` |
 | Elements a paint belongs to while they stand, and the stages they stand in | `arrivals.js` |
 | Utilities | `abort.js`, `icons.js`, `markdown.js`, `syntax.js`, `motion.js`, `color-scheme.js`, `storage.js`, `interaction-log.js` |
@@ -442,8 +442,8 @@ not generated.
 6. Publish that document contract once.
 7. Import the modules `x-upgrade` declares for the tags present, and no others.
 8. Run the dressing passes and wait for the coordinator publication.
-9. Join optional runtime-owned page-interface imports and installation. Their contained
-   sample documents are deferred arrivals, separate from this document's semantic proof.
+9. Join the page-interface owners' reconciliation (`PAGE_INTERFACE`), separate from
+   this document's semantic proof.
 10. Land a fresh URL's fragment, then stamp `data-lf-upgraded="1"`.
 11. Start the state feed; its first answer presents the page, or after a bounded
     wait the page presents offline and applies the answer when it lands.

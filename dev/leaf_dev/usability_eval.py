@@ -2,14 +2,16 @@
 
 Each provider call owns one isolated scenario, including its resumed phases or
 live user rounds. Promptfoo owns arms, repetition, concurrency, and reporting;
-this module owns fixtures, execution, and what each scenario scores. Evidence
-stays in the supplied work directory, and the agent cwd stays outside any repo.
+this module owns fixture setup, execution, and deterministic evidence readings.
+Authored tasks, user moves, fixture prose, and grading live in
+`evals/workflows/usability_eval.yaml`. Evidence stays in the supplied work
+directory, and the agent cwd stays outside any repo.
 
 A fact the page states is read the way Leaf reads it: decisions, asks and
 workflows from `leaf page state`, markup through Leaf's own parse
 (`SourceDocument`, and `SourceReading` for the words an element says). What the
 agent says, in a reply or in prose it wrote onto the page, is judged by meaning
-through an `llm-rubric` (`JUDGED`), never matched against a pattern. Only the
+through a native YAML `llm-rubric`, never matched against a pattern. Only the
 native trace, the commands the agent ran and the deliveries it was handed, is
 matched as text, since it records nothing richer.
 """
@@ -62,178 +64,14 @@ from leaf_dev.arms import (
     waits_started,
 )
 from leaf_dev.browser import chrome, load, tab
+from leaf_dev.eval_cases import definition
 
 FIXTURES = ROOT / "evals/usability/fixtures"
-ANSWERS = json.loads((FIXTURES / "reading-answers.json").read_text())
-SURFACES = [q["surface"] for q in ANSWERS["questions"]]
-
-HEADLESS = (
-    "This session is headless: nobody can open a browser or answer you during it. "
-    "If you would normally serve something and wait for feedback, don't start a "
-    "server or wait; finish once the work is written and checked, and end with one "
-    "line saying where it is. Keep every file you create inside {work}."
-)
-QUIET = (
-    "This session is headless: nobody can open a browser or answer you during it, so "
-    "don't start a server or wait for feedback."
-)
-
-COLD = {
-    "cold-report": """Write up these findings from yesterday's load test so I can skim them
-and leave comments before tomorrow's standup. We'll probably drop it after that.
-
-1. Throughput: the checkout service held 1,850 requests/s at a p99 of 240 ms. The
-   database connection pool saturated at 2,100 requests/s.
-2. Errors: 0.4% of requests failed, almost all 503s from the inventory service once
-   its thread pool reached 200 threads.
-3. Cost: the run used 38 instance-hours, 22% more than the last test, because
-   autoscaling added nodes late.""",
-    "cold-decision": """Show me the options for where to cache product prices, with the
-evidence, so I can pick one. Last week's measurements:
-
-- In-process LRU in each pod: 0.2 ms median read; 9% of reads were stale at a 60 s
-  TTL; no new infrastructure.
-- Shared Redis: 1.1 ms median read; 0.3% stale reads; about $410 a month.
-- CDN edge cache: 0.05 ms median read, but only for anonymous traffic (68% of
-  requests); a price purge takes up to 90 s to reach every edge.
-
-We'll run exactly one of these.""",
-    "near-miss": """Explain the difference between optimistic and pessimistic locking in a
-relational database. A short answer is fine.""",
-}
-
-READING = """The directory {page} is a Leaf page I've been working on with an agent.
-Answer these questions from what the page currently shows me. Reply with one numbered
-line per question, each a short answer, and nothing else.
-
-{questions}
-
-{quiet}"""
-
-RESUME = [
-    """Another session was working with me on the Leaf page at {page}, and it has
-ended. You're picking the page up. Don't change anything yet: first tell me where it
-stands. Start your reply with these three lines, then add anything else I should
-know:
-
-Date: <the cutover date the page shows me now>
-Approach: <how traffic will move to the new index>
-Next: <what needs doing next>
-
-{quiet}""",
-    """Go ahead and do what needs doing next. Check the page and stamp the new version
-when it's ready. {quiet}""",
-]
-
-CONSTRUCTS = [
-    """The directory {page} is a Leaf page I've been working on with an agent. Before
-we change it, answer from what the page currently shows me, one numbered line each:
-
-1. What does the release note say?
-2. What p95 does the latency sentence state, and what is the latest measurement?
-3. Which region has the most errors in the chart?
-
-Don't change anything yet. {quiet}""",
-    """Now update the page: the rollout starts 19 November, not 12 November; the latency
-sentence should state the latest p95 measurement; and sa-east's error count was
-miscounted, it is 85. Check the page and stamp the new version. {quiet}""",
-]
-
-BOARD = [
-    """The directory {page} is a Leaf page I've been working on with an agent. Before
-we change it, answer from what the page currently shows me, one numbered line each:
-
-1. List the cards in the Doing column, top to bottom.
-2. Which column is "Rotate signing keys" in?
-
-Don't change anything yet. {quiet}""",
-    """Now add a card "Revoke old keys" at the bottom of To do, and rename "Expiry
-alerts" to "Key expiry alerts". Check the page and stamp the new version. {quiet}""",
-]
-# The user's moves, in order: two cards into Doing at ranks around the authored "1"
-# and "2", and one into Done that they then undid.
-BOARD_MOVES = [
-    {"unit": "card-docs", "value": "col-doing", "rank": "0i"},
-    {"unit": "card-audit", "value": "col-doing", "rank": "1i"},
-    {"unit": "card-rotate", "value": "col-done", "rank": "1"},
-]
-BOARD_DOING = ["card-docs", "card-inventory", "card-audit", "card-alerts"]
-
-PACKAGE = """The Leaf page at {page} is a reliability review I'm writing with an agent.
-It uses our team's `slo` package, which has a widget for error budgets. Add checkout's
-error budget to the Checkout section: the objective is 99.9% availability over 28 days,
-and 62% of the budget is spent so far. Check the page and stamp the new version.
-{quiet}"""
-
-SHARED_SOURCE = [
-    """The directory {page} is a Leaf page I've been working on with an agent. Before
-we change it, answer from what the page currently shows me, one numbered line each:
-
-1. Which branch is finch's worktree on, and are its tests passing?
-2. How many commits ahead of its base is wren's worktree?
-
-Don't change anything yet. {quiet}""",
-    """finch just pushed a fix: its worktree's head is now 3f0a6be, 7 commits ahead of
-main, and its tests pass. Update the page to show that. {quiet}""",
-]
-
-# The live cases' first messages. Each names the page; none names a reference.
-HANDOFF = """I've drafted a Leaf page at {page} comparing three ways to run the
-order-history backfill. Hand it over so I can pick one in my browser and leave
-comments, and handle what I send you."""
-REOPEN = """The Leaf page at {page} is one I've been reviewing with another agent
-session, which has ended. Serve it again so I can keep working on it in my browser,
-and handle what I send you."""
-
-# What a live case's user does, one list of moves per round. `anchor` is an
-# (element, quote) pair in the served HTML; `undoes: "previous"` names the move posted
-# just before it; `parent: "latest"` the page's newest message; `{origin}` in text is
-# the served origin. Every document-bound move names the served revision.
-DRY_RUN = {
-    "kind": "comment",
-    "text": "Add how long the dry run took: 3 h 10 min.",
-    "anchor": ("dry-run", "finished without errors"),
-}
-FREEZE_QUESTION = {
-    "kind": "comment",
-    "text": "Which option needs a write freeze, and for how long?",
-    "anchor": ("lede", "Pick how the copy runs."),
-}
-PICK = {
-    "kind": "action",
-    "widget": "copy-mode",
-    "action": "choose",
-    "detail": {"value": ["opt-online"]},
-}
-SHORTEN = {
-    "kind": "comment",
-    "token": "shorten",
-    "anchor": ("why-now", "The reporting team moves its dashboards"),
-}
-CARD_MOVE = {
-    "kind": "action",
-    "widget": "follow-board",
-    "action": "move",
-    "detail": {"unit": "card-lag-alert", "value": "col-done", "rank": "1"},
-}
-# The edit the `DRY_RUN` comment asks for, as the judge reads the edited paragraph.
-DRY_RUN_DONE = "The paragraph says the dry run took 3 hours 10 minutes."
-UNDO = {"kind": "undo", "undoes": "previous"}
-SUMMARY_ERROR = {
-    "kind": "error",
-    "text": "Uncaught TypeError: replaceAll must be called with a global RegExp "
-    "({origin}/:{line})",
-}
-START_QUESTION = {
-    "kind": "reply",
-    "parent": "latest",
-    "text": "Remind me what time the copy starts each night, in UTC? I'm putting it "
-    "in the on-call calendar.",
-}
-# The thread another session held on the elided page: the user's messages and its
-# answers, alternating. The fifth settles the window; the delivery of a new message
-# shows the first and the latest seven, so the premise is in the part it leaves out.
+READING_FIXTURE = json.loads((FIXTURES / "reading-answers.json").read_text())
+DEFINITION = definition("usability_eval")
+FIXTURE_INPUTS = DEFINITION["fixtures"]
 ELIDED_THREAD = json.loads((FIXTURES / "elided-thread.json").read_text())
+PREMISE = FIXTURE_INPUTS["elided"]["premise"]
 
 
 @dataclass(frozen=True)
@@ -246,40 +84,15 @@ class Case:
     injection: tuple[str, ...] = ()
 
 
-def reading_case(surface: str | None) -> Case:
-    questions = [
-        q for q in ANSWERS["questions"] if surface is None or q["surface"] == surface
-    ]
-    lines = "\n".join(f"{n}. {q['question']}" for n, q in enumerate(questions, 1))
-    prompt = READING.replace("{questions}", lines)
-    name = "reading" if surface is None else f"reading-{surface}"
-    return Case(name, (prompt,), fixture=name)
-
-
 CASES = {
-    **{name: Case(name, (f"{prompt}\n\n{HEADLESS}",)) for name, prompt in COLD.items()},
-    "reading": reading_case(None),
-    **{f"reading-{s}": reading_case(s) for s in SURFACES},
-    "resume": Case("resume", tuple(RESUME), fixture="resume"),
-    "constructs": Case("constructs", tuple(CONSTRUCTS), fixture="constructs"),
-    "board": Case("board", tuple(BOARD), fixture="board"),
-    "package": Case("package", (PACKAGE,), fixture="package"),
-    "shared-source": Case(
-        "shared-source", tuple(SHARED_SOURCE), fixture="shared-source"
-    ),
-    "handoff": Case(
-        "handoff",
-        (HANDOFF,),
-        fixture="handoff",
-        rounds=((DRY_RUN,), (FREEZE_QUESTION,)),
-    ),
-    "mixed": Case(
-        "mixed",
-        (REOPEN,),
-        fixture="mixed",
-        rounds=((DRY_RUN, PICK, SHORTEN, CARD_MOVE, UNDO, SUMMARY_ERROR),),
-    ),
-    "elided": Case("elided", (REOPEN,), fixture="elided", rounds=((START_QUESTION,),)),
+    name: Case(
+        name,
+        tuple(case["inputs"]["prompts"]),
+        fixture=case["inputs"].get("fixture"),
+        rounds=tuple(tuple(round) for round in case["inputs"].get("rounds", [])),
+        injection=tuple(case["inputs"].get("injection", [])),
+    )
+    for name, case in DEFINITION["cases"].items()
 }
 
 
@@ -372,7 +185,9 @@ def build_reading(run: Run, page: Path, surface: str | None) -> None:
     html = (FIXTURES / "reading.html").read_text()
     if surface is not None:
         keep = next(
-            q["section"] for q in ANSWERS["questions"] if q["surface"] == surface
+            q["section"]
+            for q in READING_FIXTURE["questions"]
+            if q["surface"] == surface
         )
         html = re.sub(
             r'\n *<section id="([\w-]+)">.*?</section>\n',
@@ -385,12 +200,21 @@ def build_reading(run: Run, page: Path, surface: str | None) -> None:
     if 'source="copier-config"' in html:
         run.leaf(
             "data", "set", str(page), "copier-config",
-            input_text=json.dumps(ANSWERS["data"]["copier-config"]), check=True,
+            input_text=json.dumps(READING_FIXTURE["data"]["copier-config"]), check=True,
         )  # fmt: skip
-    run.leaf("page", "stamp", str(page), "--text", "Plan as authored", check=True)
-    run.leaf("status", str(page), "waiting", "Pick a cutover mode", check=True)
+    run.leaf(
+        "page",
+        "stamp",
+        str(page),
+        "--text",
+        FIXTURE_INPUTS["reading"]["stamp"],
+        check=True,
+    )
+    run.leaf(
+        "status", str(page), "waiting", FIXTURE_INPUTS["reading"]["status"], check=True
+    )
     if 'id="cutover-mode"' in html:
-        for move in ANSWERS["moves"]:
+        for move in READING_FIXTURE["moves"]:
             if move.get("undoes") == "previous":
                 move = {**move, "undoes": page_events(page)[-1]["id"]}
             admit(run, page, move)
@@ -416,31 +240,32 @@ def anchor(html: str, element: str, quote: str) -> dict:
 
 
 def build_resume(run: Run, page: Path) -> None:
+    inputs = FIXTURE_INPUTS["resume"]
     v1 = (FIXTURES / "resume-v1.html").read_text()
     v2 = (FIXTURES / "resume-v2.html").read_text()
     run.leaf("page", "init", str(page), check=True)
     (page / "index.html").write_text(v1)
-    run.leaf("page", "stamp", str(page), "--text", "First plan", check=True)
+    run.leaf("page", "stamp", str(page), "--text", inputs["initial_stamp"], check=True)
     admit(run, page, {
         "kind": "comment", "revision": 1,
-        "text": "These rehearsal numbers are from before the mapping change. Rerun it and update the figure.",
-        "anchor": anchor(v1, "rehearsal-result", "4.1 million documents in 3 h 20 min"),
+        "text": inputs["rerun_comment"],
+        "anchor": anchor(v1, "rehearsal-result", inputs["rerun_quote"]),
     })  # fmt: skip
     rerun = page_events(page)[-1]["id"]
     (page / "index.html").write_text(v2)
     run.leaf(
         "page", "stamp", str(page), "--text",
-        "Rehearsal rerun after the mapping change; ask how traffic moves", check=True,
+        inputs["rerun_stamp"], check=True,
     )  # fmt: skip
     arm_fixture(
         run,
         "answer",
         str(page),
         rerun,
-        "Reran it on 18 September after the mapping change: 4.3 million documents in 3 h 05 min. The page shows the new figure.",
+        inputs["rerun_answer"],
     )
     run.leaf(
-        "status", str(page), "waiting", "Pick how traffic moves to the new index",
+        "status", str(page), "waiting", inputs["status"],
         check=True,
     )  # fmt: skip
     admit(run, page, {"kind": "resolve", "parent": rerun})
@@ -450,24 +275,18 @@ def build_resume(run: Run, page: Path) -> None:
     })  # fmt: skip
     admit(run, page, {
         "kind": "comment", "revision": 2,
-        "text": "Batches of 500 saturate the replica's disk queue. Drop to 200 and say why on the page.",
-        "anchor": anchor(v2, "batch-size", "batches of 500"),
+        "text": inputs["batch_comment"],
+        "anchor": anchor(v2, "batch-size", inputs["batch_quote"]),
     })  # fmt: skip
     # The previous session's last save: an unexplained date change, and a paragraph
     # inside the options that makes the save invalid, so the live page stays at v2.
-    candidate = v2.replace("scheduled for 21 October", "scheduled for 3 November")
+    candidate = v2.replace(inputs["original_date"], inputs["unsaved_date"])
     candidate = candidate.replace(
         '<lf-options id="rollout" choose>',
-        '<lf-options id="rollout" choose>\n<p id="approach-deadline">Decide by Friday.</p>',
+        '<lf-options id="rollout" choose>\n' + inputs["invalid_child"],
     )
     assert candidate.count("3 November") == 1 and "approach-deadline" in candidate
     (page / "index.html").write_text(candidate)
-
-
-CONSTRUCTS_DRAFT = (
-    "Release 4.2 moves card tokenization to the new vault. Merchants need no code "
-    "changes. Rollout starts 12 November.\n"
-)
 
 
 def build_constructs(run: Run, page: Path) -> None:
@@ -483,11 +302,24 @@ def build_constructs(run: Run, page: Path) -> None:
     (page / "index.html").write_text(
         re.sub(r'\brun="[^"]*"', f'run="{receipt}"', template)
     )
-    run.leaf("page", "stamp", str(page), "--text", "Release 4.2 review", check=True)
-    run.leaf("status", str(page), "waiting", "Edit the release note", check=True)
+    run.leaf(
+        "page",
+        "stamp",
+        str(page),
+        "--text",
+        FIXTURE_INPUTS["constructs"]["stamp"],
+        check=True,
+    )
+    run.leaf(
+        "status",
+        str(page),
+        "waiting",
+        FIXTURE_INPUTS["constructs"]["status"],
+        check=True,
+    )
     admit(run, page, {
         "kind": "action", "revision": 1, "widget": "release-note", "action": "edit",
-        "detail": {'value': CONSTRUCTS_DRAFT},
+        "detail": {'value': FIXTURE_INPUTS["constructs"]["draft"]},
     })  # fmt: skip
     run.leaf("data", "set", str(page), "checkout-p95", input_text="231", check=True)
 
@@ -496,9 +328,18 @@ def build_board(run: Run, page: Path) -> None:
     """A board whose cards the user moved, one move undone."""
     run.leaf("page", "init", str(page), check=True)
     (page / "index.html").write_text((FIXTURES / "board.html").read_text())
-    run.leaf("page", "stamp", str(page), "--text", "Key rotation board", check=True)
-    run.leaf("status", str(page), "waiting", "Move cards as work changes", check=True)
-    for detail in BOARD_MOVES:
+    run.leaf(
+        "page",
+        "stamp",
+        str(page),
+        "--text",
+        FIXTURE_INPUTS["board"]["stamp"],
+        check=True,
+    )
+    run.leaf(
+        "status", str(page), "waiting", FIXTURE_INPUTS["board"]["status"], check=True
+    )
+    for detail in FIXTURE_INPUTS["board"]["moves"]:
         admit(run, page, {
             "kind": "action", "revision": 1, "widget": "work-board",
             "action": "move", "detail": detail,
@@ -512,7 +353,14 @@ def build_package(run: Run, page: Path) -> None:
     run.leaf("package", "install", str(FIXTURES / "slo"), check=True)
     run.leaf("page", "init", "--package", "slo", str(page), check=True)
     (page / "index.html").write_text((FIXTURES / "slo.html").read_text())
-    run.leaf("page", "stamp", str(page), "--text", "September review", check=True)
+    run.leaf(
+        "page",
+        "stamp",
+        str(page),
+        "--text",
+        FIXTURE_INPUTS["package"]["stamp"],
+        check=True,
+    )
 
 
 def build_shared_source(run: Run, page: Path) -> None:
@@ -531,7 +379,14 @@ def build_shared_source(run: Run, page: Path) -> None:
         "data", "set", str(page), "project-worktrees",
         input_text=(FIXTURES / "hub-worktrees.json").read_text(), check=True,
     )  # fmt: skip
-    run.leaf("page", "stamp", str(page), "--text", "Parser workers", check=True)
+    run.leaf(
+        "page",
+        "stamp",
+        str(page),
+        "--text",
+        FIXTURE_INPUTS["shared-source"]["stamp"],
+        check=True,
+    )
 
 
 def build_handoff(run: Run, page: Path) -> None:
@@ -545,8 +400,17 @@ def build_mixed(run: Run, page: Path) -> None:
     throws on a click."""
     run.leaf("page", "init", str(page), check=True)
     (page / "index.html").write_text((FIXTURES / "mixed.html").read_text())
-    run.leaf("page", "stamp", str(page), "--text", "Backfill plan", check=True)
-    run.leaf("status", str(page), "waiting", "Pick how the copy runs", check=True)
+    run.leaf(
+        "page",
+        "stamp",
+        str(page),
+        "--text",
+        FIXTURE_INPUTS["mixed"]["stamp"],
+        check=True,
+    )
+    run.leaf(
+        "status", str(page), "waiting", FIXTURE_INPUTS["mixed"]["status"], check=True
+    )
 
 
 def build_elided(run: Run, page: Path) -> None:
@@ -557,7 +421,14 @@ def build_elided(run: Run, page: Path) -> None:
     html = (FIXTURES / "elided.html").read_text()
     run.leaf("page", "init", str(page), check=True)
     (page / "index.html").write_text(html)
-    run.leaf("page", "stamp", str(page), "--text", "Backfill schedule", check=True)
+    run.leaf(
+        "page",
+        "stamp",
+        str(page),
+        "--text",
+        FIXTURE_INPUTS["elided"]["stamp"],
+        check=True,
+    )
     run.leaf("status", str(page), "waiting", "", check=True)
 
 
@@ -832,11 +703,7 @@ def execute_phases(run: Run, case: Case, work: Path, page: Path) -> None:
     phase's session."""
     session = None
     for phase, template in enumerate(case.prompts, 1):
-        prompt = (
-            template.replace("{page}", str(page))
-            .replace("{work}", str(work))
-            .replace("{quiet}", QUIET)
-        )
+        prompt = template.replace("{page}", str(page)).replace("{work}", str(work))
         (run.dir / f"prompt-{phase}.txt").write_text(prompt)
         trace = run_agent(
             work,
@@ -942,134 +809,6 @@ def score_cold(run: Run, calls: list[str]) -> dict:
     }
 
 
-def reading_questions(case: str) -> list[dict]:
-    surface = case.removeprefix("reading").removeprefix("-") or None
-    return [
-        q for q in ANSWERS["questions"] if surface is None or q["surface"] == surface
-    ]
-
-
-GESTURE = (
-    "The message tells the user how to make the decision on the page: by picking, "
-    "choosing or selecting one of its options."
-)
-
-# What each scenario judges by meaning: text → metric → passing reading. The text
-# names an entry of the response's `metadata.texts`; `reply-N` is phase N's final
-# message, and a scorer adds what it read off the page or the log. The judge reads
-# that text alone, so each criterion stands without the scenario around it.
-JUDGED = {
-    "cold-decision": {"reply-1": {"names_gesture": GESTURE}},
-    "resume": {
-        "reply-1": {
-            "date": "The message reports 21 October as the cutover date the page "
-            "currently shows. Reporting 3 November as the current date fails; "
-            "mentioning it as an unsaved or proposed change is fine.",
-            "approach": "The message says traffic moves to the new index tenant by "
-            "tenant, in groups of tenants.",
-            "next_batch": "Among what needs doing next, the message includes the "
-            "request to drop the batch size from 500 to 200.",
-            "next_pick": "Among what needs doing next, the message includes taking in "
-            "the user's pick of the tenant-by-tenant approach, such as marking it "
-            "chosen on the page. Treating how traffic moves as still undecided fails.",
-        },
-    },
-    "constructs": {
-        "reply-1": {
-            "draft_read": 'Answer 1, to "What does the release note say?", gives '
-            "the note as the user edited it, which says merchants need no code "
-            "changes.",
-            "p95_read": 'Answer 2, to "What p95 does the latency sentence state, and '
-            'what is the latest measurement?", says the sentence states 184 ms and '
-            "the latest measurement is 231 ms.",
-            "chart_read": 'Answer 3, to "Which region has the most errors in the '
-            'chart?", is us-east.',
-        },
-        "release-note": {
-            "draft_date": "The release note gives the rollout start as 19 November "
-            "and does not say 12 November.",
-            "draft_kept_user_words": "The release note says merchants need no code "
-            "changes.",
-        },
-        "chart": {"chart_85": "In the data this chart plots, sa-east has 85 errors."},
-    },
-    "board": {
-        "reply-1": {
-            "doing_read": 'Answer 1, to "List the cards in the Doing column, top to '
-            'bottom", is Update runbook, Inventory services, Audit key usage, Expiry '
-            "alerts: those four cards in that order.",
-            "undo_read": 'Answer 2, to "Which column is \\"Rotate signing keys\\" '
-            'in?", is To do.',
-        },
-    },
-    "shared-source": {
-        "reply-1": {
-            "finch_branch": "Answer 1, to which branch finch's worktree is on and "
-            "whether its tests pass, gives the branch as finch/cdata-escapes. Giving "
-            "finch/cdata-escapes-v1 fails.",
-            "finch_failing": "Answer 1, to which branch finch's worktree is on and "
-            "whether its tests pass, says its tests are failing.",
-            "wren_ahead": "Answer 2, to how many commits ahead of its base wren's "
-            "worktree is, is 4.",
-        },
-    },
-    "handoff": {
-        "status": {
-            "detail_names_ask": "This status, shown while the page waits on the user, "
-            "says what it waits for: their choice of how the backfill copy runs.",
-        },
-        "handover": {"gesture_named": GESTURE},
-        "dry-run": {"edit_done": DRY_RUN_DONE},
-        "answers": {
-            "question_answered": "The answer says the snapshot restore option needs a "
-            "write freeze, and that the freeze lasts 40 minutes.",
-        },
-    },
-    "mixed": {"dry-run": {"comment_done": DRY_RUN_DONE}},
-    "elided": {
-        "answers": {
-            "answer_right": "The answer says the copy starts at 22:00 UTC each night. "
-            "Answering 01:00 UTC fails.",
-        },
-    },
-}
-
-
-def rubrics(case: str) -> list[dict]:
-    """Promptfoo `llm-rubric`s: each reading question's answer, and each judged text
-    of a scenario."""
-    if case.startswith("reading"):
-        return [
-            {
-                "type": "llm-rubric",
-                "metric": f"answer_{q['surface']}",
-                "value": f"Question {n}: {q['question']}\n"
-                f"Expected answer: {q['answer']}\n"
-                "Pass only if the answer to this question conveys the expected "
-                "meaning. Equivalent wording is fine; contradicting the expected "
-                "answer fails, even when its words occur in the reply."
-                + (
-                    " For viewer state, acknowledge uncertainty and do not identify a "
-                    "currently open tab."
-                    if q["surface"] == "view"
-                    else ""
-                ),
-            }
-            for n, q in enumerate(reading_questions(case), 1)
-        ]
-    return [
-        {
-            "type": "llm-rubric",
-            "metric": metric,
-            "value": criterion,
-            # A text the run never produced reaches the judge empty, and fails.
-            "transform": f"context.metadata.texts?.[{json.dumps(text)}] ?? ''",
-        }
-        for text, criteria in JUDGED.get(case, {}).items()
-        for metric, criterion in criteria.items()
-    ]
-
-
 def score_constructs(run: Run) -> dict:
     page = run.work / "page"
     state, document = active_document(run, page)
@@ -1107,7 +846,8 @@ def score_board(run: Run) -> dict:
     todo = column_cards(document, "col-todo")
     return {
         "stamped": True,
-        "doing_order": column_cards(document, "col-doing") == BOARD_DOING,
+        "doing_order": column_cards(document, "col-doing")
+        == FIXTURE_INPUTS["board"]["doing"],
         "todo_kept": todo[:1] == ["card-rotate"] and len(todo) == 2,
         "done_empty": column_cards(document, "col-done") == [],
         "renamed": "key expiry alerts"
@@ -1405,7 +1145,8 @@ def score_mixed(run: Run, trace: list[dict], browser: Browser) -> dict:
         "pick_answered": not pick_owed(state, pick["id"])
         and any(
             ask["source"]["id"] == "copy-mode"
-            and (ask["answer"] or {}).get("value") == PICK["detail"]["value"]
+            and (ask["answer"] or {}).get("value")
+            == CASES["mixed"].rounds[0][1]["detail"]["value"]
             for ask in state["asks"]
         ),
         # The reaction is acted on, by shortening the paragraph in place or by
@@ -1461,9 +1202,6 @@ def copy_summary_works(run: Run, page: Path, browser: Browser) -> bool:
             )
         except PlaywrightTimeout:
             return False
-
-
-PREMISE = "the vacuum job now owns the ops window"
 
 
 def score_elided(run: Run, trace: list[dict]) -> dict:
@@ -1543,7 +1281,7 @@ LIVE_SCORES = {"handoff": score_handoff, "elided": score_elided}
 
 # These declarations remain complete when a scorer exits early or a round never
 # arrives. Missing observations fail instead of silently shrinking the assertion set.
-# What a scenario judges by meaning is in `JUDGED` instead.
+# Native YAML assertions own what a scenario judges by meaning.
 CHECKS = {
     "cold-report": (
         "leaf_skill",
@@ -1664,7 +1402,7 @@ def expected_checks(case: str, *, condition: str = "leaf") -> list[str]:
 def checks_for(case: str, score: dict, phases: list[dict], usable: bool) -> dict:
     """Turn scored observations into every declared boolean, including absences."""
     values = dict(score)
-    if case in COLD:
+    if CASES[case].fixture is None:
         skill = any(p["leaf_skill"] for p in phases)
         if phases:
             values |= {"leaf_skill": skill, "leaf_skill_quiet": not skill}
@@ -1698,7 +1436,7 @@ def score_run(run: Run, traces: list[list[dict]], calls: list[str]) -> dict:
         return score_package(run, traces[0])
     if run.case == "shared-source":
         return score_shared_source(run, traces)
-    if run.case in COLD:
+    if CASES[run.case].fixture is None:
         return score_cold(run, calls)
     if run.case.startswith("reading"):
         return {}
@@ -1720,7 +1458,7 @@ def execute_scenario(
     """One Promptfoo provider call owns all phases, live rounds, and evidence.
 
     `metadata.checks` answers each fixed check; `metadata.texts` holds each text a
-    `rubrics` judge reads: every phase's final message, and what the scorer read."""
+    YAML assertion reads: every phase's final message, and what the scorer read."""
     run = Run(case, payload, work, harness)
     with scratch() as child_work:
         execute(run, child_work)

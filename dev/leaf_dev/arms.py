@@ -68,6 +68,8 @@ PAYLOAD = (
     "uv.lock",
     "dev/pyproject.toml",
     "worker/pyproject.toml",
+    "worker/leaf_website",
+    "worker/codex-config.toml",
 )
 
 # The harnesses an arm's child runs, named as the shipped harness names itself.

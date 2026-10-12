@@ -20,46 +20,12 @@ import click
 
 from leaf_dev.arms import run_agent, trace_result
 from leaf_dev.arrangement_eval import CASES, PREFERENCE, TASKS, WIDTHS, listing, phases
+from leaf_dev.eval_cases import definition
 
-ASPECTS = ("evidence", "decisions", "width", "phone", "comment")
-
-JUDGE = """You are judging two web pages built for the same user request. Read the
-brief at {brief}, then open every screenshot it lists with the Read tool before
-judging. Open no other file.
-
-Judge as the user who made the request would, from what the screenshots show. A
-labeled control whose content is out of view (a collapsed disclosure, an unselected
-queue item, a scroll region's remainder) counts as reachable but costs the user a
-step; content cut off with no visible way to reach it does not count. Ignore which
-tool or framework made a page and any fixed viewer chrome outside the page's
-content; judge the content, its arrangement and its legibility.
-
-Compare A and B on:
-- evidence: the request's substantive facts are present and readable
-- decisions: the user can see and take the decisions or navigation the request asks for
-- width: at the 900px windows, the page follows the standing preference
-- phone: the page is usable at 390px
-- comment: the final page carries the change the comment asked for where a reader
-  of that passage would find it
-
-Name the better page on each, and overall with its margin; list each page's
-defects; give your reason in two or three sentences."""
-
-WINNER = {"type": "string", "enum": ["A", "B", "tie"]}
-DEFECTS = {"type": "array", "items": {"type": "string"}}
-# The verdict's shape, which the judge's structured output holds it to.
-VERDICT = {
-    "type": "object",
-    "properties": {
-        **dict.fromkeys((*ASPECTS, "overall"), WINNER),
-        "margin": {"type": "string", "enum": ["slight", "clear", "strong"]},
-        "defects_A": DEFECTS,
-        "defects_B": DEFECTS,
-        "reason": {"type": "string"},
-    },
-    "required": [*ASPECTS, "overall", "margin", "defects_A", "defects_B", "reason"],
-    "additionalProperties": False,
-}
+DEFINITION = definition("eval_pairs")
+ASPECTS = tuple(DEFINITION["aspects"])
+JUDGE = DEFINITION["prompt"]
+VERDICT = DEFINITION["output_schema"]
 
 
 def samples(runs: list[Path]) -> dict[str, dict[str, list[dict]]]:

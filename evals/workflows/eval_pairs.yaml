@@ -1,0 +1,68 @@
+# Pairwise reader judgement; the runner supplies the blinded brief path.
+prompt: |-
+  You are judging two web pages built for the same user request. Read the
+  brief at {brief}, then open every screenshot it lists with the Read tool before
+  judging. Open no other file.
+
+  Judge as the user who made the request would, from what the screenshots show. A
+  labeled control whose content is out of view (a collapsed disclosure, an unselected
+  queue item, a scroll region's remainder) counts as reachable but costs the user a
+  step; content cut off with no visible way to reach it does not count. Ignore which
+  tool or framework made a page and any fixed viewer chrome outside the page's
+  content; judge the content, its arrangement and its legibility.
+
+  Compare A and B on:
+  - evidence: the request's substantive facts are present and readable
+  - decisions: the user can see and take the decisions or navigation the request asks for
+  - width: at the 900px windows, the page follows the standing preference
+  - phone: the page is usable at 390px
+  - comment: the final page carries the change the comment asked for where a reader
+    of that passage would find it
+
+  Name the better page on each, and overall with its margin; list each page's
+  defects; give your reason in two or three sentences.
+aspects:
+- evidence
+- decisions
+- width
+- phone
+- comment
+output_schema:
+  type: object
+  properties:
+    evidence: &id001
+      type: string
+      enum:
+      - A
+      - B
+      - tie
+    decisions: *id001
+    width: *id001
+    phone: *id001
+    comment: *id001
+    overall: *id001
+    margin:
+      type: string
+      enum:
+      - slight
+      - clear
+      - strong
+    defects_A: &id002
+      type: array
+      items:
+        type: string
+    defects_B: *id002
+    reason:
+      type: string
+  required:
+  - evidence
+  - decisions
+  - width
+  - phone
+  - comment
+  - overall
+  - margin
+  - defects_A
+  - defects_B
+  - reason
+  additionalProperties: false

@@ -349,13 +349,17 @@ def test_catalog_contexts_keep_complete_original_check_coverage():
 
 
 def test_sidebar_primary_scores_rendered_work_and_retains_instruction_diagnostics():
-    from leaf_dev.arrangement_eval import expected_checks, rubrics
+    from leaf_dev.arrangement_eval import expected_checks
+    from leaf_dev.eval_cases import definition
 
     cases = catalog()
     task = "sidebar-page-at-900px"
     assert cases[task]["metadata"]["executor"] == "leaf_dev.arrangement_eval"
     assert not any(check.startswith("choice-") for check in expected_checks(task))
-    assert any("completed rollout" in rubric["value"] for rubric in rubrics(task))
+    assert any(
+        "completed rollout" in rubric["value"]
+        for rubric in definition("arrangement_eval")["cases"][task]["assert"]
+    )
     for variant in ("instructions", "live"):
         case = cases[f"{task}/{variant}"]
         assert case["metadata"]["executor"] is None
@@ -366,7 +370,8 @@ def test_sidebar_primary_scores_rendered_work_and_retains_instruction_diagnostic
 def test_workflows_run_declared_conditions_harnesses_and_fixed_checks(
     tmp_path, monkeypatch
 ):
-    from leaf_dev.arrangement_eval import expected_checks, rubrics
+    from leaf_dev.arrangement_eval import expected_checks
+    from leaf_dev.eval_cases import definition
 
     login = tmp_path / "harness-login"
     login.mkdir()
@@ -416,7 +421,12 @@ def test_workflows_run_declared_conditions_harnesses_and_fixed_checks(
         assert test["vars"] == {"prompt": "document"}
         assert [check["metric"] for check in test["assert"]] == [
             *expected_checks("document", condition=condition),
-            *(rubric["metric"] for rubric in rubrics("document")),
+            *(
+                rubric["metric"]
+                for rubric in definition("arrangement_eval")["cases"]["document"][
+                    "assert"
+                ]
+            ),
         ]
         # The screenshot judge may read the run's screenshots and nothing else
         # outside the runtime and its own executable.
@@ -465,8 +475,6 @@ def test_python_provider_gives_each_call_its_own_evidence(tmp_path, monkeypatch)
             return {"output": "{}"}
 
     class Judged:
-        rubrics = staticmethod(lambda scenario: [{"type": "agent-rubric"}])
-
         @staticmethod
         def execute_scenario(case, payload, work, *, shots, harness, condition):
             observed.append(shots)
@@ -488,11 +496,12 @@ def test_python_provider_gives_each_call_its_own_evidence(tmp_path, monkeypatch)
     context = {
         "vars": {"prompt": "document/resume"},
         "test": {
+            "assert": [],
             "metadata": {
                 "case": "document/resume",
                 "executor": "leaf_dev.usability_eval",
                 "scenario": "resume",
-            }
+            },
         },
     }
     responses = [scenario_provider.call_api("", options, context) for _ in range(2)]
@@ -510,13 +519,16 @@ def test_python_provider_gives_each_call_its_own_evidence(tmp_path, monkeypatch)
         )
         assert work.parent == tmp_path / "samples"
         assert work.name.startswith("document-resume-")
-    # A judged executor's screenshots go to the judge's tree, beside nothing else.
+    # Capture setup belongs to the executor's API; removing its screenshot rubric
+    # still supplies the directory it requires. A grader reads that same tree.
     context["test"]["metadata"]["executor"] = "leaf_dev.reader_eval"
-    response = scenario_provider.call_api("", options, context)
-    assert (
-        observed[-1]
-        == tmp_path / "screenshots" / Path(response["metadata"]["work"]).name
-    )
+    for assertions in ([], [{"type": "agent-rubric"}]):
+        context["test"]["assert"] = assertions
+        response = scenario_provider.call_api("", options, context)
+        assert (
+            observed[-1]
+            == tmp_path / "screenshots" / Path(response["metadata"]["work"]).name
+        )
 
 
 def test_command_passes_promptfoo_options_and_status_without_api_keys(

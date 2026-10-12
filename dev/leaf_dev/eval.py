@@ -48,6 +48,7 @@ from leaf_dev.arms import (
     environment,
     install_codex_plugin,
 )
+from leaf_dev.eval_cases import definition
 from leaf_dev.leaf_assets import pinned_copy
 
 PROMPTFOO = ROOT / "node_modules/.bin/promptfoo"
@@ -78,7 +79,12 @@ def catalog() -> dict[str, dict]:
             task,
             *(f"{task}/{name}" for name in source.get("variants", {})),
         ]:
-            cases[address] = context_case(source, address)
+            case = context_case(source, address)
+            if executor := case.get("metadata", {}).get("executor"):
+                case["assert"] = definition(executor.rsplit(".", 1)[1])["cases"][
+                    case["metadata"]["scenario"]
+                ]["assert"]
+            cases[address] = case
     return cases
 
 
@@ -292,10 +298,14 @@ def prepare(
             task = address.split("/", 1)[0]
             if executor:
                 module = import_module(executor)
-                checks = module.expected_checks(
-                    metadata["scenario"], condition=condition
+                checks = (
+                    []
+                    if "providerOutput" in test
+                    else module.expected_checks(
+                        metadata["scenario"], condition=condition
+                    )
                 )
-                rubrics = getattr(module, "rubrics", lambda _: [])(metadata["scenario"])
+                rubrics = test["assert"]
                 if (
                     any(r["type"].endswith("agent-rubric") for r in rubrics)
                     and judge is None

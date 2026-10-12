@@ -12,10 +12,10 @@ rendered the page, the measure of its repair iterations.
 
 The sample's output is what a judge needs: the user's request, the author's answer to
 the comment, and each version's screenshots by width, written to `shots`, the one
-directory its judge may read. `rubrics` are the Promptfoo `agent-rubric` assertions
-the judge grades from it, opening the screenshots and reading the answer; the fixed
-checks cover execution, the render gate and whether the comment's fact reached the
-page.
+directory its judge may read. The YAML case holds native Promptfoo `agent-rubric`
+assertions the judge grades from it, opening the screenshots and reading the answer.
+Fixed checks cover execution, the render gate and whether the comment's fact reached
+the page.
 For a task that asks for a decision, Leaf also seeds a choice after the common
 comparison, asks a fresh reader for its current state, and checks that a separate
 resumed revision preserves that choice. Readable records have no invented decision.
@@ -51,20 +51,16 @@ from leaf_dev.arms import (
 )
 from leaf_dev.arms import trace_result as result
 from leaf_dev.browser import chrome, load, settle, tab
+from leaf_dev.eval_cases import definition
 from leaf_dev.usability_eval import admit, arm_fixture
 
 TASKS = ROOT / "evals"
+DEFINITION = definition("arrangement_eval")
 WIDTHS = {
-    "laptop": ((1440, 900), "a 1440px laptop window"),
-    "narrow": ((900, 900), "a 900px window"),
-    "short": ((900, 600), "a short 900px by 600px window"),
-    "phone": ((390, 844), "a 390px phone"),
+    name: (tuple(width["viewport"]), width["description"])
+    for name, width in DEFINITION["widths"].items()
 }
-PREFERENCE = (
-    '"A standing preference for all my pages from now on: I read them in a window about '
-    "900px wide, beside my editor. At that width, keep the page's summary, status, "
-    'contents or queue beside the main content rather than stacked above or below it."'
-)
+PREFERENCE = DEFINITION["preference"]
 
 
 @dataclass(frozen=True)
@@ -86,79 +82,19 @@ class Comment:
 @dataclass(frozen=True)
 class Scenario:
     choice: bool
-    quality: str = ""
     comment: Comment | None = None
 
 
 CASES = {
-    "document": Scenario(
-        choice=True,
-        comment=Comment(
-            target="the recommendation's ask of the database owners",
-            quotes=(
-                "the database owners to say whether 55% peak CPU is acceptable",
-                "whether 55% peak CPU is acceptable",
-                "55% peak CPU",
-            ),
-            text="The database owners are Mei Tanaka's team. Name them here and ask "
-            "for their answer by Wednesday, the day before the decision.",
-            applied=r"Mei Tanaka",
+    name: Scenario(
+        choice=case["inputs"]["choice"],
+        comment=(
+            Comment(**(comment | {"quotes": tuple(comment["quotes"])}))
+            if (comment := case["inputs"].get("comment"))
+            else None
         ),
-    ),
-    "dashboard": Scenario(
-        choice=True,
-        comment=Comment(
-            target="the follow-up to confirm the timeout change with the payments team",
-            quotes=(
-                "Confirm the timeout change with the payments team (Dana).",
-                "Confirm the timeout change with the payments team",
-                "timeout change with the payments team",
-            ),
-            text="Dana confirmed at 15:52 that 7.2's 3 s connect timeout is the cause. "
-            "Mark this follow-up done and say so where the page explains the cause.",
-            applied=r"15:52",
-        ),
-    ),
-    "queue": Scenario(
-        choice=True,
-        comment=Comment(
-            target="ESC-4110 (Brightline Dental)'s suggested action",
-            quotes=(
-                "point to the feature request board, already planned for Q4",
-                "point to the feature request board",
-                "feature request board",
-            ),
-            text="Brightline is on a Team trial that converts next week, so don't just "
-            "close it: route it to their account manager, Sam Okafor, with the Q4 plan.",
-            applied=r"Sam Okafor",
-        ),
-    ),
-    "configuration": Scenario(
-        choice=False,
-        comment=Comment(
-            target="the ledger-reconciliation-lag alert",
-            quotes=(
-                "minutes since the last successful ledger reconciliation run",
-                "last successful ledger reconciliation run",
-                "ledger-reconciliation-lag",
-            ),
-            text="Finance owns this alert. If it pages, it pages the finance-ops "
-            "rotation, not payments on-call; show that beside its routing.",
-            applied=r"finance-ops",
-        ),
-    ),
-    "sidebar-page-at-900px": Scenario(
-        choice=False,
-        quality=(
-            "The completed rollout's forty entries must remain readable in the "
-            "document's scroll, rather than showing only one screen of a separate "
-            "listing. At both 900px window heights, all six checks and their failing "
-            "result stay accessible beside the log as it scrolls. Page navigation "
-            "and any supporting sidebar content remain reachable; a sticky box must "
-            "not hold them below the window. On a phone, the regions stack without covering "
-            "the log or hiding its entries."
-        ),
-    ),
+    )
+    for name, case in DEFINITION["cases"].items()
 }
 
 
@@ -201,57 +137,24 @@ def phases(subject: str) -> tuple[int, ...]:
 
 
 def first_prompt(payload: Path, page: Path, subject: str, condition="leaf") -> str:
-    request = (TASKS / subject / "request.md").read_text()
-    tooling = (
-        f"You have the Leaf skill at {payload}/skills/leaf/SKILL.md. Read and follow it, "
-        f"resolving references from {payload}/skills/leaf/. $LEAF is {payload}/bin/leaf. "
-        f"Check the page with `$LEAF page check {page} --render`, fix findings and stamp it."
-        if condition == "leaf"
-        else "Build with ordinary HTML, CSS and JavaScript. No Leaf instructions, widgets "
-        "or runtime are available. Check your output in the browser and fix findings."
+    return DEFINITION["prompts"]["first"][condition].format(
+        payload=payload,
+        page=page,
+        request=(TASKS / subject / "request.md").read_text(),
     )
-    return f"""{tooling}
-
-Write the page at {page}/index.html. This run is non-interactive: nobody will
-answer in the page. Produce a finished record with readable evidence and the
-choices or navigation the request needs. You may use the browser tooling available
-on this machine. Do not start an agent feedback watcher or wait for input. Reply
-with one line naming the path.
-
-The user's request follows.
-
-{request}"""
 
 
 def second_prompt(page: Path, condition="leaf") -> str:
-    check = (
-        f"Check it with `$LEAF page check {page} --render`, fix findings and stamp it."
-        if condition == "leaf"
-        else "Check your output in the browser and fix findings."
+    return DEFINITION["prompts"]["second"][condition].format(
+        page=page, preference=PREFERENCE
     )
-    return f"""The user writes:
-
-{PREFERENCE}
-
-Revise the page at {page} to follow this preference. {check}
-Do not start an agent feedback watcher or wait for input. Reply with its path.
-"""
 
 
 def comment_prompt(page: Path, comment: Comment, condition="leaf") -> str:
     """The turn that carries the user's comment: on the page in Leaf, in chat in HTML."""
-    if condition == "leaf":
-        return f"""The user has left a comment on the page at {page}. Handle it.
-Check with `$LEAF page check {page} --render`, fix findings and stamp the revision.
-Do not start an agent feedback watcher or wait for input. Reply with its path.
-"""
-    return f"""The user writes about the page at {page}:
-
-"On {comment.target}: {comment.text}"
-
-Handle it. Check your output in the browser and fix findings.
-Do not start an agent feedback watcher or wait for input. Reply with its path.
-"""
+    return DEFINITION["prompts"]["comment"][condition].format(
+        page=page, target=comment.target, text=comment.text
+    )
 
 
 def post_comment(run: Run) -> None:
@@ -332,12 +235,7 @@ def author(run: Run, cwd: Path) -> None:
             return
     if run.needs_choice:
         seed_and_read_choice(run)
-        continuation = (
-            f"The user has reviewed {page}. Add a short Review status note saying "
-            "it has now been reviewed. Preserve their existing decisions. "
-            f"Check with `$LEAF page check {page} --render` and stamp the revision. "
-            "Do not start a watcher or wait for input. Reply with its path."
-        )
+        continuation = DEFINITION["prompts"]["continuation"].format(page=page)
         (run.directory / "prompt-continuation.txt").write_text(continuation)
         run_agent(
             cwd,
@@ -400,11 +298,8 @@ def seed_and_read_choice(run: Run) -> None:
         destination = run.directory / "reader"
         destination.mkdir()
         with scratch() as work:
-            prompt = (
-                f"Read the Leaf skill at {run.payload}/skills/leaf/SKILL.md. "
-                f"The page at {page} has been reviewed by a user. Read its current "
-                f"state: which option ids are selected in {widget}? Don't edit "
-                "the page or serve it."
+            prompt = DEFINITION["prompts"]["choice_reader"].format(
+                payload=run.payload, page=page, widget=widget
             )
             (destination / "prompt.txt").write_text(prompt)
             trace = run_agent(
@@ -574,7 +469,7 @@ def comment_applied(run: Run, page: Path) -> bool:
 def comment_answer(run: Run, reply: str) -> str:
     """What the author told the user about their comment, where it was asked: its
     replies on the comment's thread in Leaf, its chat reply in HTML. The judge reads
-    it (`rubrics`, "comment-answered")."""
+    it (the case's "comment-answered" assertion)."""
     if run.condition == "html":
         return reply
     comment = posted_comment(run.authored_page)
@@ -618,56 +513,6 @@ def brief(
     for phase in phases(subject):
         lines += ["", f"Version {phase} screenshots:", *listing(captures[phase])]
     return "\n".join(lines)
-
-
-JUDGING = (
-    "Open every screenshot the output lists for version {phase} before judging. "
-    "Each width's screenshots run top to bottom with overlap. Fixed viewer "
-    "controls are outside the page's content, and a region with its own "
-    "scroll shows only its first screen. Judge only what a user sees; don't infer "
-    "interaction behavior from an unoperated screenshot. "
-)
-
-
-def rubrics(scenario: str) -> list[dict]:
-    """The judged quality of each version, and of the revision against the preference.
-
-    Splitting quality into separate verdicts would have the judge read every
-    screenshot once per verdict; its reason names what failed."""
-    return [
-        *(
-            {
-                "type": "agent-rubric",
-                "metric": f"phase-{phase}-quality",
-                "value": JUDGING.format(phase=phase)
-                + f"Pass only if, at every width, version {phase} keeps the request's "
-                "substantive information, lets the user find and read the evidence, and "
-                "provides the decisions or navigation the request needs. "
-                + CASES[scenario].quality,
-            }
-            for phase in phases(scenario)
-        ),
-        {
-            "type": "agent-rubric",
-            "metric": "phase-2-preference",
-            "value": JUDGING.format(phase=2)
-            + "Pass only if version 2 follows the standing width preference the "
-            "output quotes.",
-        },
-        *(
-            [
-                {
-                    "type": "agent-rubric",
-                    "metric": "comment-answered",
-                    "value": "Pass only if the author's answer to the user's comment, "
-                    "which the output quotes, tells the user that the change the "
-                    "comment asked for is made.",
-                }
-            ]
-            if CASES[scenario].comment
-            else []
-        ),
-    ]
 
 
 def expected_checks(case: str, *, condition="leaf") -> list[str]:

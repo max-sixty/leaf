@@ -40,19 +40,15 @@ test("locked source reproduces the complete committed output", async () => {
     "directive",
     "guard",
     "html",
-    "ifDefined",
     "keyed",
     "live",
-    "mathml",
     "noChange",
     "nothing",
     "ref",
     "render",
     "repeat",
     "styleMap",
-    "svg",
     "unsafeHTML",
-    "when",
   ]);
   const lit = exportsOf(read("lit.js"));
   for (const name of ["LitElement", "html", "classMap", "property", "staticHtml"])

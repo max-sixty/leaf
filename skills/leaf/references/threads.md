@@ -59,7 +59,7 @@ Thread markup is frozen in the log and has no revision
 boundary: every immutable historical document shows the same markup. It must therefore
 validate against every pinned revision's captured registry, not only the active
 registry. Use only widget vocabulary shared by those registries. If no shared widget
-fits, ask in prose with `--text` and `--question`, or use a page widget
+fits, ask in prose with `--text` and `--ask`, or use a page widget
 when the question and its answer belong in the final record. Markup is checked as it
 is posted but not drawn, so a data widget, such as a chart, whose body does not draw
 reaches you as an `error` event when the user opens its thread; answer with a corrected
@@ -115,8 +115,8 @@ settles the input without reopening a closed thread.
 The delivery's `writer` records the automatic reply route at capture. With
 `writer: "turn"`, Leaf streams the provider's opening and commits its completed
 final text unless an explicit reply has already answered the input. Use the same
-response command for an explicit answer, including markup, a question, a promised
-task, a title or relocation: it validates saved edits and commits immediately. Its author, retry
+response command for an explicit answer, including markup, an ask, a promised
+to-do, a title or relocation: it validates saved edits and commits immediately. Its author, retry
 identity and content remain in the log even if the provider later fails or
 reconnects. The provider's final yields to that successful answer. A failure
 receipt is refused while an active provider reservation still promises an answer.
@@ -174,21 +174,21 @@ version** and a later reply may still move it to a replacement.
 An answer says what it leaves the thread with, one of three:
 
 - `--done`: it delivers what the message asked for, and nothing stays on either queue.
-- `--question`: its prose asks the user something back. The reply is then a Question
-  under `reply:<message-id>` in `page state`'s `questions` collection, until they
+- `--ask`: its prose asks the user something back. The reply is then an ask
+  under `reply:<message-id>` in `page state`'s `asks` collection, until they
   answer in the thread.
-- `--task "<what you owe>"`: it promises work it doesn't deliver. The reply opens
-  that task on its thread under the reply's own id, which stays on you until
+- `--todo "<what you owe>"`: it promises work it doesn't deliver. The reply opens
+  that to-do on its thread under the reply's own id, which stays on you until
   `leaf task end <page> <reply-id>` ([Long-running work](conversation-loop.md#long-running-work)).
 
 ```bash
-leaf response reply <answer.ref> --question --text "Which store should own it?"
-leaf response reply <answer.ref> --task "Rebuild the banner quieter" --text "Rebuilding it; it lands in v4."
+leaf response reply <answer.ref> --ask --text "Which store should own it?"
+leaf response reply <answer.ref> --todo "Rebuild the banner quieter" --text "Rebuilding it; it lands in v4."
 ```
 
 To add an agent-initiated turn to a thread that currently owes no reply, use
 `leaf thread reply <page> <message-id>`. This proactive command takes the same
-content and anchor options, and `--question` or `--task` where the turn asks or
+content and anchor options, and `--ask` or `--todo` where the turn asks or
 promises. Leaf refuses an ordinary proactive reply while the
 thread owes a response; copy that response's delivery reference instead.
 Use the captured response reference for progress on an owed input too.
@@ -214,15 +214,15 @@ Intervening user messages remain visible; separate runs of progress messages fol
 separately. One progress message can fold on its own. An explicit summary can cover
 them instead.
 
-A progress message is progress text, so it cannot carry `--question`, `--task`,
+A progress message is progress text, so it cannot carry `--ask`, `--todo`,
 markup, failure or an anchor move. Put questions and results in ordinary replies. The shared
 disclosure appears in the panel and contextual thread surfaces. A completing reply
 held behind a new-reply notice keeps its progress visible until the reply is shown;
 originals already being read or focused stay expanded.
 
-A widget whose registry entry declares `x-awaits` already poses a Question
-and keeps its thread "On you" while that Question awaits the user. Leaf refuses
-`--question` beside such markup; the widget's state is the one reading.
+A widget whose registry entry declares `x-awaits` already poses an ask
+and keeps its thread "On you" while that ask awaits the user. Leaf refuses
+`--ask` beside such markup; the widget's state is the one reading.
 
 Correct an agent-authored message, including a predecessor's, without adding another turn:
 

@@ -15,8 +15,8 @@ and idle the page when it is finished.
 
 Anything you need from the user must appear in **Questions**. Zero Questions
 means you need nothing from them now. Before handing over or waiting, read
-`leaf page state <page>` and reconcile `queues.on_you` (Questions) and
-`queues.on_agent` (Tasks) with the work and decisions still open.
+`leaf page state <page>` and reconcile `queues.questions` and
+`queues.tasks` with the work and decisions still open.
 `references/conversation-loop.md`, "Questions and Tasks", owns what appears there
 and how to register each request.
 
@@ -76,13 +76,13 @@ directory explicitly; export or copy anything that must outlive the page directo
    `leaf page stamp <page> --text "<changelog>"`. The check establishes that the
    page renders; the reading establishes that it shows the intended content.
    Review a record before its first handoff and at every later stamp, covering
-   the views and Questions that stamp adds. Review a quick page when a stamp makes it
+   the views and asks that stamp adds. Review a quick page when a stamp makes it
    a record. A revision that answers a user's message needs only
    `leaf page check` before the reply, even on a record, because each valid save
    is already live on the user's page and further checking only delays the answer
    they are waiting for. Stamp a record again, with its render check and reading,
    at a checkpoint the user would name, such as sign-off (step 6), and wherever a
-   reference requires a stamped version, as taking in an answer to a page Question
+   reference requires a stamped version, as taking in an answer to a page ask
    does (`references/authoring-revisions.md`). A page declaring
    `<meta name="lf-review" content="sign-off">` is always a record, since
    approval requires a stamped version.
@@ -143,7 +143,7 @@ by side on a wide page, or a workspace, a screen the user moves through rather t
 scrolls. A Layout class
 on `main` or a block arranges each of these, and the page's own CSS adjusts it;
 `references/page-authoring.md`, "Composing a page", owns the concrete choices, and
-`references/authoring-questions.md` owns where each Question goes.
+`references/authoring-questions.md` owns where each ask goes.
 
 Include only controls and gestures that advance the user's task. Widget actions,
 resolutions and sign-offs can be undone; sent words remain in the log.
@@ -195,8 +195,7 @@ so a phase does not depend on discovering a chain of references.
 ### First handoff
 
 - `references/conversation-loop.md`: before a page handoff, starting work on the page,
-  work long enough to delegate, or asking the user to do something no Question or thread
-  question answers.
+  work long enough to delegate, or asking the user to do something no ask answers.
 - The contract selected by "Harness selection": before the first handoff and
   when a delivery arrives.
 

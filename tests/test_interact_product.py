@@ -1172,7 +1172,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
             root["id"],
             "--text",
             "Which store?",
-            "--question",
+            "--ask",
         ],
     )
     duplicate = CliRunner().invoke(
@@ -1191,7 +1191,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
                 '<lf-option id="store-a"><strong>A</strong></lf-option>'
                 "</lf-options></lf-ask>"
             ),
-            "--question",
+            "--ask",
         ],
     )
     aggregate = CliRunner().invoke(
@@ -1208,7 +1208,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
                 '<lf-test-tasks id="reply-plan"><lf-test-task id="reply-task" status="review">'
                 "<strong>Review</strong></lf-test-task></lf-test-tasks>"
             ),
-            "--question",
+            "--ask",
         ],
     )
     assert answered.exit_code == 0, answered.output
@@ -1217,9 +1217,9 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
     assert "reply markup already declares" in duplicate.output
     assert aggregate.exit_code == 0, aggregate.output
     replies = [e for e in events_model.read_events(page_dir) if e["kind"] == "reply"]
-    assert "question" not in replies[0]
-    assert replies[1]["question"] is True
-    assert replies[2]["question"] is True
+    assert "ask" not in replies[0]
+    assert replies[1]["ask"] is True
+    assert replies[2]["ask"] is True
 
 
 def test_an_agent_edits_predecessor_messages_without_rewriting_history(
@@ -1479,7 +1479,7 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
             response_reference(page_dir, again["id"]),
             "--text",
             "Which year goes first?",
-            "--question",
+            "--ask",
         ],
     )
     assert asking.exit_code == 0, asking.output

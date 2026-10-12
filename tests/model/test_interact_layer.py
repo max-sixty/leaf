@@ -297,6 +297,45 @@ def test_response_reply_names_a_page_vendored_at_another_protocol(claimed, serve
     assert f"leaf page init {claimed}" in replied.stderr
 
 
+def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(page_dir):
+    """A layer vendored before an x- key was renamed (`x-question-context`, now
+    `x-ask-context`) declares nothing under the new name, so a reader would quietly lose
+    what the key said. Every reader refuses it instead, naming the re-vendor, and so
+    does `page check`. A layer that lacks a key this Leaf added is read as it is."""
+    from leaf.registry.contract import RegistryError
+
+    path = page_dir / "registry.json"
+
+    def vendored(change):
+        registry = json.loads(path.read_text())
+        change(registry["$keys"])
+        # Replaced rather than written through: a revision hard-links its files.
+        path.unlink()
+        path.write_text(json.dumps(registry))
+
+    vendored(
+        lambda keys: keys.update({"x-question-context": keys.pop("x-ask-context")})
+    )
+    revendor = f"leaf page init {page_dir}"
+    with pytest.raises(RegistryError, match=re.escape(revendor)):
+        registry_storage.load_registry(page_dir)
+    checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
+    assert checked.exit_code != 0
+    assert "x-question-context" in checked.output and revendor in checked.output
+
+    vendored(lambda keys: keys.pop("x-question-context"))
+    assert registry_storage.load_registry(page_dir) is not None
+    # Composing a new vocabulary still wants every admitted key documented, and the
+    # fault is the layer's even under the page's own declarations.
+    (page_dir / "page").mkdir(exist_ok=True)
+    (page_dir / "page" / "registry.json").write_text(
+        json.dumps({"lf-local-note": element_declaration("lf-local-note")})
+    )
+    checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
+    assert checked.exit_code != 0
+    assert "x-ask-context" in checked.output and revendor in checked.output
+
+
 def test_the_skill_routes_every_reference_it_ships():
     """A reference SKILL.md never links is a file no session opens.
 

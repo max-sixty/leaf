@@ -116,24 +116,31 @@ def compose_candidate(
     vendor, to check a re-vendor before writing it. ``validated`` is a vocabulary
     already validated, which a composition equal to it is not validated against again.
 
-    A page that declares nothing composes the layer alone, so a fault in it is the
-    vendored layer's, which a re-vendor repairs."""
+    A fault the layer shows on its own is the vendored layer's, which a re-vendor
+    repairs, whether or not the page declares anything over it; one that appears only
+    with the page's declarations is the page's to fix."""
     from .page import compose_page_registry
 
     source = page_dir / "page" / "registry.json"
     declarations = read_registry_declarations(source) or {}
-    try:
+
+    def compose(declarations, source):
         return compose_page_registry(
-            layer,
-            declarations,
-            widgets,
-            source=source if declarations else page_dir / "registry.json",
-            validated=validated,
+            layer, declarations, widgets, source=source, validated=validated
+        )
+
+    try:
+        return compose(
+            declarations, source if declarations else page_dir / "registry.json"
         )
     except RegistryError as error:
-        if declarations:
-            raise
-        raise _revendor(page_dir, error) from None
+        if not declarations:
+            raise _revendor(page_dir, error) from None
+        try:
+            compose({}, page_dir / "registry.json")
+        except RegistryError as layer_error:
+            raise _revendor(page_dir, layer_error) from None
+        raise
 
 
 def _revendor(page_dir: Path, error: RegistryError) -> RegistryError:

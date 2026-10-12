@@ -4343,7 +4343,8 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
     """$keys documents each x- key an entry may declare, and exactly those: a member
     for a key the lint doesn't admit is documentation of nothing, and one missing is a
     key the registry then leaves unsaid. A project layer overrides a member (its own
-    reading of a key) and adds none — the set is closed where the keys are checked."""
+    reading of a key) and adds none — the layer facts close the set
+    (`LAYER_FACTS_SCHEMA`)."""
     overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(
@@ -4359,7 +4360,7 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
         ],
     )
     assert result.exit_code != 0
-    assert 'unadmitted ["x-nope"]' in result.output
+    assert '"x-nope" is not one of' in result.output
 
     (overlay / "registry.json").write_text(
         json.dumps({"$keys": {"x-space": "wider, in this project"}})

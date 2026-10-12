@@ -87,6 +87,7 @@ from render_harness import (
     comment_note,
     compare_with,
     consume_browser_errors,
+    reported_browser_errors,
     displayed,
     draft_control,
     expect_asks_answered,
@@ -2077,9 +2078,9 @@ def test_a_root_module_failure_leaves_authored_document_readable(browser, serve)
 
 def test_the_first_startup_fault_names_the_page(browser, serve):
     """The first fault before presentation names the page, and later faults leave the
-    name alone. A page that cannot read its own words throws again on every repaint,
-    with the same words from the same line, so a later fault mostly restates the first
-    as a consequence of it."""
+    name alone: the first is the earliest evidence, and a later one is often its
+    consequence, as a page that cannot read its own words throws the same refusal from
+    every repaint. A later incomplete fault still gives back the readable fallback."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.route(
         "**/leaf.js",
@@ -2088,7 +2089,9 @@ def test_the_first_startup_fault_names_the_page(browser, serve):
             content_type="text/javascript",
             body="for (const word of ['first fault', 'first fault', 'later fault'])"
             " setTimeout(() => { throw new Error(word); });"
-            " setTimeout(() => { window.faulted = true; });",
+            " setTimeout(() => { window.dispatchEvent(new CustomEvent("
+            "'lf-startup-failed', { detail: { reason: 'declared fault' } }));"
+            " window.faulted = true; });",
         ),
     )
     page.goto(serve(SHORT_SUGGESTION), wait_until="load")
@@ -2096,9 +2099,10 @@ def test_the_first_startup_fault_names_the_page(browser, serve):
     root = page.locator("html")
     expect(root).to_have_attribute("data-lf-startup-error", re.compile("first fault"))
     assert root.evaluate("root => root.lfStartupException.message") == "first fault"
-    # The faults recur, so the page closes before they are consumed.
-    page.close()
-    consume_browser_errors(page, "first fault", "later fault")
+    expect(root).not_to_have_attribute("data-lf-interactive", "")
+    reported_browser_errors(
+        page, "Error: first fault", "Error: first fault", "Error: later fault"
+    )
 
 
 def test_a_page_the_suite_opens_has_read_the_log(browser, serve):

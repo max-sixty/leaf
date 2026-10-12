@@ -46,9 +46,9 @@
   // page and is said once more as `lf-startup-fault`, which a served page's bootstrap
   // answers by waiting for a server that can start the page (bootstrap.js); an export
   // has no server to wait for. A later fault only takes the mark off where it is
-  // incomplete: it is mostly the first one's consequence, as a page that cannot read
-  // its own words throws the same refusal from every repaint, and the bootstrap's
-  // report keeps the first as well.
+  // incomplete. The first is the earliest evidence and a later one is often its
+  // consequence, as a page that cannot read its own words throws the same refusal from
+  // every repaint; the bootstrap's report keeps the first as well.
   const fault = (reason, incomplete, error = null) => {
     if (incomplete) root.toggleAttribute("data-lf-interactive", false);
     if (root.hasAttribute("data-lf-startup-error")) return;

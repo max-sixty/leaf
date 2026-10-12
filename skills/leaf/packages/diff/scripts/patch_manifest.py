@@ -44,12 +44,14 @@ def _manifest_file(section: str) -> dict:
     header, _, rest = section.partition("\n")
     # A rename or copy names both paths on lines of their own. Otherwise Git's header
     # names one path twice, `a/<path> b/<path>`, so its first half is the path behind
-    # its marker, whatever spaces or " b/" the path holds.
+    # its marker, whatever spaces or " b/" the path holds. A path without the marker
+    # stays whole, for lf-diff to refuse under its own name.
     if moved := _MOVE.search(rest):
         previous, path = map(_git_path, moved.group(2, 3))
     else:
         both = header.removeprefix("diff --git ")
-        previous, path = None, _git_path(both[: (len(both) - 1) // 2])[2:]
+        previous = None
+        path = _git_path(both[: (len(both) - 1) // 2]).removeprefix("a/")
     lines = rest.partition("\n@@")[2].split("\n")
     renamed = moved is not None and moved.group(1) == "rename"
     return {

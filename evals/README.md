@@ -47,9 +47,24 @@ queue transport the desktop app and IDE use runs under
 `leaf-dev journey codex-queue`. Each assertion's `metric` is a named score, so a
 comparison reads per metric across columns.
 
-`uv run leaf-dev eval-pairs RUN...` judges an authored task's samples in two columns
-side by side, each pair in both orders, and counts a winner only when both orders
-name it. Run each column the same number of times; the Nth samples pair.
+An authored task's quality score is `uv run leaf-dev eval-pairs RUN...`, which
+judges its samples in two columns side by side, each pair in both orders, and counts
+a winner only when both orders name it; each sample's own screenshot rubrics are
+diagnostics. Run each column the same number of times; the Nth samples pair. To keep
+host load and drift from favoring one column, alternate one-repeat runs of each
+condition, swapping which goes first, and pass every run:
+
+```sh
+uv run leaf-dev eval configuration --harness claude-code --condition leaf --repeat 1 -j 1
+uv run leaf-dev eval configuration --harness claude-code --condition html --repeat 1 -j 1
+uv run leaf-dev eval configuration --harness claude-code --condition html --repeat 1 -j 1
+uv run leaf-dev eval configuration --harness claude-code --condition leaf --repeat 1 -j 1
+uv run leaf-dev eval-pairs .tmp/eval/<run>...
+```
+
+`uv run leaf-dev eval-report PAGE RUN...` then writes a Leaf page showing each pair's
+final screens side by side with what each sample spent, whether it applied the
+user's decision, and what the judge said.
 
 `pnpm run eval:view` opens Promptfoo's viewer on every run recorded on
 this machine, each named by branch, commits and cases. It shows each sample's
@@ -71,7 +86,11 @@ completion timing; it is never filled in as zero.
 ## Case format
 
 A short case is one prompt with native assertions: `vars.prompt` carries the
-request, and `assert` holds `regex`, `llm-rubric` or JavaScript assertions. The
+request, and `assert` judges what the agent wrote, its markup, code and prose, with
+`llm-rubric` assertions that each state the property the case is about. A `regex`
+or `not-regex` matches only a literal the reply must or must not contain, such as a
+command name or a URL: replies spell markup and commands in too many ways (attribute
+order, quoting, launcher paths, continued lines) for a pattern to grade them. The
 runner prepends a line telling the agent to use the Leaf skill for shipped-skill
 cases. The agent may only
 read (Claude Code's Skill and Read tools; Codex's read-only sandbox), so a prompt
@@ -112,7 +131,7 @@ judge may read. `metadata.conditions` and `metadata.harnesses` restrict where it
 
 | Executor | Runs |
 | --- | --- |
-| `arrangement_eval` | Authors, checks and revises a page from `request.md`, then, where the scenario declares a comment, answers the user's comment on it: anchored on the page in Leaf, in chat for HTML. Screenshots each version on a laptop, at 900px with tall and short windows, and on a phone, and records each phase's time, tokens, authored CSS and script lines, and how often it wrote and rendered the page. For tasks that request a decision, Leaf also seeds a user choice, has a fresh reader report it, and checks a further revision keeps it. |
+| `arrangement_eval` | Runs a page task the way its user would, in one live session per sample. The author builds the page from `request.md`; the user then asks in chat for the 900px preference, comments on a passage, and makes the page's decision in a browser before asking for it to be applied. Leaf runs as the installed plugin: its agent serves and hands over the page, the comment is posted from a browser selection on that page, and the hook delivers it. HTML gets the comment in chat, and pastes what its page offered to copy, or types the decision. A user agent (`eval_user.py`) makes the decision through the page's own controls; the judge reads the author's answer to the comment, a reader checks the applied result against what was chosen, and on Leaf a fresh reader also reports the decision from the page's state. Screenshots each version on a laptop, at 900px with tall and short windows, and on a phone, with the commented item open once a version carries the comment, and records each phase's time, tokens, cost, authored CSS and script lines, and how often it wrote and rendered the page. |
 | `usability_eval` | Seeded pages read, resumed and revised, and live handoffs where the harness posts user updates through the served page. Checks read Leaf's page state and its parse of the markup; answers and edited prose go to the text judge; script repairs exercise the affected control. Fixtures are in `usability/fixtures/`. |
 | `delivery_eval` | Comments posted between turns and mid-turn, each of which must be picked up, started and answered. |
 | `reader_eval` | Calibrates the screenshot judge: `dashboard/reader-seeded` and `reader-clean` each show it one triage board, with a seeded count defect or the correct count, and ask both whether the count matches the cards. |
@@ -124,17 +143,16 @@ the completed log grows in document flow, and checks and navigation stay reachab
 while reading, including in the short window. Source-property checks in the
 instruction diagnostic do not establish that rendered behavior.
 
-Case-insensitive patterns use native `regex` or `not-regex` assertions with
-`transform: output.toLowerCase()`. Workflow checks use inline JavaScript over the
-provider's check metadata.
-
 ## Isolation and models
 
 Every provider runs in a fresh workspace outside the repository, under a home of its
 own seeded only with a copy of the host's login, so runs spend the signed-in accounts'
-usage and never an API key. The host's `/tmp` is shared, and authoring agents write
-scratch files there under names their task suggests, so run complete tasks at `-j 1`
-when two samples of one task could run together. Native Codex probes install the complete arm through the
+usage and never an API key. Authoring agents write scratch files in `/tmp` under
+names their task suggests, so on macOS a Claude Code child runs under a sandbox
+profile that refuses those writes outside its own directories (`private_tmp` in `dev/leaf_dev/arms.py`); its own
+`TMPDIR` takes them, and two complete tasks can run together. A Codex child still
+shares `/tmp`, so run its complete tasks at `-j 1`. The decision round's user agent
+drives the page with the host's `playwright-cli`. Native Codex probes install the complete arm through the
 host Codex CLI's plugin installer in that home, and use the same CLI to run the
 read-only task. `MODELS` in `dev/leaf_dev/arms.py` pins the agent and judge
 models. The `llm-rubric` judge grades text and opens nothing. The screenshot judge

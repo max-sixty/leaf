@@ -18,13 +18,11 @@ vars:
     The page directory is not reachable from here, so reply with the complete
     `index.html`, rather than writing a file.
 assert:
-- type: regex
-  metric: no-outline
-  value: ^(?![\s\S]*<lf-toc\b)[\s\S]*$
 - type: llm-rubric
   metric: judgment
   value: |
     Pass if the page remains a brief update with the two requested sections and
     accurately preserves the successful build, passed unit tests, pending browser
-    verification, and open release approval. It needs no contents outline, custom
-    section-navigation list, tabs, or controls asking the user for a decision.
+    verification, and open release approval. Fail if it adds a contents outline
+    (an `lf-toc`, even an empty one), a custom section-navigation list, tabs, or
+    controls asking the user for a decision.

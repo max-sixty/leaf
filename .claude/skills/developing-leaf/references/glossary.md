@@ -185,7 +185,7 @@ the document's height.
 | **Tally** | `lf-tally`: how many of the asks a region holds (`asksIn`) are still open, “7 of 8 to answer”, with an optional Next question that walks the region's asks waiting on the user |
 | **Resend** | An update the user has to send again, which stays on Questions until they do |
 | **Done** | The control with which the user ends a to-do the agent put on them; it writes `todo_end`. A widget may also name its own answer-submission control Done |
-| **Done fold** | The Questions panel's third list, below Questions and Tasks: asks answered or withdrawn and to-dos ended |
+| **Done fold** | The Questions panel's third list, below Questions and Tasks: asks answered, here or elsewhere, or withdrawn, and to-dos ended |
 | **Trip** | One travel to a destination (a thread's passage, an ask, a datum, or the element a followed fragment link names): it clears the auxiliary surface hiding the destination, then stays where the user already has it, or departs and leaves a history entry (`history.js`) |
 | **Journey** | Consecutive trips each leaving from the last one's landing, which share one history entry so Back returns to where the first began; it may mix threads and asks, and is not a walk |
 | **Standing** | Holding a destination or a control inside it: a thread on the page or in the panel, an ask, or authored page content. A panel thread's title and its messages are one destination; chrome controls, margin rows, comment notes, and contents-outline links are apparatus, not destinations |

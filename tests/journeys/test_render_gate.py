@@ -323,7 +323,6 @@ def test_every_restore_case_a_user_can_return_to_is_arrived_in(browser, serve):
                         "unit": "widget",
                         "record": None,
                         "creates": None,
-                        "report": False,
                         "detail": {
                             "type": "object",
                             "properties": {"outcome": {"enum": ["accept", "reject"]}},
@@ -340,13 +339,13 @@ def test_every_restore_case_a_user_can_return_to_is_arrived_in(browser, serve):
     wait_until_ready(declared)
     restore_cases = user_view_restore_cases(declared)
     suggestion_state = declared.locator("#sug-rewrite").get_attribute("data-lf-state")
-    option_transition = declared.locator("#wait-day").evaluate(
+    fold_transition = declared.locator("#sug-rewrite > lf-old").evaluate(
         "element => getComputedStyle(element).transitionProperty"
     )
     declared.close()
     assert len(restore_cases) > 1, "the runtime declares nothing to arrive in"
     assert suggestion_state == "accept"
-    assert option_transition == "box-shadow, transform"
+    assert fold_transition == "padding"
 
     arrived = [f for f in arrival_findings(primed(browser.unwatched, prepare), url)]
     assert [f.split("]")[0].lstrip("[") for f in arrived] == [

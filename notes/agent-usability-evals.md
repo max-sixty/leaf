@@ -105,17 +105,27 @@ API prices on the signed-in login, including a discarded document sample whose
 comment named the wrong weekday; the Codex screenshot judge read about 7M tokens and
 the pairwise judge cost $11.
 
-```sh
-uv run leaf-dev eval document queue configuration --harness claude-code \
-  --condition both --repeat 3 -j 1
-uv run leaf-dev eval-pairs .tmp/eval/<run>
-```
-
 Within each task, the three Leaf samples ran before the three HTML samples, so the
 minutes are confounded with any drift in host load (load average 4 to 7 throughout);
-tokens, cost and code are not. To counterbalance, alternate `--condition leaf` and
-`--condition html` runs of one repeat each, swapping which goes first, and pass
-every run to `eval-pairs`.
+tokens, cost and code are not.
+
+The executor has since been rebuilt on the real loop, so these commands no longer
+reproduce this run: Leaf runs as the installed plugin and hands the page over, the
+comment is posted from a browser selection and delivered by the hook, every task
+ends with a decision the user makes on the page and asks to have applied, and
+`eval-pairs` is the quality score (`evals/README.md`, "Reading the results").
+Runs alternate the conditions, one repeat each, swapping which goes first:
+
+```sh
+for task in document queue configuration; do
+  uv run leaf-dev eval $task --harness claude-code --condition leaf --repeat 1 -j 1
+  uv run leaf-dev eval $task --harness claude-code --condition html --repeat 1 -j 1
+  uv run leaf-dev eval $task --harness claude-code --condition html --repeat 1 -j 1
+  uv run leaf-dev eval $task --harness claude-code --condition leaf --repeat 1 -j 1
+done
+uv run leaf-dev eval-pairs .tmp/eval/<run>...
+uv run leaf-dev eval-report "$(mktemp -d)/report" .tmp/eval/<run>...
+```
 
 Every sample completed every phase and passed its render gate; every page's files
 carried the comment's fact, and every answer named it, on the comment's thread in Leaf and in

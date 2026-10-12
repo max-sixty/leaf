@@ -14,6 +14,7 @@ import {
   readingChoices,
   readingContext,
   secondaryCount,
+  threadMarks,
   choosePrimary,
   entryHasMarginHost,
   awaitingUser,
@@ -226,6 +227,52 @@ test("thread aggregation preserves canonical user attention and ask precedence",
   assert.equal(awaitingUser([recovery]), true);
   assert.equal(readingContext({ items: [recovery] }), "Not answered");
   assert.equal(readingContext({ items: [recovery, ask] }), "On you");
+});
+
+test("a thread's margin entry and Page Map row say the word Threads gives it", () => {
+  // The server's attention for a thread an open to-do holds once the reply it
+  // answered has settled, and for one an agent is working on. Threads says To-do open
+  // and Working on their cards; the margin and Page Map say the same of them.
+  const working = Object.freeze({ id: "w", stage: "working", condition: null });
+  const thread = (attention, { workflows = [], unread = 0 } = {}) => ({
+    resolved: null,
+    workflows,
+    attention,
+    unread: Array.from({ length: unread }, (_, index) => ({ message: `m${index}` })),
+  });
+  const todo = (line) => ({
+    kind: "waiting",
+    reason: "todo",
+    workflow: null,
+    todo: { id: "t1", title: "Rebuild the banner quieter", ...(line ? { line } : {}) },
+  });
+  const said = (held) => {
+    const item = marker("thread", "comment", threadMarks(held));
+    const [row] = map([inventory({ items: [item] })])[0].actions;
+    return [readingContext({ items: [item] }), row.context];
+  };
+  assert.deepEqual(said(thread(todo())), ["To-do open", "To-do open"]);
+  assert.deepEqual(said(thread(todo("Rebuilding it"), { unread: 1 })), [
+    "Working",
+    "Working",
+  ]);
+  // A thread whose workflow is under way carries it as its receipt, which says it in
+  // the workflow's own words; its line is what else it holds.
+  const busy = thread(
+    { kind: "waiting", reason: "workflow", workflow: "w" },
+    { workflows: [working], unread: 2 },
+  );
+  assert.equal(threadMarks(busy).workflowReceipt, working);
+  assert.deepEqual(said(busy), ["2 unread", "2 unread"]);
+  const onUser = thread(
+    { kind: "needs_user", reason: "ask", workflow: null },
+    { unread: 1 },
+  );
+  assert.deepEqual(threadMarks(onUser).userAttention, {
+    label: "On you to answer",
+    reason: "ask",
+  });
+  assert.deepEqual(said(onUser), ["On you to answer", "On you to answer"]);
 });
 
 test("declared representation and a workflow carrier suppress only duplicate readings", () => {

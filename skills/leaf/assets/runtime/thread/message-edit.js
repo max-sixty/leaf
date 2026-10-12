@@ -60,6 +60,7 @@
 import {
   clearDraft,
   draftHasContent,
+  rewriteContext,
   forgetWritingPlace,
   loadDraft,
   loadDraftPayload,
@@ -80,7 +81,6 @@ import { sizeObserver } from "../rendering.js";
 import { retainUserIntent } from "../user-intent.js";
 import { offer } from "../widget-elements.js";
 
-export const editContext = (id) => `rewrite:${id}`;
 // What a message's view answers by opening its rewrite, as a press on its Edit control.
 export const OPEN_MESSAGE_EDIT = "lf-open-message-edit";
 // message id -> {view, panel, thread}: the view drawing its editor, null once that
@@ -116,7 +116,7 @@ function openMessageEdit(id, view, panel, thread) {
     // One no view draws any longer closes as an editor would: words the user left as
     // they were leave no draft to keep it open.
     if (holder.view) holder.view.putEditAside();
-    else if (!draftHasContent(editContext(other))) open.delete(other);
+    else if (!draftHasContent(rewriteContext(other))) open.delete(other);
   }
   const displaced = open.get(id)?.view;
   open.set(id, { view, panel, thread });
@@ -125,11 +125,11 @@ function openMessageEdit(id, view, panel, thread) {
 
 // Whether a rewrite of `id` holds words no editor shows: a reload's or a refusal's.
 export const keptRewrite = (id) =>
-  !open.has(id) && !sending.has(id) && draftHasContent(editContext(id));
+  !open.has(id) && !sending.has(id) && draftHasContent(rewriteContext(id));
 
 // Call `changed` on news of the words of a rewrite of `id`, from this tab or another.
 // Returns the unsubscribe.
-export const watchRewrite = (id, changed) => watchDraft(editContext(id), changed);
+export const watchRewrite = (id, changed) => watchDraft(rewriteContext(id), changed);
 
 // Open the rewrite of message `id` where `thread`, a drawn thread, shows it, and answer
 // the box its words are in: none where the thread does not draw that message as one the
@@ -219,7 +219,7 @@ export function threadRewrites({
 function closeMessageEdit(id, { discard }) {
   open.delete(id);
   if (!discard) return;
-  const ctx = editContext(id);
+  const ctx = rewriteContext(id);
   clearDraft(ctx);
   tellDraft(ctx, null);
   forgetWritingPlace(ctx);
@@ -246,7 +246,7 @@ export class MessageEditor {
     view,
     { wireInput, said, base: standing, send, land, paint, previous, reveal },
   ) {
-    const ctx = editContext(id);
+    const ctx = rewriteContext(id);
     // The revision these words are written over, which the log holds the rewrite to: the
     // message as it stands now. Words kept from an earlier opening carry the revision
     // they were written over; where the message has changed since, the user is told what

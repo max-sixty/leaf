@@ -6,7 +6,7 @@ import { inChrome, pageParts } from "../passages.js";
 import { serverNow } from "../presence.js";
 import { readingRegionFor } from "../reading-regions.js";
 import { hostIn, upFrom } from "../shadow.js";
-import { threadSummary } from "./model.js";
+import { lastMovedAt } from "./model.js";
 // ---------- where the panel puts a thread ----------
 // The list reads in the page's order, not the log's. A page is a document with a
 // beginning and an end, and the user walks the thread the way they walk the
@@ -143,7 +143,7 @@ export function threadSection(t, outline, placedAt) {
 // A thread's latest message is when it last moved. A message still being sent has no
 // clock yet and is moving now. Ties keep the log's order.
 const lastMoved = (thread, now) => {
-  const latest = threadSummary(thread).latest;
+  const latest = lastMovedAt(thread);
   return latest ? Date.parse(latest) : now;
 };
 

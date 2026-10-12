@@ -28,6 +28,7 @@ import {
   contributionState,
   contributionEntryStateRank,
 } from "./contribution-model.js";
+import { threadAttention } from "./thread/workflow.js";
 
 const RESTING_MARGIN_ENTRY_BUDGET = 2;
 // The options toggle's faces: More, or folded, the kind it folds (`clusterProjection`),
@@ -225,13 +226,40 @@ export const awaitingUser = (items) => Boolean(userAttention(items));
 export const unreadIn = (items) =>
   items.reduce((sum, item) => sum + (item.unread ?? 0), 0);
 
+// What a thread's margin item and its Page Map row carry of it beside its name and
+// place, from the one reading of the thread's state (`threadAttention`) that Threads
+// paints as its status: whose turn it is; the workflow its progress decoration paints
+// while the thread waits on the agent, saying that workflow's word (`workflowLabel`);
+// and its line, the thread's word wherever no such receipt says it, else how many of
+// its messages the user has not read.
+export function threadMarks(thread) {
+  const attention = threadAttention(thread);
+  const onUser = attention?.kind === "needs_user";
+  const receipt = attention?.kind === "waiting" ? attention.workflow : null;
+  const unread = thread.unread.length;
+  const line =
+    (attention && !receipt && attention.label) || (unread ? `${unread} unread` : null);
+  return {
+    userAttention: onUser
+      ? { label: attention.label, reason: thread.attention?.reason ?? "workflow" }
+      : null,
+    unread,
+    context: line,
+    mapContext: line,
+    workflowReceipt: receipt,
+  };
+}
+
+// A reading of one item says that item's own line, as a thread's says its word or its
+// unread count (`threadLine`); an aggregate says the turn it owes the user, else what
+// its threads hold unread.
 export function readingContext(choice) {
-  const attention = userAttention(choice?.items ?? []);
+  const items = choice?.items ?? [];
+  const attention = userAttention(items);
   if (attention) return attention.label;
-  const unread = unreadIn(choice?.items ?? []);
-  if (unread) return `${unread} unread`;
-  if (choice?.items.length !== 1) return null;
-  return choice.items[0].context ?? null;
+  if (items.length === 1) return items[0].context ?? null;
+  const unread = unreadIn(items);
+  return unread ? `${unread} unread` : null;
 }
 
 function kindsIn(entry, { markerOnly = false } = {}) {

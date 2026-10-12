@@ -66,8 +66,7 @@ import { nextRender } from "../rendering.js";
 import { pageScope } from "../keyboard/register.js";
 import { TEXT_ENTRY } from "../keyboard/text-entry.js";
 import { dismissReplyAt, replyDraftContext } from "./replies.js";
-import { allThreads, threadList } from "./state.js";
-import { threadNames } from "./model.js";
+import { threadIdNamed, threadList } from "./state.js";
 import { showHeld } from "./held-news.js";
 import {
   focusedThreadTarget,
@@ -420,7 +419,7 @@ export function wireThreadLanding(threadsBox) {
 // Shown, not merely standing: a card the narrowing hid keeps its node (thread-list.js),
 // and a destination in one is as unreachable as a destination with no node at all.
 const listNode = (id, threadsBox, preferMessage = false) => {
-  const threadId = threadNames(allThreads()).get(id)?.id ?? id;
+  const threadId = threadIdNamed(id);
   const message = `.lf-msg[data-mid="${CSS.escape(id)}"]`;
   const thread = `.lf-thread[data-id="${CSS.escape(threadId)}"]`;
   const node =
@@ -457,17 +456,17 @@ async function showThreadNow(
     if (node && !going && !threadsBox.keepsForWords(id)) return { node };
     if (!mayArrive()) return null;
     if (going) finishFold(going);
-    const ready = revealThread(threadNames(allThreads()).get(id)?.id ?? id);
+    const ready = revealThread(threadIdNamed(id));
     return ready ? { ready } : null;
   });
   // A direct arrival owns the target's one transition cue. Remove a retained arrival
   // animation before an asynchronous reveal gives the browser a frame to start it.
   threadsBox
     .querySelector(
-      `.lf-thread[data-id="${CSS.escape(threadNames(allThreads()).get(id)?.id ?? id)}"], .lf-msg[data-mid="${CSS.escape(id)}"]`,
+      `.lf-thread[data-id="${CSS.escape(threadIdNamed(id))}"], .lf-msg[data-mid="${CSS.escape(id)}"]`,
     )
     ?.classList.toggle("grow", false);
-  threadsBox.revealNavigation(threadNames(allThreads()).get(id)?.id ?? id);
+  threadsBox.revealNavigation(threadIdNamed(id));
   const destination = revealDestination();
   if (!destination) return null;
   let node = destination.node;
@@ -476,8 +475,7 @@ async function showThreadNow(
     if (!mayPresent()) return null;
     node = listNode(id, threadsBox, part === "message");
   }
-  if (mayArrive())
-    threadsBox.revealNavigation(threadNames(allThreads()).get(id)?.id ?? id);
+  if (mayArrive()) threadsBox.revealNavigation(threadIdNamed(id));
   node = listNode(id, threadsBox, part === "message");
   if (!node || !mayPresent()) return null;
   if (node.closest(".lf-summary-originals[hidden]")) {

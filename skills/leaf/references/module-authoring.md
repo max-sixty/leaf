@@ -1539,7 +1539,8 @@ reads, and `watchThreads(owner, callback)` calls the callback with it ("Page rea
 `threads` holds conversations; a bare reaction without a spoken turn is not a listed
 Thread. Each widget keeps its own search, filter and order state and derives its displayed
 rows from the collection. `threadTurns(thread)` selects a Thread's displayed turns, and
-`threadSummary(thread)` gives its `topic` and `latest` activity. An agent-written message
+`threadSummary(thread)` gives its `topic`, the name Threads, the margin and Page Map show
+it under, and its `latest` activity. An agent-written message
 or closing event carries `agent`, the name it is shown under.
 
 A Thread's `key` survives admission of a pending gesture, so use it, not `id`, to address

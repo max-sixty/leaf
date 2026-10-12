@@ -75,7 +75,7 @@ import { readQueues, queueItemKey } from "./queue-api.js";
 import { questionHolding, declareSide } from "./standing-target.js";
 import { anchorLabel } from "./thread/messages.js";
 import { queueTitle } from "./queue-title.js";
-import { threadSummary } from "./thread/model.js";
+import { lastMovedAt } from "./thread/model.js";
 import { workflowLabel } from "./thread/workflow.js";
 import { walkPositionLabel } from "./walk-position.js";
 
@@ -171,8 +171,7 @@ export function createQueuePanel({ actions, next, announce }) {
   // The rest of where: how long it has stood or how far a reply has got, after the
   // place; and before it, how a finished item ended, which is what a Done row is for.
   function when(item, thread) {
-    if (taskNoun(item) === "ask")
-      return thread && shortAgo(threadSummary(thread).latest);
+    if (taskNoun(item) === "ask") return thread && shortAgo(lastMovedAt(thread));
     if (item.kind === "answer") return workflowLabel(item.workflow);
     if (item.kind === "work")
       return [workflowLabel(item.workflow), shortAgo(item.workflow?.ts)]

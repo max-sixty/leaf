@@ -33,8 +33,8 @@ import { nextRender, sizeObserver } from "../rendering.js";
 import { setChildLists, setChildren } from "../dom-children.js";
 import { holdFocus, focusDestination, focused, standsOn } from "../focus.js";
 import { html, render, nothing, ref } from "../../vendor/browser-runtime.js";
-import { turns, threadKey, threadSummary } from "./model.js";
-import { anchorLabel, MessageView, messageReading } from "./messages.js";
+import { turns, threadKey } from "./model.js";
+import { anchorLabel, MessageView, messageReading, threadSummary } from "./messages.js";
 import { offer, reachedForWords, measure, reserve } from "../widget-elements.js";
 import { keeps, keepsHidden, layoutPx } from "../keeps.js";
 import { commandsOn, keys } from "../keyboard/scopes.js";
@@ -715,6 +715,7 @@ export class ThreadView {
     if (model.folding) this.node.classList.toggle("grow", false);
     else if (!prior && model.grow) this.node.classList.toggle("grow", true);
     this.node.toggleAttribute("inert", model.folding);
+    // Its id names the surface too (`drawnThreadId`).
     keeps(this.node, panel ? "data-id" : "data-thread", model.id);
     keeps(this.node, "data-resolved", model.resolved);
     keeps(this.node, "data-attempt", model.attempt || null);

@@ -4045,6 +4045,51 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     }
 
 
+def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
+    """A thread with no title yet, held by a to-do its agent opened, reads as
+    Threads states it on every surface that shows it: the margin entry's line and
+    its Page Map row say To-do open as the card's status does, and the row names the
+    thread by the words its opening renders, not that opening's Markdown."""
+    comment = {
+        **COMMENT_ON_ASK,
+        "text": "Can **these** share one visit?",
+        "anchor": {"section": "bracket"},
+    }
+    page = open_page(browser, live_url(serve(ASK_PAGE, events=[comment])))
+    resized(page, 1440, 900)
+    root = next(
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    )
+    # The agent's answer settles the comment and opens the to-do that holds it.
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": root["id"],
+            "responds": root["id"],
+            "revision": 1,
+            "text": "I'll check the visit windows.",
+            "todo": "Check the visit windows",
+        },
+    )
+    told(page)
+    marker = page.locator('[data-lf-margin-for="bracket"] > .lf-margin-marker')
+    expect(marker.locator(".lf-margin-entry-context")).to_have_text("To-do open")
+
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    dialog = page.get_by_role("dialog", name="Page Map", exact=True)
+    row = dialog.locator('.lf-page-map-action[data-lf-map-item^="comment:"]')
+    expect(row.locator(".lf-page-map-action-context")).to_have_text("To-do open")
+    expect(row.locator(".lf-page-map-action-label-word")).to_have_text(
+        "Can these share one visit?"
+    )
+
+
 def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, serve):
     """Two moved cards started together each arrive only once.
 

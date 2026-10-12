@@ -118,9 +118,9 @@ import { keeps, keepsText, layoutPx } from "../keeps.js";
 import { keys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { focusThread, threadFocusStop } from "./focus.js";
-import { isReaction, messageKey, threadKey, threadNames } from "./model.js";
-import { allThreads, threadState } from "./state.js";
-import { THREAD } from "./selectors.js";
+import { isReaction, messageKey, threadKey } from "./model.js";
+import { allThreads, threadIdNamed, threadState } from "./state.js";
+import { drawnThreadId, THREAD } from "./selectors.js";
 import { closestAcross } from "../passages.js";
 import { readApplication } from "../semantic-state.js";
 import { onStanding, focused, standingNodes } from "../focus.js";
@@ -419,7 +419,7 @@ export const showHeldThread = (id) =>
   everySeat(id, (held, thread) => held.showThreads(thread));
 
 function everySeat(id, show) {
-  const thread = threadNames(allThreads()).get(id)?.id ?? id;
+  const thread = threadIdNamed(id);
   let shown = false;
   for (const held of holders) shown = show(held, thread) || shown;
   return shown;
@@ -431,7 +431,7 @@ onStanding((node, cause) => {
   // A drop leaves them standing in the thread, for its owner to put them back in.
   if (cause === "drop") return;
   const thread = node && closestAcross(node, THREAD);
-  const id = thread ? (thread.dataset.id ?? thread.dataset.thread) : null;
+  const id = drawnThreadId(thread);
   const title = thread && threadFocusStop(thread);
   const arrived =
     id !== null &&

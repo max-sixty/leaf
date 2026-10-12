@@ -87,19 +87,13 @@ def history(
     `threads` is the `build_threads` fold, and `names` and `widgets` are
     `thread_context.thread_names` and `thread_widgets` over the same log. A message,
     edit, resolve or reopen row names the thread it was made in (`event_threads`),
-    with the words of the first message that thread still holds; a widget row names
-    its widget, whichever thread the action also answers."""
+    which the browser names as every surface does; a widget row names its widget,
+    whichever thread the action also answers."""
     withdrawn = taken_back(events)
 
     def thread_of(event: dict) -> dict | None:
         thread_id = next(iter(event_threads(event, names, widgets)), None)
-        if (thread := threads.get(thread_id)) is None:
-            return None
-        return {
-            "id": thread_id,
-            "title": thread["title"],
-            "opening": thread["root"].get("text") or "",
-        }
+        return {"id": thread_id} if thread_id in threads else None
 
     rows = []
     for event in reversed(events):

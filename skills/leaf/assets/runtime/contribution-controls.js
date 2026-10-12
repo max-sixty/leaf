@@ -4,6 +4,7 @@
    containment, so a producer updates one registration whichever surface shows it. */
 import { html, render } from "../vendor/browser-runtime.js";
 import { iconElement } from "./icons.js";
+import { progressFace, workflowLabel } from "./thread/workflow.js";
 import { elementDirective, offer } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
 import { focusDestination } from "./focus.js";
@@ -158,6 +159,7 @@ function agentWorkflowDescription(control) {
       description: control.getAttribute("aria-description"),
       title: control.getAttribute("title"),
       stage: null,
+      word: null,
       detail: null,
     };
     agentWorkflowDescriptions.set(control, reading);
@@ -200,9 +202,7 @@ function paintAgentDescription(control) {
     }
     return;
   }
-  const work = [reading.stage === "working" ? "Working" : "Picked up", reading.detail]
-    .filter(Boolean)
-    .join(" · ");
+  const work = [reading.word, reading.detail].filter(Boolean).join(" · ");
   const record = records.get(control);
   keeps(
     control,
@@ -228,10 +228,7 @@ function syncAgentDescriptionBase(control, description, title) {
 }
 
 function syncContributionAgentWorkflow(control, receipt) {
-  const workflowStage = receipt?.stage ?? null;
-  const stage = workflowStage === "replying" ? "working" : workflowStage;
-  const paintedStage =
-    !receipt?.condition && ["picked_up", "working"].includes(stage) ? stage : null;
+  const paintedStage = progressFace(receipt);
   syncAgentArrival(
     control,
     receipt && JSON.stringify([receipt.subject.kind, receipt.subject.id, receipt.id]),
@@ -242,8 +239,8 @@ function syncContributionAgentWorkflow(control, receipt) {
   Object.assign(
     reading,
     paintedStage
-      ? { stage: paintedStage, detail: receipt.detail }
-      : { stage: null, detail: null },
+      ? { stage: paintedStage, word: workflowLabel(receipt), detail: receipt.detail }
+      : { stage: null, word: null, detail: null },
   );
   paintAgentDescription(control);
 }

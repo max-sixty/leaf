@@ -47,8 +47,8 @@ import { declareOffFlowSurface } from "../off-flow.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
 import { motion } from "../motion.js";
 import { closestAcross } from "../passages.js";
-import { allThreads } from "../thread/state.js";
-import { threadNames, turns } from "../thread/model.js";
+import { threadIdNamed } from "../thread/state.js";
+import { turns } from "../thread/model.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { iconElement } from "../icons.js";
 import { anchorLabel } from "../thread/messages.js";
@@ -860,7 +860,7 @@ export function createThreadPreview({
   }
 
   function focusTarget(id, { part = null } = {}) {
-    id = threadNames(allThreads()).get(id)?.id ?? id;
+    id = threadIdNamed(id);
     const thread = [...previewList.querySelectorAll(".lf-page-thread")].find(
       (candidate) => candidate.dataset.thread === id,
     );

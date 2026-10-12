@@ -31,21 +31,22 @@
    targets always come from anchor placement, independently of whichever view draws a
    Thread. */
 import { aborted } from "../abort.js";
+import { threadDraft } from "../drafts.js";
 import { scrollIntoView } from "../landing-scroll.js";
 import { focusDestination, focused } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { replyAvailable } from "./replies.js";
-import { allThreads, readThreads } from "./state.js";
+import { allThreads, threadNamed } from "./state.js";
 import { heldThread } from "./focus.js";
 import { showHeld, showHeldThread } from "./held-news.js";
 import { revealHeld, surfaceFocusTarget } from "./surfaces.js";
 import { reveal } from "../widget-elements.js";
 import { closestAcross } from "../passages.js";
 import { renderedUnder } from "../shadow.js";
-import { threadKey, threadNames } from "./model.js";
+import { discussed, threadKey } from "./model.js";
 import { openMessageEditIn } from "./message-edit.js";
-import { THREAD } from "./selectors.js";
+import { drawnThreadId, THREAD } from "./selectors.js";
 
 export function createThreadDestinations({
   placedAt,
@@ -76,11 +77,11 @@ export function createThreadDestinations({
   // narrows an editable destination without erasing the user's standing thread.
   const threadAtStanding = () => {
     const held = heldThread();
-    if (held) return held.dataset.thread ?? held.dataset.id;
+    if (held) return drawnThreadId(held);
     const active = focused();
     const ids = active ? threadIdsAt(active) : [];
     const shown = threadHere();
-    const shownId = shown?.dataset.thread ?? shown?.dataset.id;
+    const shownId = drawnThreadId(shown);
     // Returning to the page can leave a margin card open with focus on the body.
     // Its visible conversation remains the destination of Comment in that state.
     if ((!active || active === document.body) && shownId) return shownId;
@@ -115,8 +116,8 @@ export function createThreadDestinations({
     const trip = travel && scroll;
     const selected = presentation;
     if (selected?.owner.isConnected) {
-      const thread = threadNames(readThreads().threads).get(id);
-      if (!thread) return null;
+      const thread = threadNamed(id);
+      if (!thread || !discussed(thread)) return null;
       opening?.abort();
       const abort = new AbortController();
       opening = abort;
@@ -272,8 +273,8 @@ export function createThreadDestinations({
   // (`message-edit.js`). Landed on the thread instead, a long one's landing on its
   // latest turn took the view away from a rewrite it had just opened higher up.
   async function openThreadDraft(context, intent) {
-    const name = context.slice(context.indexOf(":") + 1);
-    if (context.startsWith("reply:")) {
+    const { part, name } = threadDraft(context);
+    if (part === "reply") {
       const thread = allThreads().find((each) => threadKey(each) === name);
       return thread ? openPageThread(thread.id, { part: "reply", intent }) : null;
     }

@@ -67,6 +67,7 @@ import { readQuestions } from "./questions/model.js";
 import { asksIn, questionPlace } from "./questions/place.js";
 import { readQueues, queueItemKey } from "./queue-api.js";
 import { taskNoun } from "./queues.js";
+import { drawnThreadId } from "./thread/selectors.js";
 import { watchSemantic } from "./semantic-state.js";
 import { retainUserIntent } from "./user-intent.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
@@ -180,7 +181,7 @@ export function createQueueWalk({
     if (documentFocused() === approvalTarget())
       return list.find((stop) => stop.kind === "approval") ?? null;
     const held = threadHere();
-    const thread = held?.dataset.id ?? held?.dataset.thread;
+    const thread = drawnThreadId(held);
     if (thread) {
       const stop = list.find(
         (candidate) => candidate.kind === "thread" && candidate.id === thread,

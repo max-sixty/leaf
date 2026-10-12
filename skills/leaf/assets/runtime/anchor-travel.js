@@ -54,7 +54,7 @@ import { prepareEntry } from "./history.js";
 import { pageScroller } from "./scrolling.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { PRESSABLE, reveal } from "./widget-elements.js";
-import { threadNames } from "./thread/model.js";
+import { threadNamed } from "./thread/state.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { targetElement, targetPlace, targetSegments } from "./resolved-target.js";
 import { closestAcross, rangeOf, selectEnds } from "./passages.js";
@@ -77,7 +77,6 @@ export function scrollToFragment(element) {
 export function createAnchorTravel({
   anchors,
   surfaces,
-  currentThreads,
   refreshThread,
   focusForNavigation,
   threadFocusTarget,
@@ -509,7 +508,7 @@ export function createAnchorTravel({
     { part = null, focus = true, keep = false, presented = null, intent } = {},
   ) {
     const mayArrive = retainTravel(intent);
-    const thread = threadNames(currentThreads()).get(id);
+    const thread = threadNamed(id);
     const anchor = thread?.anchor;
     const status = anchors.placedAt(id)?.status;
     const hydrating = (anchor?.datum && status !== "outdated") || anchor?.visual;

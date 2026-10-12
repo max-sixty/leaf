@@ -30,8 +30,7 @@ import { closestAcross } from "../passages.js";
 import { tagsDeclaring } from "../registry.js";
 import { watchArrivals } from "../arrivals.js";
 import { renderThreadSurface, clearThreadSurface } from "./inline.js";
-import { allThreads, readThreads } from "./state.js";
-import { threadNames } from "./model.js";
+import { readThreads, threadIdNamed } from "./state.js";
 import { threadFocusDestination } from "./focus.js";
 import { HeldArrivals } from "./held-news.js";
 import { under } from "../shadow.js";
@@ -511,7 +510,7 @@ export function revealHeld(ids) {
 export function surfaceFocusTarget(id, { part = "reply" } = {}) {
   // Exact message navigation is the panel's; a local surface lands on its thread.
   if (part === "message") return null;
-  id = threadNames(allThreads()).get(id)?.id ?? id;
+  id = threadIdNamed(id);
   for (const registration of registrations.values()) {
     const thread = [...registration.outlets]
       .map((outlet) =>

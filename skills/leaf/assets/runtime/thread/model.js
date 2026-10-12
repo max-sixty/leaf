@@ -375,7 +375,7 @@ export const moved = (message) => ({
 
 // When a thread last moved: the latest move of any of its turns.
 /** @param {{msgs: {id: string, token?: string, edited?: {seq?: number, ts: string}, seq?: number, ts?: string}[], root: {id: string}}} thread */
-function lastMovedAt(thread) {
+export function lastMovedAt(thread) {
   let latest = null;
   for (const message of turns(thread)) {
     const { ts } = moved(message);
@@ -384,12 +384,6 @@ function lastMovedAt(thread) {
   }
   return latest;
 }
-
-/** @param {ReturnType<typeof readThreadRecords>[number]} thread */
-export const threadSummary = (thread) => ({
-  topic: thread.title ?? thread.root.body.text.trim(),
-  latest: lastMovedAt(thread),
-});
 
 /** @param {import("../../../../../build/browser/domain.ts").ContentVersion} item */
 const versionKey = ({ message, version }) => `${message}\u0000${version}`;

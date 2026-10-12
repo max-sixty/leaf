@@ -374,7 +374,6 @@ const focusForNavigation = (node, cause, options) =>
 const anchorTravel = createAnchorTravel({
   anchors: anchorPlacement,
   surfaces: auxiliarySurfaces,
-  currentThreads: allThreads,
   refreshThread: () => app.refreshThread(),
   focusForNavigation,
   threadFocusTarget: (id, options) =>

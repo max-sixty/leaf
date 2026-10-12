@@ -56,6 +56,7 @@ import {
 } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
 import { WORKS } from "../control-selectors.js";
+import { drawnThreadId } from "../thread/selectors.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import {
   BANNER_CONTROL_RANK,
@@ -1243,7 +1244,7 @@ export function createResponseSurface({
     const target = threadId && threadTarget(threadId);
     const inlineBox =
       inline &&
-      (inline.dataset.thread ?? inline.dataset.id) === threadId &&
+      drawnThreadId(inline) === threadId &&
       (!here ||
         inline.contains(focused()) ||
         (target && under(target, heldQuestion() ?? here.element))) &&

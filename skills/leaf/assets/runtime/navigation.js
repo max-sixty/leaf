@@ -25,7 +25,7 @@ import { pageSelection } from "./composing/capture.js";
 import { blockAt, closestAcross, pageRange } from "./passages.js";
 import { readingBlock } from "./reading-place.js";
 import { scrollIntoReadingBand, scrollIntoView } from "./landing-scroll.js";
-import { THREAD } from "./thread/selectors.js";
+import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { under } from "./shadow.js";
 import { retainUserIntent } from "./user-intent.js";
 import { announce } from "./notifications.js";
@@ -50,7 +50,7 @@ const threadWalk = (panelIsOpen, { threadsBox, openThreadsInPageOrder }) => {
 // its target (`threadHere`), in the list or beside the page.
 const currentThread = (threads, threadHere) => {
   const held = threadHere();
-  const id = held?.dataset.id ?? held?.dataset.thread;
+  const id = drawnThreadId(held);
   return threads.find((thread) => thread.dataset.id === id);
 };
 

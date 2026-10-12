@@ -11,7 +11,7 @@ import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { closestAcross } from "../passages.js";
 import { nextRender } from "../rendering.js";
 import { repaint } from "../repaint.js";
-import { SAY_BOX, THREAD } from "./selectors.js";
+import { drawnThreadId, SAY_BOX, THREAD } from "./selectors.js";
 import { allThreads } from "./state.js";
 import { replyAvailable, replyControlDestination } from "./replies.js";
 
@@ -66,11 +66,8 @@ export function focusedThreadTarget() {
 // further, to a seat holding no thread yet (landing.js, `heldThreadOrSeat`).
 export const heldThread = () => closestAcross(focused(), THREAD);
 
-// Its logged id: a list thread carries it as `data-id`, a card or seat as `data-thread`.
-export function heldThreadId() {
-  const thread = heldThread();
-  return thread?.dataset.id ?? thread?.dataset.thread ?? null;
-}
+// Its logged id.
+export const heldThreadId = () => drawnThreadId(heldThread());
 
 // The thread every painter of standing draws — the page's contour and wash, the margin
 // entry's selection — which is the held thread except across a pointer press. A press
@@ -160,7 +157,7 @@ export function holdReply(open) {
   const thread = box && closestAcross(box, THREAD);
   const destination = replyControlDestination(box);
   if (!thread || !destination || carried.has(box)) return null;
-  const id = thread.dataset.id ?? thread.dataset.thread;
+  const id = drawnThreadId(thread);
   const intent = retainUserIntent({ source: box });
   const carry = { box, mayReply: mayReplyTo(id, intent) };
   carrying = carry;

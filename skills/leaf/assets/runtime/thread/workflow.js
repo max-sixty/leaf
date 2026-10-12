@@ -8,7 +8,10 @@
    after the served ones. Every message, compact thread row and margin entry reads
    these values; none reclassifies receipts, streams, turn ownership, whose turn a
    thread is, or which workflow is stronger. `strongestWorkflow` only places this tab's
-   own sends against the served order. */
+   own sends against the served order. A workflow's word is `workflowLabel` and its face
+   on a control `progressFace`, on every surface; a thread's word is `threadAttention`'s
+   label, which Threads states as its status and the margin and Page Map as its line
+   (`margin-model.js`, `threadMarks`). */
 
 const STAGE_LABELS = Object.freeze({
   sending: "Sending",
@@ -50,8 +53,19 @@ export const workflowTitle = (workflow) => {
   return [label, workflow.detail].filter(Boolean).join(" · ");
 };
 
-export const isWorkflowProgress = (workflow) =>
-  !workflow.condition && ["picked_up", "working", "replying"].includes(workflow.stage);
+// The face a control paints for the agent's progress on a workflow: picked up, or at
+// work, which a reply still streaming is too. Its word stays the workflow's own
+// (`workflowLabel`), so a reply streaming reads Replying under the working face.
+export const progressFace = (workflow) =>
+  !workflow || workflow.condition
+    ? null
+    : workflow.stage === "picked_up"
+      ? "picked_up"
+      : ["working", "replying"].includes(workflow.stage)
+        ? "working"
+        : null;
+
+export const isWorkflowProgress = (workflow) => progressFace(workflow) !== null;
 
 export const isPageWidgetWorkflow = (workflow, revision) =>
   workflow.subject.kind === "widget" &&

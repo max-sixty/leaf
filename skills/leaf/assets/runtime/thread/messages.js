@@ -22,7 +22,8 @@ import {
   renderedWords,
 } from "../markdown.js";
 import { reportPageError } from "../layer-client.js";
-import { editable, isReaction, messageKey, moved } from "./model.js";
+import { editable, isReaction, lastMovedAt, messageKey, moved } from "./model.js";
+import { labelWords } from "../words.js";
 import {
   MessageEditor,
   OPEN_MESSAGE_EDIT,
@@ -102,6 +103,25 @@ export function messageText(message) {
   }
   return message.suggestion ? (message.text ?? "") : proseReading(message).plainText;
 }
+
+// A thread's name, on every surface that names one: its title, else the words its
+// opening message renders (an agent's authored opening, its captured text), else
+// Drawing for one drawn without words. A surface clips it to its own room.
+/** @param {ReturnType<typeof import("./model.js").readThreadRecords>[number]} thread */
+export function threadName(thread) {
+  if (thread.title != null) return thread.title;
+  const { root } = thread;
+  const words = labelWords(
+    root.body.kind === "authored" ? root.body.text : messageText(root),
+  );
+  return words || (root.drawing ? "Drawing" : "");
+}
+
+/** @param {ReturnType<typeof import("./model.js").readThreadRecords>[number]} thread */
+export const threadSummary = (thread) => ({
+  topic: threadName(thread),
+  latest: lastMovedAt(thread),
+});
 
 // A rollback can withdraw an authored island, but neither retry nor a prose edit
 // may instantiate it twice. Its native identity is independent of the prose cache.

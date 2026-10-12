@@ -11,7 +11,7 @@ import { replyAvailable } from "./thread/replies.js";
 import { KINDS } from "./contribution-model.js";
 import { excerptWords, labelWords } from "./words.js";
 import { contributionEntries } from "./contributions.js";
-import { marginInventory } from "./margin-model.js";
+import { marginInventory, threadMarks } from "./margin-model.js";
 import { standingPoint } from "./pointed-place.js";
 import { ago } from "./presence.js";
 import { runtime } from "./context.js";
@@ -24,13 +24,12 @@ import { authoredStates } from "./projection/authored.js";
 import { currentProjection } from "./projection/state.js";
 import { notice } from "./notifications.js";
 import { claimed, heldOut } from "./thread/surfaces.js";
-import { anchorLabel } from "./thread/messages.js";
+import { threadName } from "./thread/messages.js";
 import { outlineSubjectFor, pageOutline } from "./thread/placement.js";
 import {
   isPageWidgetWorkflow,
   isWorkflowProgress,
   strongestWorkflow,
-  threadAttention,
   workflowLabel,
 } from "./thread/workflow.js";
 import { renderedParent, shadowHost, under } from "./shadow.js";
@@ -276,9 +275,6 @@ export function createAnnotationInventory({
         continue;
       const id = thread.id;
       const target = placedAt(id)?.place;
-      const attention = threadAttention(thread);
-      const onUser = attention?.kind === "needs_user";
-      const unread = thread.unread.length;
       const placement = placedAt(id);
       const point = standingPoint(target, placement?.point);
       const pointed = point
@@ -294,30 +290,13 @@ export function createAnnotationInventory({
           // whose identity changed there would be rebuilt — taking with it the reply box
           // the send had just put them in.
           id: marginThreadItem(thread),
-          text: labelWords(
-            thread.root.text || anchorLabel(thread.anchor, thread.root.about),
-          ),
+          text: threadName(thread),
           thread,
           // The Thread record already combines server attention with the local workflow
           // overlay. Margin and Page Map carry that reading rather than deriving another
-          // answer from raw turn or workflow fields.
-          userAttention: onUser
-            ? {
-                label: attention.label,
-                reason: thread.attention?.reason ?? "workflow",
-              }
-            : null,
-          unread,
-          // Page Map lists each thread on its own row, so the word goes on the row
-          // rather than on an aggregate.
-          ...(onUser || thread.attention?.reason === "todo"
-            ? { mapContext: attention.label }
-            : unread
-              ? { mapContext: `${unread} unread` }
-              : {}),
-          // Work decorates the thread control; it never replaces the control's
-          // comment face or its disclosure action.
-          workflowReceipt: onUser ? null : attention?.workflow,
+          // answer from raw turn or workflow fields. Work decorates the thread control;
+          // it never replaces the control's comment face or its disclosure action.
+          ...threadMarks(thread),
           activate: () => openThread(id),
         },
         pointed,

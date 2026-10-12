@@ -97,7 +97,8 @@ export {
 export { readThreads } from "./thread/state.js";
 export { releaseOutlets, threadSurface } from "./thread/surfaces.js";
 export { watchThreads } from "./thread/watch.js";
-export { turns as threadTurns, threadSummary } from "./thread/model.js";
+export { turns as threadTurns } from "./thread/model.js";
+export { threadSummary } from "./thread/messages.js";
 // Holding a region's rows the log or the clock decides while their growth would be seen
 // (assets/AGENTS.md, "Stability").
 export { HeldReading } from "./thread/held-news.js";

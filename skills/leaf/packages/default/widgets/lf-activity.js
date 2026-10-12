@@ -5,11 +5,12 @@
  * user, Page for what the page did by itself, and otherwise the name the server serves
  * the row under), what they did, the thing they did it to, and how long ago.
  *
- * What a row's event was is the server's: the thread it belongs to and that thread's title,
+ * What a row's event was is the server's: the thread it belongs to,
  * whether a later undo took it back, and for a widget gesture the words its ids had in
  * the document it was made in, under that document's declaration of the widget. A
  * version that rewords or removes an option therefore leaves the row as the user made
- * it. This module words those facts and names the places on the page it links to.
+ * it. This module words those facts and names the places on the page it links to; a
+ * thread goes by the name every surface shows it under (`threadSummary`).
  *
  * A place is named on the page the user is reading, since that is where the row leads,
  * and as the rest of the chrome names it (`addressableLabel`), else by its word. A
@@ -53,6 +54,7 @@ import {
   threadActions,
   readThreads,
   relabel,
+  threadSummary,
   watchHistory,
   whileConnected,
   keeps,
@@ -102,12 +104,12 @@ const actorOf = (row) =>
 const quoted = (words) => `“${words}”`;
 const named = (words) => quoted(excerptWords(words, NAME));
 
-// The thread's name as Threads states it: its latest title, else its opening words.
-const topicOf = (thread) =>
-  !thread
-    ? "a thread"
-    : (thread.title ??
-      (excerptWords(markdownWords(thread.opening), 48) || "a drawing"));
+// The thread's name as Threads states it (`threadSummary`), read from the thread as
+// it stands now, as every way there is.
+const topicOf = (served) => {
+  const thread = served && readThreads().threads.find(({ id }) => id === served.id);
+  return thread ? excerptWords(threadSummary(thread).topic, 48) : "a thread";
+};
 
 function gesturePhrase(gesture) {
   switch (gesture.form) {

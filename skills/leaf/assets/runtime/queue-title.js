@@ -7,12 +7,12 @@ import { questionHolding } from "./standing-target.js";
 import { questionPlace } from "./questions/place.js";
 import { readQuestions } from "./questions/model.js";
 import { readThreads } from "./thread/state.js";
-import { threadSummary } from "./thread/model.js";
+import { threadName } from "./thread/messages.js";
 
 export function queueTitle(item) {
   const thread = readThreads().threads.find((thread) => thread.id === item.thread);
   const own = elementById(item.subject.id);
-  const topic = thread ? threadSummary(thread).topic : "";
+  const topic = thread ? threadName(thread) : "";
   if (item.title) return item.title;
   if (item.kind === "work" && item.detail) return item.detail;
   if (item.subject.kind === "widget") {

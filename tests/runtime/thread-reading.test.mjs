@@ -8,11 +8,13 @@ import { servedThread, servedWorkflow } from "../served.mjs";
 // a daylight-saving change — is fixed before the modules load rather than by a static
 // import that would load them first.
 process.env.TZ = "America/New_York";
-const { moved, readThreadRecords, threadSummary } =
+const { lastMovedAt, moved, readThreadRecords } =
   await import("/runtime/thread/model.js");
 const { inRecentOrder } = await import("/runtime/thread/placement.js");
 const { unreadBoundaries } = await import("/runtime/thread/summary-ranges.js");
 const { threadAttention } = await import("/runtime/thread/workflow.js");
+const { threadName, threadSummary } = await import("/runtime/thread/messages.js");
+const { loadMarkdown } = await import("/runtime/markdown.js");
 const {
   DEFAULT_INTENT,
   createThreadNarrowing,
@@ -191,7 +193,31 @@ test("a message moves when it is edited, and a thread when any turn moves", () =
       agent("later", { seq: 4, ts: "2026-02-25T09:00:00Z" }),
     ],
   };
-  assert.equal(threadSummary(thread).latest, "2026-03-02T09:00:00Z");
+  assert.equal(lastMovedAt(thread), "2026-03-02T09:00:00Z");
+});
+
+test("an untitled thread goes by the words its opening renders, everywhere it is named", async () => {
+  // Reached whenever a thread has no title yet, as after a failed title request. The
+  // panel's card, the margin, Page Map, Questions and the activity feed all name it by
+  // this one reading, so none shows the opening's Markdown source and another its words.
+  assert.ok(await loadMarkdown());
+  const named = (root, changes = {}) =>
+    readThreadRecords([servedThread([root], changes)], NO_DOCUMENT, new Map(), [])[0];
+  const user = (extra) =>
+    agent("opening", { kind: "comment", author: "user", ...extra });
+  const prose = named(user({ text: "Is **this** the\n\n`retry` path?" }));
+  assert.equal(threadName(prose), "Is this the retry path?");
+  assert.equal(threadSummary(prose).topic, threadName(prose));
+  // A drawing with no words still has a name to stand under.
+  assert.equal(
+    threadName(named(user({ text: "", drawing: { strokes: [] } }))),
+    "Drawing",
+  );
+  // The agent's title, once it has one, is the name.
+  assert.equal(
+    threadName(named(user({ text: "Is **this** it?" }), { title: "Retry path" })),
+    "Retry path",
+  );
 });
 
 test("attention names the outstanding question rather than the latest message", () => {

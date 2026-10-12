@@ -216,9 +216,9 @@ differently.
 Recorded effects own their payload schema (`registry.contract.detail_schema`):
 `detail.value` carries a body's string, an attribute set's ids, or the scalar
 attribute's own schema. Positions require `{unit, value, rank}` for the moved
-item, destination and rank key. `report: true` on an agent verb adds required
-nonempty `detail.text`. Custom verbs without a record keep their declared detail
-schema. All payloads are closed objects.
+item, destination and rank key. `text: true` on an agent verb requires each report
+to carry non-empty `detail.text`. Custom verbs without a record keep their declared
+detail schema. All payloads are closed objects.
 
 Dependency identities come from the fold unit and the attribute-set and position
 record values, each a nonempty string the payload schema requires, and a position's

@@ -5404,14 +5404,17 @@ def test_server_bind_failure_preserves_the_real_socket_error(page_dir, monkeypat
 def test_the_os_excludes_overlapping_leaf_listeners_across_processes(
     page_dir, spawn, first_bind, second_bind
 ):
-    """A different bind must not route one Leaf URL to another live page."""
+    """A different bind must not route one Leaf URL to another live page.
+
+    The contender binds the first server's port as a restart does, with whatever
+    address reuse its kernel allows a restart, and still finds the port in use.
+    """
     if "::" in (first_bind, second_bind) and not socket.has_dualstack_ipv6():
         pytest.skip("the kernel has no dual-stack listener")
     first = hosting_model.LeafHTTPServer(
         (first_bind, 0), http_model.page_endpoint(page_dir, TOKEN)
     )
     try:
-        assert first.socket.getsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR) == 0
         contender = spawn_probe(
             spawn,
             page_dir,
@@ -5443,9 +5446,7 @@ else:
 def test_a_fixed_url_waits_for_its_port_to_become_available(page_dir, monkeypatch):
     """Both preview lifetimes use native port availability, without changing URLs.
 
-    A held listener arranges EADDRINUSE without depending on a platform's TCP
-    cooldown duration. The real keepalive shutdown/restart is also exercised
-    manually against macOS, where it takes about 30 seconds.
+    A held listener arranges EADDRINUSE, which address reuse never passes.
     """
     refused = threading.Event()
     native_bind = socket.socket.bind
@@ -5476,11 +5477,35 @@ def test_a_fixed_url_waits_for_its_port_to_become_available(page_dir, monkeypatc
             occupied.close()
         with restarting.result(timeout=STATED_TIMEOUT) as server:
             assert server.url == f"http://127.0.0.1:{port}/?t={TOKEN}"
-            assert (
-                server.httpd.socket.getsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR)
-                == 0
-            )
             assert fetch(f"{server.origin}/api/state")[0] == 200
+
+
+@pytest.mark.parametrize("bind", ["127.0.0.1", "::"])
+def test_a_restart_takes_its_address_back_from_the_connections_it_closed(
+    page_dir, monkeypatch, bind
+):
+    """A restarted server binds its recorded address at once, under an open tab.
+
+    A stopping server closes the tab's keep-alive connection, and the side that
+    closes first holds the connection's address for TCP's TIME_WAIT: up to a minute,
+    during which a restart that waited for it left the tab offline.
+    """
+    if bind == "::" and not socket.has_dualstack_ipv6():
+        pytest.skip("the kernel has no dual-stack listener")
+    if bind == "::" and not hosting_model.REUSE_EXCLUDES_LISTENERS:
+        pytest.skip("a BSD kernel binds a wildcard strictly, so it waits out TIME_WAIT")
+    monkeypatch.setattr(hosting_model, "PORT_WAIT_SECONDS", 0)
+    endpoint = http_model.page_endpoint(page_dir, TOKEN)
+    httpd = hosting_model.LeafHTTPServer((bind, 0), endpoint)
+    port = httpd.server_address[1]
+    tab = http.client.HTTPConnection("127.0.0.1", port, timeout=STATED_TIMEOUT)
+    try:
+        with running_http_server(httpd):
+            tab.request("GET", f"/api/state?t={TOKEN}")
+            assert tab.getresponse().read()
+    finally:
+        tab.close()
+    hosting_model.LeafHTTPServer((bind, port), endpoint).server_close()
 
 
 def test_the_stated_host_wildcard_accepts_an_ipv4_user(page_dir):

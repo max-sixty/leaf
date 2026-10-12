@@ -4,8 +4,11 @@
    immutable publisher selections and commands validated against the newest selection;
    the owner DOM is never a semantic store. Its semantic render and asynchronous
    preparation are two stable widget-id regions: neither can supersede the other's
-   proof. Subscriptions belong to the owner; removal pauses them and reconnecting
-   restores the latest reading and preparation. Registered preparation also holds full
+   proof. Subscriptions belong to the owner; removal pauses them, and reconnecting
+   restores preparation and draws the reading by the rule every returning paint follows
+   (`readingPaint` in presence.js): only a reading that changed while away draws
+   again, and a render that failed is not reported twice. Time readings in the render
+   claim a fresh draw through the same publication. Registered preparation also holds full
    rendering readiness until completion or removal; queued updates can independently
    settle while it waits. Local editing defers the render
    region at its newest unpublished reading, without painting a detached owner. */
@@ -15,6 +18,7 @@ import { descriptorStillMatches, widgetDescriptor } from "./widget-descriptors.j
 import { failSoftUnreported } from "./widget-upgrade.js";
 import { dragHeld, watchDragRelease } from "./widget-elements.js";
 import { watchOwner } from "./arrivals.js";
+import { readingPaint } from "./presence.js";
 import { holdRendering } from "./rendering.js";
 
 const controllers = new WeakMap();
@@ -90,8 +94,8 @@ function createWidgetController(owner) {
   let deferredReading = null;
   let stopSelection = null;
   let renderHandle = null;
-  let renderedReading = null;
-  let renderedStatus = null;
+  // Whether the standing reading's total render and every subscriber completed.
+  let drawn = false;
   let preparationHandle = null;
   const pendingPreparations = new Map();
   let preparation = null;
@@ -135,57 +139,65 @@ function createWidgetController(owner) {
       .present(value, (reason) => failSoftUnreported(owner, reason))
       .resolve(completion);
 
-  const presentRender = (reading, callbacks) => {
-    if (!owner.isConnected) return;
-    const firstRender = renderedReading !== reading;
-    if (firstRender) {
-      renderedReading = reading;
-      renderedStatus = null;
-    } else if (renderedStatus !== "complete") {
-      return;
-    }
-    const handle = render();
+  const notify = (reading, callbacks) => {
     const failures = [];
-    const complete = [...stateVerbs].every((verb) => verb in reading.state);
-    if (complete && firstRender) {
+    for (const subscription of callbacks) {
+      try {
+        subscription(reading);
+      } catch (error) {
+        failures.push(error);
+      }
+    }
+    return failures;
+  };
+
+  const failed = (failures) => {
+    if (failures.length > 1)
+      throw new AggregateError(failures, "widget presentation failed");
+    if (failures.length) throw failures[0];
+  };
+
+  // The total render, then its subscribers. Auxiliary subscribers may read DOM the
+  // total render established, so if it failed, the one fail-soft owns this reading
+  // instead of running callbacks against a partial view. An incomplete startup reading
+  // has no DOM to present; its subscribers first run when the publisher supplies every
+  // declared verb.
+  const paint = readingPaint(
+    owner,
+    (reading) => {
+      drawn = false;
+      if (![...stateVerbs].every((verb) => verb in reading.state)) return;
       try {
         owner.renderState?.(reading.state);
       } catch (error) {
-        failures.push(
-          new Error(
-            `<${owner.localName}> renderState threw: ${error?.message ?? error}`,
-            { cause: error },
-          ),
+        throw new Error(
+          `<${owner.localName}> renderState threw: ${error?.message ?? error}`,
+          { cause: error },
         );
       }
-      // Auxiliary subscribers may read DOM established by the total render. If that
-      // prerequisite failed, the one fail-soft owns this reading instead of running
-      // callbacks against a partial view.
+      failed(notify(reading, [...subscriptions]));
+      drawn = true;
+    },
+    () => refresh(),
+  );
+
+  // Each presentation commits its ticket, so a reading that draws nothing, as on a
+  // return to an unchanged reading, still settles the region.
+  const presentRender = (reading, draw = () => paint(reading, reading)) => {
+    if (!owner.isConnected) return;
+    const handle = render();
+    let failure = null;
+    try {
+      draw();
+    } catch (error) {
+      failure = error;
     }
-    if (complete && !failures.length) {
-      for (const subscription of callbacks) {
-        try {
-          subscription(reading);
-        } catch (error) {
-          failures.push(error);
-        }
-      }
-    }
-    renderedStatus = !complete ? "incomplete" : failures.length ? "failed" : "complete";
-    const failure =
-      failures.length > 1
-        ? new AggregateError(failures, "widget presentation failed")
-        : failures[0];
-    if (handle) {
-      const presenting = handle.present(reading, (reason) =>
-        failSoftUnreported(owner, reason),
-      );
-      // An incomplete startup reading has no DOM to present, but its ticket still
-      // commits so the provisional publication can settle. Its subscribers first run
-      // when the publisher supplies every declared verb.
-      if (failure) presenting.reject(failure);
-      else presenting.resolve();
-    }
+    if (!handle) return;
+    const presenting = handle.present(reading, (reason) =>
+      failSoftUnreported(owner, reason),
+    );
+    if (failure) presenting.reject(failure);
+    else presenting.resolve();
   };
 
   // A held reading leaves its ticket open; the next presentation or the handle's
@@ -200,7 +212,7 @@ function createWidgetController(owner) {
     if (deferred || !deferredReading || !subscriptions.size) return;
     const latest = deferredReading;
     deferredReading = null;
-    presentRender(latest, [...subscriptions]);
+    presentRender(latest);
   };
 
   const publish = () => {
@@ -210,7 +222,7 @@ function createWidgetController(owner) {
       if (dragHeld()) gestureDeferred.add(resumeGestureRender);
       return;
     }
-    presentRender(reading, [...subscriptions]);
+    presentRender(reading);
   };
 
   const connect = () => {
@@ -251,14 +263,11 @@ function createWidgetController(owner) {
       pendingPreparations.set(settled, null);
     }
     deferredReading = null;
-    renderedReading = null;
-    renderedStatus = null;
   };
 
   const refresh = () => {
     if (!owner.isConnected || !stopSelection) return;
-    renderedReading = null;
-    renderedStatus = null;
+    paint.forget();
     publish();
   };
 
@@ -271,7 +280,12 @@ function createWidgetController(owner) {
         throw new TypeError("A widget subscription needs a callback");
       subscriptions.add(callback);
       if (!stopSelection) connect();
-      else presentRender(read(), [callback]);
+      else {
+        // A reading still owed draws every subscriber when it paints.
+        const reading = read();
+        if (drawn && !paint.owes(reading))
+          presentRender(reading, () => failed(notify(reading, [callback])));
+      }
       return () => {
         subscriptions.delete(callback);
         if (!subscriptions.size) {
@@ -281,8 +295,7 @@ function createWidgetController(owner) {
           renderHandle?.disconnect();
           renderHandle = null;
           deferredReading = null;
-          renderedReading = null;
-          renderedStatus = null;
+          paint.forget();
         }
       };
     },
@@ -298,8 +311,7 @@ function createWidgetController(owner) {
       // The gesture may mutate the live DOM without changing semantic identity. Resume
       // must therefore run the total renderer even when the publisher reading is the
       // same object that preceded the gesture.
-      renderedReading = null;
-      renderedStatus = null;
+      paint.forget();
       let resumed = false;
       return () => {
         if (resumed) return read();
@@ -307,7 +319,7 @@ function createWidgetController(owner) {
         deferred = false;
         const latest = deferredReading ?? read();
         deferredReading = null;
-        if (subscriptions.size) presentRender(latest, [...subscriptions]);
+        if (subscriptions.size) presentRender(latest);
         invalidateDom();
         return latest;
       };

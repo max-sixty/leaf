@@ -19,6 +19,7 @@ import sys
 import tempfile
 import threading
 import time
+from collections.abc import Mapping
 from contextlib import ExitStack
 from dataclasses import replace
 from functools import partial
@@ -43,7 +44,7 @@ from leaf.codex import (
 from leaf.delivery import read_delivery, stream_reply_target
 from leaf.harness import EmbeddedHarness
 from leaf.hosting import LeafHTTPServer
-from leaf.http import PageEndpoint, scope_page_urls
+from leaf.http import PageEndpoint, PostRoute, scope_page_urls
 from leaf.layer import foreign_runtime
 from leaf.leases import release_lease, take_lease, waiter_lease_path
 from leaf.page_memory import Slot, memo
@@ -1426,42 +1427,46 @@ class WebsitePageEndpoint(PageEndpoint):
             return f"{page['assets']}/revisions/{name}"
         return super()._sample_asset_root(revision)
 
-    def _post(self) -> Response:
-        path = self.path
-        if path == STARTUP_REPORT_PATH:
-            # Every document the runtime delivers with a release carries the public
-            # startup beacon, and the deployed site answers it at the edge, where the
-            # observability record belongs. This adapter has no Worker in front of it,
-            # so it owes the browser the same "recorded, nothing to read back" answer
-            # the edge gives — otherwise every page served here loads with a 404 in its
-            # console (`skills/leaf/assets/runtime/bootstrap.js`, `observePublicStartup`).
-            return self._content(204, "application/json", b"")
-        if path not in {AGENT_START_PATH, AGENT_FAIL_PATH}:
-            return super()._post()
-        if self.posted_error:
-            return self._json({"error": self.posted_error}, 400)
-        try:
-            if path == AGENT_FAIL_PATH:
-                event_id, failure = _agent_failure(self.posted)
-            else:
-                event_id = _agent_event(self.posted)
-        except ValueError as error:
-            return self._json({"error": str(error)}, 400)
-        if path == AGENT_START_PATH:
-            thread_id = self.agent_harness.attach(self.page_dir, event_id)
-            if thread_id is None:
-                return self._json({"status": "settled"})
-            return self._json({"status": "started", "thread": thread_id})
+    def _acknowledge_startup_report(self) -> Response:
+        # Every document the runtime delivers with a release carries the public
+        # startup beacon, and the deployed site answers it at the edge, where the
+        # observability record belongs. This adapter has no Worker in front of it,
+        # so it owes the browser the same "recorded, nothing to read back" answer
+        # the edge gives — otherwise every page served here loads with a 404 in its
+        # console (`skills/leaf/assets/runtime/bootstrap.js`, `observePublicStartup`).
+        return self._content(204, "application/json", b"")
 
+    def _start_agent(self) -> Response:
+        try:
+            event_id = _agent_event(self.posted)
+        except ValueError as error:
+            return self._refuse(str(error))
+        thread_id = self.agent_harness.attach(self.page_dir, event_id)
+        if thread_id is None:
+            return self._json({"status": "settled"})
+        return self._json({"status": "started", "thread": thread_id})
+
+    def _fail_agent(self) -> Response:
+        try:
+            event_id, failure = _agent_failure(self.posted)
+        except ValueError as error:
+            return self._refuse(str(error))
         try:
             accepted = self.agent_harness.failure_receipt(
                 self.page_dir, event_id, failure
             )
         except Refused as error:
-            return self._json({"error": str(error)}, 400)
+            return self._refuse(str(error))
         if accepted is None:
             return self._json({"status": "settled"})
         return self._json({"status": "appended", "event": accepted["id"]})
+
+    POST_ROUTES: Mapping[str, PostRoute] = {
+        **PageEndpoint.POST_ROUTES,
+        STARTUP_REPORT_PATH: PostRoute(_acknowledge_startup_report),
+        AGENT_START_PATH: PostRoute(_start_agent, (PageEndpoint._body_gate,)),
+        AGENT_FAIL_PATH: PostRoute(_fail_agent, (PageEndpoint._body_gate,)),
+    }
 
     def _select_page(self) -> Response | None:
         if self.method == "GET" and self.path == "/health":

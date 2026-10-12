@@ -905,7 +905,7 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
     );
     return;
   }
-  // The results are a real overflow region and must enter the modal Tab loop.
+  // The results are a real overflow region, so they take a Tab stop of their own.
   reachScrollers(commandReferenceDialog);
   focusDestination(
     commandReferenceDialog.querySelector(

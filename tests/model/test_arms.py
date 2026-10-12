@@ -162,7 +162,7 @@ def observed_codex():
     child = CodexChild.__new__(CodexChild)
     child.raw = StringIO()
     child.queue = deque()
-    child.final, child.usage = "", None
+    child.final, child.usage, child.schema = "", None, None
     child.now = lambda: "2026-10-02T22:36:55-07:00"
     task = Task.__new__(Task)
     task.thread, task.started, task.running = "parent", [], set()
@@ -298,6 +298,30 @@ def test_codex_parent_evidence_isolated_from_delegated_threads_and_usage_snapsho
         "input_tokens": 20,
         "output_tokens": 2,
     }
+
+
+def test_a_codex_answer_held_to_a_schema_is_its_structured_output(observed_codex):
+    """`--json-schema` holds a Codex turn's final answer as App Server's
+    `outputSchema`, and its result carries the answer parsed, as Claude Code's does."""
+    child, task = observed_codex
+    child.schema = {"type": "object"}
+    for method, params in (
+        ("turn/started", {"turn": {"id": "t"}}),
+        (
+            "item/completed",
+            {
+                "turnId": "t",
+                "item": {
+                    "type": "agentMessage",
+                    "phase": "final_answer",
+                    "text": '{"options": ["b"]}',
+                },
+            },
+        ),
+        ("turn/completed", {"turn": {"id": "t", "status": "completed"}}),
+    ):
+        task._hear({"method": method, "params": {"threadId": "parent", **params}})
+    assert trace_result(list(child.queue))["structured_output"] == {"options": ["b"]}
 
 
 def test_codex_live_driver_observes_stdout_before_the_next_harness_notification(

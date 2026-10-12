@@ -1451,8 +1451,7 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     # A granted callout's padding and border fall inside the wide measure.
     for wide in ("granted", "granted-c", "holds"):
         assert at[wide] == {"width": 1080, "left": edge}, (wide, at)
-    # The widened Ask has the room for its options track, so the table stands beside
-    # the list rather than at the measure.
+    # The widened Ask frames its table, which stands wider than the measure.
     assert at["holds-t"]["width"] > 720, at
 
     column = open_page(browser, serve(leaf_page("Column", body)))
@@ -3391,3 +3390,34 @@ def test_the_write_gate_allows_only_the_column_measurement_property(
     failures = consume_browser_errors(page, "unchanged write:")
     assert len(failures) == 1
     assert "style on body" in failures[0]
+
+
+def test_a_control_the_page_writes_takes_leaf_type_and_yields_to_page_css(
+    browser, serve
+):
+    """A bare button or field an author writes into the page reads in Leaf's type, as
+    `.button` and `.field` do; left to the browser it drew 13.33px Arial beside the
+    page's own type (#2559). The default weighs nothing, so a page rule of element
+    selectors alone still sets its type."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Authored controls",
+                """<h1>Authored controls</h1>
+<p><button id="classed" class="button" type="button">Classed</button>
+<button id="bare" type="button">Bare</button>
+<input id="bare-field" type="text" aria-label="Bare field">
+</p>
+<section><button id="dressed" type="button">Dressed</button></section>""",
+                head="<style>section button { font: 20px Georgia; }</style>",
+            )
+        ),
+    )
+    face = (
+        "el => { const s = getComputedStyle(el); return [s.fontFamily, s.fontSize]; }"
+    )
+    leaf = page.locator("#classed").evaluate(face)
+    assert page.locator("#bare").evaluate(face) == leaf
+    assert page.locator("#bare-field").evaluate(face) == leaf
+    assert page.locator("#dressed").evaluate(face) == ["Georgia", "20px"]

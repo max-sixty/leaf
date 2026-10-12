@@ -15,7 +15,7 @@
   line-height: var(--lf-ui-lh);
   color: var(--ink);
 }
-:where(:root .lf-ui-face, :root .button, :root .field) {
+:where(:root .lf-ui-face, :root .button, :root .field, :root main :is(button, input, select, textarea)) {
   font: var(--t-5) / var(--lf-ui-lh) var(--sans);
   font-feature-settings: normal;
   font-variation-settings: normal;
@@ -1734,12 +1734,26 @@ pre:hover + .lf-code-copy,
 .lf-code-copy:is(:hover, [data-lf-focus-within]) {
   opacity: 1;
 }
+@media (pointer: coarse) {
+  :root[data-lf-live] .lf-code-copy {
+    display: none;
+  }
+  :host-context(html[data-lf-live]) .lf-code-copy {
+    display: none;
+  }
+}
 @media (pointer: coarse), (hover: none) {
-  .lf-code-copy {
+  :root:not([data-lf-live]) .lf-code-copy {
     opacity: 1;
   }
-  pre[data-lf-focus] + .lf-code-copy,
-  .lf-code-copy.lf-code-copy-focused {
+  :host-context(html:not([data-lf-live])) .lf-code-copy {
+    opacity: 1;
+  }
+  :root:not([data-lf-live]) :is(pre[data-lf-focus] + .lf-code-copy, .lf-code-copy.lf-code-copy-focused) {
+    opacity: 0;
+    pointer-events: none;
+  }
+  :host-context(html:not([data-lf-live])) :is(pre[data-lf-focus] + .lf-code-copy, .lf-code-copy.lf-code-copy-focused) {
     opacity: 0;
     pointer-events: none;
   }

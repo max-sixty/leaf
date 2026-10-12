@@ -425,7 +425,9 @@ readable and its parts stay commentable. For fixed recordings and screen capture
 follow `authoring-evidence.md`, "Source files and media". When the shape of numbers is
 the point — a trend, ranking, groups on one scale, or series moving together —
 lead with an `lf-chart`, even if the numbers compare the same dimensions across
-items. Put a table below it in `<details>` when readers also need exact values.
+items. The chart labels the values the page's argument cites (`lf-chart`'s
+instructions); put the rest in a table below it in `<details>` when readers also
+need exact values.
 Use a table for value lookup, mixed units that cannot share an axis, or comparisons
 with text-heavy cells; use native sections for a few alternatives read as wholes,
 and `lf-options` when the user must choose among them. A headline measurement is
@@ -455,6 +457,11 @@ those controls. To change them on purpose, name the widget they stand in or Leaf
 class for them: `lf-options button`, `lf-board .lf-btn`, or, for controls a page
 module builds with `offer`, the page's own element (`my-explorer .toolbar`). A token
 such as `--accent` on `:root` changes every surface that reads it.
+
+A control the page writes itself matches Leaf's own when it carries Leaf's class:
+`class="button"` on a button, `class="button primary"` on the committing action, and
+`class="field"` on a text input or select. Without one, a control in `main` takes
+Leaf's type and keeps the browser's frame.
 
 Widget attributes carry scalars; children carry prose; a titled compound member uses a
 leading `<strong>`. A data-bodied widget such as `lf-code` holds escaped
@@ -486,11 +493,12 @@ page composition can choose their layout.
 
 Keep content within its allocated column, visual surface, or pane. The theme scrolls a `<pre>` or a table
 that runs wider than its container and fits an image or SVG to it, so none of them needs a
-width. A table that scrolls has every column at its longest unbreakable run, and
-the browser gate refuses one that scrolls with a cell in it wrapped: put an
-identifier in `<code>`, where it breaks inside its cell, rather than bare, where
-it holds its column and squeezes the prose beside it, and keep the columns to
-what the measure holds. Widgets whose element declaration requests wider space size
+width. A table that scrolls has every column at its longest unbreakable run, so prose
+that wraps in it wraps a word a line while the reader also scrolls sideways. The
+browser gate advises on each width from a 360px phone up where a table scrolls with a
+cell in it wrapped: put an identifier in `<code>`, where it breaks inside its cell,
+rather than bare, where it holds its column and squeezes the prose beside it, and keep
+the columns to what the measure holds at the narrowest width the page's readers use. Widgets whose element declaration requests wider space size
 themselves within the page's available room. Preserve the meaningful detail in a diagram
 or comparison rather than shrinking its source solely to fit the prose column.
 

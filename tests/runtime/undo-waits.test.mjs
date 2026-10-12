@@ -36,17 +36,17 @@ const reading = (events) => ({
     thread_memberships: {},
     todos: [],
     ended_todos: [],
-    thread: {
-      threads: [],
-      projection: { entries: [], actions: [], reports: [], desired: [] },
-      asks: noAsks(),
-    },
     views: {
       1: {
         basis: { revision: 1, through_seq: events.length },
+        thread: {
+          threads: [],
+          projection: { entries: [], actions: [], reports: [], desired: [] },
+          asks: noAsks(),
+        },
         coverage: [],
         undo: events.map((event) => ({ event })).reverse(),
-        queues: { questions: [], tasks: [], done: [] },
+        queues: { questions: [], tasks: [], done: [], held: [] },
         approval_blocking: [],
         document: {
           asks: noAsks(),

@@ -591,6 +591,19 @@ Revisit these when their stated trigger becomes real; they are not an active que
   container's Durable Object, and nothing recovers a dispatch whose container
   disappears or outlives the `waitUntil` window. Trigger: a hosted answer lost that
   way.
+- **Start each release's containers on its own image.** The Worker goes live on a
+  release before Cloudflare rolls its image out, so for up to ten minutes after a
+  deploy a session's new container can start on the previous image. The Worker
+  holds requests behind `503 Retry-After` (`rollingOut` in `worker/src/index.ts`),
+  and only event sends retry it, so a sample opened then fails until a reload.
+  Cloudflare's `durable_object` scheduling policy uploads the image map with the
+  Worker version and lets the session pick its image at start
+  ([docs](https://developers.cloudflare.com/containers/configuration/scheduling-policy/)),
+  which removes the window, `rollingOut`, the retry, and `verify-site`'s rollout
+  wait. Moving costs a new container application, a port off the `Container` class
+  (pings, sleep, outbound interception) and `standard-1` in place of `basic`.
+  Trigger: the policy leaves beta, or leaf.page gains visitors a deploy would
+  interrupt.
 - **#27 — Runtime fold tests:** add focused Node tests as rules change; extend
   `tests/runtime/dom.mjs` only when a test needs another module.
 - **Claude Code tool observation:** consider a cheap hook for sessions holding

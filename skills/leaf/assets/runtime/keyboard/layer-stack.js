@@ -38,9 +38,18 @@
    runs after Leaf's keyboard dispatch, so a mode that walks its own stops with Tab keeps
    the key. A modal that holds more than the user should cycle through, as the
    auxiliary envelope holds its whole foreground beside the covering surface, names the
-   region its loop holds as it opens (`showNativeLayer`'s `holds`). A key pressed inside
-   an embedded document is that document's, so a modal whose last stop is a frame, as a
-   sample's Full view is, still lets Tab leave from the frame's own last stop.
+   region its loop holds as it opens (`showNativeLayer`'s `holds`).
+
+   A frame is one stop of the loop around it, as a sample's Full view holds its frame
+   last, but a key pressed inside the frame reaches only the frame's own document. The
+   frame's owner tells that document whether its frame stands in a loop (`inLoop`), and
+   the document joins it (`joinOuterLoop`): with no modal of its own, its whole body is
+   its loop, and Tab past either end of it asks the containing page to move the user on
+   past the frame (`movePast`), to the neighbouring stop or round to the other end. The
+   containing page decides that when asked, so the frame's document never holds a
+   reading of the stops around it. A move that lands on a frame enters its document at
+   the matching end through the frame's owner (`enterFrameBy`). A page in a frame
+   standing in a loop is itself in that loop, so frames nest.
 
    What Escape takes off is not recorded here, and not recorded anywhere: every step is
    read off the state standing in front of the user, by the owner of that state, through
@@ -287,10 +296,65 @@ export function dismissPopoversOutside(root) {
       closeNativeLayer(entry.root);
 }
 
-// Where Tab would leave the newest modal's region, it wraps to the region's other end.
-// The stop the user stands at is the innermost one holding focus, so a control inside a
-// component's shadow tree stands at the stop its host declares. With no stop at all, the
-// region itself holds the user.
+// The loop around the user in this document: the newest modal's region, or, with no
+// modal, the whole body where this document's frame stands in a loop around it. `outer`
+// is that loop, which takes the user past this document's ends.
+let outerLoop = null;
+export const joinOuterLoop = (loop) => {
+  outerLoop = loop;
+};
+function currentLoop() {
+  const modal = nativeLayers().findLast((entry) => entry.kind === "modal")?.root;
+  if (modal) return { region: tabRegions.get(modal)?.() ?? modal, outer: null };
+  return outerLoop?.standing() ? { region: document.body, outer: outerLoop } : null;
+}
+// The stop the user stands at: the innermost one holding `node`, so a control inside a
+// component's shadow tree stands at the stop its host declares.
+const standingAt = (stops, node) => stops.findLastIndex((stop) => under(node, stop));
+
+// How a frame's owner puts the user inside its document, at its first stop or its last.
+const frameEntries = new WeakMap();
+export const enterFrameBy = (frame, enter) => {
+  frameEntries.set(frame, enter);
+  return () => frameEntries.delete(frame);
+};
+function enter(stop, backward) {
+  const entry = frameEntries.get(stop);
+  if (entry) entry(backward);
+  else focusDestination(stop, "step");
+}
+// Moves the user from stop `at` of `loop`, one stop on, round from one end to the other,
+// or, past an end of a frame's document, on past its frame in the page around it.
+function step(loop, stops, at, backward) {
+  const next = at + (backward ? -1 : 1);
+  if (next >= 0 && next < stops.length) enter(stops[next], backward);
+  else if (loop.outer) loop.outer.leave(backward);
+  else if (stops.length) enter(backward ? stops.at(-1) : stops[0], backward);
+  else focusDestination(loop.region, "step");
+}
+// Puts the user at this document's first stop in its loop, or its last, as a move
+// entering its frame.
+export function enterLoop(backward) {
+  const loop = currentLoop();
+  const stops = loop ? tabStops(loop.region) : [];
+  if (stops.length) enter(backward ? stops.at(-1) : stops[0], backward);
+}
+// Whether `frame` stands in the loop around the user here.
+export function inLoop(frame) {
+  const loop = currentLoop();
+  return Boolean(loop) && renderedUnder(frame, loop.region);
+}
+// The user Tabbed past an end of `frame`'s document: they move on past the frame.
+export function movePast(frame, backward) {
+  const loop = currentLoop();
+  if (!loop) return;
+  const stops = tabStops(loop.region);
+  const at = stops.indexOf(frame);
+  if (at >= 0) step(loop, stops, at, backward);
+}
+
+// Where Tab would leave the loop around the user, the loop moves them instead: round to
+// its other end, or, in a frame's document, on past the frame.
 addEventListener("keydown", (event) => {
   if (
     event.defaultPrevented ||
@@ -300,18 +364,12 @@ addEventListener("keydown", (event) => {
     event.metaKey
   )
     return;
-  const modal = nativeLayers().findLast((entry) => entry.kind === "modal")?.root;
-  if (!modal) return;
-  const region = tabRegions.get(modal)?.() ?? modal;
-  const stops = tabStops(region);
-  if (!stops.length) {
-    event.preventDefault();
-    focusDestination(region, "step");
-    return;
-  }
-  const at = deepFocus();
-  const standing = stops.findLastIndex((stop) => under(at, stop));
-  if (standing !== (event.shiftKey ? 0 : stops.length - 1)) return;
+  const backward = event.shiftKey;
+  const loop = currentLoop();
+  if (!loop) return;
+  const stops = tabStops(loop.region);
+  const at = standingAt(stops, deepFocus());
+  if (stops.length && at !== (backward ? 0 : stops.length - 1)) return;
   event.preventDefault();
-  focusDestination(event.shiftKey ? stops.at(-1) : stops[0], "step");
+  step(loop, stops, stops.length ? at : -1, backward);
 });

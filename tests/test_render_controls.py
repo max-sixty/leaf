@@ -1398,6 +1398,43 @@ def fail_sample_startup(route):
     )
 
 
+def test_tab_wraps_through_a_full_view_sample(browser, serve):
+    """Full view is modal and holds its frame last, and a key pressed in the frame is
+    the child's. Shift+Tab from the view's first stop enters the child at its last
+    stop, and Tab from there comes back to the first, where the browser would carry the
+    user out to its own interface."""
+    page = open_page(browser, serve(LIVE_SAMPLES_PAGE))
+    sample = page.locator("#first-practice")
+    frame = sample.locator("iframe")
+    child = frame.element_handle().content_frame()
+    sample.get_by_role("button", name="Full view", exact=True).click()
+    expect(sample.get_by_role("button", name="Return to page", exact=True)).to_be_focused()
+    first = sample.get_by_role("button", name="Reset", exact=True)
+    first.focus()
+
+    page.keyboard.press("Shift+Tab")
+    expect(frame).to_be_focused()
+    child.wait_for_function(
+        "() => document.activeElement && document.activeElement !== document.body"
+    )
+    page.keyboard.press("Tab")
+    expect(first).to_be_focused()
+
+    # Back on the page the frame stands in no loop, so Tab past the child's last stop
+    # is the browser's own move on to the page's next stop.
+    page.keyboard.press("Escape")
+    expect(sample.get_by_role("button", name="Full view", exact=True)).to_be_focused()
+    child.evaluate(
+        """async () => {
+          const { tabStops } = await import("/runtime/focus.js");
+          tabStops(document.body).at(-1).focus();
+        }"""
+    )
+    expect(frame).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(frame).not_to_be_focused()
+
+
 def test_live_sample_full_view_keeps_the_child_and_returns_after_inner_escape(
     browser, serve
 ):

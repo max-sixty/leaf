@@ -7145,11 +7145,12 @@ def test_only_controls_and_boxes_with_something_out_of_sight_take_a_tab_stop(
 
 
 def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
-    """The reference has a visible close control and keeps Tab inside the surface.
+    """The reference has a visible close control and keeps Tab off the page behind it.
 
-    It claims the keyboard while open, so letting native Tab fall through to the page
-    behind it makes the visible scope and the focus scope disagree. Forward and reverse
-    Tab use the same registered walk, while Escape closes and restores the opener."""
+    It claims the keyboard while open, so Tab falling through to the page behind it
+    would make the visible scope and the focus scope disagree. As a native modal it
+    leaves Tab to the browser, which walks the reference and its own interface, while
+    Escape closes and restores the opener."""
     page = open_page(browser, serve(CONTROL_LABEL_PAGE))
     page.evaluate(
         """async () => {
@@ -7208,13 +7209,16 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
         help_el.locator('tr[data-lf-command="response.reaction.choose"] kbd')
     ).to_have_text("1–6")
 
+    # Tab is the browser's in the modal: it walks the reference and out to the browser's
+    # own interface on its way round, never onto the page beneath.
     seen = set()
     for _ in range(6):
         page.keyboard.press("Tab")
         active = page.evaluate(
             """() => {
               const e = document.activeElement;
-              return {inside: document.querySelector('.lf-command-reference').contains(e),
+              return {inside: e === document.body
+                        || document.querySelector('.lf-command-reference').contains(e),
                       name: e.getAttribute('aria-label') || e.className || e.tagName};
             }"""
         )
@@ -7224,7 +7228,8 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
 
     page.keyboard.press("Shift+Tab")
     assert page.evaluate(
-        "() => document.querySelector('.lf-command-reference').contains(document.activeElement)"
+        "() => document.activeElement === document.body"
+        "   || document.querySelector('.lf-command-reference').contains(document.activeElement)"
     )
     page.keyboard.press("Escape")
     expect(help_el).to_be_hidden()

@@ -66,7 +66,9 @@ import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
 import { renderedParent } from "./shadow-tree.js";
 
 // The elements under `node` in the tree as rendered: a host's shadow tree in place of
-// its children, and a slot's assigned elements, or its fallback, in its place.
+// its children, and a slot's assigned elements, or its fallback, in its place. A host
+// its author took out of the order (a negative `tabindex`) takes its whole tree out
+// with it, so Tab skips what it renders.
 function* renderedElements(node) {
   const children =
     node.localName === "slot"
@@ -74,6 +76,7 @@ function* renderedElements(node) {
       : (node.shadowRoot ?? node).children;
   for (const child of children) {
     yield child;
+    if (child.shadowRoot && parseInt(child.getAttribute("tabindex")) < 0) continue;
     yield* renderedElements(child);
   }
 }

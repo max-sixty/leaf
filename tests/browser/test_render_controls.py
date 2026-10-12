@@ -6183,6 +6183,36 @@ def test_a_disclosure_is_a_scrolling_box_s_own_stop(browser, serve):
     assert page.locator("#more > summary").evaluate("s => s.tabIndex") == 0
 
 
+def test_a_control_tab_skips_leaves_a_scrolling_box_its_own_stop(browser, serve):
+    """A control inside a shadow tree whose host is out of the order is one Tab never
+    reaches, so a scrolling box holding only that is still the sweep's to give a stop;
+    with the host in the order, its control is the box's own."""
+    page = open_page(browser, serve(DISCLOSURE_TABLE_PAGE))
+    resized(page, 420, 900)
+    # A box a script builds is swept when its builder asks, as a module's would be.
+    boxes = page.evaluate(
+        """async () => {
+          const {reachScrollers} = await window.__lfRuntimeImport('/runtime/reach.js');
+          const ids = ["out", "in"].map((order) => {
+          const box = document.createElement("div");
+          box.id = `box-${order}`;
+          box.style.cssText = "width:200px;overflow-x:auto;white-space:nowrap";
+          const host = document.createElement("span");
+          if (order === "out") host.setAttribute("tabindex", "-1");
+          host.attachShadow({mode: "open"}).innerHTML = "<button>Inside</button>";
+          box.append(host, "x".repeat(400));
+          document.querySelector("main").append(box);
+          return box.id;
+          });
+          reachScrollers(document.querySelector("main"));
+          return ids;
+        }"""
+    )
+    out, inside = (page.locator(f"#{box}") for box in boxes)
+    expect(out).to_have_attribute("tabindex", "0")
+    expect(inside).not_to_have_attribute("tabindex", "0")
+
+
 # One step of `handBack`, run as a layer closes with the user inside it: `layer` holds
 # the button they stand on, and hiding it drops their focus. `shut` is a hidden button
 # and `open` a shown one, both at the end of `main`.

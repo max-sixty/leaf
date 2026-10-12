@@ -113,8 +113,13 @@ import {
   prepareDeclaredMarkdown,
   formatDeclaredMarkdown,
 } from "./markdown.js";
-import { moveScrollerBy, pageScroller } from "./scrolling.js";
-import { landedSince, landingCount } from "./landing-scroll.js";
+import {
+  chosenSince,
+  moveScrollerBy,
+  pageScroller,
+  placeKept,
+  scrollChoices,
+} from "./scrolling.js";
 import {
   containingReadingRegionFor,
   effectiveScroller,
@@ -1774,11 +1779,11 @@ export function createVersionController({
   // left to keep: its reading goes when the next reading is taken, so a page whose
   // blocks come and go carries only the regions it has.
   const regionViews = new Map();
-  // The landings counted when each reading was taken: a box a navigation has landed in
-  // since stands where the user chose, and that reading no longer says where it is.
+  // The reader's choices counted when each reading was taken: a box they have chosen
+  // for since stands where they put it, and that reading no longer says where it is.
   const takenAt = new WeakMap();
   const keepReading = (id, reading) => {
-    takenAt.set(reading, landingCount());
+    takenAt.set(reading, scrollChoices());
     regionViews.set(id, reading);
   };
   const dropGoneRegions = () => {
@@ -1884,22 +1889,26 @@ export function createVersionController({
   // page moves with its band first, and a region the page carries lands against the new
   // band from its own record.
   //
-  // A navigation that changes layout, as opening a disclosure hands a region to a
-  // scroller of its own, can land before the shift it caused is announced. Its landing is
-  // newer than the record, so a region whose scroller it moved keeps where it landed
-  // (landing-scroll.js, `landedSince`).
+  // A shift restores only what layout moved. A navigation that changes layout, as
+  // opening a disclosure hands a region to a scroller of its own, can move the reader
+  // before the shift it caused is announced: a landing, or find-in-page scrolling to its
+  // match. That choice is newer than the record, so a region whose scroller the reader
+  // has chosen for since keeps where they put it (scrolling.js, `chosenSince`).
   function restoreShifted(shifted, currentIntent, views) {
     if (compositionChanges.size) return;
     if (!currentIntent()) return;
     const page = shifted.find(({ region }) => !region);
-    if (page?.band) moveScrollerBy(pageScroller, -page.band);
+    if (page?.band) {
+      moveScrollerBy(pageScroller, -page.band);
+      placeKept(pageScroller);
+    }
     const candidates = shifted
       .map(({ region }) => region)
       .filter(
         (region) =>
           region &&
           shownRegionBounds(region) &&
-          !landedSince(effectiveScroller(region), takenAt.get(views.get(region.id))),
+          !chosenSince(effectiveScroller(region), takenAt.get(views.get(region.id))),
       );
     restoreRegions(candidates, currentIntent, null, views);
     recordRegions();

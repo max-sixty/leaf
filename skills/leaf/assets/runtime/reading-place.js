@@ -14,6 +14,8 @@
  * destination's DOM identity stays local; serialized places and replaced elements use
  * the ordinary passage reading. A restore jumps rather than glides. It keeps the
  * reader's current disclosures and views: a landmark they concealed supplies no geometry.
+ * It returns the reader to a place they had rather than choosing one, so it says where
+ * it left each box it moved (scrolling.js, `placeKept`).
  *
  * Whoever remembers a place owns when to take it and where to keep it: version
  * continuity (version.js) across revisions and reading-region shifts, a root tab set
@@ -50,11 +52,12 @@ import {
   readingPosture,
   readingRegionFor,
   readingRegions,
+  scrollersOf,
   shownRegionBounds,
   pageReadingRegion,
 } from "./reading-regions.js";
 import { followingItsEnd } from "./bounds.js";
-import { moveScrollerBy, pageScroller, scrollToEnd } from "./scrolling.js";
+import { moveScrollerBy, pageScroller, placeKept, scrollToEnd } from "./scrolling.js";
 import { renderedParent, under, upFrom } from "./shadow.js";
 import { retainUserIntent } from "./user-intent.js";
 import { recentPlaceInput, focused } from "./focus.js";
@@ -354,4 +357,5 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
   // A restored passage or end can carry its focused control beyond the new
   // viewport. Nearest reveal changes nothing when the destination already fits.
   if (standing) scrollIntoReadingBand(standing, standing, "nearest", "instant");
+  placeKept(box, ...(standing ? scrollersOf(standing) : []));
 }

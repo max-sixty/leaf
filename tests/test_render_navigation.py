@@ -674,6 +674,43 @@ def test_workspace_posture_changes_keep_each_panes_reading(browser, serve):
     expect(page.locator("#right-subject")).to_be_focused()
 
 
+def test_a_split_drag_keeps_a_panes_reading(browser, serve):
+    """Each frame of a drag rewraps a pane, and each frame's restore keeps its reading.
+
+    Scroll anchoring would hold the reading itself, so the pane turns it off, as
+    Safari has none: the restores do the whole job. A restore is no scroll the reader
+    chose. Counted as theirs, it would make the next frame's restore leave the pane
+    where layout had moved it.
+    """
+    source = READING_REGIONS_PAGE.replace(
+        '<p id="left-start">Left start with enough words to preserve this landmark.</p>',
+        "<p id='left-start'>" + "Left start words rewrap as the pane narrows. " * 60 + "</p>",
+    ).replace("</style>", "#left-reading > div { overflow-anchor: none; }</style>", 1)
+    page = open_page(browser, serve(source))
+    left = page.locator("#left-reading > :not(header, footer)")
+    pane_posture(page, page.locator("#left-reading"), "bounded")
+    landmark = (
+        "() => document.querySelector('#left-landmark').getBoundingClientRect().top"
+        " - document.querySelector('#left-reading > div').getBoundingClientRect().top"
+    )
+    left.evaluate(
+        "box => box.scrollTop = document.querySelector('#left-landmark').offsetTop"
+        " - box.offsetTop - 60"
+    )
+    page_at_rest(page)
+    before = page.evaluate(landmark)
+    # The divider between the panes moves a few pixels each frame, as under a pointer.
+    page.evaluate("""async () => {
+      const split = document.querySelector('#reading-split');
+      for (let left = 60; left > 20; left -= 4) {
+        split.style.gridTemplateColumns = `${left}fr ${100 - left}fr`;
+        await new Promise(requestAnimationFrame);
+      }
+    }""")
+    page_at_rest(page)
+    assert page.evaluate(landmark) == pytest.approx(before, abs=2)
+
+
 def test_a_tall_local_comment_survives_its_panes_posture_and_return(browser, serve):
     source = READING_REGIONS_PAGE.replace(
         '<footer><button id="left-foot">',

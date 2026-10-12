@@ -993,20 +993,12 @@ LANDED_ROW = """async () => {
 }"""
 
 
-@pytest.mark.parametrize("motion", ["no-preference", "reduce"])
-def test_trace_moment_lands_its_saved_element_over_the_trees_reading(
-    browser, serve, motion
-):
-    """A Moment naming a saved element shows its row in the tree and the page.
+def scrolled_closed_tree(browser, serve, motion):
+    """A trace whose checkpoint's tree the reader scrolled, then closed.
 
-    The reader scrolled this checkpoint's tree and closed it, so opening the tree
-    has a reading to restore: lf-trace's own place for the checkpoint, and the
-    continuity reading of the region the opening hands from the point inspector to
-    the tree. The Moment's landing is newer than both and stands. Its checkpoint is
-    already shown, so no image decode delays the landing past either restore; that
-    delay is what let this pass on some runs. Smooth motion is cut short by any
-    later scroll write, so both motions run. A row inside the window but below the
-    tree's own box is not shown either.
+    Opening the tree hands its reading region from the point inspector to the tree's
+    own scroller, so the opening is a shift with a reading of the tree to restore.
+    Returns the reader's page and the trace widget.
     """
     source = ROOT / "examples/developer/playwright-trace-gallery.data.json"
     record = json.loads(source.read_text())["release-journey"]
@@ -1059,27 +1051,73 @@ def test_trace_moment_lands_its_saved_element_over_the_trees_reading(
     summary.click()
     expect(tree).not_to_have_attribute("open", "")
     rendered(user)
-    saved = moments.get_by_role("button", name=re.compile("Saved element"))
+    return user, widget
+
+
+def assert_row_shown(landed):
+    (top, bottom), (shown_top, shown_bottom) = landed["row"], landed["shown"]
+    assert shown_top - 1 <= top and bottom <= shown_bottom + 1, landed
+
+
+@pytest.mark.parametrize("motion", ["no-preference", "reduce"])
+def test_trace_moment_lands_its_saved_element_over_the_trees_reading(
+    browser, serve, motion
+):
+    """A Moment naming a saved element shows its row in the tree and the page.
+
+    The reader scrolled this checkpoint's tree and closed it, so opening the tree
+    has a reading to restore. The Moment's landing is newer and stands. Its
+    checkpoint is already shown, so no image decode delays the landing past the
+    restore; that delay is what let this pass on some runs. Smooth motion is cut
+    short by any later scroll write, so both motions run. A row inside the window
+    but below the tree's own box is not shown either.
+    """
+    user, widget = scrolled_closed_tree(browser, serve, motion)
+    saved = widget.locator(".lf-trace-bookmarks").get_by_role(
+        "button", name=re.compile("Saved element")
+    )
     saved.click()
     landed = user.evaluate(LANDED_ROW)
     assert landed["open"]
-    (top, bottom), (shown_top, shown_bottom) = landed["row"], landed["shown"]
-    assert shown_top - 1 <= top and bottom <= shown_bottom + 1, landed
+    assert_row_shown(landed)
 
     # The open tree back at its start, its top near the window's: the row is
     # inside the window, below what the tree shows.
     user.set_viewport_size({"width": 1280, "height": 900})
     rendered(user)
-    tree.evaluate(
+    widget.locator(".lf-trace-tree").evaluate(
         "tree => { tree.scrollTop = 0;"
         " scrollBy(0, tree.getBoundingClientRect().top - 120); }"
     )
     rendered(user)
     saved.evaluate("button => button.click()")
     landed = user.evaluate(LANDED_ROW)
-    context.close()
-    (top, bottom), (shown_top, shown_bottom) = landed["row"], landed["shown"]
-    assert shown_top - 1 <= top and bottom <= shown_bottom + 1, landed
+    user.context.close()
+    assert_row_shown(landed)
+
+
+def test_trace_tree_opened_by_the_browser_keeps_its_match(browser, serve):
+    """The browser's own opening of a closed tree onto a row keeps that row shown.
+
+    Find-in-page opens a closed disclosure onto its match and scrolls the match into
+    view itself, in one task and through no landing of Leaf's. That scroll is the
+    reader's, and the shift the opening announces a frame later must not return the
+    tree to where the reader left it. Headless Chrome has no find bar, and Leaf
+    intercepts a fragment navigation to travel there itself, so the page makes the
+    find's two moves: it opens the tree and scrolls the row into view natively.
+    """
+    user, widget = scrolled_closed_tree(browser, serve, "reduce")
+    # The reader goes back to reading the page, which takes focus off the summary.
+    user.get_by_text("Review note 0 on").click()
+    rendered(user)
+    widget.locator(".lf-trace-node").last.evaluate(
+        "row => { row.closest('details').open = true;"
+        " row.scrollIntoView({block: 'nearest'}); }"
+    )
+    landed = user.evaluate(LANDED_ROW)
+    user.context.close()
+    assert landed["open"]
+    assert_row_shown(landed)
 
 
 def test_trace_comparison_pairs_authored_results_across_delayed_sources(browser, serve):

@@ -1682,7 +1682,32 @@ def test_a_summary_folding_a_message_keeps_its_frame_loaded(browser, serve):
         )
     ).to_be_attached()
     rendered(page)
-    assert page.evaluate("window.frameLoads") == 0, "the frame's document reloaded"
+    assert page.evaluate("window.frameLoads") == 0, "the fold reloaded the frame"
+
+    # An edit inside the range retracts the summary, releasing the message again.
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "edit",
+            "author": "agent",
+            "agent": "Codex",
+            "session": "pytest-summary",
+            "message": last["id"],
+            "text": "Try a different move on it.",
+        },
+    )
+    told(page)
+    card.get_by_role(
+        "button", name="1 message edited · 1 summary changed", exact=True
+    ).click()
+    expect(card.locator(".lf-thread-checkpoint")).to_have_count(0)
+    expect(
+        card.locator(
+            f'.lf-thread-transcript > .lf-msg[data-mid="{first["id"]}"] #folded-frame'
+        )
+    ).to_be_attached()
+    rendered(page)
+    assert page.evaluate("window.frameLoads") == 0, "the release reloaded the frame"
 
 
 @pytest.mark.parametrize(

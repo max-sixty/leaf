@@ -11555,25 +11555,35 @@ def test_a_closed_diff_file_reads_current_evidence_across_source_forms(
     assert code.evaluate("node => node.scrollLeft") == 200
 
 
-def test_a_diff_recovers_when_a_failed_manifest_file_is_repaired(browser, serve):
-    """A failed render cannot authorize reuse of the evidence its error removed."""
+def test_a_diff_recovers_from_each_failure_on_the_next_good_source(browser, serve):
+    """A diff shows each failure, a failed file's or the whole patch's, where the reader
+    is looking, inside its shadow stage, and the next good source replaces it. A failed
+    render cannot authorize reuse of the evidence its error removed."""
     url = serve(LONG_LINE_DIFF_PAGE)
     good = patch_manifest(MULTI_HUNK_PATCH)
     data_model.cmd_data_set(serve.page_dir, "review-patch", good)
     page = open_page(browser, url)
-    bad = patch_manifest(MULTI_HUNK_PATCH)
-    bad["files"][0]["patch"] = "invalid diff"
-    data_model.cmd_data_set(serve.page_dir, "review-patch", bad)
-    told(page)
-    rendered(page)
-    expect(page.locator("lf-diff .lf-error")).to_be_visible()
-    data_model.cmd_data_set(serve.page_dir, "review-patch", good)
-    told(page)
-    rendered(page)
-    expect(page.locator("lf-diff .lf-error")).to_have_count(0)
-    expect(
-        page.locator('lf-diff [data-lf-datum=\'["app/handlers.py","new",2]\']')
-    ).to_contain_text("new first")
+    failed_file = patch_manifest(MULTI_HUNK_PATCH)
+    failed_file["files"][0]["patch"] = "invalid diff"
+    repeated_path = MULTI_HUNK_PATCH + MULTI_HUNK_PATCH
+    error = page.locator("lf-diff .lf-error")
+    for bad in (failed_file, repeated_path, repeated_path):
+        data_model.cmd_data_set(serve.page_dir, "review-patch", bad)
+        told(page)
+        rendered(page)
+        expect(error).to_have_count(1)
+        expect(error).to_be_visible()
+        # Dressed as the failure box in the document is, not as plain text.
+        expect(error).to_have_css("border-top-style", "solid")
+        data_model.cmd_data_set(serve.page_dir, "review-patch", good)
+        told(page)
+        rendered(page)
+        expect(error).to_have_count(0)
+        expect(
+            page.locator('lf-diff [data-lf-datum=\'["app/handlers.py","new",2]\']')
+        ).to_contain_text("new first")
+    errors = consume_browser_errors(page, "failed: unified diff repeats file path")
+    assert len(errors) == 2, errors
 
 
 @pytest.mark.parametrize("manifest", [False, True])

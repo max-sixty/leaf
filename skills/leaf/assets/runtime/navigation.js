@@ -255,7 +255,7 @@ function stepReading(amount, unit, coveringAuxiliaryScroller) {
 // does, so a chain spent without either boundary passes the step on, and the
 // containing page's navigation takes it up from the frame; outside a sample the notice
 // goes nowhere.
-export function stepAlong(from, amount, unit, first = null) {
+function stepAlong(from, amount, unit, first = null) {
   const clips = new Map();
   for (const box of scrollChainOf(from)) {
     if (!nativeModalAdmits(box)) return;

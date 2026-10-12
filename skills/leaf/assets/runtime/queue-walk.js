@@ -38,6 +38,13 @@
    gone, comes after every placed one in the list's own order, as the t/T walk reaches
    such threads from its list's ends. The walk is clamped, not wrapped.
 
+   The walk can also step within one region of the page (`questionActions.next`, as an
+   `lf-tally`'s Next question presses it): its stops are then the asks waiting on the user
+   that the region holds (`asksIn`, questions/place.js), stepped by the same standing and
+   page order, and its position counts them alone. A press from outside the region, such as
+   the tally's own control above it, enters the region at its edge: Next takes the first,
+   Previous the last.
+
    Experimental: the lists and the walk over them are new, and their shape is
    expected to change a lot (notes/what-needs-you/). Change them freely.
 */
@@ -48,7 +55,7 @@ import { questionHolding, placeOf, walkOrigin } from "./standing-target.js";
 import { elementById, inChrome, pageDocument } from "./passages.js";
 import { hostIn, inUi, under } from "./shadow.js";
 import { readQuestions } from "./questions/model.js";
-import { questionPlace } from "./questions/place.js";
+import { asksIn, questionPlace } from "./questions/place.js";
 import { readQueues, queueItemKey } from "./queue-api.js";
 import { taskNoun } from "./queues.js";
 import { watchSemantic } from "./semantic-state.js";
@@ -57,6 +64,7 @@ import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.
 import { approvalTarget } from "./banner.js";
 
 const QUALIFIER = "waiting on you";
+const WITHIN = "waiting on you here";
 const NOUNS = Object.freeze({
   ask: "Ask",
   thread: "Thread",
@@ -146,6 +154,13 @@ export function createQueueWalk({
     return [...placed, ...loose];
   }
 
+  // The stops of a walk within `region`: the asks waiting on the user it holds.
+  function stopsWithin(region) {
+    const held = new Set(asksIn(region).map((ask) => ask.id));
+    return stops().filter((stop) => stop.kind === "ask" && held.has(stop.id));
+  }
+  const stopsOf = (region) => (region ? stopsWithin(region) : stops());
+
   // The item the user stands on, if any: the thread holding them, the ask holding their
   // place, or the innermost element that does, in page order the last that holds them,
   // as `questionHolding` reads asks. The page's own stop is its head element alone, never
@@ -186,14 +201,18 @@ export function createQueueWalk({
   // such as a thread on the paragraph their caret is in, is the nearest either way,
   // since they are at it without standing on it. A stop with no place stands after
   // every placed one, so it is ahead of any place on the page.
-  function step(list, dir) {
+  function step(list, dir, region) {
+    const edge = () => (dir > 0 ? list[0] : list.at(-1));
+    // Outside the region nothing the user stands on is one of its stops, even where the
+    // press sits inside an ask's context.
+    if (region && !under(walkOrigin(), region)) return edge();
     const standing = standingStop(list);
     if (standing) {
       const at = list.indexOf(standing);
       return list[Math.max(0, Math.min(list.length - 1, at + dir))];
     }
     const here = walkOrigin();
-    if (!here) return dir > 0 ? list[0] : list.at(-1);
+    if (!here) return edge();
     const side =
       dir > 0 ? Node.DOCUMENT_POSITION_FOLLOWING : Node.DOCUMENT_POSITION_PRECEDING;
     const reach = list.filter((stop) => {
@@ -241,31 +260,33 @@ export function createQueueWalk({
 
   // Where the walk stands in the whole list, and the kind of item it stands on: the
   // count is of every kind, so the kind follows it rather than naming the list.
-  function position() {
-    const list = stops();
+  function position(region) {
+    const list = stopsOf(region);
     const here = standingStop(list);
     const at = listWalkPosition(list, here, { identity: (stop) => stop.key });
-    return at && { ...at, qualifier: `${QUALIFIER} · ${here.noun}` };
+    return at && { ...at, qualifier: `${region ? WITHIN : QUALIFIER} · ${here.noun}` };
   }
 
-  function walk(dir) {
-    const list = stops();
-    if (!list.length) return;
-    const next = step(list, dir);
+  // Resolves whether it arrived.
+  function walk(dir, region = null) {
+    const list = stopsOf(region);
+    if (!list.length) return Promise.resolve(false);
+    const next = step(list, dir, region);
     // The walk reads the standing destination, so begin it once the arrival has moved
     // focus. A failed arrival has not arrived and must not register the prior item as
     // this walk's destination.
     const ready = arriveAt(next).then((arrived) => {
-      if (!arrived) return;
+      if (!arrived) return false;
       announce(
-        beginWalk("queue", null, position) ??
+        beginWalk("queue", null, () => position(region)) ??
           walkPositionLabel(
             null,
             list.indexOf(next) + 1,
             list.length,
-            `${QUALIFIER} · ${next.noun}`,
+            `${region ? WITHIN : QUALIFIER} · ${next.noun}`,
           ),
       );
+      return true;
     });
     void ready.catch(() => {});
     return ready;
@@ -388,5 +409,12 @@ export function createQueueWalk({
   // stands (queue-panel.js).
   const next = () => walk(1);
 
-  return { mount, arriveAtItem, next };
+  // The public walk within a region (`questionActions.next`).
+  function nextWithin({ within, dir = 1 }) {
+    if (!(within instanceof Element))
+      throw new TypeError("leaf: questionActions.next needs an element `within`");
+    return walk(dir < 0 ? -1 : 1, within);
+  }
+
+  return { mount, arriveAtItem, next, nextWithin };
 }

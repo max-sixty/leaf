@@ -490,6 +490,37 @@
     "x-views": true,
     "x-example": "<lf-tabs id=\"views\">\n  <lf-tab id=\"tab-implementation\" label=\"Implementation\">\n    <p id=\"rollout-plan\">Wire the first site this week.</p>\n  </lf-tab>\n  <lf-tab id=\"tab-vision\" label=\"Vision\">\n    <p id=\"product-vision\">Keep the original outcome and constraints in reach.</p>\n  </lf-tab>\n</lf-tabs>"
   },
+  "lf-tally": {
+    "description": "A count of the asks a region still holds open, such as a queue's decisions left to make, with an optional control to the next one.",
+    "x-instructions": "Name the region whose asks it counts with for, such as a side-list lf-tabs queue, and place it where the reader looks for the queue's state, such as a workspace header beside its .tag chips. Add next for a Next question control that steps through the region's asks waiting on the user. Write it empty with a stable id; it counts asks the page already poses, so state no count of them in prose or chips.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "for": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "next": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "id",
+      "for"
+    ],
+    "additionalProperties": false,
+    "x-content": "empty",
+    "x-inline": true,
+    "x-prepaint": "<span class=\"lf-tally-face\"><span class=\"lf-tally-count\"><span class=\"lf-tally-room\">00 of 00 to answer</span><span class=\"lf-tally-room\">Nothing to answer</span><span class=\"lf-tally-words\"></span></span><button class=\"lf-btn lf-tally-next lf-ui lf-ui-face\" type=\"button\">Next question</button></span>",
+    "x-refers": {
+      "for": {}
+    },
+    "x-upgrade": true,
+    "x-example": "<header>\n  <h1>Release triage</h1>\n  <p><lf-tally id=\"triage-left\" for=\"triage-queue\" next></lf-tally></p>\n</header>\n<lf-tabs id=\"triage-queue\" list=\"side\">\n  <lf-tab id=\"triage-retries\" label=\"Retry storm\">\n    <lf-ask id=\"retries-ask\">\n      <h3>Ship the retry cap?</h3>\n      <lf-options id=\"retries-choice\" choose>\n        <lf-option id=\"retries-ship\">Ship it</lf-option>\n        <lf-option id=\"retries-hold\">Hold for a canary</lf-option>\n      </lf-options>\n    </lf-ask>\n  </lf-tab>\n  <lf-tab id=\"triage-flag\" label=\"Stale flag\">\n    <lf-ask id=\"flag-ask\">\n      <h3>Remove the flag?</h3>\n      <lf-options id=\"flag-choice\" choose>\n        <lf-option id=\"flag-remove\">Remove it</lf-option>\n        <lf-option id=\"flag-keep\">Keep it a release</lf-option>\n      </lf-options>\n    </lf-ask>\n  </lf-tab>\n</lf-tabs>"
+  },
   "lf-tab": {
     "description": "One labeled view in a tab set, optionally summarized and grouped in a side-list queue.",
     "x-instructions": "Use summary for the few words a side-list queue needs for scanning, such as severity, age, or suggested outcome. Where a queue's items fall into kinds the user works through in turn, such as merge, close, and FYI, give each item its kind as group and place each kind's items together in the order the user should take them; neighbouring tabs with the same group stand under one heading. Keep ids distinct across tabs: they share the page's one id space.",

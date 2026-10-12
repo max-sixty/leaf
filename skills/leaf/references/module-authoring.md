@@ -1514,10 +1514,23 @@ its undo update that ask immediately, including its typed `true` answer; refusal
 restores the admitted record. Page-widget asks follow
 the shown document version; frozen-thread asks are page-wide.
 
+`asksIn(region, asks = readQuestions().all)` selects the asks a region of the page
+holds: each widget ask, not withdrawn, whose source element is `region` or stands
+under it. It is the rule a side-list `lf-tabs` row and `lf-tally` read, so a page
+module that marks or counts asks per card, section or item reads the same set:
+filter what it returns by `status` for answered and open, or pass
+`readQuestions().user` for the asks waiting on the user.
+
 `questionActions.open(id)` resolves the current ask and follows its canonical
 arrival, including earlier prose prompts and completed asks. It resolves to
-`false` when that ask is unavailable. Answering uses the source's declared
-command; asks expose no separate answer collection or answer CRUD API.
+`false` when that ask is unavailable. `questionActions.next({within, dir})` steps
+to the next ask waiting on the user inside the element `within`, or the previous
+with `dir: -1`, as `q` steps through Questions: from the one the user stands on,
+else from their place in document order, entering at the region's edge when they
+stand outside it. It resolves to whether it arrived. A control that calls it keeps
+focus where the user stands on a press (`mousedown` default prevented), so a second
+press steps on. Answering uses the source's declared command; asks expose no
+separate answer collection or answer CRUD API.
 
 `readQueues()` and `watchQueues(owner, callback)` supply the immutable
 `{phase, questions, tasks, done}` that the Questions panel and `q` navigation use.

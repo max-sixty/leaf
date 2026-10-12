@@ -3592,6 +3592,62 @@ def test_the_questions_panels_next_question_walks_as_q_does(browser, serve):
     expect(button).to_be_hidden()
 
 
+def test_a_tally_counts_its_regions_asks_and_walks_them(browser, serve):
+    """An `lf-tally` counts the asks its region holds, by the rule a queue row's mark
+    reads, and leaves out one outside it. Its Next question is `q` within the region:
+    from the header above the region it enters at the first ask, a press keeps the user
+    standing on the ask and steps on, and the walk announces its place among the
+    region's asks. An answer leaves the count once the log admits it; with none left
+    the tally says so and Next question is disabled."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "A tallied queue",
+                '<header><h1>Queue</h1><p><lf-tally id="left" for="queue" next>'
+                "</lf-tally></p></header>"
+                '<lf-ask id="outside-decision"><h2>Outside</h2>'
+                '<lf-options id="outside" choose><lf-option id="outside-a">Out</lf-option>'
+                "</lf-options></lf-ask>"
+                '<section id="queue">'
+                '<lf-ask id="first-decision"><h2>Pick the first</h2>'
+                '<lf-options id="first" choose>'
+                '<lf-option id="first-a">Alpha</lf-option>'
+                '<lf-option id="first-b">Beta</lf-option></lf-options></lf-ask>'
+                '<lf-ask id="second-decision"><h2>Pick the second</h2>'
+                '<lf-options id="second" choose>'
+                '<lf-option id="second-a">Gamma</lf-option>'
+                '<lf-option id="second-b">Delta</lf-option></lf-options></lf-ask>'
+                "</section>",
+            )
+        ),
+    )
+    words = page.locator("#left .lf-tally-words")
+    button = page.locator("#left").get_by_role("button", name="Next question")
+    position = page.locator(".lf-walk-position")
+    expect(words).to_have_text("2 of 2 to answer")
+    box = page.locator("#left").bounding_box()
+
+    button.click()
+    expect(page.locator("#first-decision")).to_be_focused()
+    expect(position).to_have_text("1 of 2 waiting on you here · Ask")
+    button.click()
+    expect(page.locator("#second-decision")).to_be_focused()
+    expect(position).to_have_text("2 of 2 waiting on you here · Ask")
+
+    with sending(page, "the answer to the first decision"):
+        page.locator("#first-decision .lf-pick").first.click()
+    round_trip(page)
+    expect(words).to_have_text("1 of 2 to answer")
+    expect(button).to_be_enabled()
+    with sending(page, "the answer to the second decision"):
+        page.locator("#second-decision .lf-pick").first.click()
+    round_trip(page)
+    expect(words).to_have_text("All 2 answered")
+    expect(button).to_be_disabled()
+    assert page.locator("#left").bounding_box() == box
+
+
 def test_the_arrows_walk_the_thread_titles_in_the_threads_panel(browser, serve):
     """From a thread's title in the Threads panel the arrows step between the visible
     titles, and Home and End go to the ends, as they walk the Questions panel's rows.

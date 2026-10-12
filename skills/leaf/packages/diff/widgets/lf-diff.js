@@ -701,7 +701,7 @@ function deferredError(details, error, retry) {
     retry();
   });
   box.append(" ", button);
-  details.replaceChildren(details.firstElementChild, box);
+  setChildren(details, [details.firstElementChild, box]);
   restore?.(button);
 }
 

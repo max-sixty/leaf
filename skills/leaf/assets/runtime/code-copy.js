@@ -22,6 +22,7 @@ import {
 import { focusDestination, focused, onStanding } from "./focus.js";
 import { upFrom } from "./shadow.js";
 import { chromeRoot } from "./chrome.js";
+import { move } from "./dom-move.js";
 import { claimReachStop, releaseReachStop } from "./reach.js";
 import { commandScope, projectCommandScope } from "./keyboard/scopes.js";
 import { notice } from "./notifications.js";
@@ -96,7 +97,7 @@ export function watchCodeBlocks() {
         const copy = positionCodeBlock(pending);
         // Keep the page's authored sibling and child selectors intact. The anchor
         // still positions this control at its source when it lives in chrome.
-        if (copy.parentNode !== chromeRoot) chromeRoot.append(copy);
+        if (copy.parentNode !== chromeRoot) move(chromeRoot, copy, null);
         copy.tabIndex = -1;
         claimReachStop(pre);
         if (!wired.has(pre)) {

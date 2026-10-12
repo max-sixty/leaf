@@ -1299,8 +1299,8 @@ customElements.define(
           src: layer.src,
         });
         layer.remove();
+        canvas.append(fresh);
         this.#playbackImage = layer = fresh;
-        canvas.append(layer);
       }
       for (const [name, value] of place)
         if (layer.style[name] !== value) layer.style[name] = value;

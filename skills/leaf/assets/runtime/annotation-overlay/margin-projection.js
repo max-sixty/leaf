@@ -83,6 +83,7 @@ import {
 } from "../margin-model.js";
 
 import { mapButton } from "../page-map-dialog.js";
+import { move } from "../dom-move.js";
 
 import {
   declareRelease,
@@ -370,7 +371,6 @@ export function createMarginProjection({
       anchor: () => targetFor(row.lfEntry),
       point: () => entryPoint(row.lfEntry),
       order,
-      move: (into) => moveHost(row, into),
       fold: {
         able: () =>
           canFold(row.lfEntry, {
@@ -960,15 +960,6 @@ export function createMarginProjection({
     return primary;
   }
 
-  // Moving a focused cluster between lanes, when its target's scroller changes, blurs
-  // it to the body; the hold puts the user back in the same script, which no reader of
-  // where they stand hears as their leaving it (focus.js, `onStanding`).
-  function moveHost(host, move) {
-    const restoreFocus = holdFocus(host);
-    move();
-    restoreFocus?.();
-  }
-
   function unfoldOpenThreadOwner(entry) {
     const previousOwner = expandedOptionsOwner;
     expandedOptionsKey = entry.key;
@@ -986,7 +977,8 @@ export function createMarginProjection({
     transferThreadFocus = false;
     // Before the card, which anchors to its rows (`mount`).
     if (!nav.isConnected)
-      chromeRoot.insertBefore(
+      move(
+        chromeRoot,
         nav,
         preview.parentNode === chromeRoot ? preview : chromeForeground,
       );
@@ -1076,7 +1068,8 @@ export function createMarginProjection({
       // Insert in inventory order; the theme keeps the row unpainted and measurable
       // until the layout pass assigns its anchored posture.
       if (!host.isConnected)
-        toolbar.insertBefore(
+        move(
+          toolbar,
           host,
           pageInventory
             .slice(order + 1)
@@ -1813,7 +1806,7 @@ export function createMarginProjection({
     renderAnnotations();
     // The card anchors to its row (floating.js), which an anchor may do only to a box
     // laid out before it: the margin comes first.
-    chromeRoot.insertBefore(nav, chromeForeground);
+    move(chromeRoot, nav, chromeForeground);
   }
   return {
     pageMapActive: () => availableRows().includes(focused()),

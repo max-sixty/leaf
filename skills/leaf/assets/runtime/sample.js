@@ -50,6 +50,7 @@ import {
   readSampleVisibility,
 } from "./sample-visibility.js";
 import { keeps } from "./keeps.js";
+import { move } from "./dom-move.js";
 import { nextRender, sizeObserver } from "./rendering.js";
 import { recordInteraction } from "./interaction-log.js";
 import { focusDestination } from "./focus.js";
@@ -436,7 +437,7 @@ export function mountSample(frame, { template, window: asWindow = false }) {
     const next = frame.nextSibling;
     frame.remove();
     frame.removeAttribute("src");
-    parent?.insertBefore(frame, next);
+    if (parent) move(parent, frame, next);
     record("retired", { reason, document: retiringDocument, sample });
     return request(new URL("api/release", previous), {}).catch((error) => {
       recordFailure(error, {

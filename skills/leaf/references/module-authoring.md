@@ -152,7 +152,10 @@ Every placement of a retained node, by `render`, `repeat`, `setChildren` or
 `moveBefore` where the browser has it, which keeps focus, caret, typed text and
 iframe documents. Elsewhere, Safari included, it inserts the node and puts the user
 back on it, with a text field's caret, and an iframe in it reloads. A reorder needs no
-focus hold of its own.
+focus hold of its own. A plain `append` or `insertBefore` of a node that already
+stands somewhere takes it out first, which blurs it. A selection in a moved editable
+collapses even under `moveBefore`, so a custom element holding a `LeafEditorView` calls
+the view's `placeSelection()` from its `connectedMoveCallback`.
 
 Once `render(template, container)` owns a container, update its children through
 `render` so Lit retains its markers and disconnects removed directives. `failSoft`

@@ -31,6 +31,7 @@ import {
 } from "../geometry.js";
 import { clamp, intersect, overlaps } from "../rect.js";
 import { renderedUnder } from "../shadow.js";
+import { setChildren } from "../dom-children.js";
 
 // A rectangle, or nothing where its edges crossed. `clippedTop` records that the source
 // box began above the room the user has, which a chip hung on the surviving corner
@@ -209,7 +210,7 @@ export function keyBadgePlacement() {
     const { right, bottom } = layoutWindow();
     const measured = chips.map(({ chip, owner, corner }) => {
       const seat = seats.seat(owner);
-      if (chip.parentElement !== seat) seat.replaceChildren(chip);
+      if (chip.parentElement !== seat) setChildren(seat, [chip]);
       return { chip, seat, owner, corner };
     });
     for (const one of measured) one.start = seats.boxAt(one.seat, one.corner);

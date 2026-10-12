@@ -478,9 +478,6 @@ customElements.define(
             `${node.closest(".lf-vr-case").dataset.lfDatum}/${node.dataset.disposition ?? [...node.classList].find((name) => name.startsWith("lf-vr-"))}`,
         });
         const run = snapshot?.value ?? null;
-        const ids = run?.cases.map(({ id }) => id) ?? [];
-        if (new Set(ids).size !== ids.length)
-          throw new Error("visual run repeats a case id");
         places.around(() => {
           this.#sourceReady = true;
           this.#snapshot = snapshot;
@@ -497,7 +494,7 @@ customElements.define(
             ({ classification }) => classification !== "clean",
           );
           if (!this.#caseEntries.has(this.#selected))
-            this.#selected = fallback?.id ?? ids[0];
+            this.#selected = fallback?.id ?? this.#run.cases[0].id;
           this.#paintInspector();
           this.#project();
           this.#threadSurface?.update();

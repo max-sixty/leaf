@@ -404,8 +404,9 @@ def test_file_editor_page_navigation_preserves_the_caret_position(
 def test_file_editor_uses_package_typography_and_the_inherited_focus_ring(
     browser, serve, tmp_path
 ):
-    """Provider defaults yield to package CSS and root inputs in a real bound editor."""
-    file = tmp_path / "style.md"
+    """Provider defaults yield to package CSS and root inputs in a real bound editor,
+    which reads a `.markdown` file as Markdown, as `$languages.paths` says."""
+    file = tmp_path / "style.markdown"
     file.write_text("# A real file\n\nEditable words.\n")
     url = serve(
         leaf_page(
@@ -419,6 +420,8 @@ def test_file_editor_uses_package_typography_and_the_inherited_focus_ring(
     widget = page.locator("lf-file-editor")
     editor = widget.get_by_role("textbox", name="File contents", exact=True)
     expect(editor).to_have_attribute("aria-readonly", "false")
+    heading = editor.locator(".cm-line", has_text="A real file").locator("span").first
+    expect(heading).to_have_css("font-weight", "650")
     size = editor.evaluate("node => getComputedStyle(node).fontSize")
     root_size = page.locator("html").evaluate(
         "node => parseFloat(getComputedStyle(node).fontSize)"

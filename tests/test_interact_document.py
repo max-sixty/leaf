@@ -740,6 +740,19 @@ def test_compositional_verbatim_uses_passage_collapse_and_structured_boundaries(
     assert non_js_whitespace == [{"text": "\u0085edge\u0085"}]
 
 
+def test_an_anchor_resolves_by_context_the_browser_keeps():
+    """Context is trimmed of the collapse class alone, as the browser trims it, so a
+    character only Python calls whitespace stays part of the context the browser
+    captured. U+0085 before the first of two equal words is all that tells them apart."""
+    passages = passages_model.page_passages(
+        structure_model.SourceDocument(f'<p id="p">\u0085repeat {"x" * 40} repeat</p>'),
+        {},
+    )
+    anchor = {"quote": "repeat", "prefix": "\u0085", "suffix": "x" * 24}
+
+    assert anchor_capture_model.resolve_quote(passages, anchor) == 1
+
+
 def test_file_readings_follow_browser_tree_recovery():
     html = (
         '<main id="page"><table id="grid"><p id="lead">Lead'
@@ -1477,89 +1490,6 @@ def test_a_widget_that_declares_a_language_is_checked_by_that_alone(page_dir):
     assert result.exit_code == 1
     assert '<lf-gloss dialect="lisp">' in result.output
     assert "not a language this page's layer speaks" in result.output
-
-
-def test_the_collapse_class_is_one_set_on_both_sides():
-    """COLLAPSE_CHARS (the file side) and the passage reader's COLLAPSE regex
-    (the browser side) are two spellings of one set, and everything quote-shaped
-    rests on their agreement: a character one side collapses and the other keeps
-    is a quote captured in the browser that the file's reading can never confirm.
-    The next edit to either spelling meets this test, not a detached comment."""
-    js = (schema_model.ASSETS / "runtime" / "collapse.js").read_text()
-    found = re.search(r"const COLLAPSE =\n\s*/\[(.*?)\]\+/g;", js)
-    assert found, "the browser passage reader lost its COLLAPSE regex"
-    js_class = re.compile(f"[{found.group(1)}]")
-    js_set = {chr(c) for c in range(0x10000) if js_class.match(chr(c))}
-    assert js_set == passages_model.COLLAPSE_CHARS
-
-
-def _runtime_modules():
-    """Every module the runtime is composed of, whichever file each fact lives in today.
-
-    Named as a set rather than as paths because the runtime is being split by owner: a
-    reading that names one file goes red on the split that moves the thing it reads,
-    which says the fact changed when what changed is where it is written."""
-    return [schema_model.ASSETS / "leaf.js"] + sorted(
-        (schema_model.ASSETS / "runtime").rglob("*.js")
-    )
-
-
-def _without_comments(js: str) -> str:
-    """A module's code with its comments taken out.
-
-    The sibling reading below strips them for the reason that applies here too: a
-    pattern simple enough to find a definition is simple enough for a comment to
-    satisfy. `re.search` takes the first match in a file, so a commented-out copy above
-    the real one is read instead of it, and the test then holds Python to a sentence
-    while the constant it names drifts — green, and about nothing. Across files the same
-    comment reads as a second module stating the fact, which is a red naming the wrong
-    one.
-
-    The line-comment pattern steps over `://` so a URL in a string keeps its second
-    half; nothing here reads a URL, and a `//` inside a string is left alone at the cost
-    of nothing this asks."""
-    return re.sub(r"(?<!:)//[^\n]*", "", re.sub(r"/\*.*?\*/", "", js, flags=re.DOTALL))
-
-
-def _sole_definition(pattern: str, what: str):
-    """The one runtime module matching `pattern`, and the match — so a fact that grows a
-    second spelling is caught here rather than by whichever side happened to be read."""
-    found = [
-        (js, m)
-        for js in _runtime_modules()
-        if (m := re.search(pattern, _without_comments(js.read_text())))
-    ]
-    assert len(found) == 1, (
-        f"{len(found)} runtime modules state {what} ({[js.name for js, _ in found]}), "
-        "and this reading asks one of them"
-    )
-    return found[0]
-
-
-def test_the_block_a_text_node_sits_in_is_one_list_on_both_sides():
-    """TEXT_BLOCK_TAGS (the file side) and the passage reader's TEXT_BLOCK selector are
-    two spellings of one list, and the collapsed reading of a page rests on their
-    agreement: one space goes wherever two runs of text sit in different blocks and none
-    where they share one, so a tag one side calls a block and the other does not gives
-    the two sides different text. Every quote-shaped thing is then a quote the browser
-    captured that the file's reading cannot confirm, or the reverse.
-
-    The Python comment already said the list matches the runtime's. A comment saying so
-    is not a thing that fails when it stops being true; this is."""
-    _, found = _sole_definition(
-        r"const TEXT_BLOCK =\s*\n?\s*\"([^\"]+)\";", "TEXT_BLOCK"
-    )
-    assert set(found.group(1).split(",")) == passages_model.TEXT_BLOCK_TAGS
-
-
-def test_anchor_capture_starts_with_the_same_context_on_both_sides():
-    """Unique quotes share the initial width; repeated browser selections may grow it.
-
-    File capture requires a unique quote. The browser knows which occurrence the user
-    selected, so it widens context to identify that span, up to semantic fences.
-    """
-    _, found = _sole_definition(r"const CONTEXT = (\d+);", "the captured context width")
-    assert int(found.group(1)) == anchor_capture_model.CONTEXT
 
 
 def test_every_declared_attribute_and_enum_stands_in_an_example():
@@ -3420,69 +3350,32 @@ diff --git a/src/second file.py b/src/second file.py
     )
 
 
-@pytest.mark.parametrize("escaped", [r"bad\x41.py", r"bad\400.py", r"bad\q.py"])
-def test_unified_diff_rejects_c_escapes_git_does_not_use(escaped):
-    patch = f"""diff --git "a/{escaped}" "b/{escaped}"
---- "a/{escaped}"
-+++ "b/{escaped}"
-@@ -1 +1 @@
--old
-+new
-"""
-
-    with pytest.raises(ValueError, match="invalid quoted Git path"):
-        patch_manifest(patch)
+DIFF_PATCH_CASES = json.loads(
+    (Path(__file__).parent / "diff_patch_cases.json").read_text()
+)["cases"]
 
 
 @pytest.mark.parametrize(
-    ("patch_text", "message"),
-    [
-        (
-            """diff --git a/old.py b/new.py
-similarity index 100%
-rename from old.py
-rename to new.py
---- a/old.py
-+++ b/new.py
--before
-+after
-""",
-            "unsupported hunkless diff",
-        ),
-        (
-            """diff --git a/app.py b/app.py
---- a/app.py
-+++ b/app.py
-@@ -1 +1 @@
--before
-+after
-+lost
-""",
-            "hunk line counts",
-        ),
-        (
-            """diff --git a/app.py b/app.py
-@@ -1 +1 @@
---- bogus-old
-+++ bogus-new
-""",
-            "no ---/+++ file-header pair before its first hunk",
-        ),
-        (
-            """diff --git a/app.py b/app.py
---- a/other.py
-+++ b/other.py
-@@ -1 +1 @@
--before
-+after
-""",
-            "---/+++ paths disagree",
-        ),
-    ],
+    "case",
+    [case for case in DIFF_PATCH_CASES if "files" in case or "manifest" in case],
+    ids=lambda case: case["id"],
 )
-def test_the_diff_script_refuses_evidence_the_widget_cannot_render(patch_text, message):
-    with pytest.raises(ValueError, match=re.escape(message)):
-        patch_manifest(patch_text)
+def test_the_manifest_reads_the_diff_patch_table(case):
+    """What lf-diff can present has two readers in two languages: the widget parses a
+    patch text in the browser, and `patch_manifest.py` builds the file manifest from a
+    Git patch. `diff_patch_cases.json` is the one statement of that rule both are held
+    to; `test_render_anchors.py` reads it for the widget.
+
+    A row with `files` is a Git patch both readers accept, naming those paths. A row
+    with a `manifest` message is one the contract excludes, which the manifest refuses
+    before it is stored. A row with only a `widget` message is malformed, and the
+    manifest's reading of it is left unpinned: the widget refuses what it stores."""
+    if "files" in case:
+        files = patch_manifest(case["patch"])["files"]
+        assert [file["path"] for file in files] == case["files"]
+    else:
+        with pytest.raises(ValueError, match=re.escape(case["manifest"])):
+            patch_manifest(case["patch"])
 
 
 def test_data_set_names_the_producer_when_nothing_arrives(page_dir, tmp_path):

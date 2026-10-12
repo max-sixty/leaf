@@ -2538,7 +2538,7 @@ def test_a_sent_page_comment_closes_and_a_refusal_restores_its_draft(browser, se
         "Couldn't send — refused before append"
     )
     page.unroute("**/api/event", hold)
-    assert all("400" in error for error in take_browser_errors(page))
+    consume_browser_errors(page, "400")
 
     with sending(page, "the retried comment with its image"):
         page.keyboard.press("ControlOrMeta+Enter")
@@ -2737,7 +2737,7 @@ def test_comment_on_the_page_starts_a_thread_from_a_card_under_the_banner(
     expect(box).to_have_js_property("value", "Kept for later")
     assert card.evaluate(is_open)
     page.unroute("**/api/event")
-    assert all("400" in error for error in take_browser_errors(page))
+    consume_browser_errors(page, "400")
     page.keyboard.press("Escape")
 
     # With Threads open, the card is still where a page thread starts: it hangs over
@@ -2784,7 +2784,7 @@ def test_a_refused_page_comment_respects_newer_reading_input(browser, serve):
     expect(card).to_be_hidden()
     expect(page.locator(".lf-page-comment")).to_be_focused()
     page.unroute("**/api/event", hold)
-    assert all("400" in error for error in take_browser_errors(page))
+    consume_browser_errors(page, "400")
     page.keyboard.press("c")
     expect(box).to_be_focused()
 
@@ -9154,16 +9154,17 @@ def seated_page(serve, kind):
     ), "#proposal"
 
 
-def seated_thread(serve, kind, messages):
+def seated_thread(serve, kind, messages, annotations="overlay"):
     """A thread of `messages` turns on a page seat (`task`, `verdict`) or on a diff
-    line (`diff`, drawn inside the widget's shadow tree), and the page's URL."""
+    line (`diff`, drawn inside the widget's shadow tree), and the page's URL. A diff
+    page draws its margin as `annotations` says."""
     if kind == "diff":
         url = serve(
             leaf_page(
                 "diff",
                 f'<h1 id="title">Review</h1>{SEAT_FILLER}<lf-diff id="patch" '
                 f'source="review-patch"><pre></pre></lf-diff>{SEAT_FILLER}',
-            )
+            ).replace("<body>", f'<body data-annotations="{annotations}">', 1)
         )
         data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
         anchor = {
@@ -9882,17 +9883,24 @@ def test_a_turn_arriving_leaves_a_user_who_scrolled_away_from_their_box_reading(
     assert after == pytest.approx(before, abs=1), f"the page moved {after - before}px"
 
 
-@pytest.mark.parametrize("resolved", [False, True])
+@pytest.mark.parametrize(
+    ("resolved", "annotations"),
+    # A page margin draws the card in the pass that takes the thread off the diff; an
+    # overlay margin opens it afterwards, for the user carried there.
+    [(False, "overlay"), (True, "overlay"), (False, "page")],
+)
 def test_a_reply_box_whose_thread_leaves_the_diff_takes_the_user_to_its_card(
-    browser, serve, resolved
+    browser, serve, resolved, annotations
 ):
     """A new patch takes each thread off the diff to the margin, since its anchor
     names the patch it was written on, and the reply box the user was typing in went
     with it: focus fell to the page, and the next letters ran page commands. The
-    user follows the thread to its margin card, typing on in the same draft at the
-    same caret, and no task between the two finds them on the page."""
-    url, root = seated_thread(serve, "diff", 2)
+    user follows the thread to its margin card, typing on in the same editor at the
+    same caret, with its undo history, and no task between the two finds them on
+    the page."""
+    url, root = seated_thread(serve, "diff", 2, annotations)
     page = open_page(browser, url)
+    resized(page, 1440, 900)
     inline = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
     box = inline.locator(":scope > .lf-thread-reply leaf-text")
     box.scroll_into_view_if_needed()
@@ -9921,7 +9929,12 @@ def test_a_reply_box_whose_thread_leaves_the_diff_takes_the_user_to_its_card(
     )
     told(page)
     expect(inline).to_have_count(0)
-    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+    # A page margin has the Threads panel to put the thread up in; an overlay its card.
+    card = page.locator(
+        f'.lf-thread-panel .lf-thread[data-id="{root}"]'
+        if annotations == "page"
+        else f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]'
+    )
     reply = card.locator(":scope > .lf-thread-reply leaf-text")
     expect(reply).to_be_focused()
     expect(reply).to_have_js_property("value", "Half a thought")
@@ -9930,6 +9943,12 @@ def test_a_reply_box_whose_thread_leaves_the_diff_takes_the_user_to_its_card(
     page.keyboard.type(" tr")
     expect(reply).to_have_js_property("value", "Half tr a thought")
     expect(reply).to_be_focused()
+    # The editor came with the thread, so undo walks back through what was typed on
+    # the diff line too.
+    page.keyboard.press("ControlOrMeta+z")
+    expect(reply).to_have_js_property("value", "Half a thought")
+    page.keyboard.press("ControlOrMeta+z")
+    expect(reply).to_have_js_property("value", "")
 
 
 @pytest.mark.parametrize(

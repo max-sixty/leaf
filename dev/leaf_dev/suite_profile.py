@@ -238,11 +238,7 @@ def report_cases(cases: list[dict], top: int) -> None:
     cpu = sum(prof["cpu"] for prof in profiled) if timed else None
     section(
         f"{len(cases)} tests, {minutes(total)} worker-minutes"
-        + (
-            f", {minutes(cpu)} CPU-minutes in the workers' process trees"
-            if timed
-            else ""
-        )
+        + (f", {minutes(cpu)} CPU-minutes in the workers' cgroups" if timed else "")
     )
     if profiled:
         click.echo(

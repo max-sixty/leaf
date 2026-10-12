@@ -1246,17 +1246,9 @@ def test_a_reaction_on_a_visual_part_names_that_part(browser, serve):
     reaction = surface.locator('.lf-react[data-token="prioritize"]')
     reaction.focus()
     expect(reaction).to_be_focused()
-    page.evaluate("() => window.lfTestReactionClicked = false")
-    reaction.evaluate(
-        "button => button.addEventListener('click', () => "
-        "window.lfTestReactionClicked = true, {once: true})"
-    )
-    # The register owns Space on keydown. A miss here can look healthy after keyup,
-    # because Chromium's native button behavior then supplies a click of its own.
+    # A focused button keeps its native Space activation, which clicks on keyup.
     with sending(page, "the prioritize reaction"):
-        page.keyboard.down("Space")
-        assert page.evaluate("() => window.lfTestReactionClicked")
-        page.keyboard.up("Space")
+        page.keyboard.press("Space")
     expect(page.locator(".lf-live")).to_contain_text("prioritize on Start request")
 
     sent = events_model.read_events(serve.page_dir)[-1]

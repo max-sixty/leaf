@@ -1131,16 +1131,18 @@ def test_a_rendered_continuation_click_edits_the_exact_source_position(browser, 
         draft_control(page, "cancel", f"continuation-{i}").click()
 
 
-def test_a_draft_forwards_edit_save_and_cancel_without_consuming_native_digits(
+def test_a_draft_in_an_ask_takes_no_digits_and_answers_from_its_controls(
     browser, serve
 ):
-    """Ask aliases name the current draft action while its shared editor owns typing."""
+    """A draft lends its Ask no digits, so a digit typed while standing on the Ask
+    or in the editor is not a command; the user Tabs to Edit and saves with
+    Mod+Enter."""
     original = "Keep **this** source editable."
     page = open_page(
         browser,
         serve(
             leaf_page(
-                "Draft contextual commands",
+                "Draft in an Ask",
                 '<h1>Release note</h1><lf-ask id="note-decision">'
                 "<h2>How should the note read?</h2>"
                 f'<lf-draft id="note" needed><pre>{original}</pre></lf-draft></lf-ask>',
@@ -1149,64 +1151,26 @@ def test_a_draft_forwards_edit_save_and_cancel_without_consuming_native_digits(
     )
     question = page.locator("#note-decision")
     editor = page.locator("#note leaf-text")
-    hints = question.locator(".lf-draft-action .lf-key-badge")
-
-    def return_to_question():
-        question.evaluate(
-            """async element => {
-              const {focusDestination} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-              focusDestination(element, 'move');
-            }"""
-        )
-        expect(question).to_be_focused()
+    edit = draft_control(page, "edit", "note")
 
     page.keyboard.press("q")
     expect(question).to_be_focused()
-    expect(draft_control(page, "edit", "note")).to_have_attribute(
-        "aria-keyshortcuts", "1"
-    )
-    expect(hints).to_have_count(0)
+    expect(edit).not_to_have_attribute("aria-keyshortcuts", re.compile(r"\d"))
     page.keyboard.press("1")
+    rendered(page)
+    expect(editor).to_have_count(0)
+    page.keyboard.press("Tab")
+    expect(edit).to_be_focused()
+    page.keyboard.press("Enter")
     expect(editor).to_be_focused()
     write(editor, "Keep **these** digits: ")
-    page.keyboard.type("123")
-    saved = "Keep **these** digits: 123"
+    page.keyboard.type("12")
+    saved = "Keep **these** digits: 12"
     expect(editor).to_have_js_property("value", saved)
-    expect(editor).to_be_focused()
-    rendered(page)
-    assert "1" not in hints.all_text_contents()
-    assert "2" not in hints.all_text_contents()
-
-    return_to_question()
-    expect(hints).to_have_count(0)
-    for action, key in [("save", "1"), ("cancel", "2")]:
-        expect(draft_control(page, action, "note")).to_have_attribute(
-            "aria-keyshortcuts", re.compile(rf"(?:^| ){key}(?: |$)")
-        )
-    page.keyboard.press("?")
-    page.keyboard.press("?")
-    for command_id, title in [("draft.save", "Save"), ("draft.cancel", "Cancel")]:
-        command = page.locator(
-            f'.lf-command-reference-command[data-lf-command="{command_id}"]'
-        )
-        expect(command).to_have_text(title)
-        expect(command).to_have_attribute("data-lf-available", "true")
-    page.keyboard.press("Escape")
-    expect(question).to_be_focused()
-    page.keyboard.press("1")
+    page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     expect(editor).to_have_count(0)
-    expect(page.locator("#note .lf-draft-body")).to_have_text("Keep these digits: 123")
-
-    # The answered Ask remains an association while the source offers another edit.
-    return_to_question()
-    page.keyboard.press("1")
-    expect(editor).to_be_focused()
-    write(editor, "Discard these later words.")
-    return_to_question()
-    page.keyboard.press("2")
-    expect(editor).to_have_count(0)
-    expect(page.locator("#note .lf-draft-body")).to_have_text("Keep these digits: 123")
+    expect(page.locator("#note .lf-draft-body")).to_have_text("Keep these digits: 12")
     edits = [
         event
         for event in events_model.read_events(serve.page_dir)

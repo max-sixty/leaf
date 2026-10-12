@@ -81,8 +81,7 @@ const SEQUENTIAL = `${TAB_STOP}, iframe, audio[controls], video[controls]`;
 // A radio group with a checked member is one stop, at that member.
 function passedRadio(node) {
   if (node.type !== "radio" || !node.name || node.checked) return false;
-  const scope = node.form ?? node.getRootNode();
-  return [...scope.querySelectorAll("input[type=radio]:checked")].some(
+  return [...node.getRootNode().querySelectorAll("input[type=radio]:checked")].some(
     (radio) => radio.name === node.name && radio.form === node.form,
   );
 }

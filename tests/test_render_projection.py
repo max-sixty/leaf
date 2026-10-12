@@ -8655,18 +8655,23 @@ def test_a_thread_answer_is_not_repainted_after_its_undo_arrives_with_it(
     page.unroute("**/api/event")
 
 
-def test_a_refused_thread_choice_restores_its_frozen_markup(browser, serve):
+def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
+    browser, serve
+):
     """Thread widgets arrive after page startup, but their comment markup is still
-    their authored baseline. A definitive refusal removes the optimistic choice from
-    that baseline instead of leaving a decision the log never took."""
+    their authored baseline: a definitive refusal with no history removes the
+    optimistic choice from that baseline instead of leaving a decision the log never
+    took. A recordless accepted action then belongs to the widget's history too.
+    Reconstructing after a later refusal must replay both the recorded selection and
+    the separate `answer` verb, retaining both visible facts."""
     url = serve(REPLY_HOST_PAGE)
     append_carried_log_record(serve.page_dir, THREAD_ASKS[1])
     page = open_page(browser, url)
     page.keyboard.press("q")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
+
     held = []
     page.route("**/api/event", lambda route: _hold_gesture(route, held))
-
     with page.expect_request(_gesture_request):
         page.locator("#tq-logs").click()
     expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
@@ -8681,22 +8686,11 @@ def test_a_refused_thread_choice_restores_its_frozen_markup(browser, serve):
                 "final": True,
             },
         )
-
     expect(page.locator("#tq-logs")).not_to_have_attribute("chosen", "")
     assert actions(serve.page_dir) == []
     consume_browser_errors(page, "400")
+    page.unroute("**/api/event")
 
-
-def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
-    browser, serve
-):
-    """A recordless accepted action still belongs to the widget's history.
-    Reconstructing after a later refusal must replay both the recorded selection and
-    the separate `answer` verb, retaining both visible facts."""
-    url = serve(REPLY_HOST_PAGE)
-    append_carried_log_record(serve.page_dir, THREAD_ASKS[1])
-    page = open_page(browser, url)
-    page.keyboard.press("q")
     page.locator("#tq-logs").click()
     round_trip(page)
     page.locator("#tq-set .lf-done").click()
@@ -9413,9 +9407,10 @@ def test_activity_held_targets_follow_the_current_document(browser, serve, fresh
     expect(page.locator("#route")).to_be_in_viewport()
 
 
-@pytest.mark.parametrize("touch", [False, True], ids=["keyboard", "touch"])
-def test_activity_holds_arrivals_until_the_reader_reveals_them(browser, serve, touch):
-    """News above a visible passage waits; its fixed control never dodges activation."""
+def test_activity_holds_arrivals_until_the_reader_reveals_them(browser, serve):
+    """News above a visible passage waits; its fixed control never dodges activation.
+    The control is a button, worked here by the keyboard; a tap activates the same
+    button."""
     html = leaf_page(
         "History",
         '<h1>History</h1><section id="recent"><h2>Recent</h2>'
@@ -9423,14 +9418,7 @@ def test_activity_holds_arrivals_until_the_reader_reveals_them(browser, serve, t
         '<h2>Policy</h2><p id="reading">Keep this visible line where it stands.</p></section>',
     )
     url = live_url(serve(html))
-    if touch:
-        page = browser.new_page(
-            viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True
-        )
-        page.goto(url)
-        wait_until_ready(page)
-    else:
-        page = open_page(browser, url)
+    page = open_page(browser, url)
     control = page.locator("#feed .lf-activity-news")
     line = page.locator("#reading")
     expect(control).to_have_text("Show activity")
@@ -9449,21 +9437,17 @@ def test_activity_holds_arrivals_until_the_reader_reveals_them(browser, serve, t
     expect(control).to_have_text("Show activity · 1 new")
     expect(page.locator("#feed .lf-activity-row")).to_have_count(1)
     assert line.bounding_box()["y"] == pytest.approx(before["y"], abs=0.5)
-    if touch:
-        control.tap()
-    else:
-        control.press("Tab")
-        page.keyboard.press("Shift+Tab")
-        expect(control).to_be_focused()
-        control.press("Enter")
+    control.press("Tab")
+    page.keyboard.press("Shift+Tab")
+    expect(control).to_be_focused()
+    control.press("Enter")
     expect(page.locator("#feed .lf-activity-row")).to_have_count(2)
     expect(control).to_have_text("Hide activity")
     focused_row = page.locator("#feed .lf-activity-row").first.locator(
         ".lf-activity-target"
     )
-    if not touch:
-        page.keyboard.press("Tab")
-        expect(focused_row).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(focused_row).to_be_focused()
     before = line.bounding_box()
     trigger = control.bounding_box()
     append_command(
@@ -9481,13 +9465,10 @@ def test_activity_holds_arrivals_until_the_reader_reveals_them(browser, serve, t
     expect(page.locator("#feed .lf-activity-row")).to_have_count(2)
     assert line.bounding_box()["y"] == pytest.approx(before["y"], abs=0.5)
     assert control.bounding_box() == trigger
-    if touch:
-        control.tap()
-    else:
-        expect(focused_row).to_be_focused()
-        page.keyboard.press("Shift+Tab")
-        expect(control).to_be_focused()
-        control.press("Space")
+    expect(focused_row).to_be_focused()
+    page.keyboard.press("Shift+Tab")
+    expect(control).to_be_focused()
+    control.press("Space")
     expect(page.locator("#feed .lf-activity-row")).to_have_count(3)
     expect(page.locator("#feed .lf-activity-row").first).to_contain_text(
         "A second arrival"

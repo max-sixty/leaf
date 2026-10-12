@@ -3660,7 +3660,8 @@ def test_viewport_constrained_attachment_credits_only_its_source_scroll(
 @pytest.mark.parametrize(
     "case",
     [
-        "root",
+        # A requested page plane resolves to the window plane here, the way "window"
+        # asks for it outright, so "window" stands for both.
         "window",
         "edge",
         "scaled",

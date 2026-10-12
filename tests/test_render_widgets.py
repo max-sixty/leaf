@@ -479,7 +479,11 @@ def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(
     never read opens at its start when the strip is stuck and leaves the shared header
     alone when it is not, and a view read past its start reopens where the user left it.
     Pointer, keyboard, and Back/Forward agree, and a fresh load of the remembered view
-    shows the page's top."""
+    shows the page's top.
+
+    A view's place is where the user was reading in it, not a pixel offset: a window
+    resized while the view is hidden rewraps everything above that passage, and the view
+    still reopens with the passage where the user left it."""
     url = serve(ROOT_TABS_PAGE)
     page = open_page(browser, url)
     resized(page, 1280, 720)
@@ -593,30 +597,13 @@ def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(
     assert page.url.endswith("#evidence-tab")
     assert settled() == 0
 
-
-def test_a_root_view_keeps_its_place_through_a_resize_while_hidden(browser, serve):
-    """A view's place is where the user was reading in it, not a pixel offset: a window
-    resized while the view is hidden rewraps everything above that passage, and the
-    view still reopens with the passage where the user left it."""
-    page = open_page(browser, serve(ROOT_TABS_PAGE))
-    resized(page, 1280, 720)
-    tabs = page.locator("#root-tabs")
-    plan = tabs.get_by_role("tab", name="Plan", exact=True)
-    evidence = tabs.get_by_role("tab", name="Evidence", exact=True)
+    # The passage read in a hidden view keeps its place through a resize.
     passage = page.locator("#evidence-sign-in p").first
     below_landing_edge = """element => element.getBoundingClientRect().top
         - parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)"""
-
-    def switch(tab):
-        box = tab.bounding_box()
-        page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-        expect(tab).to_have_attribute("aria-selected", "true")
-        scroll_settled(page)
-
-    switch(evidence)
     passage.evaluate("element => element.scrollIntoView({block: 'start'})")
     page.evaluate("scrollBy({top: -40, behavior: 'instant'})")
-    scroll_settled(page)
+    settled()
     left = passage.evaluate(below_landing_edge)
     assert left == pytest.approx(40, abs=2)
     switch(plan)

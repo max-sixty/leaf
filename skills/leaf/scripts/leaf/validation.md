@@ -126,8 +126,9 @@ run again there in the light scheme, where each resident has the least room it w
 ever have. It reads, too, how each flex or grid box the page wrote splits its children
 into rows, and the swept widths where that changes.
 At each swept width it also reads, as advice, each drawing whose fit to its box draws
-labels under 10px, and reports each unbroken run of widths where one appears, with its reading at the
-narrowest of them. Swept sideways faults are reported by run the same way.
+labels under 10px, and reports each unbroken run of widths where one appears, with its
+reading at the narrowest of them. Swept sideways faults are reported by run the same
+way.
 
 A version that passes gets screens for the author to read (`render_gate/screens.py`):
 the page's first eight screens down from its top at the desktop viewport, at the

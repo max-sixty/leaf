@@ -74,8 +74,7 @@ same registry.
 
 Write a complete HTML document. The authored head names and describes the page;
 Leaf adds the encoding, identity, theme, runtime, and canonical address when it
-delivers the document. Omit `<meta charset>`: delivery declares UTF-8 before
-authored head content. Put page-specific CSS in `<style>` and JavaScript in
+delivers the document. Put page-specific CSS in `<style>` and JavaScript in
 `<script>` ("Page behavior"). Every `lf-*` element has an explicit end tag.
 
 Delivery also supplies `width=device-width, initial-scale=1, viewport-fit=cover`

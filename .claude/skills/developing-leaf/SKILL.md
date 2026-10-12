@@ -73,7 +73,9 @@ control can be pressed. Don't add a check that anticipates one particular author
 mistake, such as one attribute misapplied to one tag. Each such check costs code, tests
 and gate time on every page from then on, while a mistake agents rarely make costs one
 fix on the page where it happened, or a clearer line in the instruction it misread. Add
-a narrow check only for a mistake seen recurring across sessions, and prefer widening a
+a narrow check only where agents get what it reports wrong on real pages and fix it when
+told. A check that fires mostly on pages that already work, because delivery or the
+page's own CSS handles what it looks for, costs more than it catches. Prefer widening a
 general reading to adding a narrow one beside it.
 
 ## Explore an open design

@@ -3027,18 +3027,7 @@ def test_page_fixture_renders(browser, serve, source):
     assert stray == [], stray
     following = scroll_findings(page)
     assert following == [], "\n".join(following)
-    unread = []
-    for scheme in ("light", "dark"):
-        page.emulate_media(color_scheme=scheme)
-        # The scheme's colours land through transitions; read where they end.
-        page.evaluate(
-            "() => document.getAnimations().forEach("
-            "(a) => a instanceof CSSTransition && a.finish())"
-        )
-        unread += [
-            f"[{scheme}] {u}"
-            for u in render_checks_model.evaluate_probe(page, "unreadSyntax")
-        ]
+    unread = unread_syntax(page)
     assert unread == [], unread
     said = render_checks_model.evaluate_probe(page, "wordsInFormControls")
     assert said == [], said
@@ -3053,6 +3042,23 @@ READING_SCROLLER = (
 )
 # Eight small steps down and back, from a third of the way in.
 SCROLL_PASS = (30,) * 8 + (-30,) * 8
+
+
+def unread_syntax(page):
+    """Code tokens the page paints too faint to read, in each colour scheme."""
+    unread = []
+    for scheme in ("light", "dark"):
+        page.emulate_media(color_scheme=scheme)
+        # The scheme's colours land through transitions; read where they end.
+        page.evaluate(
+            "() => document.getAnimations().forEach("
+            "(a) => a instanceof CSSTransition && a.finish())"
+        )
+        unread += [
+            f"[{scheme}] {u}"
+            for u in render_checks_model.evaluate_probe(page, "unreadSyntax")
+        ]
+    return unread
 
 
 def scroll_findings(page):
@@ -5815,10 +5821,10 @@ def test_threads_and_questions_stand_on_the_one_edge_the_user_drew(browser, serv
     )
 
 
-def test_the_render_gate_reports_code_the_user_cannot_tell_from_its_block(
+def test_the_syntax_probe_reports_code_the_user_cannot_tell_from_its_block(
     browser, serve
 ):
-    """The gate checks native token paint on each background and in shadow roots.
+    """The syntax probe checks native token paint on each background and in shadow roots.
 
     A theme may use surrounding ink for an italic comment; contrast still catches
     faint keywords, strings on tinted code lines, and numbers in dark diff lines.
@@ -5854,12 +5860,10 @@ def test_the_render_gate_reports_code_the_user_cannot_tell_from_its_block(
     assert readable["background"] == faint["background"], population
     assert readable["ink"] != faint["ink"], population
 
-    failures = render_gate_model.render_version(
-        browser, serve(CODE_FAULT_PAGE)
-    ).failures
-    syntax = [finding for finding in failures if "] code styled " in finding]
-    assert failures == syntax, failures
-    assert len(syntax) == 4, "\n".join(failures)
+    page = open_page(browser, serve(CODE_FAULT_PAGE))
+    syntax = unread_syntax(page)
+    page.close()
+    assert len(syntax) == 4, "\n".join(syntax)
     for appearance, color in (
         ("light", "keyword"),
         ("light", "string"),
@@ -5882,12 +5886,9 @@ def test_the_render_gate_reports_code_the_user_cannot_tell_from_its_block(
             .querySelectorAll('[data-lf-syn]').length,
         })"""
     )
-    page.close()
     assert population["document"] > 0 and population["shadow"] > 0, population
-    assert (
-        render_gate_model.render_version(browser, serve(CODE_CONTROL_PAGE)).failures
-        == []
-    )
+    assert unread_syntax(page) == []
+    page.close()
 
 
 def test_an_authored_project_widget_loads_through_the_real_layer(

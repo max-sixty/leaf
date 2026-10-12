@@ -1640,13 +1640,23 @@ INDENTED_PAGE = leaf_page(
     '<div id="flexed-wide" data-width="wide">Wide.</div></div>'
     '<div class="boxed" id="boxed"><p>An inline block holding a table.</p>'
     f'<table id="boxed-table" data-width="available"><tr>{INDENTED_CELLS}</tr></table>'
-    "</div>",
+    "</div>"
+    # A block the browser sets in an anonymous block of the column's flow: one wrapped
+    # in a link and one in a span, as a chart a page links from is.
+    '<a href="#prose"><div id="linked-wide" data-width="wide">Linked.</div></a>'
+    '<span><div id="spanned-wide" data-width="wide">Spanned.</div></span>'
+    # A block in the second of a holder's columns, beside the first's text.
+    '<div class="cols" id="cols"><p>A paragraph long enough to fill the first column '
+    "of two from its top to its foot, then carry on into the second, beside the block "
+    "that stands there.</p>"
+    '<div id="cols-wide" data-width="wide">In the second column.</div></div>',
     head="<style>ul.plain { padding: 0; list-style: none; }"
     " .inset { padding-left: 40px; }"
     " .pair { display: grid; grid-template-columns: 1fr 1fr; column-gap: 16px; }"
     " .pair > .gutter { grid-row: span 3; }"
     " .row { display: flex; gap: 16px; } .row > * { flex: 1; }"
-    " .boxed { display: inline-block; }</style>",
+    " .boxed { display: inline-block; }"
+    " .cols { columns: 2; column-gap: 16px; }</style>",
 )
 
 
@@ -1678,8 +1688,10 @@ def test_a_breakout_in_an_indented_holder_measures_its_room_from_the_column(
 
     A box the page arranges itself is no holder of that kind, since the room beside it is
     the page's own: a block that is an item of the page's grid takes its track, one in a
-    flex row takes its share of the row beside its sibling, and a table in an inline
-    block scrolls inside it."""
+    flex row takes its share of the row beside its sibling, a table in an inline
+    block scrolls inside it, and a block in a holder's second column keeps to that
+    column. A link or a span around a block is no such box: the browser sets the block
+    in the column's flow, so it grows as one in the flow does."""
     browser = request.getfixturevalue(engine)
     source = INDENTED_PAGE
     if posture == "map":
@@ -1731,7 +1743,8 @@ def test_a_breakout_in_an_indented_holder_measures_its_room_from_the_column(
         };
       reading.arranged = Object.fromEntries([
         'gridded-track', 'gridded-wide', 'gridded-available', 'flexed-beside',
-        'flexed-wide', 'boxed', 'boxed-table',
+        'flexed-wide', 'boxed', 'boxed-table', 'linked-wide', 'spanned-wide', 'cols',
+        'cols-wide',
       ].map((id) => [id, edges(document.getElementById(id))]));
       return reading;
     }""",
@@ -1771,6 +1784,18 @@ def test_a_breakout_in_an_indented_holder_measures_its_room_from_the_column(
     assert wide["left"] >= beside["right"] or wide["right"] <= beside["left"], at
     assert arranged["boxed-table"]["left"] >= arranged["boxed"]["left"] - 1, at
     assert arranged["boxed-table"]["right"] <= arranged["boxed"]["right"] + 1, at
+    for block in ("linked-wide", "spanned-wide"):
+        for edge in ("left", "right"):
+            assert arranged[block][edge] == pytest.approx(
+                control["wide"][edge], abs=1
+            ), (block, at)
+    columns, in_column = arranged["cols"], arranged["cols-wide"]
+    assert in_column["right"] - in_column["left"] == pytest.approx(
+        (columns["right"] - columns["left"] - 16) / 2, abs=1
+    ), at
+    assert columns["left"] - 1 <= in_column["left"] < in_column["right"] <= (
+        columns["right"] + 1
+    ), at
     assert root_overflow(page) == 0
 
 

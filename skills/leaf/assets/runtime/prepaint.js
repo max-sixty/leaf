@@ -561,10 +561,12 @@
   // A breakout grows out of the column only down a chain of block flow: each box from
   // the breakout up to `main` a block-level box its holder lays out one under another.
   // Where the breakout, or a box between it and the column, is an item of a grid, a
-  // flex line or a table, sits in a line, floats or is positioned, the page arranged
-  // that box itself, and the room beside it is the page's own, such as a sibling track's
-  // text: grown into it, a wide block in a grid cell stood over the other cell's words,
-  // and a table widened its own track and crushed the other to 30px. Such a breakout
+  // flex line, a table or one of a holder's columns, is an inline block, floats or is
+  // positioned, the page arranged that box itself, and the room beside it is the page's
+  // own, such as a sibling track's text: grown into it, a wide block in a grid cell
+  // stood over the other cell's words, and a table widened its own track and crushed
+  // the other to 30px. A link or other inline around a block is no such box, since the
+  // browser sets the block in its holder's flow (`holderOf`). Such a breakout
   // wears `data-lf-arranged` and keeps to the box it is laid out in (layouts.css), so
   // the indent is read only where the holder's content box is the breakout's block.
   const contentEdges = (element) => {
@@ -580,21 +582,32 @@
   const BREAKOUT = '[data-lf-space]:not([data-lf-space="column"])';
   const ARRANGED = "data-lf-arranged";
   // The box a breakout is laid out in: its slot's where a widget slots it, past any
-  // ancestor that draws no box of its own (shadow-tree.js, `renderedParent`).
+  // ancestor that draws no box of its own (shadow-tree.js, `renderedParent`), and past
+  // an inline one, such as a link around a chart or an unknown element, since the
+  // browser sets a block inside an inline in an anonymous block of the inline's own
+  // holder's flow.
   const holderOf = (breakout, main) => {
     let holder = breakout;
-    do
+    let display;
+    do {
       holder = holder.assignedSlot ?? holder.parentElement ?? holder.getRootNode().host;
-    while (holder !== main && getComputedStyle(holder).display === "contents");
+      if (holder === main) break;
+      display = getComputedStyle(holder).display;
+    } while (display === "contents" || display === "inline");
     return holder;
   };
-  // A holder whose inner display is flow or flow-root lays its children out one under
-  // another; the computed value names it by its short keyword or in full.
+  // A holder whose inner display is flow or flow-root, and which sets no columns, lays
+  // its children out one under another at its full width; the computed display names
+  // that by its short keyword or in full. One that sets columns computes as a block too,
+  // and a wide block in its second column stood over the first's words.
   const FLOWS = /^(block|flow-root|list-item|inline-block|table-cell|table-caption)$|\bflow\b|\bflow-root\b|\blist-item\b/;
   const inFlow = (box, holder) => {
     const style = getComputedStyle(box);
+    const held = getComputedStyle(holder);
     return (
-      FLOWS.test(getComputedStyle(holder).display) &&
+      FLOWS.test(held.display) &&
+      held.columnCount === "auto" &&
+      held.columnWidth === "auto" &&
       !/^(inline|table-|ruby)/.test(style.display) &&
       style.float === "none" &&
       style.position !== "absolute" &&

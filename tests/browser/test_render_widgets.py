@@ -1275,7 +1275,10 @@ def test_a_side_list_workspace_scrolls_its_list_and_its_item_apart(browser, serv
 
 
 def test_side_tabs_distinguish_withdrawn_questions_from_answers(browser, serve):
-    """Withdrawal retires a request without claiming the user answered it."""
+    """A row's mark says its item's asks are open until every one is answered, and
+    withdrawal retires a request without claiming the user answered it: a row whose
+    only ask was withdrawn shows no mark, and one whose other ask is answered shows
+    the answer."""
     source = leaf_page(
         "Question outcomes",
         '<lf-tabs id="queue" list="side">'
@@ -1288,8 +1291,8 @@ def test_side_tabs_distinguish_withdrawn_questions_from_answers(browser, serve):
     )
     page = open_page(browser, live_url(serve(source)))
     marks = page.locator("#queue .lf-tab-answer")
-    expect(marks.nth(0)).not_to_have_attribute("data-lf-answered", "")
-    expect(marks.nth(1)).not_to_have_attribute("data-lf-answered", "")
+    expect(marks.nth(0)).to_have_attribute("data-lf-asks", "open")
+    expect(marks.nth(1)).to_have_attribute("data-lf-asks", "open")
     stamp_page(
         serve.page_dir,
         source.replace('id="only-options" choose', 'id="only-options"').replace(
@@ -1298,8 +1301,8 @@ def test_side_tabs_distinguish_withdrawn_questions_from_answers(browser, serve):
         "Retire unanswered requests",
     )
     wait_for_revision(page, 2)
-    expect(marks.nth(0)).not_to_have_attribute("data-lf-answered", "")
-    expect(marks.nth(1)).to_have_attribute("data-lf-answered", "")
+    expect(marks.nth(0)).not_to_have_attribute("data-lf-asks", re.compile(".*"))
+    expect(marks.nth(1)).to_have_attribute("data-lf-asks", "answered")
     expect(marks.nth(1)).to_have_text("Keep")
 
 
@@ -1619,82 +1622,86 @@ def test_root_tab_targets_remain_global(browser, serve):
     pane_posture(page, page.locator("#queue-pane"), "flow")
 
 
-TRACKED_ASK_PAGE = leaf_page(
-    "options track",
-    """
-  <h1>Retention</h1>
-  <lf-ask id="tracked">
+ACROSS_ASK = """
+  <lf-ask id="{id}"{width}>
     <h3>How long should logs be kept?</h3>
-    <figure id="tracked-evidence"><table id="tracked-figure">
+    <figure><table id="{id}-figure">
       <thead><tr><th>Store</th><th class="num">Daily GB</th></tr></thead>
       <tbody><tr><td>Hot</td><td class="num">40</td></tr>
         <tr><td>Warm</td><td class="num">120</td></tr></tbody>
-    </table>
-    <lf-board id="tracked-board">
-      <lf-column id="track-a" label="First"></lf-column>
-      <lf-column id="track-b" label="Second"></lf-column>
-      <lf-column id="track-c" label="Third"></lf-column>
-      <lf-column id="track-d" label="Fourth"></lf-column>
-    </lf-board></figure>
-    <lf-board id="direct-board">
-      <lf-column id="direct-a" label="First"></lf-column>
-      <lf-column id="direct-b" label="Second"></lf-column>
-      <lf-column id="direct-c" label="Third"></lf-column>
-      <lf-column id="direct-d" label="Fourth"></lf-column>
-    </lf-board>
-    <lf-ask id="nested">
-      <h4>Archive the warm tier too?</h4>
-      <p id="nested-premise">It holds the last quarter.</p>
-      <lf-options id="nested-choice" choose>
-        <lf-option id="nested-yes"><strong>Archive</strong> Move it to cold storage.</lf-option>
-        <lf-option id="nested-no"><strong>Keep</strong> Leave it warm.</lf-option>
-      </lf-options>
-    </lf-ask>
-    <lf-options id="tracked-choice" choose>
-      <lf-option id="keep-30"><strong>30 days</strong> Covers every incident review.</lf-option>
-      <lf-option id="keep-90"><strong>90 days</strong> Covers a quarter's audit.</lf-option>
+    </table></figure>
+    <lf-options id="{id}-choice" choose>
+      <lf-option id="{id}-7"><strong>7 days</strong> The cheapest.
+        <lf-options id="{id}-nested" choose>
+          <lf-option id="{id}-hot"><strong>Hot only</strong> Drop warm at once.</lf-option>
+          <lf-option id="{id}-both"><strong>Both tiers</strong> Keep warm a week.</lf-option>
+        </lf-options>
+      </lf-option>
+      <lf-option id="{id}-30"><strong>30 days</strong> Covers every incident review.</lf-option>
+      <lf-option id="{id}-90"><strong>90 days</strong> Covers a quarter's audit.</lf-option>
     </lf-options>
   </lf-ask>
-""",
-    head="<style>:root { --col: 1000px; }</style>",
+"""
+ACROSS_ASK_PAGE = leaf_page(
+    "options laid across",
+    "<h1>Retention</h1>" + ACROSS_ASK.format(id="across", width=""),
 )
+ACROSS_WIDE_ASK_PAGE = leaf_page(
+    "options laid across a widened Ask",
+    "<div>" + ACROSS_ASK.format(id="wide", width=' data-width="wide"') + "</div>",
+    layout="sidebar",
+)
+ACROSS_GEOMETRY = """(id) => {
+  const box = (suffix) => document.getElementById(`${id}-${suffix}`).getBoundingClientRect();
+  const cards = ['7', '30', '90'].map(box);
+  return {
+    figureBottom: box('figure').bottom,
+    tops: cards.map((c) => Math.round(c.top)),
+    lefts: cards.map((c) => Math.round(c.left)),
+    widths: cards.map((c) => Math.round(c.width)),
+    nested: ['hot', 'both'].map((s) => Math.round(box(s).top)),
+    list: Math.round(box('choice').width),
+    ask: Math.round(document.getElementById(id).getBoundingClientRect().width),
+  };
+}"""
 
 
-def test_an_ask_framing_a_figure_sets_its_options_beside_it(browser, serve):
+def test_an_ask_framing_a_figure_lays_its_options_across(browser, serve):
     """An Ask whose heading, figure and one option list come in that order sets the
-    list in a track beside the figure where the Ask has the room, and stacks it below
-    where it hasn't. The track belongs to that Ask alone: an ordinary Ask held among
-    its evidence finds the same named container and keeps its own block flow. A board's
-    preferred minimum, whether held inside a figure or standing as a direct context
-    block, cannot spend the answer track's room."""
-    page = open_page(browser, serve(TRACKED_ASK_PAGE))
-    geometry = """() => {
-      const box = (id) => document.getElementById(id).getBoundingClientRect();
-      const figure = box('tracked-figure'), options = box('tracked-choice');
-      const style = (id) => getComputedStyle(document.getElementById(id));
-      return {
-        beside: options.left >= figure.right && options.top < figure.bottom,
-        below: options.top >= figure.bottom,
-        nestedFloat: style('nested-premise').float,
-        nestedListPosition: style('nested-choice').position,
-        boardRight: box('tracked-board').right,
-        directRight: box('direct-board').right,
-        evidenceRight: box('tracked-evidence').right,
-        answersLeft: options.left,
-      };
-    }"""
+    titled options side by side under the figure in columns of one width, as many as
+    its width holds, so the question, its figure and every option share a window. Where
+    fewer fit, a card left over on the last row keeps its column's width, and where only
+    one fits they stack. The arrangement belongs to that Ask's own list: a group nested
+    in one of its options keeps its options one to a row."""
+    page = open_page(browser, serve(ACROSS_ASK_PAGE))
     resized(page, 1440, 900)
-    wide = page.evaluate(geometry)
-    assert wide["beside"], wide
-    assert wide["nestedFloat"] == "none", wide
-    assert wide["nestedListPosition"] != "sticky", wide
-    assert wide["boardRight"] <= wide["evidenceRight"] + 1, wide
-    assert wide["directRight"] <= wide["evidenceRight"] + 1, wide
-    assert wide["boardRight"] < wide["answersLeft"], wide
-    assert wide["directRight"] < wide["answersLeft"], wide
+    wide = page.evaluate(ACROSS_GEOMETRY, "across")
+    assert len(set(wide["tops"])) == 1, wide
+    assert wide["tops"][0] >= wide["figureBottom"], wide
+    assert wide["lefts"] == sorted(set(wide["lefts"])), wide
+    assert wide["nested"][0] < wide["nested"][1], wide
     resized(page, 700, 900)
-    narrow = page.evaluate(geometry)
-    assert narrow["below"], narrow
+    middle = page.evaluate(ACROSS_GEOMETRY, "across")
+    assert middle["tops"][0] == middle["tops"][1] < middle["tops"][2], middle
+    assert max(middle["widths"]) - min(middle["widths"]) <= 1, middle
+    resized(page, 390, 900)
+    narrow = page.evaluate(ACROSS_GEOMETRY, "across")
+    assert narrow["tops"] == sorted(set(narrow["tops"])), narrow
+
+
+def test_options_laid_across_take_a_widened_asks_width(browser, serve):
+    """The column bounds a line of text, and no card's line is wider than its column, so
+    an Ask granted the wide measure for its figure lays its cards under all of it rather
+    than at the measure beside an empty strip. Room for more columns than it has
+    options holds no empty column beside them: the three cards share the whole row."""
+    page = open_page(browser, serve(ACROSS_WIDE_ASK_PAGE))
+    resized(page, 1726, 900)
+    at = page.evaluate(ACROSS_GEOMETRY, "wide")
+    assert at["ask"] > 720, at
+    assert abs(at["list"] - at["ask"]) <= 1, at
+    assert len(set(at["tops"])) == 1, at
+    # The group's frame takes 2px of its width.
+    assert abs(sum(at["widths"]) - (at["list"] - 2)) <= 2, at
 
 
 def clear_of_the_bottom_chrome(page, selector):
@@ -6120,8 +6127,8 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     """t/T step the open threads; q/Q step the things the page is waiting on the user
     for. The category letter stays under one finger: lowercase advances and Shift goes
     back. Both walks repeat when held because walking often takes several presses.
-    Both clamp at the ends like every other one-dimensional list, so another press keeps
-    the user on the edge instead of jumping across the page.
+    Both come round from either end to the other, so a press past the last ask carries
+    on from the first.
 
     The landing is marked on the ask and stands the user on it, which is the same
     element the scroll has just brought to the top of the window — a walk that landed the
@@ -6131,7 +6138,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     page = open_page(browser, serve(ASKS_PAGE))
     expect_asks_answered(page, "1/5")
     walked = []
-    for expected in [*ASKS_IN_ORDER, ASKS_IN_ORDER[-1]]:
+    for expected in [*ASKS_IN_ORDER, ASKS_IN_ORDER[0]]:
         page.keyboard.press("q")
         # The ring is painted from the focus, in the frame after the press, so waiting
         # for it on the Ask this press stepped to is both the wait and the assertion —
@@ -6144,15 +6151,15 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
         walked.append(page.evaluate("document.activeElement.id"))
     assert walked == [
         *ASKS_IN_ORDER,
-        ASKS_IN_ORDER[-1],
+        ASKS_IN_ORDER[0],
     ], f"the walk landed on something else: {walked}"
 
-    # And back, including one press past the first edge. The step off a suggestion is
+    # And back from the first, round past its edge to the last. The step off a suggestion is
     # measured from the suggestion rather than from the ✓ Accept holding the focus —
     # that row is hoisted out into the page margin as a sibling of the block it decides,
     # so a walk reading it where it hangs would step back onto the change the user is
     # standing on.
-    for expected in [*reversed(ASKS_IN_ORDER[:-1]), ASKS_IN_ORDER[0]]:
+    for expected in reversed(ASKS_IN_ORDER):
         page.keyboard.press("Shift+q")
         expect(page.locator(f"#{expected}[data-lf-question]")).to_have_count(1)
         expect(page.locator(STANDING_ASK)).to_have_count(1)
@@ -7081,7 +7088,7 @@ def test_an_ask_already_in_front_of_the_user_is_not_travelled_to(browser, serve)
     # that: frames held still before a glide starts read the same as a page that never
     # moved, and only the announcement puts the read behind the decision.
     observe_live_region(page)
-    page.keyboard.press("q")  # one ask, so the clamped walk stays on it
+    page.keyboard.press("q")  # one ask, so the walk stays on it
     page.wait_for_function(
         "() => window.__lfLiveRegionChanges.some("
         "words => words.includes('waiting on you'))"
@@ -11249,6 +11256,9 @@ print(bracket(3))
     expect(indicated).to_have_count(2)
     assert marked() == [3, 4]
     expect(page.locator("#walk .lf-code-line.hi")).to_have_count(1)
+    assert indicated.evaluate_all(
+        "ls => ls.map(l => getComputedStyle(l).outlineStyle)"
+    ) == ["none", "none"], "code indicates its lines through the gutter and tint"
 
     append_carried_log_record(
         serve.page_dir,
@@ -11393,6 +11403,7 @@ only
     assert marked.evaluate_all(rows_of) == ["1507", "1508-1549", "1550"]
     assert page.evaluate("document.querySelector('#film').point('1520')") is True
     assert marked.evaluate_all(rows_of) == ["1508-1549"]
+    assert marked.evaluate("l => getComputedStyle(l).outlineStyle") == "none"
     assert page.evaluate("document.querySelector('#film').point('3')") is False
     expect(marked).to_have_count(0)
 

@@ -2,7 +2,8 @@
 
 Tasks, frozen thread questions, and exact-input workflows share one event basis.
 Admission constructs it under the sending vocabulary; serving constructs it under
-its active document. Neither adds claim liveness: activity enriches these facts
+its active document, and each view of a pinned revision under that revision's
+(`viewing`). Neither adds claim liveness: activity enriches these facts
 once, and transports select that enriched reading without constructing a browser.
 This object is transaction-scoped and never written to disk.
 """
@@ -23,6 +24,7 @@ class WorkReading:
         registry: dict,
         page=None,
         *,
+        within=None,
         thread=None,
         log=None,
         document=None,
@@ -30,6 +32,11 @@ class WorkReading:
         self.events = events
         self.registry = registry
         self.page = page
+        # The published page's containment, which every fold of the threads takes,
+        # whichever revision's document this reading reads them beside.
+        self.within = (
+            within if within is not None else page.within if page is not None else {}
+        )
         self.log = log or TaskReading(events)
         self._thread = thread
         self._document = document
@@ -46,6 +53,7 @@ class WorkReading:
             events,
             self.registry,
             self.page,
+            within=self.within,
             thread=self.thread,
             log=self.log
             if not any(gesture.get("undoes") for gesture in gestures)
@@ -53,13 +61,22 @@ class WorkReading:
             document=self.document,
         )
 
+    def viewing(self, page) -> "WorkReading":
+        """This log read beside another revision's document, as a view pinned to that
+        revision shows it. That revision captured its frozen thread widgets under its
+        own registry, so their decisions, the asks they answer and the attention those
+        asks give a thread are classified under it, as the page's own are. The threads
+        themselves fold as every reading of them does, under the published page's
+        containment (`events.build_threads`)."""
+        if page is self.page:
+            return self
+        return WorkReading(
+            self.events, page.registry, page, within=self.within, log=self.log
+        )
+
     @cached_property
     def threads(self) -> dict:
-        return build_threads(
-            self.events,
-            self.page.within if self.page is not None else {},
-            withdrawn=self.log.withdrawn,
-        )
+        return build_threads(self.events, self.within, withdrawn=self.log.withdrawn)
 
     @cached_property
     def thread(self):

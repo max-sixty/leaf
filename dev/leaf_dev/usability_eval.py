@@ -2,8 +2,16 @@
 
 Each provider call owns one isolated scenario, including its resumed phases or
 live user rounds. Promptfoo owns arms, repetition, concurrency, and reporting;
-this module owns fixtures, execution, and fixed semantic check sets. Evidence
+this module owns fixtures, execution, and what each scenario scores. Evidence
 stays in the supplied work directory, and the agent cwd stays outside any repo.
+
+A fact the page states is read the way Leaf reads it: decisions, asks and
+workflows from `leaf page state`, markup through Leaf's own parse
+(`SourceDocument`, and `SourceReading` for the words an element says). What the
+agent says, in a reply or in prose it wrote onto the page, is judged by meaning
+through an `llm-rubric` (`JUDGED`), never matched against a pattern. Only the
+native trace, the commands the agent ran and the deliveries it was handed, is
+matched as text, since it records nothing richer.
 """
 
 import json
@@ -15,14 +23,15 @@ import threading
 import time
 from contextlib import ExitStack
 from dataclasses import dataclass
-from html import unescape
 from pathlib import Path
 
 from leaf.delivery import DELIVERY_FORMAT, opened_input_ids, pickup_receipts
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
+from leaf.passages import SourceReading, collapse
 from leaf.schema import MESSAGE_KINDS
 from leaf.service import requires_agent_attention
+from leaf.structure import SourceDocument
 from leaf.thread import successful_replies
 from playwright.sync_api import Browser
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -207,8 +216,8 @@ CARD_MOVE = {
     "action": "move",
     "detail": {"unit": "card-lag-alert", "value": "col-done", "rank": "1"},
 }
-# The duration the `DRY_RUN` comment asks for, as the edited paragraph may write it.
-DRY_RUN_DONE = r"3\s*h(ours?)?\s*(and\s*)?10"
+# The edit the `DRY_RUN` comment asks for, as the judge reads the edited paragraph.
+DRY_RUN_DONE = "The paragraph says the dry run took 3 hours 10 minutes."
 UNDO = {"kind": "undo", "undoes": "previous"}
 SUMMARY_ERROR = {
     "kind": "error",
@@ -387,10 +396,16 @@ def build_reading(run: Run, page: Path, surface: str | None) -> None:
             admit(run, page, move)
 
 
+def said(html: str) -> dict[str, str]:
+    """id → the words the element says, in Leaf's own reading of the markup: the
+    text a user selects and an anchor quotes."""
+    reading = SourceReading(SourceDocument(html), None)
+    return {element: spoken.words for element, spoken in reading.spoken.items()}
+
+
 def anchor(html: str, element: str, quote: str) -> dict:
     """A comment anchor on `quote` inside the element with id `element`."""
-    # The rendered text, whose whitespace the browser collapses.
-    text = " ".join(re.search(rf'id="{element}">(.*?)</', html, re.DOTALL)[1].split())
+    text = said(html)[element]
     at = text.index(quote)
     return {
         "section": element,
@@ -553,7 +568,7 @@ def append_elided_history(run: Run, page: Path) -> None:
     rewrites the log: this fixture uses the same admission and receipt boundaries
     as the CLI and hooks, under their one transaction lease.
     """
-    state, html = active_html(run, page)
+    state, document = active_document(run, page)
     arm_fixture(
         run,
         "history",
@@ -561,7 +576,7 @@ def append_elided_history(run: Run, page: Path) -> None:
         json.dumps(
             [
                 ELIDED_THREAD,
-                anchor(html, "window", "in the maintenance window"),
+                anchor(document.html, "window", "in the maintenance window"),
                 state["active"]["revision"],
             ]
         ),
@@ -888,51 +903,43 @@ def page_state(run: Run, page: Path) -> dict:
     return read_page_state(run.payload, run.state, page)
 
 
-def answered_lines(reply: str) -> dict[int, str]:
-    return {
-        int(m[1]): m[2].strip()
-        for m in re.finditer(r"^\s*\**(\d)[.)]\**\s*(.*)$", reply, re.MULTILINE)
-    }
+def active_document(run: Run, page: Path) -> tuple[dict, SourceDocument]:
+    """The page's state and Leaf's parse of the markup it serves: the active
+    revision's, or `index.html` before a first stamp."""
+    state = page_state(run, page)
+    active = state.get("active") or {"file": "index.html"}
+    return state, SourceDocument((page / active["file"]).read_text())
 
 
-def labelled(reply: str, label: str) -> str:
-    m = re.search(rf"^\W*{label}\W*:?\**\s*(.*)$", reply, re.MULTILINE | re.IGNORECASE)
-    return m[1] if m else ""
+def column_cards(document: SourceDocument, column: str) -> list[str]:
+    return [card.attrs.get("id") for card in document.tree.select(f"#{column} lf-card")]
 
 
-def check(pattern: str, text: str) -> bool:
-    return bool(re.search(pattern, text, re.IGNORECASE))
-
-
-def score_cold(run: Run, reply: str, calls: list[str]) -> dict:
+def score_cold(run: Run, calls: list[str]) -> dict:
     found = pages(run.work, run.state)
     out = {"pages": len(found)}
     if run.case == "near-miss" or not found:
         return out
     page = found[0]
-    html = (page / "index.html").read_text()
     checked = run.leaf("page", "check", str(page))
-    state = page_state(run, page)
-    out |= {
+    state, document = active_document(run, page)
+    tags = [record["tag"] for record in document.lf_elements]
+    groups = [r["attrs"] for r in document.lf_elements if r["tag"] == "lf-options"]
+    return out | {
         "valid": checked.returncode == 0,
         "agent_checked": any("page check" in c for c in calls),
         "stamped": len(state.get("versions", [])),
         "not_served": not any(re.search(r"\bserver (start|run)\b", c) for c in calls),
         "status": (state.get("status") or {}).get("state"),
-        "asks": len(re.findall(r"<lf-ask\b", html)),
-        "choose_groups": len(re.findall(r"<lf-options\b[^>]*\bchoose\b", html)),
-        "options": len(re.findall(r"<lf-option\b", html)),
-        "single_choice": not re.search(r"<lf-options\b[^>]*\bmultiple\b", html),
-        "no_sign_off": 'content="sign-off"' not in html,
+        "asks": tags.count("lf-ask"),
+        "choose_groups": sum("choose" in attrs for attrs in groups),
+        "options": tags.count("lf-option"),
+        "single_choice": not any("multiple" in attrs for attrs in groups),
+        "no_sign_off": not any(
+            meta["name"] == "lf-review" and meta["content"] == "sign-off"
+            for meta in document.named_metas
+        ),
     }
-    if run.case == "cold-decision":
-        ask = re.search(r"<lf-ask\b.*?</lf-ask>", html, re.DOTALL)
-        body = re.sub(r"<[^>]+>", " ", ask[0]) if ask else ""
-        # The measurements the prompt gave, as the Ask shows them.
-        evidence = ["0.2", "1.1", "0.05", "9%", "0.3%", "410", "68%", "90"]
-        out["evidence_in_ask"] = sum(e in body for e in evidence)
-        out["names_gesture"] = check(r"\b(pick|choose|select|click)", reply)
-    return out
 
 
 def reading_questions(case: str) -> list[dict]:
@@ -942,180 +949,203 @@ def reading_questions(case: str) -> list[dict]:
     ]
 
 
+GESTURE = (
+    "The message tells the user how to make the decision on the page: by picking, "
+    "choosing or selecting one of its options."
+)
+
+# What each scenario judges by meaning: text → metric → passing reading. The text
+# names an entry of the response's `metadata.texts`; `reply-N` is phase N's final
+# message, and a scorer adds what it read off the page or the log. The judge reads
+# that text alone, so each criterion stands without the scenario around it.
+JUDGED = {
+    "cold-decision": {"reply-1": {"names_gesture": GESTURE}},
+    "resume": {
+        "reply-1": {
+            "date": "The message reports 21 October as the cutover date the page "
+            "currently shows. Reporting 3 November as the current date fails; "
+            "mentioning it as an unsaved or proposed change is fine.",
+            "approach": "The message says traffic moves to the new index tenant by "
+            "tenant, in groups of tenants.",
+            "next_batch": "Among what needs doing next, the message includes the "
+            "request to drop the batch size from 500 to 200.",
+            "next_pick": "Among what needs doing next, the message includes taking in "
+            "the user's pick of the tenant-by-tenant approach, such as marking it "
+            "chosen on the page. Treating how traffic moves as still undecided fails.",
+        },
+    },
+    "constructs": {
+        "reply-1": {
+            "draft_read": 'Answer 1, to "What does the release note say?", gives '
+            "the note as the user edited it, which says merchants need no code "
+            "changes.",
+            "p95_read": 'Answer 2, to "What p95 does the latency sentence state, and '
+            'what is the latest measurement?", says the sentence states 184 ms and '
+            "the latest measurement is 231 ms.",
+            "chart_read": 'Answer 3, to "Which region has the most errors in the '
+            'chart?", is us-east.',
+        },
+        "release-note": {
+            "draft_date": "The release note gives the rollout start as 19 November "
+            "and does not say 12 November.",
+            "draft_kept_user_words": "The release note says merchants need no code "
+            "changes.",
+        },
+        "chart": {"chart_85": "In the data this chart plots, sa-east has 85 errors."},
+    },
+    "board": {
+        "reply-1": {
+            "doing_read": 'Answer 1, to "List the cards in the Doing column, top to '
+            'bottom", is Update runbook, Inventory services, Audit key usage, Expiry '
+            "alerts: those four cards in that order.",
+            "undo_read": 'Answer 2, to "Which column is \\"Rotate signing keys\\" '
+            'in?", is To do.',
+        },
+    },
+    "shared-source": {
+        "reply-1": {
+            "finch_branch": "Answer 1, to which branch finch's worktree is on and "
+            "whether its tests pass, gives the branch as finch/cdata-escapes. Giving "
+            "finch/cdata-escapes-v1 fails.",
+            "finch_failing": "Answer 1, to which branch finch's worktree is on and "
+            "whether its tests pass, says its tests are failing.",
+            "wren_ahead": "Answer 2, to how many commits ahead of its base wren's "
+            "worktree is, is 4.",
+        },
+    },
+    "handoff": {
+        "status": {
+            "detail_names_ask": "This status, shown while the page waits on the user, "
+            "says what it waits for: their choice of how the backfill copy runs.",
+        },
+        "handover": {"gesture_named": GESTURE},
+        "dry-run": {"edit_done": DRY_RUN_DONE},
+        "answers": {
+            "question_answered": "The answer says the snapshot restore option needs a "
+            "write freeze, and that the freeze lasts 40 minutes.",
+        },
+    },
+    "mixed": {"dry-run": {"comment_done": DRY_RUN_DONE}},
+    "elided": {
+        "answers": {
+            "answer_right": "The answer says the copy starts at 22:00 UTC each night. "
+            "Answering 01:00 UTC fails.",
+        },
+    },
+}
+
+
 def rubrics(case: str) -> list[dict]:
-    """Reading answers require meaning, including acknowledging unavailable state."""
-    if not case.startswith("reading"):
-        return []
+    """Promptfoo `llm-rubric`s: each reading question's answer, and each judged text
+    of a scenario."""
+    if case.startswith("reading"):
+        return [
+            {
+                "type": "llm-rubric",
+                "metric": f"answer_{q['surface']}",
+                "value": f"Question {n}: {q['question']}\n"
+                f"Expected answer: {q['answer']}\n"
+                "Pass only if the answer to this question conveys the expected "
+                "meaning. Equivalent wording is fine; contradicting the expected "
+                "answer fails, even when its words occur in the reply."
+                + (
+                    " For viewer state, acknowledge uncertainty and do not identify a "
+                    "currently open tab."
+                    if q["surface"] == "view"
+                    else ""
+                ),
+            }
+            for n, q in enumerate(reading_questions(case), 1)
+        ]
     return [
         {
             "type": "llm-rubric",
-            "metric": f"answer_{q['surface']}",
-            "value": f"Question {n}: {q['question']}\n"
-            f"Expected answer: {q['answer']}\n"
-            "Pass only if the answer to this question conveys the expected meaning. "
-            "Equivalent wording is fine; contradicting the expected answer fails, "
-            "even when its words occur in the reply."
-            + (
-                " For viewer state, acknowledge uncertainty and do not identify a "
-                "currently open tab."
-                if q["surface"] == "view"
-                else ""
-            ),
+            "metric": metric,
+            "value": criterion,
+            # A text the run never produced reaches the judge empty, and fails.
+            "transform": f"context.metadata.texts?.[{json.dumps(text)}] ?? ''",
         }
-        for n, q in enumerate(reading_questions(case), 1)
+        for text, criteria in JUDGED.get(case, {}).items()
+        for metric, criterion in criteria.items()
     ]
 
 
-def score_constructs(run: Run, replies: list[str]) -> dict:
-    lines = answered_lines(replies[0] if replies else "")
-    out = {
-        "draft_read": check(r"no code changes", lines.get(1, "")),
-        "p95_read": check(r"\b184\b", lines.get(2, ""))
-        and check(r"\b231\b", lines.get(2, "")),
-        "chart_read": check(r"us-east", lines.get(3, "")),
-    }
+def score_constructs(run: Run) -> dict:
     page = run.work / "page"
-    state = page_state(run, page)
-    if not state or len(state["versions"]) < 2:
-        return out | {"stamped": False}
-    html = (page / state["active"]["file"]).read_text()
-    draft = re.search(r"<lf-draft\b([^>]*)>(.*?)</lf-draft>", html, re.DOTALL)
+    state, document = active_document(run, page)
+    if len(state["versions"]) < 2:
+        return {"stamped": False}
+    draft = document.by_id.get("release-note")
     standing = next(
         (s["detail"]["value"] for s in state["state"] if s["widget"] == "release-note"),
         None,
     )
-    # What the user now reads: their edit where it still stands, else the markup.
-    effective = standing if standing is not None else (draft[2] if draft else "")
-    figure = re.search(r'<lf-num\b[^>]*id="p95-figure"[^>]*>(.*?)</lf-num>', html)
-    chart = re.search(r'id="region-errors".*?</lf-chart>', html, re.DOTALL)
-    return out | {
+    chart = document.by_id.get("region-errors")
+    return {
         "stamped": True,
-        "draft_date": check(r"19 nov", effective) and not check(r"12 nov", effective),
-        "draft_kept_user_words": check(r"no code changes", effective),
-        "draft_restated": bool(draft and "restated" in draft[1]),
-        "p95_text": bool(figure and check(r"\b231\b", figure[1])),
+        "texts": {
+            # What the user now reads: their edit where it still stands, else the
+            # markup.
+            "release-note": standing
+            if standing is not None
+            else (draft["body"] if draft else ""),
+            "chart": chart["body"] if chart else "",
+        },
+        "draft_restated": "release-note" in document.restated,
+        "p95_text": "231" in said(document.html).get("p95-figure", ""),
         "p95_current": state["measurement_lag"] == [],
         # The figure's owner is the markup; its source keeps the measurement.
         "source_kept": (page / "data/checkout-p95.json").read_bytes()
         == (run.dir / "fixture/data/checkout-p95.json").read_bytes(),
-        # The row as an object, its keys in whatever order and quoting the agent left
-        # them.
-        "chart_85": bool(
-            chart
-            and any(
-                re.search(r"[\"']sa-east[\"']", row)
-                and re.search(r"\berrors[\"']?\s*:\s*85\b", row)
-                for row in re.findall(r"\{[^{}]*\}", chart[0])
-            )
-        ),
     }
 
 
-def column_cards(html: str, column: str) -> list[str]:
-    body = re.search(rf'<lf-column\b[^>]*id="{column}".*?</lf-column>', html, re.DOTALL)
-    return re.findall(r'<lf-card\b[^>]*id="([\w-]+)"', body[0]) if body else []
-
-
-def score_board(run: Run, replies: list[str]) -> dict:
-    # The first answer is a list of its own, so split at the second answer's number
-    # at the start of a line rather than reading numbered lines.
-    parts = re.split(
-        r"^\**2[.)]", replies[0] if replies else "", maxsplit=1, flags=re.MULTILINE
-    )
-    second = parts[1].split("\n", 1)[0] if len(parts) > 1 else ""
-    titles = ["runbook", "inventory", "audit", "alerts"]
-    at = [parts[0].lower().find(t) for t in titles]
-    out = {
-        "doing_read": -1 not in at and at == sorted(at),
-        "undo_read": check(r"\bto ?do\b", second),
-    }
-    page = run.work / "page"
-    state = page_state(run, page)
-    if not state or len(state["versions"]) < 2:
-        return out | {"stamped": False}
-    html = (page / state["active"]["file"]).read_text()
-    todo = column_cards(html, "col-todo")
-    return out | {
+def score_board(run: Run) -> dict:
+    state, document = active_document(run, run.work / "page")
+    if len(state["versions"]) < 2:
+        return {"stamped": False}
+    todo = column_cards(document, "col-todo")
+    return {
         "stamped": True,
-        "doing_order": column_cards(html, "col-doing") == BOARD_DOING,
+        "doing_order": column_cards(document, "col-doing") == BOARD_DOING,
         "todo_kept": todo[:1] == ["card-rotate"] and len(todo) == 2,
-        "done_empty": column_cards(html, "col-done") == [],
-        "renamed": check(r"key expiry alerts", html),
-        "no_restated": "restated" not in html,
+        "done_empty": column_cards(document, "col-done") == [],
+        "renamed": "key expiry alerts"
+        in said(document.html).get("card-alerts", "").lower(),
+        "no_restated": not document.restated,
     }
 
 
-def score_resume(run: Run, replies: list[str]) -> dict:
-    first = replies[0] if replies else ""
-    out = {
-        # The first date the line names is the one it reports as current.
-        "date": check(r"^\W*(21\s*oct|oct\w*\.?\s*21)", labelled(first, "date")),
-        "approach": check(r"tenant", labelled(first, "approach")),
-        "next_batch": check(r"\b200\b|batch", labelled(first, "next") + first),
-        "next_pick": check(
-            r"tenant|pick|chose|choice|chosen|answer", labelled(first, "next")
-        ),
-    }
+def pick_owed(state: dict, pick: str) -> bool:
+    """Whether the user's pick still waits on the agent to take it into the markup,
+    in Leaf's own reading of the page's workflows."""
+    return any(w["input"] == pick for w in state["workflows"])
+
+
+def score_resume(run: Run) -> dict:
     page = run.work / "page"
-    state = page_state(run, page)
-    if not state:
-        return out
-    active = page / state["active"]["file"]
-    html = active.read_text()
-    batch = re.search(r'id="batch-size"[^>]*>(.*?)</p>', html, re.DOTALL)
+    state, document = active_document(run, page)
     events = page_events(page)
     batch_comment = next(
         e["id"]
         for e in events
         if e.get("kind") == "comment" and e["anchor"]["section"] == "batch-size"
     )
-    out |= {
-        "versions": len(state.get("versions", [])),
+    pick = next(e["id"] for e in events if e.get("widget") == "rollout")
+    batch = said(document.html).get("batch-size")
+    return {
+        "versions": len(state["versions"]),
         "source_valid": not (state.get("source") or {}).get("error"),
-        "batch_200": bool(batch and re.search(r"\b200\b", batch[1])),
+        "batch_200": batch is not None and "200" in batch,
         "batch_in_place": batch is not None,
-        "chosen_marked": bool(
-            re.search(r'<lf-option[^>]*id="opt-per-tenant"[^>]*\bchosen', html)
-            or re.search(r'<lf-option[^>]*\bchosen[^>]*id="opt-per-tenant"', html)
-        ),
+        "pick_taken_in": not pick_owed(state, pick),
         "pick_standing": any(
-            s.get("widget") == "rollout"
-            and s.get("detail", {}).get("value") == ["opt-per-tenant"]
-            for s in state.get("state", [])
+            s["widget"] == "rollout" and s["detail"]["value"] == ["opt-per-tenant"]
+            for s in state["state"]
         ),
-        "no_restated": "restated" not in html,
+        "no_restated": not document.restated,
         "replied": bool(successful_replies(events, batch_comment)),
-        "date_final": (
-            re.search(r'id="cutover-date"[^>]*>(.*?)</p>', html, re.DOTALL)
-            or [None, ""]
-        )[1],
     }
-    return out
-
-
-def active_html(run: Run, page: Path) -> tuple[dict, str]:
-    """The page's state and the HTML of its active revision."""
-    state = page_state(run, page)
-    return state, (page / state["active"]["file"]).read_text() if state else ""
-
-
-def element_html(html: str, element: str) -> str:
-    """The markup of the element with id `element`, up to its first closing tag of
-    the same name."""
-    found = re.search(
-        rf'<(\w[\w-]*)\b[^>]*\bid="{element}"[^>]*>.*?</\1>', html, re.DOTALL
-    )
-    return found[0] if found else ""
-
-
-def element_text(html: str, element: str) -> str:
-    """The text of the element with id `element`, as `text` reads it."""
-    return text(element_html(html, element))
-
-
-def text(markup: str) -> str:
-    """Markup's text: tags dropped, entities decoded and space collapsed."""
-    return " ".join(unescape(re.sub(r"<[^>]+>", " ", markup)).split())
 
 
 # A tool call that writes `index.html`: the Write or Edit tool, a shell redirect or
@@ -1139,11 +1169,11 @@ def score_package(run: Run, trace: list[dict]) -> dict:
         ),
     }
     page = run.work / "page"
-    state, html = active_html(run, page)
-    if not state or len(state["versions"]) < 2:
+    state, document = active_document(run, page)
+    if len(state["versions"]) < 2:
         return out | {"stamped": False}
-    burn = re.search(r"<lf-burn\b([^>]*)>", element_html(html, "checkout"))
-    attrs = dict(re.findall(r'([\w-]+)="([^"]*)"', burn[1])) if burn else {}
+    burn = document.tree.select_one("#checkout lf-burn")
+    attrs = burn.attrs if burn else {}
     return out | {
         "stamped": True,
         "valid": run.leaf("page", "check", str(page)).returncode == 0,
@@ -1154,39 +1184,29 @@ def score_package(run: Run, trace: list[dict]) -> dict:
     }
 
 
-def score_shared_source(run: Run, traces: list[list[dict]], replies: list[str]) -> dict:
-    """Each widget's record read and edited through its authored id, and nothing
-    else in the snapshot touched."""
-    lines = answered_lines(replies[0] if replies else "")
-    out = {
-        # The first branch the answer names is finch's; it may go on to name the
-        # stale record's.
-        "finch_branch": (
-            re.findall(r"cdata-escapes(-v1)?", lines.get(1, "")) or ["missing"]
-        )[0]
-        == "",
-        "finch_failing": check(r"fail|not passing|no\b", lines.get(1, "")),
-        "wren_ahead": check(r"\b4\b|\bfour\b", lines.get(2, "")),
+def score_shared_source(run: Run, traces: list[list[dict]]) -> dict:
+    """Each widget's record edited through its authored id, nothing else in the
+    snapshot touched, and the renderer left unread."""
+    page = run.work / "page"
+    before = json.loads((FIXTURES / "hub-worktrees.json").read_text())
+    after = json.loads((page / "data/project-worktrees.json").read_text())["value"]
+    finch = after.get("tree-finch", {})
+    # The working markup, stamped or not: a data update needs no new version.
+    document = SourceDocument((page / "index.html").read_text())
+    return {
         # The join from widget to record came from the declarations: no look at
         # the renderer in either phase.
         "source_unread": not any(
             "lf-atlas-tree.js" in c for t in traces for d in t for c in commands(d)
         ),
-    }
-    page = run.work / "page"
-    before = json.loads((FIXTURES / "hub-worktrees.json").read_text())
-    after = json.loads((page / "data/project-worktrees.json").read_text())["value"]
-    finch = after.get("tree-finch", {})
-    html = (page / "index.html").read_text()
-    return out | {
         "finch_updated": finch.get("head", "").startswith("3f0a6be")
         and finch.get("ahead") == 7
         and finch.get("tests") == "passing",
         "others_kept": {k: after.get(k) for k in ("tree-finch-old", "tree-wren")}
         == {k: before[k] for k in ("tree-finch-old", "tree-wren")},
-        "markup_kept": "3f0a6be" not in html
-        and html.count('source="project-worktrees"') == 2,
-        "source_valid": not page_state(run, page).get("source", {}).get("error"),
+        "markup_kept": "3f0a6be" not in document.html
+        and len(document.tree.select('[source="project-worktrees"]')) == 2,
+        "source_valid": not (page_state(run, page).get("source") or {}).get("error"),
     }
 
 
@@ -1301,49 +1321,44 @@ def round_scores(trace: list[dict], r: dict, name: str) -> dict:
 
 
 def score_handoff(run: Run, trace: list[dict]) -> dict:
-    events = page_events(run.work / "page")
+    page = run.work / "page"
+    events = page_events(page)
     first_end = next(
         (i for i, d in enumerate(trace) if d["type"] == "result"), len(trace)
     )
-    handover = trace[first_end] if first_end < len(trace) else {}
+    handover = trace[first_end].get("result") or "" if first_end < len(trace) else ""
     status = (
         next((d["status"] for d in trace if d["type"] == "eval_status"), None) or {}
     )
     out = {
-        "served": handed_page_url(trace, handover.get("result") or ""),
+        "texts": {"handover": handover, "status": status.get("detail") or ""},
+        "served": handed_page_url(trace, handover),
         "checked": any("page check" in c for c in ran_between(trace, 0, first_end)),
         "handoff_waiting": status.get("state") == "waiting",
-        "detail_names_ask": check(
-            r"cop(y|ies)|backfill|approach|option|how .*run", status.get("detail") or ""
-        ),
         "watch_left_to_leaf": not any(waits_started(d) for d in trace[:first_end]),
-        "gesture_named": check(
-            r"\b(pick|choose|select|click)", handover.get("result") or ""
-        ),
     }
     rounds = live_rounds(trace)
     if rounds:
         r = rounds[0]
-        comment = posted_event(run.work / "page", attempt_key(0, 0))
-        _, html = active_html(run, run.work / "page")
+        comment = posted_event(page, attempt_key(0, 0))
+        _, document = active_document(run, page)
+        out["texts"]["dry-run"] = said(document.html).get("dry-run", "")
         out |= round_scores(trace, r, "edit") | {
             "edit_claimed": r["delivery"] is not None
             and r["end"] is not None
             and progress_shown(trace[r["delivery"] : r["end"]], events, comment["id"]),
             "edit_replied": bool(successful_replies(events, comment["id"])),
-            "edit_done": check(DRY_RUN_DONE, element_text(html, "dry-run")),
         }
     if len(rounds) > 1:
-        question = posted_event(run.work / "page", attempt_key(1, 0))
-        replies = successful_replies(events, question["id"])
-        out |= round_scores(trace, rounds[1], "question") | {
-            "question_answered": any(
-                check(r"snapshot", e.get("text", ""))
-                and check(r"\b40\b", e.get("text", ""))
-                for e in replies
-            ),
-        }
+        question = posted_event(page, attempt_key(1, 0))
+        out["texts"]["answers"] = answers(events, question["id"])
+        out |= round_scores(trace, rounds[1], "question")
     return out
+
+
+def answers(events: list[dict], message: str) -> str:
+    """The agent's successful replies to one message, for the judge."""
+    return "\n\n".join(e["text"] for e in successful_replies(events, message))
 
 
 def score_mixed(run: Run, trace: list[dict], browser: Browser) -> dict:
@@ -1362,11 +1377,20 @@ def score_mixed(run: Run, trace: list[dict], browser: Browser) -> dict:
         for e in pickup_receipts(events, phase="opened")
         if post_ids.intersection(e["events"])
     ]
-    fixture_words = len(
-        element_text((FIXTURES / "mixed.html").read_text(), "why-now").split()
-    )
-    state, html = active_html(run, page)
-    out = round_scores(trace, r, "batch") | {
+    fixture_words = len(said((FIXTURES / "mixed.html").read_text())["why-now"].split())
+    state, document = active_document(run, page)
+    words = said(document.html)
+    # Each suggestion's (old, new) words, and the comment its acceptance resolves.
+    suggestions = [
+        (
+            [collapse(old.text) for old in suggestion.select(":scope > lf-old")],
+            [collapse(new.text) for new in suggestion.select(":scope > lf-new")],
+            suggestion.attrs.get("resolves"),
+        )
+        for suggestion in document.tree.select("lf-suggestion")
+    ]
+    return round_scores(trace, r, "batch") | {
+        "texts": {"dry-run": words.get("dry-run", "")},
         # One delivery carried the whole round, including the page-authored error.
         "one_delivery": r["delivery"] is not None
         and len(batches) == 1
@@ -1375,33 +1399,25 @@ def score_mixed(run: Run, trace: list[dict], browser: Browser) -> dict:
         and r["end"] is not None
         and progress_shown(trace[r["delivery"] : r["end"]], events, comment["id"]),
         "comment_replied": bool(successful_replies(events, comment["id"])),
-        "comment_done": check(DRY_RUN_DONE, element_text(html, "dry-run")),
-        "stamped": len(state.get("versions", [])) >= 2,
-        # Leaf's own reading: the pick owes nothing more, and the user still sees it,
-        # as the markup's `chosen` or as their standing move.
-        "pick_answered": not any(
-            w.get("input") == pick["id"] for w in state.get("workflows", [])
-        )
-        and (
-            bool(re.search(r'<lf-option\b[^>]*\bid="opt-online"[^>]*\bchosen', html))
-            or any(
-                s["widget"] == "copy-mode" and s["detail"] == PICK["detail"]
-                for s in state.get("state", [])
-            )
+        "stamped": len(state["versions"]) >= 2,
+        # Leaf's own reading: the pick owes nothing more, and the ask still shows it
+        # answered with the user's option.
+        "pick_answered": not pick_owed(state, pick["id"])
+        and any(
+            ask["source"]["id"] == "copy-mode"
+            and (ask["answer"] or {}).get("value") == PICK["detail"]["value"]
+            for ask in state["asks"]
         ),
         # The reaction is acted on, by shortening the paragraph in place or by
         # proposing a shorter one as a suggestion, and closed, by the agent or by the
         # suggestion that `resolves` it once the user decides.
         "reaction_handled": (
-            0 < len(element_text(html, "why-now").split()) < 0.7 * fixture_words
+            0 < len(words.get("why-now", "").split()) < 0.7 * fixture_words
             or any(
-                "every dashboard that reads" in text(old)
-                and len(text(new).split()) < 0.7 * fixture_words
-                for old, new in re.findall(
-                    r"<lf-old\b.*?>(.*?)</lf-old\s*>\s*<lf-new\b.*?>(.*?)</lf-new\s*>",
-                    html,
-                    re.DOTALL,
-                )
+                any("every dashboard that reads" in o for o in old)
+                and new
+                and all(len(n.split()) < 0.7 * fixture_words for n in new)
+                for old, new, _ in suggestions
             )
         )
         and (
@@ -1411,14 +1427,13 @@ def score_mixed(run: Run, trace: list[dict], browser: Browser) -> dict:
                 and e["parent"] == reaction["id"]
                 for e in events
             )
-            or f'resolves="{reaction["id"]}"' in html
+            or any(resolves == reaction["id"] for _, _, resolves in suggestions)
         ),
         "reaction_unreplied": not successful_replies(events, reaction["id"]),
-        "undo_kept": "card-lag-alert" in column_cards(html, "col-open")
-        and column_cards(html, "col-done") == [],
+        "undo_kept": "card-lag-alert" in column_cards(document, "col-open")
+        and column_cards(document, "col-done") == [],
         "error_fixed": copy_summary_works(run, page, browser),
     }
-    return out
 
 
 def copy_summary_works(run: Run, page: Path, browser: Browser) -> bool:
@@ -1500,8 +1515,8 @@ def score_elided(run: Run, trace: list[dict]) -> dict:
         ),
         None,
     )
-    replies = successful_replies(events, question["id"])
     return out | {
+        "texts": {"answers": answers(events, question["id"])},
         # Validity: the delivery shortened the thread, as the case assumes.
         "shown_elided": any(
             re.search(r'\\?"elided\\?":\s*\{\\?"messages\\?":\s*[1-9]', delivery)
@@ -1514,9 +1529,6 @@ def score_elided(run: Run, trace: list[dict]) -> dict:
         else "resume"
         if premise < r["post"]
         else "delivery",
-        "answer_right": any(
-            check(r"\b22[:.]?00\b|\b10\s*p\.?m\b", e.get("text", "")) for e in replies
-        ),
         "titled": any(
             item["id"] == thread and item["title"] is not None
             for item in page_state(run, page)["threads"]
@@ -1531,6 +1543,7 @@ LIVE_SCORES = {"handoff": score_handoff, "elided": score_elided}
 
 # These declarations remain complete when a scorer exits early or a round never
 # arrives. Missing observations fail instead of silently shrinking the assertion set.
+# What a scenario judges by meaning is in `JUDGED` instead.
 CHECKS = {
     "cold-report": (
         "leaf_skill",
@@ -1553,39 +1566,26 @@ CHECKS = {
         "three_options",
         "single_choice",
         "no_sign_off",
-        "names_gesture",
     ),
     "near-miss": ("no_page", "leaf_skill_quiet"),
     "resume": (
-        "date",
-        "approach",
-        "next_batch",
-        "next_pick",
         "stamped",
         "source_valid",
         "batch_200",
         "batch_in_place",
-        "chosen_marked",
+        "pick_taken_in",
         "pick_standing",
         "no_restated",
         "replied",
     ),
     "constructs": (
-        "draft_read",
-        "p95_read",
-        "chart_read",
         "stamped",
-        "draft_date",
-        "draft_kept_user_words",
         "draft_restated",
         "p95_text",
         "p95_current",
         "source_kept",
-        "chart_85",
     ),
     "board": (
-        "doing_read",
-        "undo_read",
         "stamped",
         "doing_order",
         "todo_kept",
@@ -1604,9 +1604,6 @@ CHECKS = {
         "consumed",
     ),
     "shared-source": (
-        "finch_branch",
-        "finch_failing",
-        "wren_ahead",
         "source_unread",
         "finch_updated",
         "others_kept",
@@ -1617,21 +1614,17 @@ CHECKS = {
         "served",
         "checked",
         "handoff_waiting",
-        "detail_names_ask",
         "watch_left_to_leaf",
-        "gesture_named",
         "edit_delivered",
         "edit_watch_left_to_leaf",
         "edit_waiting",
         "edit_url",
         "edit_claimed",
         "edit_replied",
-        "edit_done",
         "question_delivered",
         "question_watch_left_to_leaf",
         "question_waiting",
         "question_url",
-        "question_answered",
     ),
     "mixed": (
         "batch_delivered",
@@ -1641,7 +1634,6 @@ CHECKS = {
         "one_delivery",
         "comment_claimed",
         "comment_replied",
-        "comment_done",
         "stamped",
         "pick_answered",
         "reaction_handled",
@@ -1656,7 +1648,6 @@ CHECKS = {
         "question_url",
         "shown_elided",
         "middle_read",
-        "answer_right",
         "titled",
         "summarized",
     ),
@@ -1696,9 +1687,7 @@ def checks_for(case: str, score: dict, phases: list[dict], usable: bool) -> dict
     }
 
 
-def score_run(
-    run: Run, traces: list[list[dict]], replies: list[str], calls: list[str]
-) -> dict:
+def score_run(run: Run, traces: list[list[dict]], calls: list[str]) -> dict:
     """Apply the scenario's semantic reading to its complete native trajectory."""
     if run.case == "mixed":
         with chrome() as browser:
@@ -1708,16 +1697,16 @@ def score_run(
     if run.case == "package":
         return score_package(run, traces[0])
     if run.case == "shared-source":
-        return score_shared_source(run, traces, replies)
+        return score_shared_source(run, traces)
     if run.case in COLD:
-        return score_cold(run, replies[-1] if replies else "", calls)
+        return score_cold(run, calls)
     if run.case.startswith("reading"):
         return {}
     if run.case == "board":
-        return score_board(run, replies)
+        return score_board(run)
     if run.case == "constructs":
-        return score_constructs(run, replies)
-    return score_resume(run, replies)
+        return score_constructs(run)
+    return score_resume(run)
 
 
 def execute_scenario(
@@ -1728,7 +1717,10 @@ def execute_scenario(
     harness: str = ClaudeCodeHarness.name,
     condition: str = "leaf",
 ) -> dict:
-    """One Promptfoo provider call owns all phases, live rounds, and evidence."""
+    """One Promptfoo provider call owns all phases, live rounds, and evidence.
+
+    `metadata.checks` answers each fixed check; `metadata.texts` holds each text a
+    `rubrics` judge reads: every phase's final message, and what the scorer read."""
     run = Run(case, payload, work, harness)
     with scratch() as child_work:
         execute(run, child_work)
@@ -1737,7 +1729,9 @@ def execute_scenario(
         replies = [p["reply"] for p in phases]
         calls = [c for p in phases for c in p["calls"]]
         usable = run.usable()
-        score = score_run(run, traces, replies, calls) if usable else {}
+        score = score_run(run, traces, calls) if usable else {}
+    texts = {f"reply-{n}": reply for n, reply in enumerate(replies, 1)}
+    texts |= score.pop("texts", {})
     checks = checks_for(case, score, phases, usable)
     usage = {
         field: count
@@ -1754,6 +1748,7 @@ def execute_scenario(
         **({"tokenUsage": usage} if usage else {}),
         "metadata": {
             "checks": checks,
+            "texts": texts,
             "diagnostics": {"score": score, "phases": phases},
         },
     }

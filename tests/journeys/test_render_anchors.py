@@ -334,7 +334,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
             + '<lf-code id="numbered" language="python" hi="2"><pre>'
             + escape(widget)
             + '</pre><lf-note at="2">This annotation is not source.</lf-note></lf-code>'
-            + '<lf-draft id="draft"><pre>Non-code data has no copy control.</pre></lf-draft>',
+            + '<lf-draft id="draft"><pre>A draft copies its own Markdown.</pre></lf-draft>',
             head="<style>#plain { anchor-name: --authored-plain; }"
             "#numbered.lf-rendered > pre { anchor-name: --authored-numbered; }</style>",
         )
@@ -342,7 +342,9 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     url = live_url(serve(document()))
     page = open_page(browser, url)
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
-    controls = page.locator(".lf-code-copy")
+    # The draft's control is its own (`lf-draft.js`); these are the code blocks'.
+    expect(page.locator("#draft > .lf-code-copy")).to_have_count(1)
+    controls = page.locator(".lf-code-copy:not(#draft > *)")
     expect(controls).to_have_count(3)
     document_controls = page.locator(".lf-chrome > .lf-code-copy")
     expect(document_controls).to_have_count(2)
@@ -415,6 +417,12 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
             # the block's aria-keyshortcuts.
             pre.focus()
             assert "copy code" in shortcut_bar_text(page)
+            # The corner control serves a pointer, so the banner keeps its own row.
+            expect(
+                page.locator(".lf-banner-actions").get_by_role(
+                    "button", name="Copy code", exact=True
+                )
+            ).to_have_count(0)
             expect(pre).to_have_attribute("aria-keyshortcuts", "Enter")
             page.keyboard.press("?")
             page.keyboard.press("?")
@@ -516,27 +524,36 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
         permissions=["clipboard-read", "clipboard-write"],
     )
     touch = open_page(browser, url, context=touch_context)
+    # A finger has no hover to show intent before it lands, so the corner control never
+    # draws over the code; standing on a block puts its Copy on the banner instead.
     touch_control = touch.locator(".lf-chrome > .lf-code-copy")
-    touch_button = touch_control.get_by_role("button")
-    expect(touch_control).to_have_css("opacity", "1")
-    expect(touch_button).to_have_accessible_name("Copy code")
+    expect(touch_control).to_have_count(1)
+    expect(touch_control).to_be_hidden()
+    banner_copy = touch.locator(".lf-banner-actions").get_by_role(
+        "button", name="Copy code", exact=True
+    )
+    expect(banner_copy).to_have_count(0)
     expect(touch.locator("#plain")).to_have_css("padding-top", "12px")
-    hit = touch_button.bounding_box()
-    assert hit and hit["width"] >= 44 and hit["height"] >= 44, hit
-    touch_button.tap()
-    expect(touch_button).to_have_accessible_name("Code copied")
-    assert touch.evaluate("navigator.clipboard.readText()") == plain
+
+    def copied(expected):
+        touch.wait_for_function(
+            "async (expected) => (await navigator.clipboard.readText()) === expected",
+            arg=expected,
+        )
+
     touch_pre = touch.locator("#plain")
     frame = touch_pre.bounding_box()
     touch_pre.tap(position={"x": 20, "y": 20})
     expect(touch_pre).to_be_focused()
     expect(touch_pre).to_have_attribute("tabindex", "0")
-    expect(touch_control).to_have_css("opacity", "0")
-    expect(touch_control).to_have_css("pointer-events", "none")
+    banner_copy.tap()
+    expect(touch.locator(".lf-notice")).to_have_text("Code copied")
+    copied(plain)
+    expect(touch_pre).to_be_focused()
     assert touch_pre.bounding_box() == frame
 
-    # The source owns a finger's horizontal swipe, even though the copy control
-    # initially occupied its first line. Focus must not cancel the native scroll.
+    # The source owns a finger's horizontal swipe. Focus must not cancel the native
+    # scroll.
     cdp = touch_context.new_cdp_session(touch)
     assert frame
     x, y = frame["x"] + frame["width"] - 60, frame["y"] + 20
@@ -567,8 +584,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
           const rect = range.getBoundingClientRect();
           const copy = document.querySelector('.lf-chrome > .lf-code-copy');
           const hit = document.elementFromPoint(rect.right - 2, rect.top + rect.height / 2);
-          return {opacity: getComputedStyle(copy).opacity,
-                  covered: hit === copy || copy.contains(hit),
+          return {covered: hit === copy || copy.contains(hit),
                   suffix: range.toString(),
                   start: [rect.left, rect.top + rect.height / 2],
                   end: [rect.right, rect.top + rect.height / 2],
@@ -576,7 +592,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
         }""",
             suffix,
         )
-        assert reading["opacity"] == "0" and not reading["covered"], reading
+        assert not reading["covered"], reading
         assert reading["suffix"] == suffix
         assert reading["frame"][0] < reading["start"][0]
         assert reading["end"][0] < reading["frame"][1]
@@ -586,12 +602,11 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
 
     select_suffix()
     touch.locator("#title").tap()
-    expect(touch_control).to_have_css("opacity", "1")
-    expect(touch_control).to_have_css("pointer-events", "auto")
+    expect(banner_copy).to_have_count(0)
     expect(touch_pre).to_have_attribute("tabindex", "0")
 
-    # A fitting dense line has the same reading route: its final characters must
-    # stay available even though they sit beneath the resting copy control.
+    # A fitting dense line ends where the corner control would stand: its final
+    # characters are readable and selectable on arrival, before any tap.
     fitting = touch_pre.evaluate(
         """(pre, suffix) => {
           const code = pre.querySelector('code');
@@ -616,32 +631,29 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
         "getComputedStyle(document.querySelector('#plain'), '::after').content === 'none'"
     )
     frame = touch_pre.bounding_box()
+    select_suffix()
     touch_pre.tap(position={"x": 20, "y": 20})
     expect(touch_pre).to_be_focused()
-    select_suffix()
-    touch.locator("#title").tap()
-    expect(touch_control).to_have_css("opacity", "1")
-    touch_pre.tap(position={"x": 20, "y": 20})
-    expect(touch_control).to_have_css("opacity", "0")
-    # The control refuses a second copy until its last result has shown.
-    expect(touch_button).to_have_accessible_name("Copy code")
     touch.keyboard.press("Enter")
-    expect(touch_button).to_have_accessible_name("Code copied")
-    assert touch.evaluate("navigator.clipboard.readText()") == fitting
+    copied(fitting)
     expect(touch_pre).to_be_focused()
     expect(touch_pre).to_have_attribute("tabindex", "0")
     assert touch_pre.bounding_box() == frame
 
-    # A wrapping widget has no authored stop to retain. Its touch focus is lent
-    # for the reading gesture and disappears when the user leaves its source.
+    # A wrapping widget's block has no authored stop to retain. Its touch focus is lent
+    # for the reading gesture, carries the same Copy step, and disappears when the user
+    # leaves its source.
     numbered_pre = touch.locator("#numbered > pre")
     assert numbered_pre.get_attribute("tabindex") is None
+    expect(touch.locator("#numbered > .lf-code-copy")).to_be_hidden()
     numbered_pre.tap(position={"x": 20, "y": 20})
     expect(numbered_pre).to_be_focused()
-    expect(touch.locator("#numbered > .lf-code-copy")).to_have_css("opacity", "0")
+    touch.evaluate("navigator.clipboard.writeText('cleared')")
+    banner_copy.tap()
+    copied(widget)
     touch.locator("#title").tap()
     expect(numbered_pre).not_to_have_attribute("tabindex")
-    expect(touch.locator("#numbered > .lf-code-copy")).to_have_css("opacity", "1")
+    expect(banner_copy).to_have_count(0)
 
 
 def test_a_revised_example_travels_between_its_own_versions(browser, serve):

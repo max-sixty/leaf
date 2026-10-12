@@ -385,12 +385,14 @@ test("page obligations come from the shown revision, not a waiting activation", 
   const shown = reading({ pageAsks: [ask("shown")] });
   const waiting = reading({ pageAsks: [ask("waiting")] });
   const selected = semanticNewsReading({
-    effective: { view: { document: shown.page } },
+    effective: { view: { document: shown.page, thread: shown.thread } },
     authoritative: {
       active: { revision: 2 },
       browser: {
-        views: { 1: { document: shown.page }, 2: { document: waiting.page } },
-        thread: shown.thread,
+        views: {
+          1: { document: shown.page, thread: shown.thread },
+          2: { document: waiting.page, thread: waiting.thread },
+        },
       },
       workflows: [],
       activity: shown.activity,

@@ -30,10 +30,13 @@
     }
     /* Copy's corner is reserved before upgrade, as the footer is, so words never run
        under it and wrap where they first painted: the control's size and inset, and a
-       6px gap, less the box's own padding and border. */
-    :scope:is(lf-draft):not(:where([data-lf-exhibit], [data-lf-exhibit] *))
-      > :not(.lf-draft-footer, .lf-code-copy) {
-      margin-right: calc(var(--lf-code-copy-size) + var(--lf-code-copy-inset) + 6px - 14px - 1px);
+       6px gap, less the box's own padding and border. A finger is offered Copy on the
+       banner instead, so it keeps the full measure. */
+    @media not (pointer: coarse) {
+      :scope:is(lf-draft):not(:where([data-lf-exhibit], [data-lf-exhibit] *))
+        > :not(.lf-draft-footer, .lf-code-copy) {
+        margin-right: calc(var(--lf-code-copy-size) + var(--lf-code-copy-inset) + 6px - 14px - 1px);
+      }
     }
   }
   :scope:is(lf-draft):has(.lf-draft-edit) { border-color: var(--muted); }

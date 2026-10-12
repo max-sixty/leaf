@@ -1,18 +1,24 @@
 /* Blocks of source text own a copy control at their top right: every document code
    block, and any widget block that asks with `copyBlock`, such as a code listing or a
    draft's Markdown. Document controls stand in chrome so authored sibling selectors
-   keep their meaning. Their sources read their current code on activation; widgets
+   keep their meaning. Their sources read their current text on activation; widgets
    supply their source before rendering line numbers, annotations, or other words. CSS
    anchors keep the control at the block's right edge without wrapping authored nodes
-   or moving them on arrival.
-   Widgets connect their final styled block before requesting the control. On touch,
-   entering the source focuses it and hides the overlay, leaving covered words
-   available to read and select. Leaving the source restores the copy control.
-   Enter on a document code block copies it. That press is a register row projected
-   onto the block beside any scope its owner declares, so the shortcut bar, the command
-   reference and `aria-keyshortcuts` name it. A link or button inside the code keeps its
-   own Enter (`nativeActivationAt`), and the control stays out of the Tab sequence. Focus
-   need not be on the control, so every copy's result also takes the status line. */
+   or moving them on arrival. Widgets connect their final styled block before
+   requesting the control.
+   Enter on a block the user stands on copies it. That press is a register row
+   projected onto the block beside any scope its owner declares, so the shortcut bar, the
+   command reference and `aria-keyshortcuts` name it, and its `touch` words make it the
+   banner's step under a finger (keyboard/AGENTS.md, "Touch routes"). A link or button
+   inside the block keeps its own Enter (`nativeActivationAt`), and a document block's
+   control stays out of the Tab sequence. Focus need not be on the control, so every
+   copy's result also takes the status line.
+   A finger shows no intent before it lands, so a live page never shows the control to
+   one: shown at rest it covered the ends of the first lines, and room made for it would
+   move the page's content (`../AGENTS.md`, "Nothing Leaf draws moves the page's content").
+   Entering the source by touch stands the user on it, and the banner offers its Copy. An
+   export has no banner, so there the control stays shown to a finger and hides while
+   the user stands in the source. */
 import { offer } from "./widget-elements.js";
 import { watchArrivals } from "./arrivals.js";
 import {
@@ -80,8 +86,29 @@ function positionCodeBlock({ copy, near, anchor }) {
   return copy;
 }
 
+// Declared on each arrival, since leaving withdraws it. A widget renders a new block
+// each time, and the register forgets one that leaves the document.
+function declareCopy(pre, copy, noun) {
+  projectCommandScope(
+    pre,
+    COPY_SCOPE,
+    commandScope("On a code block", [
+      {
+        id: "code.copy",
+        keys: ["Enter"],
+        description: `Copy this block's ${noun} to the clipboard`,
+        title: `copy ${noun}`,
+        touch: `Copy ${noun}`,
+        run: () => copy.shadowRoot.querySelector("button").click(),
+      },
+    ]),
+  );
+}
+
 export function copyBlock(block, source, noun) {
-  return positionCodeBlock(prepareCodeBlock(block, source, noun));
+  const copy = positionCodeBlock(prepareCodeBlock(block, source, noun));
+  declareCopy(block, copy, noun);
+  return copy;
 }
 
 export function watchCodeBlocks() {
@@ -110,6 +137,7 @@ export function watchCodeBlocks() {
         if (!wired.has(pre)) {
           const events = new AbortController();
           wired.set(pre, events);
+          declareCopy(pre, copy, "code");
           const options = { signal: events.signal };
           // Let the browser continue Tab from the source's document position,
           // rather than from this control's later position in chrome.
@@ -119,19 +147,6 @@ export function watchCodeBlocks() {
               if (event.key === "Tab") focusDestination(pre, "step");
             },
             options,
-          );
-          projectCommandScope(
-            pre,
-            COPY_SCOPE,
-            commandScope("On a code block", [
-              {
-                id: "code.copy",
-                keys: ["Enter"],
-                description: "Copy this block's code to the clipboard",
-                title: "copy code",
-                run: () => copy.shadowRoot.querySelector("button").click(),
-              },
-            ]),
           );
           pre.addEventListener(
             "pointerenter",

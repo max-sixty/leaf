@@ -4,12 +4,13 @@ import base64
 import re
 
 import pytest
-from interact_support import append_carried_log_record
+from interact_support import append_carried_log_record, stamp
 from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ASK_PAGE,
     ASK_WITH_CONTEXT_PAGE,
+    live_url,
 )
 from render_cases_layout import (
     button_radius,
@@ -66,9 +67,15 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
         "button", name="Add and select option", exact=True, include_hidden=True
     )
 
+    # The field reads the option's line as a resolved length, which keeps only layout
+    # precision (1/64px), so the line heights agree to that.
     typography = """el => { const s = getComputedStyle(el);
-                             return [s.fontFamily, s.fontSize, s.lineHeight]; }"""
-    assert field.evaluate(typography) == option.evaluate(typography)
+                             return [s.fontFamily, s.fontSize, parseFloat(s.lineHeight)]; }"""
+
+    def same_face(a, b):
+        return a[:2] == b[:2] and a[2] == pytest.approx(b[2], abs=1 / 64)
+
+    assert same_face(field.evaluate(typography), option.evaluate(typography))
     option_text_x = option.evaluate(
         """el => {
              const text = [...el.childNodes].find(
@@ -87,7 +94,7 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
 
     card_words = page.locator("#br-steel > strong")
     card_field = page.locator("#bracket > .lf-another leaf-text")
-    assert card_field.evaluate(typography) == card_words.evaluate(typography)
+    assert same_face(card_field.evaluate(typography), card_words.evaluate(typography))
     assert abs(card_field.bounding_box()["x"] - card_words.bounding_box()["x"]) < 0.5
 
     expect(add).to_have_text("")
@@ -290,6 +297,49 @@ def test_a_pick_made_while_an_option_is_in_flight_cannot_strand_it(held_events, 
     expect(field).to_have_js_property("value", "")
     assert stored_draft_text(page, "option:jobs") is None
     expect(page.locator("#jobs > lf-option[data-lf-added]")).to_have_count(1)
+
+
+@pytest.mark.parametrize("group", ["jobs", "bracket"])
+def test_an_added_option_keeps_the_row_its_field_held(browser, serve, group):
+    """The option the user writes lands in the row its field held, and stays there.
+
+    Submitting resizes nothing, in the titled cards as in the compact rows: the
+    field already wears the inset of the option it becomes. A later version leaves
+    the option out of its markup, as the instructions ask, and the page keeps it
+    after the authored options where the user put it, so no revision moves it.
+    """
+    page = open_page(browser, live_url(serve(ASK_PAGE)))
+    form = page.locator(f"#{group} > .lf-another")
+    field = form.get_by_role("textbox", name="Another option", exact=True)
+    write(field, "Ask the neighbours first")
+    # The row inside the hairline any cell but the last draws under itself.
+    inner = """el => { const r = el.getBoundingClientRect();
+                       const s = getComputedStyle(el);
+                       return [r.y, r.height - parseFloat(s.borderBottomWidth)]; }"""
+    row = form.evaluate(inner)
+    page.keyboard.press("Enter")
+    added = page.locator(f"#{group} > lf-option[data-lf-added]")
+    expect(added).to_have_attribute("chosen", "")
+    round_trip(page)
+    assert added.evaluate(inner) == pytest.approx(row, abs=0.5)
+    authored = page.locator(f"#{group} > lf-option:not([data-lf-added])").evaluate_all(
+        "options => options.map(option => option.id)"
+    )
+    order = (
+        f"() => [...document.querySelectorAll('#{group} > lf-option')].map(o => o.id)"
+    )
+    added_id = added.get_attribute("id")
+    assert page.evaluate(order) == [*authored, added_id]
+
+    (serve.page_dir / "index.html").write_text(
+        ASK_PAGE.replace("Plastic, and one came", "Plastic, and the second came")
+    )
+    assert stamp(serve.page_dir, "Revised the mounts").exit_code == 0
+    told(page)
+    expect(page.locator("#mounts-p")).to_contain_text("the second came")
+    assert page.evaluate(order) == [*authored, added_id]
+    assert added.evaluate(inner) == pytest.approx(row, abs=0.5)
+    expect(added).to_have_attribute("chosen", "")
 
 
 PASTE_IMAGE = """(textarea, encoded) => {

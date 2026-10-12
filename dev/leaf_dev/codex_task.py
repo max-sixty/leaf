@@ -94,12 +94,13 @@ class Task:
         while (left := deadline - time.monotonic()) > 0:
             self.receive(left)
 
-    def say(self, text: str) -> str:
-        """Type one user turn and return its id."""
-        started = self.request(
-            "turn/start",
-            {"threadId": self.thread, "input": [{"type": "text", "text": text}]},
-        )
+    def say(self, text: str, output_schema: dict | None = None) -> str:
+        """Type one user turn and return its id. `output_schema` holds the turn's
+        final answer to that JSON Schema."""
+        params = {"threadId": self.thread, "input": [{"type": "text", "text": text}]}
+        if output_schema is not None:
+            params["outputSchema"] = output_schema
+        started = self.request("turn/start", params)
         return started["turn"]["id"]
 
 

@@ -661,6 +661,12 @@ def page_state(d):
     return served_page.full_state(d, events)
 
 
+def served_thread(browser: dict) -> dict:
+    """The frozen threads as the one view `browser` serves reads them."""
+    [view] = browser["views"].values()
+    return view["thread"]
+
+
 @pytest.fixture
 def native_codex_chat(tmp_path):
     """Publish a native chat's validated source through its ordinary prompt hook."""

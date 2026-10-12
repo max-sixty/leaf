@@ -17,8 +17,9 @@ const sheets = JSON.parse(carrier.textContent);
 // specificity, scope proximity, then order rank their rules, below Layouts, semantic
 // state and the page's own stylesheet. Shared shadow rules use `lf-shadow` above
 // these adopted defaults and below semantic state.
-// The chrome and marks sheets stay unlayered: their paint
-// lies over the page and must beat page and widget alike (chrome.css).
+// Chrome and apparatus marks stay unlayered so their paint beats page and widget
+// alike. The marks sheet's indication default uses lf-base so widgets can choose
+// their own indication face (marks.css).
 export const inBaseLayer = (text) => `@layer lf-base {\n${text}\n}`;
 
 export function constructSheet(text, name) {

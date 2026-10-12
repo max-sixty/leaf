@@ -38,7 +38,7 @@ from .files import (
     version_revisions,
 )
 from .interaction_log import append_interactions, client_records
-from .layer import incompatible_layer
+from .layer import incompatible_layer, running_leaf, same_leaf
 from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
 from .passages import SourceReading
@@ -411,8 +411,15 @@ class PageEndpoint:
         write this response itself made, and the tab would be told to ask again for
         what it was just handed. Between the two, the worst case is a token already
         stale on arrival, which costs one more request and no news.
+
+        Where the Leaf this server runs is another than the one that vendored the
+        page, `leaf` names it, and the banner shows it beside the page's own
+        (`AGENTS.md`, "Pages across Leaf updates").
         """
-        return self._state_service().page_state(view_revision)
+        state = self._state_service().page_state(view_revision)
+        if not same_leaf(state["layer"].get("producer", {}), self.server.leaf):
+            state["leaf"] = self.server.leaf
+        return state
 
     def page_browser_view(self, view_revision: int, through_seq: int) -> dict:
         """One revision projected at an exact already-observed log boundary."""
@@ -1331,9 +1338,12 @@ def page_app(endpoint, server):
     between two of them. The routes are ordinary blocking code — page transactions,
     log reads, atomic writes — so they run on the serving loop's worker threads.
     Each answer completes rather than keeping a per-document HTTP connection open.
+    The Leaf the server runs is read here, as it is built, rather than at its first
+    request, after which its checkout may have moved on (`layer.running_leaf`).
     """
 
     server.samples = Samples()
+    server.leaf = running_leaf()
 
     async def app(scope, receive, send) -> None:
         if scope["type"] != "http":

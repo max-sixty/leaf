@@ -436,6 +436,17 @@ const payloadDateLines = (provenance) =>
   ["committed", "installed"]
     .filter((kind) => provenance[kind])
     .map((kind) => `${kind}: ${provenance[kind]}`);
+// A payload's commit as the banner names it, `+` marking uncommitted changes.
+const shortCommit = (provenance) =>
+  provenance.commit
+    ? `${provenance.commit.slice(0, 8)}${provenance.dirty ? "+" : ""}`
+    : "unknown";
+// Another payload's diagnostics, each line led by how it relates to the page.
+const otherPayloadLines = (relation, provenance) => [
+  ...(provenance.commit ? [`${relation} commit: ${provenance.commit}`] : []),
+  ...(provenance.dirty !== undefined ? [`${relation} dirty: ${provenance.dirty}`] : []),
+  ...payloadDateLines(provenance).map((line) => `${relation} ${line}`),
+];
 
 let previewMarginEntry = null;
 let previewMarginEntryCopy = null;
@@ -449,7 +460,12 @@ function renderPreview(state) {
   const kind = preview.interaction === "user" ? "User" : "Preview";
   const stem = `${kind} · ${preview.checkout}${preview.commit ? `@${preview.commit}` : ""}`;
   const age = payloadAge(preview);
-  const label = `${preview.commit && preview.dirty ? `${stem}+` : stem}${age ? ` · ${age}` : ""}`;
+  // The preview names the checkout and the Leaf that vendored the page
+  // (`preview_metadata`). Where another Leaf serves it (`state.leaf`), that follows.
+  const served = state.leaf
+    ? ` · served by ${shortCommit(state.leaf)}${payloadAge(state.leaf) ? ` · ${payloadAge(state.leaf)}` : ""}`
+    : "";
+  const label = `${preview.commit && preview.dirty ? `${stem}+` : stem}${age ? ` · ${age}` : ""}${served}`;
   const safeUrl = new URL(location.href);
   safeUrl.searchParams.delete("t");
   previewDiagnostics = [
@@ -460,6 +476,7 @@ function renderPreview(state) {
     ...(preview.commit ? [`commit: ${preview.commit}`] : []),
     ...(preview.dirty !== undefined ? [`dirty: ${preview.dirty}`] : []),
     ...payloadDateLines(preview),
+    ...(state.leaf ? otherPayloadLines("served by", state.leaf) : []),
     `started: ${preview.started}`,
     `layer generation: ${state.layer.generation}`,
     ...(state.layer.fingerprint
@@ -498,7 +515,10 @@ function renderPreview(state) {
 // The vendored layer is the Leaf version this page actually runs. It can remain older
 // than the plugin now installed in the harness, so this reads the provenance captured by
 // `page init` rather than a live package or server version. Pages built outside Git
-// retain a stable identity through the composed layer fingerprint.
+// retain a stable identity through the composed layer fingerprint. Where another Leaf
+// serves the page (`state.leaf`), it stands beside the page's own with its age, so
+// whoever meets a problem can tell how far apart the two are (AGENTS.md, "Pages
+// across Leaf updates").
 let layerReferenceElement = null;
 let layerReferenceElementCopy = null;
 let layerDiagnostics = "";
@@ -510,11 +530,14 @@ function renderLayerReference(state) {
     ? `${producer.commit}${producer.dirty ? "+" : ""}`
     : fingerprint && `sha256:${fingerprint.replace(/^sha256:/, "").slice(0, 12)}`;
   if (!fullIdentity) return;
-  const identity = producer.commit
-    ? `${producer.commit.slice(0, 8)}${producer.dirty ? "+" : ""}`
-    : fullIdentity;
+  const identity = producer.commit ? shortCommit(producer) : fullIdentity;
   const age = payloadAge(producer);
   const dateLines = payloadDateLines(producer);
+  // Present only where the serving Leaf is another than the page's (`http.page_state`).
+  const served = state.leaf;
+  const serverIdentity = served && shortCommit(served);
+  const serverAge = served && payloadAge(served);
+  const serverLines = served ? otherPayloadLines("served by", served) : [];
   const safeUrl = new URL(location.href);
   safeUrl.searchParams.delete("t");
   layerDiagnostics = [
@@ -522,6 +545,7 @@ function renderLayerReference(state) {
     ...(producer.commit ? [`commit: ${producer.commit}`] : []),
     ...(producer.dirty !== undefined ? [`dirty: ${producer.dirty}`] : []),
     ...dateLines,
+    ...serverLines,
     ...(fingerprint ? [`fingerprint: ${fingerprint}`] : []),
     `generation: ${state.layer.generation}`,
     ...(state.active ? [`revision: ${state.active.revision}`] : []),
@@ -543,12 +567,26 @@ function renderLayerReference(state) {
     });
   }
   layerReferenceElementCopy.value = layerDiagnostics;
-  const named = `Leaf ${identity}${age ? ` · ${age}` : ""}`;
+  const servedBy = served
+    ? ` · served by ${serverIdentity}${serverAge ? ` · ${serverAge}` : ""}`
+    : "";
+  const named = `Leaf ${identity}${age ? ` · ${age}` : ""}${servedBy}`;
   layerReferenceElementCopy.copyLabel = `${named} · copy version`;
   render(
-    html`Leaf <code class="lf-layer-version">${identity}</code>${
-        age ? ` · ${age}` : nothing
-      }`,
+    served
+      ? // Two lines, each its own Leaf, since the menu is too narrow for both on one.
+        html`<span class="lf-layer-line"
+            >Leaf <code class="lf-layer-version">${identity}</code>${
+              age ? ` · ${age}` : nothing
+            }</span
+          ><span class="lf-layer-line"
+            >served by <code class="lf-layer-version">${serverIdentity}</code>${
+              serverAge ? ` · ${serverAge}` : nothing
+            }</span
+          >`
+      : html`Leaf <code class="lf-layer-version">${identity}</code>${
+            age ? ` · ${age}` : nothing
+          }`,
     layerReferenceElement,
   );
   keeps(
@@ -556,6 +594,7 @@ function renderLayerReference(state) {
     "title",
     [
       ...dateLines,
+      ...serverLines,
       producer.dirty
         ? "+ means this layer includes uncommitted changes · copy diagnostics"
         : "Copy Leaf layer version and diagnostics",

@@ -14,6 +14,7 @@ import { nextRender } from "./rendering.js";
 import { holdFocus } from "./focus.js";
 import { fragmentId } from "./initial-render.js";
 import { sameAnchor } from "./anchor-coordinate.js";
+import { sectionLabel } from "./addressable-names.js";
 import { createAnchorNoteProjection } from "./anchor-note-view.js";
 import { shelve, unshelve } from "./details-shelf.js";
 import {
@@ -35,7 +36,7 @@ import {
 } from "./anchor-resolution.js";
 import { registerContribution } from "./contributions.js";
 import { commandScope } from "./keyboard/scopes.js";
-import { inChrome, pageQueryAll } from "./passages.js";
+import { elementById, inChrome, pageQueryAll } from "./passages.js";
 import { pagePresented } from "./page-paint.js";
 import { registry } from "./registry.js";
 import { shadowHost, upFrom } from "./shadow.js";
@@ -111,7 +112,7 @@ export function createAnchorControls({
       const targets = [
         {
           anchor: { section: found.id },
-          label: labelAnchor({ section: found.id }).replace(/^§\s*/, "") || found.id,
+          label: sectionLabel(elementById(found.id)) || found.id,
         },
         ...visualParts(candidate)
           .filter((part) => unclaimedVisualGesture(part.element))

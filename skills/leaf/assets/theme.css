@@ -846,11 +846,8 @@ lf-suggestion:has(> :is(lf-old, lf-new) > :not(a, abbr, area, audio, b, bdi, bdo
     padding: 2px 10px;
     margin-top: 10px;
     --lf-block-frame: 1;
+    transition: padding var(--lf-motion-fold) ease;
   }
-}
-lf-old,
-lf-new {
-  transition: padding var(--lf-motion-fold) ease;
 }
 lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   background: none;

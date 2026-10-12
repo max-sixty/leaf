@@ -388,9 +388,9 @@ A module that hides or replaces nodes the user may be standing in, as a re-rende
 that rebuilds a row does, calls `holdFocus(scope)` before the change and the function it
 returns after it; moves keep the user's place themselves (**Template rendering**). The
 returned function puts the user back on the node, with its caret, or on the first drawn
-stand-in it is passed, such as the replacement keyed on the same identity. It does nothing once focus was
-placed elsewhere in the meantime, and `holdFocus` returns `null` where the user stands
-outside `scope`. A list of keyed items passes `holdFocus(list, { key })`, naming the
+stand-in it is passed, such as the replacement keyed on the same identity. It does
+nothing once focus was placed elsewhere in the meantime, and `holdFocus` returns `null`
+where the user stands outside `scope`. A list of keyed items passes `holdFocus(list, { key })`, naming the
 attribute each item carries: the restore then lands on the item keyed the same, or the
 nearest that survived, and on the control in it like the one the user stood on.
 

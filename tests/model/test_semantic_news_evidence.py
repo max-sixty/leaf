@@ -1,6 +1,11 @@
 """Response identities exposed by the canonical browser activity readings."""
 
-from interact_support import append_carried_log_record, page_state, publish
+from interact_support import (
+    append_carried_log_record,
+    page_state,
+    publish,
+    served_thread,
+)
 from leaf import activity, thread
 
 
@@ -90,7 +95,7 @@ def test_user_prompt_names_the_latest_question_content_version(page_dir):
             "text": "Still checking.",
         },
     )
-    [thread] = page_state(page_dir)["browser"]["thread"]["threads"]
+    [thread] = served_thread(page_state(page_dir)["browser"])["threads"]
     assert thread["user_prompt"] == {"message": first["id"], "version": first["id"]}
 
     second = append_carried_log_record(
@@ -114,5 +119,5 @@ def test_user_prompt_names_the_latest_question_content_version(page_dir):
             "text": "Reworded second question?",
         },
     )
-    [thread] = page_state(page_dir)["browser"]["thread"]["threads"]
+    [thread] = served_thread(page_state(page_dir)["browser"])["threads"]
     assert thread["user_prompt"] == {"message": second["id"], "version": edited["id"]}

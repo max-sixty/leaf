@@ -31,10 +31,10 @@ const state = (reading) => ({
   browser: {
     basis: { through_seq: 0 },
     receipts: [],
-    thread: { threads: [], projection: emptyProjection(), asks: noAsks() },
     views: {
       1: {
         basis: { revision: 1, through_seq: 0 },
+        thread: { threads: [], projection: emptyProjection(), asks: noAsks() },
         coverage: [],
         undo: [],
         document: { asks: noAsks(), projection: emptyProjection() },

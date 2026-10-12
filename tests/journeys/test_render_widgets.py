@@ -64,11 +64,11 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     one at a time. Where the set holds both the list is a column left of the open panel,
     walked down as well as across; on a phone it is one row above the panel, scrolled
     sideways, so the open item never lands below the whole queue. A row carries its
-    panel's summary under its name, and once its item's Ask is answered, a check and
-    the picked option's title beside the name, said in the tab's description too.
-    Answered is the log's reading, so an undo takes them off once its answer is
-    adopted, and the agent settling the question keeps them on. Answering moves no
-    row. A tab's name is its label whatever the row shows, and a panel bounds what it
+    panel's summary under its name, and beside the name its item's ask state: an open
+    mark while the ask is unanswered, then a check and the picked option's title, said
+    in the tab's description too. Answered is the log's reading, so an undo puts the
+    open mark back once its answer is adopted, and the agent settling the question
+    keeps the check. Answering moves no row. A tab's name is its label whatever the row shows, and a panel bounds what it
     holds."""
 
     BOARD = (
@@ -122,7 +122,9 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     tabs = page.get_by_role("tab")
     expect(tabs.first).to_have_accessible_name("Ticket a")
     expect(tabs.first).to_have_text("Ticket asev a · suggested fix")
-    expect(tabs.first).to_have_accessible_description("sev a · suggested fix")
+    expect(tabs.first).to_have_accessible_description(
+        "sev a · suggested fix. Unanswered"
+    )
     rows = (
         "() => [...document.querySelectorAll('#queue .lf-tab-btn')]"
         ".map((b) => b.getBoundingClientRect().height)"
@@ -135,7 +137,8 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     expect(tabs.first).to_have_attribute("aria-selected", "true")
 
     answer = page.locator("#queue .lf-tab-btn").first.locator(".lf-tab-answer")
-    expect(answer).not_to_be_visible()
+    expect(answer).to_have_attribute("data-lf-asks", "open")
+    expect(answer).to_have_text("")
     page.locator("#o-a-fix .lf-pick").click()
     told(page)
     expect(answer).to_be_visible()
@@ -144,7 +147,9 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     expect(tabs.first).to_have_accessible_description(
         "sev a · suggested fix. Answered: Fix"
     )
-    expect(tabs.nth(1)).to_have_accessible_description("sev b · suggested fix")
+    expect(tabs.nth(1)).to_have_accessible_description(
+        "sev b · suggested fix. Unanswered"
+    )
     assert page.evaluate(rows) == heights
     page.keyboard.press("Tab")
     tabs.first.focus()
@@ -184,12 +189,15 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     page.route("**/api/event", lambda route: held.append(route))
     page.keyboard.press("z")
     holding(page, held, 1, "the undo")
-    expect(answer).to_be_visible()
+    expect(answer).to_have_attribute("data-lf-asks", "answered")
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
-    expect(answer).not_to_be_visible()
-    expect(tabs.first).to_have_accessible_description("sev a · suggested fix")
+    expect(answer).to_have_attribute("data-lf-asks", "open")
+    expect(answer).to_have_text("")
+    expect(tabs.first).to_have_accessible_description(
+        "sev a · suggested fix. Unanswered"
+    )
 
     page.locator("#o-a-fix .lf-pick").click()
     round_trip(page)

@@ -80,12 +80,12 @@
     "contracts": {}
   },
   "$events": {
-    "protocol": 2,
+    "protocol": 3,
     "ownership": {
       "derived": ["meaning", "attention"],
       "browser_discard": ["id", "author", "agent", "session", "ts", "seq", "attention"]
     },
-    "description": "Leaf's fixed kernel event contract. Each kind carries the closed `record` schema for the complete event read from the log. Admission stamps the server-owned boolean `attention` from the change to canonical answers, work in hand (a started update or an open to-do on a thread or widget) and its inputs, or sign-off approval; reports and errors always carry it. Carriers select this recorded meaning rather than classifying event kinds. A `browser` schema opts that kind into POST /api/event and adds the browser writer's assertions. `ownership.derived` names fields admission supplies; `ownership.browser_discard` names fields browser ingress removes before validation. Layers extend widget behavior through x-state; they cannot change transport kinds or field ownership. `protocol` numbers this contract together with the reading the server serves the page's runtime. A Leaf serves and writes only a page whose vendored `protocol` is its own, admitting the page's events against its own kinds, so a change a page vendored at the same number would break on, such as a dropped or newly required field, bumps it. A kind declaring `bookkeeping` records a fact about the user's view of the page rather than an update: it never asks the agent for anything, and the browser sends it outside the ordered gesture queue, so it neither waits behind a gesture nor holds one back. A `pickup` is the page-owned durable transport fact that named attention-bearing inputs reached their next consumer, or with phase `failed` and a harness `failure` code that the harness gave up on them with no answer coming; it is never a claim that work has begun. A `comment` or `reply` carrying `token` instead of `text` is a reaction — one word from $reactions, aimed where the comment's anchor or the reply's parent points, or with neither at the page whole. It starts as a mark rather than a thread: no thread opens until someone replies to it, `resolve` on it is the floor after which it stops painting, and while nothing has answered it the user takes it back with an ordinary `undo` naming it. `handling` and `answering` remain layer-owned. `handling` holds, per kernel kind, an ordered list of clauses, each a `text` and an optional `when` JSON Schema; `answering` holds the same per answer kind (`reply`, `markup`), for the event that owes that answer. A `when` matches the delivered event: its record plus the `answer` it owes and its `thread`'s entry in the batch's digest, each if any, so a clause states one case plainly rather than naming a condition the delivery already settles. What differs by route is not a clause: the delivery states once who acknowledges it, and names its `writer` as `turn` where the turn carrying it writes the reply. Each delivered event carries its kind's matching clauses and then its answer's, so an event is told only its own case and only the answer it owes, and a later layer may restate one kind at a time.",
+    "description": "Leaf's fixed kernel event contract. Each kind carries the closed `record` schema for the complete event read from the log. Admission stamps the server-owned boolean `attention` from the change to canonical answers, work in hand (a started update or an open to-do on a thread or widget) and its inputs, or sign-off approval; reports and errors always carry it. Carriers select this recorded meaning rather than classifying event kinds. A `browser` schema opts that kind into POST /api/event and adds the browser writer's assertions. `ownership.derived` names fields admission supplies; `ownership.browser_discard` names fields browser ingress removes before validation. Layers extend widget behavior through x-state; they cannot change transport kinds or field ownership. `protocol` numbers this contract together with the reading the server serves the page's runtime. A Leaf serves and writes only a page whose vendored `protocol` is its own, admitting the page's events against its own kinds, so a change a page vendored at the same number would break on, such as a dropped or newly required field, bumps it. A kind declaring `bookkeeping` records a fact about the user's view of the page rather than an update: it never asks the agent for anything, and the browser sends it outside the ordered gesture queue, so it neither waits behind a gesture nor holds one back. A `pickup` is the page-owned durable transport fact that named attention-bearing inputs reached their next consumer, or with phase `failed` and a harness `failure` code that the harness gave up on them with no answer coming; it is never a claim that work has begun. Its optional `refs` maps each input its delivery owed an answer to the exact `answer.ref` that delivery gave it and the `claim` the delivery was captured under. A `comment` or `reply` carrying `token` instead of `text` is a reaction — one word from $reactions, aimed where the comment's anchor or the reply's parent points, or with neither at the page whole. It starts as a mark rather than a thread: no thread opens until someone replies to it, `resolve` on it is the floor after which it stops painting, and while nothing has answered it the user takes it back with an ordinary `undo` naming it. `handling` and `answering` remain layer-owned. `handling` holds, per kernel kind, an ordered list of clauses, each a `text` and an optional `when` JSON Schema; `answering` holds the same per answer kind (`reply`, `markup`), for the event that owes that answer. A `when` matches the delivered event: its record plus the `answer` it owes and its `thread`'s entry in the batch's digest, each if any, so a clause states one case plainly rather than naming a condition the delivery already settles. What differs by route is not a clause: the delivery states once who acknowledges it, and names its `writer` as `turn` where the turn carrying it writes the reply. Each delivered event carries its kind's matching clauses and then its answer's, so an event is told only its own case and only the answer it owes, and a later layer may restate one kind at a time.",
     "handling": {
       "comment": [
         {
@@ -359,7 +359,7 @@
               }
             ]
           },
-          "text": "When you write it into the markup, the added option becomes an ordinary lf-option in the group, keeping the id and words the event gives."
+          "text": "Every later version keeps the added option in its group where the user put it, after the authored options, so leave it out of the markup."
         },
         {
           "when": {
@@ -479,7 +479,7 @@
       ],
       "markup": [
         {
-          "text": "It answers the page's ask, so the page shows it as waiting on you until the markup records it. Name the work it selects or unblocks with `leaf task start <page> <event-id> \"<the work, in a line>\"` before starting it, then do it, write it in, and stamp a version."
+          "text": "It answers the page's ask, so the page shows it as waiting on you until the markup records it. Name the work it selects or unblocks with `leaf task start <page> <event-id> \"<the work, in a line>\"` before starting it, then do it, write it in, and stamp a version. An option the user added needs no writing in: the page keeps it where the user put it."
         }
       ]
     },
@@ -1087,7 +1087,20 @@
             "phase": {"enum": ["queued", "opened", "failed"]},
             "session": {"type": ["string", "null"], "minLength": 1},
             "turn": {"type": ["string", "null"], "minLength": 1},
-            "failure": {"type": "string", "minLength": 1}
+            "failure": {"type": "string", "minLength": 1},
+            "refs": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "ref": {"type": "string", "minLength": 1},
+                  "claim": {"type": ["string", "null"], "minLength": 1}
+                },
+                "required": ["ref", "claim"],
+                "additionalProperties": false
+              },
+              "minProperties": 1
+            }
           },
           "required": ["attention", "id", "ts", "author", "kind", "seq", "events", "phase", "session", "turn"],
           "if": {"properties": {"phase": {"const": "failed"}}},
@@ -1326,7 +1339,7 @@
     "x-example": "<figure id=\"sidebar-width\">\n  <svg class=\"drawing\" viewBox=\"0 0 320 120\" role=\"img\" aria-labelledby=\"sidebar-width-t\">\n    <title id=\"sidebar-width-t\">The sidebar takes 240px left of the column</title>\n    <rect class=\"frame\" x=\"4\" y=\"4\" width=\"312\" height=\"112\" rx=\"6\"/>\n    <rect class=\"box hot\" x=\"16\" y=\"20\" width=\"72\" height=\"84\" rx=\"3\"/>\n    <rect class=\"line\" x=\"104\" y=\"24\" width=\"180\" height=\"6\" rx=\"3\"/>\n    <rect class=\"line soft\" x=\"104\" y=\"38\" width=\"150\" height=\"6\" rx=\"3\"/>\n    <text class=\"strong\" x=\"52\" y=\"66\" text-anchor=\"middle\">240</text>\n  </svg>\n  <figcaption>In a narrow window the sidebar returns to the column.</figcaption>\n</figure>"
   },
   "table": {
-    "description": "Rows of one shape, compared column by column: ceilings per plan, runs per configuration. Columns take the width of what they hold, and a table wider than the measure wraps its cells or, failing that, scrolls inside itself — so nothing in one needs a width. An identifier — a test name, a path — is one word to the line breaker: in `<code>` it breaks inside its cell where it must, so a column of them takes a share of the measure beside the prose; bare, it holds its column to its own width and squeezes the rest to a word a line, and `page check --render` refuses a table that scrolls sideways with a cell in it wrapped. `<th scope=\"row\">` names a row in the page's own voice; a bare `<th>` is a column heading, set in small caps as one. A `<caption>` above the rows says what the columns mean where the section's heading doesn't. Reach for a KPI widget when the numbers are a handful of headline figures rather than a grid, and a decision widget when the rows are alternatives the user picks between.",
+    "description": "Rows of one shape, compared column by column: ceilings per plan, runs per configuration. Columns take the width of what they hold, and a table wider than the measure wraps its cells or, failing that, scrolls inside itself — so nothing in one needs a width. An identifier — a test name, a path — is one word to the line breaker: in `<code>` it breaks inside its cell where it must, so a column of them takes a share of the measure beside the prose; bare, it holds its column to its own width and squeezes the rest to a word a line, and `page check --render` advises on a table that scrolls sideways with a cell in it wrapped at any width from a 360px phone to a wide desktop. `<th scope=\"row\">` names a row in the page's own voice; a bare `<th>` is a column heading, set in small caps as one. A `<caption>` above the rows says what the columns mean where the section's heading doesn't. Reach for a KPI widget when the numbers are a handful of headline figures rather than a grid, and a decision widget when the rows are alternatives the user picks between.",
     "x-example": "<table id=\"tiers\">\n  <caption>Ceilings per plan, and what each is counted against.</caption>\n  <thead><tr><th>Plan</th><th class=\"num\">A minute</th><th>Counted against</th></tr></thead>\n  <tbody>\n    <tr><th scope=\"row\">Free</th><td class=\"num\">60</td><td>the token</td></tr>\n    <tr><th scope=\"row\">Team</th><td class=\"num\">600</td><td>the token</td></tr>\n  </tbody>\n</table>"
   },
   "td.num": {

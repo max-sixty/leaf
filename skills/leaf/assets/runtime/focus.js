@@ -95,19 +95,23 @@ const takesStop = (node) =>
   node.checkVisibility({ visibilityProperty: true });
 // A radio group is one stop, whichever way Tab moves: its checked member where that
 // member takes a stop, and otherwise its first member that does. Tab passes over the
-// rest, as Chromium does.
-function passedRadio(node) {
+// rest, as Chromium does. Only members inside `root` count, since a modal makes the
+// rest of the page inert though their own `inert` stays false.
+function passedRadio(node, root) {
   if (!groupedRadio(node)) return false;
-  const group = radioGroup(node).filter(takesStop);
+  const group = radioGroup(node).filter(
+    (radio) => takesStop(radio) && within(root, radio),
+  );
   return (group.find((radio) => radio.checked) ?? group[0]) !== node;
 }
-const isStop = (node) =>
-  node.matches(SEQUENTIAL) && takesStop(node) && !passedRadio(node);
+const isStop = (node, root) =>
+  node.matches(SEQUENTIAL) && takesStop(node) && !passedRadio(node, root);
 // The stops Tab walks inside `root` right now, in the order it walks them: the candidates
 // above, and the embedded documents and players Tab also enters, that take a stop,
 // through open shadow trees as rendered. Positive `tabindex` ordering is not modelled.
 // The modal Tab loop reads this (layer-stack.js).
-export const tabStops = (root) => [...renderedElements(root)].filter(isStop);
+export const tabStops = (root) =>
+  [...renderedElements(root)].filter((node) => isStop(node, root));
 // Where the user at `node` stands among the stops inside `root`, or null where `node`
 // is not inside it: `at` is the stop holding them, the innermost, so a control in a
 // component's shadow tree stands at the stop its host declares, or, where no stop
@@ -117,7 +121,7 @@ export function tabStanding(root, node) {
   let before = -1;
   for (const element of renderedElements(root)) {
     if (element === node) before = stops.length;
-    if (isStop(element)) stops.push(element);
+    if (isStop(element, root)) stops.push(element);
   }
   if (before < 0) return null;
   for (let at = node; at && at !== root; at = upFrom(at)) {

@@ -1402,6 +1402,11 @@ def fail_sample_startup(route):
 RADIO_DIALOG_PAGE = leaf_page(
     "Radio dialog",
     """<p id="intro">A page with its own dialog.</p>
+<label><input type="radio" name="cross" value="outside"> Outside</label>
+<dialog id="pick-cross">
+  <button type="button" id="cross-first">First</button>
+  <label><input type="radio" name="cross" value="inside"> Inside</label>
+</dialog>
 <dialog id="pick">
   <button type="button" id="pick-first">First</button>
   <label><input type="radio" name="size" value="s"> Small</label>
@@ -1473,6 +1478,15 @@ def test_tab_leaves_a_radio_group_ending_a_modal_for_its_first_stop(browser, ser
     middle.focus()
     page.keyboard.press("Shift+Tab")
     expect(page.locator("input[value=b]")).to_be_focused()
+
+    # A member outside the modal is inert there, so the group's stop is the one inside.
+    page.evaluate("() => document.getElementById('pick-split').close()")
+    page.evaluate("() => document.getElementById('pick-cross').showModal()")
+    page.locator("#cross-first").focus()
+    page.keyboard.press("Tab")
+    expect(page.locator("input[value=inside]")).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(page.locator("#cross-first")).to_be_focused()
 
 
 def test_tab_wraps_through_a_full_view_sample(browser, serve):

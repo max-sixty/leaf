@@ -37,25 +37,25 @@ class BrowserReading(NamedTuple):
 
 
 def _thread_attention(
-    thread: dict, owed: bool, candidates: list[dict], tasks: list[dict]
+    thread: dict, owed: bool, candidates: list[dict], todos: list[dict]
 ) -> dict | None:
-    """Whose turn one thread is: `needs_user` while a Question in it is the user's
-    (`owed`), or for a response the user must recover; `waiting` while a workflow
-    holds the thread with the agent, which covers every input `events.unanswered_turns`
-    holds, or while a task the agent opened on it stands; else None, as for every
-    resolved thread. `candidates` are the thread's `served_workflows`, strongest first,
-    so the first that qualifies is the one the thread waits on, and a workflow speaks
-    before a task. `tasks` are the agent's open tasks, each stamped with its
-    `thread`."""
+    """Whose turn one thread is: `needs_user` while an ask in it is the user's
+    (`owed`), or for an update the user must send again (`resend`); `waiting` while a
+    workflow holds the thread with the agent, which covers every input
+    `events.unanswered_turns` holds, or while a to-do the agent opened on it stands;
+    else None, as for every resolved thread. `candidates` are the thread's
+    `served_workflows`, strongest first, so the first that qualifies is the one the
+    thread waits on, and a workflow speaks before a to-do. `todos` are the agent's
+    open to-dos, each stamped with its `thread`."""
     if thread["resolved"]:
         return None
     if owed:
-        return {"kind": "needs_user", "reason": "question", "workflow": None}
-    if recovery := next(
+        return {"kind": "needs_user", "reason": "ask", "workflow": None}
+    if resend := next(
         (workflow for workflow in candidates if workflow["next_actor"] == "user"),
         None,
     ):
-        return {"kind": "needs_user", "reason": "recovery", "workflow": recovery["id"]}
+        return {"kind": "needs_user", "reason": "resend", "workflow": resend["id"]}
     if waiting := next(
         (workflow for workflow in candidates if workflow["holds_thread"]), None
     ):
@@ -64,29 +64,29 @@ def _thread_attention(
             "reason": "uncertain" if waiting["condition"] else "workflow",
             "workflow": waiting["id"],
         }
-    if task := next((task for task in tasks if task["thread"] == thread["id"]), None):
+    if todo := next((todo for todo in todos if todo["thread"] == thread["id"]), None):
         return {
             "kind": "waiting",
-            "reason": "task",
+            "reason": "todo",
             "workflow": None,
             # The line of the start running on it, while one holds it.
-            "task": {
-                "id": task["id"],
-                "title": task["title"],
-                "line": task["running"]["text"] if task["running"] else None,
+            "todo": {
+                "id": todo["id"],
+                "title": todo["title"],
+                "line": todo["running"]["text"] if todo["running"] else None,
             },
         }
     return None
 
 
 def _readings(
-    threads, questions: dict, workflows: list[dict], tasks: list[dict]
+    threads, asks: dict, workflows: list[dict], todos: list[dict]
 ) -> dict[str, tuple[dict | None, list[str]]]:
-    """Each thread's attention and the Questions in it the user owes, by thread id."""
+    """Each thread's attention and the asks in it the user owes, by thread id."""
     owed: dict[str, list[str]] = {}
-    for question in questions["user"]:
-        if question["thread"] is not None:
-            owed.setdefault(question["thread"], []).append(question["id"])
+    for ask in asks["user"]:
+        if ask["thread"] is not None:
+            owed.setdefault(ask["thread"], []).append(ask["id"])
     by_thread: dict[str, list[dict]] = {}
     for workflow in workflows:
         if workflow["thread"] is not None:
@@ -97,7 +97,7 @@ def _readings(
                 thread,
                 thread["id"] in owed,
                 by_thread.get(thread["id"], []),
-                tasks,
+                todos,
             ),
             owed.get(thread["id"], []),
         )
@@ -105,7 +105,7 @@ def _readings(
     }
 
 
-# The gestures a user makes on a thread whose effect on its attention and Questions
+# The gestures a user makes on a thread whose effect on its attention and asks
 # only the log can read, each supposed on the threads where it is possible.
 _SUPPOSED = ("reply", "edit", "resolve", "unresolve", "react")
 
@@ -150,14 +150,14 @@ def _supposed(
     return {**gesture, "parent": thread["root"]["id"]}
 
 
-def _apply_thread_attention(work: WorkState, threads: list[dict], tasks: list[dict]):
+def _apply_thread_attention(work: WorkState, threads: list[dict], todos: list[dict]):
     """Attach each served thread's `attention`, and `after`: the attention and owed
-    Questions each gesture of the user's would leave it with.
+    asks each gesture of the user's would leave it with.
 
-    A reply answers the prose Questions before it and no widget Question, a rewrite
+    A reply answers the prose asks before it and no widget ask, a rewrite
     answers none, either reopens a resolved thread and supersedes a failed response
     to a thread input, a reopening brings back what its resolution suppressed, such
-    as a failed pick or an Ask, and a reaction whose token settles (`$reactions`)
+    as a failed pick or an ask, and a reaction whose token settles (`$reactions`)
     answers the question the turn it marks asks, which `react` supposes on the turn
     whose question the user owes. Rather than restate those rules, each `after`
     reading is the log's own: the same reading of the work, folded with that gesture
@@ -171,12 +171,12 @@ def _apply_thread_attention(work: WorkState, threads: list[dict], tasks: list[di
     which actor owes the thread, and what, are the log's either way.
 
     The browser reads `after` while a gesture it sent is unanswered, so its thread
-    attention and Questions agree with the reading the log gives back
+    attention and asks agree with the reading the log gives back
     (`thread/model.js`, `foldThreads`)."""
     durable = work.durable
     for thread in threads:
         thread["after"] = {}
-    current = _readings(threads, durable.questions, work.workflows, tasks)
+    current = _readings(threads, durable.questions, work.workflows, todos)
     for thread in threads:
         thread["attention"] = current[thread["id"]][0]
     base = durable.events[-1]["seq"] if durable.events else 0
@@ -206,7 +206,7 @@ def _apply_thread_attention(work: WorkState, threads: list[dict], tasks: list[di
             continue
         reading = durable.supposing(list(supposed.values()))
         workflows = served_workflows(reading.workflows, reading.thread)
-        after = _readings(reading.threads.values(), reading.questions, workflows, tasks)
+        after = _readings(reading.threads.values(), reading.questions, workflows, todos)
         for thread in threads:
             gesture = supposed.get(thread["id"])
             if gesture is None:
@@ -338,20 +338,18 @@ def browser_state(
         if key not in {"workflows", "tasks"}
     }
     workflows = work.workflows
-    tasks, ended_tasks = durable.page_tasks(work.activity["tasks"])
+    todos, ended_todos = durable.page_tasks(work.activity["tasks"])
     _apply_thread_attention(
-        work, thread["threads"], [task for task in tasks if task["owner"] == "agent"]
+        work, thread["threads"], [todo for todo in todos if todo["owner"] == "agent"]
     )
-    # Each view's Questions are its own document's beside the frozen thread's, so
-    # each view carries the queues they add up to and the ones approving it waits on.
+    # Each view's asks are its own document's beside the frozen thread's, so each
+    # view carries the lists they add up to and the asks approving it waits on.
     for view in views.values():
-        questions = view["document"]["questions"]["all"] + thread["questions"]["all"]
+        asks = view["document"]["asks"]["all"] + thread["asks"]["all"]
         view["queues"] = queues(
-            thread["threads"], workflows, tasks, ended_tasks, collection(questions)
+            thread["threads"], workflows, todos, ended_todos, collection(asks)
         )
-        view["approval_blocking"] = [
-            question["id"] for question in approval_blocking(questions)
-        ]
+        view["approval_blocking"] = [ask["id"] for ask in approval_blocking(asks)]
     if wants_history(readings[revision] for revision in view_revisions):
         words = GestureWords(events, active_registry, revisions or readings.__getitem__)
         page_history = {
@@ -372,8 +370,8 @@ def browser_state(
         "thread": thread,
         "activity": activity,
         "workflows": workflows,
-        "tasks": tasks,
-        "ended_tasks": ended_tasks,
+        "todos": todos,
+        "ended_todos": ended_todos,
         "receipts": [event for event in events if event.get("attempt")],
         # Every thread whose history each logged event changes
         # (`thread_context.thread_memberships`), which the browser reads for the

@@ -29,8 +29,8 @@ thread at once. Later working messages stay in Codex. Your completed final
 commits the reply through the same durable writer as `leaf response reply`,
 unless an explicit successful reply already answered it.
 
-For a reply needing widgets, a prose question awaiting the user (`--question`),
-work promised beyond this turn (`--task`), a title or a changed anchor, author it
+For a reply needing widgets, a prose ask awaiting the user (`--ask`),
+work promised beyond this turn (`--todo`), a title or a changed anchor, author it
 with `leaf response reply <answer.ref>` and the rich options in
 [threads](threads.md). The command validates saved edits and commits immediately.
 The completed final yields to an explicit successful answer already in the log;

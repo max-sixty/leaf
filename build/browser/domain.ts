@@ -118,13 +118,13 @@ export interface Thread {
   /** What each gesture of the user's would leave the thread with, as the server reads
    * the log with it supposed (`_apply_thread_attention`), `react` being a reaction
    * that settles the question the user owes: its attention, whose
-   * `workflow` is null where it waits on that gesture itself, and the Questions in it
+   * `workflow` is null where it waits on that gesture itself, and the asks in it
    * the user owes. Null where the thread offers no such gesture. */
   after: Record<
     "reply" | "edit" | "resolve" | "unresolve" | "react",
     ThreadAfter | null
   >;
-  /** The Questions in the thread the user owes once this tab's pending gestures on it
+  /** The asks in the thread the user owes once this tab's pending gestures on it
    * land, from `after`; absent where none are pending (`foldThreads`). */
   owed?: readonly string[];
   settling?: "resolve" | "unresolve";

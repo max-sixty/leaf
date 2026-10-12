@@ -3,13 +3,12 @@ import test from "node:test";
 import {
   patchRetains,
   patchTree,
-  render,
   replaceChildren,
   setChildren,
 } from "/runtime/dom-children.js";
 import { under } from "/runtime/shadow.js";
 import { failSoftUnreported } from "/runtime/widget-upgrade.js";
-import { createRef, html, ref } from "/vendor/browser-runtime.js";
+import { createRef, html, ref, render } from "/vendor/browser-runtime.js";
 
 test("failure replacement releases directives and supports native and template recovery", () => {
   const host = document.createElement("test-widget");

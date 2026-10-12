@@ -261,44 +261,46 @@
     /* A table is the one breakout whose box paints nothing of its own, only its columns'
      * rules, so the room it was granted is a limit rather than a size: spread across its
      * columns, an eight-column table stood at 1080px with 30px of nothing between each
-     * pair. Its box stays the allocation above, keeping the size containment and scrolling
-     * its columns as any table does, while its grid keeps the columns' natural width
-     * inside it (reading.css withholds the fill) and stands centred on the prose axis.
-     * The allocation grows unevenly where one margin is narrower, by a contents map's
-     * spine or a column moved over for a sidenote, so the box pads its wider side by the
-     * difference and centres the grid in what is left. A grid wider than that even span
-     * wraps or scrolls sooner by the difference: 48px beside a map's spine at 1440px.
-     * `safe` starts a grid too wide for the box where its scroll begins. A grid narrower
-     * than the column takes the column's width (`--lf-width`, an empty caption as the
-     * fill's is), so it starts where the prose does rather than centred under it. Where
-     * the left margin is spoken for, as by a sidebar standing there, evening the sides
-     * would leave the grid no room at all, so it starts at the prose and grows right.
-     * Nested in another breakout, the grid starts at its holder's edge with the holder's
-     * own blocks, and in a frame it fills the frame as every table there does.
+     * pair. Its box takes the columns' natural width instead (`max-content`), at least
+     * its holder's, so one that fits the column stands where the prose does, and at most
+     * an even span about its holder's axis, so it grows the same distance each way. The
+     * margin moves the box by half its holder's width and the translation back by half
+     * its own, since each percentage reads the box it names, so its centre lands on the
+     * holder's centre, which on a column page is the prose axis. Where the margins are
+     * uneven, beside a contents map's spine or a column moved over for a sidenote, the
+     * even span is twice the narrower side's growth, so a grid wider than it wraps or
+     * scrolls that much sooner: 48px sooner beside a map's spine at 1440px. Where the
+     * left margin is spoken for, as by a sidebar standing there, an even span would be
+     * the column alone, so the box starts at the prose and grows right.
      *
-     * Alignment moves the native grid whole: its caption, columns and borders stay one
-     * table. Three layouts this replaced split them or broke a guarantee: a box sized to
-     * its content gave up the containment, so a page's grid track grew to the table; its
-     * parts translated together left column backgrounds and collapsed borders behind and
-     * reordered a sticky header; and a display of grid on the table set its head and body
-     * apart. An engine without alignment in block layout starts the grid at the
-     * allocation's edge, where the stretched grid started before
-     * (notes/browser-support.md). */
-    main.layout-column table[data-lf-space]:not([data-lf-space="column"]) {
-      justify-items: safe center;
-      padding-left: max(0px, calc(var(--lf-grow-l) - var(--lf-grow-r)));
-      padding-right: max(0px, calc(var(--lf-grow-r) - var(--lf-grow-l)));
-    }
-    main.layout-column[data-lf-margin~="sidebar"] table[data-lf-space]:not([data-lf-space="column"]),
-    main.layout-column [data-lf-space]:not([data-lf-space="column"]) table[data-lf-space] {
-      justify-items: normal;
-      padding-inline: 0;
-    }
-    @container not style(--lf-room: 100%) {
-      main.layout-column table[data-lf-space]:not([data-lf-space="column"])::before {
-        content: "";
-        display: table-caption;
-        min-inline-size: var(--lf-width);
+     * The box's width is its content's, so it gives up the size containment above:
+     * inside a box that sizes itself to what it holds, such as a page's own grid track
+     * at its content's minimum, the table can widen it, as any table without a width
+     * of its own can. A caption reads the page's width rather than the table's, which
+     * differs only where the columns scroll. Only where the room is the page's: in a
+     * frame, or in a breakout of its own (`--lf-room: 100%`), the table fills or starts
+     * at its holder as every table there does. Margins, percentages and translation
+     * place it the same in every engine; two layouts this replaced did not: aligning the
+     * anonymous table grid inside a box the allocation's width (Firefox and WebKit left
+     * it at the box's left edge), and translating the table's parts (column backgrounds
+     * and collapsed borders stayed behind). A display of grid on the table set its head
+     * and body apart. */
+    @container not (style(--lf-room: 100%) or style(--lf-block-frame: 1)) {
+      main.layout-column table[data-lf-space]:not([data-lf-space="column"]) {
+        contain: none;
+        container-type: scroll-state;
+        width: max-content;
+        min-width: 100%;
+        max-width: calc(100% + 2 * min(var(--lf-grow-l), var(--lf-grow-r)));
+        margin-left: 50%;
+        margin-right: 0;
+        translate: -50% 0;
+      }
+      main.layout-column[data-lf-margin~="sidebar"]
+        table[data-lf-space]:not([data-lf-space="column"]) {
+        max-width: calc(100% + var(--lf-grow-r));
+        margin-left: 0;
+        translate: none;
       }
     }
     /* A breakout inside another takes its holder's width. A box allocated the column is

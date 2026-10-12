@@ -219,29 +219,6 @@ what fails and what still works.
   `test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it` hold the required
   wrapper and row behavior. Parser support alone does not establish it.
 
-### Breakout table alignment
-
-- **Disposition: accepted visual difference.** A table granted `data-width` on a
-  column page keeps its allocation as its box and centres its anonymous table grid in
-  it with `justify-items: safe center`; an empty `::before` caption holds a narrow
-  grid at the column's width. Engines that do not align an anonymous table in block
-  layout start the grid at the allocation's left edge instead: 180px left of the prose
-  for `wide` and 336px for `available` at a 1440px window, with the unused room on the
-  right. The table stays inside its room and readable.
-- **Owner:** the breakout table rules in
-  [`layouts.css`](../skills/leaf/assets/layouts.css).
-- **Observed, 2026-10-11,** on a column page holding eight- and three-column
-  `data-width` tables, exported with `leaf-dev preview --export`, at 1440px: Playwright Chromium 153.0.8010.12 centres an
-  eight-column grid on the prose axis and starts a three-column one at the prose.
-  Playwright Firefox 155 and WebKit 26.6 start both at the allocation's edge. Firefox
-  also ignores the caption's minimum, so a three-column `available` table stands at
-  its natural 252px from that edge; WebKit holds it at 720px. In a bare block
-  container both engines likewise leave an anonymous table at the start under
-  `justify-items: center`, while WebKit centres an element whose own display is
-  `table`; MDN lists neither as supporting `justify-items` in block layout.
-- **Recheck:** export a page holding a `data-width` table and read its first row's
-  left edge against a paragraph's in each Playwright engine.
-
 ### State-preserving content reordering (review #22)
 
 - **Impact: state preservation; functional fallback implemented.** Retained-node

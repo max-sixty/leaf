@@ -2288,7 +2288,7 @@ def test_a_table_granted_room_stands_on_the_prose_axis(
     """A table given `data-width` keeps its columns' natural width and stands centred on
     the prose axis, however unevenly the margins share the room: a contents map's spine
     or a column moved over for a sidenote leaves one side narrower. One that fits the
-    column takes the column's width and starts where the prose starts. Where a sidebar
+    column keeps its natural width and starts where the prose starts. Where a sidebar
     stands in the left margin the room is all on the right, so the table starts at the
     prose and grows right."""
     head = "".join(f"<th>Column {i}</th>" for i in range(8))

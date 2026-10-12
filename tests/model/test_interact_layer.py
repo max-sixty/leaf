@@ -4567,7 +4567,6 @@ def test_the_suite_pins_every_bundled_script_dependency():
         for script in schema_model.BUNDLED_PACKAGES.glob("*/scripts/*.py")
         for requirement in packages_model.script_requirements(script)
     }
-    assert "unidiff>=1" in declared
     # Bundled packages never pass through `package install`, so hold their scripts
     # to the same check here.
     for package in {

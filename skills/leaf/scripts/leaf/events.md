@@ -303,8 +303,12 @@ obligation. A frozen widget action that answers no ask, such as a card moved
 on a board sent in a reply, keeps a delivery receipt and owes no reply, under the
 rule `workflows.py` states for page actions.
 
-An open structural ask anywhere in an unresolved thread keeps it awaiting the
-user after later prose or a settling reaction. Without one, the latest unanswered
+An open structural ask in an unresolved thread keeps it awaiting the user until
+the user writes after it: their later prose hands the ask to the agent, still open
+and unanswered, until the agent answers that turn. A thread anchored on a page ask
+does the same while the agent owes it a reply (`questions.sections_with_agent`), so
+an ask the user has commented on leaves their Questions while the reply it is owed
+stands on the agent's Tasks. Without an ask, the latest unanswered
 prose question determines the obligation. Later agent messages leave it open.
 A user turn answers every question before it; a reaction whose token declares
 `settles` answers only the question it names, so an older unanswered question may

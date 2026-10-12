@@ -191,14 +191,16 @@
                   event}, status and next_actor. An ask once registered stays answered
                   or withdrawn after <code>when</code> stops holding; an element that
                   never matched <code>when</code> creates no ask. A
-                  <code>restated</code> event starts a fresh request. A comment in the
-                  widget's thread box (x-thread-seat) makes the agent the next actor
-                  without answering the ask. A widget frozen into a thread keeps its ask
-                  after that thread closes, with no next actor. A quoted widget
-                  (x-exhibit) registers no ask. <code>all</code> names the outcome one
-                  banner control can give every ask of this kind at once. Asks and
-                  to-dos are separate records, and the Questions list reads asks
-                  directly.
+                  <code>restated</code> event starts a fresh request. An open ask's next
+                  actor is the agent, and the ask stays open and unanswered, while the
+                  agent owes a reply about it: to a thread anchored inside the widget,
+                  or inside its x-question-context and no other ask; or, for a widget
+                  frozen into a thread, to a user turn after the message that asked. A
+                  widget frozen into a thread keeps its ask after that thread closes,
+                  with no next actor. A quoted widget (x-exhibit) registers no ask.
+                  <code>all</code> names the outcome one banner control can give every
+                  ask of this kind at once. Asks and to-dos are separate records, and
+                  the Questions list reads asks directly.
                 </p>
               </details>
             </div>

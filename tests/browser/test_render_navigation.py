@@ -13521,8 +13521,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     not about reopening what a pick has closed.
 
     The seat and the ask are the project widget SEATED_ASK_ENTRY declares, for the reason
-    test_a_seat_thread_leaves_the_pick_it_is_about_live gives: the split is between
-    two declarations, and since 292de9c no shipped entry carries both."""
+    test_a_seat_thread_leaves_the_pick_it_is_about_live gives."""
     url = serve(
         leaf_page(
             "mid-sentence",

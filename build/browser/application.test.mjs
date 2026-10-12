@@ -1284,64 +1284,43 @@ for (const resolved of [null, { author: "user" }]) {
   });
 }
 
-test("a pending prose reply does not hide a frozen structural Ask", () => {
-  const root = {
-    kind: "comment",
-    id: "question",
-    author: "agent",
-    text: "Choose in the options below.",
-    ts: "now",
-  };
+test("a pending reply hands a frozen Ask to the agent in its own turn", () => {
+  // The user writing after an Ask the agent sent says something about it and waits on
+  // the reply, so the server reads the reply leaving the thread with the agent and the
+  // Ask off Questions, still open. Both move in the reply's own turn, from what the
+  // server read it leaving, rather than when the log answers.
+  const served = servedReading("frozen ask awaits the user").browser;
   const app = setup();
   const accepted = state(2);
-  const frozen = wireQuestion(
-    "frozen-ask",
-    "lf-ask",
-    "frozen-choice",
-    "lf-choice",
-    root.id,
-  );
-  accepted.browser.thread.asks = {
-    all: [frozen],
-    user: [frozen],
-    unanswered: [frozen],
-  };
-  const ask = {
-    attention: { kind: "needs_user", reason: "ask", workflow: null },
-    owed: [frozen.id],
-  };
-  accepted.browser.thread.threads = [
-    servedThread([root], {
-      attention: ask.attention,
-      after: {
-        reply: ask,
-        edit: ask,
-        resolve: { attention: null, owed: [] },
-        unresolve: null,
-        react: null,
-      },
-    }),
-  ];
-  app.adopt(accepted);
+  accepted.browser.thread.threads = served.thread.threads;
+  accepted.browser.thread.asks = served.thread.asks;
+  accepted.browser.views[1].queues = served.views["1"].queues;
+  const [root] = served.thread.threads;
+  const messageBodies = new Map([[root.id, { text: root.root.text }]]);
+  app.adopt(accepted, { ...app.read().document, messageBodies });
+  const [ask] = served.thread.asks.user;
+  const questions = () => app.read().effective.queues.questions.map(({ id }) => id);
+  assert.deepEqual(questions(), [ask.id]);
+  assert.equal(app.read().effective.thread.all[0].attention.kind, "needs_user");
 
   app.enqueue(
     {
       kind: "reply",
       parent: root.id,
       attempt: "context",
-      text: "One more detail before I choose.",
+      text: "Is there a third route?",
       revision: 1,
     },
     "now",
   );
-  // The Ask the thread carries is still the user's, so the server says a reply leaves
-  // the thread with them, and the obligation does not turn over and back when it lands.
-  const thread = app.read().effective.thread.all[0];
-  assert.deepEqual(thread.attention, {
-    kind: "needs_user",
-    reason: "ask",
-    workflow: null,
+  const effective = app.read().effective;
+  assert.deepEqual(effective.thread.all[0].attention, {
+    kind: "waiting",
+    reason: "workflow",
+    workflow: "pending:context",
   });
+  assert.deepEqual(questions(), []);
+  assert.equal(effective.asks.all.find(({ id }) => id === ask.id).status, "open");
 });
 
 test("a reply reopening a thread over an Ask puts the Ask back on the user at once", () => {

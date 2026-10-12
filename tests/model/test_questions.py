@@ -238,6 +238,99 @@ def test_display_only_widget_does_not_suppress_a_prose_question():
     ] == ["reply"]
 
 
+def lists(state) -> tuple[list, list, list]:
+    queues = state["views"]["1"]["queues"]
+    return tuple(
+        sorted(item["id"] for item in queues[side])
+        for side in ("questions", "tasks", "held")
+    )
+
+
+FRAMED = model.leaf_page(
+    "Questions",
+    '<p id="intro">Context.</p><lf-ask id="frame"><h2 id="head">Two routes</h2>'
+    + OPTIONS.format(attrs="choose")
+    + OPTIONS.format(attrs="choose").replace('id="', 'id="y-')
+    + OPTIONS.format(attrs="").replace('id="', 'id="shown-')
+    + "</lf-ask>",
+)
+
+
+@pytest.mark.parametrize(
+    ("anchor", "held"),
+    [
+        ({"section": "a", "quote": "A"}, ["widget:choice"]),
+        ({"section": "head", "quote": "Two"}, ["widget:choice", "widget:y-choice"]),
+        ({"section": "shown-a", "quote": "A"}, ["widget:choice", "widget:y-choice"]),
+        ({"section": "intro", "quote": "Context"}, []),
+    ],
+    ids=["option", "frame", "display-only", "elsewhere"],
+)
+def test_a_comment_on_an_ask_is_the_agents_turn_until_the_agent_replies(anchor, held):
+    """The user's comment about an open ask hands it to the agent without answering
+    it: the ask leaves Questions while the comment's answer stands on Tasks, and comes
+    back once the agent replies. A comment on one ask leaves its framed sibling with
+    the user, one on the frame's heading or on a widget there that asks nothing is
+    about both, and one elsewhere about none."""
+    comment = {
+        "kind": "comment",
+        "id": "c1",
+        "author": "user",
+        "text": "What does this mean?",
+        "anchor": anchor,
+    }
+    asks = ["widget:choice", "widget:y-choice"]
+    owed = sorted(set(asks) - set(held))
+    assert lists(model.reading(FRAMED, [comment])) == (owed, ["c1"], held)
+    reply = {
+        "kind": "reply",
+        "author": "agent",
+        "parent": "c1",
+        "responds": "c1",
+        "text": "It means the first route.",
+    }
+    assert lists(model.reading(FRAMED, [comment, reply])) == (asks, [], [])
+
+
+def test_a_reply_after_a_thread_ask_is_the_agents_turn_until_the_agent_replies():
+    """A widget an agent sent into a thread is the agent's turn once the user writes
+    after it, and the user's again once the agent answers. A user turn the agent
+    still owes from before the widget leaves the widget with the user."""
+    asked = {
+        "kind": "reply",
+        "id": "ask",
+        "author": "agent",
+        "parent": "t",
+        "text": "Which route?",
+        "markup": OPTIONS.format(attrs="choose").replace('id="', 'id="t-'),
+    }
+    opened = {"kind": "comment", "id": "t", "author": "user", "text": "Help me pick."}
+    later = {"kind": "reply", "id": "r", "author": "user", "parent": "t", "text": "C?"}
+    answered = {
+        "kind": "reply",
+        "author": "agent",
+        "parent": "t",
+        "responds": "r",
+        "text": "No C, sorry.",
+    }
+    document = page("")
+    assert lists(model.reading(document, [opened, asked])) == (
+        ["widget:t-choice"],
+        ["t"],
+        [],
+    )
+    assert lists(model.reading(document, [opened, asked, later])) == (
+        [],
+        ["r"],
+        ["widget:t-choice"],
+    )
+    assert lists(model.reading(document, [opened, asked, later, answered])) == (
+        ["widget:t-choice"],
+        [],
+        [],
+    )
+
+
 def conditional_registry():
     """A value write can originate a request between document revisions."""
     registry = deepcopy(model.model_layer())

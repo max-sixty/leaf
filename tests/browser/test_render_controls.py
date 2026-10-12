@@ -3315,11 +3315,9 @@ def test_a_seat_thread_leaves_the_pick_it_is_about_live(browser, serve):
     it — the widget flips, nothing is logged, no notice fires, and the next poll puts it
     back with nothing anywhere saying why.
 
-    The subject is the project widget SEATED_ASK_ENTRY declares rather than an entry out
-    of the default package, because the pair the split needs — a visible ask and a seat
-    of the widget's own — is a pair of declarations and not a tag. No shipped entry has
-    carried both since 292de9c took `x-thread-seat` off `lf-options`, and the reading
-    under test never asked which widget it was."""
+    The subject is the project widget SEATED_ASK_ENTRY declares, whose seat is where a
+    user most often starts such a thread; any thread anchored on an ask splits it the
+    same way, and the reading under test never asks which widget it is."""
     url = serve(
         leaf_page(
             "seated eligibility",

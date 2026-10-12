@@ -25,6 +25,7 @@ from .sample_content import initial_sample_events
 from .schema import DATA_DIR, DATA_FILE
 from .state import now_iso, write_json
 from .structure import SourceDocument
+from .thread_context import thread_structure
 
 
 @dataclass
@@ -64,22 +65,36 @@ class Samples:
         events: list,
         data: dict,
         template_id: str,
+        message: str | None,
         asset_root: str | None,
     ) -> str:
+        """Allocate a child from `template_id` as declared in `document`, or in the
+        frozen markup of `message`, a message in `events`."""
+        holder = (
+            document
+            if message is None
+            else thread_structure(events).fragments.get(message)
+        )
+        if holder is None:
+            raise ValueError(f"no message {message!r} carries markup")
         template = next(
             (
                 sample
-                for sample in document.samples
+                for sample in holder.samples
                 if sample["attrs"].get("id") == template_id
             ),
             None,
         )
         if template is None:
-            raise ValueError(f"unknown sample template {template_id!r}")
+            raise ValueError(
+                f"unknown sample template {template_id!r}"
+                + (f" in message {message!r}" if message is not None else "")
+            )
         seeded = initial_sample_events(
             parent,
             document,
             events,
+            holder,
             template,
             artifact.registry,
             {name: reading["contract"] for name, reading in data["sources"].items()},

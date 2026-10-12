@@ -1160,6 +1160,9 @@ class PageEndpoint:
         template = self.posted.get("template")
         if not isinstance(template, str) or not template:
             return self._refuse("sample requires a template id")
+        message = self.posted.get("message")
+        if message is not None and (not isinstance(message, str) or not message):
+            return self._refuse("a sample's message must be a message id")
         revision = self.layer_revision
         if revision is None:
             return self._refuse("sample requires an active parent revision")
@@ -1175,6 +1178,7 @@ class PageEndpoint:
                 events,
                 data,
                 template,
+                message,
                 asset_root,
             )
         except ValueError as error:

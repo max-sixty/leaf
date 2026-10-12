@@ -5,6 +5,7 @@ import json
 import re
 import subprocess
 from datetime import UTC, datetime
+from functools import cache
 from pathlib import Path
 from typing import NamedTuple
 
@@ -497,6 +498,26 @@ def payload_provenance(*, include_path: bool = False) -> dict:
     if dirty.returncode == 0:
         provenance["dirty"] = bool(dirty.stdout)
     return provenance
+
+
+@cache
+def running_leaf() -> dict:
+    """`payload_provenance` read once for this process, by its first page server as
+    that server is built (`http.page_app`): the Leaf whose code the process runs,
+    however its checkout moves on afterwards."""
+    return payload_provenance()
+
+
+def same_leaf(one: dict, other: dict) -> bool:
+    """Whether two provenances, as `payload_provenance` reads them, name one source:
+    the same commit, whichever abbreviates it, and the same dirty bit. Two with no
+    commit have nothing to tell apart."""
+    first, second = one.get("commit"), other.get("commit")
+    if not (first and second):
+        return first == second
+    return (first.startswith(second) or second.startswith(first)) and one.get(
+        "dirty"
+    ) == other.get("dirty")
 
 
 def provenance_label(provenance: dict) -> str:

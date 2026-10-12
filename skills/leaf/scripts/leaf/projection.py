@@ -4,7 +4,7 @@ from collections.abc import Callable, Iterable
 from typing import NamedTuple
 
 from leaf.events import (
-    action_retracted,
+    Standing,
     event_coordinate,
     report_settlements,
     retractions,
@@ -269,14 +269,13 @@ def state_projection(
     if withdrawn is None:
         withdrawn = taken_back(events)
     settled = report_settlements(events, upto)
-    actions = {}
-    standing = set()
     reports = {}
     settlement_versions = {}
     classified = {}
-    # Where each id sits: all the retraction test asks of a page, taken once for
-    # the walk rather than per event.
-    within = enclosing_of(spk)
+    # Where each id sits is all the retraction test asks of a page, taken once for
+    # the walk rather than per event; `Standing` decides each coordinate's winner.
+    standing = Standing(enclosing_of(spk), floors, withdrawn)
+    specs = {}
     for event in events:
         if event["kind"] not in WRITERS:
             continue
@@ -302,10 +301,8 @@ def state_projection(
         entry = (event, spec)
         classified[event["id"]] = (coordinate, entry)
         if event["kind"] == "action":
-            if event["id"] in withdrawn or action_retracted(event, floors, within):
-                continue
-            actions[coordinate] = entry
-            standing.add(event["id"])
+            if standing.admit(event):
+                specs[event["id"]] = spec
         elif settled_at := settled.get(event["id"]):
             settlement_versions[coordinate] = max(
                 settlement_versions.get(coordinate, 0), settled_at
@@ -313,6 +310,10 @@ def state_projection(
         else:
             reports.setdefault(coordinate, []).append(entry)
 
+    actions = {
+        coordinate: (winner, specs[winner["id"]])
+        for coordinate, winner in standing.winners().items()
+    }
     desired = {coordinate: entries[-1] for coordinate, entries in reports.items()}
     desired.update(actions)
     orders = {}
@@ -329,7 +330,7 @@ def state_projection(
         settlement_versions,
         classified,
         absorbed,
-        frozenset(standing),
+        standing.ids(),
     )
 
 

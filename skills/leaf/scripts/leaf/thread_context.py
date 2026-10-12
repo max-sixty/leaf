@@ -4,7 +4,7 @@ from functools import lru_cache
 from typing import NamedTuple
 
 from leaf.events import (
-    action_rests_on,
+    Standing,
     action_retracted,
     active_summaries,
     build_threads,
@@ -253,88 +253,49 @@ def thread_memberships(
     """Event id → every thread whose history that event changes.
 
     Leaf owns the relation because each event kind names its thread in a
-    different way. Some name none directly: a later action on one widget
-    supersedes the earlier answers there that still stand, an undo inherits the
-    gesture's membership, and a version note can retract what an answer rested on,
-    or retract the action that superseded one, which closes that answer's thread
-    again. An answer taken back or retracted no longer stands, so nothing later at
-    its coordinate changes the thread it closed.
+    different way (`event_threads`), and some change a thread without naming it at
+    all: an action, undo, or version note that changes which action wins a
+    coordinate (`Standing`) changes the threads the winner before and after it
+    answer. A later action supersedes the answer there, its undo restores it, and a
+    note retracting an answer's superseder closes that answer's thread again. An
+    undo also inherits the membership of the gesture it takes back.
 
     This is the shared join for wait delivery, sampled thread closures, and the
     browser state, which serves it so the browser files an unsent undo or action
     with the logged gesture it takes back or replaces. Current resolution still
-    comes from `build_threads`; membership says which raw records explain that fold
-    rather than becoming another state projection. Read state and the history feed
-    read the direct relation, `event_threads`: an update the user made in a thread,
-    rather than every thread it changed.
+    comes from `build_threads`, which reads the same winners; membership says which
+    raw records explain that fold rather than becoming another state projection.
+    Read state and the history feed read the direct relation, `event_threads`: an
+    update the user made in a thread, rather than every thread it changed.
     """
     memberships: dict[str, list[str]] = {}
-    # The actions standing at each coordinate, in log order, the last of them its
-    # winner: an undo takes one out, and so does a version note retracting what it
-    # rested on, after which a later action at its coordinate leaves the thread it
-    # closed alone, and the action it had superseded wins again. `answers` counts the
-    # standing ones answering each thread, so a later action there joins the
-    # distinct threads however many actions it follows.
-    standing: dict[tuple, dict[str, dict]] = {}
-    answers: dict[tuple, dict[str, int]] = {}
-    coordinates: dict[str, tuple] = {}
-    floors: dict[str, int] = {}
+    standing = Standing(within)
     for event in events:
-        if event["kind"] == "undo":
+        kind = event["kind"]
+        if kind == "undo":
             named = memberships.get(event["undoes"], [])
-            if (coordinate := coordinates.get(event["undoes"])) is not None and (
-                undone := standing[coordinate].pop(event["undoes"], None)
-            ):
-                _release(answers[coordinate], undone)
+            changes = [standing.withdraw(event["undoes"])]
         else:
             named = event_threads(event, names, widgets)
-        if event["kind"] == "action":
-            coordinate = event_coordinate(event)
-            held = answers.setdefault(coordinate, {})
-            named = [*named, *held]
-            # An action a version had already retracted on arrival, as from a tab
-            # still showing an older version, never stands.
-            if not action_retracted(event, floors, within):
-                standing.setdefault(coordinate, {})[event["id"]] = event
-                coordinates[event["id"]] = coordinate
-                if answer := event["meaning"].get("answer"):
-                    held[answer] = held.get(answer, 0) + 1
-        elif event["kind"] == "note" and (restated := set(event.get("restated", []))):
-            for identity in restated:
-                floors[identity] = max(floors.get(identity, 0), event["revision"])
-            for coordinate, actions in standing.items():
-                retracted = [
-                    action
-                    for action in actions.values()
-                    if event["revision"] > action["revision"]
-                    and restated.intersection(action_rests_on(action, within))
-                ]
-                if not retracted:
-                    continue
-                winner = next(reversed(actions))
-                for action in retracted:
-                    del actions[action["id"]]
-                    _release(answers[coordinate], action)
-                named = [*named, *_answered(retracted)]
-                # Retracting the winner returns the coordinate to the action it had
-                # superseded, which closes the thread it answers again.
-                if actions and winner not in actions:
-                    named = [*named, *_answered([actions[next(reversed(actions))]])]
+            changes = (
+                [standing.admit(event)]
+                if kind == "action"
+                else standing.restate(event)
+                if kind == "note"
+                else []
+            )
+        named = [
+            *named,
+            *(
+                answer
+                for change in changes
+                if change is not None
+                for winner in (change.before, change.after)
+                if winner is not None and (answer := winner["meaning"].get("answer"))
+            ),
+        ]
         memberships[event["id"]] = list(dict.fromkeys(named))
     return memberships
-
-
-def _answered(actions) -> list[str]:
-    """The threads these actions answer, in their order."""
-    return [answer for action in actions if (answer := action["meaning"].get("answer"))]
-
-
-def _release(held: dict[str, int], action: dict) -> None:
-    """Count one standing answer at a coordinate out, as it stops standing."""
-    if answer := action["meaning"].get("answer"):
-        held[answer] -= 1
-        if not held[answer]:
-            del held[answer]
 
 
 # What one message is, to a wait consumer holding no page: who said it, what they said,

@@ -103,15 +103,16 @@ export const standingThreadId = () => heldThreadId() ?? pressed;
 // thread's identity. A surface that stops drawing a thread takes its box with it: a
 // widget rebuilding its tree, or a thread leaving a widget for the margin because its
 // anchor no longer lands there. The thread still stands somewhere, and the user goes on
-// in its box there, with the draft every view of it shares and the caret where it was.
+// in its box there: the same editor, carried with its caret and undo history, or where
+// the view there cannot take it, that view's own box with the draft and the caret.
 //
 // Read before the pass: the reply box the user stands in, or the one a change took out
 // from under them before the pass began (focus.js, `holdStanding`). The step it returns
 // runs once the pass has drawn every surface, and lands the user through `open`, which
 // puts the thread up where it stands. Typing on in the box during the pass keeps them
 // in it; standing anywhere else, a press on the page included, is a newer word, and so
-// is a surface that landed them itself. A box is carried once, to a thread the reading
-// still holds and whose editor lifetime continues: an open conversation, or a resolved
+// is a surface that landed them itself. A box left behind is carried once, to a thread
+// the reading still holds and whose editor lifetime continues: an open conversation, or a resolved
 // one with a reply still being edited. Nothing is put up for a thread that has none, and one that
 // comes back later does not pull the user to it.
 // Replacement resolves through the current route, never another visible mirror of
@@ -131,9 +132,12 @@ export async function replyDestination(
   if (!mayReply()) return null;
   const shown = await open(id, { part: "reply", scroll, intent: mayReply });
   const thread = shown instanceof Element ? closestAcross(shown, THREAD) : null;
-  const control = thread && destination(thread);
-  if (!control || focused() !== shown || !mayReply()) return null;
-  if (control !== shown) mayReply.handoff(() => focusDestination(control, "move"));
+  if (!thread || focused() !== shown || !mayReply()) return null;
+  // The destination may put the user's own row in place of the one `open` landed on
+  // (replies.js, `carry`), and they go on in it.
+  const control = destination(thread);
+  if (!control) return null;
+  if (control !== focused()) mayReply.handoff(() => focusDestination(control, "move"));
   return focused() === control && mayReply() ? control : null;
 }
 
@@ -147,8 +151,11 @@ export function holdReply(open) {
   const id = thread.dataset.id ?? thread.dataset.thread;
   const intent = retainUserIntent({ source: box });
   return () =>
-    held.restore(() => {
+    held.restore(async () => {
       carried.add(box);
-      return replyDestination(id, open, intent, { destination });
+      const control = await replyDestination(id, open, intent, { destination });
+      // The row itself came along (replies.js, `carry`), so it is the user's box still.
+      if (control === box) carried.delete(box);
+      return control;
     });
 }

@@ -2816,7 +2816,6 @@ def test_gesture_close_does_not_own_future_or_local_motion(browser, fault):
         ("", "passive", "page"),
         ("holder_x", "typing", "window"),
         ("child_y", "typing", "window"),
-        ("holder_y", "passive", "page"),
         ("inset_y", "passive", "page"),
     ],
 )

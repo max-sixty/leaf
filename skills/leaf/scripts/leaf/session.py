@@ -343,9 +343,9 @@ class Watch:
         watch_state = page.watch_state(self.harness)
         status = observed if watch_state == "lost" else page.status
         live = status["state"] != "idle"
-        batch = (
-            unacknowledged(page.events, page.cursor) if watch_state != "lost" else []
-        )
+        from .delivery import deliverable
+
+        batch = deliverable(page) if watch_state != "lost" else []
         service = read_json(page_dir / SERVICE_FILE)
         enabled = bool(service and service["enabled"])
         key, now, revive = str(page_dir), time.time(), False
@@ -677,10 +677,12 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
             watch.await_news(mark)
     finally:
         watch.release()
+    from .delivery import deliverable
+
     # Input admitted while this watch held the lease was not nudged, so now the
     # lease is gone, any such input is nudged as admission would have.
     for page_dir in owned_pages(harness.session):
         with contextlib.suppress(FileNotFoundError), PageTransaction(page_dir) as page:
-            if wake_inputs(page, unacknowledged(page.events, page.cursor)):
+            if wake_inputs(page, deliverable(page)):
                 nudge_unwatched(page)
     return None

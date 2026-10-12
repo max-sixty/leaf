@@ -69,6 +69,8 @@ def served_workflows(
     first, each stamped with the two thread facts only the frozen thread document
     knows.
 
+    `at_work` is whether the agent is at work on it, at `working` or `replying`
+    whatever its condition, the stage set every surface reads rather than restates.
     `thread` is the thread the workflow stands in: a thread input's own, a widget
     frozen into a message's thread, or null for a page widget. `holds_thread` is
     whether it keeps that thread the agent's turn: every one of the thread's own
@@ -82,11 +84,12 @@ def served_workflows(
     unresolved sends against it."""
     for workflow in workflows:
         thread = thread_reading.subject_thread(workflow["subject"])
+        workflow["at_work"] = at_work(workflow)
         workflow["thread"] = thread
         workflow["holds_thread"] = thread is not None and (
             workflow["subject"]["kind"] == "thread"
             or workflow["answer"] is not None
-            or at_work(workflow)
+            or workflow["at_work"]
         )
     return sorted(workflows, key=_strength, reverse=True)
 

@@ -84,7 +84,8 @@ approveBtn.title = "Approve this work; the page stays open for follow-up";
 // The page's decision is not actionable until the page itself is present. Discussion chrome
 // stays live during replay, but approving hidden authored content would decide a version
 // the user has not seen yet. The control states that refusal from its first reading.
-let approvalReason = "Approval waits until this page has read its current state";
+const AWAITING_STATE = "Approval waits until this page has read its current state";
+let approvalReason;
 // Keep a refused press focusable, with its reason available to keyboard and touch.
 function presentApproval({ reason, text, title }) {
   approvalReason = reason;
@@ -94,9 +95,9 @@ function presentApproval({ reason, text, title }) {
   keeps(approveBtn, "title", title);
 }
 presentApproval({
-  reason: approvalReason,
+  reason: AWAITING_STATE,
   text: "Approve version",
-  title: approvalReason,
+  title: AWAITING_STATE,
 });
 
 // The toolbar owns this complete order from typed contributions rather than discovering
@@ -276,7 +277,7 @@ function paintTab() {
 let saidKind;
 let saidActionableWork;
 
-// The page's two queues (`runtime/queues.js`) are told apart in the banner by where
+// The page's two queues (`served_state.queues`) are told apart in the banner by where
 // they stand. What waits on the user, which `q` walks, is the Questions door beside
 // Threads (queue-panel.js paints its count), and on a phone's one row it waits in More.
 // What waits on the agent, its Tasks, stands beside the status, apart from the sentence,
@@ -768,13 +769,7 @@ function renderStatusNow(state) {
     explanation += ` · ${activity.observed}`;
   if (facts.waiting.length && ["working", "listening"].includes(kind))
     explanation += `${explanation.endsWith(".") ? "" : "."} ${facts.waiting.join(" · ")}.`;
-  const actionableWork = [
-    "awaiting_approval",
-    "awaiting_input",
-    "awaiting_user",
-  ].includes(activity.observed_kind)
-    ? activity.observed_kind
-    : null;
+  const actionableWork = activity.awaiting ? activity.observed_kind : null;
   // An approval or a question the agent's own window holds is answered there, and
   // the page is the one place the user may be looking instead.
   if (actionableWork && kind === "working")
@@ -888,7 +883,7 @@ export function paintApproval(blockingQuestions) {
     : runtime.currentStamp === null
       ? "There is no stamped version to approve yet"
       : !signoff || !pagePresented() || blockingQuestions === null
-        ? "Approval waits until this page has read its current state"
+        ? AWAITING_STATE
         : blockingQuestions.length
           ? "Answer every Question before approving this work"
           : null;

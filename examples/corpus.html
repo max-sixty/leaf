@@ -212,7 +212,13 @@
 </style>
 <!-- notification-playground.html authored script -->
 <script type="module">
-      import { keeps, keepsText, layoutChanged, once } from "/runtime/widget-api.js";
+      import {
+        keeps,
+        keepsText,
+        layoutChanged,
+        once,
+        whileConnected,
+      } from "/runtime/widget-api.js";
 
       const EVENTS = [
         {
@@ -323,19 +329,13 @@
         class extends HTMLElement {
           #banner = null;
           #strip = null;
-          #playground = null;
-          #change = null;
           #values = null;
           #cards = "";
 
           connectedCallback() {
-            if (once(this)) this.#build();
-            this.#connect();
-          }
-
-          disconnectedCallback() {
-            this.#playground?.removeEventListener("lf-playground-change", this.#change);
-            this.#playground = null;
+            if (!once(this)) return;
+            this.#build();
+            whileConnected(this, (signal) => void this.#connect(signal));
           }
 
           #build() {
@@ -346,19 +346,21 @@
             this.append(candidates);
           }
 
-          async #connect() {
+          async #connect(signal) {
             await customElements.whenDefined("lf-playground");
-            if (!this.isConnected) return;
-            this.#playground?.removeEventListener("lf-playground-change", this.#change);
-            this.#playground = this.closest("lf-playground");
-            if (!this.#playground) return;
-            this.#change = (event) => {
-              if (event.target !== this.#playground) return;
-              this.#values = event.detail.values;
-              this.#render();
-            };
-            this.#playground.addEventListener("lf-playground-change", this.#change);
-            this.#values = this.#playground.values;
+            if (signal.aborted) return;
+            const playground = this.closest("lf-playground");
+            if (!playground) return;
+            playground.addEventListener(
+              "lf-playground-change",
+              (event) => {
+                if (event.target !== playground) return;
+                this.#values = event.detail.values;
+                this.#render();
+              },
+              { signal },
+            );
+            this.#values = playground.values;
             this.#render();
           }
 
@@ -867,14 +869,14 @@
 <!-- code-comparison.html authored script -->
 <script type="module">
       import {
-        cancelRender,
+        frameFor,
         keeps,
         keepsText,
         layoutChanged,
-        nextRender,
         offer,
         once,
         sizeObserver,
+        whileConnected,
       } from "/runtime/widget-api.js";
 
       const DEFAULT_COMPARISON = {
@@ -890,24 +892,14 @@
           #state = clone(DEFAULT_COMPARISON);
           #notify = null;
           #change = null;
-          #watching = null;
-          #measurementFrame = 0;
           #readerLayout = (event) => {
             if (event.target.matches("lf-code")) this.#scheduleMeasurement();
           };
 
           connectedCallback() {
-            if (once(this)) this.#build();
-            this.#connect();
-          }
-
-          disconnectedCallback() {
-            this.#playground?.removeEventListener("lf-playground-change", this.#change);
-            this.removeEventListener("lf-layout", this.#readerLayout);
-            this.#watching?.disconnect();
-            this.#watching = null;
-            cancelRender(this.#measurementFrame);
-            this.#measurementFrame = 0;
+            if (!once(this)) return;
+            this.#build();
+            whileConnected(this, (signal) => void this.#connect(signal));
           }
 
           #button(label, run) {
@@ -928,18 +920,21 @@
             this.prepend(toolbar);
           }
 
-          async #connect() {
+          async #connect(signal) {
             await Promise.all([
               customElements.whenDefined("lf-playground"),
               customElements.whenDefined("lf-code"),
             ]);
-            if (!this.isConnected || this.#watching) return;
+            if (signal.aborted) return;
             if (!this.#notify) this.#initialize();
-            this.#playground.addEventListener("lf-playground-change", this.#change);
-            this.addEventListener("lf-layout", this.#readerLayout);
-            this.#watching = sizeObserver(() => this.#scheduleMeasurement());
+            this.#playground.addEventListener("lf-playground-change", this.#change, {
+              signal,
+            });
+            this.addEventListener("lf-layout", this.#readerLayout, { signal });
+            const watching = sizeObserver(this.#scheduleMeasurement);
+            signal.addEventListener("abort", () => watching.disconnect());
             for (const reader of this.querySelectorAll(".code-candidate lf-code")) {
-              this.#watching.observe(reader);
+              watching.observe(reader);
             }
             this.#render();
           }
@@ -1002,23 +997,19 @@
           }
 
           // Reader rendering and box changes invalidate the same derived reading.
-          #scheduleMeasurement() {
-            if (!this.isConnected || this.#measurementFrame) return;
-            this.#measurementFrame = nextRender(() => {
-              this.#measurementFrame = 0;
-              for (const name of ["A", "B"]) {
-                const candidate = this.querySelector(`[data-candidate="${name}"]`);
-                const pre = candidate.querySelector("lf-code pre");
-                const measurement = candidate.querySelector(".code-measurement");
-                if (!pre || !measurement) continue;
-                keepsText(
-                  measurement,
-                  `${Math.round(pre.getBoundingClientRect().height)}px tall · ${pre.scrollWidth}px source width`,
-                );
-              }
-              layoutChanged(this);
-            });
-          }
+          #scheduleMeasurement = frameFor(this, () => {
+            for (const name of ["A", "B"]) {
+              const candidate = this.querySelector(`[data-candidate="${name}"]`);
+              const pre = candidate.querySelector("lf-code pre");
+              const measurement = candidate.querySelector(".code-measurement");
+              if (!pre || !measurement) continue;
+              keepsText(
+                measurement,
+                `${Math.round(pre.getBoundingClientRect().height)}px tall · ${pre.scrollWidth}px source width`,
+              );
+            }
+            layoutChanged(this);
+          });
         },
       );
     </script>
@@ -7542,7 +7533,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <p id="bg-thread-api-guide">
                 Switch between Conversation, Shelf, and Feed. Answer the channel
                 Question inside its message, write a reply, and change layouts before
-                sending: the same draft follows the conversation. Start a conversation
+                sending: the same draft follows the conversation. Double-click your own
+                message to rewrite it in any layout, Feed included. Start a conversation
                 and mark the proofreading task Done. The package's queues and Leaf's
                 Questions panel show the same outcomes. First unread and question
                 navigation arrive in this reader.

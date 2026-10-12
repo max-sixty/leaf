@@ -1461,15 +1461,42 @@ def test_a_composed_vocabulary_carries_its_decisions(page_dir):
     }
 
 
-def test_a_verb_is_written_by_the_side_it_declares():
-    """`verb_writer` states the default the browser's `adoptRegistry` applies, and
-    both are held to `tests/verb_writer_cases.json`."""
-    cases = json.loads((Path(__file__).parent / "verb_writer_cases.json").read_text())
-    assert [
-        [tag, verb, registry_contract.verb_writer(spec)]
-        for tag, entry in cases["declarations"].items()
-        for verb, spec in entry["x-state"].items()
-    ] == cases["writers"]
+def test_a_composed_vocabulary_carries_each_verbs_writer_and_definition(page_dir):
+    """`$states` is what the browser reads for a verb's writer and the operation an
+    admitted event records, so it derives neither. A page's own declaration is stamped
+    with the layer's, an unstated writer as the user's."""
+    layer = registry_storage.load_registry(page_dir)
+    declaration = element_declaration("lf-local", upgrade=True)
+    declaration["properties"] |= {
+        name: {"type": "boolean"} for name in ("overruled", "restated")
+    } | {"reading": {"type": "string"}}
+    declaration["x-state"] = {
+        "set": {
+            "unit": "widget",
+            "detail": {"type": "object", "additionalProperties": False},
+        },
+        "measure": {
+            "unit": "widget",
+            "writer": "agent",
+            "record": {"kind": "value", "attr": "reading"},
+        },
+    }
+    widget_paths = {f"widgets/{path.name}" for path in (page_dir / "widgets").glob("*")}
+
+    composed = registry_page.compose_page_registry(
+        layer, {"lf-local": declaration}, {*widget_paths, "widgets/lf-local.js"}
+    ).registry
+
+    assert composed["$states"]["lf-local"] == {
+        verb: {
+            "writer": writer,
+            "definition": registry_contract.state_definition(
+                "lf-local", declaration, declaration["x-state"][verb]
+            ),
+        }
+        for verb, writer in (("set", "user"), ("measure", "agent"))
+    }
+    assert composed["$states"]["lf-suggestion"]["decide"]["writer"] == "user"
 
 
 @pytest.mark.parametrize(
@@ -5482,6 +5509,76 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
     assert memberships["label1"] == []
 
 
+def test_a_gesture_at_a_coordinate_reaches_only_the_answers_still_standing_there():
+    """A later action on a deciding widget changes the thread an earlier answer there
+    closed, and its undo the same, until that answer is taken back or a version
+    retracts what it rested on: after either, the thread it closed is no longer the
+    later gesture's, as a revised suggestion that resolves another thread shows."""
+    from leaf.thread_context import thread_memberships
+
+    def decide(id, outcome, answer, revision=1):
+        return {
+            "kind": "action",
+            "id": id,
+            "revision": revision,
+            "widget": "sug-a",
+            "action": "decide",
+            "detail": {"outcome": outcome},
+            "meaning": {"unit": "sug-a", "depends": ["sug-a"], "answer": answer},
+        }
+
+    comments = [{"kind": "comment", "id": "c1"}, {"kind": "comment", "id": "c2"}]
+    names = {"c1": "c1", "c2": "c2"}
+    replaced = thread_memberships(
+        [
+            *comments,
+            decide("accept", "accept", "c1"),
+            decide("reject", "reject", None),
+            {"kind": "undo", "id": "unreject", "undoes": "reject"},
+        ],
+        names,
+        {},
+        {},
+    )
+    assert (replaced["reject"], replaced["unreject"]) == (["c1"], ["c1"])
+    taken_back = thread_memberships(
+        [
+            *comments,
+            decide("accept", "accept", "c1"),
+            {"kind": "undo", "id": "unaccept", "undoes": "accept"},
+            decide("reject", "reject", None),
+        ],
+        names,
+        {},
+        {},
+    )
+    assert (taken_back["unaccept"], taken_back["reject"]) == (["c1"], [])
+    restated = thread_memberships(
+        [
+            *comments,
+            decide("accept", "accept", "c1"),
+            {"kind": "note", "id": "v2", "revision": 2, "restated": ["sug-a"]},
+            decide("again", "accept", "c2", revision=2),
+        ],
+        names,
+        {},
+        {},
+    )
+    assert (restated["v2"], restated["again"]) == (["c1"], ["c2"])
+    late = thread_memberships(
+        [
+            *comments,
+            {"kind": "note", "id": "v2", "revision": 2, "restated": ["sug-a"]},
+            decide("stale", "accept", "c1"),
+            decide("again", "accept", "c2", revision=2),
+        ],
+        names,
+        {},
+        {},
+    )
+    assert (late["stale"], late["again"]) == (["c1"], ["c2"])
+
+
 @pytest.mark.parametrize(
     ("history", "script_attrs", "template_attrs", "complaint"),
     [
@@ -5799,7 +5896,7 @@ def test_revised_state_definitions_keep_original_history_and_admit_new_typed_sta
     json.loads((Path(__file__).with_name("state_definition_cases.json")).read_text()),
     ids=lambda case: case["id"],
 )
-def test_state_definition_identity_matches_the_browser_cases(case):
+def test_state_definition_identity_ignores_only_annotations(case):
     from leaf.registry.contract import same_state_definition, state_definition
 
     definitions = [

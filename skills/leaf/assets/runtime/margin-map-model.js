@@ -32,6 +32,12 @@ function dialogControlKey(entry, offered, record) {
 const dialogControlId = (entry, offered, record) =>
   `lf-page-map-entry-${encodeURIComponent(dialogControlKey(entry, offered, record))}`;
 
+// The margin shows its target's agent work on one control (margin-model.js,
+// `workflowCarrier`); the map shows that receipt on the same control's row, and every
+// other control's own.
+const isWorkflowCarrier = (carrier, record) =>
+  carrier?.key === record.key && carrier.owner === record.owner;
+
 export function marginMapGroups(entries, faceFor, searchTextByKey) {
   return Object.freeze(
     entries.map((entry) => {
@@ -52,6 +58,8 @@ export function marginMapGroups(entries, faceFor, searchTextByKey) {
             // Producers add context only when it carries another fact. Version
             // comparisons do: their pair is provenance, separate from the account.
             context: item.mapContext,
+            receipt: item.workflowReceipt,
+            awaitsUser: Boolean(item.userAttention),
           };
         }),
         ...controls.map(({ offered, record }) => ({
@@ -66,6 +74,10 @@ export function marginMapGroups(entries, faceFor, searchTextByKey) {
           label: record.accessibleLabel,
           visibleLabel: visibleContributionEntryLabel(record),
           context: record.context,
+          receipt: isWorkflowCarrier(entry.workflowCarrier, record)
+            ? entry.workflowCarrier.receipt
+            : record.workflowReceipt,
+          awaitsUser: false,
         })),
       ];
       const search = [

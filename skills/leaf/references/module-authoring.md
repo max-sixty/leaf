@@ -16,7 +16,8 @@ a new capability.
 ## Public API
 
 Rendering work that reaches a resting state uses `nextRender`, `nextFrame` and
-`cancelRender`. Continuous mechanical motion, such as recording playback, uses
+`cancelRender`; an element's own paints go through `frameFor`, which cancels them
+when the element leaves ("Connection lifetimes"). Continuous mechanical motion, such as recording playback, uses
 `nextAnimation` and `cancelAnimation`: it schedules browser frames without holding
 page readiness open. Cancel it when the motion stops or its owner leaves.
 
@@ -125,33 +126,37 @@ A behavior module follows these rules:
   `offered` so its press marker reads that type. Bind values and handlers normally, and use
   `repeat(items, identity, template)` to retain keyed controls, subject to the
   container and native-state rules in "Template rendering".
-  `said(true)`, `said(false)`, or `said("echo")` marks a template element's words with
-  the same passage and print meaning as `relabel`; Lit owns the element's content.
+  A template label writes the markers `relabel` writes as static attributes:
+  `data-lf-gen="1"`, plus `data-lf-said` where the label is the page speaking or
+  `data-lf-echo` where it copies words the page says elsewhere.
 - Read UI based on element geometry synchronously from `PRESENTATION` for its
   first paint, then through normal layout signals. Reconcile UI derived from
   authored structure at `PAGE_INTERFACE`, at startup and each in-place revision
   activation. Retain surviving nodes with `setChildren` (the rendering contract
   below describes its native-state guarantees).
-- Use `nextRender`/`cancelRender` for paints and `sizeObserver` for size
-  observation, so checks and tests wait for that work too. `nextRender` runs in
-  the current rendering callback's frame, or in the next frame when called
-  elsewhere. Use `nextFrame` for a step that must run in a later frame, such as
-  an animation tick.
+- Schedule an element's paints with `frameFor` and observe size with
+  `sizeObserver`, so checks and tests wait for that work too. `frameFor` paints through `nextRender`, which runs in the current
+  rendering callback's frame, or in the next frame when called elsewhere. Use
+  `nextFrame` for a step that must run in a later frame, such as an animation tick.
 - Use `afterScript(callback)` to coalesce a stable callback at the current
   script's microtask checkpoint when synchronous updates yield one final
   mechanical reading.
 - Use `keeps(node, name, value)` for names or state a reactive render writes,
   passing booleans and counts directly. Unconditional `setAttribute` repeats
   writes on every publication; `toggleAttribute` already handles flags.
-- Use `once()` in a `connectedCallback` that remains safe after reconnection.
-  In `disconnectedCallback`, remove hoisted UI and clear any `indicate`
-  with `null`.
+- Upgrade once: return from `connectedCallback` unless `once(this)`. Hold the
+  listeners, observers, registrations and indications a connection needs in
+  `whileConnected` ("Connection lifetimes"), which starts them again when the
+  element returns; clear an
+  `indicate` with `null` in its cleanup. Keep `disconnectedCallback` for teardown
+  that must happen synchronously, such as removing hoisted UI.
 - Register `commands()` at upgrade. Use `DISCLOSE(el)` for folding controls,
   whose commands the runtime owns. Check `quoted()` before wiring input and
   controller command availability before a semantic widget’s optimistic gesture.
   In templates, `commandsOn(title, rows, options)` attaches that same command scope
-  to its element. It reads the current declaration on each render and withdraws its
-  attachment when the directive leaves; projected commands on the element remain.
+  to its element. It attaches once per connection, takes the current declaration on
+  each render, and withdraws its attachment when the directive leaves; projected
+  commands on the element remain.
 
 Each helper's header under `runtime/` explains its contract.
 
@@ -272,8 +277,8 @@ words the render gate pairs with the file.
 
 `registerReadingRegion({id, host, body})` binds a region's identity to its host and to
 the body that scrolls it whenever the theme makes it scroll. The host makes focus in a
-pane's header or footer select that pane. Register from `connectedCallback` and call
-the returned cleanup from `disconnectedCallback`, so a reconnect can claim the same id.
+pane's header or footer select that pane. Register it in `whileConnected` and return
+its cleanup there, so an element that returns claims the same id again.
 Containment follows rendered slots, so native conversation parts nominated into a
 shadow reader belong to the region registered around their outlets.
 `readingPosture(node)` is `bounded` exactly while the region's body is its own
@@ -559,25 +564,33 @@ icon name). `kind` belongs to the whole reading, never an entry. Entries default
 For example, inside an existing widget whose `saveDraft()` owns the effect:
 
 ```js
-import { contributionEntry, registerContribution } from "/runtime/widget-api.js";
+import {
+  contributionEntry,
+  once,
+  registerContribution,
+  whileConnected,
+} from "/runtime/widget-api.js";
 
 connectedCallback() {
-  this.actions = registerContribution({
-    key: this.id,
-    target: this,
-    read: () => ({
-      kind: "action",
-      subject: this.getAttribute("aria-label"),
-      entries: [contributionEntry({
-        key: "save", glyph: "✓", label: "Save", disabled: this.disabled,
-      })],
-    }),
-    activate: () => this.saveDraft(),
+  if (!once(this)) return;
+  whileConnected(this, () => {
+    this.actions = registerContribution({
+      key: this.id,
+      target: this,
+      read: () => ({
+        kind: "action",
+        subject: this.getAttribute("aria-label"),
+        entries: [contributionEntry({
+          key: "save", glyph: "✓", label: "Save", disabled: this.disabled,
+        })],
+      }),
+      activate: () => this.saveDraft(),
+    });
+    return () => this.actions.unregister();
   });
 }
 
 syncActions() { this.actions.update(); }
-disconnectedCallback() { this.actions.unregister(); }
 ```
 
 Call `syncActions()` when the widget's state changes. Return the actions available
@@ -841,6 +854,44 @@ widget words those facts; it does not fold the log. The callback also receives
 tab-local retained reading keeps it through preparation, then compares it with the
 ready history; a preparation reading is not a new history baseline.
 
+## Connection lifetimes
+
+A widget can leave the page and return, as a revision or a thread presentation moves
+it. Register `whileConnected(element, start)` once, after `once(this)`, for the
+mechanical resources one connection holds: listeners, observers, and registrations.
+It calls `start(signal)` synchronously on a connected element and again on each
+return. Listeners take `{signal}`; `start` may return a cleanup function for other
+resources. An actual departure aborts the signal and calls that cleanup, and a failed
+`start` aborts its signal before reporting the error. Its returned function
+permanently retires the subscription and releases active resources. Call it when the
+element no longer needs them, as a widget that fails soft from a paint it cannot
+repeat does, so a return does not start them again. Register dependent resources
+before `watchData` so they stand when its initial or resumed callback runs.
+
+```js
+schedulePaint = frameFor(this, () => this.paint());
+
+connectedCallback() {
+  if (!once(this)) return;
+  this.build();
+  whileConnected(this, (signal) => {
+    window.addEventListener("resize", this.schedulePaint, { signal });
+    const sizes = sizeObserver(this.schedulePaint);
+    sizes.observe(this);
+    return () => sizes.disconnect();
+  });
+}
+```
+
+`frameFor(element, paint)` returns a scheduling function that coalesces calls through
+`nextRender`. It ignores calls while detached, cancels pending work on departure, and
+checks connection again before painting. Returning permits fresh scheduling; it does
+not replay cancelled work.
+
+Both helpers decide departures at the arrival mutation batch: a move within that
+batch retains resources. Teardown that must happen synchronously, such as cancelling
+a grab or removing hoisted dialog content, belongs in `disconnectedCallback`.
+
 ## Data subscriptions and projections
 
 The source declarations and producer workflow are in [packages.md, "External or derived
@@ -868,25 +919,6 @@ Its `refresh()` repaints the last delivered snapshot through the same clock
 tracking. It neither delivers a pending source reading nor revives an absent or
 retired subscription.
 The callback must state the whole rendering and remain idempotent.
-
-Register `whileConnected(element, start)` once for mechanical resources such as
-listeners, observers, and registrations. It calls `start(signal)` synchronously on a
-connected element and again on each return. Listeners take `{signal}`; `start` may
-return a cleanup function for other resources. An actual departure aborts the signal
-and calls that cleanup, and a failed `start` aborts its signal before reporting the
-error. Its returned function permanently retires the subscription and releases active
-resources. `watchOwner(element, {connect, disconnect})` exposes the same lifetime for
-resources that already have separate hooks. Register dependent resources before
-`watchData` so they stand when its initial or resumed callback runs.
-
-Both helpers decide departures at the arrival mutation batch: a move within that
-batch retains resources. Teardown that must happen synchronously, such as cancelling
-a grab or removing hoisted dialog content, belongs in `disconnectedCallback`.
-
-`frameFor(element, paint)` returns a scheduling function that coalesces calls through
-`nextRender`. It ignores calls while detached, cancels pending work on departure, and
-checks connection again before painting. Returning permits fresh scheduling; it does
-not replay cancelled work.
 
 Time readings made synchronously in controller, `watchData`, `watchReports`, and
 `watchHistory` callbacks subscribe that paint to Leaf's shared clock. Calls to `ago`,
@@ -1107,7 +1139,9 @@ parts can share an outlet; Leaf retains their nodes and reconciles nomination or
 A shadow outlet displays retained parts through native slots: core nodes stay in
 document light DOM, forwarding through nested shadow boundaries to retain the complete
 layer stylesheet semantics. Leaf retains the generated nodes, message rendering, reactions,
-exact-version read exposure, and shared native reply draft. The package retains
+exact-version read exposure, and shared native reply draft. A nominated message of the
+user's own offers its rewrite in place, and a nominated reply box opens the latest of
+those the reader draws on ↑, as a whole conversation does. The package retains
 layout, ordering, selection, scroll and disclosure. A returned promise delays the
 required presentation; check `parts.signal` before asynchronous layout changes,
 since a newer pass or unregister aborts it.

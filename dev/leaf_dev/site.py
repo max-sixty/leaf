@@ -341,10 +341,7 @@ def catalog_markup(markup: str) -> str:
     for link in parsed.tree.select("a.example-link"):
         name = urlsplit(link.attrs["href"]).path.removeprefix("/examples/").strip("/")
         _, description = document_metadata(EXAMPLES / f"{name}.html")
-        caption = link.select_one(".example-description")
-        if caption is None:
-            raise ValueError(f"{name}: catalog card needs an example-description")
-        location = caption.source_location
+        location = link.select_one(".example-description").source_location
         start = index(location.start_tag.end_line, location.start_tag.end_col)
         end = index(location.end_tag.start_line, location.end_tag.start_col)
         replacements.append((start, end, escape(description, quote=False)))

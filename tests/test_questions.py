@@ -1,10 +1,13 @@
 """One Question inventory, its canonical values, and its presentation context."""
 
+import json
 from copy import deepcopy
+from pathlib import Path
 
 import model_folds as model
 import pytest
 from leaf import questions as questions_model
+from leaf.gesture_words import element_name
 from leaf.passages import SourceReading
 from leaf.projection import page_reading
 from leaf.served_state.browser import browser_state
@@ -579,3 +582,42 @@ def test_repicking_a_withdrawn_request_records_provenance_without_reclosing_thre
     answer = questions(reading, 2)["all"][0]["answer"]
     assert answer["value"] == ["b"]
     assert answer["event"]["id"] == "e4"
+
+
+def _element(content: list, id: str) -> dict | None:
+    for node in content:
+        if isinstance(node, str):
+            continue
+        if node["attrs"].get("id") == id:
+            return node
+        if found := _element(node["content"], id):
+            return found
+    return None
+
+
+@pytest.mark.parametrize(
+    "case",
+    json.loads((Path(__file__).with_name("name_cases.json")).read_text()),
+    ids=lambda case: case["id"],
+)
+def test_an_element_is_named_as_the_browser_names_it(case):
+    """A Question's prompt is its element's name, read off the document by the rule
+    the browser's `addressableName` reads off the live page."""
+    document = SourceDocument(model.leaf_page("Names", case["markup"]))
+    node = _element(document.content, "it")
+    assert element_name(node, case.get("registry", {})) == case["name"]
+
+
+EXHIBITS = json.loads(Path(__file__).with_name("exhibit_cases.json").read_text())
+
+
+@pytest.mark.parametrize("case", EXHIBITS["cases"], ids=lambda case: case["id"])
+def test_a_widget_is_quoted_where_the_browser_fences_it(case):
+    """A widget strictly inside an x-exhibit is a mention, read off the holder chain by
+    the rule the browser's `quoted` and its descriptors' `quoted` flag read off the
+    page."""
+    document = SourceDocument(model.leaf_page("Exhibits", case["markup"]))
+    assert {
+        rec["attrs"]["id"]: questions_model.quoted_in(rec, EXHIBITS["registry"])
+        for rec in document.lf_elements
+    } == case["quoted"]

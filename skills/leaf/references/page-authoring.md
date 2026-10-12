@@ -660,8 +660,9 @@ Reload reconnects the child; Reset replaces it with a fresh copy of its initial 
 Initial document admission failures reject `ready` after releasing the failed
 allocation; the sample keeps its error and Reset control. Later native navigation
 keeps the destination in the frame and Reset available. While that document has no
-Leaf connection, `ready` and presentation commands reject with `AbortError`; a
-valid Leaf reload reconnects. The containing page cannot distinguish an external
+Leaf connection, `ready` and presentation commands reject with
+`SampleDepartedError`; a valid Leaf reload reconnects and announces
+`lf-sample-ready` again. The containing page cannot distinguish an external
 destination from a failed reload inside the opaque frame.
 To select a conversation, call `await sample.showThread(id)` with its root event id;
 this shows the same page destination as its marker. To inspect it in Threads,
@@ -671,7 +672,7 @@ omitted values restore Open and unrestricted waiting. A panel view may omit the
 id to show its list. Completion means the selected view has presented; it returns
 false when a newer selection or Reset supersedes it. Outer controls keep keyboard
 focus. Use this method instead of clicking the child's private chrome or observing
-its DOM. Reapply the selected view on `lf-sample-ready` after Reset.
+its DOM. Reapply the selected view on `lf-sample-ready` after Reset or reload.
 Author child content in the
 template rather than copying rendered controls from the parent. Ordinary
 `lf-sample` children, without a template, remain static quoted material.

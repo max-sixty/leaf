@@ -88,7 +88,8 @@
           display: none; }
 /* A message offers one control of its own at its header's right edge and centre: an
    agent's reply its reactions, the user's own words their rewrite. The header keeps
-   that control's room at its end, so it covers none of the header's words, and the
+   that control's room at its end, beside any room another head control holds
+   (`--lf-msg-head-room`), so it covers none of the header's words, and the
    control follows that edge when thread actions narrow the header; the full-width
    message body does not place it. It appears only for the message under pointer or
    focus.
@@ -99,7 +100,8 @@
 .lf-msg > .lf-msg-head { anchor-name: --lf-msg-head; }
 .lf-msg:has(.lf-msg-control) > .lf-msg-head {
           --lf-msg-control: max(26px, var(--aim-floor));
-          padding-inline-end: var(--lf-msg-control-room, var(--lf-msg-control)); }
+          padding-inline-end: calc(var(--lf-msg-control-room, var(--lf-msg-control)) +
+            var(--lf-msg-head-room, 0px)); }
 /* An open rewrite's Cancel and Save take the room its Edit control took, and more: the
    head holds the author alone while it is open, its time and labels saying nothing a
    rewrite needs. */
@@ -163,7 +165,8 @@
 @media (pointer: coarse), (hover: none) {
   .lf-msg:is(.agent, .user) > .lf-msg-head {
           --lf-msg-control: max(26px, var(--aim-floor));
-          padding-inline-end: var(--lf-msg-control-room, var(--lf-msg-control)); }
+          padding-inline-end: calc(var(--lf-msg-control-room, var(--lf-msg-control)) +
+            var(--lf-msg-head-room, 0px)); }
 }
 .lf-msg-meta { display: flex; align-items: baseline; gap: var(--sp-2); min-width: 0; }
 .lf-msg-sending { color: var(--muted); font-weight: 600; white-space: nowrap; }

@@ -146,7 +146,6 @@ function rowTemplate() {
       class="lf-btn lf-banner-more"
       type="button"
       popovertarget="lf-banner-menu"
-      aria-expanded=${String(open)}
       aria-label=${name}
       title=${name}
       ?data-lf-news=${news.length > 0}
@@ -169,7 +168,6 @@ render(rowTemplate(), bannerActions);
 render(menuTemplate(), overflowMenu);
 
 const overflowBtn = bannerActions.querySelector(".lf-banner-more");
-overflowMenu.lfInvoker = overflowBtn;
 
 // More temporarily borrows the reader's focus. Context-preserving commands return
 // that browser checkpoint before acting; it never becomes a remembered page target.
@@ -447,9 +445,8 @@ overflowMenu.addEventListener("lf-reveal", (event) => {
 // Null means the toolbar offers no way in, which happens only off the banner.
 export function bannerControlDoor(control = overflowBtn) {
   if (drawn(control)) return control;
-  const menu = control.closest(".lf-banner-menu");
-  if (menu?.lfInvoker?.checkVisibility()) return menu.lfInvoker;
-  return bannerActions.contains(control) && overflowBtn.checkVisibility()
+  return (overflowMenu.contains(control) || bannerActions.contains(control)) &&
+    overflowBtn.checkVisibility()
     ? overflowBtn
     : null;
 }

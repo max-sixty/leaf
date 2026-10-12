@@ -7,7 +7,7 @@
 description: task-on-the-user
 metadata:
   purpose: 'Conversation loop: work the agent needs the user to do outside the page, with no
-    choice to make, goes on the user''s queue as a task on them, about the section it
+    choice to make, goes on the user''s Questions as a to-do on them, about the section it
     concerns, rather than only into a reply.'
   tags:
   - wait-loop
@@ -26,9 +26,9 @@ assert:
 - type: llm-rubric
   metric: judgment
   value: |
-    Pass only if the commands put a task on the user for trying the install steps:
+    Pass only if the commands put a to-do on the user for trying the install steps:
     a `leaf task open` on the page that names the `install` section (or the page) and
-    marks the task as the user's rather than the agent's, with a title saying what to
+    marks the to-do as the user's rather than the agent's, with a title saying what to
     try. A thread message beside it is fine. Fail if the request reaches the user only
-    as prose, such as a reply, a new thread, or a waiting status line, with no task on
-    them, or if the task opened is the agent's own.
+    as prose, such as a reply, a new thread, or a waiting status line, with no to-do on
+    them, or if the to-do opened is the agent's own.

@@ -370,16 +370,20 @@
     </script>
   </head>
   <body>
-    <main class="layout-wide">
+    <main class="layout-column">
       <p class="eyebrow">release report</p>
       <h1>Shape a release query</h1>
       <p class="lede">
         Choose which releases to include in the report. Add filters, check the matching
         rows, then ask the agent to build the query.
       </p>
-      <lf-ask id="release-query-ask" data-width="available">
+      <lf-ask id="release-query-ask">
         <h2>Which release query should the agent build?</h2>
-        <lf-playground id="release-query-playground" submit-label="Build query">
+        <lf-playground
+          id="release-query-playground"
+          submit-label="Build query"
+          data-width="available"
+        >
           <lf-playground-control
             name="limit"
             label="Maximum results"

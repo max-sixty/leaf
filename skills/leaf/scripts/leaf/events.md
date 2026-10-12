@@ -221,7 +221,8 @@ nonempty `detail.text`. Custom verbs without a record keep their declared detail
 schema. All payloads are closed objects.
 
 Dependency identities come from the fold unit and the attribute-set and position
-record values. Literal detail strings do not become dependencies by matching HTML ids. The log does not freeze ancestry:
+record values, each a nonempty string the payload schema requires, and a position's
+`rank` matches the rank pattern (`registry.contract.RANK`). Literal detail strings do not become dependencies by matching HTML ids. The log does not freeze ancestry:
 retraction tests use the current document's containment of those identities.
 A child a `creates` verb adds is that action's fold unit, so it stands on the action's
 own coordinate until the action is undone or retracted. Admission stamps the child tag

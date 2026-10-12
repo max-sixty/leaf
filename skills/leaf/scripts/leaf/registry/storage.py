@@ -10,7 +10,7 @@ from leaf.page_memory import Slot, memo
 
 from ..refusals import Refused
 from .contract import RegistryError, read_registry_declarations
-from .layer import required_layer_declarations
+from .layer import layer_facts_error
 
 
 class _Layer(Slot):
@@ -43,8 +43,8 @@ def load_registry(page_dir: Path):
 def _read_layer(page_dir: Path, path: Path) -> dict | None:
     try:
         registry = read_registry_declarations(path)
-        if registry is not None:
-            required_layer_declarations(registry, path)
+        if registry is not None and (error := layer_facts_error(registry)):
+            raise RegistryError(f"{path}: {error}")
     except RegistryError as error:
         raise _revendor(page_dir, error) from None
     return registry

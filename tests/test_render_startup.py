@@ -423,9 +423,7 @@ def test_a_website_example_shows_its_public_session_reference(browser, serve):
     page.route("**/api/state*", identify)
     page.goto(url, wait_until="load")
     wait_until_ready(page)
-    expect(page.locator(".lf-banner .lf-status-detail")).not_to_contain_text(
-        "239383829012"
-    )
+    expect(page.locator(".lf-banner .lf-status-detail")).to_have_count(0)
     reference = page.locator(".lf-session-reference")
     expect(reference).not_to_be_visible()
     page.get_by_role("button", name="More page controls", exact=True).click()
@@ -945,7 +943,13 @@ def test_a_restored_auxiliary_surface_leaves_the_page_where_it_painted(
             + content
             + "</template></lf-sample>"
         )
-    url = serve(leaf_page("Restored surface", content, layout="wide" if wide else None))
+    url = serve(
+        leaf_page(
+            "Restored surface",
+            f"<div>{content}</div>" if wide else content,
+            layout="sidebar" if wide else None,
+        )
+    )
     context = browser.new_context(viewport={"width": window, "height": 900})
     priming = context.new_page()
     priming.goto(url, wait_until="load")
@@ -2392,10 +2396,13 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     # replayed onto it, so what the press restores is the accept, not a blank slate.
     undo(page)
     expect(page.locator("#sug-fix")).to_have_attribute("data-lf-state", "accept")
-    # The undo is no gesture on the thread, so its card stays where it stands, holding
-    # the resolution behind its notice.
-    expect(reopened.get_by_role("button", name="Resolved", exact=True)).to_be_visible()
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
+    # The undo concerns this thread, so its resolved card leaves Open as the user's
+    # own move. Resolved still offers the conversation and its settled state.
+    expect(reopened).not_to_be_visible()
+    page.locator(".lf-thread-filter-toggle").click()
+    page.locator('[data-filter-value="resolved"]').click()
+    expect(reopened).to_have_attribute("data-resolved", "true")
     # What the log holds is the three gestures and not one word about the thread:
     # it was reopened and closed again by that log being read.
     assert [

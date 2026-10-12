@@ -16,6 +16,7 @@ Storage replacement and cross-process locking are shared below the page model.
 from __future__ import annotations
 
 import contextlib
+import fcntl
 import hashlib
 import json
 import os
@@ -25,11 +26,6 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-
-try:
-    import fcntl
-except ImportError:  # pragma: no cover - unsupported non-POSIX platform
-    fcntl = None
 
 EVENTS_FILE = "events.jsonl"
 
@@ -66,14 +62,6 @@ def page_key(page_dir: Path) -> str:
     return hashlib.sha256(str(page_dir.resolve()).encode()).hexdigest()
 
 
-def require_cross_process_locking() -> None:
-    """Refuse every writer/server path on a host without the log's lock."""
-    if fcntl is None:
-        raise RuntimeError(
-            "leaf requires POSIX cross-process file locking; this platform has no fcntl"
-        )
-
-
 @contextlib.contextmanager
 def flocked(path: Path, *, deadline: float | None = None):
     """An exclusive lock held while the block runs — the one serialization
@@ -99,7 +87,6 @@ def flocked(path: Path, *, deadline: float | None = None):
     A `deadline`, a `time.monotonic()` reading, bounds the wait: a lock not taken
     by then raises TimeoutError, for a taker that must finish by a harness's
     deadline more than it must take the lock."""
-    require_cross_process_locking()
     mode = "r+b" if path.name == EVENTS_FILE else "a+b"
     while True:
         with open(path, mode) as f:

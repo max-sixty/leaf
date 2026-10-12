@@ -1,6 +1,5 @@
 """Declaration-driven state and retirement projections."""
 
-import re
 from collections.abc import Callable, Iterable
 from typing import NamedTuple
 
@@ -144,12 +143,7 @@ def retirement_holders(parser: SourceDocument, registry: dict) -> list:
 
 NO_RECORD = object()
 
-# A position record's rank: a base-36 fraction written as its digits after the point,
-# never ending in 0, so string order is numeric order. The runtime's
-# `projection/model.js` owns the reasoning and computes the keys between neighbours;
-# these two rules are the ones both runtimes must read the same way, and
-# `tests/rank_cases.json` holds both runtimes to the same cases.
-RANK = re.compile(r"[0-9a-z]*[1-9a-z]")
+# The digits of a position record's rank (`registry.contract.RANK`).
 _RANK_DIGITS = "0123456789abcdefghijklmnopqrstuvwxyz"
 
 

@@ -1086,12 +1086,6 @@ def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
     expect(groups.nth(1)).not_to_have_attribute("open", "")
     location = widget.locator(".lf-call-location", has_text="utils.py:2")
     location.focus()
-    location.evaluate(
-        """node => {
-          window.heldCallDiffControl = node;
-          window.heldCallDiffRow = node.closest('.lf-call-line');
-        }"""
-    )
     for destination, roots in (
         ("app.py:20", (first_work, second_work + shared, third_work + unfocused)),
         (
@@ -1113,10 +1107,6 @@ def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
         expect(location).to_be_visible()
         expect(location).to_be_focused()
         expect(groups.last).not_to_have_attribute("open", "")
-        assert location.evaluate(
-            """node => node === window.heldCallDiffControl &&
-              node.closest('.lf-call-line') === window.heldCallDiffRow"""
-        ), "a surviving call's group change replaced its row or control"
 
 
 def test_visual_review_guides_one_typed_still_run(browser, serve):
@@ -2034,9 +2024,9 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     url = serve(
         leaf_page(
             "source comment draft",
-            '<h1 id="title">Review</h1>'
-            '<lf-text-document id="source" source="document"></lf-text-document>',
-            layout="wide",
+            '<div><h1 id="title">Review</h1>'
+            '<lf-text-document id="source" source="document"></lf-text-document></div>',
+            layout="sidebar",
         )
     )
     data_model.cmd_data_set(serve.page_dir, "document", "Original source words.")

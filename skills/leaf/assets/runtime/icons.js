@@ -49,7 +49,7 @@ const iconMarkup = (icon) => {
   return markup;
 };
 
-/** Render a keyed Lit icon without replacing its SVG during a parent refresh. */
+/** A Lit icon template; a parent refresh keeps its SVG and rewrites only a changed icon. */
 export function iconTemplate(icon, className = "lf-margin-entry-icon") {
   return html`<svg
     viewBox="0 0 16 16"

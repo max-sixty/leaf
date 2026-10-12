@@ -19,6 +19,36 @@ from render_harness import (
 )
 
 
+def test_sample_bootstrap_reuses_its_bridge_without_hiding_the_child(browser, serve):
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Reused sample bridge",
+                """
+<lf-sample id="practice" label="Practice">
+  <template id="practice-source" data-sample><h1>Practice page</h1></template>
+</lf-sample>""",
+            )
+        ),
+    )
+    sample = page.locator("#practice")
+    sample.evaluate("async sample => await sample.ready")
+    child = sample.locator("iframe").element_handle().content_frame()
+    child.evaluate("""() => {
+      const source = document.querySelector('script[data-lf-entry]');
+      const replay = document.createElement('script');
+      for (const attr of source.attributes) replay.setAttribute(attr.name, attr.value);
+      replay.textContent = source.textContent;
+      source.after(replay);
+      replay.remove();
+    }""")
+    assert child.locator("html").evaluate(
+        "root => getComputedStyle(root).visibility"
+    ) == "visible"
+
+
+
 def interaction_records(page, page_dir, *, document=None):
     """Read the persisted stream after this document's preceding records were sent."""
     checkpoint = uuid4().hex

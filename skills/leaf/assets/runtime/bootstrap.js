@@ -28,13 +28,13 @@
   // origin keeps it out of its parent's DOM and storage; native network APIs keep
   // their ordinary browser behavior. Only presentation values use the private port.
   if (root.hasAttribute("data-lf-sample")) {
-    // The parent supplies a playground's dress asynchronously. Keep the child out of
-    // view until its root wears that dress, including on a Reset replacement.
-    root.style.visibility = "hidden";
     if (window.lfSampleBridge) {
       root.lfSample = window.lfSampleBridge;
       root.lfSample.install();
     } else {
+      // The parent supplies a playground's dress asynchronously. Keep a new child
+      // out of view until its root wears that dress, including on Reset.
+      root.style.visibility = "hidden";
       let port;
       let settings;
       const { promise: ready, resolve: readyResolve } = Promise.withResolvers();

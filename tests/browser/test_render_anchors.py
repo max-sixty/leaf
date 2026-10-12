@@ -1785,7 +1785,9 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
 
     pierre_bad = page.evaluate(
         """async (langs) => {
-          const { parsePatchFiles, preloadDiffHTML } =
+          const { parsePatchFiles } =
+            await window.__lfRuntimeImport('/vendor/pierre-parser.esm.js');
+          const { preloadDiffHTML } =
             await window.__lfRuntimeImport('/vendor/pierre-diffs.esm.js');
           const { themeName } =
             await window.__lfRuntimeImport('/vendor/syntax.esm.js');
@@ -5206,7 +5208,7 @@ def test_a_datum_comment_reveals_its_shadow_host_and_outer_tab(browser, serve):
     expect(added).to_have_class(re.compile(r"\blf-mark-here\b"))
 
 
-# Two files in one manifest, each loaded only when it is opened.
+# Two files in one manifest, each rendered only when it is opened.
 TWO_FILE_MANIFEST = {
     "files": [
         {
@@ -5242,23 +5244,27 @@ TWO_FILE_MANIFEST = {
     ]
 }
 
-# Hold the second file's deferred patch until the test releases it.
+# Observe evidence requests, then hold the second file's textual rendering. Its
+# complete Git evidence is already checked before either closed row is shown.
 HOLD_SECOND_FILE = """
           window.__leafDeferredRequests = [];
           const originalFetch = window.fetch.bind(window);
           window.fetch = (input, init) => {
             const url = new URL(input instanceof Request ? input.url : String(input),
                                 location.href);
-            if (url.pathname === '/api/deferred') {
-              const key = url.searchParams.get('key');
-              window.__leafDeferredRequests.push(key);
-              if (key === 'second.py')
-                return new Promise(resolve => {
-                  window.__leafReleaseDeferred = () => resolve(originalFetch(input, init));
-                });
-            }
+            if (url.pathname === '/api/deferred')
+              window.__leafDeferredRequests.push(url.searchParams.get('key'));
             return originalFetch(input, init);
           };
+          customElements.whenDefined('lf-diff').then(() => {
+            const prototype = customElements.get('lf-diff').prototype;
+            const prepare = prototype.prepareEntry;
+            prototype.prepareEntry = async function(...args) {
+              if (args[1].path === 'second.py' && !window.__leafReleaseDeferred)
+                await new Promise(resolve => { window.__leafReleaseDeferred = resolve; });
+              return prepare.apply(this, args);
+            };
+          });
 """
 
 
@@ -5266,14 +5272,14 @@ HOLD_SECOND_FILE = """
     ("activation", "superseded"),
     [("mouse", False), ("keyboard", False), ("mouse", True)],
 )
-def test_a_deferred_diff_loads_only_opened_files_and_hydrates_comment_travel(
+def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
     browser, serve, activation, superseded
 ):
     """A collapsed manifest is the startup surface, not a hidden fully-rendered patch.
 
-    Opening one file fetches and renders only that file. A standing line thread on a
+    All file evidence is checked first; opening one file renders only that file. A standing line thread on a
     different unopened file remains attached at its disclosure; pressing its quote
-    hydrates that deferred patch before ordinary exact-line navigation resumes.
+    renders that file before ordinary exact-line navigation resumes.
     """
     authored = leaf_page(
         "deferred diff",
@@ -5306,7 +5312,7 @@ def test_a_deferred_diff_loads_only_opened_files_and_hydrates_comment_travel(
     expect(page.locator("lf-diff [data-line]")).to_have_count(0)
     expect(page.locator("lf-diff .lf-diff-thread-outlet")).to_have_count(0)
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(1)
-    assert page.evaluate("window.__leafDeferredRequests") == []
+    assert page.evaluate("window.__leafDeferredRequests") == ["first.py", "second.py"]
 
     page.locator("lf-diff summary").first.click()
     expect(
@@ -5315,7 +5321,7 @@ def test_a_deferred_diff_loads_only_opened_files_and_hydrates_comment_travel(
     expect(
         page.locator('lf-diff [data-lf-datum=\'["second.py","new",1]\']')
     ).to_have_count(0)
-    assert page.evaluate("window.__leafDeferredRequests") == ["first.py"]
+    assert page.evaluate("window.__leafDeferredRequests") == ["first.py", "second.py"]
 
     if activation == "keyboard":
         resized(page, 400, 900)
@@ -5363,7 +5369,7 @@ def test_a_deferred_diff_loads_only_opened_files_and_hydrates_comment_travel(
 def test_a_hunk_step_waiting_on_a_file_leaves_a_user_who_moved_on(browser, serve):
     """`]` into a file still loading lands only while the user is where they pressed it.
 
-    The step opens the next file and waits for its deferred patch. A user who presses
+    The step opens the next file and waits for its textual rendering. A user who presses
     somewhere else in that wait has moved on, and the landing the step owed is dropped
     rather than dragging them back into the diff when the file arrives.
     """
@@ -5440,14 +5446,6 @@ def test_a_deferred_diff_tracks_each_write_and_retries_a_failed_file(browser, se
     page = open_page(browser, url)
     expect(page.locator("lf-diff summary")).to_contain_text("first.py")
 
-    data_model.cmd_data_set(
-        serve.page_dir, "review-patch", manifest("second.py", "old", "second")
-    )
-    told(page)
-    summary = page.locator("lf-diff summary")
-    expect(summary).to_contain_text("second.py")
-    expect(summary).not_to_contain_text("first.py")
-
     refused = []
 
     def refuse_once(route):
@@ -5458,7 +5456,13 @@ def test_a_deferred_diff_tracks_each_write_and_retries_a_failed_file(browser, se
             route.continue_()
 
     page.route("**/api/deferred*", refuse_once)
-    summary.click()
+    data_model.cmd_data_set(
+        serve.page_dir, "review-patch", manifest("second.py", "old", "second")
+    )
+    told(page)
+    summary = page.locator("lf-diff summary")
+    expect(summary).to_contain_text("second.py")
+    expect(summary).not_to_contain_text("first.py")
     expect(page.locator("lf-diff .lf-error")).to_contain_text(
         "the patch is unavailable"
     )
@@ -5624,8 +5628,9 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
         requests.append(True)
         route.fulfill(status=500, json={"error": "the patch is unavailable"})
 
-    page = open_page(browser, url)
-    page.route("**/api/deferred*", refuse)
+    context = browser.new_context()
+    context.route("**/api/deferred*", refuse)
+    page = open_page(browser, url, context=context)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, True)
     page.locator(".lf-thread-summary").click()

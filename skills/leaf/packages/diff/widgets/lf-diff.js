@@ -16,7 +16,9 @@
  * disclosure joins the pending source render before reading its evidence, and a closed file shows
  * none of the previous revision while it loads current evidence. Line conversations
  * follow the visible reader width while source lines may scroll horizontally. Passage reveal
- * clears this widget's file filter; addressed datum reveal also hydrates its file. Native
+ * clears this widget's file filter; addressed datum reveal also hydrates its file.
+ * All file evidence is read and checked before any listing metadata appears;
+ * closed files retain that parse and defer only textual rendering. Native
  * operations and textual hunks are independent: metadata-only files have a commentable
  * row without an empty disclosure, and a file-type replacement keeps one file identity. */
 import {
@@ -81,6 +83,9 @@ import "/vendor/webawesome.esm.js";
 // module load: the page pays for the renderer when it draws a diff, and a version whose
 // diff has been taken back out stops paying on the next load. The promise is kept, so
 // every later file, every other diff on the page, and every re-render share one import.
+// Metadata must be parsed before its row commits; unopened text needs no renderer.
+let parser = null;
+const parse = () => (parser ??= import("/vendor/pierre-parser.esm.js"));
 let renderer = null;
 const pierre = () => (renderer ??= import("/vendor/pierre-diffs.esm.js"));
 
@@ -349,20 +354,25 @@ function filePathTemplate({ path, previousPath }) {
 
 // Lit owns only the summary's contents. The native disclosure and Pierre's body
 // stay connected across revisions, including loading and failed evidence.
-function paintSummary(details, record) {
+function paintSummary(details, record, verified = true) {
   const { path, previousPath, additions, deletions } = record;
   const previous = pathParts(details);
   render(
-    html`${keyed(JSON.stringify([path, previousPath]), filePathTemplate(record))}<span
-        class="lf-diff-stat"
-        data-lf-gen="1"
-        ><span class="lf-diff-additions">+${additions}</span>${" "}<span
-          class="lf-diff-deletions"
-          >−${deletions}</span
-        ><span class="lf-diff-metadata-words"
-          >${operationWord(record) ? ` · ${operationWord(record)}` : ""}</span
-        ></span
-      >`,
+    html`${keyed(
+      JSON.stringify([path, verified && previousPath]),
+      filePathTemplate(verified ? record : { path }),
+    )}${
+      verified
+        ? html`<span class="lf-diff-stat" data-lf-gen="1"
+            ><span class="lf-diff-additions">+${additions}</span>${" "}<span
+              class="lf-diff-deletions"
+              >−${deletions}</span
+            ><span class="lf-diff-metadata-words"
+              >${operationWord(record) ? ` · ${operationWord(record)}` : ""}</span
+            ></span
+          >`
+        : null
+    }`,
     details.firstElementChild,
   );
   const current = pathParts(details);
@@ -370,14 +380,14 @@ function paintSummary(details, record) {
   for (const part of current) if (!previous.includes(part)) pathSizes.observe(part);
 }
 
-function summaryNode(record, open) {
+function summaryNode(record, open, verified = true) {
   const details = document.createElement("details");
   details.className = "lf-diff-fold";
   details.open = open;
   const summary = document.createElement("summary");
   summary.className = `lf-diff-head ${HOLDS_WORD}`;
   details.append(summary);
-  paintSummary(details, record);
+  paintSummary(details, record, verified);
   commands(summary, "On a diff", [
     {
       id: "diff.toggle",
@@ -385,7 +395,7 @@ function summaryNode(record, open) {
       title: () => `${details.open ? "hide" : "show"} this file`,
     },
   ]);
-  paintFileDetails(details, record);
+  paintFileDetails(details, verified ? record : {});
   return details;
 }
 
@@ -890,10 +900,10 @@ function replacementFile(files, parseDiffFromFile) {
 
 // What the widget can present, which it alone judges: the diff package's
 // `patch_manifest.py` preserves the evidence, and an entry refused here reports when
-// its metadata appears or its textual file opens. `tests/diff_patch_cases.json`
+// its listing appears, even when its textual file stays closed. `tests/diff_patch_cases.json`
 // is the table of cases.
 async function parsedFiles(source) {
-  const { parsePatchFiles, parseDiffFromFile } = await pierre();
+  const { parsePatchFiles, parseDiffFromFile } = await parse();
   const files = parsePatchFiles(source, undefined, true).flatMap(
     (patch) => patch.files,
   );
@@ -1117,12 +1127,19 @@ export default class extends HTMLElement {
       );
       const sharedStyles = this.sharedStyles ?? new Map();
       const open = !this.hasAttribute("collapsed");
-      const plans = records.map((record) => ({
-        record,
-        previous: prior.get(record.path),
-        prepared: null,
-      }));
-      // Visible metadata and open textual evidence are judged before committing.
+      const plans = await Promise.all(
+        records.map(async (record) => {
+          const evidence = await this.readEntry(snapshot, record);
+          return {
+            record,
+            evidence,
+            previous: prior.get(record.path),
+            prepared: evidence.error ? evidence : null,
+          };
+        }),
+      );
+      // Every row's evidence is judged before its metadata commits. Only open files
+      // need the textual renderer; closed files retain their one parsed reading.
       // Open evidence is prepared without changing the current entries or their native
       // outlets. A disclosure opened while another file loads joins this same commit.
       for (;;) {
@@ -1139,6 +1156,7 @@ export default class extends HTMLElement {
               plan.record,
               plan.previous?.details ? plan.previous.renderKey : null,
               sharedStyles,
+              plan.evidence,
             );
           }),
         );
@@ -1147,7 +1165,7 @@ export default class extends HTMLElement {
       const restores = [];
       const resume = this.controller.defer();
       try {
-        const entries = plans.map(({ record, previous, prepared }) => {
+        const entries = plans.map(({ record, evidence, previous, prepared }) => {
           let entry = previous;
           const metadata = record.hunkCount === 0 && !prepared?.error;
           if (
@@ -1159,12 +1177,17 @@ export default class extends HTMLElement {
           ) {
             const row = metadata
               ? metadataNode(record)
-              : summaryNode(record, record.hunkCount === 0 || open);
+              : summaryNode(
+                  record,
+                  !!prepared?.error || record.hunkCount === 0 || open,
+                  !prepared?.error,
+                );
             if (entry) restores.push(replaceFileRendering(entry, row));
             else fresh.push((entry = fileEntry(row)));
           }
           Object.assign(entry, {
             record,
+            file: evidence.file,
             loaded: metadata,
             failed: false,
             refused: false,
@@ -1177,10 +1200,10 @@ export default class extends HTMLElement {
             entry.renderKey = null;
             return entry;
           }
-          paintSummary(entry.details, record);
+          paintSummary(entry.details, record, !prepared?.error);
           if (prepared) restores.push(this.applyEntry(entry));
           else entry.details.querySelector("pre")?.toggleAttribute("hidden", true);
-          paintFileDetails(entry.details, record);
+          paintFileDetails(entry.details, prepared?.error ? {} : record);
           return entry;
         });
         this.snapshot = snapshot;
@@ -1226,7 +1249,7 @@ export default class extends HTMLElement {
   // will, so it offers no Retry, and `applyEntry` reports it to the agent, which stored
   // it, once the current rendering shows it: the manifest's producer leaves judging a
   // patch to this widget.
-  async prepareEntry(snapshot, record, renderKey, sharedStyles) {
+  async readEntry(snapshot, record) {
     let patch;
     if (!record.parsed)
       try {
@@ -1235,13 +1258,23 @@ export default class extends HTMLElement {
         return { error, retry: true };
       }
     try {
-      const file = record.parsed ?? (await deferredFile(patch, record));
+      return { file: record.parsed ?? (await deferredFile(patch, record)) };
+    } catch (error) {
+      return { error };
+    }
+  }
+
+  async prepareEntry(snapshot, record, renderKey, sharedStyles, evidence) {
+    const reading = evidence ?? (await this.readEntry(snapshot, record));
+    if (reading.error) return reading;
+    try {
+      const { file } = reading;
       const nextKey = JSON.stringify(file);
       const rendered =
         !file.hunks.length || renderKey === nextKey
           ? null
           : await renderFile(file, sharedStyles);
-      return { renderKey: nextKey, rendered };
+      return { file, renderKey: nextKey, rendered };
     } catch (error) {
       return { error };
     }
@@ -1432,6 +1465,7 @@ export default class extends HTMLElement {
         entry.record,
         entry.renderKey,
         this.sharedStyles,
+        entry.file ? { file: entry.file } : undefined,
       );
       if (rendering !== this.rendering || !this.isConnected) return;
       entry.loading = null;
@@ -1448,10 +1482,13 @@ export default class extends HTMLElement {
 
   // Returns the focus restore for the caller to run once the file's evidence is staged.
   applyEntry(entry) {
-    const { error, retry, renderKey, rendered } = entry.prepared;
+    const { error, retry, file, renderKey, rendered } = entry.prepared;
     entry.prepared = null;
     if (error) {
       entry.failed = true;
+      paintSummary(entry.details, entry.record, false);
+      if (!entry.details.open) entry.details.open = true;
+      entry.disclosureOpen = true;
       // Reopening retries a load; nothing loads a patch this widget refused again.
       entry.refused = !retry;
       if (entry.refused) reportFailure(this, error);
@@ -1469,6 +1506,8 @@ export default class extends HTMLElement {
       );
       return null;
     }
+    entry.file = file;
+    paintSummary(entry.details, entry.record);
     if (entry.record.hunkCount === 0) {
       const restore = replaceFileRendering(entry, metadataNode(entry.record));
       entry.loaded = true;
@@ -1524,8 +1563,12 @@ export default class extends HTMLElement {
     entry.disclosureNode?.removeEventListener("toggle", entry.disclose);
     entry.disclosureNode = entry.details;
     if (!entry.details) return;
+    entry.disclosureOpen = entry.details.open;
     entry.disclose ??= () => {
+      const previous = entry.disclosureOpen;
+      entry.disclosureOpen = entry.details.open;
       threadSurface(this).update();
+      if (previous === entry.disclosureOpen) return;
       if (!entry.details.open || !this.fileEntries?.includes(entry) || entry.refused)
         return;
       entry.failed = false;

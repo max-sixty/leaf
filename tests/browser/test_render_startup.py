@@ -2580,7 +2580,7 @@ def test_a_page_with_a_diff_loads_the_renderer_when_it_draws_lines(browser, serv
     """The other side of the narrowing, on a diff bound as a manifest of collapsed files.
 
     That is the form a captured patch arrives in, and its module draws the file rows
-    without parsing a line, so the renderer follows the lines rather than the tag: the
+    without rendering a line, so the renderer follows the lines rather than the tag: the
     module loads because the markup carries `<lf-diff>`, and Pierre loads when a file is
     opened and its lines are drawn. Both halves are asserted, because either alone would
     pass on a diff that never rendered at all.
@@ -2595,7 +2595,10 @@ def test_a_page_with_a_diff_loads_the_renderer_when_it_draws_lines(browser, serv
     data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
-        patch_manifest(MULTI_HUNK_PATCH),
+        patch_manifest(
+            MULTI_HUNK_PATCH + "diff --git a/old.py b/new.py\nsimilarity index 100%\n"
+            "rename from old.py\nrename to new.py\n"
+        ),
     )
     page = open_page(browser, url, context=context)
 
@@ -2607,6 +2610,8 @@ def test_a_page_with_a_diff_loads_the_renderer_when_it_draws_lines(browser, serv
     expect(diff).to_have_class(re.compile(r"\blf-rendered\b"))
     files = diff.locator("details > summary")
     expect(files.first).to_be_visible()
+    expect(diff.locator(".lf-diff-metadata")).to_contain_text("old.py → new.py")
+    assert "/vendor/pierre-parser.esm.js" in asked
 
     files.first.click()
     expect(diff.locator("[data-line]").first).to_be_visible()

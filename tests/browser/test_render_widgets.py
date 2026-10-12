@@ -9401,7 +9401,7 @@ def test_a_file_row_a_revision_brings_reads_its_cut_path(browser, serve):
     data_model.cmd_data_set(serve.page_dir, "review-patch", patch_manifest(rename))
     context = browser.new_context(viewport={"width": 390, "height": 844})
     page = open_page(browser, url, context=context)
-    expect(page.locator("lf-diff .lf-diff-rename")).to_have_count(1)
+    expect(page.locator("lf-diff .lf-diff-metadata")).to_have_count(1)
     data_model.cmd_data_set(serve.page_dir, "review-patch", patch_manifest(regular))
     told(page)
     rendered(page)

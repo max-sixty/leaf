@@ -4,7 +4,7 @@
       "unified-diff": {
         "description": "A unified patch, either as one text value or as a file manifest whose patch fields Leaf delivers separately on demand.",
         "instructions": {
-          "producer": "Pipe the exact Git patch, with Git's default `a/` and `b/` prefixes, through this package's producer script into the source:\n\n```bash\ngit diff <base>...<head> | leaf package run diff patch_manifest.py | leaf data set \"$PAGE\" <source-id>\n```\n\nThe script records native file operations, including copies, mode changes, binary changes and empty files, and preserves their Git evidence. It leaves judgment to `lf-diff`: metadata is checked before its row appears, and textual hunks are delivered and checked when their file opens. A file the widget cannot present shows its refusal and reports it to you as the page's error."
+          "producer": "Pipe the exact Git patch, with Git's default `a/` and `b/` prefixes, through this package's producer script into the source:\n\n```bash\ngit diff <base>...<head> | leaf package run diff patch_manifest.py | leaf data set \"$PAGE\" <source-id>\n```\n\nThe script records native file operations, including copies, mode changes, binary changes and empty files, and preserves their Git evidence. It leaves judgment to `lf-diff`: each file’s patch is delivered and checked before its row appears, and textual hunks render when their file opens. A file the widget cannot present shows its refusal and reports it to you as the page's error."
         },
         "records": {
           "items": "files",

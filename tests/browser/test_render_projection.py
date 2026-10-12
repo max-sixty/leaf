@@ -593,7 +593,10 @@ def test_diff_coordinates_keep_identity_separate_from_source_navigation(browser,
     assert resolved(["app.py", "new", 20]) == '["app.py","both",5,20]'
 
 
-def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(browser, serve):
+@pytest.mark.parametrize("manifest", [False, True])
+def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(
+    browser, serve, manifest
+):
     """Old source b.py and durable destination b.py identify different rename rows."""
     url = serve(
         leaf_page(
@@ -616,7 +619,9 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(browser,
         "diff --git a/a.py b/a.py\nnew file mode 100644\n"
         "--- /dev/null\n+++ b/a.py\n@@ -0,0 +1 @@\n+new_a()\n"
     )
-    data_model.cmd_data_set(serve.page_dir, "patch-data", patch_manifest(patch))
+    data_model.cmd_data_set(
+        serve.page_dir, "patch-data", patch_manifest(patch) if manifest else patch
+    )
     data_model.cmd_data_set(
         serve.page_dir,
         "calls-data",
@@ -665,7 +670,7 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(browser,
     data_model.cmd_data_set(
         serve.page_dir,
         "patch-data",
-        patch_manifest(long_preimage),
+        patch_manifest(long_preimage) if manifest else long_preimage,
     )
     told(page)
     expect(header).to_contain_text("legacy/very/long/original.py → c.py")
@@ -680,7 +685,7 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(browser,
     data_model.cmd_data_set(
         serve.page_dir,
         "patch-data",
-        patch_manifest(ambiguous),
+        patch_manifest(ambiguous) if manifest else ambiguous,
     )
     told(page)
     expect(header).to_contain_text("a.py → c.py")

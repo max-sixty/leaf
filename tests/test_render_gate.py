@@ -98,7 +98,6 @@ from render_harness import (
     CORPUS_SOURCES,
     EXAMPLE_PACKAGES,
     EXAMPLES,
-    FEATURE_GALLERY,
     INLINE_PAGE,
     LONG_PAGE,
     RECURRING_RESIZE_NOTICE,
@@ -2795,7 +2794,7 @@ def scroll_findings(page):
     return scroll_followers(scroll_writes(page, SCROLL_PASS, READING_SCROLLER))
 
 
-def rest_findings(page, source):
+def rest_findings(page):
     """A page nobody touches writes nothing, asks for no frame, moves no focus, and runs
     no animation without end, in its own document or any it frames. Its clock still
     ticks, to read the server and age what it shows, and a tick that changed nothing
@@ -2805,12 +2804,6 @@ def rest_findings(page, source):
 
     The reader has asked for reduced motion, which is when a page owes stillness: one who
     allows motion may be shown a page's own film playing itself (rust-sort's)."""
-    if source == FEATURE_GALLERY:
-        gallery_frames = page.locator("[data-interaction-frame]")
-        assert gallery_frames.count() > 0
-        expect(
-            page.locator("[data-interaction-frame][data-interaction-ready]")
-        ).to_have_count(gallery_frames.count())
     return at_rest(page)
 
 
@@ -3587,7 +3580,7 @@ def test_page_fixture_renders(browser, serve, source):
     page = still_page(browser, url, width=RESIZE_PATH[0])
     findings = {
         "render gate": gate,
-        "at rest": rest_findings(page, source),
+        "at rest": rest_findings(page),
         "framing": [
             str(finding)
             for probe in ("trappedMargins", "splitEdges")

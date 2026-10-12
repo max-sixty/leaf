@@ -104,7 +104,7 @@ import {
   textNodesUnder,
   wrote,
 } from "./passages.js";
-import { registry, stateSpecs, tagsDeclaring } from "./registry.js";
+import { registry, tagsDeclaring } from "./registry.js";
 import {
   paintMarkdown,
   prepareDeclaredMarkdown,
@@ -126,7 +126,7 @@ import {
 import { PAGE_SCOPE, tabStore } from "./storage.js";
 import { initialOrigin, restoreInitialSource, unmarkedCopy } from "./initial-render.js";
 import { alignInlineText } from "./text-alignment.js";
-import { el, layoutChanged, quoted, reveal } from "./widget-elements.js";
+import { el, layoutChanged, reveal } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
 import { returnToBannerControl, showNews } from "./banner-toolbar.js";
 import { allButCommandReference, pageScope } from "./keyboard/register.js";
@@ -138,15 +138,12 @@ import { projectView, readApplication } from "./semantic-state.js";
 import { ADDRESSABLE, anchoringIsReady, fragmentTarget } from "./anchor-resolution.js";
 import { scrollToFragment } from "./anchor-travel.js";
 import { rowWalk } from "./walk-position.js";
-import {
-  domValue,
-  rememberAuthoredParents,
-  stageAuthoredStates,
-  stateCoordinate,
-} from "./projection/authored.js";
+import { rememberAuthoredParents, stageAuthoredStates } from "./projection/authored.js";
+import { foldWidgetStates, questionValue } from "./projection/model.js";
 import { runtimeRootState } from "./root-state.js";
 import {
   commitWidgetDescriptors,
+  quoted,
   stageWidgetDescriptors,
 } from "./widget-descriptors.js";
 import {
@@ -344,9 +341,7 @@ export function createVersionController({
   const versionsOffered = () => versionCount() > 0;
   const versionsToWalk = () => versionCount() > 1;
   const behindCurrent = () =>
-    runtime.active !== null &&
-    runtime.currentRevision !== null &&
-    runtime.active.revision !== runtime.currentRevision;
+    runtime.active !== null && runtime.currentRevision !== null && !runtime.showsActive;
   // A menu is a transient reading of the picker, not a layer over the next control a
   // user Tabs to. Its comparison checkboxes are real internal Tab stops, so offer an
   // exit only from the boundary control in the direction being travelled. The native row
@@ -560,7 +555,7 @@ export function createVersionController({
   const goActive = () => {
     if (!runtime.active) return;
     if (LIVE_ROOT) {
-      if (runtime.active.revision === runtime.currentRevision) return;
+      if (runtime.showsActive) return;
       forceActivation = true;
       closeVersionMenu();
       readAndApply();
@@ -809,25 +804,64 @@ export function createVersionController({
     if (!answer.browser) throw new Error(`revision r${baseRevision} has no projection`);
     return answer.browser;
   }
-  function applyDiff(doc, baseVersion, baseReading) {
+  // The longest run of `after` that keeps the order `before` gave the same units:
+  // the units that did not move.
+  function inOrder(before, after) {
+    const lengths = before.map(() => after.map(() => 0));
+    const at = (i, j) => lengths[i]?.[j] ?? 0;
+    for (let i = before.length - 1; i >= 0; i--)
+      for (let j = after.length - 1; j >= 0; j--)
+        lengths[i][j] =
+          before[i] === after[j]
+            ? at(i + 1, j + 1) + 1
+            : Math.max(at(i + 1, j), at(i, j + 1));
+    const kept = new Set();
+    for (let i = 0, j = 0; i < before.length && j < after.length;)
+      if (before[i] === after[j]) {
+        kept.add(before[i]);
+        i++;
+        j++;
+      } else if (at(i + 1, j) >= at(i, j + 1)) i++;
+      else j++;
+    return kept;
+  }
+  function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
     const baseRevision = stamped(baseVersion)?.revision;
     if (baseRevision == null)
       throw new Error(`version v${baseVersion} has no revision`);
     const baseView = baseReading?.views?.[String(baseRevision)];
     if (!baseView) throw new Error(`revision r${baseRevision} has no projection`);
+    // The base version's widget state, folded as the publisher folds the current one:
+    // its authored values, staged before its Markdown was formatted, under the
+    // projection the server read for it. A report standing at the base painted there
+    // just as an action did, so what the user saw includes it. The server reads each
+    // event under the declaration it was admitted with, and the base's authored values
+    // are decoded under this document's; an entry whose verb was declared otherwise
+    // then has no value here to compare, so the fold leaves it out.
     const baseProjection = projectView(baseView, baseReading.thread);
+    const declaredAlike = ({ e, spec }) => {
+      const current = baseAuthored.get(e.widget)?.specs.get(e.action);
+      return (
+        current?.unit === spec.unit &&
+        JSON.stringify(current.record ?? null) === JSON.stringify(spec.record ?? null)
+      );
+    };
+    const baseWidgets = foldWidgetStates(baseAuthored, {
+      ...baseProjection,
+      desired: new Map(
+        [...baseProjection.desired].filter(([, entry]) => declaredAlike(entry)),
+      ),
+    });
     // The before surface holds the same accepted body projection as its version
-    // would show. Use the event's exact source, never its collapsed comparison value.
-    for (const { tag, verb, spec } of stateSpecs()) {
-      if (spec.record?.kind !== "body") continue;
-      for (const widget of doc.querySelectorAll(tag)) {
-        const body = widget.querySelector(":scope > .lf-markdown-body");
-        const writer = baseProjection.desired.get(
-          stateCoordinate(widget.id, widget.id, verb),
-        );
-        if (body && writer) paintMarkdown(body, writer.e.detail.value);
+    // would show: the event's exact source, never a collapsed comparison value.
+    for (const [id, { state, specs }] of baseWidgets)
+      for (const [verb, spec] of specs) {
+        if (spec.record?.kind !== "body" || !state[verb].action) continue;
+        const body = doc
+          .getElementById(id)
+          ?.querySelector(":scope > .lf-markdown-body");
+        if (body) paintMarkdown(body, state[verb].value);
       }
-    }
     // Multiset membership rather than an alignment: an unchanged block that
     // merely moved stays unmarked; a changed or new one has no base twin.
     const base = new Map();
@@ -842,41 +876,55 @@ export function createVersionController({
     }
     // The state half: block keys catch words, and a pure state change — a card
     // in a different column, a pick on a different option — has no text of its
-    // own. Compare declared state instead: the base version's state (its markup
-    // plus both folds as of it — a report standing at the base painted there
-    // just as an action did, so what the user saw includes it) against the
-    // live DOM, which already wears the current folds. Body records are words and
-    // the block keys above own them.
-    for (const { tag, verb, spec } of stateSpecs()) {
-      if (!spec.record || spec.record.kind === "body") continue;
-      for (const widget of document.body.querySelectorAll(tag)) {
-        if (inChrome(widget) || quoted(widget)) continue;
-        const units =
-          spec.unit === "widget"
-            ? widget.id
-              ? [widget]
-              : []
-            : [...widget.querySelectorAll(`${spec.record.within} > [id]`)];
-        for (const el of units) {
-          const baseEl = doc.getElementById(el.id);
-          if (!baseEl) continue; // new to this version: the content half marks it
-          // The verb's one writer stands here: the user's action, or the agent's
-          // newest live report. The verb's coordinate means an unrelated fact on
-          // this unit never enters the choice.
-          const coordinate = stateCoordinate(widget.id, el.id, verb);
-          const writer = baseProjection.desired.get(coordinate);
-          const before = writer ? writer.value : domValue(baseEl, spec.record);
-          const now = domValue(el, spec.record);
-          if (before === now) continue;
-          // The element the change reads on: the option now picked, or the moved
-          // card itself.
-          const target =
-            (spec.record.kind === "attribute" && now && elementById(now)) || el;
-          if (!diffMarked.has(target)) {
-            target.classList.add("lf-ins-block");
-            diffMarked.add(target);
+    // own. Compare declared state instead: the base fold above against the
+    // publisher's current one. Body records are words and the block keys above own
+    // them.
+    const mark = (target) => {
+      if (diffMarked.has(target)) return;
+      target.classList.add("lf-ins-block");
+      diffMarked.add(target);
+    };
+    for (const [id, now] of readApplication().effective.widgets) {
+      const before = baseWidgets.get(id);
+      const widget = elementById(id);
+      // New to this version: the content half marks it.
+      if (!before || !widget || inChrome(widget) || quoted(widget)) continue;
+      for (const [verb, spec] of now.specs) {
+        if (!spec.record || spec.record.kind === "body" || !before.specs.has(verb))
+          continue;
+        if (spec.record.kind === "position") {
+          // The moved card itself is where the change reads: one in another
+          // container, or one out of order among those its container held at the
+          // base, the fewest cards whose moving explains the new order.
+          const was = before.state[verb].value;
+          const placed = Object.values(was).flat();
+          for (const [container, ids] of Object.entries(now.state[verb].value)) {
+            const stayed = was[container] ?? [];
+            const kept = inOrder(
+              stayed.filter((unit) => ids.includes(unit)),
+              ids.filter((unit) => stayed.includes(unit)),
+            );
+            for (const unit of ids) {
+              if (!placed.includes(unit) || kept.has(unit)) continue;
+              const moved = elementById(unit);
+              if (moved) mark(moved);
+            }
           }
+          continue;
         }
+        const { value } = questionValue(now, verb, true);
+        if (
+          JSON.stringify(value) ===
+          JSON.stringify(questionValue(before, verb, true).value)
+        )
+          continue;
+        // The option now picked is where a pick reads; anything else reads on its
+        // widget.
+        const picked =
+          spec.record.kind === "attribute" && value.length === 1
+            ? elementById(value[0])
+            : null;
+        mark(picked ?? widget);
       }
     }
     // One pass over everything marked, after both halves, because the two halves mark
@@ -1092,6 +1140,7 @@ export function createVersionController({
     const documentRequest = authoredDocument(baseVersion.url);
     let doc;
     let reading;
+    let baseAuthored;
     try {
       while (mine === diffRequest) {
         const throughSeq = runtime.lastEventSeq;
@@ -1105,6 +1154,8 @@ export function createVersionController({
         if (runtime.lastEventSeq === throughSeq) break;
       }
       if (mine !== diffRequest) return;
+      // Typed authored state reads the source before its Markdown is formatted.
+      baseAuthored = stageAuthoredStates(doc, new Map());
       await prepareDeclaredMarkdown(doc);
     } catch {
       if (mine === diffRequest) {
@@ -1115,7 +1166,7 @@ export function createVersionController({
       return;
     }
     if (mine !== diffRequest) return;
-    const n = applyDiff(doc, base, reading);
+    const n = applyDiff(doc, baseAuthored, base, reading);
     setDiff(true, base);
     notice(
       n

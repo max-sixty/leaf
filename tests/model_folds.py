@@ -153,6 +153,7 @@ def served_reading(
             registry=registry,
             stored_layer=lambda: registry["$layer"],
             stored_data=lambda: {"version": "0" * 16, "sources": {}},
+            bound_files=dict,
             versions=tuple(version_descriptors(log, parsed)),
             presence=UNCLAIMED,
             live_stream=None,

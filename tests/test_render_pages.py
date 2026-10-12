@@ -2232,21 +2232,6 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
         + ask.format(id="ask", width="", table="")
         + ask.format(id="granted", width=' data-width="wide"', table="")
         + ask.format(id="holds", width="", table=table.format(id="holds"))
-        + ask.format(
-            id="deep", width="", table=f"<figure>{table.format(id='deep')}</figure>"
-        )
-        + ask.format(
-            id="nest",
-            width="",
-            table=f'<aside class="callout">{table.format(id="nest")}</aside>',
-        )
-        + '<lf-options id="plain"><lf-option id="plain-a">Raise it '
-        + table.format(id="plain")
-        + "</lf-option></lf-options>"
-        + '<lf-ask id="member"><h3>Which?</h3><lf-options id="member-o" choose>'
-        + '<lf-option id="member-a">Raise it <aside class="callout">'
-        + table.format(id="member")
-        + "</aside></lf-option></lf-options></lf-ask>"
         + '<aside class="callout" id="callout"><p>Paused.</p></aside>'
         + '<aside class="callout" id="granted-c" data-width="wide"><p>Wide.</p></aside>'
         + '<lf-options id="list" choose><lf-option id="list-a">Leave it</lf-option>'
@@ -2276,17 +2261,6 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     # The widened Ask has the room for its options track, so the table stands beside
     # the list rather than at the measure.
     assert at["holds-t"]["width"] > 720, at
-    # A wide block deeper in, inside a figure, or in a callout the Ask holds at the
-    # measure, is held there, and the render check says to give the Ask the width. One
-    # an option carries, directly or in a callout, is the list's member's to hold, and
-    # goes unnamed, since no width given to the list or its Ask would free it.
-    held = {
-        finding["at"]: finding["text"]
-        for finding in render_checks_model.evaluate_probe(page, "misplacedBoxes")
-        if finding["kind"] == "held"
-    }
-    assert set(held) == {"<table id=deep-t>", "<table id=nest-t>"}, held
-    assert "give <lf-ask id=nest> the data-width" in held["<table id=nest-t>"], held
 
     column = open_page(browser, serve(leaf_page("Column", body)))
     resized(column, 1726, 900)
@@ -2294,11 +2268,6 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     assert at["holds"]["width"] == at["prose"]["width"] == 720, at
     assert at["holds-t"]["width"] == 1080, at
     assert at["holds-t"]["left"] < at["prose"]["left"], at
-    assert not [
-        finding
-        for finding in render_checks_model.evaluate_probe(column, "misplacedBoxes")
-        if finding["kind"] == "held"
-    ]
 
 
 def test_a_sample_fills_the_room_its_authored_width_takes(browser, serve):

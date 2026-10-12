@@ -1,9 +1,5 @@
-/* A data body's text, the lines a module draws and numbers.
-
-   `page check` counts the same lines to hold an lf-code `lines` numbering to its
-   body, and `test_interact_document.py` reads these cases against that gate. The
-   whitespace at the edges is where the two runtimes' own `\s` differ, so a body ending
-   in one of those characters is numbered here exactly as the gate counts it. */
+/* A data body's text, the lines a module draws and numbers: leading blank lines and
+   trailing whitespace are the <pre>'s layout, and each case pins one such edge. */
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";

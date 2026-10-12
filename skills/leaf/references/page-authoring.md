@@ -74,8 +74,7 @@ same registry.
 
 Write a complete HTML document. The authored head names and describes the page;
 Leaf adds the encoding, identity, theme, runtime, and canonical address when it
-delivers the document. Omit `<meta charset>`: delivery declares UTF-8 before
-authored head content. Put page-specific CSS in `<style>` and JavaScript in
+delivers the document. Put page-specific CSS in `<style>` and JavaScript in
 `<script>` ("Page behavior"). Every `lf-*` element has an explicit end tag.
 
 Delivery also supplies `width=device-width, initial-scale=1, viewport-fit=cover`
@@ -288,7 +287,7 @@ log beside the chart it explains, which the page's `<style>` places:
 ```
 
 Stack the panes below 720px, where the Layout lets the page scroll: panes stacked in a
-wider window still share its one height, and `page check --render` refuses them.
+wider window still share its one height.
 
 `density-working` is a style, not a Layout: on any block it sets smaller type, tighter
 spacing and options as rows, for a surface the reader operates rather than reads down.
@@ -310,10 +309,9 @@ Layout allocate the height: page-specific positioning should not be needed to ke
 pane or footer reachable. Where the window is too small to hold the regions, they take
 their natural height and the page scrolls.
 
-Keep a region's decision visible with its supporting content. `page check
---render` reports panes or bodies that overflow their regions and the window
-widths where this happens; trim or split them. A region for reading long content,
-such as a source file or log, can keep its scrolling and the advisory finding.
+Keep a region's decision visible with its supporting content: trim or split a pane
+whose body runs past its region. A region for reading long content, such as a source
+file or log, can keep its scrolling.
 
 ### Bounds and widths
 
@@ -329,7 +327,7 @@ the end its newest entry is at. A list that grows downward takes
 leaves them where they scrolled back to otherwise. A newest-first list takes
 `data-bound="start"`, which opens at the top, as the page's activity feed does.
 Don't make a box scroll vertically with page CSS: Leaf keeps no reading position
-in a scroller it did not make, and `page check` advises against one.
+in a scroller it did not make.
 
 An individual block or section may request a responsive allocation with
 `data-width="wide"` or `data-width="available"`, which overrides a widget's or idiom's

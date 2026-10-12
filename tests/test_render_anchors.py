@@ -4,6 +4,7 @@ import io
 import json
 import re
 from html import escape
+from pathlib import Path
 
 import pytest
 from axe_playwright_python.sync_playwright import Axe
@@ -21,6 +22,7 @@ from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
+from leaf_dev.example_data import patch_manifest
 from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -65,7 +67,6 @@ from render_cases_navigation import (
 )
 from render_harness import (
     EXAMPLES,
-    FEATURE_GALLERY,
     INLINE_PAGE,
     LONG_PAGE,
     PASSAGE_SOURCES,
@@ -583,9 +584,19 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
         expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
 
-def test_gallery_revision_preserves_every_open_quoted_thread(browser, serve):
-    """A served gallery revision keeps two discussions beside their revised subject."""
-    url = live_url(serve(FEATURE_GALLERY))
+# One sentence two quoted threads discuss, which the agent's next revision rewrites.
+REVISED_QUOTES_PAGE = leaf_page(
+    "revised quotes",
+    """
+<h1 id="title">Rollout</h1>
+<p id="revised-quotes">The first draft uses an early estimate for the rollout.</p>
+""",
+)
+
+
+def test_a_revision_preserves_every_open_quoted_thread(browser, serve):
+    """A served revision keeps two discussions beside their revised subject."""
+    url = live_url(serve(REVISED_QUOTES_PAGE))
     roots = []
     for quote in ("first draft", "early estimate"):
         result = CliRunner().invoke(
@@ -595,7 +606,7 @@ def test_gallery_revision_preserves_every_open_quoted_thread(browser, serve):
                 "open",
                 str(serve.page_dir),
                 "--section",
-                "bg-revised-quotes",
+                "revised-quotes",
                 "--quote",
                 quote,
                 "--text",
@@ -605,7 +616,6 @@ def test_gallery_revision_preserves_every_open_quoted_thread(browser, serve):
         assert result.exit_code == 0, result.output
         roots.append(json.loads(result.output))
     page = open_page(browser, url)
-    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     for root in roots:
@@ -619,8 +629,7 @@ def test_gallery_revision_preserves_every_open_quoted_thread(browser, serve):
     )
     note = stamp_page(serve.page_dir, updated, "Refined the rollout wording.")
     wait_for_revision(page, note["revision"])
-    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
-    expect(page.locator("#bg-revised-quotes")).to_have_text(
+    expect(page.locator("#revised-quotes")).to_have_text(
         "The revised plan uses the current forecast for the rollout."
     )
     for root in roots:
@@ -639,7 +648,7 @@ def test_gallery_revision_preserves_every_open_quoted_thread(browser, serve):
         if event["kind"] == "reanchor"
     ]
     assert {event["thread"] for event in moves} == {root["id"] for root in roots}
-    assert all(event["anchor"] == {"section": "bg-revised-quotes"} for event in moves)
+    assert all(event["anchor"] == {"section": "revised-quotes"} for event in moves)
 
 
 @pytest.mark.parametrize("panes", [False, True], ids=["ask", "panes"])
@@ -2771,147 +2780,67 @@ def test_a_diff_keeps_source_markup_inert(browser, serve):
     }
 
 
-def test_a_diff_rejects_incomplete_hunks(browser, serve):
-    """Missing or wrong hunk ranges must fail instead of hiding review evidence."""
-    expected = [
-        {
-            "rendered": False,
-            "error": (
-                "<lf-diff> failed: parsePatchContent: hunk has more lines than expected"
+DIFF_PATCH_CASES = json.loads(
+    (Path(__file__).parent / "diff_patch_cases.json").read_text()
+)["cases"]
+
+
+def test_the_widget_reads_the_diff_patch_table(browser, serve):
+    """`diff_patch_cases.json` states what lf-diff can present, for both of its
+    readers (`test_interact_document.py`, "the manifest reads the diff patch table").
+    The widget draws each accepted patch, under the row's paths, as inline text and
+    as the manifest `patch_manifest.py` builds from it, and refuses each row with a
+    `widget` message without hiding evidence, quoting the patch it could not draw."""
+    accepted = [case for case in DIFF_PATCH_CASES if "files" in case]
+    refused = [case for case in DIFF_PATCH_CASES if "widget" in case]
+    markup = "".join(
+        [
+            *(
+                f'<lf-diff id="text-{case["id"]}"><pre>{escape(case["patch"])}</pre></lf-diff>'
+                for case in [*accepted, *refused]
             ),
-            "source": (
-                "diff --git a/example.js b/example.js\n"
-                "--- a/example.js\n"
-                "+++ b/example.js\n"
-                "@@ -1 +1 @@\n"
-                "-old\n"
-                "+new\n"
-                "+silently-lost"
+            *(
+                f'<lf-diff id="files-{case["id"]}" source="files-{case["id"]}"><pre></pre></lf-diff>'
+                for case in accepted
             ),
-        },
-        {
-            "rendered": False,
-            "error": (
-                "<lf-diff> failed: unsupported hunkless diff for example.js "
-                "(only path-only renames may omit @@ hunks; binary, mode-only, "
-                "and empty added/deleted entries belong in prose; changed files "
-                "need textual @@ hunks)"
-            ),
-            "source": (
-                "diff --git a/example.js b/example.js\n"
-                "--- a/example.js\n"
-                "+++ b/example.js\n"
-                "-old\n"
-                "+new"
-            ),
-        },
-        {
-            "rendered": False,
-            "error": (
-                "<lf-diff> failed: unsupported hunkless rename (only an exact "
-                "path-only block with diff --git, similarity index 100%, rename "
-                "from, and rename to lines may omit textual @@ hunks)"
-            ),
-            "source": (
-                "diff --git a/old.js b/new.js\n"
-                "similarity index 100%\n"
-                "rename from old.js\n"
-                "rename to new.js\n"
-                "--- a/old.js\n"
-                "+++ b/new.js\n"
-                "-before\n"
-                "+after"
-            ),
-        },
-        {
-            "rendered": False,
-            "error": (
-                "<lf-diff> failed: unsupported hunkless rename (only an exact "
-                "path-only block with diff --git, similarity index 100%, rename "
-                "from, and rename to lines may omit textual @@ hunks)"
-            ),
-            "source": ("diff --git a/old.js b/new.js\nsimilarity index 100%"),
-        },
-        {
-            "rendered": False,
-            "error": (
-                "<lf-diff> failed: unsupported hunkless rename (only an exact "
-                "path-only block with diff --git, similarity index 100%, rename "
-                "from, and rename to lines may omit textual @@ hunks)"
-            ),
-            "source": (
-                "diff --git a/old.js b/new.js\n"
-                "similarity index 100%\n"
-                "rename from \n"
-                "rename to "
-            ),
-        },
-        {
-            "rendered": False,
-            "error": (
-                "<lf-diff> failed: unsupported hunkless rename (only an exact "
-                "path-only block with diff --git, similarity index 100%, rename "
-                "from, and rename to lines may omit textual @@ hunks)"
-            ),
-            "source": (
-                "diff --git a/header-old.js b/header-new.js\n"
-                "similarity index 100%\n"
-                "rename from body-old.js\n"
-                "rename to body-new.js"
-            ),
-        },
-        {
-            "rendered": False,
-            "error": "<lf-diff> failed: unified diff repeats file path example.js",
-            "source": (
-                "diff --git a/example.js b/example.js\n"
-                "--- a/example.js\n"
-                "+++ b/example.js\n"
-                "@@ -1 +1 @@\n"
-                "-old\n"
-                "+new\n"
-                "diff --git a/example.js b/example.js\n"
-                "--- a/example.js\n"
-                "+++ b/example.js\n"
-                "@@ -1 +1 @@\n"
-                "-new\n"
-                "+newer"
-            ),
-        },
-    ]
-    identifiers = (
-        "wrong-count-diff",
-        "missing-hunk-diff",
-        "rename-with-missing-hunk-diff",
-        "similarity-only-diff",
-        "empty-rename-paths-diff",
-        "contradictory-rename-paths-diff",
-        "repeated-path-diff",
+        ]
     )
-    page = open_page(
-        browser,
-        serve(
-            _diff_page(
-                *(
-                    (identifier, escape(case["source"]))
-                    for identifier, case in zip(identifiers, expected, strict=True)
-                )
-            )
-        ),
-    )
-    result = page.locator("lf-diff").evaluate_all(
-        """hosts => hosts.map(host => ({
+    url = serve(leaf_page("diff patch table", f'<h1 id="cases">Cases</h1>{markup}'))
+    for case in accepted:
+        data_model.cmd_data_set(
+            serve.page_dir, f"files-{case['id']}", patch_manifest(case["patch"])
+        )
+    page = open_page(browser, url)
+    rendered(page)
+    readings = page.locator("lf-diff").evaluate_all(
+        """hosts => Object.fromEntries(hosts.map(host => [host.id, {
           rendered: host.classList.contains('lf-rendered'),
-          error: host.querySelector('.lf-error')?.firstChild?.textContent ?? null,
+          errors: [...new Set([...host.querySelectorAll('.lf-error'),
+            ...(host.shadowRoot?.querySelectorAll('.lf-error') ?? [])]
+            .map(box => box.firstChild?.textContent ?? null))],
           source: host.querySelector('.lf-error pre')?.textContent ?? null,
-        }))"""
+          files: [...(host.shadowRoot?.querySelectorAll('.lf-diff-path') ?? [])].map(
+            path => (path.querySelector('.lf-diff-destination-path') ?? path)
+              .textContent.replaceAll('\\u200b', '')),
+        }]))"""
     )
-    assert result == expected
+    for case in accepted:
+        for form in ("text", "files"):
+            reading = readings[f"{form}-{case['id']}"]
+            assert reading["rendered"] and not reading["errors"], (case["id"], reading)
+            assert reading["files"] == case["files"], (case["id"], reading)
+    for case in refused:
+        assert readings[f"text-{case['id']}"] == {
+            "files": [],
+            "rendered": False,
+            "errors": [f"<lf-diff> failed: {case['widget']}"],
+            "source": case["patch"].rstrip("\n") or None,
+        }, case["id"]
     # Each refusal reaches the author too, naming the diff that could not draw.
     reported = consume_browser_errors(
-        page, *(f'<lf-diff id="{identifier}"> failed: ' for identifier in identifiers)
+        page, *(f'<lf-diff id="text-{case["id"]}"> failed: ' for case in refused)
     )
-    assert len(reported) == len(identifiers), reported
+    assert len(reported) == len(refused), reported
 
 
 def test_a_diff_shows_a_path_only_rename_without_an_empty_disclosure(browser, serve):
@@ -5706,6 +5635,31 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
     panel_settled(page, True)
     expect(page.locator(".lf-thread .lf-quote")).to_have_text("§ app.py · file")
     expect(page.locator(".lf-thread")).to_contain_text("Review this file as a whole.")
+
+    # A thread on a line of the file still unloaded is named as its drawn row would be,
+    # not by the widget holding it.
+    post_event(
+        page,
+        url.rsplit("/versions/", 1)[0] + "/api/event",
+        data={
+            "kind": "comment",
+            "revision": 1,
+            "text": "Check the new line.",
+            "anchor": {
+                "section": "patch",
+                "datum": '["app.py","new",1]',
+                "source": "review-patch",
+                "source_revision": revision,
+            },
+        },
+    )
+    expect(page.locator(".lf-thread")).to_have_count(2)
+    expect(page.locator("lf-diff [data-line-type]")).to_have_count(0)
+    quotes = page.locator(".lf-thread .lf-quote").all_text_contents()
+    assert sorted(" ".join(quote.split()) for quote in quotes) == [
+        "§ app.py · file",
+        "§ app.py · new line 1",
+    ]
 
 
 def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):

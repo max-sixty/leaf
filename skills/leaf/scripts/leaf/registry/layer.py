@@ -1,5 +1,6 @@
 """Layer registry composition and contract validation."""
 
+import json
 import re
 from copy import deepcopy
 
@@ -19,13 +20,16 @@ from leaf.schema import (
 )
 
 from .contract import RegistryError, is_element_name, stamp_decisions
-from .kernel import kernel_event_kinds, kernel_event_ownership
 from .schema import (
+    check_schema,
     json_validator,
     json_value,
     schema_error_message,
     unresolved_schema_reference,
 )
+
+# The `$events` members a layer may restate; the rest are the kernel's.
+LAYER_OWNED_EVENTS = frozenset({"handling", "answering"})
 
 
 def merge_layer_declarations(merged: dict, declarations: dict) -> None:
@@ -37,8 +41,9 @@ def merge_layer_declarations(merged: dict, declarations: dict) -> None:
     A member that is itself a map merges by its own keys:
     $languages.paths is indexed by extension, and a layer adding `.svelte` must not
     silently drop every shipped extension with it. Scalar and list members replace
-    whole — a names list is one statement. `$events.kinds` and `$events.ownership`
-    are the exceptions: Leaf's fixed kernel transport contract, which no layer changes.
+    whole — a names list is one statement. `$events` is the exception: every member
+    but `handling` and `answering` is Leaf's fixed kernel transport contract and its
+    `protocol`, which no layer changes.
 
     Inside a map member the merge is JSON merge-patch: a later layer's value
     replaces the key, a new key joins, and `null` removes one — which is the
@@ -51,12 +56,15 @@ def merge_layer_declarations(merged: dict, declarations: dict) -> None:
             merged[name] = entry
             continue
         if name == "$events":
-            for key in ("kinds", "ownership"):
-                if key in entry and entry[key] != earlier.get(key):
+            # Only the kernel's own value passes, compared as JSON so that `true` or
+            # `1.0` is not taken for a protocol of 1, and the kernel's copy is kept.
+            for key in entry.keys() - LAYER_OWNED_EVENTS:
+                if _canonical(entry[key]) != _canonical(earlier.get(key)):
                     raise RegistryError(
                         f"$events.{key} is Leaf's fixed transport contract and cannot be "
                         "changed by a layer"
                     )
+            entry = {key: entry[key] for key in entry.keys() & LAYER_OWNED_EVENTS}
         combined = {**earlier, **entry}
         for key, value in entry.items():
             if isinstance(value, dict) and isinstance(earlier.get(key), dict):
@@ -64,6 +72,10 @@ def merge_layer_declarations(merged: dict, declarations: dict) -> None:
                     k: v for k, v in {**earlier[key], **value}.items() if v is not None
                 }
         merged[name] = {k: v for k, v in combined.items() if v is not None}
+
+
+def _canonical(value) -> str:
+    return json.dumps(value, sort_keys=True)
 
 
 def stamp_composition(registry: dict) -> dict:
@@ -127,21 +139,10 @@ def _valid_clauses(clauses) -> bool:
             return False
         if "when" in clause:
             try:
-                Draft202012Validator.check_schema(clause["when"])
+                check_schema(clause["when"])
             except SchemaError:
                 return False
     return True
-
-
-def validate_event_contracts(events: dict, path) -> None:
-    for key, expected in (
-        ("kinds", kernel_event_kinds()),
-        ("ownership", kernel_event_ownership()),
-    ):
-        if events.get(key) != expected:
-            raise RegistryError(
-                f"{path}: $events.{key} must equal Leaf's fixed transport contract"
-            )
 
 
 def validate_layer_declarations(
@@ -298,7 +299,7 @@ def validate_layer_declarations(
                 f"{schema_error_message(instructions_errors[0])}"
             )
         try:
-            Draft202012Validator.check_schema(declaration["schema"])
+            check_schema(declaration["schema"])
         except SchemaError as error:
             raise RegistryError(
                 f"{path}: $data contract {contract!r} has an invalid JSON Schema: "

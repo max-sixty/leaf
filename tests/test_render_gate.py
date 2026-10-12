@@ -206,173 +206,6 @@ def test_the_render_gate_renders_where_the_margin_content_changes(browser, serve
     assert seen[4:] == [(width, 900, "light") for width in reading.margin_widths]
 
 
-def test_the_render_gate_reports_trapped_margins_as_advice(browser, serve):
-    """An author's inset and the heading's margin both count inside its selectable
-    box. The report names the rendered sum without forbidding an intentional inset;
-    a card declaring edge trim keeps its padding and needs no advice."""
-    source = leaf_page(
-        "Authored block edges",
-        """
-<style>
-@media (max-width:600px) { #compact-frame { padding:16px; } }
-@media (prefers-color-scheme:dark) { #dark-frame { padding:16px; } }
-</style>
-<h1>Audit</h1>
-<aside class="sidenote">This note introduces a margin viewport.</aside>
-<section id="finding" style="padding:16px">
-  <h2 style="margin-block:32px 0">Finding</h2>
-  Plain text prevents a second edge margin.
-</section>
-<section id="structural" style="display:flow-root">
-  <h2 style="margin-block:32px 0">Undeclared structural frame</h2>Words
-</section>
-<section style="display:flow-root;--lf-block-frame:trim">
-  <h2>Trimmed structural frame</h2><p>Wide content retains the page's room.</p>
-</section>
-<div id="card" style="padding:16px;--lf-block-frame:1">
-  <h2>A deliberately padded card</h2><p>Its inset remains intentional.</p>
-</div>
-<div style="padding:16px;--lf-block-frame:1">
-  <div id="row" style="display:flex;gap:12px">
-    <p>Left.</p><p>Right.</p>
-  </div>
-</div>
-<section id="compact-frame"><h2 style="margin-block:32px 0">Compact inset</h2>Words</section>
-<section id="dark-frame"><h2 style="margin-block:32px 0">Dark inset</h2>Words</section>
-""",
-    )
-    reading = render_gate_model.render_version(browser, serve(source, packages=()))
-    assert reading.failures == [], reading.failures
-    assert reading.margin_widths
-    assert reading.advice == [
-        (
-            "<section id=finding> draws 16px of inset and shows 48px above its <h2>: "
-            "32px of child margin stays inside the box. Use --lf-block-frame: 1 for a "
-            "drawn frame, or --lf-block-frame: trim for a transparent grouping; "
-            "put spacing between "
-            "selectable blocks in the parent's gap or outside margins"
-        ),
-        (
-            "<section id=structural> draws 0px of inset and shows 32px above its <h2>: "
-            "32px of child margin stays inside the box. Use --lf-block-frame: 1 for a "
-            "drawn frame, or --lf-block-frame: trim for a transparent grouping; "
-            "put spacing between "
-            "selectable blocks in the parent's gap or outside margins"
-        ),
-        *(
-            f"<div id=row> trims only one item at its {edge} edge while another keeps "
-            "13px of margin. Declare --lf-holds-edge: 1 on this flex or grid row to "
-            "keep its items aligned"
-            for edge in ("above", "below")
-        ),
-        (
-            "[dark] <section id=dark-frame> draws 16px of inset and shows 48px above its <h2>: "
-            "32px of child margin stays inside the box. Use --lf-block-frame: 1 for a "
-            "drawn frame, or --lf-block-frame: trim for a transparent grouping; "
-            "put spacing between "
-            "selectable blocks in the parent's gap or outside margins"
-        ),
-        (
-            "<section id=compact-frame> draws 16px of inset and shows 48px above its <h2>: "
-            "32px of child margin stays inside the box. Use --lf-block-frame: 1 for a "
-            "drawn frame, or --lf-block-frame: trim for a transparent grouping; "
-            "put spacing between "
-            "selectable blocks in the parent's gap or outside margins (at 540x720)"
-        ),
-    ]
-
-
-def test_framing_advice_leaves_chrome_findings_to_leaf(browser, serve):
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Chrome ownership",
-                """<style>
-#member-frame { padding:16px;border:0;--lf-block-frame:0; }
-</style><h1>Audit</h1>
-<lf-board id="board"><lf-column id="column" label="Cards">
-  <lf-card id="member-frame">
-    <h2 style="margin-block:32px 0">Member title</h2>
-    <section id="member-inset" style="padding:16px">
-      <h2 style="margin-block:32px 0">Member content</h2>Words
-    </section>
-  </lf-card>
-</lf-column></lf-board>""",
-            )
-        ),
-    )
-    page.locator(".lf-chrome").evaluate(
-        """chrome => {
-          const box = document.createElement('section');
-          box.id = 'chrome-inset';
-          box.style.cssText = 'padding:16px';
-          box.innerHTML = '<h2 style="margin-block:32px 0">Chrome title</h2>Words';
-          chrome.append(box);
-        }"""
-    )
-    page.locator("main").evaluate(
-        """main => {
-          const generated = document.createElement('div');
-          generated.className = 'lf-ui';
-          generated.innerHTML = '<section id="generated-inset" style="padding:16px">'
-            + '<h2 style="margin-block:32px 0">Generated title</h2>Words</section>';
-          document.getElementById('member-frame').append(generated);
-          const layout = document.createElement('div');
-          layout.innerHTML = '<section id="member-module-inset" style="padding:16px">'
-            + '<h2 style="margin-block:32px 0">Module layout</h2>Words</section>'
-            + '<button class="lf-ui">Module control</button>';
-          document.getElementById('column').append(layout);
-          customElements.define('module-frame', class extends HTMLElement {});
-          const host = document.createElement('module-frame');
-          host.attachShadow({ mode: 'open' }).innerHTML =
-            '<section id="module-inset" style="padding:16px">'
-            + '<h2 style="margin-block:32px 0">Module title</h2>Words</section>';
-          main.append(host);
-          const markup = document.createElement('lf-card');
-          markup.id = 'markup-frame';
-          markup.style.cssText = 'display:block;padding:16px;border:0';
-          markup.innerHTML = '<h2 style="margin-block:32px 0">Host title</h2>'
-            + '<section id="authored-inset" style="padding:16px">'
-            + '<h2 style="margin-block:32px 0">Authored title</h2>Words</section>';
-          markup.attachShadow({ mode: 'open' }).innerHTML =
-            '<section id="shadow-inset" style="padding:16px">'
-            + '<h2 style="margin-block:32px 0">Shadow title</h2>Words</section><slot></slot>';
-          main.append(markup);
-        }"""
-    )
-    page.add_style_tag(
-        content="#markup-frame::before, #member-frame::before { content: none; }"
-    )
-    traps = {
-        box["id"]: box
-        for box in render_checks_model.evaluate_probe(page, "trappedMargins")
-    }
-    assert traps["chrome-inset"]["chrome"]
-    for ident in (
-        "chrome-inset",
-        "generated-inset",
-        "module-inset",
-        "shadow-inset",
-        "member-module-inset",
-    ):
-        assert not traps[ident]["authored"]
-    assert traps["markup-frame"]["authored"]
-    assert traps["authored-inset"]["authored"]
-    assert traps["member-frame"]["authored"]
-    assert traps["member-inset"]["authored"]
-    advice = render_gate_readings.framing_advice(page)
-    assert len(advice) == 4, advice
-    for ident, tag in (
-        ("markup-frame", "lf-card"),
-        ("authored-inset", "section"),
-        ("member-frame", "lf-card"),
-        ("member-inset", "section"),
-    ):
-        assert any(line.startswith(f"<{tag} id={ident}> draws 16px") for line in advice)
-    assert render_checks_model.evaluate_probe(page, "apparatusAmongAuthored") == []
-
-
 def test_the_render_gate_reports_a_defect_specific_to_the_compact_viewport(
     browser, serve
 ):
@@ -434,101 +267,6 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
         failure
     )
     assert reading.advice == []
-
-
-def _pane_regions(columns: str, media: str) -> str:
-    return leaf_page(
-        "pane regions",
-        """
-  <header><h1>Alerts</h1></header>
-  <div id="regions">
-    <lf-pane id="queue" label="Queue"><div><p>Three alerts wait.</p></div></lf-pane>
-    <lf-pane id="alert" label="Alert"><div><p>Disk pressure on db-2.</p></div></lf-pane>
-  </div>
-""",
-        head=f"""<style>
-#regions {{ display: grid; grid-template-columns: {columns}; }}
-@media {media}
-</style>""",
-        layout="workspace",
-    )
-
-
-def test_a_screen_region_that_runs_past_its_room_gets_advice(browser, serve):
-    """A workspace is a screen the reader moves through, so a region of it that has to
-    scroll is the exception, and the gate names each one with the swept widths it runs
-    past its room at, as advice: the page still passes. Here the detail pane runs past
-    its room and the queue fits, so only the detail is named. Once the detail stacks two
-    open Asks, it is a queue read as one scroll, and the advice names the side-list
-    queue instead."""
-    source = leaf_page(
-        "screen regions",
-        """
-  <header><h1>Alerts</h1></header>
-  <div id="regions">
-    <lf-pane id="queue" label="Queue"><div><p>Three alerts wait.</p></div></lf-pane>
-    <lf-pane id="detail" label="Detail"><div><p>Disk pressure on db-2.</p>"""
-        + "".join(f"<p>Evidence line {n}.</p>" for n in range(60))
-        + """</div></lf-pane>
-  </div>
-""",
-        head="<style>#regions { display: grid; grid-template-columns: 1fr 2fr; "
-        "}</style>",
-        layout="workspace",
-    )
-
-    reading = render_gate_model.render_version(browser, serve(source, packages=()))
-
-    assert reading.failures == []
-    (advice,) = reading.advice
-    spans = re.match(
-        r"at (\d+)–1920px wide and 900px tall <lf-pane id=detail> runs past the region "
-        r"it scrolls in, \d+px at \1px: ",
-        advice,
-    )
-    assert spans and int(spans[1]) < 1200, advice
-    assert "lf-tabs" not in advice, advice
-
-    asks = "".join(
-        f"""<lf-ask id="ask-{n}"><h4>Page on alert {n}?</h4>
-        <lf-options id="choice-{n}" choose>
-          <lf-option id="yes-{n}"><strong>Page</strong> Wake someone.</lf-option>
-          <lf-option id="no-{n}"><strong>Ticket</strong> Wait for morning.</lf-option>
-        </lf-options></lf-ask>"""
-        for n in (1, 2)
-    )
-    queued = source.replace("<p>Disk pressure on db-2.</p>", asks)
-    reading = render_gate_model.render_version(browser, serve(queued, packages=()))
-    (advice,) = [line for line in reading.advice if "past the region" in line]
-    assert "holds 2 open Questions" in advice and 'lf-tabs list="side"' in advice, (
-        advice
-    )
-
-
-STACK = "{ #regions { grid-template-columns: 1fr; } }"
-SPLIT = "{ #regions { grid-template-columns: 1fr 1fr; } }"
-
-
-@pytest.mark.parametrize(
-    ("columns", "media"),
-    [
-        ("1fr 2fr", f"(width < 720px) {STACK}"),
-        ("1fr", f"(width < 900px) {STACK}"),
-        ("1fr", f"(width >= 1800px) {SPLIT}"),
-    ],
-    ids=[
-        "stacks-where-the-layout-flows",
-        "rows-at-every-width",
-        "rows-then-columns-when-ultrawide",
-    ],
-)
-def test_workspace_panes_can_follow_the_authored_grid(browser, serve, columns, media):
-    """Workspace panes can stay in rows or share columns as the authored grid changes."""
-    reading = render_gate_model.render_version(
-        browser, serve(_pane_regions(columns, media), packages=())
-    )
-
-    assert reading.failures == []
 
 
 # Four drawings in the idiom. The first is drawn wider than the column holds, so the fit
@@ -3257,12 +2995,17 @@ def test_page_fixture_renders(browser, serve, source):
     render_gate.version.render_version — the pass `page check --render` runs on
     agent-authored pages — so this sweep also proves the gate a user's page goes through.
 
-    The frame readings the gate offers as advice must be empty for shipped pages:
+    The frame readings must be empty for shipped pages:
     every box a shipped theme or example frames declares its frame, and a row at a
     frame's edge holds it, so no box shows more inset than it draws.
 
     And nothing the runtime adds stands among the elements the page wrote, where it
     would change which child the page's own rules find first, last, or next.
+
+    Code the page shows reads at 4.5:1 or better in both schemes, and no widget puts a
+    declared label inside a form control, where no selection reaches it. Both are the
+    layer's own, the syntax palette and its widget modules, so the suite holds them over
+    the shipped pages rather than the gate asking them of every authored one.
 
     Then the page is scrolled (`scroll_findings`), on the same page the probes read,
     since both want the page as a reader first opens it."""
@@ -3284,6 +3027,10 @@ def test_page_fixture_renders(browser, serve, source):
     assert stray == [], stray
     following = scroll_findings(page)
     assert following == [], "\n".join(following)
+    unread = unread_syntax(page)
+    assert unread == [], unread
+    said = render_checks_model.evaluate_probe(page, "wordsInFormControls")
+    assert said == [], said
 
 
 # The page's longest scroller, the one its reader spends the scroll in.
@@ -3295,6 +3042,23 @@ READING_SCROLLER = (
 )
 # Eight small steps down and back, from a third of the way in.
 SCROLL_PASS = (30,) * 8 + (-30,) * 8
+
+
+def unread_syntax(page):
+    """Code tokens the page paints too faint to read, in each colour scheme."""
+    unread = []
+    for scheme in ("light", "dark"):
+        page.emulate_media(color_scheme=scheme)
+        # The scheme's colours land through transitions; read where they end.
+        page.evaluate(
+            "() => document.getAnimations().forEach("
+            "(a) => a instanceof CSSTransition && a.finish())"
+        )
+        unread += [
+            f"[{scheme}] {u}"
+            for u in render_checks_model.evaluate_probe(page, "unreadSyntax")
+        ]
+    return unread
 
 
 def scroll_findings(page):
@@ -4230,10 +3994,6 @@ def test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it(
     assert any(
         f["id"] == "row" and f["edge"] == "above"
         for f in render_checks_model.evaluate_probe(page, "splitEdges")
-    )
-    assert any(
-        "<div id=row> trims only one item at its above edge" in line
-        for line in render_gate_readings.framing_advice(page)
     )
     assert not [
         f
@@ -5745,6 +5505,34 @@ def test_the_render_gate_reads_a_scrolled_container_from_its_content(browser, se
     )
 
 
+# A sidenote beside a section of prose and tiles, the content a strip crushing the
+# column would push out of it.
+COMPARE_NOTE_PAGE = leaf_page(
+    "compare note",
+    """
+<h1 id="title">Maps</h1>
+<section id="comparison">
+  <h2>Compare, Variants, and Chips</h2>
+  <aside class="sidenote" id="compare-note">The page puts short alternatives in a row
+  and longer explanations below. Narrow the window to see this note return to the text
+  flow.</aside>
+  <p id="compare-guide">Ordinary sections compare alternatives. Small labels carry their
+  attributes.</p>
+  <div id="compare" class="layout-tiles">
+    <section class="panel"><small class="tag">power: none</small><small class="tag ok"
+    >weight: low</small> <strong>Paper map</strong> Easy to annotate and fold.</section>
+    <section class="panel"><small class="tag">power: daily</small><small class="tag warn"
+    >weight: medium</small> <strong>Tablet map</strong> Searchable and backlit.</section>
+  </div>
+</section>
+"""
+    + "\n".join(
+        f"<p id='after-{i}'>Paragraph {i}. " + "Filler. " * 30 + "</p>"
+        for i in range(8)
+    ),
+)
+
+
 def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser, serve):
     """The margin form is granted by the room beside the page's column, and the thread
     panel stands over the page rather than taking room from it, so the panel decides
@@ -5756,13 +5544,11 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
     Three readings distinguish a real container response from either never floating the
     note or releasing it whenever the panel opens: the note begins in the margin, returns
     to flow in a window too narrow for it, and stays in the margin with the panel open
-    in one wide enough. The gallery's note is in its page view, which is where the
-    user reads it: a note in a view not shown needs no room."""
-    example = FEATURE_GALLERY
-    url = serve(example)
+    in one wide enough."""
+    url = serve(COMPARE_NOTE_PAGE)
     page = open_page(browser, url)
-    page.evaluate("location.hash = 'bg-compare-note'")
-    expect(page.locator("#bg-compare-note")).to_be_visible()
+    page.evaluate("location.hash = 'compare-note'")
+    expect(page.locator("#compare-note")).to_be_visible()
     resized(page, 1600, 900)
     reading = """() => {
         const note = document.querySelector('aside.sidenote');
@@ -6105,10 +5891,10 @@ def test_threads_and_questions_stand_on_the_one_edge_the_user_drew(browser, serv
     )
 
 
-def test_the_render_gate_reports_code_the_user_cannot_tell_from_its_block(
+def test_the_syntax_probe_reports_code_the_user_cannot_tell_from_its_block(
     browser, serve
 ):
-    """The gate checks native token paint on each background and in shadow roots.
+    """The syntax probe checks native token paint on each background and in shadow roots.
 
     A theme may use surrounding ink for an italic comment; contrast still catches
     faint keywords, strings on tinted code lines, and numbers in dark diff lines.
@@ -6133,6 +5919,7 @@ def test_the_render_gate_reports_code_the_user_cannot_tell_from_its_block(
           }),
         })"""
     )
+    syntax = unread_syntax(page)
     page.close()
     assert {"var(--syn-comment)", "var(--syn-keyword)", "var(--syn-string)"} <= set(
         population["document"]
@@ -6144,12 +5931,7 @@ def test_the_render_gate_reports_code_the_user_cannot_tell_from_its_block(
     assert readable["background"] == faint["background"], population
     assert readable["ink"] != faint["ink"], population
 
-    failures = render_gate_model.render_version(
-        browser, serve(CODE_FAULT_PAGE)
-    ).failures
-    syntax = [finding for finding in failures if "] code styled " in finding]
-    assert failures == syntax, failures
-    assert len(syntax) == 4, "\n".join(failures)
+    assert len(syntax) == 4, "\n".join(syntax)
     for appearance, color in (
         ("light", "keyword"),
         ("light", "string"),
@@ -6172,12 +5954,8 @@ def test_the_render_gate_reports_code_the_user_cannot_tell_from_its_block(
             .querySelectorAll('[data-lf-syn]').length,
         })"""
     )
-    page.close()
     assert population["document"] > 0 and population["shadow"] > 0, population
-    assert (
-        render_gate_model.render_version(browser, serve(CODE_CONTROL_PAGE)).failures
-        == []
-    )
+    assert unread_syntax(page) == []
 
 
 def test_an_authored_project_widget_loads_through_the_real_layer(

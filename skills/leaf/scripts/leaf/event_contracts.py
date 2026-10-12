@@ -8,6 +8,8 @@ This module selects each kind's gates. Their implementations stay with their
 domains: undo in `events` and widget meaning in `event_meaning`.
 """
 
+from pathlib import Path
+
 from leaf.event_log import APPEND_STAMPED, EventRefused, new_event_id
 from leaf.event_meaning import (
     AdmissionReadings,
@@ -16,7 +18,7 @@ from leaf.event_meaning import (
 )
 from leaf.events import build_threads, spoken_turns, undo_error
 from leaf.files import version_revisions
-from leaf.layer import foreign_event_contract
+from leaf.layer import incompatible_layer
 from leaf.page_view import CandidatePageView, PageView
 from leaf.projection import (
     RANK,
@@ -36,10 +38,10 @@ from leaf.registry.contract import (
     verb_writer,
     visual_parts,
 )
-from leaf.registry.kernel import kernel_event_ownership
+from leaf.registry.kernel import kernel_event_kinds, kernel_event_ownership
 from leaf.registry.reactions import reaction_tokens
 from leaf.registry.schema import json_value, schema_error
-from leaf.registry.storage import layer_metadata
+from leaf.registry.storage import load_registry
 from leaf.schema import MESSAGE_KINDS, WIDGET_KINDS
 from leaf.structure import review_mode
 from leaf.tasks import task_error
@@ -814,7 +816,10 @@ def admitted_event(view, events: list, event: dict) -> dict:
     applies without a page directory, a server, or a browser under it.
     """
     registry = admitting_registry(view, event, events)
-    contracts = registry["$events"]["kinds"]
+    # The kernel's records are this Leaf's own, whichever Leaf vendored the page: no
+    # layer can change them, and a page at this protocol reads what they add
+    # (`registry.kernel.kernel_protocol`).
+    contracts = kernel_event_kinds()
     if error := command_error(event, contracts):
         raise EventRefused(error)
     kind = event["kind"]
@@ -853,6 +858,21 @@ def admitted_event(view, events: list, event: dict) -> dict:
     return event
 
 
+def write_refusal(page_dir: Path) -> str | None:
+    """Why this Leaf may write no event to the page, or None where it may: the
+    page was vendored at another protocol (`layer.incompatible_layer`). A writer
+    that must not fail on a page it cannot write, such as a hook, asks this first."""
+    try:
+        registry = load_registry(page_dir)
+    except RegistryError:
+        registry = None
+    if registry is None:
+        # A broken or missing candidate registry does not invalidate an active
+        # revision's captured vocabulary. Admission will read that vocabulary.
+        return None
+    return incompatible_layer(page_dir, registry)
+
+
 def append_admitted(page, event: dict, *, view=None) -> tuple[dict, bool]:
     """Admit one event and append it, under the page transaction's log lease; the
     record, and whether this call appended it.
@@ -870,13 +890,7 @@ def append_admitted(page, event: dict, *, view=None) -> tuple[dict, bool]:
     # later identical message has a fresh attempt and is a second event.
     if accepted := page.matching_attempt(event):
         return accepted, False
-    try:
-        layer = layer_metadata(page.page_dir)
-    except RegistryError:
-        # A broken or missing candidate registry does not invalidate an active
-        # revision's captured vocabulary. Admission will read that vocabulary.
-        layer = None
-    if layer is not None and (refusal := foreign_event_contract(page.page_dir, layer)):
+    if refusal := write_refusal(page.page_dir):
         raise EventRefused(refusal)
     record = page._append_record(
         admitted_event(

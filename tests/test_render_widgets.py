@@ -32,6 +32,7 @@ from render_cases_interaction import (
     COLLAPSED_PAGE,
     HOLD_MOTION,
     MESSAGE_ROOM_PAGE,
+    NESTED_PROPOSAL_PAGE,
     PROPOSED_PAGE,
     QUEUE_ROW_SAYS,
     REBUILT_INLINE_PAGE,
@@ -77,7 +78,6 @@ from render_cases_widgets import (
 )
 from render_harness import (
     BOARD_PAGE,
-    FEATURE_GALLERY,
     LONG_PAGE,
     RELEASE_FOCUS,
     REPLY_HOST_PAGE,
@@ -1884,7 +1884,7 @@ def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
     )
     assert ask.evaluate(
         """async node => {
-          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const leaf = await window.__lfRuntimeImport('/runtime/reading-regions.js');
           return leaf.readingPosture(node) === 'flow'
             && leaf.effectiveScroller(node) === document.scrollingElement;
         }"""
@@ -2046,7 +2046,7 @@ def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
     pane_posture(page, pane, "flow")
     assert pane.evaluate(
         """async node => {
-          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const leaf = await window.__lfRuntimeImport('/runtime/reading-regions.js');
           return leaf.readingPosture(node) === 'flow'
             && leaf.effectiveScroller(node) === document.getElementById('cells');
         }"""
@@ -2285,7 +2285,7 @@ def test_regions_inside_a_bounded_pane_body_flow_within_the_body_that_scrolls(
         pane_posture(page, page.locator(inner), "flow")
     readings = page.evaluate(
         """async () => {
-          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const leaf = await window.__lfRuntimeImport('/runtime/reading-regions.js');
           const host = document.querySelector('#host-body');
           return Object.fromEntries(['inner-pane', 'loose-pane'].map(id => {
             const body = document.querySelector(`#${id} > div`);
@@ -5743,11 +5743,12 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
     actions = playground.locator(".lf-playground-actions")
     reading = """async () => {
       const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const regions = await window.__lfRuntimeImport('/runtime/reading-regions.js');
       const playground = document.querySelector('#notification-playground');
       const controls = playground.querySelector('.lf-playground-controls');
       const preview = playground.querySelector('.lf-playground-preview-body');
       const instruction = playground.querySelector('lf-playground-output');
-      const region = (body) => leaf.readingRegionFor(body);
+      const region = (body) => regions.readingRegionFor(body);
       const controlsBox = region(controls).host.getBoundingClientRect();
       const previewBox = region(preview).host.getBoundingClientRect();
       const instructionBox = region(instruction).host.getBoundingClientRect();
@@ -5758,8 +5759,8 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
         postures: [controls, preview, instruction].map((body) =>
           leaf.readingPosture(region(body))),
         scrollers: [controls, preview, instruction].map((body) =>
-          leaf.effectiveScroller(body) === body ? 'own' :
-          leaf.effectiveScroller(body) === document.scrollingElement ? 'page' : 'other'),
+          regions.effectiveScroller(body) === body ? 'own' :
+          regions.effectiveScroller(body) === document.scrollingElement ? 'page' : 'other'),
         sideBySide: Math.abs(previewBox.top - controlsBox.top) < 1
           && controlsBox.left >= previewBox.right
           && Math.abs(instructionBox.left - controlsBox.left) < 1
@@ -6858,7 +6859,7 @@ def test_a_quoted_playground_is_a_static_preview_with_its_authored_output(
     assert playground.evaluate("root => root.values")["compact"] is False
     assert playground.evaluate(
         """async root => {
-          const {readingRegionFor} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {readingRegionFor} = await window.__lfRuntimeImport('/runtime/reading-regions.js');
           return readingRegionFor(root.querySelector('lf-playground-preview')) === undefined
             && !root.querySelector('[data-lf-reading-role]');
         }"""
@@ -7488,16 +7489,16 @@ def test_suggestion_emphasis_skips_generated_interface_between_changed_words(
     browser, serve
 ):
     """A changed span may cross a nested widget without painting its generated UI."""
-    page = open_page(browser, serve(FEATURE_GALLERY))
-    page.locator('[data-lf-margin-for="bg-route-ask"] .lf-margin-marker').click()
-    page.locator("#bg-route .lf-pick").first.focus()
-    badges = page.locator("#bg-route > lf-option > .lf-key-badge")
+    page = open_page(browser, serve(NESTED_PROPOSAL_PAGE))
+    page.locator('[data-lf-margin-for="route-ask"] .lf-margin-marker').click()
+    page.locator("#route .lf-pick").first.focus()
+    badges = page.locator("#route > lf-option > .lf-key-badge")
     expect(
-        page.locator("#bg-route > lf-option > .lf-key-badge[data-lf-binding-badge]")
+        page.locator("#route > lf-option > .lf-key-badge[data-lf-binding-badge]")
     ).to_have_count(2)
     expect(badges).to_have_text(["1", "2"])
 
-    assert page.locator("#bg-nested-change > lf-new > p").evaluate(
+    assert page.locator("#nested-change > lf-new > p").evaluate(
         """node => [...(CSS.highlights.get('lf-sug-ins') ?? [])]
           .some(range => range.intersectsNode(node.firstChild))"""
     ), "the proposal has to carry word-level insertion emphasis"
@@ -8969,25 +8970,6 @@ def test_ask_binding_badges_do_not_cover_their_key_line(browser, serve):
         or geometry["line"]["bottom"] <= chip["top"]
         for chip in geometry["chips"]
     ), geometry
-
-
-def test_a_needed_draft_contributes_its_current_ask_action(browser, serve):
-    source = leaf_page(
-        "needed draft binding",
-        """
-<h1>Supply the copy</h1>
-<lf-ask id="copy-ask"><h2>What should the invitation say?</h2>
-  <lf-draft id="copy" needed><pre>Draft invitation</pre></lf-draft>
-</lf-ask>
-""",
-    )
-    page = open_page(browser, serve(source))
-
-    page.keyboard.press("q")
-    expect(page.locator("#copy-ask")).to_be_focused()
-    assert active_digit_bindings(page) == "1"
-    page.keyboard.press("1")
-    expect(page.get_by_role("textbox", name="Edit copy")).to_be_focused()
 
 
 def test_an_ask_that_cannot_name_itself_arrives_on_the_words_that_explain_it(
@@ -13589,8 +13571,11 @@ def test_an_excerpt_shows_and_answers_to_its_source_line_numbers(browser, serve)
     its notes. Everything that points into the block — `hi`, a note's `at`, a driver's
     indication — names lines by those numbers. A left-out number addresses the elided
     row standing for it, so a note placed there is that row's caption, and a number
-    outside the block addresses nothing. A copied excerpt is the quoted source and the
-    authored notes, never the numbers or the elided rows' counts."""
+    outside the block addresses nothing. A body longer than its ranges goes on counting,
+    and a note past either end stands at the block's foot rather than leaving the page.
+    A range far longer than the body numbers only the body's lines.
+    A copied excerpt is the quoted source and the authored notes, never the numbers or
+    the elided rows' counts."""
     url = serve(
         leaf_page(
             "excerpt",
@@ -13608,6 +13593,16 @@ fn merge_sort()
 <lf-note at="1551">One run per pass.</lf-note>
 <lf-note id="gap" at="1520">Setup, left out.</lf-note>
 </lf-code>
+<lf-code id="short" lines="10-11"><pre>
+one
+two
+three
+</pre>
+<lf-note id="far" at="99">Past the end.</lf-note>
+</lf-code>
+<lf-code id="vast" lines="1-999999999999"><pre>
+only
+</pre></lf-code>
 <lf-pointer id="film" for="walk"></lf-pointer>
 """,
         ),
@@ -13632,6 +13627,16 @@ fn merge_sort()
         ["note"],
         ['"1552"', False],
     ]
+    short = page.locator("#short pre > *")
+    expect(short).to_have_count(4)
+    assert short.evaluate_all(
+        """rs => rs.map(r => r.localName === 'lf-note' ? r.id
+                   : getComputedStyle(r, '::before').content)"""
+    ) == ['"10"', '"11"', '"12"', "far"]
+    # A range far past the body numbers only the body's lines.
+    vast = page.locator("#vast pre > .lf-code-line")
+    expect(vast).to_have_count(1)
+    assert vast.evaluate("r => getComputedStyle(r, '::before').content") == '"1"'
 
     code_x, note_x = page.evaluate(
         """() => {

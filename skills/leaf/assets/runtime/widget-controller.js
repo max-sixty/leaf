@@ -176,11 +176,7 @@ function createWidgetController(owner) {
         ? new AggregateError(failures, "widget presentation failed")
         : failures[0];
     if (handle) {
-      const completion = failure
-        ? Promise.reject(failure)
-        : complete && owner.updateComplete?.then
-          ? owner.updateComplete
-          : undefined;
+      const completion = failure ? Promise.reject(failure) : undefined;
       // An incomplete startup reading has no DOM to present, but its ticket still
       // commits so the provisional publication can settle. Its subscribers first run
       // when the publisher supplies every declared verb.

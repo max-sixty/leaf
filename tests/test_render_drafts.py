@@ -321,11 +321,38 @@ def test_a_heading_above_a_flowing_pane_keeps_its_place_as_the_window_changes_wi
         ), width
 
 
-def test_a_scroll_the_frame_after_a_layout_change_moves_a_held_page(browser, serve):
+HELD_PAGE_MOVES = {
+    # The layout grows and a script scrolls in the same animation frame.
+    "same-frame": """async () => {
+      const frame = () => new Promise(r => requestAnimationFrame(() => r()));
+      await frame();
+      grow();
+      document.scrollingElement.scrollBy(0, 400);
+    }""",
+    # The layout grows, and the script scrolls in the next animation frame, before the
+    # observers hear that layout.
+    "first-frame": """async () => {
+      grow();
+      await new Promise(r => requestAnimationFrame(() => r()));
+      document.scrollingElement.scrollBy(0, 400);
+    }""",
+    # The script scrolls a frame after the layout it grew was laid out.
+    "next-frame": """async () => {
+      const frame = () => new Promise(r => requestAnimationFrame(() => r()));
+      grow();
+      await frame();
+      await frame();
+      document.scrollingElement.scrollBy(0, 400);
+    }""",
+}
+
+
+@pytest.mark.parametrize("move", list(HELD_PAGE_MOVES))
+def test_a_script_scroll_moves_a_held_page(browser, serve, move):
     """After a width change the page holds the reader's place and applies it again as
-    the layout settles. A page script that grows the layout and scrolls a frame later
-    has moved the page: it keeps that scroll through the next layout change rather than
-    returning to the held place."""
+    the layout settles. A page script that grows the layout and scrolls, in the same
+    frame or a later one, has moved the page: it keeps that scroll through the next
+    layout change, and the next width change starts from where the script left it."""
     lines = "".join(
         f"<p>Line {n} of a long page, long enough to read as a passage of its own.</p>"
         for n in range(200)
@@ -340,28 +367,96 @@ def test_a_scroll_the_frame_after_a_layout_change_moves_a_held_page(browser, ser
     rendered(page)
     resized(page, 700, 800)
     rendered(page)
-    moved = page.evaluate(
-        """async () => {
-          const frame = () => new Promise(r => requestAnimationFrame(() => r()));
+    page.evaluate(
+        """window.grow = () => {
           const room = document.createElement('div');
           room.style.height = '200px';
           document.querySelector('main').append(room);
-          await frame();
-          await frame();
-          document.scrollingElement.scrollBy(0, 400);
-          return document.scrollingElement.scrollTop;
         }"""
     )
+    scrolled = "document.scrollingElement.scrollTop"
+    held = page.evaluate(scrolled)
+    page.evaluate(HELD_PAGE_MOVES[move])
     scroll_settled(page)
     rendered(page)
-    scrolled = "document.scrollingElement.scrollTop"
-    assert page.evaluate(scrolled) == pytest.approx(moved, abs=2)
+    moved = page.evaluate(scrolled)
+    assert moved == pytest.approx(held + 400, abs=2), "the script's scroll was undone"
     page.evaluate(
         "document.querySelector('main').append("
         "Object.assign(document.createElement('p'), {textContent: 'More.'}))"
     )
     rendered(page)
     assert page.evaluate(scrolled) == pytest.approx(moved, abs=2)
+    line = page.evaluate(
+        """() => {
+          const band = parseFloat(getComputedStyle(document.scrollingElement)
+            .scrollPaddingTop) || 0;
+          const line = [...document.querySelectorAll('main p')]
+            .find(p => p.getBoundingClientRect().top >= band);
+          line.id = 'read-line';
+          return line.getBoundingClientRect().top - band;
+        }"""
+    )
+    resized(page, 1280, 800)
+    rendered(page)
+    after = page.evaluate(
+        """() => document.getElementById('read-line').getBoundingClientRect().top
+          - (parseFloat(getComputedStyle(document.scrollingElement)
+            .scrollPaddingTop) || 0)"""
+    )
+    assert 0 <= after <= line + 60, (line, after)
+
+
+def test_paging_down_from_a_landed_section_keeps_the_paged_passage(browser, serve):
+    """A fragment lands on a section and focuses it; the reader pages down through it.
+    Focus on a section the reader reads through names the passage they paged to, not
+    the section, so a width change keeps that passage where they read it, without the
+    browser's anchoring to hold it."""
+    opening = "".join(
+        f"<p>Opening paragraph {n}, words enough to rewrap as the window changes.</p>"
+        for n in range(10)
+    )
+    section = "".join(
+        f"<p>Section paragraph {n} carries its own words, long enough to quote as a "
+        "landmark and to rewrap at a phone's width.</p>"
+        for n in range(80)
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Paging a section",
+                # Without native anchoring, which Safari lacks, the page's own place
+                # is all that keeps the passage.
+                "<style>html { overflow-anchor: none; }</style>"
+                f'{opening}<section id="landed"><h2>The landed section</h2>{section}'
+                "</section>",
+            )
+        ),
+    )
+    resized(page, 390, 800)
+    rendered(page)
+    page.evaluate("location.hash = 'landed'")
+    rendered(page)
+    page.keyboard.press("PageDown")
+    page.wait_for_function("document.scrollingElement.scrollTop > 0")
+    scroll_settled(page)
+    rendered(page)
+    place = """async (step) => {
+      const rp = await window.__lfRuntimeImport('/runtime/reading-place.js');
+      const {landingBand} = await window.__lfRuntimeImport('/runtime/geometry.js');
+      if (step === 'take') window.__paged = rp.capturePlace();
+      const words = window.__paged.quote.slice(0, 40);
+      const block = [...document.querySelectorAll('main p')]
+        .find(p => p.textContent.includes(words));
+      return block.getBoundingClientRect().top
+        - landingBand(document.scrollingElement).top;
+    }"""
+    read = page.evaluate(place, "take")
+    for width in (1200, 390):
+        resized(page, width, 800)
+        rendered(page)
+        assert page.evaluate(place, "read") == pytest.approx(read, abs=4), width
 
 
 @pytest.mark.parametrize("bounded", [False, True])

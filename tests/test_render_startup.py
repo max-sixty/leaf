@@ -1490,7 +1490,7 @@ def test_a_pane_registers_the_body_it_holds_across_moves_and_revisions(browser, 
     )
     result = page.evaluate(
         """async () => {
-          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const leaf = await window.__lfRuntimeImport('/runtime/reading-regions.js');
           const main = document.querySelector('main');
           const pane = document.querySelector('#moving-pane');
           const first = leaf.readingRegion('moving-pane')?.body.id;

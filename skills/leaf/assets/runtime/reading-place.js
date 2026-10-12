@@ -10,17 +10,21 @@
  * what moved the pixels under it — a new revision, a resize, a view that was hidden
  * while its width changed. A focused destination in view (user-place.js,
  * `focusedInView`) is the live place while that gesture still holds focus in this
- * region. Focus on the reading surface itself keeps its passage as the place. The
+ * region. Focus on the reading surface itself keeps its passage as the place, and so
+ * does focus on a container holding that passage, as a section a fragment landed on. The
  * destination's DOM identity stays local; serialized places and replaced elements use
  * the ordinary passage reading. A restore jumps rather than glides. It keeps the
  * reader's current disclosures and views: a landmark they concealed supplies no geometry.
+ * It returns the reader to a place they had rather than choosing one, so it says where
+ * it left each box it moved (scrolling.js, `placeKept`).
  *
  * Whoever remembers a place owns when to take it and where to keep it: version
- * continuity (version.js) across revisions and reading-region shifts, a root tab set
- * (lf-tabs) for each of its views. History's working-place checkpoints separately own
- * an entry's viewport offset (history.js). `readingBlock` is the first block on screen
- * in one region or the page; `pageReadingBlock` is the block the user is reading,
- * where a walk starts, and `landingPlace` is where a let-go puts them. `openingPassage`
+ * continuity (version.js) across revisions, reading-region shifts and the subjects a
+ * region shows in turn, a root tab set (lf-tabs) for each of its views. History's
+ * working-place checkpoints separately own an entry's viewport offset (history.js).
+ * `readingBlock` is the first block on screen in one region or the page;
+ * `pageReadingBlock` is the block the user is reading, where a walk starts, and
+ * `landingPlace` is where a let-go puts them. `openingPassage`
  * gives travel the passage its destination draws first, using the same rendered words
  * as the visible landmarks. It is independent of the viewport, so scrolling through a tall landing
  * does not turn a later passage into the trip's original arrival.
@@ -49,11 +53,12 @@ import {
   effectiveScroller,
   readingRegionFor,
   readingRegions,
+  scrollersOf,
   shownRegionBounds,
   pageReadingRegion,
 } from "./reading-regions.js";
 import { followingItsEnd } from "./bounds.js";
-import { moveScrollerBy, pageScroller, scrollToEnd } from "./scrolling.js";
+import { moveScrollerBy, pageScroller, placeKept, scrollToEnd } from "./scrolling.js";
 import { renderedParent, under, upFrom } from "./shadow.js";
 import { retainUserIntent } from "./user-intent.js";
 import { recentPlaceInput, focused } from "./focus.js";
@@ -106,10 +111,35 @@ const drawsLandmark = (parent) => {
   return Boolean(box?.checkVisibility({ opacityProperty: true }));
 };
 const blockWords = new WeakMap();
+// Whether a block's words are drawn inside its own box: none stands in an element
+// taken out of flow, positioned or transformed, between the words and the block. Read
+// once per page reading, and only for blocks a reading of the screen would pass over.
+const drawnInside = (block, segments, known) => {
+  if (!known.has(block)) {
+    const asked = new Set();
+    let inside = true;
+    for (const { node } of segments) {
+      for (let at = renderedParent(node); inside && at && at !== block;) {
+        if (asked.has(at)) break;
+        asked.add(at);
+        const style = getComputedStyle(at);
+        inside =
+          (style.position === "static" || style.position === "sticky") &&
+          style.transform === "none" &&
+          style.translate === "none";
+        at = renderedParent(at);
+      }
+      if (!inside) break;
+    }
+    known.set(block, inside);
+  }
+  return known.get(block);
+};
 // Each block's drawn words, with the union of their boxes. With `within`, a block whose
-// own box lies wholly above or below that band is passed over before its words are
-// measured, so a reading of the screen costs the blocks near it rather than every block
-// above it. A block with no box of its own (display: contents) is measured.
+// own box lies wholly above or below that band, and whose words are drawn inside that
+// box, is passed over before its words are measured, so a reading of the screen costs
+// the blocks near it rather than every block above it. A block with no box of its own
+// (display: contents) is measured.
 function* renderedBlocks(blocks, within = null) {
   const reading = pageText();
   if (!blockWords.has(reading)) {
@@ -118,9 +148,9 @@ function* renderedBlocks(blocks, within = null) {
       if (!words.has(segment.block)) words.set(segment.block, []);
       words.get(segment.block).push(segment);
     }
-    blockWords.set(reading, words);
+    blockWords.set(reading, { words, inside: new Map() });
   }
-  const words = blockWords.get(reading);
+  const { words, inside } = blockWords.get(reading);
   const drawn = new Map();
   const range = document.createRange();
   for (const block of blocks) {
@@ -128,7 +158,11 @@ function* renderedBlocks(blocks, within = null) {
     if (inChrome(block) || skipped(block)) continue;
     if (within) {
       const own = block.getBoundingClientRect();
-      if (own.height && (own.bottom <= within.top || own.top >= within.bottom))
+      if (
+        own.height &&
+        (own.bottom <= within.top || own.top >= within.bottom) &&
+        drawnInside(block, words.get(block), inside)
+      )
         continue;
     }
     const boxes = [],
@@ -242,23 +276,28 @@ export function capturePlace(region = null, blocks = textBlocks()) {
   const standing = focusedInView();
   const body = region?.body ?? pageDocument();
   const standingBody = readingRegionFor(standing)?.body ?? body;
-  if (
+  const focusPlace = () => ({
+    node: standing,
+    body,
+    region: containingReadingRegionFor(standing)?.id,
+    intent: retainUserIntent({ source: standing }),
+  });
+  const standsOn =
     recentPlaceInput() === "focus" &&
     standing &&
     under(standing, body) &&
     // Focus on the reading surface itself names its contents, not a landmark.
-    !under(standingBody, standing)
-  )
-    view[FOCUSED_PLACE] = {
-      node: standing,
-      body,
-      region: containingReadingRegionFor(standing)?.id,
-      intent: retainUserIntent({ source: standing }),
-    };
-  if (region && followingItsEnd(box)) return { ...view, end: true };
+    !under(standingBody, standing);
+  if (region && followingItsEnd(box))
+    return { ...view, ...(standsOn && { [FOCUSED_PLACE]: focusPlace() }), end: true };
+  // The block whose words name the place, so focus on a container the user reads
+  // through, such as a section a fragment landed on, names that passage rather than
+  // itself: only focus on what the passage is not inside, a control, is the place.
+  let named = null;
   for (const [block, rect, runs] of blocksOnScreen(region, blocks)) {
     const section = closestAcross(block, ADDRESSABLE);
     if (!view.section && section) {
+      named = block;
       // The first on-screen block's section, kept only until a quotable block supplies
       // its own: a page with nothing quotable on screen still has somewhere to land.
       view.section = section.id;
@@ -278,6 +317,7 @@ export function capturePlace(region = null, blocks = textBlocks()) {
     if (text) {
       // Unconditionally, so a quotable block under no section clears the earlier one
       // rather than sending the search into a subtree its text isn't in.
+      named = block;
       view.section = section?.id;
       view.sectionTop =
         section &&
@@ -295,6 +335,8 @@ export function capturePlace(region = null, blocks = textBlocks()) {
       break;
     }
   }
+  if (standsOn && !(named && under(named, standing)))
+    view[FOCUSED_PLACE] = focusPlace();
   return view;
 }
 
@@ -376,4 +418,5 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
   // A restored passage or end can carry its focused control beyond the new
   // viewport. Nearest reveal changes nothing when the destination already fits.
   if (standing) scrollIntoReadingBand(standing, standing, "nearest", "instant");
+  placeKept(box, ...(standing ? scrollersOf(standing) : []));
 }

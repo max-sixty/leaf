@@ -64,7 +64,7 @@
  * open, including when the platform dismisses it. Scopes sharing a title merge their
  * rows; an unavailable contributor supplies none.
  */
-import { nextRender, sizeObserver } from "./rendering.js";
+import { nextAnimation, nextRender, sizeObserver } from "./rendering.js";
 import { frameFor, whileConnected } from "./arrivals.js";
 import { LIVE_ROOT, layerRoot, pageUrl, revisionLabel, runtime } from "./context.js";
 import {
@@ -114,8 +114,13 @@ import {
   prepareDeclaredMarkdown,
   formatDeclaredMarkdown,
 } from "./markdown.js";
-import { moveScrollerBy, pageScroller, SCROLL_SLACK } from "./scrolling.js";
-import { landedSince, landingCount } from "./landing-scroll.js";
+import {
+  chosenSince,
+  moveScrollerBy,
+  pageScroller,
+  placeKept,
+  scrollChoices,
+} from "./scrolling.js";
 import {
   containingReadingRegionFor,
   effectiveScroller,
@@ -1811,27 +1816,31 @@ export function createVersionController({
   // scroller given no place keeps what the browser's anchoring left, moved with its
   // landing band.
   //
-  // Only the user moves their place. A restore is the runtime's move: read back, it can
-  // name other words than the place it restored, and it can fall short of that place,
-  // cut off by its box's range, as a pane already at its top cannot lower its words to
-  // where the page had them, or a page cannot reach a passage below a widget still drawn
-  // at its old size. So a box the runtime restored holds the place it was given until
-  // the user moves it: nothing records over it, the next shift starts from the words the
-  // user read rather than from wherever the runtime left them, and the place is applied
-  // again whenever the layout under it changes, as a widget drawing a frame late changes
-  // it. The user moves it by an input, by a landing (landing-scroll.js, `landedSince`),
-  // or by anything else that scrolls the box from where the runtime or the last layout
-  // change left it, as a page's own script does: one predicate (`held`) answers both
-  // the record and the re-application. Travel the browser makes for the user, Back,
-  // Forward or a fragment, ends a hold too, and so does a revision, whose own handoff
-  // places the reader. Between a shift and its restore nothing is recorded, since the
-  // shift's own scrolls are no one's place. A landing since a place was recorded is
-  // newer than it, so a shift leaves that box where it landed.
+  // Only the user moves their place, and a scroll is theirs when it ends as their
+  // choice (scrolling.js, `chosenSince`): a wheel, a key, a landing, a page's script or
+  // the browser's own travel, but not a clamp, an anchoring adjustment or a place
+  // keeper's write. A restore is the runtime's move: read back, it can name other words
+  // than the place it restored, and it can fall short of that place, cut off by its
+  // box's range, as a pane already at its top cannot lower its words to where the page
+  // had them, or a page cannot reach a passage below a widget still drawn at its old
+  // size. So a box the runtime restored holds the place it was given until the user
+  // chooses a scroll there or acts at all: nothing records over it, so the next shift
+  // starts from the words the user read rather than from wherever the runtime left them,
+  // and while the shift's layout settles the place is applied again (`watchHolds`), as a
+  // widget drawing a frame late moves it. A revision ends every hold, since its own
+  // handoff places the reader. Between a shift and its restore nothing is recorded,
+  // since the shift's own scrolls are no one's place, and a box the reader chose a
+  // scroll in since its place was recorded is left where they chose.
+  //
+  // A region can show one subject of several in turn (reading-regions.js,
+  // `showReadingSubject`). The place of a subject leaving is kept by subject, and the
+  // one showing returns the reader to theirs.
   const PAGE = "$page";
   const places = new Map();
   let placeCount = 0;
   let shifting = false;
   const holds = new Map();
+  const subjectPlaces = new Map();
   let reapply = null;
   // The hold `box` still keeps, or null once the user has moved it.
   const held = (box) => {
@@ -1839,10 +1848,9 @@ export function createVersionController({
     if (
       hold &&
       hold.since === inputCount() &&
+      !chosenSince(box, hold.choices) &&
       hold.currentIntent() &&
-      regionForBox(box) === hold.region &&
-      !landedSince(box, hold.landed) &&
-      Math.abs(box.scrollTop - hold.at) <= SCROLL_SLACK
+      regionForBox(box) === hold.region
     )
       return hold;
     holds.delete(box);
@@ -1858,8 +1866,8 @@ export function createVersionController({
   const boxOf = (node) => effectiveScroller(containingReadingRegionFor(node));
   const dropGonePlaces = () => {
     const standing = new Set(readingRegions().map(({ id }) => id));
-    for (const id of places.keys())
-      if (id !== PAGE && !standing.has(id)) places.delete(id);
+    for (const map of [places, subjectPlaces])
+      for (const id of map.keys()) if (id !== PAGE && !standing.has(id)) map.delete(id);
   };
 
   function recordPlaces(boxes) {
@@ -1874,7 +1882,7 @@ export function createVersionController({
       places.set(reading.scroller, {
         reading,
         at: ++placeCount,
-        landed: landingCount(),
+        choices: scrollChoices(),
       });
     }
   }
@@ -1882,16 +1890,18 @@ export function createVersionController({
   // The newest place speaking for `box`, where it lands there: by a landmark the box now
   // carries, by a section holding the whole box, which lands it at its start, or by the
   // box's own end or raw offset. `before` names the scrollers that carried the box's
-  // words before the shift.
+  // words before the shift; with none, as for a region returning from concealment,
+  // only the box's own place speaks for it.
   function placeFor(box, recorded, before) {
     const own = box === pageScroller ? PAGE : regionForBox(box).id;
     let found = null;
     for (const [id, entry] of recorded) {
+      if (!before && id !== own) continue;
       const node = placeNode(entry.reading);
       const carried = node
         ? boxOf(node) === box
         : id === own && (entry.reading.end || rawOffsetFits(entry.reading, box));
-      if ((carried || id === own || before.has(id)) && !(found?.at > entry.at))
+      if ((carried || id === own || before?.has(id)) && !(found?.at > entry.at))
         found = { ...entry, lands: carried || (node && under(box, node)) };
     }
     return found?.lands ? found : null;
@@ -1902,33 +1912,37 @@ export function createVersionController({
     if (compositionChanges.size) return;
     if (!currentIntent()) return;
     const page = shifted.find(({ region }) => !region);
-    if (page?.band) moveScrollerBy(pageScroller, -page.band);
+    if (page?.band) {
+      moveScrollerBy(pageScroller, -page.band);
+      placeKept(pageScroller);
+    }
     const boxes = new Map(page ? [[pageScroller, new Set()]] : []);
+    const returning = new Set();
     const touch = (box) => boxes.get(box) ?? boxes.set(box, new Set()).get(box);
     const idOf = (box) =>
       box === pageScroller
         ? PAGE
         : readingRegions().find(({ body }) => body === box)?.id;
-    for (const { region, from, to } of shifted) {
+    for (const { region, from, to, returned } of shifted) {
       if (!region || !shownRegionBounds(region)) continue;
+      // The box a region left keeps its own place: it holds the rest of its words,
+      // which the region's leaving moved only as layout moves them. A region returning
+      // from concealment had no words in the box that carried it.
+      if (returned) returning.add(to);
       touch(to);
-      if (from && from !== to) {
-        touch(from);
-        touch(to).add(idOf(from));
-      }
+      if (from && from !== to && !returned) touch(to).add(idOf(from));
     }
     for (const [box, before] of boxes) {
       const region = regionForBox(box);
       if (region === undefined) continue;
-      const place = placeFor(box, recorded, before);
-      if (!place || landedSince(box, place.landed)) continue;
+      const place = placeFor(box, recorded, returning.has(box) ? null : before);
+      if (!place || chosenSince(box, place.choices)) continue;
       restorePlace(place.reading, region, currentIntent);
       holds.set(box, {
         reading: place.reading,
         region,
         since: inputCount(),
-        landed: landingCount(),
-        at: box.scrollTop,
+        choices: scrollChoices(),
         currentIntent,
       });
     }
@@ -1936,11 +1950,13 @@ export function createVersionController({
     watchHolds();
   }
 
-  // Apply each held place again when the layout under it changes, until the user moves
-  // it. What moves a place is the page's own content or its bounded region's, and it
-  // lands only in the box it was restored into. The observer's delivery follows layout
-  // and the anchoring it brings, so where it finds each box is where the layout left
-  // it; a scroll after that, before the place is applied again, is someone's move.
+  // Apply each held place again while the shift's layout settles, as a widget drawing
+  // a frame late changes it, and only then: re-application exists for that late layout,
+  // and outliving it would put back a place under whatever else changes the page. The
+  // layout is quiet once two frames pass with no delivery, and the window closes after
+  // `SETTLING` deliveries whatever happens. What moves a place is the page's own content
+  // or its bounded region's, and it lands only in the box it was restored into.
+  const SETTLING = 12;
   const stopReapplying = () => {
     reapply?.disconnect();
     reapply = null;
@@ -1953,14 +1969,22 @@ export function createVersionController({
         const hold = held(box);
         if (!hold) continue;
         restorePlace(hold.reading, hold.region, hold.currentIntent);
-        hold.at = box.scrollTop;
       }
       if (!holds.size) stopReapplying();
     });
-    reapply = sizeObserver(() => {
-      for (const [box, hold] of holds) hold.at = box.scrollTop;
+    let deliveries = 0;
+    const observer = sizeObserver(() => {
+      if (reapply !== observer) return;
+      const seen = ++deliveries;
+      if (seen > SETTLING) return stopReapplying();
       again();
+      nextAnimation(() =>
+        nextAnimation(() => {
+          if (reapply === observer && deliveries === seen) stopReapplying();
+        }),
+      );
     });
+    reapply = observer;
     reapply.observe(pageDocument());
     for (const { region } of holds.values())
       if (region) for (const child of region.body.children) reapply.observe(child);
@@ -1982,7 +2006,45 @@ export function createVersionController({
       )
       .map((region) => region.body);
 
-  function readingRegionTransition({ phase, owner, cancelled, retained, shifted }) {
+  // A subject leaving keeps the reader's place in it, read now where the region's own
+  // box scrolls it, on screen or not; the one showing returns them to theirs. Neither
+  // waits on a composition around it, which restores where the reader is in what shows
+  // rather than which subject shows.
+  function showSubject(phase, region) {
+    const box = region.body;
+    const own = regionForBox(box) && box.checkVisibility();
+    if (phase === "leaving") {
+      if (own) recordPlaces([box]);
+      const place = places.get(region.id);
+      if (!place) return;
+      if (!subjectPlaces.has(region.id)) subjectPlaces.set(region.id, new Map());
+      subjectPlaces.get(region.id).set(region.subject, place.reading);
+      return;
+    }
+    holds.delete(box);
+    const reading = subjectPlaces.get(region.id)?.get(region.subject);
+    if (!reading) {
+      places.delete(region.id);
+      return;
+    }
+    // The place stands for this subject from now: the reader's scrolls in the box under
+    // another subject chose nothing in this one.
+    places.set(region.id, { reading, at: ++placeCount, choices: scrollChoices() });
+    if (own) restorePlace(reading, regionForBox(box));
+  }
+
+  function readingRegionTransition({
+    phase,
+    owner,
+    region,
+    cancelled,
+    retained,
+    shifted,
+  }) {
+    if (phase === "leaving" || phase === "showing") {
+      showSubject(phase, region);
+      return;
+    }
     // Announced from a resize observer's delivery; restoring there could reveal a
     // region and resize what the observer watches, so it waits for the next frame.
     // Nothing is recorded from the announcement until then: a scroll the shift itself
@@ -2061,6 +2123,17 @@ export function createVersionController({
       rest(scrolls);
     };
     document.addEventListener("scroll", scrolled, { capture: true, passive: true });
+    // A scroll's end is the reader's choice (scrolling.js), and a place taken before it
+    // would read as older than that choice. WebKit, and Chromium for touch, end a scroll
+    // frames after its last scroll event, so the end takes a place of its own.
+    document.addEventListener(
+      "scrollend",
+      ({ target }) => {
+        const box = target === document ? pageScroller : target;
+        nextRender(() => recordPlaces([box]));
+      },
+      { capture: true, passive: true },
+    );
     for (const type of ["popstate", "hashchange"])
       addEventListener(type, () => holds.clear());
     // Arriving or editing changes the place even when no scroller moves. Keep the intact

@@ -518,6 +518,9 @@ def test_reading_keys_scroll_drawers_without_moving_the_document(
             )
             assert box.evaluate("box => box.scrollHeight > box.clientHeight")
             panel.get_by_role("button", name=re.compile("^Close ")).focus()
+            # A drawer opening beside the page narrows it, and the page keeps its
+            # reading place on the frame after that layout: read it once it rests.
+            rendered(page)
             document_position = page.evaluate("document.scrollingElement.scrollTop")
             for down, up in (("d", "u"), ("j", "k")):
                 box.evaluate("box => box.scrollTop = 0")
@@ -760,6 +763,60 @@ def test_a_box_holding_a_restored_place_still_follows_the_reader(browser, serve,
     pane_posture(page, page.locator("#left-reading"), "flow")
     rendered(page)
     assert page.evaluate(LEFT_START_BELOW) < read - 100, "the held place came back"
+
+
+@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
+def test_a_split_drag_keeps_a_panes_reading(engine, request, serve):
+    """Each frame of a drag rewraps a pane, and each frame's restore keeps its reading.
+
+    Scroll anchoring would hold the reading itself, so the pane turns it off, as
+    Safari has none: the restores do the whole job. The reader's wheel scroll before
+    the drag is theirs, and WebKit ends it frames after its last scroll event, so the
+    reading continuity takes must follow its end. A restore is no scroll the reader
+    chose: counted as theirs, it would make the next frame's restore leave the pane
+    where layout had moved it.
+    """
+    browser = request.getfixturevalue(engine)
+    source = READING_REGIONS_PAGE.replace(
+        '<p id="left-start">Left start with enough words to preserve this landmark.</p>',
+        "<p id='left-start'>"
+        + "Left start words rewrap as the pane narrows. " * 60
+        + "</p>",
+    ).replace("</style>", "#left-reading > div { overflow-anchor: none; }</style>", 1)
+    page = open_page(browser, serve(source))
+    left = page.locator("#left-reading > :not(header, footer)")
+    pane_posture(page, page.locator("#left-reading"), "bounded")
+    landmark = (
+        "() => document.querySelector('#left-landmark').getBoundingClientRect().top"
+        " - document.querySelector('#left-reading > div').getBoundingClientRect().top"
+    )
+    box = left.bounding_box()
+    page.mouse.move(box["x"] + 50, box["y"] + 50)
+    left.evaluate(
+        "box => box.addEventListener('scrollend', () => { window.ended = true; })"
+    )
+    page.mouse.wheel(
+        0,
+        left.evaluate(
+            "box => document.querySelector('#left-landmark').offsetTop"
+            " - box.offsetTop - 60"
+        ),
+    )
+    page.wait_for_function("window.ended")
+    page_at_rest(page)
+    before = page.evaluate(landmark)
+    # The divider between the panes moves a few pixels each frame, as under a pointer.
+    page.evaluate("""async () => {
+      const split = document.querySelector('#reading-split');
+      for (let left = 60; left > 20; left -= 4) {
+        split.style.gridTemplateColumns = `${left}fr ${100 - left}fr`;
+        await new Promise(requestAnimationFrame);
+      }
+    }""")
+    page_at_rest(page)
+    # WebKit's restores leave the passage about 5px off; a lost
+    # reading leaves it lines away.
+    assert page.evaluate(landmark) == pytest.approx(before, abs=8)
 
 
 def test_a_tall_local_comment_survives_its_panes_posture_and_return(browser, serve):
@@ -12162,6 +12219,32 @@ def test_same_passage_and_controls_keep_a_mixed_travel_group(
     page.go_back()
     expect(page.locator("#origin")).to_be_focused()
     page.wait_for_function("scrollY < 100")
+
+
+def test_a_reading_finds_words_drawn_outside_their_blocks_box(browser, serve):
+    """A block whose own box lies below the window can still draw words in it, through a
+    positioned child. A reading of the screen passes over a block only when its words
+    are drawn inside its box, so the words the reader sees name the place."""
+    source = leaf_page(
+        "Words outside their block",
+        '<div style="position: relative">'
+        '<div style="height: 1400px"></div>'
+        '<p id="carrier">The carrier paragraph sits far below the window.'
+        '<span style="position: absolute; top: 200px; left: 0">'
+        "These positioned words are drawn in the window.</span></p>"
+        "</div>"
+        + "".join(f"<p>Later paragraph {n} below the carrier.</p>" for n in range(5)),
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1000, 600)
+    rendered(page)
+    first = page.evaluate(
+        """async () => {
+          const rp = await window.__lfRuntimeImport('/runtime/reading-place.js');
+          return rp.readingBlock()?.id;
+        }"""
+    )
+    assert first == "carrier"
 
 
 @pytest.mark.parametrize("separated", [False, True])

@@ -1,7 +1,7 @@
 /* An obligation's subject, shared by the Questions panel and package lists.
    Membership remains with the publisher. A title reads the current conversation
    or the rendered Question/widget it names, without interpreting events. */
-import { addressableLabel } from "./anchor-resolution.js";
+import { addressableLabel } from "./addressable-names.js";
 import { elementById } from "./passages.js";
 import { questionHolding } from "./standing-target.js";
 import { questionPlace } from "./questions/place.js";

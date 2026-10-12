@@ -416,7 +416,7 @@ Review captured Mac images before accepting an intentional change;
 `dev/leaf_dev/thread_snapshots.py` owns capture and acceptance.
 
 A pull request's `test` job and the local pre-merge `tests` run the broad selection
-and the marked tests the branch edits; the rest of the `main` tier runs once main
+and the later-tier tests the branch edits; the rest of the `main` tier runs once main
 moves, the `nightly` tier in the daily run, and `tend-ci-fix` answers them when they
 fail (`tests/AGENTS.md`, "Run what the change needs").
 `wt merge` checks the rebased tree and lands it; `✗ Can't push to local main branch`

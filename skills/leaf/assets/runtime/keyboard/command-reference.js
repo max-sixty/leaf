@@ -51,7 +51,7 @@ import {
   keySequenceModel,
   keySequenceTemplate,
   neutralStates,
-} from "./presentation.js";
+} from "./key-sequence.js";
 import {
   handBack,
   tabStops,

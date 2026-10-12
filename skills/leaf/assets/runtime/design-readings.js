@@ -5,7 +5,7 @@
  * reaches design gestures, composition, panel sync, or page geometry.
  */
 
-import { addressableWord } from "./anchor-resolution.js";
+import { addressableWord } from "./addressable-names.js";
 
 // Kept per tab across document travel and reload, the way the panel's open state is.
 export const DESIGN_MODE_KEY = "lf-design-mode";

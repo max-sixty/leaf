@@ -717,98 +717,98 @@ customElements.define(
     connectedCallback() {
       if (!once(this)) return;
       commands(
-          this,
-          "In a diff review",
-          [
-            // The walk leads the scope, because the shortcut bar's shortlist is its first
-            // two live rows and moving is what a user standing on a diff row does
-            // next, where "filter files" is the press for someone who has not started
-            // reading yet. The rest of the scope is one `?`
-            // away in the compact shortcut bar and complete in the reference dialog.
-            //
-            // `]` and `[` are the reviewer's own step, and `}` and `{` the same step one
-            // unit out. Bracket pairs because that is what an editor and a review tool
-            // already spell this walk with, and punctuation spends none of the page's
-            // small alphabet: these live in the diff's own scope and answer only while
-            // the user is standing in it.
-            {
-              id: "diff.next-hunk",
-              keys: ["]"],
-              title: "next hunk",
-              when: () => this.hasHunks(),
-              run: () => this.present(this.stepHunk(false)),
+        this,
+        "In a diff review",
+        [
+          // The walk leads the scope, because the shortcut bar's shortlist is its first
+          // two live rows and moving is what a user standing on a diff row does
+          // next, where "filter files" is the press for someone who has not started
+          // reading yet. The rest of the scope is one `?`
+          // away in the compact shortcut bar and complete in the reference dialog.
+          //
+          // `]` and `[` are the reviewer's own step, and `}` and `{` the same step one
+          // unit out. Bracket pairs because that is what an editor and a review tool
+          // already spell this walk with, and punctuation spends none of the page's
+          // small alphabet: these live in the diff's own scope and answer only while
+          // the user is standing in it.
+          {
+            id: "diff.next-hunk",
+            keys: ["]"],
+            title: "next hunk",
+            when: () => this.hasHunks(),
+            run: () => this.present(this.stepHunk(false)),
+          },
+          {
+            id: "diff.previous-hunk",
+            keys: ["["],
+            title: "previous hunk",
+            when: () => this.hasHunks(),
+            run: () => this.present(this.stepHunk(true)),
+          },
+          {
+            id: "diff.next-file",
+            keys: ["}"],
+            title: "next file",
+            description: "Go to the next file's header",
+            when: () => this.shownEntries().length > 1,
+            run: () => this.stepFile(false),
+          },
+          {
+            id: "diff.previous-file",
+            keys: ["{"],
+            title: "previous file",
+            description: "Go to the previous file's header",
+            when: () => this.shownEntries().length > 1,
+            run: () => this.stepFile(true),
+          },
+          {
+            id: "diff.search",
+            keys: ["/"],
+            title: "filter files",
+            description: "Filter the files in this diff",
+            run: () => {
+              const search = this.diffTools?.search;
+              if (search) {
+                focusDestination(search, "move");
+                scrollIntoView(search, { block: "nearest" });
+              }
             },
-            {
-              id: "diff.previous-hunk",
-              keys: ["["],
-              title: "previous hunk",
-              when: () => this.hasHunks(),
-              run: () => this.present(this.stepHunk(true)),
+          },
+          // The filter is a layer of this widget, so its way out is read off the
+          // filter rather than off the press that put it on: a live query goes
+          // first, from anywhere in the patch, and then the box itself.
+          {
+            id: "diff.search.back",
+            keys: ["Escape"],
+            when: () => {
+              const search = this.diffTools?.search;
+              if (!search) return false;
+              return Boolean(
+                this.matches(":focus-within") &&
+                (search.value || search.matches(":focus-within")),
+              );
             },
-            {
-              id: "diff.next-file",
-              keys: ["}"],
-              title: "next file",
-              description: "Go to the next file's header",
-              when: () => this.shownEntries().length > 1,
-              run: () => this.stepFile(false),
+            title: () => (this.diffTools?.search.value ? "show all files" : "back"),
+            description: () =>
+              this.diffTools?.search.value
+                ? "Show every file again"
+                : "Leave the diff filter",
+            run: () => {
+              const search = this.diffTools?.search;
+              if (search?.value) {
+                this.clearFilter();
+                focusDestination(search, "return");
+                return;
+              }
+              // The box's container is the patch it filters, so that is where it hands
+              // the user back: a blur alone would drop them out of this widget's
+              // scope with no ring anywhere, and the file walk would stop answering.
+              focusDestination(this, "return");
             },
-            {
-              id: "diff.previous-file",
-              keys: ["{"],
-              title: "previous file",
-              description: "Go to the previous file's header",
-              when: () => this.shownEntries().length > 1,
-              run: () => this.stepFile(true),
-            },
-            {
-              id: "diff.search",
-              keys: ["/"],
-              title: "filter files",
-              description: "Filter the files in this diff",
-              run: () => {
-                const search = this.diffTools?.search;
-                if (search) {
-                  focusDestination(search, "move");
-                  scrollIntoView(search, { block: "nearest" });
-                }
-              },
-            },
-            // The filter is a layer of this widget, so its way out is read off the
-            // filter rather than off the press that put it on: a live query goes
-            // first, from anywhere in the patch, and then the box itself.
-            {
-              id: "diff.search.back",
-              keys: ["Escape"],
-              when: () => {
-                const search = this.diffTools?.search;
-                if (!search) return false;
-                return Boolean(
-                  this.matches(":focus-within") &&
-                  (search.value || search.matches(":focus-within")),
-                );
-              },
-              title: () => (this.diffTools?.search.value ? "show all files" : "back"),
-              description: () =>
-                this.diffTools?.search.value
-                  ? "Show every file again"
-                  : "Leave the diff filter",
-              run: () => {
-                const search = this.diffTools?.search;
-                if (search?.value) {
-                  this.clearFilter();
-                  focusDestination(search, "return");
-                  return;
-                }
-                // The box's container is the patch it filters, so that is where it hands
-                // the user back: a blur alone would drop them out of this widget's
-                // scope with no ring anywhere, and the file walk would stop answering.
-                focusDestination(this, "return");
-              },
-            },
-          ],
-          () => Boolean(this.fileEntries?.length),
-        );
+          },
+        ],
+        () => Boolean(this.fileEntries?.length),
+      );
       const bound = this.hasAttribute("source");
       whileConnected(this, (signal) => {
         this.addEventListener("lf-reveal", this.revealPassage, { signal });
@@ -833,7 +833,8 @@ customElements.define(
         }
         return () => {
           this.rendering = (this.rendering ?? 0) + 1;
-          for (const target of this.threadSizeTargets ?? []) threadSizes.unobserve(target);
+          for (const target of this.threadSizeTargets ?? [])
+            threadSizes.unobserve(target);
           this.threadSizeTargets = null;
           this.threadSurface.unregister();
           this.threadSurface = null;

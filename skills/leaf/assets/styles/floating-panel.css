@@ -195,6 +195,9 @@ html[data-lf-floating-chrome] .lf-chrome {
     .lf-fp-to { flex-wrap: wrap; padding-left: calc(var(--lf-fp-inset) + 8px); }
     .lf-fp-dest { flex-basis: 100%; padding-top: 4px; }
     .lf-fp-to button { margin-left: -8px; margin-right: 8px; }
+    /* A phone's row is too narrow for words and counts at once: while the user writes,
+       the field takes the row, and the counts come back when they leave it. */
+    .lf-fp-row:has(leaf-text[data-lf-focus]) .lf-fp-quick { display: none; }
   }
   @media (prefers-reduced-motion: reduce) {
     .lf-fp-peek { transition: none; }

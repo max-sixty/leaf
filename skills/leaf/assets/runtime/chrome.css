@@ -503,6 +503,9 @@ html[data-lf-floating-chrome] .lf-chrome {
       margin-left: -8px;
       margin-right: 8px;
     }
+    .lf-fp-row:has(leaf-text[data-lf-focus]) .lf-fp-quick {
+      display: none;
+    }
   }
   @media (prefers-reduced-motion: reduce) {
     .lf-fp-peek {

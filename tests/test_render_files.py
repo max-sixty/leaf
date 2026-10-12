@@ -485,17 +485,17 @@ def test_file_editor_uses_package_typography_and_the_inherited_focus_ring(
 
 
 def test_file_editor_keeps_the_user_typing_through_a_move(browser, serve, tmp_path):
-    """A page that moves the editor while the user types, as a revision that
-    reorders its sections does, leaves the buffer, the caret and the focus where
-    they were, so the next key lands where the user left off."""
+    """A move of the editor while the user types, as a container re-placing its
+    children with `setChildren` makes, leaves the buffer, the caret and the focus where
+    they were, so the next key lands where the user left off. The editor moves past an
+    empty sibling, so nothing on screen moves."""
     file = tmp_path / "notes.md"
     file.write_text("Original.\n")
     url = serve(
         leaf_page(
             "Notes",
-            '<h1>Notes</h1><section id="intro"><p>First.</p></section>'
-            '<section id="editing"><lf-file-editor id="notes-file" binding="notes">'
-            "</lf-file-editor></section>",
+            '<h1>Notes</h1><section id="editing"><lf-file-editor id="notes-file" '
+            'binding="notes"></lf-file-editor></section>',
         ),
         packages=["file-editor"],
     )
@@ -513,8 +513,11 @@ def test_file_editor_keeps_the_user_typing_through_a_move(browser, serve, tmp_pa
     page.evaluate(
         """async () => {
           const { setChildren } = await import('/runtime/widget-api.js');
-          const main = document.querySelector('#editing').parentNode;
-          setChildren(main, [...main.children].reverse());
+          const section = document.querySelector('#editing');
+          const editor = section.querySelector('lf-file-editor');
+          const empty = document.createElement('span');
+          section.prepend(empty);
+          setChildren(section, [editor, empty]);
         }"""
     )
     rendered(page)

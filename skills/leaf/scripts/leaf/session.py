@@ -651,7 +651,7 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
             return True
         claim = reading.transaction.active_claim
         return (
-            (claim is not None and claim.get("turn_closed") is not None)
+            (claim is not None and claim["turn_closed"] is not None)
             or any(
                 datetime.fromisoformat(event["ts"]).timestamp() >= began
                 for event in pending

@@ -2766,11 +2766,7 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 0")
 
     thread_model.post_reply(
-        serve.page_dir,
-        reaction["id"],
-        "Which part — the case, or the answer?",
-        "",
-        for_event=None,
+        serve.page_dir, {"to": reaction["id"]}, "Which part — the case, or the answer?"
     )
     told(page)
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 1")

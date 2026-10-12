@@ -53,6 +53,7 @@ from interact_support import (
     append_carried_log_record,
     declare_work,
     package_path,
+    publish,
     record_claim,
     wait_for,
 )
@@ -63,7 +64,6 @@ from leaf import hosting as hosting_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf import render_checks as render_checks_model
-from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
@@ -619,18 +619,7 @@ def serve(tmp_path, monkeypatch, initialized_page):
         for event in events:
             append_carried_log_record(d, event)
         if fixture is None:
-            activated = revisioning_model.activate_source(d)
-            assert activated.error is None and activated.revision == 1, activated.error
-            append_carried_log_record(
-                d,
-                {
-                    "kind": "note",
-                    "author": "agent",
-                    "version": 1,
-                    "revision": 1,
-                    "text": "t",
-                },
-            )
+            assert publish(d, "t")["revision"] == 1
         for i in range(comments):
             append_carried_log_record(
                 d,

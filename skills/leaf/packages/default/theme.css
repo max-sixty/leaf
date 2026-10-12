@@ -606,6 +606,7 @@
 }
 
 /* skills/leaf/packages/default/styles/options.css */
+@property --lf-options-across { syntax: "<integer>"; inherits: false; initial-value: 0; }
 :scope:is(lf-options) {
   display: block;
   margin: 14px 0;
@@ -705,9 +706,11 @@
 @media screen {
   :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > lf-option {
     cursor: pointer;
-    transition: box-shadow .12s ease, transform .12s ease;
   }
   @container style(--lf-joined: 0) {
+    :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > lf-option {
+      transition: box-shadow .12s ease, transform .12s ease;
+    }
     :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > strong) > lf-option:hover {
       transform: translateY(-1px);
       --lf-lift: 0 3px 10px var(--shade);
@@ -894,20 +897,16 @@
 }
 @media screen {
   :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *) {
-    display: grid;
+    display: flex;
+    flex-wrap: wrap;
     background: var(--card);
     border: 1px solid var(--border-2);
     border-radius: var(--r);
     overflow: clip;
-    --lf-add-cell-height: 32px;
+    --lf-add-cell-height: 31px;
     --lf-done-cell-height: 32px;
     &:has(> lf-option > strong) {
       --lf-add-cell-height: 44px;
-    }
-    &:where([data-lf-interactive] *)::after {
-      content: "";
-      display: block;
-      height: var(--lf-missing-cells, 0px);
     }
     &:not(:where(.lf-chrome *)):not(:has(> .lf-another)) {
       --lf-missing-cells: var(--lf-add-cell-height);
@@ -918,8 +917,13 @@
     }
     &:where([data-lf-interactive] *):not(:where(.lf-chrome *)):not(:has(> .lf-another)),
     &:where([data-lf-interactive] *)[multiple]:not(:has(> lf-options-done)) {
-      & > :is(lf-option, .lf-another, lf-options-done):last-child {
-        border-bottom: 1px solid var(--rule);
+      &::after {
+        content: "";
+        display: block;
+        position: relative;
+        flex: 1 1 100%;
+        height: var(--lf-missing-cells);
+        box-shadow: var(--lf-cell-rule);
       }
     }
     & > .lf-another {
@@ -932,12 +936,23 @@
     --lf-joined: 1;
     & > * {
       margin-block: 0;
+      flex: 1 1 100%;
     }
     & .lf-btn[data-lf-focus] {
       outline-offset: calc(-1 * var(--focus-ring-w));
     }
-    & > :not(:last-child) {
-      border-bottom: 1px solid var(--rule);
+    --lf-cell-rule: 0 -1px 0 var(--rule), -1px 0 0 var(--rule);
+    &:dir(rtl) {
+      --lf-cell-rule: 0 -1px 0 var(--rule), 1px 0 0 var(--rule);
+    }
+    & > * {
+      box-shadow: var(--lf-cell-rule);
+    }
+    &:has(> lf-option > strong) > lf-option {
+      @container style(--lf-options-across: 1) {
+        flex-basis: 14rem;
+        box-sizing: border-box;
+      }
     }
     & > lf-option {
       --fill: var(--card);
@@ -962,12 +977,12 @@
   :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *) > lf-option:has(> .lf-pick[data-lf-focus]) {
     outline: var(--focus-ring);
     --lf-focus-ring: options-row;
-    outline-offset: calc(-1 * var(--focus-ring-w));
+    outline-offset: calc(-1 * var(--focus-ring-w) - 1px);
   }
   :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > .lf-another:has(leaf-text[data-lf-focus]) {
     outline: var(--focus-ring);
     --lf-focus-ring: options-row;
-    outline-offset: calc(-1 * var(--focus-ring-w));
+    outline-offset: calc(-1 * var(--focus-ring-w) - 1px);
   }
   .lf-another {
     --lf-option-action-size: max(28px, var(--aim-floor));
@@ -2363,53 +2378,8 @@
 :scope:is(lf-ask) {
   display: block;
 }
-@property --lf-ask-track { syntax: "<integer>"; inherits: false; initial-value: 0; }
-:scope:is(lf-ask):has(> :is(h1, h2, h3, h4, h5, h6):first-child ~ :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options:last-child) {
-  container: lf-ask / inline-size;
-  --lf-ask-track: 1;
-  & > :is(h1, h2, h3, h4, h5, h6):first-child {
-    margin-block-start: 0;
-  }
-}
-@container lf-ask (width >= 0) {
-  @container style(--lf-ask-track: 1) {
-    :scope:is(lf-ask) > lf-options {
-      margin-block-end: 0;
-    }
-  }
-}
-@container lf-ask (width >= 50rem) {
-  @container style(--lf-ask-track: 1) {
-    :scope:is(lf-ask) > :not(:first-child, lf-options):nth-child(n) {
-      float: inline-start;
-      clear: inline-start;
-      inline-size: calc(100% - 16rem - var(--sp-4));
-      min-inline-size: 0;
-      margin-block-end: 0;
-      --lf-room: 100%;
-      --lf-free-l: 0px;
-      --lf-free-r: 0px;
-    }
-    :scope:is(lf-ask) > :nth-child(2) {
-      margin-block-start: 0;
-    }
-    :scope:is(lf-ask) > lf-options {
-      inline-size: 16rem;
-      margin-block-start: 0;
-      margin-inline-start: auto;
-      position: sticky;
-      top: calc(var(--lf-top) + var(--sp-3));
-      --lf-head-inset: var(--sp-3);
-    }
-    :scope:is(lf-ask)::after {
-      content: "";
-      display: block;
-      clear: both;
-    }
-  }
-}
-:where(:scope:is(lf-ask):has(> :is(h1, h2, h3, h4, h5, h6):first-child ~ :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options:last-child)) {
-  margin-block-start: var(--sp-4);
+:scope:is(lf-ask):has(> :is(h1, h2, h3, h4, h5, h6):first-child ~ :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options:last-child) > lf-options {
+  --lf-options-across: 1;
 }
 @container style(--lf-full-height: 1) {
   :scope:is(lf-ask) {

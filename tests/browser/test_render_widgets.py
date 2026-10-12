@@ -1619,29 +1619,17 @@ def test_root_tab_targets_remain_global(browser, serve):
     pane_posture(page, page.locator("#queue-pane"), "flow")
 
 
-TRACKED_ASK_PAGE = leaf_page(
-    "options track",
+ACROSS_ASK_PAGE = leaf_page(
+    "options laid across",
     """
   <h1>Retention</h1>
-  <lf-ask id="tracked">
+  <lf-ask id="across">
     <h3>How long should logs be kept?</h3>
-    <figure id="tracked-evidence"><table id="tracked-figure">
+    <figure id="across-evidence"><table id="across-figure">
       <thead><tr><th>Store</th><th class="num">Daily GB</th></tr></thead>
       <tbody><tr><td>Hot</td><td class="num">40</td></tr>
         <tr><td>Warm</td><td class="num">120</td></tr></tbody>
-    </table>
-    <lf-board id="tracked-board">
-      <lf-column id="track-a" label="First"></lf-column>
-      <lf-column id="track-b" label="Second"></lf-column>
-      <lf-column id="track-c" label="Third"></lf-column>
-      <lf-column id="track-d" label="Fourth"></lf-column>
-    </lf-board></figure>
-    <lf-board id="direct-board">
-      <lf-column id="direct-a" label="First"></lf-column>
-      <lf-column id="direct-b" label="Second"></lf-column>
-      <lf-column id="direct-c" label="Third"></lf-column>
-      <lf-column id="direct-d" label="Fourth"></lf-column>
-    </lf-board>
+    </table></figure>
     <lf-ask id="nested">
       <h4>Archive the warm tier too?</h4>
       <p id="nested-premise">It holds the last quarter.</p>
@@ -1650,51 +1638,42 @@ TRACKED_ASK_PAGE = leaf_page(
         <lf-option id="nested-no"><strong>Keep</strong> Leave it warm.</lf-option>
       </lf-options>
     </lf-ask>
-    <lf-options id="tracked-choice" choose>
+    <lf-options id="across-choice" choose>
+      <lf-option id="keep-7"><strong>7 days</strong> The cheapest.</lf-option>
       <lf-option id="keep-30"><strong>30 days</strong> Covers every incident review.</lf-option>
       <lf-option id="keep-90"><strong>90 days</strong> Covers a quarter's audit.</lf-option>
     </lf-options>
   </lf-ask>
 """,
-    head="<style>:root { --col: 1000px; }</style>",
 )
 
 
-def test_an_ask_framing_a_figure_sets_its_options_beside_it(browser, serve):
+def test_an_ask_framing_a_figure_lays_its_options_across(browser, serve):
     """An Ask whose heading, figure and one option list come in that order sets the
-    list in a track beside the figure where the Ask has the room, and stacks it below
-    where it hasn't. The track belongs to that Ask alone: an ordinary Ask held among
-    its evidence finds the same named container and keeps its own block flow. A board's
-    preferred minimum, whether held inside a figure or standing as a direct context
-    block, cannot spend the answer track's room."""
-    page = open_page(browser, serve(TRACKED_ASK_PAGE))
+    titled options side by side under the figure, as many as its width holds, so the
+    question, its figure and every option share a window, and stacks them where fewer
+    fit. The arrangement belongs to that Ask alone: an ordinary Ask held among its
+    evidence keeps its options one to a row."""
+    page = open_page(browser, serve(ACROSS_ASK_PAGE))
     geometry = """() => {
       const box = (id) => document.getElementById(id).getBoundingClientRect();
-      const figure = box('tracked-figure'), options = box('tracked-choice');
-      const style = (id) => getComputedStyle(document.getElementById(id));
+      const tops = (ids) => ids.map((id) => Math.round(box(id).top));
       return {
-        beside: options.left >= figure.right && options.top < figure.bottom,
-        below: options.top >= figure.bottom,
-        nestedFloat: style('nested-premise').float,
-        nestedListPosition: style('nested-choice').position,
-        boardRight: box('tracked-board').right,
-        directRight: box('direct-board').right,
-        evidenceRight: box('tracked-evidence').right,
-        answersLeft: options.left,
+        figureBottom: box('across-figure').bottom,
+        tops: tops(['keep-7', 'keep-30', 'keep-90']),
+        lefts: ['keep-7', 'keep-30', 'keep-90'].map((id) => Math.round(box(id).left)),
+        nested: tops(['nested-yes', 'nested-no']),
       };
     }"""
     resized(page, 1440, 900)
     wide = page.evaluate(geometry)
-    assert wide["beside"], wide
-    assert wide["nestedFloat"] == "none", wide
-    assert wide["nestedListPosition"] != "sticky", wide
-    assert wide["boardRight"] <= wide["evidenceRight"] + 1, wide
-    assert wide["directRight"] <= wide["evidenceRight"] + 1, wide
-    assert wide["boardRight"] < wide["answersLeft"], wide
-    assert wide["directRight"] < wide["answersLeft"], wide
-    resized(page, 700, 900)
+    assert len(set(wide["tops"])) == 1, wide
+    assert wide["tops"][0] >= wide["figureBottom"], wide
+    assert wide["lefts"] == sorted(set(wide["lefts"])), wide
+    assert wide["nested"][0] < wide["nested"][1], wide
+    resized(page, 390, 900)
     narrow = page.evaluate(geometry)
-    assert narrow["below"], narrow
+    assert narrow["tops"] == sorted(set(narrow["tops"])), narrow
 
 
 def clear_of_the_bottom_chrome(page, selector):

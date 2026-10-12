@@ -886,14 +886,15 @@ omitting the attribute keeps the visual as one target.
 
 ## Projection subscriptions
 
-Register `watchQuestions`, `watchReports`, `watchHistory`, and `watchThreads` once for each
-owner. They coalesce reads at the script's microtask checkpoint and pause while the
-owner is absent. A return reads again by the rule in "Connection lifetimes": only
-when the semantic state, a projection deferral, or the page's presentation changed
-while the owner was away, or a paint was cut short. Moving the owner within one mutation batch retains its subscription. Their returned
+Register `watchQuestions`, `watchQueues`, `watchReports`, `watchHistory`, and
+`watchThreads` once for each owner. They coalesce reads at the script's microtask
+checkpoint and pause while the owner is absent. A return reads again by the rule in
+"Connection lifetimes": only when the semantic state, a projection deferral, or the
+page's presentation changed while the owner was away, or a paint was cut short.
+Moving the owner within one mutation batch retains its subscription. Their returned
 cleanup permanently retires the subscription, including queued reads and clock paints.
-Its `refresh()` reruns the same clock-tracked reading synchronously while the owner
-is connected, retaining the watcher's readiness proof. Use it when a mechanical
+Its `refresh()` reruns the same clock-tracked reading synchronously, retaining the
+watcher's readiness proof; asked while the owner is away, it reruns on the return. Use it when a mechanical
 change, such as revealing held news or entering print, needs to repaint; calling
 the renderer directly would leave its new time readings outside the subscription.
 
@@ -979,8 +980,8 @@ and a return delivers by the rule in "Connection lifetimes".
 Moving the owner within one DOM mutation batch retains the subscription. The returned
 cleanup function ends it permanently when the module explicitly stops watching.
 Its `refresh()` repaints the last delivered snapshot through the same clock
-tracking. It neither delivers a pending source reading nor revives an absent or
-retired subscription.
+tracking, on the return when asked while the owner is away. It neither delivers a
+pending source reading nor revives a retired subscription.
 The callback must state the whole rendering and remain idempotent.
 
 Time readings made synchronously in controller, `watchData`, `watchReports`, and

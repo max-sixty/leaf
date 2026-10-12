@@ -246,7 +246,19 @@ test("a returning owner draws a reading again only where its paint did not finis
     await Promise.resolve();
     await leaveAndReturn();
     paint("slow", "slow, finished");
-    assert.deepEqual(drawn, ["refused", "slow", "slow again", "slow once more"]);
+    // A refresh asked for while away is owed to the return.
+    await mutate(() => owner.remove());
+    paint.refresh();
+    await mutate(() => document.body.append(owner));
+    paint("slow", "refreshed on return");
+    finish();
+    assert.deepEqual(drawn, [
+      "refused",
+      "slow",
+      "slow again",
+      "slow once more",
+      "refreshed on return",
+    ]);
   } finally {
     paint.stop();
     owner.remove();

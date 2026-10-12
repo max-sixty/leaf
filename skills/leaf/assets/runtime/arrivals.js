@@ -153,7 +153,7 @@ export function frameFor(owner, run) {
  * returned promise does not settle while its owner stands was cut short, and the next
  * call draws it again. Time readings pause while the owner is away and resume with
  * it. `owes(key)` says whether `paint(key)` would draw, `forget()` owes the next call
- * a draw, `refresh()` redraws the last reading while the owner stands, and `stop()`
+ * a draw, `refresh()` redraws the last reading, at once or on the return, and `stop()`
  * retires the paint. Its owner's subscriptions stay the caller's. */
 export function readingPaint(owner, draw) {
   const render = clocked(owner, draw);
@@ -193,8 +193,11 @@ export function readingPaint(owner, draw) {
   paint.forget = () => {
     painted = false;
   };
+  // A refresh asked for while the owner is away is owed to its return.
   paint.refresh = () => {
-    if (!stopped && owner.isConnected) return render.refresh();
+    if (stopped) return undefined;
+    if (owner.isConnected) return render.refresh();
+    painted = false;
   };
   paint.stop = () => {
     stopped = true;

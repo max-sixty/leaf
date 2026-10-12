@@ -13,8 +13,8 @@
    only an owed reading, so repainting cannot create a presentation feedback loop. The
    returned function permanently ends the subscription, including queued paints. Its
    `refresh()` reruns the same clock-tracked reading synchronously for mechanical
-   changes such as revealing held news, while retaining the owner's lifetime and
-   readiness proof. `watchQuestions`, `watchReports`, and `watchHistory` are this
+   changes such as revealing held news, or on the return when the owner is away,
+   while retaining the owner's lifetime and readiness proof. `watchQuestions`, `watchReports`, and `watchHistory` are this
    watcher with a reading of their own, so none of them states these rules again. */
 import { readApplication, watchSemantic, watchPresentation } from "./semantic-state.js";
 import { projectionDeferred, watchProjectionDeferral } from "./projection/state.js";
@@ -25,8 +25,20 @@ import { readingPaint, watchOwner } from "./arrivals.js";
 // announced it owes its reading again.
 let presentations = 0;
 document.addEventListener(PRESENTATION, () => (presentations += 1));
-const inputs = () =>
-  `${readApplication().semanticEpoch} ${projectionDeferred()} ${presentations}`;
+// A reading's inputs: each one's value, which keys the reading, and how to hear it
+// change. Deferral changes the reading without publishing an epoch.
+const INPUTS = [
+  { value: () => readApplication().semanticEpoch, watch: watchSemantic },
+  { value: projectionDeferred, watch: watchProjectionDeferral },
+  {
+    value: () => presentations,
+    watch(heard) {
+      document.addEventListener(PRESENTATION, heard);
+      return () => document.removeEventListener(PRESENTATION, heard);
+    },
+  },
+];
+const inputs = () => INPUTS.map(({ value }) => value()).join(" ");
 
 export function watchProjection(owner, read, ready = null) {
   if (!(owner instanceof Element))
@@ -49,17 +61,15 @@ export function watchProjection(owner, read, ready = null) {
   };
   const stopLifetime = watchOwner(owner, {
     connect() {
-      const stops = [
-        watchSemantic(update),
-        // Ready reads may invalidate their own presentation. Only an owed reading
-        // retries, so finishing a paint cannot feed another paint.
-        ready && watchPresentation(() => paint.owes(inputs()) && ready() && update()),
-        watchProjectionDeferral(update),
-      ];
-      document.addEventListener(PRESENTATION, update);
+      const stops = INPUTS.map(({ watch }) => watch(update));
+      // Ready reads may invalidate their own presentation. Only an owed reading
+      // retries, so finishing a paint cannot feed another paint.
+      if (ready)
+        stops.push(
+          watchPresentation(() => paint.owes(inputs()) && ready() && update()),
+        );
       unsubscribe = () => {
-        for (const stop of stops) stop?.();
-        document.removeEventListener(PRESENTATION, update);
+        for (const stop of stops) stop();
       };
     },
     disconnect() {

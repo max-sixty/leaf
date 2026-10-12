@@ -15,7 +15,7 @@ export const shadowHost = (root) =>
 // page, and a climb that stops at a shadow root answers about the widget's own markup
 // instead.
 export const upFrom = (node) =>
-  node?.parentElement ?? shadowHost(node && Node.prototype.getRootNode.call(node));
+  node?.parentElement ?? shadowHost(node?.getRootNode());
 // The same step through the tree as rendered: a node slotted into a shadow tree renders
 // inside its slot, so the slot is where it is scrolled and ordered, not its light parent.
 export const renderedParent = (node) => node?.assignedSlot ?? upFrom(node);

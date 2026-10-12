@@ -23,8 +23,8 @@ page readiness open. Cancel it when the motion stops or its owner leaves.
 `/runtime/widget-api.js` is the whole Leaf API a behavior module gets: a module imports
 only that public helper surface, and does not reach into the runtime's private owners,
 query private chrome, or duplicate a runtime helper inside itself. It exports Lit's
-`html`, `svg`, `mathml`, `nothing`, `noChange`, `repeat`, `keyed`, `live`, `ref`,
-`createRef`, `classMap`, `styleMap`, `guard`, `when`, `ifDefined`, and `unsafeHTML`.
+`render`, `html`, `nothing`, `repeat`, `keyed`, `live`, `ref`, `classMap`, `styleMap`,
+`guard`, and `unsafeHTML`.
 Resolve canonical `/media/…` paths from typed data with `scopedMediaUrl(path)` before assigning them to
 generated images or links. It uses the page's public root across ordinary and
 published pages while the source retains its canonical path.
@@ -88,18 +88,20 @@ with `shadowStage`.
 
 ## Template rendering
 
-Use Leaf's public `render(template, container)` when a paint must land in the
-turn that caused it, including a forward widget gesture. `LitElement` schedules
-updates on a microtask; use it only for runtime faces whose contract permits that
-delay. Package widgets extend `HTMLElement` and
-receive semantic state through `widgetController`, without a LitElement widget
-base or a reactive copy of that state.
+Paint templates with `render(template, container)`, which lands in the turn that
+caused it, including a forward widget gesture. Package widgets extend `HTMLElement`
+and receive semantic state through `widgetController`, without a reactive copy of
+that state.
 
 Templates own generated containers or bounded ranges, rather than authored
-children. Key rows with `repeat` to retain their nodes across reorders. Leaf's Lit
-build uses the shared move primitive, preserving focus and iframe state where the
-browser supports `moveBefore`; ordinary insertion on other engines still needs
-the focus hold described in **Focus, motion, and travel**, and may reload iframes.
+children. Key rows with `repeat` to retain their nodes across reorders.
+
+Every placement of a retained node, by `render`, `repeat`, `setChildren` or
+`move`, keeps the user standing in it. Within one composed root it uses native
+`moveBefore` where the browser has it, which keeps focus, caret, typed text and
+iframe documents. Elsewhere, Safari included, it inserts the node and puts the user
+back on it with their caret, and an iframe in it reloads. A reorder needs no focus
+hold of its own.
 
 Once `render(template, container)` owns a container, update its children through
 `render` so Lit retains its markers and disconnects removed directives. `failSoft`
@@ -378,13 +380,11 @@ reveals a destination separately with `scrollIntoView(element, {block, behavior}
 from `widget-api.js`; that operation stops at the current document, including when
 its element is in nested overflow.
 
-A module that moves, hides, or replaces nodes the user may be standing in, as a reorder or
-a re-render does, calls `holdFocus(scope)` before the change and the function it returns
-after it. Same-root retained moves, including keyed Lit reorders, preserve native state
-where the browser supports `moveBefore`. The focus hold covers ordinary insertion,
-hiding and replacement: its returned function puts the user back on the node, with its
-caret, or on the first drawn stand-in it is
-passed, such as the replacement keyed on the same identity. It does nothing once focus was
+A module that hides or replaces nodes the user may be standing in, as a re-render
+that rebuilds a row does, calls `holdFocus(scope)` before the change and the function it
+returns after it; moves keep the user's place themselves (**Template rendering**). The
+returned function puts the user back on the node, with its caret, or on the first drawn
+stand-in it is passed, such as the replacement keyed on the same identity. It does nothing once focus was
 placed elsewhere in the meantime, and `holdFocus` returns `null` where the user stands
 outside `scope`. A list of keyed items passes `holdFocus(list, { key })`, naming the
 attribute each item carries: the restore then lands on the item keyed the same, or the
@@ -912,12 +912,9 @@ redeliver unchanged data to keep a timestamp current.
 
 The renderer owns its nodes and their placement. Use `setChildren(parent, nodes)`
 for retained native nodes: it moves only what is out of place. For an individual
-placement use `move(parent, node, before)`, with `null` to append. Within one
-composed root it uses native `moveBefore` where available, preserving focus, caret
-and iframe documents. Otherwise it uses `insertBefore`, which can reset that state. Leaf's public
-`render(template, container)` restores editor focus and caret after Lit renders;
-`repeat(records, keyOf, template)` retains keyed template rows under the native-state
-rules in **Template rendering**. Leave
+placement use `move(parent, node, before)`, with `null` to append;
+`repeat(records, keyOf, template)` retains keyed template rows. Each keeps native state
+as **Template rendering** describes. Leave
 native disclosure, editor and scroll state with the retained nodes. When the
 application owns a native property the user also changes,
 bind it with `live`, such as `.value=${live(value)}` or `.checked=${live(checked)}`:

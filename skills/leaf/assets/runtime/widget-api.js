@@ -6,23 +6,17 @@
    over HTTP from the served page, as `/runtime/widget-api.js`. What only the render
    gate's probes read belongs in check-api.js instead. */
 export {
-  LitElement,
   html,
-  svg,
-  mathml,
-  noChange,
   nothing,
+  render,
   classMap,
   guard,
-  ifDefined,
   keyed,
   live,
-  createRef,
   ref,
   repeat,
   styleMap,
   unsafeHTML,
-  when,
 } from "../vendor/browser-runtime.js";
 export { move } from "./dom-move.js";
 export { iconElement, iconTemplate } from "./icons.js";
@@ -73,7 +67,7 @@ export {
 } from "./focus.js";
 export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
 // Making an element's children a list, moving only what is out of place.
-export { render, setChildren, setRenderedChildren } from "./dom-children.js";
+export { setChildren, setRenderedChildren } from "./dom-children.js";
 export { readQuestions, watchQuestions } from "./questions/model.js";
 export { comparisonChanges, watchComparison } from "./version.js";
 export { questionWords } from "./questions/answer.js";

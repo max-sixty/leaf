@@ -10,7 +10,9 @@
  * base; the row for the displayed version clears comparison. Block marks show changes,
  * and `inlineComparison` / `toggleInlineComparison` disclose a block's text diff on
  * request. `comparisonBase`, `comparisonChanges`, and `closeVersionMenu` serve other
- * surfaces.
+ * surfaces. `comparisonChanges(owner)` selects changed descendants from the same comparison
+ * reading; `watchComparison(owner, callback)` reads on connection and each comparison
+ * change, pauses while detached, and returns a function that ends the subscription.
  *
  * Executable identity selects the install. An unchanged registry, module graph, and
  * inline module bodies permit an in-place patch; changed executable inputs require a
@@ -60,7 +62,8 @@
  * rows; an unavailable contributor supplies none.
  */
 import { nextRender } from "./rendering.js";
-import { pageUrl, revisionLabel, runtime } from "./context.js";
+import { whileConnected } from "./arrivals.js";
+import { LIVE_ROOT, layerRoot, pageUrl, revisionLabel, runtime } from "./context.js";
 import {
   documentWidgetDigests,
   servedExecutable,
@@ -119,8 +122,8 @@ import {
   shownRegionBounds,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
-import { LIVE_ROOT, PAGE_SCOPE, tabStore, unmarkedCopy } from "./storage.js";
-import { initialOrigin, restoreInitialSource } from "./initial-render.js";
+import { PAGE_SCOPE, tabStore } from "./storage.js";
+import { initialOrigin, restoreInitialSource, unmarkedCopy } from "./initial-render.js";
 import { alignInlineText } from "./text-alignment.js";
 import { el, layoutChanged, quoted, reveal } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
@@ -174,6 +177,31 @@ import {
 } from "./reading-place.js";
 
 const PRIVATE_REVISION_PARAM = "_leaf-revision";
+
+// The comparison owns these identities; CSS marks are only their rendering.
+const diffMarked = new Set();
+let diffOn = false;
+
+export function comparisonChanges(owner = null) {
+  const changes = diffOn ? [...diffMarked] : [];
+  return owner
+    ? changes.filter((block) => block !== owner && under(block, owner))
+    : changes;
+}
+
+export function watchComparison(owner, callback) {
+  if (!(owner instanceof Element))
+    throw new TypeError("A comparison watcher needs an Element owner");
+  if (typeof callback !== "function")
+    throw new TypeError("A comparison watcher needs a callback");
+  const read = () => {
+    if (owner.isConnected) callback();
+  };
+  return whileConnected(owner, (signal) => {
+    document.addEventListener("lf-comparison", read, { signal });
+    read();
+  });
+}
 
 // The document roots may carry authored classes, data attributes, and inline custom
 // properties that page-local styles read. The live document also paints its own facts
@@ -235,12 +263,6 @@ const pairSources = (source, live, pairs) => {
   }
   return pairs;
 };
-// Where a delivered document's captured resources are addressed: the directory its
-// registry probe names, which is the revision's own root.
-const artifactRoot = (root) =>
-  root
-    .querySelector("script[data-lf-runtime][data-lf-probe]")
-    ?.dataset.lfProbe.replace(/registry\.json$/, "") ?? "";
 const servedMain = document.querySelector("body > main");
 const initialDocument = {
   authoredBodyAttributes: authoredAttributes(document.body),
@@ -272,7 +294,7 @@ export function createVersionController({
   // for. Both are replaced by every revision this document takes on.
   let authoredWidgets = servedWidgets;
   let authoredSource = initialDocument.source;
-  let authoredRoot = artifactRoot(document);
+  let authoredRoot = layerRoot(document);
   let sourcePairs = initialPairs;
   // Semantic reading position preserved across authored-document replacement.
   const VIEW_KEY = "lf-view";
@@ -697,9 +719,7 @@ export function createVersionController({
   // the pair — the picker's word and paint, each row's press, the rail down the span —
   // comes from the immutable picker model and is read back by nothing.
   let diffBase = null;
-  let diffOn = false;
   let diffPendingBase = null;
-  const diffMarked = [];
   // What each marked block said in the base version, and which of those readings the
   // user has open. The marks say a block changed; these say what it changed from, at
   // the block, so learning it costs no travel to the other version and back.
@@ -817,7 +837,7 @@ export function createVersionController({
       if (left > 0) base.set(key, left - 1);
       else {
         b.classList.add("lf-ins-block");
-        diffMarked.push(b);
+        diffMarked.add(b);
       }
     }
     // The state half: block keys catch words, and a pure state change — a card
@@ -855,9 +875,9 @@ export function createVersionController({
               now.length === 1 &&
               elementById(now[0])) ||
             el;
-          if (!target.classList.contains("lf-ins-block")) {
+          if (!diffMarked.has(target)) {
             target.classList.add("lf-ins-block");
-            diffMarked.push(target);
+            diffMarked.add(target);
           }
         }
       }
@@ -873,7 +893,7 @@ export function createVersionController({
       const baseBlock = doc.getElementById(block.id);
       diffBefore.set(block, baseBlock ? wrote(baseBlock) : null);
     }
-    return diffMarked.length;
+    return diffMarked.size;
   }
   // ---------- one marked block's inline comparison ----------
   // `wrote` is the authority for the two texts. This companion reading keeps the same
@@ -1041,7 +1061,7 @@ export function createVersionController({
       for (const target of [...inlineOpen.keys()]) closeInlineComparison(target);
       diffBefore.clear();
       for (const b of diffMarked) b.classList.remove("lf-ins-block");
-      diffMarked.length = 0;
+      diffMarked.clear();
     }
     presentPicker();
     // Consumers read the settled comparison projection: on/off and its marks move
@@ -1119,7 +1139,6 @@ export function createVersionController({
   // Selection leads the documents it needs. Menu focus follows that immediate reading,
   // while the public projection above stays paired with the marks that have settled.
   const selectedBase = () => diffPendingBase ?? comparisonBase();
-  const comparisonChanges = () => (diffOn ? [...diffMarked] : []);
 
   // ---------- another version's document ----------
   // Comparison reads an inert document. A revision keeps the layer it captured, and the
@@ -1302,7 +1321,7 @@ export function createVersionController({
   function patchRules(doc) {
     const source = doc.querySelector("body > main");
     const arrivingWidgets = documentWidgetDigests(doc);
-    const arrivingRoot = artifactRoot(doc);
+    const arrivingRoot = layerRoot(doc);
     const heldKeys = widgetKeys(authoredSource);
     const arrivingKeys = widgetKeys(source);
     return {
@@ -1385,7 +1404,7 @@ export function createVersionController({
     const carry = captureCarry(live, authoredSource);
     const source = doc.querySelector("body > main");
     const arrivingWidgets = documentWidgetDigests(doc);
-    const arrivingRoot = artifactRoot(doc);
+    const arrivingRoot = layerRoot(doc);
     const rules = patchRules(doc);
     retireProjectionCoverage();
     revisionDocuments.delete(target.revision);
@@ -2079,7 +2098,6 @@ export function createVersionController({
     inlineComparison,
     toggleInlineComparison,
     comparisonBase,
-    comparisonChanges,
     prepareActivation,
     aimArrival,
     installArrival,

@@ -13,13 +13,17 @@ from typing import NamedTuple
 
 import psutil
 import pytest
+from click.testing import CliRunner
+from leaf import cli as cli_model
 from leaf import codex as codex_model
 from leaf import harness as harness_model
+from leaf import layer as layer_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf.render_gate import browser as browser_model
 from leaf_dev import LEAF_COMMAND
 from leaf_dev.browser import LINUX_FONTCONFIG, require_linux_fonts
+from leaf_dev.page_fixtures import package_selection_args
 from playwright.sync_api import sync_playwright
 
 __all__ = ["LEAF_COMMAND"]
@@ -35,18 +39,13 @@ __all__ = ["LEAF_COMMAND"]
 signal.signal(signal.SIGINT, signal.default_int_handler)
 # Domain test modules import their assertions explicitly. Register only the modules
 # that own fixtures once for the complete suite.
-pytest_plugins = (
-    "interact_support",
-    "render_harness",
-    "render_cases_layout",
-    "render_cases_navigation",
-)
+pytest_plugins = ("interact_support", "render_harness")
 
 
 # The layer a page carries is the same bytes in every fixture, and the file it
 # is made of is what a copy costs: an initialized page is 195 files, 158 of them
 # runtime modules, and the suite wants one page per test. Measured when a page
-# was 146, copying them all made a complete nightly run 2,272 pages and 393,473
+# was 146, copying them all made a complete run 2,272 pages and 393,473
 # directory entries, which is the number a filesystem event watcher charges for
 # — hard links share the bytes but not the entry. So the layer is written once
 # per shape and lent, and only what a test actually changed is put back. A
@@ -84,15 +83,15 @@ class PagePool:
 
     def __init__(self, root):
         self.root = root
-        self.shapes = {}  # name -> PageShape
-        self.free = {}  # name -> [page]
+        self.shapes = {}  # key -> PageShape
+        self.free = {}  # key -> [page]
         self.stamps = {}  # page -> {relative path: identity}
 
-    def _shape(self, name, initialize):
-        if name not in self.shapes:
-            template = self.root / name
+    def _shape(self, key, initialize):
+        if key not in self.shapes:
+            template = self.root / str(len(self.shapes))
             initialize(template)
-            self.shapes[name] = PageShape(
+            self.shapes[key] = PageShape(
                 template,
                 directories=frozenset(
                     path.relative_to(template).as_posix()
@@ -101,8 +100,8 @@ class PagePool:
                 ),
                 files=_stamp(template),
             )
-            self.free[name] = []
-        return self.shapes[name]
+            self.free[key] = []
+        return self.shapes[key]
 
     def _reset(self, shape, page):
         """Make the page the shape again, from what the filesystem says moved."""
@@ -128,10 +127,10 @@ class PagePool:
                 kept[relative] = shape.restore(page, relative)
         return kept
 
-    def lend(self, name, destination, initialize):
-        shape = self._shape(name, initialize)
-        if self.free[name]:
-            page = self.free[name].pop()
+    def lend(self, key, destination, initialize):
+        shape = self._shape(key, initialize)
+        if self.free[key]:
+            page = self.free[key].pop()
             stamp = self._reset(shape, page)
             os.rename(page, destination)
             del self.stamps[page]
@@ -141,8 +140,8 @@ class PagePool:
         self.stamps[destination] = stamp
         return destination
 
-    def give_back(self, name, page):
-        self.free[name].append(page)
+    def give_back(self, key, page):
+        self.free[key].append(page)
 
 
 class PageShape(NamedTuple):
@@ -200,41 +199,77 @@ def _page_pool(tmp_path_factory):
 
 
 @pytest.fixture
-def initialized_page(_page_pool):
-    """Put an initialized page of the named shape at the caller's path.
+def initialized_page(_page_pool, tmp_path):
+    """Put a page initialized with `packages` at `destination`, from the pool.
 
-    The shape is composed once per worker by the caller's own `initialize`, so a
-    test whose subject is initialization, re-vendoring or an overlay still
-    crosses the real `page init` boundary by calling this with a shape of its
-    own — or by not calling it at all.
+    `prepared`, a `(key, step)` pair, runs `step` on the page after `page init`, and
+    `key` tells its shape from the bare initialized one: an example's stamped
+    versions, or a fixed document. The pool keys a shape by what makes it: the
+    selection as recorded, the package directories it resolves to as `page init`
+    resolves them, and that key. So no caller names a shape, and two callers that
+    make the same page share it.
+
+    A package the test wrote under its own `tmp_path` has new contents under the
+    same path in every test, so a selection resolving into it is initialized in
+    place rather than pooled. A bundled package, a checkout path, and an installed
+    snapshot, which is immutable, hold still for the run.
+    A test whose subject is initialization, re-vendoring or an overlay runs
+    `page init` itself.
 
     Runtime and vendor files are hard links shared with the shape, so a test never
     writes through one in place: re-vendoring replaces those files, and the next loan
     rejects an in-place write by name.
     """
     lent = []
+    own = tmp_path.resolve()
 
-    def lend(name, destination, initialize):
-        page = _page_pool.lend(name, Path(destination), initialize)
-        lent.append((name, page))
+    def lend(destination, packages, prepared=None):
+        destination = Path(destination)
+        packages = tuple(packages)
+        key, step = prepared or (None, None)
+
+        def initialize(target):
+            made = CliRunner().invoke(
+                cli_model.cli,
+                ["page", "init", *package_selection_args(packages), str(target)],
+            )
+            assert made.exit_code == 0, made.output
+            if step:
+                step(target)
+
+        resolved = tuple(
+            root.resolve() for root in layer_model.resolve_packages(packages)
+        )
+        if any(root.is_relative_to(own) for root in resolved):
+            initialize(destination)
+            return destination
+        shape = (packages, resolved, key)
+        page = _page_pool.lend(shape, destination, initialize)
+        lent.append((shape, page))
         return page
 
     yield lend
-    for name, page in lent:
-        _page_pool.give_back(name, page)
+    for key, page in lent:
+        _page_pool.give_back(key, page)
 
 
 def pytest_addoption(parser):
     parser.addoption(
+        "--run-main",
+        action="store_true",
+        default=False,
+        help="Also run the `main` tier, as a push to main does",
+    )
+    parser.addoption(
         "--run-nightly",
         action="store_true",
         default=False,
-        help="Also run the complete browser and published-site integration suites",
+        help="Run every tier, as the daily schedule and a manual dispatch do",
     )
     parser.addoption(
-        "--nightly-changed-since",
+        "--changed-since",
         metavar="REF",
-        help="Also run the nightly-marked tests whose own lines changed since REF",
+        help="Also run the marked tests whose own lines changed since REF",
     )
 
 
@@ -249,13 +284,36 @@ def pytest_runtest_call(item):
     return result
 
 
+# The marked tiers, in the order CI reaches them. An unmarked test runs in every
+# selection: a pull request, `wt merge`, and broad discovery. A `main` test can land
+# without running and runs on each push to main (`--run-main`); a `nightly` one runs
+# only in the daily schedule and a manual dispatch (`--run-nightly`), which run every
+# tier. A test with both marks, such as a `nightly` test in a `main` module, is in the
+# later tier.
+TIERS = ("main", "nightly")
+
+
+def tier(item):
+    """The latest tier a test is marked with, or None for an unmarked test."""
+    marks = [name for name in TIERS if item.get_closest_marker(name)]
+    return marks[-1] if marks else None
+
+
 def pytest_collection_modifyitems(config, items):
-    """Broad discovery stays cheap; explicit selections run what they name.
+    """Broad discovery runs the unmarked tests and the tiers its flags reach (`TIERS`);
+    explicit selections run what they name.
 
     A change that moves a browser behaviour usually edits the test that holds it, so both
-    landing gates add the nightly tests whose own lines the change touches
-    (`--nightly-changed-since`): those run before it lands, and CI's `test` job runs
-    the rest on main after."""
+    landing gates add the marked tests, of either tier, whose own lines the change
+    touches (`--changed-since`): those run before it lands, and CI's `test` job runs
+    the rest of each tier when that tier's event comes.
+
+    Selecting by the code a change touches would catch more, but this design makes
+    that map coarse. Browser tests reach code through a served page, not imports, so
+    the map would have to come from recorded Python and Chrome coverage. Nearly every
+    browser test loads the same runtime and server, so a change there, about half of
+    recent commits, would select close to the complete suite, and coverage cannot say
+    which CSS rules a test relied on."""
     selected = (
         config.getoption("keyword")
         or config.getoption("markexpr")
@@ -264,15 +322,17 @@ def pytest_collection_modifyitems(config, items):
     )
     if config.getoption("--run-nightly") or selected:
         return
+    reached = {"main"} if config.getoption("--run-main") else set()
     changed = {}
-    if since := config.getoption("--nightly-changed-since"):
+    if since := config.getoption("--changed-since"):
         changed = _changed_test_lines(config.rootpath, since)
-    kept, nightly = [], []
+    kept, skipped = [], []
     for item in items:
-        skipped = "nightly" in item.keywords and not _touches(item, changed)
-        (nightly if skipped else kept).append(item)
+        marked = tier(item)
+        runs = marked is None or marked in reached or _touches(item, changed)
+        (kept if runs else skipped).append(item)
     items[:] = kept
-    config.hook.pytest_deselected(items=nightly)
+    config.hook.pytest_deselected(items=skipped)
 
 
 def _changed_test_lines(root, since):
@@ -287,9 +347,7 @@ def _changed_test_lines(root, since):
         check=False,
     )
     if diff.returncode:
-        raise pytest.UsageError(
-            f"--nightly-changed-since {since}: {diff.stderr.strip()}"
-        )
+        raise pytest.UsageError(f"--changed-since {since}: {diff.stderr.strip()}")
     changed, lines = {}, None
     for line in diff.stdout.splitlines():
         if line.startswith("+++ "):

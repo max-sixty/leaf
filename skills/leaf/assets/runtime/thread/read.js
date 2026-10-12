@@ -19,6 +19,7 @@
    `u` remains paired with `d` in whichever reading region the user stands in. */
 import { nextRender, sizeObserver } from "../rendering.js";
 import { seenRect, shownBand } from "../geometry.js";
+import { hasArea, intersect } from "../rect.js";
 import { SLIDE_END } from "../motion.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { moved } from "./model.js";
@@ -73,12 +74,12 @@ function frameBand() {
     x += box.left + frame.clientLeft;
     y += box.top + frame.clientTop;
     const cut = (rect) => {
-      band = {
-        left: Math.max(band.left, rect.left - x),
-        top: Math.max(band.top, rect.top - y),
-        right: Math.min(band.right, rect.right - x),
-        bottom: Math.min(band.bottom, rect.bottom - y),
-      };
+      band = intersect(band, {
+        left: rect.left - x,
+        top: rect.top - y,
+        right: rect.right - x,
+        bottom: rect.bottom - y,
+      });
     };
     for (
       let ancestor = renderedParent(frame);
@@ -95,7 +96,7 @@ function frameBand() {
       const shown = shownBand(ancestor);
       if (shown) cut(shown);
     }
-    if (band.right <= band.left || band.bottom <= band.top) return null;
+    if (!hasArea(band)) return null;
     current = owner;
   }
   return band;
@@ -113,12 +114,7 @@ function visibleInterval(body, clips, band) {
   // withholds it.
   const clipped = seenRect(body, clips);
   if (!clipped || box.width <= 0 || box.height <= 0) return null;
-  const shown = {
-    left: Math.max(clipped.left, band.left),
-    top: Math.max(clipped.top, band.top),
-    right: Math.min(clipped.right, band.right),
-    bottom: Math.min(clipped.bottom, band.bottom),
-  };
+  const shown = intersect(clipped, band);
   if (shown.bottom <= shown.top) return null;
   if (shown.left > box.left + EPSILON || shown.right < box.right - EPSILON) return null;
   return {
@@ -276,6 +272,10 @@ export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
   function mount() {
     addEventListener("scroll", scheduleScan, true);
     addEventListener("resize", scheduleScan);
+    // Exposure reads the visual viewport (geometry.js, `shownWindow`), which a soft
+    // keyboard or a pinch-pan moves without a window scroll or resize.
+    window.visualViewport?.addEventListener("resize", scheduleScan);
+    window.visualViewport?.addEventListener("scroll", scheduleScan);
     addEventListener("focus", scheduleScan);
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState !== "visible") resetExposure();

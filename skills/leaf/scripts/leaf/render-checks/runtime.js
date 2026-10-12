@@ -1,4 +1,4 @@
-import { USER_VIEW_RESTORE_CASES } from "/runtime/widget-api.js";
+import { USER_VIEW_RESTORE_CASES } from "/runtime/check-api.js";
 import { at } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 

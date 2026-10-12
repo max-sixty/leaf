@@ -2,9 +2,9 @@
 
 Questions, explicit tasks and response workflows are separate readings; this is the
 one selection that adds them up. A Question is never a task: its source owns its
-answer, and only an explicit user task ends at the user's Done. A browser view serves
-these lists and `page state` prints them, so the banner's counts, the Questions
-panel and an agent picking the page up read one selection. The browser places its own
+answer, and only a task on the user, which the agent opened, ends at their Done. A
+browser view serves these lists and `page state` prints them, so the banner's counts,
+the Questions panel and an agent picking the page up read one selection. The browser places its own
 unresolved sends against the served lists (`build/browser/application.ts`,
 `localQueues`); it never selects them again.
 
@@ -28,7 +28,6 @@ def _task_item(task: dict) -> dict:
         "live": task["running"] is not None,
         "agent": task["agent"],
         "session": task["session"],
-        "ends": task["ends"],
     }
 
 
@@ -53,7 +52,6 @@ def _question_item(question: dict) -> dict:
         "live": False,
         "agent": None,
         "session": None,
-        "ends": source["kind"],
         "question": question,
     }
 

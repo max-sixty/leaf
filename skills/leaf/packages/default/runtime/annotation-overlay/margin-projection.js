@@ -99,7 +99,7 @@ import {
 import { el, offer } from "/runtime/widget-elements.js";
 import { keeps, keepsHidden } from "/runtime/keeps.js";
 
-import { PRESS } from "/runtime/keyboard/bindings.js";
+import { PRESS, rowArrows } from "/runtime/keyboard/bindings.js";
 import { beginWalk, listWalkPosition, rowWalk } from "/runtime/walk-position.js";
 
 import { readingRegionFor } from "/runtime/reading-regions.js";
@@ -450,7 +450,7 @@ export function createMarginProjection({
     const buttons = clusterMarginEntries(host);
     const at = buttons.indexOf(active);
     if (at < 0 || buttons.length < 2) return;
-    const direction = binding === "ArrowRight" ? 1 : -1;
+    const direction = binding === rowArrows(active)[1] ? 1 : -1;
     focusDestination(
       buttons[(at + direction + buttons.length) % buttons.length],
       "move",

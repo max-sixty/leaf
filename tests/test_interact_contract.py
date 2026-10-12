@@ -21,6 +21,7 @@ from interact_support import (
     ADOPTED,
     COMMAND_HUB_PACKAGE,
     COMMENT,
+    FLOW_PAGE,
     PAGE,
     PILOT_PURGE,
     SHELVED,
@@ -88,6 +89,7 @@ from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
@@ -1156,9 +1158,8 @@ def test_init_allows_a_logged_report_the_incoming_layer_no_longer_speaks(page_di
 @pytest.mark.parametrize("parts", ["node:A node:B", "all"])
 def test_init_allows_to_orphan_a_logged_visual_anchor(page_dir, parts):
     """A provider can remove a visual target without deleting its original comment."""
-    version = page_dir / "index.html"
-    version.write_text(
-        version.read_text().replace(
+    (page_dir / "index.html").write_text(
+        FLOW_PAGE.replace(
             '<lf-diagram id="flow">',
             f'<lf-diagram id="flow" parts="{parts}">',
         )
@@ -1219,7 +1220,7 @@ def test_a_bare_re_vendor_replaces_a_broken_vendored_registry(page_dir):
 def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
     """The preview holds replacement back; its writer finishes before the test
     releases the page, including when a preview assertion fails."""
-    before = registry_storage.layer_generation(page_dir)
+    before = registry_storage.layer_metadata(page_dir)["generation"]
     theme = page_dir / "theme.css"
     theme.write_text(theme.read_text() + "\n/* repair this installed edit */\n")
     init_waiting = threading.Event()
@@ -1247,9 +1248,9 @@ def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
                 bool,
                 failure="Re-vendoring did not attempt the preview lock",
             )
-            assert registry_storage.layer_generation(page_dir) == before
+            assert registry_storage.layer_metadata(page_dir)["generation"] == before
         initing.result()
-    assert registry_storage.layer_generation(page_dir) != before
+    assert registry_storage.layer_metadata(page_dir)["generation"] != before
 
 
 def test_revendoring_serializes_with_a_browser_action_entering_the_log(
@@ -2541,9 +2542,9 @@ def test_containment_reads_the_same_with_a_vocabulary_and_without_one(page_dir):
     that may not raise on the registry gate need give nothing up.
 
     The words are the control: they must differ, or `spoken({})` would be the
-    whole reading and the distinction this rests on would not exist."""
-    html = (page_dir / "index.html").read_text(encoding="utf-8")
-    document = structure_model.SourceDocument(html)
+    whole reading and the distinction this rests on would not exist. The diagram's
+    data body is the element whose words the vocabulary changes."""
+    document = structure_model.SourceDocument(FLOW_PAGE)
     registry = registry_storage.require_registry(page_dir)
     full = passages_model.SourceReading(document, registry).spoken
     assert passages_model.enclosing_ids(document) == passages_model.enclosing_of(full)
@@ -2552,9 +2553,9 @@ def test_containment_reads_the_same_with_a_vocabulary_and_without_one(page_dir):
 
 
 SUGGESTION_HOLDING_A_NAMESAKE = PAGE.replace(
-    "<lf-diagram",
+    "</section>",
     '<lf-suggestion id="sug-a" resolves="c1"><lf-new><p id="c1">Poll every '
-    "5 minutes.</p></lf-new></lf-suggestion>\n  <lf-diagram",
+    "5 minutes.</p></lf-new></lf-suggestion>\n</section>",
 )
 
 
@@ -3780,6 +3781,52 @@ def test_init_refuses_handling_that_a_batch_could_not_carry(
     )
 
 
+def test_the_events_reference_names_the_fields_each_kind_declares():
+    """events.md's kind table agrees with `$events.kinds`, the schema admission enforces.
+
+    The table has one row per declared kind. A code span in a row's Fields cell that
+    opens on a name (`messages: [...]` names `messages`) must be a field that kind
+    declares; parentheses hold values and qualifications, not fields. Every field
+    the kind requires appears in its row, except those the opening paragraph
+    describes once for every kind: the fields all kinds require, `revision`, and
+    the posting session's `agent` and `session`.
+    """
+    kinds = json.loads((schema_model.ASSETS / "registry.json").read_text())["$events"][
+        "kinds"
+    ]
+    text = Path(schema_model.__file__).with_name("events.md").read_text()
+    opening, table = text.split("\n| Kind |", 1)
+    shared = set.intersection(
+        *(set(kind["record"]["required"]) for kind in kinds.values())
+    )
+    described_once = shared | {"revision", "agent", "session"}
+    assert {name for name in described_once if f"`{name}`" not in opening} == set()
+
+    listed, rows = [], {}
+    for line in table.split("\n\n", 1)[0].splitlines()[2:]:
+        kind, _author, _door, cell, _meaning = (
+            part.strip() for part in line.strip().strip("|").split("|")
+        )
+        while (bare := re.sub(r"\([^()]*\)", "", cell)) != cell:
+            cell = bare
+        listed.append(kind.strip("`"))
+        rows[listed[-1]] = {
+            match[1]
+            for span in re.findall(r"`([^`]*)`", cell)
+            if (match := re.match(r"([a-z_]+)(?::|$)", span))
+        }
+    assert sorted(listed) == sorted(kinds)
+
+    drift = {}
+    for name, named in rows.items():
+        record = kinds[name]["record"]
+        undeclared = named - set(record["properties"])
+        missing = set(record["required"]) - described_once - named
+        if undeclared or missing:
+            drift[name] = {"undeclared": undeclared, "missing": missing}
+    assert drift == {}
+
+
 HANDLING_WALKTHROUGH = """\
 What the agent is told when a user acts on a page
 ===================================================
@@ -4281,8 +4328,7 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
     # Claude Code: the native watcher wakes the session after its turn closes,
     # and the next prompt hook hands the delivery over.
     assert service_model.claim_page(page_dir)
-    with service_model.PageTransaction(page_dir) as transaction:
-        transaction.close_turn(session)
+    cleanup_model.close_session_turn(session)
     woke = session_model.watch_between_turns(harness_model.session_harness())
     assert woke is not None
     hooks_model.cmd_hook(
@@ -5105,19 +5151,9 @@ def test_init_allows_to_drop_the_contract_of_a_held_comment(page_dir):
     """A hold is recorded against the declaration that admitted it."""
     package = page_dir.parent / "mutable-command-hub"
     shutil.copytree(COMMAND_HUB_PACKAGE, package)
-    # An explicit selection replaces the recorded one, so it restates `diagram` for
-    # PAGE's lf-diagram beside the copy of command-hub this test mutates.
     selected = CliRunner().invoke(
         cli_model.cli,
-        [
-            "page",
-            "init",
-            "--package",
-            "./mutable-command-hub",
-            "--package",
-            "diagram",
-            str(page_dir),
-        ],
+        ["page", "init", "--package", "./mutable-command-hub", str(page_dir)],
     )
     assert selected.exit_code == 0, selected.output
     version = page_dir / "index.html"

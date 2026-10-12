@@ -51,7 +51,6 @@ from datetime import datetime
 from pathlib import Path
 
 from .codex import (
-    LEAF_THREAD_CONFIG,
     app_server_connect,
     app_server_handshake,
     app_server_request,
@@ -97,25 +96,33 @@ TIMEOUT = 60
 # which not every model a task configures accepts; neither reasoned on a title.
 APP_SERVER_EFFORT = "low"
 TITLE_CONFIG = {
-    **LEAF_THREAD_CONFIG,
     "features": {
-        **LEAF_THREAD_CONFIG["features"],
-        **{
-            feature: False
-            for feature in (
-                "code_mode_host",
-                "hooks",
-                "shell_tool",
-                "sleep_tool",
-                "unified_exec",
-                "view_image",
-            )
-        },
+        feature: False
+        for feature in (
+            "apps",
+            "browser_use",
+            "computer_use",
+            "goals",
+            "image_generation",
+            "in_app_browser",
+            "memories",
+            "multi_agent",
+            "plugins",
+            "skill_mcp_dependency_install",
+            "skill_search",
+            "tool_suggest",
+            "workspace_dependencies",
+            "code_mode_host",
+            "hooks",
+            "shell_tool",
+            "sleep_tool",
+            "unified_exec",
+            "view_image",
+        )
     },
+    "skills": {"include_instructions": False, "max_context_tokens": 1},
+    "web_search": "disabled",
     "include_apply_patch_tool": False,
-    # The rest of what Worktrunk's Codex command for commit messages turns off
-    # (https://worktrunk.dev/llm-commits/) and a Leaf thread leaves on.
-    "skills": {**LEAF_THREAD_CONFIG["skills"], "max_context_tokens": 1},
     "agents": {"enabled": False},
     "project_doc_max_bytes": 0,
     "model_reasoning_effort": APP_SERVER_EFFORT,
@@ -123,7 +130,7 @@ TITLE_CONFIG = {
 # A Codex title server: with plugins on, a server syncs every plugin marketplace the
 # user configured as it starts, which here ran `git ls-remote` on four repositories
 # and cloned one into the user's Codex home for every title. The thread turns
-# plugins off too (`LEAF_THREAD_CONFIG`), but that reaches no further than the thread.
+# plugins off too (`TITLE_CONFIG`), but that reaches no further than the thread.
 TITLE_SERVER_ARGUMENTS = ("--disable", "plugins")
 # Claude Code: the command Worktrunk gives for commit messages
 # (https://worktrunk.dev/llm-commits/), which also runs with MAX_THINKING_TOKENS=0.
@@ -435,8 +442,7 @@ def name_admitted_thread(
         # the claim under before it removes the log, so a request that outlives
         # its session leaves no log behind.
         with PageTransaction(page_dir) as page:
-            claim = page.claim
-            if claim is None or claim["id"] != session_id or claim["released"]:
+            if page.claim_of(session_id) is None:
                 return
             with log.open("a") as output:
                 output.write(

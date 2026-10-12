@@ -19,43 +19,63 @@
  * takes the target away. It is the draft's alone: `sentDrawing` leaves it out of the
  * comment.
  */
-export const DRAWING_FORMAT = "leaf-drawing/3";
-export const MAX_DRAWING_STROKES = 32;
-export const MAX_DRAWING_FRAME_DEPTH = 32;
-export const MAX_DRAWING_POINTS = 256;
-export const DRAWING_COORDINATE_LIMIT = 33554432;
-export const MAX_DRAWING_SAYS_LENGTH = 500; // code points
-export const DRAWING_SCHEMES = ["light", "dark"];
+import { drawingSchema } from "./drawing-schema.js";
 
-const bounded = (coordinate) =>
-  Number.isFinite(coordinate) &&
-  coordinate >= -DRAWING_COORDINATE_LIMIT &&
-  coordinate <= DRAWING_COORDINATE_LIMIT;
+// Every bound is read from the schema admission holds a comment's drawing to,
+// generated from registry.json, each field from its own declaration, so a bound
+// changes there alone.
+const FIELDS = drawingSchema.properties;
+const POINT = FIELDS.strokes.items.items;
+const PATH = FIELDS.frame.properties.path;
+const STEP = PATH.items.properties;
+export const DRAWING_FORMAT = FIELDS.format.const;
+export const MAX_DRAWING_STROKES = FIELDS.strokes.maxItems;
+export const MAX_DRAWING_FRAME_DEPTH = PATH.maxItems;
+export const MAX_DRAWING_POINTS = FIELDS.strokes.items.maxItems;
+export const DRAWING_COORDINATE_LIMIT = POINT.prefixItems[0].maximum;
+export const MAX_DRAWING_SAYS_LENGTH = FIELDS.says.maxLength; // code points
+
+// Whether a number lies within a numeric declaration's bounds.
+const within = (value, { minimum = -Infinity, exclusiveMinimum, maximum }) =>
+  Number.isFinite(value) &&
+  value >= minimum &&
+  (exclusiveMinimum === undefined || value > exclusiveMinimum) &&
+  value <= maximum;
+// A fixed-length tuple, such as a point or a size, each member within its own bounds.
+const tuple =
+  ({ prefixItems }) =>
+  (value) =>
+    Array.isArray(value) &&
+    value.length === prefixItems.length &&
+    value.every((member, index) => within(member, prefixItems[index]));
+// A string within its declared length and pattern.
+const text = ({ maxLength, pattern }) => {
+  const shape = new RegExp(pattern);
+  return (value) =>
+    typeof value === "string" && value.length <= maxLength && shape.test(value);
+};
+
+const validPoint = tuple(POINT);
+const validBox = tuple(FIELDS.box);
+const validViewport = tuple(FIELDS.viewport);
+const validRoot = text(FIELDS.frame.properties.root);
+const validStepTag = text(STEP.tag);
+// `at` is the draft's alone, so admission declares no bound for it; its terms take
+// the stroke coordinates' bound.
+const bounded = (coordinate) => within(coordinate, POINT.prefixItems[0]);
 
 const validStroke = (stroke) =>
   Array.isArray(stroke) &&
-  stroke.length >= 2 &&
+  stroke.length >= FIELDS.strokes.items.minItems &&
   stroke.length <= MAX_DRAWING_POINTS &&
-  stroke.every(
-    (point) => Array.isArray(point) && point.length === 2 && point.every(bounded),
-  );
+  stroke.every(validPoint);
 
-// A box or a viewport: a width and a height, each a positive bounded number.
-const validSize = (box) =>
-  Array.isArray(box) &&
-  box.length === 2 &&
-  box.every((side) => bounded(side) && side > 0);
-
-const validTag = (tag) =>
-  typeof tag === "string" &&
-  tag.length <= 128 &&
-  /^[A-Za-z][A-Za-z0-9_.:-]*$/.test(tag);
 const validFrame = (frame) =>
   frame &&
   !Array.isArray(frame) &&
   typeof frame === "object" &&
   Object.keys(frame).every((key) => ["root", "path"].includes(key)) &&
-  validTag(frame.root) &&
+  validRoot(frame.root) &&
   Array.isArray(frame.path) &&
   frame.path.length <= MAX_DRAWING_FRAME_DEPTH &&
   frame.path.every(
@@ -66,19 +86,17 @@ const validFrame = (frame) =>
       Object.keys(step).every((key) =>
         ["tag", "index", "siblings", "shadow"].includes(key),
       ) &&
-      validTag(step.tag) &&
+      validStepTag(step.tag) &&
       Number.isInteger(step.index) &&
-      step.index >= 0 &&
-      step.index <= 65535 &&
+      within(step.index, STEP.index) &&
       Number.isInteger(step.siblings) &&
-      step.siblings >= 1 &&
-      step.siblings <= 65536 &&
+      within(step.siblings, STEP.siblings) &&
       (step.shadow === undefined || typeof step.shadow === "boolean"),
   );
 
 const validWords = (says) =>
   typeof says === "string" &&
-  says !== "" &&
+  [...says].length >= FIELDS.says.minLength &&
   [...says].length <= MAX_DRAWING_SAYS_LENGTH;
 
 // A drawing is read whole and never changed in place, and the page's ink asks of each
@@ -108,18 +126,18 @@ function wellFormed(drawing) {
     ) &&
     drawing.format === DRAWING_FORMAT &&
     Array.isArray(drawing.strokes) &&
-    drawing.strokes.length >= 1 &&
+    drawing.strokes.length >= FIELDS.strokes.minItems &&
     drawing.strokes.length <= MAX_DRAWING_STROKES &&
     drawing.strokes.every(validStroke) &&
-    (drawing.box === undefined || validSize(drawing.box)) &&
+    (drawing.box === undefined || validBox(drawing.box)) &&
     (drawing.frame === undefined || validFrame(drawing.frame)) &&
     (drawing.at === undefined ||
       (Array.isArray(drawing.at) &&
         drawing.at.length === 6 &&
         drawing.at.every(bounded))) &&
     (drawing.says === undefined || validWords(drawing.says)) &&
-    validSize(drawing.viewport) &&
-    DRAWING_SCHEMES.includes(drawing.scheme),
+    validViewport(drawing.viewport) &&
+    FIELDS.scheme.enum.includes(drawing.scheme),
   );
 }
 

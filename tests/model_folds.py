@@ -155,7 +155,7 @@ def served_reading(
             revisions=frozenset(parsed),
             revision=readings.__getitem__,
             registry=registry,
-            layer=registry["$layer"],
+            stored_layer=lambda: registry["$layer"],
             stored_data=lambda: {"version": "0" * 16, "sources": {}},
             versions=tuple(version_descriptors(log, parsed)),
             presence=presence or UNCLAIMED,

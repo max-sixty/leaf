@@ -435,7 +435,7 @@ def test_edit_reopens_only_its_new_content_version(browser, serve):
     page.locator(f'.lf-thread[data-id="{user}"] > .lf-thread-summary').click()
     page.locator('.lf-thread-panel [aria-label="Close threads"]').click()
 
-    edit = thread_model.cmd_edit(serve.page_dir, root, "Revised answer.")
+    [edit] = thread_model.cmd_edit(serve.page_dir, root, "Revised answer.")
     told(page)
     expect(page.locator(".lf-first-unread")).to_have_text("Next unread")
     page.locator(".lf-threads-toggle").click()
@@ -841,7 +841,7 @@ def _still_unread(page, child):
     """
     rendered(page)
     child.wait_for_function(
-        "() => document.querySelector('script[data-lf-entry]').lfRenderingSettled()",
+        "() => Object.values(document.querySelector('script[data-lf-entry]').lfRenderingState()).every(Boolean)",
         polling=PROBE_POLL_MS,
         timeout=SERVED_TIMEOUT_MS,
     )
@@ -957,7 +957,7 @@ def test_a_reply_held_in_a_diff_thread_is_read_once_the_keyboard_opens_it(
         if (!event.composedPath().some(node => node.matches?.('lf-diff'))) return;
         queueMicrotask(() => selectionRelease.push({
           words: getSelection().toString(),
-          settled: document.querySelector('script[data-lf-entry]').lfRenderingSettled(),
+          settled: Object.values(document.querySelector('script[data-lf-entry]').lfRenderingState()).every(Boolean),
         }));
       }, {once: true});
     }""")
@@ -1383,7 +1383,12 @@ def test_a_thread_the_agent_starts_in_a_page_seat_waits_in_the_row_it_would_foll
     standing in the first-message box keeps it: the thread shows above the box, which
     stays where it stood. Nothing before the ending is input, so the shift watch checks
     that the hold moved nothing."""
-    url = serve(TASK_SEAT_PAGE)
+    # The notice's previous Tab stop stays beside the seat. Returning to the page's
+    # Skip control scrolls the seat away, which correctly releases its held news.
+    source = TASK_SEAT_PAGE.replace(
+        "<lf-test-plan", '<button type="button">Before jobs</button><lf-test-plan', 1
+    )
+    url = serve(source)
     earlier = (
         _seat_comment(serve.page_dir, "user", "Which of these can wait?")
         if beside == "thread"

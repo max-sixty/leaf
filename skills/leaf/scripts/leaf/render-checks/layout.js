@@ -2,12 +2,14 @@ import {
   readQuestions,
   pageScroller,
   readingPosture,
+  TEXT_BOX,
+} from "/runtime/widget-api.js";
+import {
   readingRegions,
   shownBand,
   shownRegionBounds,
-  TEXT_BOX,
   uiInside,
-} from "/runtime/widget-api.js";
+} from "/runtime/check-api.js";
 import { laidOutItems } from "./framing.js";
 import { at as element, place } from "./locate.js";
 import { openRoots } from "./open-roots.js";

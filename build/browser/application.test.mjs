@@ -115,7 +115,10 @@ const state = (taken, events = []) => ({
           questions: noQuestions(),
           projection: {
             entries: events.map((event) => ({
-              event: { ...event, meaning: { ...event.meaning, state: DECIDE } },
+              event: {
+                ...event,
+                meaning: { ...event.meaning, state: event.meaning?.state ?? DECIDE },
+              },
               coordinate: [event.widget, event.widget, event.action],
               spec,
               scope: "page",
@@ -1041,7 +1044,7 @@ test("receipt adoption keeps attempts until presentation proof and preserves dep
   app.present([accepted]);
   app.release(new Set(["first"]));
   assert.equal(decision(app), null);
-  assert.equal(app.nameUndo("undo", [accepted]), true);
+  assert.equal(app.nameUndo("undo"), true);
   assert.equal(app.entry("undo").event.undoes, "e1");
 });
 
@@ -1830,6 +1833,42 @@ test("pending undo removes completed empty Question values and refusal restores 
     app.refuse("undo-empty");
     assert.deepEqual(app.read().effective.questions.all[0].answer.value, value);
   }
+});
+
+test("pending undo withdraws a decision an earlier Leaf recorded with another field", () => {
+  const declared = {
+    ...descriptor,
+    declaration: {
+      ...descriptor.declaration,
+      "x-awaits": { value: "decide", answered: { decide: {} } },
+    },
+  };
+  const app = capture([[declared.id, declared]]);
+  // Before #2329 the recorded definition carried `update`, since renamed `report`.
+  const accepted = {
+    ...action("decided"),
+    id: "e1",
+    seq: 1,
+    meaning: {
+      state: { ...DECIDE, update: false },
+    },
+  };
+  const reading = state(2, [accepted]);
+  reading.browser.views[1].document.questions = {
+    all: [
+      {
+        ...wireQuestion("choice", "lf-choice"),
+        status: "answered",
+        next_actor: null,
+        answer: { value: { outcome: "accept" }, event: accepted },
+      },
+    ],
+    user: [],
+    unanswered: [],
+  };
+  app.adopt(reading);
+  app.enqueue({ kind: "undo", undoes: accepted.id, attempt: "undo-earlier" }, "now");
+  assert.equal(app.read().effective.questions.all[0].answer, null);
 });
 
 test("pending undo removes a custom Question answer before authoritative completion changes", () => {

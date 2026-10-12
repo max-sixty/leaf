@@ -6,8 +6,9 @@ import { scrollGlides } from "./arrivals.js";
 import { clampedRow } from "./keyboard/bindings.js";
 import { coveringAuxiliarySurface, pageCommand } from "./keyboard/register.js";
 import { reducedMotion, scrollBehavior } from "./motion.js";
-import { atScrollEnd, pageScroller } from "./scrolling.js";
+import { atScrollEnd, pageScroller, scrollLimit } from "./scrolling.js";
 import { landingBand, shownRect } from "./geometry.js";
+import { intersect } from "./rect.js";
 import {
   effectiveScroller,
   userReadingRegion,
@@ -206,8 +207,7 @@ const readingStep = (box, clips) => {
   const shown = shownRect(box, clips);
   const band = shown && landingBand(box);
   if (!band) return null;
-  const top = Math.max(shown.top, band.top);
-  const bottom = Math.min(shown.bottom, band.bottom);
+  const { top, bottom } = intersect(shown, band, { y: true });
   return bottom > top ? { box, height: bottom - top } : null;
 };
 const stepScroller = (coveringAuxiliaryScroller) => {
@@ -260,7 +260,7 @@ function stepReading(amount, unit, coveringAuxiliaryScroller) {
 // goal is clamped here, so a step pressed on at the foot banks no debt for u to press
 // back through, and an edge may be asked for as the height it cannot exceed.
 export function glideTo(box, goal) {
-  goal = Math.max(0, Math.min(box.scrollHeight - box.clientHeight, goal));
+  goal = Math.max(0, Math.min(scrollLimit(box), goal));
   if (reducedMotion()) {
     box.scrollTo({ top: goal, behavior: "instant" });
     return;

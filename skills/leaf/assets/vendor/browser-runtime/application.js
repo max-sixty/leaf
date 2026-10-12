@@ -126,6 +126,21 @@ const UNPRESENTED = new Set              (["sending:logged", "accepted:logged"])
 
 
 
+// The log's id for a gesture this tab sent: its ledger entry's while it stands, its
+// receipt's once released.
+function admittedId(
+  attempt                           ,
+  unresolved                                   ,
+  receipts                             ,
+) {
+  if (!attempt) return null;
+  return (
+    unresolved.find((entry) => entry.event.attempt === attempt)?.admitted?.id ??
+    receipts.find((receipt) => receipt.attempt === attempt)?.id ??
+    null
+  );
+}
+
 // `entry` after `signal`, or null once it leaves the ledger.
 function advance(
   entry             ,
@@ -232,8 +247,6 @@ function advance(
 /** One task, as `served_state.browser` serves it (`tasks.page_tasks`): `tasks` holds
  * the open ones on either side and `ended_tasks` the ones that ended, with their
  * outcome. Questions are separate records and never appear in this task list. */
-
-
 
 
 
@@ -843,14 +856,6 @@ export function createSemanticApplication({
     const receipts = state?.browser.receipts ?? [];
     const local = unresolved.filter((entry) => DRAWN_LOCALLY.has(entry.state));
     const refused = unresolved.filter((entry) => entry.state === "refused");
-    // An undo withdraws its target by the log's id once the log has named it: the
-    // target entry's while it stands in the ledger, its receipt's once released.
-    const namedTarget = (attempt               ) => {
-      const target = unresolved.find((entry) => entry.event.attempt === attempt);
-      return target
-        ? (target.admitted?.id ?? null)
-        : (receipts.find((receipt) => receipt.attempt === attempt)?.id ?? null);
-    };
     // The shown revision's server view, resolved here once for every reader of this
     // document's page state. Its basis is transport identity, which the adoption
     // boundary has already matched to the log reading; left in, a read that only moved
@@ -861,10 +866,12 @@ export function createSemanticApplication({
       : null;
     // A revision may reuse a widget/verb with a different operation, or give the verb
     // to the agent. Keep its pending delivery, but stop drawing it against that new
-    // declaration: an action draws while the shown version defines its verb as the one it
-    // was made under (the view's `state_definitions`). The server validates durable
-    // payloads; speculative state waits for its receipt when a revised payload schema
-    // cannot be compared directly.
+    // declaration: an action draws while the shown version defines its verb as the one
+    // it was made under (the view's `state_definitions`). An undo draws while the
+    // verb it takes back is still the user's; the server already judged its logged
+    // target against the current declaration when it served the projection. The
+    // server validates durable payloads; speculative state waits for its receipt when
+    // a revised payload schema cannot be compared directly.
     const compatiblePending = (projection                                        ) => {
       const operation = projection.kind === "undo" ? projection.target : projection;
       const current = servedDefinition(
@@ -873,14 +880,18 @@ export function createSemanticApplication({
         document.descriptors.get(operation.e.widget),
         operation.e.action,
       );
-      return Boolean(current) && sameStateDefinition(operation.e.meaning?.state, current);
+      return (
+        Boolean(current) &&
+        (projection.kind === "undo" ||
+          sameStateDefinition(operation.e.meaning?.state, current))
+      );
     };
     const localProjections = local.flatMap((entry) => {
       const projection = entry.projection;
       if (!projection || !compatiblePending(projection)) return [];
       return [
         projection.kind === "undo"
-          ? { ...projection, targetId: namedTarget(entry.undoTarget) }
+          ? { ...projection, targetId: admittedId(entry.undoTarget, unresolved, receipts) }
           : projection,
       ];
     });
@@ -1208,6 +1219,10 @@ export function createSemanticApplication({
 
   const entry = (attempt        ) =>
     publisher.read().unresolved.find((item) => item.event.attempt === attempt);
+  const ledgerAndReceipts = () => {
+    const { unresolved, authoritative } = publisher.read();
+    return [unresolved, authoritative?.browser.receipts ?? []]         ;
+  };
   const update = (attempt        , change                                     ) =>
     publish({
       unresolved: publisher
@@ -1538,16 +1553,11 @@ export function createSemanticApplication({
     // A gesture naming a message this tab sent, by its pending id, names it by the id
     // the log gave it once the log has answered: a reply's `parent`, or the revision an
     // edit is written over (`base`), as a second rewrite over a first still sending is.
-    nameParent(attempt        , receipts         ) {
-      const admitted = (pending         ) => {
-        if (typeof pending !== "string" || !pending.startsWith(PENDING)) return null;
-        const pendingAttempt = pending.slice(PENDING.length);
-        return (
-          entry(pendingAttempt)?.admitted?.id ??
-          receipts.find((receipt) => receipt.attempt === pendingAttempt)?.id ??
-          null
-        );
-      };
+    nameParent(attempt        ) {
+      const admitted = (pending         ) =>
+        typeof pending === "string" && pending.startsWith(PENDING)
+          ? admittedId(pending.slice(PENDING.length), ...ledgerAndReceipts())
+          : null;
       const item = entry(attempt);
       const parent = item?.event.parent;
       const named = admitted(parent);
@@ -1569,12 +1579,10 @@ export function createSemanticApplication({
             : item,
         );
     },
-    nameUndo(attempt        , receipts         ) {
+    nameUndo(attempt        ) {
       const item = entry(attempt);
       if (item?.event.kind !== "undo" || !item.undoTarget) return true;
-      const named =
-        entry(item.undoTarget)?.admitted?.id ??
-        receipts.find((receipt) => receipt.attempt === item.undoTarget)?.id;
+      const named = admittedId(item.undoTarget, ...ledgerAndReceipts());
       if (!named) return false;
       update(attempt, (item) =>
         item.event.kind === "undo"

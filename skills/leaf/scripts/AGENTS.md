@@ -99,7 +99,8 @@ Within `served_state/`, `context` owns the live or captured inputs every fold re
 own their scoped readings, `queues` selects the work queues each view serves and
 `page state` prints, `browser` assembles the requested views, `page` composes
 the served response, `reading` names filesystem changes for freshness reads, and
-`service` owns the page transaction every route reads through.
+`service` owns the page source every route reads through (the live directory, or a
+`page_snapshot` capture) and its state transaction.
 
 Within `render_gate/`, `scheme` owns one browser and color lifecycle, `readings` owns
 the probe readings and their findings, `version` owns retry policy, `page_code` owns

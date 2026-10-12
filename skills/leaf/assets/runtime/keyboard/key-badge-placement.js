@@ -23,7 +23,7 @@ import { closestAcross, elementFromPointAcross, inChrome } from "../passages.js"
 import { PRESSES } from "../control-selectors.js";
 import { bottomChromeBoxes } from "./shortcut-bar.js";
 import { bannerFoot, shownParts, shownRect, startsAt } from "../geometry.js";
-import { clamp, overlaps } from "../rect.js";
+import { clamp, intersect, overlaps } from "../rect.js";
 import { renderedUnder } from "../shadow.js";
 
 // A rectangle, or nothing where its edges crossed. `clippedTop` records that the source
@@ -45,6 +45,7 @@ const rect = (left, top, right, bottom, sourceTop = top) =>
 export function keyBadgePlacement() {
   const clips = new Map();
   const covered = bannerFoot();
+  const room = { left: 0, top: covered, right: innerWidth, bottom: innerHeight };
   const chrome = bottomChromeBoxes();
   const kept = [...chrome];
 
@@ -55,16 +56,11 @@ export function keyBadgePlacement() {
   // that read it would lose members as it armed and swap codes as its own legend grew. A
   // chip that would land there is moved by the placement pass instead (`spreadHints`,
   // hints.js), which keeps the route where dropping the member loses it.
-  const clearBox = (box, sourceTop = box?.top) =>
-    box
-      ? rect(
-          Math.max(box.left, 0),
-          Math.max(box.top, covered),
-          Math.min(box.right, innerWidth),
-          Math.min(box.bottom, innerHeight),
-          sourceTop,
-        )
-      : null;
+  const clearBox = (box, sourceTop = box?.top) => {
+    if (!box) return null;
+    const { left, top, right, bottom } = intersect(box, room);
+    return rect(left, top, right, bottom, sourceTop);
+  };
 
   // The same, less the boxes chrome paints over the page: each blocker divides a box
   // crossing it into the space above, below, before, or after it, and the largest part
@@ -129,17 +125,7 @@ export function keyBadgePlacement() {
   const clipOver = (item) => shownRect(item, clips);
   // A box with no element of its own, through the clip over the element that owns it.
   const clearPart = (box, clip) =>
-    box && clip
-      ? clearOfChrome(
-          {
-            left: Math.max(box.left, clip.left),
-            top: Math.max(box.top, clip.top),
-            right: Math.min(box.right, clip.right),
-            bottom: Math.min(box.bottom, clip.bottom),
-          },
-          box.top,
-        )
-      : null;
+    box && clip ? clearOfChrome(intersect(box, clip), box.top) : null;
 
   // Whether the user can see what this box was measured from. Geometry cannot answer it:
   // a panel, a drawer, a fixed sheet or an ordinary page box covers a member without clipping
@@ -162,12 +148,7 @@ export function keyBadgePlacement() {
         : painted
             .map((part) => part.getBoundingClientRect())
             .filter((part) => overlaps(part, box))
-            .map((part) => ({
-              left: Math.max(part.left, box.left),
-              top: Math.max(part.top, box.top),
-              right: Math.min(part.right, box.right),
-              bottom: Math.min(part.bottom, box.bottom),
-            }));
+            .map((part) => intersect(part, box));
     return (aims.length ? aims : [box]).some((aim) => {
       const onTop = elementFromPointAcross(
         clamp((aim.left + aim.right) / 2, 0, innerWidth - 1),

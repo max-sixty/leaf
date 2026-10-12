@@ -230,6 +230,35 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     regtest.write("\n".join(outputs).encode("ascii", "backslashreplace").decode())
 
 
+@pytest.mark.parametrize("identity", ["runtime", "server"])
+def test_response_reply_names_a_page_vendored_by_another_leaf(
+    claimed, server, identity
+):
+    page = claimed
+    publish(page)
+    code, response = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "comment", "revision": 1, "text": "Hello"}).encode(),
+    )
+    assert code == 200, response
+    woke = CliRunner().invoke(cli_model.cli, ["wait", str(page)])
+    assert woke.exit_code == 0, woke.output
+    envelope = json.loads(woke.output)
+    delivery_model.receive(envelope, "s1")
+    reference = envelope["batches"][0]["events"][0]["answer"]["ref"]
+
+    registry = interact_files.read_json(page / "registry.json")
+    registry["$layer"][identity] = "sha256:" + "b" * 64
+    (page / "registry.json").write_text(json.dumps(registry))
+
+    replied = CliRunner().invoke(
+        cli_model.cli,
+        ["response", "reply", reference, "--ephemeral", "--text", "Working"],
+    )
+    assert replied.exit_code != 0, replied.output
+    assert f"leaf page init {page}" in replied.output
+
+
 def test_the_skill_routes_every_reference_it_ships():
     """A reference SKILL.md never links is a file no session opens.
 
@@ -401,10 +430,7 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
             if event["id"] == record["id"]
         )
 
-    # PAGE holds an lf-diagram, so the page selects the package that widget lives in.
-    assert written(["page", "init", "--package", "diagram", str(page_dir)]) == [
-        {"page": str(page_dir)}
-    ]
+    assert written(["page", "init", str(page_dir)]) == [{"page": str(page_dir)}]
     (page_dir / "index.html").write_text(PAGE)
 
     audiences = runner.invoke(cli_model.cli, ["page", "instructions", str(page_dir)])
@@ -448,7 +474,7 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
         ["thread", "open", str(page_dir), "--text", "and the cache?", "--title", ""],
     )
     assert unnamed.exit_code != 0
-    assert "thread_title event is invalid" in unnamed.output
+    assert "comment event is invalid" in unnamed.output
     assert events_model.read_events(page_dir) == before
 
     for command, rejected_kind in (
@@ -721,7 +747,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
     # payload naming one — in the project file, or in a `uv.toml` beside it —
     # so that is what this forbids. Read off the lines rather than a parsed
     # table because a comment is free to discuss an index where a setting is
-    # not. The nightly test below drives the same claim through a real
+    # not. The `main` test below drives the same claim through a real
     # resolve against a closed port; this is the half every run sees.
     configured = [
         line
@@ -889,7 +915,7 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_
     ]
 
 
-@pytest.mark.nightly  # the sync resolves the payload against the host's index
+@pytest.mark.main  # the sync resolves the payload against the host's index
 def test_the_launcher_resolves_through_the_hosts_own_index(tmp_path):
     """The index a host configures is the only place leaf may look for its
     dependencies, and syncing the payload project is the only way it gets a
@@ -992,11 +1018,11 @@ def test_init_and_revendoring_preserve_the_page_owned_contribution(
 
     initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
-    generation = registry_storage.layer_generation(page)
+    generation = registry_storage.layer_metadata(page)["generation"]
     revendored = runner.invoke(cli_model.cli, ["page", "init", str(page)])
 
     assert revendored.exit_code == 0, revendored.output
-    assert registry_storage.layer_generation(page) == generation
+    assert registry_storage.layer_metadata(page)["generation"] == generation
     assert {name: (authored / name).read_text() for name in files} == files
     assert "lf-local" not in registry_storage.load_registry(page)
     composed = registry_storage.read_page_registry(page)
@@ -1833,9 +1859,7 @@ def test_init_repairs_installed_files_with_a_new_generation(tmp_path, damage):
     assert not (page / "runtime" / "obsolete.js").exists()
 
 
-@pytest.mark.parametrize(
-    "input_name", ["server.py", "pyproject.toml", "uv.lock", "python"]
-)
+@pytest.mark.parametrize("input_name", ["server.py", "pyproject.toml", "uv.lock"])
 def test_server_inputs_require_a_transition_without_browser_changes(
     tmp_path, monkeypatch, input_name
 ):
@@ -1852,11 +1876,8 @@ def test_server_inputs_require_a_transition_without_browser_changes(
     first_init = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert first_init.exit_code == 0, first_init.output
     first = interact_files.read_json(page / "registry.json")["$layer"]
-    if input_name == "python":
-        monkeypatch.setattr(layer_model.sys, "version", "a different interpreter")
-    else:
-        target = script if input_name == "server.py" else payload / input_name
-        target.write_text("# changed\n")
+    target = script if input_name == "server.py" else payload / input_name
+    target.write_text("# changed\n")
     second_init = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert second_init.exit_code == 0, second_init.output
     second = interact_files.read_json(page / "registry.json")["$layer"]
@@ -1864,6 +1885,25 @@ def test_server_inputs_require_a_transition_without_browser_changes(
     assert second["server"] != first["server"]
     assert second["fingerprint"] == first["fingerprint"]
     assert second["runtime"] == first["runtime"]
+
+
+def test_site_page_accepts_events_across_build_and_container_python_versions(
+    claimed, server, monkeypatch
+):
+    """The build host and serving container can run different Python releases."""
+    page = claimed
+    publish(page)
+    monkeypatch.setattr(sys, "version", "container Python version")
+    planned = CliRunner().invoke(
+        cli_model.cli, ["page", "init", "--dry-run", str(page)]
+    )
+    assert planned.exit_code == 0, planned.output
+    assert not json.loads(planned.output)["changed"]
+    code, response = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "comment", "revision": 1, "text": "Hello"}).encode(),
+    )
+    assert code == 200, response
 
 
 PLAIN_PAGE = (
@@ -2409,17 +2449,6 @@ def test_a_wait_takes_the_suites_deadline():
         "settimeout",
         "wait",
     }
-    # Literal deadlines in files another change is rewriting, at most this many in
-    # each, to move onto the suite's deadlines once that change lands. Each is a hang
-    # bound like the rest.
-    held_elsewhere = {
-        "test_render_anchors.py": 1,
-        "test_render_controls.py": 3,
-        "test_render_gate.py": 6,
-        "test_render_navigation.py": 9,
-        "test_render_startup.py": 8,
-        "test_render_threads.py": 8,
-    }
 
     def literal(node) -> bool:
         if isinstance(node, ast.BinOp):
@@ -2442,7 +2471,7 @@ def test_a_wait_takes_the_suites_deadline():
         )
         yield from zip(arguments.kwonlyargs, arguments.kw_defaults)
 
-    literals = {}
+    fixed = []
     for path in sorted((ROOT / "tests").rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
@@ -2472,16 +2501,10 @@ def test_a_wait_takes_the_suites_deadline():
             else:
                 continue
             if computed:
-                literals.setdefault(path.name, []).append(
+                fixed.append(
                     f"{path.relative_to(ROOT)}:{node.lineno} "
                     + ast.unparse(node).split("\n", 1)[0]
                 )
-    fixed = [
-        site
-        for name, sites in literals.items()
-        if len(sites) > held_elsewhere.get(name, 0)
-        for site in sites
-    ]
     assert not fixed, (
         "these waits fix their own deadline; bound them with STATED_TIMEOUT "
         "(interact_support.py), or in a browser with SERVED_TIMEOUT_MS or "
@@ -4549,11 +4572,8 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
     assert checked.exit_code == 0, checked.output
 
     page = tmp_path / "page"
-    # PAGE holds an lf-diagram, so the page selects the package that widget lives in
-    # beside the project package this test is about.
     initialized = runner.invoke(
-        cli_model.cli,
-        ["page", "init", "--package", "diagram", "--package", "./.leaf", str(page)],
+        cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
     )
     assert initialized.exit_code == 0, initialized.output
     # The package's rule reaches the page confined to the package's own widget.

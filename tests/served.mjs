@@ -44,7 +44,6 @@ export const servedQuestionItem = (question, changes) =>
     id: question.id,
     thread: question.thread,
     title: question.prompt.text,
-    ends: question.source.kind,
     question,
     ...changes,
   });

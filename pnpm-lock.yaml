@@ -164,12 +164,6 @@ importers:
       viewerjs:
         specifier: 1.15.2
         version: 1.15.2
-      vis-data:
-        specifier: 8.0.5
-        version: 8.0.5(uuid@14.0.2)(vis-util@6.0.2(@egjs/hammerjs@2.0.17)(component-emitter@1.3.1))
-      vis-timeline:
-        specifier: 8.5.4
-        version: 8.5.4(@egjs/hammerjs@2.0.17)(component-emitter@1.3.1)(keycharm@0.4.0)(moment@2.31.0)(propagating-hammerjs@3.0.0(@egjs/hammerjs@2.0.17))(uuid@14.0.2)(vis-data@8.0.5(uuid@14.0.2)(vis-util@6.0.2(@egjs/hammerjs@2.0.17)(component-emitter@1.3.1)))(vis-util@6.0.2(@egjs/hammerjs@2.0.17)(component-emitter@1.3.1))(xss@1.0.15)
       vitest:
         specifier: 5.0.0
         version: 5.0.0(@opentelemetry/api@1.9.1)(@types/node@26.4.1)(happy-dom@20.14.5)(vite@8.2.2(@types/node@26.4.1)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
@@ -648,10 +642,6 @@ packages:
   '@earendil-works/pi-telemetry@1.1.0':
     resolution: {integrity: sha512-8gAK05/2pPozZZz6hCLOi8x2vsqzvsmO9gG92kbvuvTPm0qMHaFlaXX98ndXsrOi5pmzha7vNLguuG4+0Rgxjw==}
     engines: {node: '>=22.19.0'}
-
-  '@egjs/hammerjs@2.0.17':
-    resolution: {integrity: sha512-XQsZgjm2EcVUiZQf11UBJQfmZeEmOW8DpI1gsFeln6w0ae0ii4dMQEQ0kjl6DspdWX1aGY1/loyXnP0JS06e/A==}
-    engines: {node: '>=0.8.0'}
 
   '@emnapi/runtime@1.11.3':
     resolution: {integrity: sha512-Xz4Tpyki7XyrpbUK1jR1AhdAdaXyhhY4lZ3neLodmhpuWfy2PAQN5B46sAiU4liOXGLkHypn/qU+jvfWSCYYLA==}
@@ -1950,9 +1940,6 @@ packages:
   '@types/geojson@7946.0.16':
     resolution: {integrity: sha512-6C8nqWur3j98U6+lXDfTUWIfgvZU+EumvpHKcYjujKH7woYyLj2sUmff0tRhrqM7BohUw7Pz3ZB1jj2gW9Fvmg==}
 
-  '@types/hammerjs@2.0.46':
-    resolution: {integrity: sha512-ynRvcq6wvqexJ9brDMS4BnBLzmr0e14d6ZJTEShTBWKymQiHwlAyGu0ZPEFI2Fh1U53F7tN9ufClWM5KvqkKOw==}
-
   '@types/hast@3.0.5':
     resolution: {integrity: sha512-rp/ezSWaD1m44dPKICGhiskI13nVr7qTloFwDa/IYkhhf5nzwP+zIQcIJh3WIFSBOy/H1PzB40jPjMDksN4F+g==}
 
@@ -2397,9 +2384,6 @@ packages:
     resolution: {integrity: sha512-z67u4ZhzCL/Tydu1lJARtEZYWbWaN7oYLHbsuzocr6y4N6WZAagG3RQ4FW61V1/0+jImpj293XfrcYnd1qxtPg==}
     engines: {node: '>=22.12.0'}
 
-  commander@2.20.3:
-    resolution: {integrity: sha512-GpVkmM8vF2vQUkj2LvZmD35JxeJOLCwJ9cUkugyk2nuhbv3+mJvpLYYt+0+USMxE+oj+ey/lJEnhZw75x/OMcQ==}
-
   commander@5.1.0:
     resolution: {integrity: sha512-P0CysNDQ7rtVw4QIQtm+MRxV66vKFSvlsQvGYXZWR3qFU0jlMKHZZZgw8e+8DSah4UDKMqnknRDQz+xuQXQ/Zg==}
     engines: {node: '>= 6'}
@@ -2414,9 +2398,6 @@ packages:
 
   complex.js@2.4.3:
     resolution: {integrity: sha512-UrQVSUur14tNX6tiP4y8T4w4FeJAX3bi2cIv0pu/DTLFNxoq7z2Yh83Vfzztj6Px3X/lubqQ9IrPp7Bpn6p4MQ==}
-
-  component-emitter@1.3.1:
-    resolution: {integrity: sha512-T0+barUSQRTUQASh8bx02dl+DhF54GtIDY13Y3m9oWTklKbb3Wv974meRpeZ3lp1JpLVECWWNHC4vaG2XHXouQ==}
 
   composed-offset-position@0.0.6:
     resolution: {integrity: sha512-Q7dLompI6lUwd7LWyIcP66r4WcS9u7AL2h8HaeipiRfCRPLMWqRx8fYsjb4OHi6UQFifO7XtNC2IlEJ1ozIFxw==}
@@ -2474,9 +2455,6 @@ packages:
 
   crypt@0.0.2:
     resolution: {integrity: sha512-mCxBlsHFYh9C+HVpiEacem8FEBnMXgU9gy4zmNC+SXAZNB/1idgp/aulFJ4FgCi7GPEVbfyng092GqL2k2rmow==}
-
-  cssfilter@0.0.10:
-    resolution: {integrity: sha512-FAaLDaplstoRsDR8XGYH51znUN0UY7nMc6Z9/fvE8EXGwvJE9hu7W2vHwx1+bd6gCYnln9nLbzxFTrcO9YQDZw==}
 
   csstype@3.2.3:
     resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
@@ -3335,9 +3313,6 @@ packages:
     resolution: {integrity: sha512-Eeo8Ys1doU1z+x8AZsPpQu+p/QcZBI5PeOo7QGQdy2x2m0MU/hYagBbGOmXwr5KVbEfVuWv9LpnQWeehogurjg==}
     hasBin: true
 
-  keycharm@0.4.0:
-    resolution: {integrity: sha512-TyQTtsabOVv3MeOpR92sIKk/br9wxS+zGj4BG7CR8YbK4jM3tyIBaF0zhzeBUMx36/Q/iQLOKKOT+3jOQtemRQ==}
-
   keyv-file@5.3.5:
     resolution: {integrity: sha512-0JFTTi55d1HdhIrSOnPngUw0fyHLn3BHqoLJ8TyGKM/fQfuZsz8HkcFxpl6YzU2mj1ZfRF/6BXlSqOpyfXYAmw==}
 
@@ -3603,9 +3578,6 @@ packages:
 
   modern-screenshot@4.7.0:
     resolution: {integrity: sha512-9YxN+ddPSMMlhylOv25VHzXrl9u67QRxoh7+SEewGtgUw7t6hHTrjptSDJUSne9oG4Xk/h2cwG15nIt4Hc9ujg==}
-
-  moment@2.31.0:
-    resolution: {integrity: sha512-0acOTfMiWOheYS4eoWb80yYMb/JLvVv9SHbs2PehaDzfUG0Bw855SKyk0IKTnPGa5+U2bmi3W68l1+sGLX/pvw==}
 
   mongodb-connection-string-url@7.0.2:
     resolution: {integrity: sha512-ZoS07RoFqpKYQwAk59qmrx8+jJHNHU30UjlU96QktiGn1ltvDr+vCznLX5DiUBLEpMAHatHNWV1nM/74ul66kA==}
@@ -4038,11 +4010,6 @@ packages:
         optional: true
       puppeteer-extra-plugin-stealth:
         optional: true
-
-  propagating-hammerjs@3.0.0:
-    resolution: {integrity: sha512-FJTclGll0ysatpF9rKO4jwobyaVDitPb0g/bGlufqqtXPQX8mxf8IXilnIK2iYRMPkVlYeFNhPTrspF9CM1stg==}
-    peerDependencies:
-      '@egjs/hammerjs': ^2.0.17
 
   property-information@7.2.0:
     resolution: {integrity: sha512-IAtzIB6sUiWaJYrX9smp3V46pBGbBeLFRGdh25kg1334VcBlD8HzhPeNIWQH9zhGmo2itIe25EHt9dQP7G5hmg==}
@@ -4534,32 +4501,6 @@ packages:
   viewerjs@1.15.2:
     resolution: {integrity: sha512-CYEqSFfPUSnmn1PjrhYxXOScaUC7n8+NpSqI+MrOSM8wcKPe35MlwQYwksuD5rjFkYv/ePmY5NsUa51uRNN2jA==}
 
-  vis-data@8.0.5:
-    resolution: {integrity: sha512-tRQKcTGaclo60rTY1j4v7BgD9v5jfD3wl+JgR1q6I4AI7go3QH5OjMCLIuZPpL2sf4IRMlwyPlRLnK4m+Phjsw==}
-    peerDependencies:
-      uuid: ^3.4.0 || ^7.0.0 || ^8.0.0 || ^9.0.0 || ^10.0.0 || ^11.0.0 || ^13.0.0 || ^14.0.0
-      vis-util: '>=6.0.0'
-
-  vis-timeline@8.5.4:
-    resolution: {integrity: sha512-Xt7RNrRvOkQiSyk6vFTXSRwTunT0y9MzDgHY8N8H9nPuebJ6Vg+u3xnv0Swbxna/Pa2E3HjaBblEIQiK74E01Q==}
-    peerDependencies:
-      '@egjs/hammerjs': ^2.0.0
-      component-emitter: ^1.3.0
-      keycharm: ^0.2.0 || ^0.3.0 || ^0.4.0
-      moment: ^2.24.0
-      propagating-hammerjs: ^1.4.0 || ^2.0.0 || ^3.0.0
-      uuid: ^3.4.0 || ^7.0.0 || ^8.0.0 || ^9.0.0 || ^10.0.0 || ^11.0.0 || ^13.0.0 || ^14.0.0
-      vis-data: '>=8.0.0'
-      vis-util: '>=6.0.0'
-      xss: ^1.0.0
-
-  vis-util@6.0.2:
-    resolution: {integrity: sha512-sYawqWllCqwmTPLurRgPChmfRppbWI/XoBWdGNM6N2s4XuVR8VO8gtz/v9AvrAAOfZxel/U5UBNOwyhFn0qb7A==}
-    engines: {node: '>=8'}
-    peerDependencies:
-      '@egjs/hammerjs': ^2.0.0
-      component-emitter: ^1.3.0 || ^2.0.0
-
   vite@8.2.2:
     resolution: {integrity: sha512-cFKLV/PRgAUlIRm5WjMjJ86jrftzpqcgH+Us+DS8mI3CDNiH30Whrz8uHL3+MOLPAgqbMBAqWdAHAphOAM+z/Q==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -4745,11 +4686,6 @@ packages:
   xmlhttprequest-ssl@2.1.2:
     resolution: {integrity: sha512-TEU+nJVUUnA4CYJFLvK5X9AOeH4KvDvhIfm0vV1GaQRtchnG0hgK5p8hw/xjv8cunWYCsiPCSDzObPyhEwq3KQ==}
     engines: {node: '>=0.4.0'}
-
-  xss@1.0.15:
-    resolution: {integrity: sha512-FVdlVVC67WOIPvfOwhoMETV72f6GbW7aOabBC3WxN/oUdoEMDyLz4OgRv5/gck2ZeNqEQu+Tb0kloovXOfpYVg==}
-    engines: {node: '>= 0.10.0'}
-    hasBin: true
 
   xtend@4.0.2:
     resolution: {integrity: sha512-LKYU1iAXJXUgAXn9URjiu+MWhyUXHsvfp7mcuYm9dSUKK0/CjtrUwFAxD82/mCWbtLsGjFIad0wIsod4zrTAEQ==}
@@ -5626,10 +5562,6 @@ snapshots:
       - zod
 
   '@earendil-works/pi-telemetry@1.1.0': {}
-
-  '@egjs/hammerjs@2.0.17':
-    dependencies:
-      '@types/hammerjs': 2.0.46
 
   '@emnapi/runtime@1.11.3':
     dependencies:
@@ -6761,8 +6693,6 @@ snapshots:
 
   '@types/geojson@7946.0.16': {}
 
-  '@types/hammerjs@2.0.46': {}
-
   '@types/hast@3.0.5':
     dependencies:
       '@types/unist': 3.0.3
@@ -7126,8 +7056,6 @@ snapshots:
 
   commander@15.0.0: {}
 
-  commander@2.20.3: {}
-
   commander@5.1.0: {}
 
   commander@7.2.0: {}
@@ -7135,8 +7063,6 @@ snapshots:
   commander@8.3.0: {}
 
   complex.js@2.4.3: {}
-
-  component-emitter@1.3.1: {}
 
   composed-offset-position@0.0.6(@floating-ui/utils@0.2.12):
     dependencies:
@@ -7194,8 +7120,6 @@ snapshots:
 
   crypt@0.0.2:
     optional: true
-
-  cssfilter@0.0.10: {}
 
   csstype@3.2.3: {}
 
@@ -8062,8 +7986,6 @@ snapshots:
     dependencies:
       commander: 8.3.0
 
-  keycharm@0.4.0: {}
-
   keyv-file@5.3.5:
     dependencies:
       '@keyv/serialize': 1.1.1
@@ -8353,8 +8275,6 @@ snapshots:
   minipass@7.1.3: {}
 
   modern-screenshot@4.7.0: {}
-
-  moment@2.31.0: {}
 
   mongodb-connection-string-url@7.0.2:
     dependencies:
@@ -8881,10 +8801,6 @@ snapshots:
       - sqlite3
       - supports-color
       - utf-8-validate
-
-  propagating-hammerjs@3.0.0(@egjs/hammerjs@2.0.17):
-    dependencies:
-      '@egjs/hammerjs': 2.0.17
 
   property-information@7.2.0: {}
 
@@ -9479,28 +9395,6 @@ snapshots:
 
   viewerjs@1.15.2: {}
 
-  vis-data@8.0.5(uuid@14.0.2)(vis-util@6.0.2(@egjs/hammerjs@2.0.17)(component-emitter@1.3.1)):
-    dependencies:
-      uuid: 14.0.2
-      vis-util: 6.0.2(@egjs/hammerjs@2.0.17)(component-emitter@1.3.1)
-
-  vis-timeline@8.5.4(@egjs/hammerjs@2.0.17)(component-emitter@1.3.1)(keycharm@0.4.0)(moment@2.31.0)(propagating-hammerjs@3.0.0(@egjs/hammerjs@2.0.17))(uuid@14.0.2)(vis-data@8.0.5(uuid@14.0.2)(vis-util@6.0.2(@egjs/hammerjs@2.0.17)(component-emitter@1.3.1)))(vis-util@6.0.2(@egjs/hammerjs@2.0.17)(component-emitter@1.3.1))(xss@1.0.15):
-    dependencies:
-      '@egjs/hammerjs': 2.0.17
-      component-emitter: 1.3.1
-      keycharm: 0.4.0
-      moment: 2.31.0
-      propagating-hammerjs: 3.0.0(@egjs/hammerjs@2.0.17)
-      uuid: 14.0.2
-      vis-data: 8.0.5(uuid@14.0.2)(vis-util@6.0.2(@egjs/hammerjs@2.0.17)(component-emitter@1.3.1))
-      vis-util: 6.0.2(@egjs/hammerjs@2.0.17)(component-emitter@1.3.1)
-      xss: 1.0.15
-
-  vis-util@6.0.2(@egjs/hammerjs@2.0.17)(component-emitter@1.3.1):
-    dependencies:
-      '@egjs/hammerjs': 2.0.17
-      component-emitter: 1.3.1
-
   vite@8.2.2(@types/node@26.4.1)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1):
     dependencies:
       lightningcss: 1.33.0
@@ -9630,11 +9524,6 @@ snapshots:
   xmlchars@2.2.0: {}
 
   xmlhttprequest-ssl@2.1.2: {}
-
-  xss@1.0.15:
-    dependencies:
-      commander: 2.20.3
-      cssfilter: 0.0.10
 
   xtend@4.0.2:
     optional: true

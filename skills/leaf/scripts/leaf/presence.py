@@ -178,6 +178,12 @@ def neighbor_candidates() -> tuple:
 def other_leaves(page_dir: Path) -> list:
     """Live neighboring pages, from their own compact canonical publications.
 
+    A closed page is not one of them. Its server stays up so the page stays
+    readable, a standing one for good, so nothing else would ever drop its row, and
+    a count the user glances at to find who needs them would become a tally of
+    everything that has run here. This page's own row is never in the list, so a
+    user looking at a closed page still sees it.
+
     Each candidate costs its server lease/service and one disposable row read.
     Never open another page's log, document, or projection. A row belongs to
     the server incarnation that computed it; absent or older rows stay absent.
@@ -203,7 +209,7 @@ def other_leaves(page_dir: Path) -> list:
             if info is None:
                 continue
             row = read_row(candidate, info, record=record)
-            if row is not None:
+            if row is not None and row["activity"]["kind"] != "closed":
                 others.append(
                     {
                         **row,
@@ -294,8 +300,8 @@ def presence_with_activity(
         "turn_takes_input": bool(active and claim_harness(active).turn_takes_input()),
         # When a browser last had the page visible (the server bumps viewed.json,
         # throttled, while a visible tab asks for news), or None for a page
-        # nobody has ever viewed — which used to be indistinguishable from one the
-        # user studied and left. Hidden tabs stop their freshness reads, so this records
+        # nobody has ever viewed, which keeps it distinct from one the user studied
+        # and left. Hidden tabs stop their freshness reads, so this records
         # user attention rather than tab lifetime.
         "viewed": _viewed_at(page_dir),
         # Where the claimant is working (claim_page), for the drawer's hover: what

@@ -116,6 +116,11 @@ def test_only_bound_supported_files_can_be_read_or_saved(page_dir, tmp_path):
             page_dir, "notes", {"revision": snapshot["revision"], "text": "overwrite\n"}
         )
     assert substitute.read_bytes() == b"private\n"
+    # A broken grant refuses; only an id the page never bound reads as no file.
+    (page_dir / "files.json").write_text('{"bindings": {"notes": null}}')
+    with pytest.raises(FileBindingError, match="Invalid file bindings"):
+        read_file(page_dir, "notes")
+    assert read_file(page_dir, "other") is None
 
 
 def test_rebinding_cannot_apply_an_old_buffer_to_an_identical_other_file(
@@ -183,8 +188,13 @@ def test_http_file_door_requires_key_origin_and_current_revision(
     assert fetch(url, token=None)[0] == 401
     assert json.loads(fetch(url)[1]) == original
     assert fetch(f"{server}/files.json")[0] == 404
-    assert fetch(f"{server}/api/files/unbound")[0] == 400
+    # A binding the page lacks reads as no file, and only a save against it refuses.
+    assert fetch(f"{server}/api/files/unbound") == (200, b"null")
     posted = json.dumps({"revision": original["revision"], "text": "edited\n"}).encode()
+    assert (
+        fetch(f"{server}/api/files/unbound", data=posted, headers={"Origin": server})[0]
+        == 400
+    )
     assert fetch(url, data=posted, headers={})[0] == 403
     assert (
         fetch(url, data=posted, headers={"Origin": "https://untrusted.example"})[0]

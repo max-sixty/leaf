@@ -137,7 +137,7 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 VISUAL_REVIEW_GALLERY = next(
@@ -1404,8 +1404,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(second.locator(".lf-vr-trace-link")).to_be_hidden()
     expect(scope).to_be_hidden()
     second.get_by_text("Capture details", exact=True).click()
-    expect(second.locator(".lf-vr-detail:has(.lf-vr-focus)")).to_have_count(1)
-    expect(second.locator(".lf-vr-detail:has(.lf-vr-focus)")).to_be_hidden()
+    expect(second.locator(".lf-vr-detail:has(.lf-vr-focus)")).to_have_count(0)
     second.get_by_text("Capture details", exact=True).click()
     expect(widget).to_have_attribute("data-inspection-scope", "full")
     expect(case_select).to_have_js_property("value", "run-detail")
@@ -1996,6 +1995,12 @@ def test_visual_review_discloses_focus_without_distorting_unsupported_browsers(
     host = case.locator(".lf-vr-shot-host")
     expect(widget).to_have_attribute("data-inspection-scope", "full")
     expect(widget.get_by_role("radiogroup", name="Scope")).to_be_hidden()
+    scope = widget.locator(".lf-vr-scope-group")
+    scope.evaluate("""group => {
+      group.value = 'focus';
+      group.dispatchEvent(new Event('change', {bubbles: true}));
+    }""")
+    expect(scope).to_have_js_property("value", "full")
     expect(host.locator("lf-shot")).to_have_attribute("data-lf-shot-focus", "true")
     expect(host.locator("lf-shot")).to_have_attribute("data-lf-shot-crop", "false")
     image = case.locator(".lf-shotframe img").first.evaluate(
@@ -2417,7 +2422,7 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
 
     write(page_comment(page), "This comment belongs to the live draft.")
     with sending(page, "the comment on the live draft"):
-        page.locator(".lf-general button").click()
+        page.locator(".lf-general .lf-compose-submit").click()
     assert events_model.read_events(serve.page_dir)[-1]["revision"] == 2
 
 
@@ -3881,8 +3886,8 @@ def test_a_live_revision_reorders_the_page_and_ask_inventory_together(browser, s
 
     assert identities("main > lf-ask", "id") == ["first-ask", "second-ask"]
     assert identities(".lf-queue-row", "data-lf-at") == [
-        "first-ask",
-        "second-ask",
+        "widget:first-options",
+        "widget:second-options",
     ]
 
     stamp_page(serve.page_dir, second, "reverse the questions")
@@ -3890,8 +3895,8 @@ def test_a_live_revision_reorders_the_page_and_ask_inventory_together(browser, s
 
     assert identities("main > lf-ask", "id") == ["second-ask", "first-ask"]
     assert identities(".lf-queue-row", "data-lf-at") == [
-        "second-ask",
-        "first-ask",
+        "widget:second-options",
+        "widget:first-options",
     ]
 
 
@@ -5678,8 +5683,7 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
     # shared rule, which every press in that margin wears: the suggestion family spelled
     # its own once, which is a family stating a fact about a shape the runtime owns.
     #
-    # Reached with real presses, because :focus-visible answers the input device and a
-    # control focused from script wears no ring for any reading to compare.
+    # Real presses verify the keyboard route as well as its focus treatment.
     page.keyboard.press("q")
     suggestion = page.locator("#sug-refill")
     expect(suggestion).to_have_attribute("data-lf-question", "1")
@@ -5742,9 +5746,7 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
     # is drawn in while they stand there.
     toggle = page.locator(".lf-threads-toggle")
     toggle.focus()
-    # Back onto it by keyboard, which is what earns the ring: the browser draws
-    # `:focus-visible` off the last input, and a pointer press before this one would
-    # leave the control standing without it.
+    # Return by keyboard to exercise the same focus band through sequential navigation.
     page.keyboard.press("Tab")
     page.keyboard.press("Shift+Tab")
     expect(toggle).to_be_focused()
@@ -7451,7 +7453,7 @@ def test_replay_signatures_exclude_settlement_and_other_runtime_paint(browser, s
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
 
     signatures = page.evaluate("""async () => {
-        const { shallowSigs } = await window.__lfRuntimeImport("/runtime/widget-api.js");
+        const { shallowSigs } = await window.__lfRuntimeImport("/runtime/check-api.js");
         const widget = document.getElementById("sug-refill");
         const read = () => shallowSigs(document.body).get(widget.id);
         const decided = read();
@@ -7473,7 +7475,7 @@ def test_replay_signatures_exclude_settlement_and_other_runtime_paint(browser, s
         "rendered settlement paint became authored state in the replay signature"
     )
     positions = page.evaluate("""async () => {
-        const { shallowSigs } = await window.__lfRuntimeImport("/runtime/widget-api.js");
+        const { shallowSigs } = await window.__lfRuntimeImport("/runtime/check-api.js");
         const root = document.createElement("div");
         root.id = "signature-root";
         root.innerHTML = '<i></i><div id="first"><b id="nested"></b></div>' +

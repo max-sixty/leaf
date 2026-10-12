@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { applicationState } from "/runtime/semantic-state.js";
-import { createProjectionCommands } from "/runtime/projection/commands.js";
+import { createUndo } from "/runtime/undo.js";
 
 const spec = { unit: "widget" };
 const action = (attempt, extra = {}) => ({
@@ -94,7 +94,7 @@ test("Undo waits while a logged action is unpresented, whichever answer came fir
   });
   applicationState.adopt(reading([earlier]));
   const posted = [];
-  const { withdraw } = createProjectionCommands({
+  const { withdraw } = createUndo({
     post: (event) => {
       posted.push(event.undoes);
       return Promise.resolve(null);

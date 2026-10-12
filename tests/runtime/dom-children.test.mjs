@@ -186,3 +186,21 @@ test("a native shadow editor follows its containing owner's authored retention",
     assert.equal(retains(editor), !changed);
   }
 });
+
+test("child reordering works without moveBefore and accepts new nodes", () => {
+  const nativeMove = Element.prototype.moveBefore;
+  Element.prototype.moveBefore = undefined;
+  try {
+    const parent = document.createElement("div");
+    const a = document.createElement("input");
+    const b = document.createElement("input");
+    parent.append(a, b);
+    setChildren(parent, [b, a]);
+    assert.deepEqual([...parent.children], [b, a]);
+    const c = document.createElement("input");
+    setChildren(parent, [c, a, b]);
+    assert.deepEqual([...parent.children], [c, a, b]);
+  } finally {
+    Element.prototype.moveBefore = nativeMove;
+  }
+});

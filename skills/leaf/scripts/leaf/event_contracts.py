@@ -16,6 +16,7 @@ from leaf.event_meaning import (
 )
 from leaf.events import build_threads, spoken_turns, undo_error
 from leaf.files import version_revisions
+from leaf.layer import foreign_event_contract
 from leaf.page_view import CandidatePageView, PageView
 from leaf.projection import (
     RANK,
@@ -32,6 +33,7 @@ from leaf.read_state import read_contract_error
 from leaf.refusals import Refusal
 from leaf.registry.contract import (
     WRITERS,
+    RegistryError,
     created_child,
     detail_schema,
     event_spec,
@@ -42,6 +44,7 @@ from leaf.registry.contract import (
 from leaf.registry.kernel import kernel_event_ownership
 from leaf.registry.reactions import reaction_tokens
 from leaf.registry.schema import json_value, schema_error
+from leaf.registry.storage import layer_metadata
 from leaf.schema import MESSAGE_KINDS, WIDGET_KINDS
 from leaf.structure import review_mode
 from leaf.tasks import task_error
@@ -794,6 +797,20 @@ def _reanchor_error(view, event: dict, events: list) -> str | None:
     return None
 
 
+def settled_attention(event: dict, contract: dict) -> bool | None:
+    """The attention an event's kind and author decide alone, or None for the
+    user's input, which needs attention only when it changes what the agent owes.
+
+    A report or an error always wakes the agent; the agent's own events and the
+    user's bookkeeping never do.
+    """
+    if event["kind"] in {"report", "error"}:
+        return True
+    if event["author"] != "user" or contract.get("bookkeeping"):
+        return False
+    return None
+
+
 def admitted_event(view, events: list, event: dict) -> dict:
     """The record one event becomes, or `EventRefused` saying why it does not.
 
@@ -824,12 +841,8 @@ def admitted_event(view, events: list, event: dict) -> dict:
         contracts[kind], {**APPEND_STAMPED, **event, "attention": False}
     ):
         raise EventRefused(f"{kind} event is invalid: {error}")
-    attention = kind in {"report", "error"}
-    if (
-        not attention
-        and event["author"] == "user"
-        and not contracts[kind].get("bookkeeping")
-    ):
+    attention = settled_attention(event, contracts[kind])
+    if attention is None:
         candidate = {
             **APPEND_STAMPED,
             **event,
@@ -860,6 +873,14 @@ def append_admitted(page, event: dict, *, view=None) -> dict:
     # have moved past admitting it.
     if accepted := page.matching_attempt(event):
         return accepted
+    try:
+        layer = layer_metadata(page.page_dir)
+    except RegistryError:
+        # A broken or missing candidate registry does not invalidate an active
+        # revision's captured vocabulary. Admission will read that vocabulary.
+        layer = None
+    if layer is not None and (refusal := foreign_event_contract(page.page_dir, layer)):
+        raise EventRefused(refusal)
     return page._append_record(
         admitted_event(
             view if view is not None else PageView(page.page_dir), page.events, event

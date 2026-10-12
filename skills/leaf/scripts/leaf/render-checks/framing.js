@@ -1,4 +1,5 @@
-import { declarationFor, inChrome, upFrom } from "/runtime/widget-api.js";
+import { declarationFor, inChrome } from "/runtime/widget-api.js";
+import { upFrom } from "/runtime/check-api.js";
 import { at } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 

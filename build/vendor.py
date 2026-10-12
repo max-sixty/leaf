@@ -513,10 +513,11 @@ def build_sortable(work: Path) -> list[Path]:
     Sortable's clone/start hooks run after creation/insertion, too late to stop a
     checked radio joining the source's group or a nested widget activating. The
     optional cloneElement factory prepares compact native motion previews at both
-    creation sites. Existing dragEl relocations use moveBefore, so an iframe's
-    browsing context survives the move. Keep the upstream ESM/autoscroll implementation
-    otherwise intact (the module entry mounts autoscroll, unlike core; complete
-    adds unused swap and multi-drag). A changed upstream seam fails the build.
+    creation sites. Existing dragEl relocations use the shared move primitive, preserving
+    native state where supported and reordering by insertion elsewhere. Keep the
+    upstream ESM/autoscroll implementation otherwise intact: the module entry mounts
+    autoscroll, unlike core; complete adds unused swap and multi-drag. A changed
+    upstream seam fails the build.
     """
     outputs = copy_published(
         Copy(
@@ -539,74 +540,70 @@ def build_sortable(work: Path) -> list[Path]:
         ),
         (
             b"rootEl.insertBefore(dragEl, nextEl);",
-            b"rootEl.moveBefore(dragEl, nextEl);",
+            b"leafMove(rootEl, dragEl, nextEl);",
         ),
-        (b"rootEl.appendChild(dragEl);", b"rootEl.moveBefore(dragEl, null);"),
+        (b"rootEl.appendChild(dragEl);", b"leafMove(rootEl, dragEl, null);"),
         (
             b"el.insertBefore(dragEl, elLastChild.nextSibling);",
-            b"el.moveBefore(dragEl, elLastChild.nextSibling);",
+            b"leafMove(el, dragEl, elLastChild.nextSibling);",
         ),
         (
             b"el.insertBefore(dragEl, firstChild);",
-            b"el.moveBefore(dragEl, firstChild);",
+            b"leafMove(el, dragEl, firstChild);",
         ),
         (
             b"target.parentNode.insertBefore(dragEl, after ? nextSibling : target);",
-            b"target.parentNode.moveBefore(dragEl, after ? nextSibling : target);",
+            b"leafMove(target.parentNode, dragEl, after ? nextSibling : target);",
         ),
         (
             b"this.sortable.el.insertBefore(dragEl, nextSibling);",
-            b"this.sortable.el.moveBefore(dragEl, nextSibling);",
+            b"leafMove(this.sortable.el, dragEl, nextSibling);",
         ),
         (
             b"this.sortable.el.appendChild(dragEl);",
-            b"this.sortable.el.moveBefore(dragEl, null);",
+            b"leafMove(this.sortable.el, dragEl, null);",
         ),
-        (b"el.appendChild(dragEl);", b"el.moveBefore(dragEl, null);"),
+        (b"el.appendChild(dragEl);", b"leafMove(el, dragEl, null);"),
     ):
         expected = 2 if original == b"el.appendChild(dragEl);" else 1
         if source.count(original) != expected:
             raise ValueError(f"Sortable clone seam changed: {original}")
         source = source.replace(original, replacement)
-    out.write_bytes(source)
+    out.write_bytes(
+        b'import {move as leafMove} from "/runtime/dom-move.js";\n' + source
+    )
     return outputs
 
 
-def build_trace_library(work: Path, library: str) -> list[Path]:
-    """Framework-free recording inspection, loaded only by the Playwright widget.
+def build_trace_images(work: Path) -> list[Path]:
+    """Framework-free image inspection, loaded only by the Playwright widget.
 
-    Named Timeline exports remove Graph2d. Separate image and timeline bundles
-    stay below the repository's payload limit. Scoped CSS travels with each module
-    so offline exports use the same library rendering as served pages.
+    Scoped CSS travels with the module so offline exports use the same library
+    rendering as served pages.
     """
-    out = package_vendor("playwright") / f"{library}.esm.js"
+    out = package_vendor("playwright") / "images.esm.js"
     out.parent.mkdir(exist_ok=True)
-    if library == "images":
-        # Viewer schedules a class write 300 ms after an inline image is viewed even
-        # with transitions disabled. It changes no paint, but wakes Leaf's margin
-        # layout after presentation. Patch the installed copy used by this bundle;
-        # the original package still supplies its version and license notice.
-        viewer = work / "node_modules/viewerjs"
-        shutil.copytree(NODE_MODULES / "viewerjs", viewer)
-        source = viewer / "dist/viewer.esm.js"
-        original = """        setTimeout(function () {
+    # Viewer schedules a class write 300 ms after an inline image is viewed even
+    # with transitions disabled. It changes no paint, but wakes Leaf's margin
+    # layout after presentation. Patch the installed copy used by this bundle;
+    # the original package still supplies its version and license notice.
+    viewer = work / "node_modules/viewerjs"
+    shutil.copytree(NODE_MODULES / "viewerjs", viewer)
+    source = viewer / "dist/viewer.esm.js"
+    original = """        setTimeout(function () {
           toggleClass(image, CLASS_TRANSITION, options.transition);
         }, 300);"""
-        replacement = """        if (options.transition) {
+    replacement = """        if (options.transition) {
           setTimeout(function () {
             toggleClass(image, CLASS_TRANSITION, options.transition);
           }, 300);
         }"""
-        text = source.read_text(encoding="utf-8")
-        if text.count(original) != 1:
-            raise ValueError("Viewer post-view transition seam changed")
-        source.write_text(text.replace(original, replacement), encoding="utf-8")
+    text = source.read_text(encoding="utf-8")
+    if text.count(original) != 1:
+        raise ValueError("Viewer post-view transition seam changed")
+    source.write_text(text.replace(original, replacement), encoding="utf-8")
     entry = (
-        'export { Timeline } from "vis-timeline/esnext/esm/vis-timeline-graph2d.js";\n'
-        'export { DataSet } from "vis-data/esnext/esm/vis-data.js";\n'
-        'export { default as css } from "vis-timeline/styles/vis-timeline-graph2d.css";\n'
-        if library == "timeline"
-        else 'export { default as Viewer } from "viewerjs/dist/viewer.esm.js";\n'
+        'export { default as Viewer } from "viewerjs/dist/viewer.esm.js";\n'
         'export { default as css } from "viewerjs/dist/viewer.css";\n'
     )
     (work / "entry.mjs").write_text(entry, encoding="utf-8")
@@ -623,17 +620,8 @@ def build_trace_library(work: Path, library: str) -> list[Path]:
     return [out]
 
 
-def build_trace_timeline(work: Path) -> list[Path]:
-    return build_trace_library(work, "timeline")
-
-
-def build_trace_images(work: Path) -> list[Path]:
-    return build_trace_library(work, "images")
-
-
 BUILDS: dict[str, Callable[[Path], list[Path]]] = {
     "snapdom": build_snapdom,
-    "trace-timeline": build_trace_timeline,
     "trace-images": build_trace_images,
     "markdown": build_markdown,
     "photoswipe": build_photoswipe,

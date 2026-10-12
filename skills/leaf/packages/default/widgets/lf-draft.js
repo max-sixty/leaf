@@ -8,8 +8,12 @@
  *
  * Editing controls belong to the box, in a persistent local footer. The same
  * command declarations own pointer activation, keyboard routes, availability and
- * accessible shortcut hints. Visual shortcuts belong to the shared shortcut bar. Comments and workflow receipts keep their own
- * annotation layer; hiding annotations cannot hide the editor's controls.
+ * accessible shortcut hints. The editor's own keys, Save's and Escape's, show in the
+ * shared shortcut bar. The controls take no context keys, so a Question lends them
+ * no digits; Tab reaches them, as it does every native button. Comments and workflow receipts keep their own
+ * annotation layer; hiding annotations cannot hide the editor's controls. The editor
+ * and its tools are Leaf surfaces even inside the document, so Draw and Design modes leave them
+ * operable while the saved reading and history remain the page's to draw on or comment on.
  * History shares the footer only when edits exist and the editor is closed.
  * It draws the controller's published reading; local control changes retain that
  * reading until the next publication, including while an editor defers replay.
@@ -233,7 +237,6 @@ customElements.define(
       this.#commandScope = commandScope("On a draft", [
         {
           id: "draft.edit",
-          contextKeys: ["1"],
           keys: [],
           control: () => this.#control("edit"),
           decision: true,
@@ -244,7 +247,6 @@ customElements.define(
         },
         {
           id: "draft.save",
-          contextKeys: ["1"],
           reach: "in an open draft editor",
           keys: ["Mod+Enter"],
           control: () => this.#control("save"),
@@ -256,7 +258,6 @@ customElements.define(
         },
         {
           id: "draft.cancel",
-          contextKeys: ["2"],
           reach: "in an open draft editor",
           keys: [],
           control: () => this.#control("cancel"),
@@ -296,7 +297,7 @@ customElements.define(
           <span ${offered("lf-draft-status")} role="status"
             >${this.#failed ? "Save failed. Your edit is kept." : ""}</span
           >
-          <div ${offered("lf-draft-tools")}>
+          <div ${offered("lf-draft-tools")} data-lf-runtime>
             ${ACTIONS.map(
               ([key, title, hint]) =>
                 html`<button
@@ -448,6 +449,7 @@ customElements.define(
       }
       if (this.#available()) this.#resumeProjection ??= this.#controller.defer();
       const editor = offer(TEXT_FIELD, "lf-draft-edit");
+      editor.dataset.lfRuntime = "";
       // A set-aside edit outranks the authored text here too: reopening resumes it.
       const effective = this.#controller.read().state.edit.value;
       editor.value = seed ?? loadEdit(this.id) ?? effective;

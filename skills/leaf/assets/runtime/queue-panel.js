@@ -67,7 +67,7 @@ import {
   watchSemantic,
 } from "./semantic-state.js";
 import { under } from "./shadow.js";
-import { askWords } from "./asks/answer.js";
+import { askEnding } from "./asks/answer.js";
 import { readAsks } from "./asks/model.js";
 import { askPlace } from "./asks/place.js";
 import { readThreads } from "./thread/state.js";
@@ -182,13 +182,9 @@ export function createQueuePanel({ actions, next, announce }) {
       return [item.running.text, shortAgo(item.running.ts)].filter(Boolean).join(" · ");
     return "";
   }
-  // An ask names its canonical answer or withdrawal; a to-do names its outcome.
+  // An ask names how it ended; a to-do names its outcome.
   function ended(item) {
-    if (item.kind === "ask") {
-      if (item.ask.status === "withdrawn") return "Withdrawn";
-      const answer = askWords(item.ask);
-      return answer ? `Answered ${answer}` : "Answered";
-    }
+    if (item.kind === "ask") return askEnding(item.ask);
     return [OUTCOMES[item.state] ?? item.state, shortAgo(item.ended)]
       .filter(Boolean)
       .join(" ");

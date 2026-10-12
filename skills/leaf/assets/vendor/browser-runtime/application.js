@@ -202,6 +202,10 @@ function advance(
 
 
 
+
+
+
+
 /** One served workflow, as `served_state.browser.served_workflows` serializes it;
  * `AuthoritativeState.workflows` lists them strongest first. */
 
@@ -661,7 +665,7 @@ function localQueues(
     ...current(item),
     live: false,
     state:
-      item.kind === "ask" && askOf(item).status !== "answered"
+      item.kind === "ask" && askOf(item).status === "withdrawn"
         ? "dropped"
         : "done",
     ended: null,

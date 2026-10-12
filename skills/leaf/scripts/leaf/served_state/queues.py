@@ -14,9 +14,10 @@ owes, work in hand on an update, and the agent's to-dos. An item names its kind,
 subject and the thread it stands in, and whether the agent has it in hand now
 (`live`): a to-do a start holds, or an update the agent is at work on whose work has
 not gone quiet or stopped. An ask item keeps its canonical record, and a to-do item
-the fields a row draws. Each done item adds how it ended (`state`), when (`ended`),
-and the outcome's detail. `held` lists the open asks no one owes now, such as a
-resolved thread's, as items, so the browser can put one on Questions while a gesture
+the fields a row draws. Each done item adds how it ended (`state`: an ask the user
+answered, here or elsewhere, is `done`, a withdrawn one `dropped`), when (`ended`),
+and the outcome's detail, which for an ask is its agent end's. `held` lists the
+open asks no one owes now, such as a resolved thread's, as items, so the browser can put one on Questions while a gesture
 it sent reopens that thread (`after`, `served_state.browser`), and selects nothing.
 """
 
@@ -119,9 +120,9 @@ def queues(
     done = [
         {
             **_ask_item(ask),
-            "state": "done" if ask["status"] == "answered" else "dropped",
-            "ended": ((ask["answer"] or {}).get("event") or {}).get("ts"),
-            "detail": None,
+            "state": "dropped" if ask["status"] == "withdrawn" else "done",
+            "ended": ((ask["end"] or ask["answer"] or {}).get("event") or {}).get("ts"),
+            "detail": ask["end"]["detail"] if ask["end"] else None,
         }
         for ask in asks["all"]
         if ask["status"] != "open"

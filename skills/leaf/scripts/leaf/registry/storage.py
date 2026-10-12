@@ -124,20 +124,21 @@ def compose_candidate(
     source = page_dir / "page" / "registry.json"
     declarations = read_registry_declarations(source) or {}
 
-    def compose(declarations, source):
-        return compose_page_registry(
-            layer, declarations, widgets, source=source, validated=validated
-        )
-
     try:
-        return compose(
-            declarations, source if declarations else page_dir / "registry.json"
+        return compose_page_registry(
+            layer,
+            declarations,
+            widgets,
+            source=source if declarations else page_dir / "registry.json",
+            validated=validated,
         )
     except RegistryError as error:
         if not declarations:
             raise _revendor(page_dir, error) from None
+        # The layer alone, validated afresh: the active revision's vocabulary may be
+        # this same layer, stamped before this Leaf, and would excuse it unread.
         try:
-            compose({}, page_dir / "registry.json")
+            compose_page_registry(layer, {}, widgets, source=page_dir / "registry.json")
         except RegistryError as layer_error:
             raise _revendor(page_dir, layer_error) from None
         raise

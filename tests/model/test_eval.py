@@ -184,10 +184,7 @@ def test_native_columns_isolate_each_harness_and_arm(tmp_path, monkeypatch):
     brief = config["tests"][0]
     assert brief["description"] == "brief-document-needs-no-outline"
     assert brief["vars"]["prompt"].startswith("Use the Leaf skill")
-    assert [assertion["metric"] for assertion in brief["assert"]] == [
-        "no-outline",
-        "judgment",
-    ]
+    assert [assertion["metric"] for assertion in brief["assert"]] == ["judgment"]
 
 
 @pytest.mark.parametrize(

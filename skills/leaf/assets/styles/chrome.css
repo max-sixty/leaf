@@ -1395,24 +1395,20 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-media-viewer-actions { display: flex; align-items: center; gap: 12px; }
   .lf-media-viewer-original { display: inline-flex; align-items: center; justify-content: center; }
   .lf-media-viewer-zoom { min-width: 4em; }
-  /* The stage's content box is the image's one fit area: the opening image fits it, and
-     PhotoSwipe's padding reads it (media.js). One definite cell lets the image's
-     percentage limits resolve against that box. */
+  /* The stage's content box is the image's fit area, which PhotoSwipe's padding reads
+     (media.js). */
   .lf-media-viewer-stage { position: relative; min-width: 0; min-height: 0; overflow: hidden;
-    display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); place-items: center;
     padding: 16px; box-sizing: border-box; background: transparent; }
-  /* Match PhotoSwipe's default backdrop while its manipulation module loads.
+  /* Match PhotoSwipe's default backdrop while its module loads and the image decodes.
      Once it takes over, its backdrop alone dims the page. */
-  .lf-media-viewer-stage:has(> img) {
+  .lf-media-viewer-stage:has(> .lf-media-viewer-probe) {
     background: color-mix(in srgb, var(--paper) 80%, transparent); }
-  .lf-media-viewer-stage > img { display: block; max-width: 100%; max-height: 100%;
-    object-fit: contain; }
-  /* Reads whether the image states a width of its own (media.js). */
+  /* Reads the image's size and whether its file states one (media.js). */
   .lf-media-viewer-probe { position: absolute; width: 1px; height: 0; overflow: hidden;
     visibility: hidden; }
   .lf-media-viewer-probe > img { display: block; width: auto; height: auto; min-width: 0;
     max-width: none; max-height: none; }
-  .lf-media-viewer-stage > img, .lf-media-viewer .pswp__img {
+  .lf-media-viewer .pswp__img {
     outline: 1px solid var(--border-2); box-shadow: 0 8px 24px var(--shade); }
   .lf-media-viewer .pswp { position: absolute; --pswp-bg: var(--paper); --pswp-root-z-index: 0; }
   .lf-media-viewer-caption { position: relative; z-index: 1501; background: var(--card);

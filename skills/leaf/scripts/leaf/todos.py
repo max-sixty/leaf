@@ -31,9 +31,11 @@ restarting the server, owes the user nothing and is no item.
 
 To-dos on the user are `todo` events opened with `--on user`, ending at Done or an
 agent end. Asks are separate canonical records (`asks`), selected directly by
-the lists, never synthesized into to-dos. A `todo_end` can also withdraw an open
-prose ask by its ask id or source-message id; that withdraws the request without
-recording a user answer. A stamped document declaring `lf-review=sign-off` adds an
+the lists, never synthesized into to-dos. The agent's `todo_end` can also retire
+an open prose ask by its ask id: `done` when the user answered it on another
+surface, `dropped` when it no longer applies, and never `failed`, which says
+nothing about the ask; neither records a user answer (`asks.thread_asks`).
+A stamped document declaring `lf-review=sign-off` adds an
 approval ask for that exact public version; only its unwithdrawn approval answers
 it.
 
@@ -308,7 +310,9 @@ def todo_error(
             if event["author"] != "agent":
                 return "the user's reply or settling reaction answers a prose ask"
             if ask["status"] != "open":
-                return f"ask {identity!r} has already {ask['status']}"
+                return f"ask {identity!r} is already {ask['status']}"
+            if event["outcome"] == "failed":
+                return "a prose ask ends `done` when the user answered it elsewhere, or `dropped` when it no longer applies"
             return None
         if ended := log.ends.get(identity):
             return f"to-do {identity!r} has already ended ({ended['state']})"

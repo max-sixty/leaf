@@ -2,11 +2,8 @@
  * window the page shows, and the one conversion from viewport boxes to
  * document-positioned chrome. */
 import { excludedByInert, renderedParent, uiInside, under, upFrom } from "./shadow.js";
-import {
-  isNativeLayer,
-  nativeModalAdmits,
-  watchLayerChanges,
-} from "./keyboard/layer-stack.js";
+import { nativeModalAdmits, watchLayerChanges } from "./keyboard/layer-stack.js";
+import { isNativeLayer } from "./shadow-tree.js";
 import {
   clippingAxes,
   hasArea,

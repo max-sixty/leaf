@@ -63,7 +63,7 @@
 import { afterScript, nextRender } from "./rendering.js";
 import { keeps } from "./keeps.js";
 import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
-import { renderedParent } from "./shadow-tree.js";
+import { renderedParent, isNativeLayer } from "./shadow-tree.js";
 
 // The elements under `node` in the tree as rendered: a host's shadow tree in place of
 // its children, and a slot's assigned elements, or its fallback, in its place. A host
@@ -553,11 +553,11 @@ export const pressLed = () => pressedPath !== null;
 let stepping = null;
 // Focus coming out of a dialog or popover that no longer stands is that layer handing it
 // back as it closes, whether the platform or the layer's owner moves it. A nonmodal
-// dialog closing hands focus back too, so this asks of every dialog rather than of the
-// native layers layer-stack.js holds, which imports this module.
+// dialog closing hands focus back too, so a dialog stands while it is `open`, modal or
+// not, and a popover while it is a native layer.
 const leftClosedLayer = (left) => {
   const layer = left?.closest?.("dialog, [popover]");
-  return Boolean(layer) && !layer.matches("dialog[open], :popover-open");
+  return Boolean(layer) && !(layer.open === true || isNativeLayer(layer));
 };
 const cause = (node, left = null) =>
   placing ??

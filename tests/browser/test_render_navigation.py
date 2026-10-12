@@ -6778,11 +6778,11 @@ def test_a_completed_ask_keeps_its_answer_in_questions(browser, serve):
         """async () => {
           const {readAsks} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const reading = readAsks();
-          const question = reading.all.find(q => q.id === 'widget:only');
+          const ask = reading.all.find(q => q.id === 'widget:only');
           return {
-            value: question.answer.value,
-            status: question.status,
-            unanswered: reading.unanswered.some(q => q.id === question.id),
+            value: ask.answer.value,
+            status: ask.status,
+            unanswered: reading.unanswered.some(q => q.id === ask.id),
           };
         }"""
     )
@@ -6800,13 +6800,13 @@ def test_a_completed_ask_keeps_its_answer_in_questions(browser, serve):
     reading = page.evaluate(
         """async () => {
           const {readAsks} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const question = readAsks().all.find(q => q.id === 'widget:only');
+          const ask = readAsks().all.find(q => q.id === 'widget:only');
           return {
-            id: question.id,
-            source: question.source,
-            prompt: question.prompt,
-            value: question.answer.value,
-            status: question.status,
+            id: ask.id,
+            source: ask.source,
+            prompt: ask.prompt,
+            value: ask.answer.value,
+            status: ask.status,
           };
         }"""
     )
@@ -8539,6 +8539,31 @@ def test_a_native_modal_escapes_inherited_inertness_for_its_commands(browser, se
     page.keyboard.press("v")
     assert control.get_attribute("data-runs") == "1"
     dialog.evaluate("dialog => dialog.close()")
+
+
+def test_a_dialog_shown_as_a_popover_stands_as_a_popover(browser, serve):
+    """A dialog opened with `showPopover` is a popover layer, and the page behind it stays live.
+
+    Chromium reports it `:popover-open` and not `:modal`. Read as modal, it would make the
+    dispatcher drop the page's key scopes behind it."""
+    page = open_page(browser, serve(LONG_PAGE))
+    kinds = page.evaluate("""() => {
+      const layers = document[Symbol.for('leaf.nativeLayers')];
+      const asPopover = document.createElement('dialog');
+      asPopover.popover = 'manual';
+      asPopover.textContent = 'A dialog shown as a popover';
+      const asModal = document.createElement('dialog');
+      asModal.textContent = 'A dialog shown modally';
+      document.querySelector('main').append(asPopover, asModal);
+      asPopover.showPopover();
+      const popover = layers().map((layer) => layer.kind);
+      asPopover.hidePopover();
+      asModal.showModal();
+      const modal = layers().map((layer) => layer.kind);
+      asModal.close();
+      return {popover, modal};
+    }""")
+    assert kinds == {"popover": ["popover"], "modal": ["modal"]}
 
 
 def test_the_key_line_says_what_a_press_will_do(browser, serve):
@@ -10588,6 +10613,9 @@ def test_an_ask_under_the_open_panel_is_shown_beside_it_or_by_clearing_it(
     evidence = (
         "<figure><p>The hedge shelters the feeders.</p></figure>" if side_track else ""
     )
+    options_style = (
+        "<style>#spot { width: 40%; margin-left: 60%; }</style>" if side_track else ""
+    )
     url = serve(
         leaf_page(
             "Under the panel",
@@ -10602,6 +10630,7 @@ def test_an_ask_under_the_open_panel_is_shown_beside_it_or_by_clearing_it(
 </lf-options></lf-ask>
 <section id="below">{filler}</section>
 """,
+            head=options_style,
         )
     )
     append_carried_log_record(

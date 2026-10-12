@@ -50,7 +50,7 @@ import {
 import { textField } from "./composing/text-field.js";
 import { queueItemKey, readQueues, watchQueues } from "./queue-api.js";
 import { queueTitle } from "./queue-title.js";
-import { askWords } from "./asks/answer.js";
+import { askEnding } from "./asks/answer.js";
 import { versionMenu, versionPicker } from "./version-picker.js";
 import { reducedMotion } from "./motion.js";
 import { pagePresented } from "./page-paint.js";
@@ -451,13 +451,13 @@ export function createFloatingPanel({
       all.some((entry) => entry.group === group && !entry.gesture),
     );
     const display = prefs().display;
-    const asks = questionCount();
+    const waiting = questionCount();
     return html`<p
         class="lf-fp-reading"
         data-tone=${status.tone}
         title=${status.explanation || status.summary}
       >
-        ${status.summary}${asks ? ` · ${asks} ${asks === 1 ? "question" : "questions"} on you` : ""}
+        ${status.summary}${waiting ? ` · ${waiting} ${waiting === 1 ? "question" : "questions"} on you` : ""}
       </p>
       ${page.map(rowFor)}
       ${groups.map((group) =>
@@ -743,9 +743,7 @@ export function createFloatingPanel({
           >${item.running?.text ?? workflowLabel(item.workflow) ?? ""}</span
         >${thread ? discuss : nothing}`;
     else if (answered)
-      answers = html`<span class="lf-fp-said"
-          >${ask.status === "withdrawn" ? "Withdrawn" : `Answered ${askWords(ask) ?? ""}`.trim()}</span
-        >${
+      answers = html`<span class="lf-fp-said">${askEnding(ask)}</span>${
           gesture
             ? html`<button
                 type="button"

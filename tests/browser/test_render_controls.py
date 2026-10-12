@@ -1926,9 +1926,9 @@ def test_required_approval_is_an_ask_until_approved(browser, serve, width):
     expect(questions).to_be_attached()
     target = page.evaluate("""async () => {
       const {readAsks, askActions} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-      const question = readAsks().all.find(q => q.source.kind === 'approval');
-      const target = document.getElementById(question.prompt.target);
-      await askActions.open(question.id);
+      const ask = readAsks().all.find(q => q.source.kind === 'approval');
+      const target = document.getElementById(ask.prompt.target);
+      await askActions.open(ask.id);
       return target === document.querySelector('.lf-signoff') && document.activeElement === target;
     }""")
     assert target, "the public ask route did not reach its declared approval target"

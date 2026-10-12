@@ -20,3 +20,11 @@ export function askWords(ask) {
     .replace(/\s+/g, " ")
     .trim();
 }
+
+/* How a finished ask ended, in the words a Done row and the floating panel show:
+   its answer, an answer given elsewhere, or its withdrawal. */
+export function askEnding(ask) {
+  if (ask.status === "withdrawn") return "Withdrawn";
+  if (ask.status === "answered_elsewhere") return "Answered elsewhere";
+  return `Answered ${askWords(ask)}`.trim();
+}

@@ -129,8 +129,8 @@ def test_wait_help_says_where_a_delivery_says_how_to_confirm_it():
 def test_agent_interaction_command_help(regtest):
     """The complete help an agent follows between receiving and answering input.
 
-    Keep the full CLI output, including options, beside the dynamic interaction
-    snapshots in test_interact_session. A prose review can then follow a command
+    Keep the full CLI output, including options, beside the snapshots of what the
+    hooks and waits print to the agent. A prose review can then follow a command
     named by a reminder without reconstructing its help from source docstrings.
     """
     outputs = []
@@ -300,8 +300,10 @@ def test_response_reply_names_a_page_vendored_at_another_protocol(claimed, serve
 def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(page_dir):
     """A layer vendored before an x- key was renamed (`x-question-context`, now
     `x-ask-context`) declares nothing under the new name, so a reader would quietly lose
-    what the key said. Every reader refuses it instead, naming the re-vendor, and so
-    does `page check`. A layer that lacks a key this Leaf added is read as it is."""
+    what the key said. Reading the vendored layer refuses it instead, naming the
+    re-vendor, and so does `page check`; readers of the active revision's captured
+    vocabulary fall back past the refusal rather than fail. A layer that lacks a key
+    this Leaf added is read as it is."""
     from leaf.registry.contract import RegistryError
 
     path = page_dir / "registry.json"
@@ -334,6 +336,38 @@ def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(page_dir
     checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
     assert checked.exit_code != 0
     assert "x-ask-context" in checked.output and revendor in checked.output
+
+
+def test_a_layer_stamped_with_its_revision_still_names_the_revendor(page_dir):
+    """A page an older Leaf stamped holds that Leaf's layer twice, vendored and captured
+    in its active revision, and the captured copy excuses an unchanged layer from
+    validation. Once the page declares its own vocabulary, a fault the layer shows on
+    its own is still the layer's, named with the re-vendor, not the declarations'."""
+    publish(page_dir)
+    # The older Leaf's layer lacks a key this one added, in both copies.
+    captured = page_dir.glob("revisions/*/resources/registry.json")
+    for path in [page_dir / "registry.json", *captured]:
+        registry = json.loads(path.read_text())
+        del registry["$keys"]["x-work"]
+        # Replaced rather than written through: a revision hard-links its files.
+        path.unlink()
+        path.write_text(json.dumps(registry))
+    (page_dir / "page").mkdir(exist_ok=True)
+    (page_dir / "page" / "registry.json").write_text(
+        json.dumps({"lf-local-note": element_declaration("lf-local-note")})
+    )
+    # A fresh process, as the older Leaf's stamp was: this one holds the revision it
+    # captured in memory.
+    checked = subprocess.run(
+        [*LEAF_COMMAND, "page", "check", str(page_dir)],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=False,
+    )
+    assert checked.returncode != 0
+    assert "x-work" in checked.stderr
+    assert f"leaf page init {page_dir}" in checked.stderr
 
 
 def test_the_skill_routes_every_reference_it_ships():

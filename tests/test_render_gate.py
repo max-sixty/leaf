@@ -133,7 +133,12 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
+
+# The deadline of a wait these tests expect to expire, on a page held or refused on
+# purpose: long enough for the page to reach the stall on a busy runner, and well short
+# of the suite's hang bound, which would hold each of them for 30 s.
+EXPECTED_STALL_MS = 5_000
 
 BOUNDED_WORKSPACE_PAGE = leaf_page(
     "bounded workspace gate",
@@ -864,7 +869,7 @@ def test_a_module_the_page_never_receives_names_the_wait_that_stopped(browser, s
     """
     source = leaf_page("held module", "<h1>Waiting on a module</h1>")
     page = browser.unwatched.new_page()
-    page.set_default_timeout(5_000)
+    page.set_default_timeout(EXPECTED_STALL_MS)
     holding = []
 
     def hold_module(route):
@@ -898,7 +903,7 @@ def test_a_wait_before_the_entry_is_released_names_only_the_page_s_own_request(
     the gate itself."""
     source = leaf_page("held theme", "<h1>Waiting on a theme</h1>")
     page = browser.unwatched.new_page()
-    page.set_default_timeout(5_000)
+    page.set_default_timeout(EXPECTED_STALL_MS)
     holding = []
 
     def hold_theme(route):
@@ -970,7 +975,7 @@ def test_a_released_entry_that_never_arrives_is_named_like_any_other_file(
     name, so the release has to hand the entry back to the page."""
     dropped, asked = dropped_entry_server
     page = dropped_entry_page
-    page.set_default_timeout(5_000)
+    page.set_default_timeout(EXPECTED_STALL_MS)
     with pytest.raises(RuntimeError) as stopped:
         render_gate_scheme.start_with_pre_upgrade_proof(page, dropped)
     entry_path = urlsplit(
@@ -992,7 +997,7 @@ def test_a_refused_document_reports_the_status_beside_the_wait_that_stopped(
     real_proof = render_gate_scheme.start_with_pre_upgrade_proof
 
     def promptly(page, url):
-        page.set_default_timeout(2_000)
+        page.set_default_timeout(EXPECTED_STALL_MS)
         return real_proof(page, url)
 
     monkeypatch.setattr(render_gate_scheme, "start_with_pre_upgrade_proof", promptly)
@@ -1558,7 +1563,7 @@ def test_every_restore_case_a_user_can_return_to_is_arrived_in(browser, serve):
                         "unit": "widget",
                         "record": None,
                         "creates": None,
-                        "update": False,
+                        "report": False,
                         "detail": {
                             "type": "object",
                             "properties": {"outcome": {"enum": ["accept", "reject"]}},
@@ -2653,10 +2658,10 @@ def test_the_readiness_wait_names_the_stage_a_page_still_owes(browser, serve):
     render_checks_model.wait_for_probe(page, "upgraded")
 
     with pytest.raises(render_checks_model.PageNotReady) as unready:
-        wait_until_ready(page, timeout_ms=1_000)
+        wait_until_ready(page, timeout_ms=EXPECTED_STALL_MS)
     assert unready.value.stage == "log"
     assert str(unready.value) == (
-        "the runtime never finished replaying the log within 1000ms"
+        f"the runtime never finished replaying the log within {EXPECTED_STALL_MS}ms"
     )
 
     for route in held:
@@ -3242,6 +3247,7 @@ def test_the_render_gate_catches_a_shadow_host_whose_own_words_never_render(
     assert any('paints urgent="" and says nothing' in f for f in failures), failures
 
 
+@pytest.mark.nightly  # a sweep over the whole corpus
 @pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
 def test_page_fixture_renders(browser, serve, source):
     """Every shipped example and the developer gallery lay out in both color schemes: no
@@ -3974,6 +3980,34 @@ WIDGET_PACKAGES = {
 }
 
 
+def unshown_key_findings(page, source):
+    """Each command in a widget that declares context keys the page never shows
+    (`shows-context-keys`, widget_quality.py), in the page and each Leaf document it
+    frames. A worked example shows one state of its widget, and a command a widget
+    declares only in another, such as a multiple-choice Question's Done, goes unseen
+    there; the corpus holds those states. Widgets and `KNOWN` are read as for
+    `held_scroller_findings`."""
+    local = source.with_suffix(".page")
+    tags = sorted({*WIDGET_PACKAGES, *(own_tags(local) if local.is_dir() else ())})
+    findings = []
+    for frame in page.frames:
+        if not frame.evaluate(
+            "() => !!document.querySelector('script[data-lf-entry]')"
+        ):
+            continue
+        where = "" if frame == page.main_frame else f" in {urlsplit(frame.url).path}"
+        findings += [
+            f"<{command['tag']} id={command['id']!r}> {command['command']} declares "
+            f"context keys and no bindingBadge{where}"
+            for command in render_checks_model.evaluate_probe(
+                frame, "unshownContextKeys", tags
+            )
+            if (command["tag"], "shows-context-keys")
+            not in KNOWN.get(WIDGET_PACKAGES.get(command["tag"]), set())
+        ]
+    return findings
+
+
 def held_scroller_findings(page, source):
     """Each box in a widget that holds its own height and scrolls inside it
     (`grows-with-content`, widget_quality.py), in the page and each Leaf document it
@@ -4003,13 +4037,15 @@ def held_scroller_findings(page, source):
     return findings
 
 
+@pytest.mark.nightly  # a sweep over the whole corpus
 @pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
 def test_a_still_page_comes_back_from_every_journey_as_it_was(browser, serve, source):
     """A still_page goes through each journey that must leave it as it found it: left
     alone (`rest_findings`), every surface opened and closed (`surface_findings`),
     resized to a phone's width and back (`resize_findings`), and each typed box scrolled
     away and back (`typed_box_findings`). The page those journeys hand back, at the width
-    it opened at, is then read for widgets that hold their height
+    it opened at, is then read for commands whose context keys it never shows
+    (`unshown_key_findings`) and for widgets that hold their height
     (`held_scroller_findings`), which writes it.
 
     They share one page because each reads only what its own journey changes, and
@@ -4023,6 +4059,7 @@ def test_a_still_page_comes_back_from_every_journey_as_it_was(browser, serve, so
         "closed surfaces": surface_findings(page),
         "resized from the widest": resize_findings(page, RESIZE_PATH),
         "typed boxes": typed_box_findings(page),
+        "unshown context keys": unshown_key_findings(page, source),
         "held scrollers": held_scroller_findings(page, source),
         "resized from the narrowest": resize_findings(
             still_page(browser, url, width=RESIZE_PATH[-1]), RESIZE_PATH[::-1]
@@ -5841,7 +5878,14 @@ def test_dragging_an_edge_preserves_user_state(browser, serve, pointer):
                     "Input.dispatchTouchEvent",
                     {"type": event, "touchPoints": [{"x": at, "y": y}]},
                 )
-        assert handle.evaluate("e => getComputedStyle(e).outlineStyle") == "none"
+        if pointer == "mouse":
+            # A pointer drag leaves the existing keyboard focus standing.
+            assert handle.evaluate(
+                "e => e.matches(':focus') && e.hasAttribute('data-lf-focus')"
+            )
+            assert handle.evaluate("e => getComputedStyle(e).outlineStyle") == "solid"
+        else:
+            assert handle.evaluate("e => getComputedStyle(e).outlineStyle") == "none"
         if pointer == "mouse":
             page.mouse.up()
             assert not handle.evaluate("e => e.matches(':focus-visible')")

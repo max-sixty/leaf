@@ -20,7 +20,7 @@
    The margin form shows the declared reaction margin entries together within the six-item
    budget. Comment retains its separate `c` route. The digit register and visible
    choices therefore name the same complete set. The choices do not widen the rail or
-   open a separate palette below the target. The compact response bar's More controller
+   open a separate palette below the target. The compact response bar's disclosure controller
    owns its state, focus return, and geometry independently.
    Thread reactions remain in their thread-owned strip. The event still
    carries its durable authored anchor, while
@@ -37,7 +37,7 @@
    mount installs the mode teardown listeners after composition. */
 
 import { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
-import { whenOffScreen } from "./geometry.js";
+import { clipsPastSurfaces, seenRect, whenNone } from "./geometry.js";
 import { scrollIntoReadingBand } from "./landing-scroll.js";
 import { registerContribution } from "./contributions.js";
 import { runtime } from "./context.js";
@@ -46,13 +46,11 @@ import { composerOpen, fabBar, fabOptions } from "./composing/selection.js";
 import { pageSelection } from "./composing/capture.js";
 import { el, offer, responseAction } from "./widget-elements.js";
 import { HOLDS_WORD } from "./held-word.js";
+import { keeps } from "./keeps.js";
 
 import { elementById } from "./passages.js";
-import {
-  addressableWord,
-  anchoringIsReady,
-  visualPartLabel,
-} from "./anchor-resolution.js";
+import { addressableWord } from "./addressable-names.js";
+import { anchoringIsReady, visualPartLabel } from "./anchor-resolution.js";
 import { announce, notice } from "./notifications.js";
 import { claimsEsc, saying } from "./keyboard/scopes.js";
 import {
@@ -72,37 +70,48 @@ import {
   pageCommand,
   pageScope,
 } from "./keyboard/register.js";
-import { PRESS } from "./keyboard/bindings.js";
+import { PRESS, rowArrows } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { anchorLabel } from "./thread/messages.js";
-import { reactionsAt } from "./thread/model.js";
+import { reactionsAt, tokenChoices } from "./thread/model.js";
 import { allThreads } from "./thread/state.js";
 import { watchProjection } from "./projection-watch.js";
 
-// Standing tokens wear their emoji wherever they stand, and `aria-pressed` is the whole
-// of what a palette chip adds — the fill it reads carries the same fact for the eye.
-// Both carry the event a second press takes back. The reaction rides the chip rather
-// than a map beside it, so a reconcile that keeps the node keeps the fact with it.
-const reactionVocabulary = () => registry.$reactions?.tokens;
+const reactionVocabulary = () => registry.$reactions?.tokens ?? {};
 // The layer's reaction vocabulary, in declared order. The bar, a reply's strip, the
 // page row and the keyboard accelerators all read this one list, so a layer that
 // renames, adds or removes a token moves every surface at once, and core never learns
 // a token's name. Empty until the registry has arrived: the register checks every core
 // row's bindings as the module evaluates, before the vocabulary is known.
-export const reactionTokens = () => Object.entries(reactionVocabulary() ?? {});
+export const reactionTokens = () => Object.entries(reactionVocabulary());
+// The choices on one anchor, from the threads' current reading.
+const anchorChoices = (anchor) =>
+  tokenChoices(reactionVocabulary(), anchor ? reactionsAt(allThreads(), anchor) : []);
 
 // One token as a press in the response bar; a reply's strip builds its own
 // (thread/reaction-strips.js). The token names the control and the compact face
 // stays the declared mark. Digits remain keyboard accelerators without changing the
 // shape of every chip.
-function reactionChip(name, entry, pressed) {
+function reactionChip({ name, glyph, label }, pressed) {
   const chip = offer("button", `lf-react ${HOLDS_WORD}`);
   chip.dataset.token = name;
-  chip.title = name;
-  chip.setAttribute("aria-label", name);
-  responseAction(chip, { glyph: entry.glyph, label: name, collapse: true });
-  chip.onclick = () => pressed(name, chip);
+  chip.title = label;
+  chip.setAttribute("aria-label", label);
+  responseAction(chip, { glyph, label: name, collapse: true });
+  chip.onclick = () => pressed(name);
   return chip;
+}
+
+// The bar's chips wear the reactions standing on its anchor, as a reply's strip does:
+// pressed where one stands, busy while it is still being sent. A press on a pressed chip
+// takes that reaction back (reactHere).
+export function paintBarReactions(anchor) {
+  const by = new Map(anchorChoices(anchor).map((choice) => [choice.name, choice]));
+  for (const chip of fabBar.querySelectorAll(".lf-react-palette > .lf-react")) {
+    const standing = by.get(chip.dataset.token)?.standing;
+    keeps(chip, "aria-pressed", String(Boolean(standing)));
+    keeps(chip, "aria-busy", String(Boolean(standing?.pending)));
+  }
 }
 
 export function createReactionController({
@@ -147,10 +156,8 @@ export function createReactionController({
     const palette = el("span", "lf-react-palette");
     palette.setAttribute("role", "group");
     palette.setAttribute("aria-label", "Reactions for this selection or element");
-    for (const [name, entry] of reactionTokens())
-      palette.append(
-        reactionChip(name, entry, (token, chip) => reactHere(token, chip, commands)),
-      );
+    for (const choice of tokenChoices(reactionVocabulary(), []))
+      palette.append(reactionChip(choice, (token) => reactHere(token, commands)));
     fabOptions.append(palette);
     syncResponseOptions();
   }
@@ -164,13 +171,10 @@ export function createReactionController({
     return addressableWord(addressable) || "the element";
   };
 
-  async function reactHere(
-    name,
-    chip,
-    commands,
-    standing = chip?.lfReaction,
-    anchor = fabAnchorAt(),
-  ) {
+  async function reactHere(name, commands, anchor = fabAnchorAt()) {
+    const standing = anchorChoices(anchor).find(
+      (choice) => choice.name === name,
+    )?.standing;
     // Read before the bar goes, because the reading is about the bar that is standing.
     // The bar owns what that answer is. `setReact(false)` runs after the bar goes and the
     // palette makes a return of its own, so the user lands once, when everything has
@@ -187,7 +191,7 @@ export function createReactionController({
         anchor: structuredClone(anchor),
       };
       if (designModeActive()) event.about = "design";
-      sent = sendReaction(event, chip, anchorWord(anchor), commands.postReaction);
+      sent = sendReaction(event, anchorWord(anchor), commands.postReaction);
     }
     closeLayer(
       () => {
@@ -247,34 +251,20 @@ export function createReactionController({
     marginOffer = registerContribution({
       key: "responses",
       target,
-      read: () => {
-        const standing = new Set(
-          reactionsAt(allThreads(), marginAnchor).map((reaction) => reaction.token),
-        );
-        return {
-          side: "after",
-          entries: reactionTokens().map(([name, entry], ordinal) => ({
-            key: marginReactionKey(name, ordinal),
-            activation: name,
-            glyph: entry.glyph,
-            label: name,
-            rank: "secondary",
-            className: `lf-react ${HOLDS_WORD}`,
-            pressed: standing.has(name),
-          })),
-          readings: [],
-        };
-      },
-      activate: (name) =>
-        reactHere(
-          name,
-          null,
-          pageCommands,
-          reactionsAt(allThreads(), marginAnchor).find(
-            (reaction) => reaction.token === name,
-          ),
-          marginAnchor,
-        ),
+      read: () => ({
+        side: "after",
+        entries: anchorChoices(marginAnchor).map((choice, ordinal) => ({
+          key: marginReactionKey(choice.name, ordinal),
+          activation: choice.name,
+          glyph: choice.glyph,
+          label: choice.label,
+          rank: "secondary",
+          className: `lf-react ${HOLDS_WORD}`,
+          pressed: Boolean(choice.standing),
+        })),
+        readings: [],
+      }),
+      activate: (name) => reactHere(name, pageCommands, marginAnchor),
     });
     marginTarget = target;
     if (openMarginEntryOptions(target, "responses")) {
@@ -390,11 +380,16 @@ export function createReactionController({
         const picker = pickerFor(reactSurface);
         // `e` opens the latest reply of the thread the user stands in, which may be
         // scrolled out of the list: it comes into view to be answered, since a list
-        // hung from a trigger out of view would neither show nor stay open.
+        // hung from a trigger out of view would neither show nor stay open, and it
+        // closes once none of the trigger is in front of the user (`seenRect`). The
+        // list stands in the top layer, above the thread panel, so a surface standing
+        // over the trigger does not take it away; a scroll carrying the trigger out of
+        // sight does.
         scrollIntoReadingBand(picker.trigger, picker.trigger, "nearest", "instant");
         showNativeLayer(picker.palette, { source: picker.trigger });
         const opened = reactSurface;
-        reactDeparture = whenOffScreen([picker.trigger], () => {
+        const seen = (trigger) => seenRect(trigger, clipsPastSurfaces());
+        reactDeparture = whenNone([picker.trigger], seen, () => {
           if (reactSurface === opened) setReact(false);
         });
         picker.trigger.setAttribute("aria-expanded", "true");
@@ -457,8 +452,9 @@ export function createReactionController({
     const choices = responseChoices(reactSurface);
     if (!choices.length) return;
     const at = choices.indexOf(focused());
-    const backward =
-      binding === "ArrowLeft" || binding === "ArrowUp" || binding === "Shift+Tab";
+    const backward = [rowArrows(choices[0])[0], "ArrowUp", "Shift+Tab"].includes(
+      binding,
+    );
     const next =
       at < 0
         ? backward
@@ -625,15 +621,10 @@ export function createReactionController({
   };
 }
 
-export async function sendReaction(event, chip, where, postReaction) {
-  chip?.setAttribute("aria-busy", "true");
-  try {
-    const sent = await postReaction(event);
-    if (sent) announce(`${event.token} on ${where}`);
-    return sent;
-  } finally {
-    chip?.removeAttribute("aria-busy");
-  }
+export async function sendReaction(event, where, postReaction) {
+  const sent = await postReaction(event);
+  if (sent) announce(`${event.token} on ${where}`);
+  return sent;
 }
 function reactionPlace(event) {
   if (event.kind === "reply") return "the reply";

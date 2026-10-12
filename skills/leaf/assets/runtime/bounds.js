@@ -58,7 +58,7 @@
    would show it at its top and then jump. */
 import { skipped } from "./geometry.js";
 import { sizeObserver } from "./rendering.js";
-import { atScrollEnd as atEnd, scrollToEnd } from "./scrolling.js";
+import { SCROLL_SLACK, atScrollEnd as atEnd, scrollToEnd } from "./scrolling.js";
 import { watchArrivals } from "./arrivals.js";
 import { authoredScope, pageDocument } from "./passages.js";
 import { compoundReadingRegionId, registerReadingRegion } from "./reading-regions.js";
@@ -68,9 +68,6 @@ import { compoundReadingRegionId, registerReadingRegion } from "./reading-region
 const BOUND = "data-lf-bound";
 const BOUNDED = `[${BOUND}]`;
 const FOLLOWING = `[${BOUND}="end"]`;
-// A box scrolled to within this of its end is at its end: fractional scroll positions
-// on scaled displays leave a pinned box a pixel short.
-const SLACK = 2;
 // Each block's hold, for the element's life, and the holds registered now.
 const holds = new WeakMap();
 const registered = new Set();
@@ -100,7 +97,7 @@ const following = (hold) =>
   !hold.left &&
   !(
     hold.pinned !== null &&
-    hold.box.scrollTop < hold.pinned - SLACK &&
+    hold.box.scrollTop < hold.pinned - SCROLL_SLACK &&
     !atEnd(hold.box)
   );
 

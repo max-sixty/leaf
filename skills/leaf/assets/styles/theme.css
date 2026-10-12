@@ -63,7 +63,7 @@
    A floor asks about the room its rule governs. Whether a margin resident (the rail, a
    contents map, a sidebar, a sidenote) stands in the margin is measured, since what it
    asks is the room the page's Layout and CSS left beside `main`: the margin pass writes
-   the answer on `main` (`settleResidency`, margin-layout.js) and the rules below key on
+   the answer on `main` (prepaint.js, `residency`) and the rules below key on
    it. A narrow column's facts ask `lf-shell` (640), one answering to the device, such as
    a phone's vertical rhythm, asks the window, and a package's widget asks its own box
    (references/packages.md).
@@ -282,9 +282,10 @@
   --note: 384px;
   /* A page thread's card is read as prose, so its preferred measure is the column's,
      720px at 17px, at the card's 14px face. A thread whose lines are shorter takes only
-     their width, down to the minimum. The minimum is what the room beside the words,
-     or past the margin cluster, must hold for the card, and the comment box before it,
-     to stand there (comment-placement.js). */
+     their width, down to the minimum. The minimum chooses whether the card and the
+     comment box before it fit beside their words. Clearing the margin cluster requires
+     the full preferred measure, so its controls never cost message width
+     (comment-placement.js). */
   --thread-card: 592px;
   --thread-card-min: 320px;
   /* A compact left margin for page-level wayfinding or reference. Unlike a sidenote,
@@ -292,7 +293,7 @@
      while the document moves, so the whole left edge is spoken for wherever it is in
      margin form. Its 240px box plus the ordinary 24px gutter is enough for short link
      labels without making a second prose column. The rule beside aside.sidebar spends
-     it; the margin pass decides when the page can afford it (`settleResidency`). */
+     it; the margin pass decides when the page can afford it (prepaint.js, `residency`). */
   --sidebar: 264px;
   /* A contents map at rest in the margin: its spine and the gutter beside it. */
   --map: 48px;
@@ -449,7 +450,7 @@
   --ok-tint: light-dark(#dfeddf, #1d2b1f);
   --ok-wash: color-mix(in srgb, var(--ok-tint) 52%, var(--paper));
   --ok-ink: light-dark(#2f6b40, #97cca3);
-  /* Green identifies the user's next move. Unread and agent progress keep the blue
+  /* Green identifies the user's turn. Unread and agent progress keep the blue
      accent, so neither can be mistaken for a request to the user. */
   --turn-wash: var(--ok-wash);
   --turn-ink: var(--ok-ink);
@@ -583,7 +584,7 @@ html:not([data-lf-live]) {
  * clipped and inserted after the title, and each of them takes the trim off the block the
  * user can actually see — so a settled option kept 13px under its last paragraph and a
  * block change kept 13 over its first, in exactly the widgets that build the most chrome.
- * The generated markers are the same pair the anchor pass reads (`GENERATED`, leaf.js),
+ * The generated markers are the same pair the anchor pass reads (`GENERATED`, passages.js),
  * because it is the same question: which of these words are the page's. That also
  * dissolves the sample's two arrangements into one, its "quoted ·" note being a
  * generated child on a live page and a pseudo-element on a page carrying no script.
@@ -835,13 +836,13 @@ html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) { disp
   padding: 4px 8px; border: 1px solid var(--border-2); border-radius: 6px;
   background: var(--card); color: var(--ink); }
 :where(select, input:not([type=checkbox], [type=radio], [type=range], [type=color],
-       [type=file], [type=button], [type=submit], [type=reset], [type=image])):is(.lf-ui, .field):focus-visible {
+       [type=file], [type=button], [type=submit], [type=reset], [type=image])):is(.lf-ui, .field)[data-lf-focus] {
   outline: var(--focus-ring); --lf-focus-ring: text-box; outline-offset: 0;
   border-color: transparent; }
 .lf-ui :is(input, textarea)::placeholder,
 :is(input, textarea):is(.lf-ui, .field)::placeholder { color: var(--muted); opacity: 1; }
-.lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input)):is(:focus, .lf-focus),
-:is(textarea, leaf-text).lf-ui:where(:not(.lf-fab-input)):is(:focus, .lf-focus) { outline: var(--focus-ring);
+.lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input))[data-lf-focus],
+:is(textarea, leaf-text).lf-ui:where(:not(.lf-fab-input))[data-lf-focus] { outline: var(--focus-ring);
   --lf-focus-ring: text-box; outline-offset: 0; border-color: transparent; }
 /* `main` has no layout until the page gives it one: a Layout class (layouts.css) or the
  * page's own CSS. What stays here is what Leaf's chrome coordinates with: the frame its
@@ -907,7 +908,7 @@ main {
 @property --lf-free-l { syntax: "<length>"; inherits: true; initial-value: 99999px; }
 @property --lf-free-r { syntax: "<length>"; inherits: true; initial-value: 99999px; }
 /* Registered so the runtime reads each margin resident's width in pixels, whatever
- * unit a page restates it in (margin-layout.js, `settleResidency`). */
+ * unit a page restates it in (prepaint.js, `residency`). */
 @property --rail { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --map { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --sidebar { syntax: "<length>"; inherits: true; initial-value: 0px; }
@@ -1428,7 +1429,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   background: var(--lf-entry-tint, var(--chip));
 }
 /* A disclosure says on its own contour and ink that it is about to open, or is open.
-   The keyboard says it too: the Page Map walk lands with :focus-visible, and a
+   The keyboard says it too: the Page Map walk lands with [data-lf-focus], and a
    disclosure the walk has reached is as much about to open as a hovered one. Status
    never reaches this rule, because inert status takes an interactive accent from
    neither pointer nor keyboard.
@@ -1437,14 +1438,14 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
    reached the first and not the second: the marker's selector carried one class more
    than the resting rule here, and the `…` carried exactly as many, so it lost on this
    sheet being adopted. One home for the state, and both say the same thing. */
-.lf-margin-entry[data-lf-behavior="disclosure"]:is(button, [role="button"]):is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded="true"]):not([aria-disabled="true"]) {
+.lf-margin-entry[data-lf-behavior="disclosure"]:is(button, [role="button"]):is(:hover, [data-lf-focus], [aria-expanded="true"]):not([aria-disabled="true"]) {
   border-color: var(--accent); color: var(--lf-entry-ink, var(--ink));
 }
 /* A selected page reading and its compact Page Map projection share one accent. Reuse
-   the entry's existing contour: category still owns its weight, and keyboard focus can
+   the entry's existing contour: category still owns its weight, and focus can
    add the one outer ring that says where input will land. */
 .lf-margin-entry[data-lf-target-selected] { border-color: var(--accent); }
-.lf-margin-entry:is(:focus-visible, .lf-focus-visible) {
+.lf-margin-entry[data-lf-focus] {
   outline: var(--focus-ring); --lf-focus-ring: margin-entry; outline-offset: 1px;
 }
 .lf-margin-entry[aria-disabled="true"] { cursor: default; }
@@ -1460,7 +1461,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   box-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
 }
 /* Margin and Page Map share the same attention reading. Blue is the ordinary
-   thread and work cue; green means the user owes a move, even when another thread
+   thread and work cue; green means it is the user's turn, even when another thread
    on the same carrier has active agent work. Progress stays in the status words and
    the one arrival pulse rather than competing for the attention color. */
 :where(.lf-margin-entry[data-lf-kinds~="comment"],
@@ -1531,21 +1532,21 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
 .lf-margin-projection .lf-margin-entry[data-lf-label-side] > .lf-margin-entry-label {
   inset: auto; left: var(--lf-label-x); top: var(--lf-label-y);
 }
-.lf-margin-entry:is(:hover, :focus-visible, .lf-focus-visible):not([aria-expanded="true"])
+.lf-margin-entry:is(:hover, [data-lf-focus]):not([aria-expanded="true"])
   > .lf-margin-entry-label {
   opacity: 1; visibility: visible; transform: translateY(0);
   transition-delay: 90ms;
 }
-/* A reaction held under a press says its word at once, as a keyboard destination does
+/* A reaction held under a press says its word at once, as a focused destination does
    below (held-word.js). */
 .lf-margin-entry[data-lf-held-word] > .lf-margin-entry-label {
   opacity: 1; visibility: visible; transform: translateY(0); transition: none;
 }
-/* A keyboard destination says its label at once. Besides avoiding a needless delay for
+/* A focused destination says its label at once. Besides avoiding a needless delay for
    the user, this keeps a contribution that is rebuilt while the margin projection settles
-   from restarting three paint-only transitions at time zero forever. Pointer discovery
+   from restarting three paint-only transitions at time zero forever. Hover discovery
    retains the short delay and reveal above. */
-.lf-margin-entry:is(:focus-visible, .lf-focus-visible):not([aria-expanded="true"])
+.lf-margin-entry[data-lf-focus]:not([aria-expanded="true"])
   > .lf-margin-entry-label {
   transition: none;
 }
@@ -1598,10 +1599,10 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
  * The body's ring is drawn inset instead, on a later box sharing its grid cell, as the
  * Threads list draws its own (chrome.css, .lf-threads-frame): an outline on the body
  * itself paints under whatever positioned content scrolls across its edges. */
-[data-lf-reading-role="pane"] > :not(header, footer):is(:focus-visible, .lf-focus-visible) {
+[data-lf-reading-role="pane"] > :not(header, footer)[data-lf-focus] {
   outline: none;
 }
-[data-lf-reading-role="pane"]:has(> :not(header, footer):is(:focus-visible, .lf-focus-visible))::after {
+[data-lf-reading-role="pane"]:has(> :not(header, footer)[data-lf-focus])::after {
   content: ""; grid-row: 2; grid-column: 1; z-index: 1; pointer-events: none;
   outline: var(--focus-ring); --lf-focus-ring: pane-body;
   outline-offset: calc(-1 * var(--focus-ring-w));

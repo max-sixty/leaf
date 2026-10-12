@@ -7,9 +7,13 @@ from .schema import RENDER_CHECKS_DIR
 
 RENDER_VIEWPORT = {"width": 1200, "height": 900}
 
-# The same patience Playwright gives browser waits. Keeping the server request timeout
-# beside it turns a wedged preview into a useful failure rather than an unbounded evaluate.
-SERVED_TIMEOUT_MS = 30_000
+# The bound on one probe or request, sized for an oversubscribed host rather than an idle
+# one: it separates a wedged preview, which it turns into a useful failure rather than
+# an unbounded evaluate, from a machine that has not got there yet. At Playwright's own
+# 30s, browser tests on a host stacked with other sessions' suites timed out in a
+# different place each run and passed alone, and each red run was re-run whole, adding
+# the load that failed it. A longer bound costs only a slower failure for a real hang.
+SERVED_TIMEOUT_MS = 120_000
 # How long a whole page handover may take before the page counts as wedged: the wait,
 # from navigation, for the page to state every readiness fact (`wait_until_ready`).
 # `SERVED_TIMEOUT_MS` bounds one request or one probe, and a handover is all of a
@@ -21,7 +25,7 @@ SERVED_TIMEOUT_MS = 30_000
 # weakens no claim, since the readiness facts say the same whenever they arrive; the
 # deadline only separates a page that never arrives from a machine that has not got
 # there yet.
-HANDOVER_DEADLINE_MS = 90_000
+HANDOVER_DEADLINE_MS = 240_000
 # How often a probe wait re-reads its fact. The waits poll on a timer rather than on
 # animation frames (see `_load_probes`), and most waits are a frame or a settle, so the
 # interval is added to what they wait for: at 16 ms, `one_frame` took about 22 ms where
@@ -45,7 +49,10 @@ _LOAD_PROBES = "route => globalThis.__leafRenderDriver?.load(route) ?? null"
 _PROBE = "call => globalThis.__leafRenderDriver.call(call)"
 _REQUEST_FRAME = "() => globalThis.__leafRenderDriver?.requestFrame() ?? null"
 _FRAME_PRESENTED = "asked => globalThis.__leafRenderDriver.framePresented(asked)"
-_RENDERING_SETTLED = "() => globalThis.__leafRenderDriver.renderingSettled()"
+_RENDERING_SETTLED = """facts => {
+  const state = globalThis.__leafRenderDriver.renderingState();
+  return (facts ?? Object.keys(state)).every(fact => state[fact]);
+}"""
 _THEME_READY = "() => globalThis.__leafRenderDriver.themeReady()"
 _PRE_UPGRADE_FINDINGS = "() => globalThis.__leafRenderDriver.preUpgradeFindings()"
 
@@ -154,11 +161,13 @@ def one_frame(page) -> None:
     _wait_for_driver(page, _FRAME_PRESENTED, requested, "no rendering update arrived")
 
 
-def rendered(page) -> None:
+def rendered(page, *, facts: tuple[str, ...] | None = None) -> None:
     """Wait until the runtime has rendered what the input so far asked for.
 
-    Its settled reading (runtime/rendering.js) says nothing it queued is waiting and its
-    last rendering update was quiet. A read after a coalesced repaint, however many
+    Its renderingState (runtime/rendering.js) says no registered preparation or queued
+    rendering is waiting and its last update was quiet. By default every fact must be
+    settled; an intermediate reader can select facts, such as updatesSettled while
+    deliberately holding a preparation. A read after a coalesced repaint, however many
     updates that repaint chains through, waits here instead of guessing a count. One
     whole update passes first, so a change no Leaf callback took part in — a wheel, a
     resize — has had its turn to unsettle the reading.
@@ -171,7 +180,7 @@ def rendered(page) -> None:
     they need no probe module, so they hold on a page served without one."""
     one_frame(page)
     _wait_for_driver(
-        page, _RENDERING_SETTLED, None, "the page's rendering never settled"
+        page, _RENDERING_SETTLED, facts, "the page's rendering never settled"
     )
 
 

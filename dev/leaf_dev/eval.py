@@ -44,20 +44,15 @@ from leaf_dev.arms import (
     child_class,
     claude_child,
     codex_home,
+    codex_program,
     environment,
+    install_codex_plugin,
 )
 from leaf_dev.leaf_assets import pinned_copy
 
 PROMPTFOO = ROOT / "node_modules/.bin/promptfoo"
 RUNS = ROOT / ".tmp/eval"
 SKILL_PREFIX = "Use the Leaf skill ($leaf in Codex; leaf:leaf in Claude Code).\n\n"
-
-
-def codex_program() -> Path:
-    """Resolve the host CLI used by Codex providers and plugin installation."""
-    if (installed := shutil.which("codex")) is None:
-        raise click.ClickException("Codex evals require the Codex CLI; install it")
-    return Path(installed).resolve()
 
 
 def context_case(source: dict, address: str) -> dict:
@@ -144,22 +139,12 @@ def native_provider(harness: str, payload: Path, work: Path) -> dict:
     }
     # The installer and provider use the same CLI. Installing the complete
     # plugin preserves discovery and skill references relative to the plugin root.
-    for args in (
-        ("plugin", "marketplace", "add", str(payload), "--json"),
-        ("plugin", "add", "leaf@leaf", "--json"),
-    ):
-        installed = subprocess.run(
-            [str(codex), *args],
-            cwd=work,
-            env=environment(**cli_env),
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if installed.returncode:
-            raise click.ClickException(
-                f"Codex plugin installation failed:\n{installed.stdout}{installed.stderr}"
-            )
+    try:
+        install_codex_plugin(codex, payload, cwd=work, env=environment(**cli_env))
+    except subprocess.CalledProcessError as error:
+        raise click.ClickException(
+            f"Codex plugin installation failed:\n{error.stdout}{error.stderr}"
+        ) from error
     return {
         "id": "openai:codex-app-server",
         "config": {
@@ -204,12 +189,14 @@ def workflow_provider(
     }
 
 
-def screenshot_judge(screenshots: Path, home: Path) -> dict:
+def screenshot_judge(screenshots: Path | None, home: Path) -> dict:
     """The Codex grader for an executor's `agent-rubric`s, run under a home of its own.
 
     Its permission profile lets it read the run's screenshot tree and nothing else,
     so neither a page's source, the author's transcript, nor a path naming the arm
-    reaches it. `:minimal` is the runtime paths tools need, which include the temp
+    reaches it. Passing None leaves evidence access to each call's isolated profile,
+    so an assertion can grant exactly one sample instead of the run's whole tree.
+    `:minimal` is the runtime paths tools need, which include the temp
     directories but not the repository. Codex starts its sandbox helper by executing
     itself, so the profile also grants the executable, run by its resolved path: a
     symlink's own location is refused. A profile replaces Codex's older sandbox
@@ -222,7 +209,7 @@ def screenshot_judge(screenshots: Path, home: Path) -> dict:
             "",
             "[permissions.screenshots.filesystem]",
             '":minimal" = "read"',
-            f'{json.dumps(f"{screenshots}/**")} = "read"',
+            *([f'{json.dumps(f"{screenshots}/**")} = "read"'] if screenshots else []),
             f'{json.dumps(str(codex))} = "read"',
             "",
         ]

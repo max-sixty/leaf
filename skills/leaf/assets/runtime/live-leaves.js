@@ -1,9 +1,9 @@
 /* This module derives the machine's immutable Leaves presentation and owns its walk. */
 import { clocked } from "./presence.js";
-import { pagePresented } from "./presentation.js";
+import { pagePresented } from "./page-paint.js";
 import { liveLeavesList, drawerIsOpen, othersPanel } from "./drawers.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
-import { activityFacts, countResponses } from "./banner.js";
+import { activityFacts } from "./banner.js";
 import { rowWalk } from "./walk-position.js";
 
 let others = [];
@@ -32,7 +32,7 @@ export const presentLeaves = () => liveLeavesList.present(presentationModel());
 // browser's, a row being a link, and the row says so with no `run` to give. The user
 // arrives here by key — `g L` lands focus on the first neighbour — so the scope names
 // what activating does rather than leaving it to the platform's own contract.
-export const othersLinks = () => [...othersPanel.querySelectorAll("a.lf-others-row")];
+const othersLinks = () => [...othersPanel.querySelectorAll("a.lf-others-row")];
 // Declared once the drawer is in the document (leaf.js): the drawer is drawers.js's, an
 // owner that imports this module back.
 export function declareLeavesKeys() {
@@ -92,31 +92,16 @@ function rowPresence(entry) {
 // overlap, so a title left on the line would answer the hover most likely to be asking
 // this question — a user pointing at the words that ran out of room — with the one
 // part of the account they can already read.
-const activityAccount = ({ counts }) => {
-  const parts = [];
-  if (counts.active) parts.push(`${countResponses(counts.active)} being worked on`);
-  if (counts.handling)
-    parts.push(`${countResponses(counts.handling)} owed on picked-up updates`);
-  if (counts.queued)
-    parts.push(`${countResponses(counts.queued)} owed on queued updates`);
-  if (counts.picked_up)
-    parts.push(
-      `${countResponses(counts.picked_up)} owed on picked-up updates; no current turn observed`,
-    );
-  if (counts.pending)
-    parts.push(`${countResponses(counts.pending)} owed on updates awaiting delivery`);
-  return parts.length ? parts.join("; ") : null;
-};
-
 const rowAccount = (entry, title, line) =>
   [
     title,
     entry.session_cwd,
     line,
-    // The same canonical agent obligations the line summarizes, expanded for the
+    // The rest of the canonical agent obligations the line summarizes, expanded for the
     // row's hover. A raw cursor count cannot say whether those words are queued,
-    // opened in this turn, or still waiting for delivery.
-    activityAccount(entry.activity),
+    // opened in this turn, or still waiting for delivery; the line already says the
+    // queued and pending ones.
+    activityFacts(entry).owed.join("; "),
   ]
     .filter(Boolean)
     .join("\n");
@@ -125,18 +110,8 @@ function renderOthersNow(state) {
   const offeredBefore = leavesOffered();
   // Null is the explicit pre-read state. It has no self presence to draw, and recovery
   // from a refused first reading must remove every row that candidate introduced.
-  // A closed leaf is not one of the machine's live pages and drops out of the drawer on
-  // the poll that says
-  // so: its server stays up so the page stays readable — a standing one for good —
-  // so nothing else would ever take the row off, and a count the user glances at
-  // to find who needs them would silently become a tally of everything that has run
-  // here. Judged by the `activity` the rows read. This page's own row is not in the
-  // list and so is never dropped: a user looking at a closed page is still looking at
-  // it.
-  others =
-    state === null
-      ? []
-      : state.others.filter((entry) => entry.activity.kind !== "closed");
+  // `others` holds live neighbours only: a closed one leaves it (presence.py).
+  others = state === null ? [] : state.others;
   // A neighbour's row is its page, keyed by `page_key`, and its link is wherever that
   // page is served now. A server restarted on another port keeps the row, and the focus
   // on it, where they were; only the destination changes.

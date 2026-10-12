@@ -74,6 +74,7 @@ import {
 import { scrollerFor } from "/runtime/reading-regions.js";
 import { boundedBlockOf } from "/runtime/bounds.js";
 import { pageScroller } from "/runtime/scrolling.js";
+import { pageDocument } from "/runtime/passages.js";
 import { arrivals, packRows, rowPosture, seatRows } from "./margin-placement.js";
 import { overlaps } from "/runtime/rect.js";
 import { pointBand } from "/runtime/pointed-place.js";
@@ -94,7 +95,7 @@ import {
   carriedAnchor,
   nameAnchor,
   scrollsWith,
-} from "/runtime/anchor-names.js";
+} from "/runtime/css-anchors.js";
 
 const rows = new Map();
 // A contents target's first shown part can leave while its declaration remains.
@@ -275,7 +276,7 @@ function scrollSources(node) {
 }
 
 // The margin follows `main` or, on a page without one, the body.
-export const marginColumn = () => document.querySelector("main") || document.body;
+export const marginColumn = () => pageDocument() || document.body;
 
 const railStands = (main) =>
   (main.getAttribute("data-lf-margin") ?? "").split(" ").includes("rail");
@@ -337,8 +338,9 @@ function restingRail() {
 // inside it if a pointing gesture named one (pointed-place.js): the row standing there
 // now where one is shown, else where a rail row would stand at rest, `--rail-hang` off
 // `main`'s edge and one entry wide, and nothing where the rail does not stand beside
-// `target`, whose rows are pins placed as they come. A comment's surfaces keep it clear
-// (comment-placement.js), so the row a sent comment brings stays in view.
+// `target`, whose rows are pins placed as they come. comment-placement.js keeps this
+// row clear when the full preferred message width fits beyond it; otherwise the
+// message takes priority over marker clearance.
 export function marginSpot(target, point = null) {
   for (const [row, options] of rows)
     if (
@@ -368,7 +370,7 @@ export function syncMarginResidency(changed) {
 }
 function paintPins() {
   if (!residencyStarted()) return;
-  const main = document.querySelector("main");
+  const main = pageDocument();
   layer?.root
     .closest(".lf-chrome")
     .toggleAttribute("data-lf-pins", !main || !railStands(main));
@@ -445,7 +447,7 @@ function placeMarginEntryLabel(control) {
 }
 
 const REVEALS_LABEL =
-  ':is(:hover, :focus-visible, .lf-focus-visible):not([aria-expanded="true"]), [data-lf-held-word]';
+  ':is(:hover, [data-lf-focus]):not([aria-expanded="true"]), [data-lf-held-word]';
 let labelPlacementFrame = 0;
 export function scheduleMarginEntryLabels() {
   if (labelPlacementFrame) return;
@@ -959,11 +961,11 @@ export function unregisterMarginRow(row) {
   scheduleMarginLayout();
 }
 
+// A style property written, or removed for null. The platform makes no write of a
+// value the property already holds (keeps.js).
 function setStyle(row, property, value) {
-  if (value === null) {
-    if (row.style.getPropertyValue(property)) row.style.removeProperty(property);
-  } else if (row.style.getPropertyValue(property) !== value)
-    row.style.setProperty(property, value);
+  if (value === null) row.style.removeProperty(property);
+  else row.style.setProperty(property, value);
 }
 
 // Whether a row has somewhere to stand: its target renders, its scrollers leave some of

@@ -7,6 +7,10 @@ permission bits, and serialize across Leaf processes and pages through a target 
 The comparison plus atomic replacement is not an OS compare-and-swap: an unrelated
 writer which ignores this lock can still race the final comparison and replacement.
 Symlinks introduced after binding are refused rather than followed to another file.
+
+A binding the page lacks, as in a copied page or the unbound worked example, is a
+designed state rather than a fault: a read answers it as no file, so the browser's
+console stays clean, and only a save against it refuses.
 """
 
 import hashlib
@@ -18,6 +22,7 @@ from stat import S_ISREG
 
 from .files import read_json
 from .leases import page_locked
+from .refusals import Refused
 from .schema import FILE_BINDINGS_FILE, HTML_NAME
 from .state import flocked, replace_bytes, state_home_path, write_json
 
@@ -25,8 +30,8 @@ MAX_FILE_BYTES = 256 * 1024
 BINDING_ID = re.compile(HTML_NAME)
 
 
-class FileBindingError(ValueError):
-    """An expected refusal, suitable for a CLI or HTTP response."""
+class FileBindingError(Refused):
+    """A file access this page's grants do not allow, or the file refuses."""
 
 
 class StaleFileError(FileBindingError):
@@ -55,12 +60,15 @@ def _bindings(page_dir: Path) -> dict:
     return record["bindings"]
 
 
-def _target(page_dir: Path, binding: str) -> Path:
+def _target(page_dir: Path, binding: str) -> Path | None:
     if not isinstance(binding, str) or not BINDING_ID.fullmatch(binding):
         raise FileBindingError("Invalid file binding id.")
-    raw = _bindings(page_dir).get(binding)
+    bindings = _bindings(page_dir)
+    if binding not in bindings:
+        return None
+    raw = bindings[binding]
     if not isinstance(raw, str) or not Path(raw).is_absolute():
-        raise FileBindingError(f"No file is bound as {binding!r}.")
+        raise FileBindingError("Invalid file bindings; bind the file again.")
     return Path(raw)
 
 
@@ -102,26 +110,38 @@ def _snapshot(path: Path, raw: bytes) -> dict:
 
 
 def bind_file(page_dir: Path, binding: str, file: Path) -> dict:
-    """Grant this page read/write access to one existing canonical text path."""
+    """Grant this page read/write access to one existing canonical text path.
+
+    The author named the path, so a path the system cannot reach or read is refused
+    in the system's own words, path included. The page's own storage failing is a
+    fault."""
     if not BINDING_ID.fullmatch(binding):
         raise FileBindingError(
             "Binding id must start with a lowercase letter and use lowercase letters, digits or -."
         )
-    path = file.expanduser().resolve(strict=True)
+    try:
+        path = file.expanduser().resolve(strict=True)
+    except OSError as error:
+        raise FileBindingError(str(error)) from error
     if path == (page_dir / FILE_BINDINGS_FILE).resolve():
         raise FileBindingError("A page cannot edit its own file access grants.")
     with page_locked(page_dir):
-        snapshot = _read(path)
+        try:
+            snapshot = _read(path)
+        except OSError as error:
+            raise FileBindingError(str(error)) from error
         bindings = _bindings(page_dir)
         bindings[binding] = str(path)
         write_json(page_dir / FILE_BINDINGS_FILE, {"bindings": bindings})
     return snapshot
 
 
-def read_file(page_dir: Path, binding: str) -> dict:
-    """Read the current file, never a cached document or browser buffer."""
+def read_file(page_dir: Path, binding: str) -> dict | None:
+    """Read the current file, never a cached document or browser buffer; None where
+    the page binds no file under this id."""
     with _access(page_dir):
-        return _read(_target(page_dir, binding))
+        path = _target(page_dir, binding)
+        return None if path is None else _read(path)
 
 
 def save_file(page_dir: Path, binding: str, posted: dict) -> dict:
@@ -134,6 +154,8 @@ def save_file(page_dir: Path, binding: str, posted: dict) -> dict:
         raise FileBindingError("Invalid file revision.")
     with _access(page_dir):
         path = _target(page_dir, binding)
+        if path is None:
+            raise FileBindingError(f"No file is bound as {binding!r}.")
         key = hashlib.sha256(os.fsencode(path)).hexdigest()
         locks = state_home_path() / "files"
         locks.mkdir(parents=True, exist_ok=True)

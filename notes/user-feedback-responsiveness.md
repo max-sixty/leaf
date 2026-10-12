@@ -63,7 +63,7 @@ Update these approximate readings when the samples there show a step has changed
 materially and stayed changed, not after one run.
 
 Other work has no universal budget. Status should change when the operation
-changes, without timer-driven chatter. Measure the hosted agent's status updates
+changes, without timer-driven chatter. Measure the hosted agent's status declarations
 as well as its reply so improving feedback does not delay the answer.
 
 ## Proposed improvements

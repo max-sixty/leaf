@@ -5,15 +5,10 @@ Delivery and status never need browser serialization, external data, or history.
 A serving context holds this result once; its browser selects the same objects.
 """
 
-from pathlib import Path
 from typing import NamedTuple
 
 from ..activity import canonical_activity, canonical_stream_reply
-from ..files import active_descriptor, list_revisions
-from ..presence import presence_with_activity
 from ..projection import FrozenThreadReading, page_reading
-from ..revision_artifact import read_revision
-from ..state import now_iso
 from ..tasks import TaskReading
 from ..work_reading import WorkReading
 
@@ -31,7 +26,7 @@ class WorkState(NamedTuple):
 
 
 # Delivery progress, furthest last. `answered` is only ever the retained failed
-# response, so within its category it is the furthest a move has come.
+# response, so within its category it is the furthest an update has come.
 _STAGE_RANK = {
     "sent": 0,
     "queued": 1,
@@ -48,7 +43,7 @@ def at_work(workflow: dict) -> bool:
 
 def _strength(workflow: dict) -> tuple:
     """How strongly a workflow speaks for any surface that shows one of several: a
-    move handed back to the user first, then work under way, then an uncertain or
+    update handed back to the user first, then work under way, then an uncertain or
     stopped one, then plain delivery; within each the further stage, then the newer
     input."""
     if workflow["condition"] is not None:
@@ -77,8 +72,8 @@ def served_workflows(
     `thread` is the thread the workflow stands in: a thread input's own, a widget
     frozen into a message's thread, or null for a page widget. `holds_thread` is
     whether it keeps that thread the agent's turn: every one of the thread's own
-    inputs, and a widget move frozen into it while the move is owed or the agent is
-    at work on it. A frozen move that owes nothing shows its receipt on
+    inputs, and a widget action frozen into it while the action is owed or the agent is
+    at work on it. A frozen action that owes nothing shows its receipt on
     its message and leaves the thread nobody's turn.
 
     The order is the one comparator: whatever shows one workflow of several, a
@@ -140,19 +135,3 @@ def work_state(
         else activity["workflows"]
     )
     return WorkState(durable, activity, workflows, reply, present)
-
-
-def live_work(page_dir: Path, events: list, *, now: str | None = None) -> WorkState:
-    """Read work inside the caller's transaction, without preparing a browser response."""
-    active = active_descriptor(page_dir, events)
-    present, stream = presence_with_activity(page_dir, events)
-    return work_state(
-        events,
-        read_revision(page_dir, active["revision"]) if active else None,
-        active["revision"] if active else None,
-        present,
-        now or now_iso(),
-        stream,
-        revisions=list_revisions(page_dir),
-        revision_reader=lambda previous: read_revision(page_dir, previous),
-    )

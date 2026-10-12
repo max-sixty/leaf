@@ -99,7 +99,7 @@ import {
 import { el, offer } from "/runtime/widget-elements.js";
 import { keeps, keepsHidden } from "/runtime/keeps.js";
 
-import { PRESS } from "/runtime/keyboard/bindings.js";
+import { PRESS, rowArrows } from "/runtime/keyboard/bindings.js";
 import { beginWalk, listWalkPosition, rowWalk } from "/runtime/walk-position.js";
 
 import { readingRegionFor } from "/runtime/reading-regions.js";
@@ -126,7 +126,7 @@ import { createMarginClusterViews } from "./margin-cluster-view.js";
 
 import { bannerControlDoor } from "/runtime/banner-toolbar.js";
 
-import { skipped } from "/runtime/geometry.js";
+import { seenRect, shownWindow, skipped } from "/runtime/geometry.js";
 
 import { hostIn, under } from "/runtime/shadow.js";
 import { retainUserIntent } from "/runtime/user-intent.js";
@@ -417,11 +417,11 @@ export function createMarginProjection({
     );
   }
 
+  // The rows in front of the user (`seenRect`): one under the banner or the bottom bar,
+  // or scrolled out of a pane, is no row the walk or the rail's way in may land on.
   function visibleRows() {
-    return availableRows().filter((row) => {
-      const box = row.getBoundingClientRect();
-      return box.bottom > 0 && box.top < innerHeight;
-    });
+    const clips = new Map();
+    return availableRows().filter((row) => seenRect(row, clips));
   }
 
   function clusterMarginEntries(host) {
@@ -450,7 +450,7 @@ export function createMarginProjection({
     const buttons = clusterMarginEntries(host);
     const at = buttons.indexOf(active);
     if (at < 0 || buttons.length < 2) return;
-    const direction = binding === "ArrowRight" ? 1 : -1;
+    const direction = binding === rowArrows(active)[1] ? 1 : -1;
     focusDestination(
       buttons[(at + direction + buttons.length) % buttons.length],
       "move",
@@ -625,18 +625,17 @@ export function createMarginProjection({
     const held = candidates.find(
       (row) => row === document.activeElement || row.tabIndex === 0,
     );
+    const room = shownWindow();
+    const distance = (row) => {
+      const box = row.getBoundingClientRect();
+      if (box.bottom < room.top) return room.top - box.bottom;
+      if (box.top > room.bottom) return box.top - room.bottom;
+      return 0;
+    };
     const next =
       focused ??
       held ??
-      candidates.reduce((best, row) => {
-        const distance = (candidate) => {
-          const box = candidate.getBoundingClientRect();
-          if (box.bottom < 0) return -box.bottom;
-          if (box.top > innerHeight) return box.top - innerHeight;
-          return 0;
-        };
-        return distance(row) < distance(best) ? row : best;
-      });
+      candidates.reduce((best, row) => (distance(row) < distance(best) ? row : best));
     holdTabStop(next);
   }
 
@@ -1493,9 +1492,9 @@ export function createMarginProjection({
 
   // The margin packs its rows a frame after anything moves them — a row registering,
   // the column resizing under a diagram that finished or a disclosure that opened — and
-  // the card keeps its row clear, as it stood when it opened. margin-layout.js says when
-  // it has moved the rows, and the card follows in that same frame, so a user never sees
-  // it standing over where its controls moved to.
+  // margin-layout.js says when it has moved the rows, and the card follows in that
+  // same frame. comment-placement.js clears the renewed row only where the full
+  // preferred message width fits beyond it; otherwise the message may cover it.
 
   // Standing selection belongs to the reading, not to focus or a particular feature's
   // control. Resolve it through the same inventory that decides which reading is the

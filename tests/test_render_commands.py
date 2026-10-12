@@ -46,6 +46,7 @@ from render_harness import (
     consume_browser_errors,
     example_media,
     leaf_page,
+    margins_laid_out,
     open_page,
     opened_tab,
     page_registry,
@@ -57,7 +58,7 @@ from render_harness import (
     shortcut_bar_text,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 def unnamed_browser():
@@ -609,6 +610,9 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
             "href",
             re.compile(re.escape(sources[state]) + "$"),
         )
+        expect(viewer.locator("img.pswp__img")).to_have_attribute(
+            "alt", f"{state}: the navigation rail"
+        )
         expect(viewer.locator(".lf-media-viewer-caption")).to_have_text(
             f"{state}: the navigation rail"
         )
@@ -641,10 +645,15 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
     shot.evaluate("node => node.setAttribute('alt', 'the updated rail')")
     expect(after).to_have_accessible_name("Open after image — the updated rail")
     after.click()
+    expect(viewer.locator("img.pswp__img")).to_have_attribute(
+        "alt", "after: the updated rail"
+    )
     expect(viewer.locator(".lf-media-viewer-caption")).to_have_text(
         "after: the updated rail"
     )
     page.keyboard.press("Escape")
+    expect(viewer).not_to_be_visible()
+    expect(after).to_be_focused()
 
     # Parent-owned inspectors select a mode through the widget's inspection API.
     shot.evaluate("node => node.inspect({mode: 'compare'})")
@@ -663,12 +672,95 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
     assert shown_frames(page) == ["before", "after"]
 
 
+@pytest.mark.parametrize("touch", [False, True])
+def test_a_wide_shot_owns_comparison_actions_in_its_native_rail(browser, serve, touch):
+    """One native rail owns endpoint actions, including in a narrow touch scroller."""
+    shot = (
+        f'<lf-shot id="wide-shot" alt="a captured inspector" '
+        f'before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>'
+    )
+    source = leaf_page(
+        "Inspect captured controls",
+        '<h1>Inspect captured controls</h1><div style="overflow-x:auto;inline-size:100%">'
+        f'<div style="inline-size:1280px;max-inline-size:none">{shot}</div></div>',
+        layout="wide",
+    )
+    page = open_page(
+        browser,
+        serve(source, media={SHOT_SRC[n]: data for n, data in SHOTS.items()}),
+        context=browser.new_context(
+            viewport={"width": 360 if touch else 1440, "height": 900},
+            has_touch=touch,
+            is_mobile=touch,
+        ),
+    )
+    widget = page.locator("#wide-shot")
+    rail = widget.locator(".lf-shotrail")
+    comparison = widget.locator("wa-comparison")
+    expect(comparison).to_be_visible()
+    rail.scroll_into_view_if_needed()
+    # Comparison chrome belongs to the rail and native divider. An extra floating
+    # endpoint action could cover a Close control baked into this captured image.
+    for state, position in (("before", "100"), ("after", "0")):
+        caption = rail.locator(f'.lf-shotcap[data-lf-state="{state}"]')
+        caption.tap() if touch else caption.press("Enter")
+        expect(comparison).to_have_attribute("position", position)
+        control = caption.bounding_box()
+        capture = comparison.bounding_box()
+        assert control["y"] + control["height"] <= capture["y"] + 0.5
+        margins_laid_out(page)
+        # With no annotations or external contributions, comparison actions belong
+        # only to the native rail/divider, not to a second margin projection.
+        expect(page.locator('[data-lf-margin-for="wide-shot"] button')).to_have_count(0)
+        if touch:
+            opener = rail.get_by_role(
+                "link", name=f"Open {state} image — a captured inspector"
+            )
+            opener.tap()
+            viewer = page.get_by_role("dialog", name="Image preview")
+            expect(viewer).to_be_visible()
+            page.keyboard.press("Escape")
+            expect(viewer).not_to_be_visible()
+            expect(opener).to_be_focused()
+            expect(comparison).to_have_attribute("position", position)
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+
+
+def test_a_shot_compares_pixels_inside_an_opaque_live_sample(browser, serve):
+    """Sample media grants pixel reads so comparison outlines can settle."""
+    after = solid_png(600, 300, (210, 220, 235), (200, 90, 100, 30, (20, 30, 40)))
+    after_url = f"/media/{hashlib.sha256(after).hexdigest()[:16]}.png"
+    source = leaf_page(
+        "Compare captured pixels in practice",
+        "<h1>Compare captured pixels in practice</h1>"
+        '<lf-sample id="practice" label="Practice comparison" window>'
+        '<template id="practice-source" data-sample>'
+        "<h1>Inspect the changed region</h1>"
+        f'<lf-shot id="sample-shot" outlines alt="a changed run list" '
+        f'before="{SHOT_SRC["before"]}" after="{after_url}"></lf-shot>'
+        "</template></lf-sample>",
+    )
+    page = open_page(
+        browser,
+        serve(source, media={SHOT_SRC["before"]: SHOTS["before"], after_url: after}),
+    )
+    sample = page.locator("#practice")
+    sample.evaluate("async sample => await sample.ready")
+    child = sample.locator("iframe").element_handle().content_frame()
+    assert child.evaluate("self.origin") == "null"
+    shot = child.locator("#sample-shot")
+    reading = shot.evaluate("async shot => await shot.difference")
+    assert reading["regions"]
+    expect(shot.locator(".lf-shotdelta")).to_have_text("1 changed area")
+    expect(shot.locator(".lf-shotdiff > span").first).to_be_visible()
+
+
 def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     """The live pair is continuously comparable, with direct endpoint alternatives.
 
     Pointer drag and the component's complete keyboard pattern move one divider. The
-    rail and the stable margin entry still jump to the named endpoints, while print
-    keeps the two complete frames and their order."""
+    rail jumps to the named endpoints, while print keeps the two complete frames
+    and their order."""
     url = serve(
         SHOT_PAGE,
         media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
@@ -681,28 +773,35 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
           if (document.body?.hasAttribute('data-lf-presented') &&
               window.__lfPresentedAt === undefined)
             window.__lfPresentedAt = performance.now();
-        }).observe(document, {attributes: true, subtree: true});"""
+        }).observe(document, {attributes: true, subtree: true});
+        new PerformanceObserver(list => {
+          for (const entry of list.getEntries())
+            if (entry.name.endsWith('/vendor/webawesome.esm.js'))
+              window.__lfComparisonRequestedAt = entry.startTime;
+        }).observe({type: 'resource', buffered: true});"""
     )
     page.goto(url)
     page.wait_for_function(
         "document.body.hasAttribute('data-lf-presented') && "
         "document.querySelector('lf-shot wa-comparison')"
     )
+    comparison = page.locator("lf-shot wa-comparison")
+    handle = comparison.get_by_role("scrollbar")
+    expect(handle).to_be_visible()
+    page.wait_for_function("window.__lfComparisonRequestedAt !== undefined")
     timing = page.evaluate(
         """() => ({
           presented: window.__lfPresentedAt,
-          loaded: performance.getEntriesByType('resource')
-            .find(entry => entry.name.endsWith('/vendor/webawesome.esm.js'))?.startTime,
+          requested: window.__lfComparisonRequestedAt,
         })"""
     )
-    assert timing["loaded"] >= timing["presented"]
+    assert timing["requested"] >= timing["presented"]
     rail = page.locator("lf-shot .lf-shotrail")
     expect(rail).to_have_count(1)
     expect(rail.locator(".lf-shotcap")).to_have_text(["before", "after"])
     before_bounds = rail.locator('[data-lf-state="before"]').bounding_box()
     after_bounds = rail.locator('[data-lf-state="after"]').bounding_box()
     assert before_bounds is not None and after_bounds is not None
-    comparison = page.locator("lf-shot wa-comparison")
     expect(comparison).to_have_attribute("position", "50")
     glyph = comparison.locator('[slot="handle"].lf-shot-handle')
     expect(glyph).to_have_count(1)
@@ -710,7 +809,6 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
         "node => [getComputedStyle(node).borderStyle, "
         "getComputedStyle(node).borderRadius]"
     ) == ["solid", "50%"]
-    handle = comparison.get_by_role("scrollbar")
     expect(handle).to_have_accessible_name("Before and after — the navigation rail")
     expect(handle).to_have_attribute("aria-valuetext", "Before 50%, after 50%")
     # Each half of the split shows the frame its rail caption names: the image the
@@ -806,12 +904,22 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     page.mouse.click(*image_point)
     expect(comparison).to_have_attribute("position", "100")
     comparison.evaluate("node => { node.position = 50; }")
-    handle.click()
-    expect(comparison).to_have_attribute("position", "50")
-
     before_caption = page.get_by_role(
         "button", name="before — the navigation rail", exact=True
     )
+    # A second finger does not replace the primary contact's input destination.
+    before_caption.focus()
+    handle.evaluate("""handle => handle.dispatchEvent(new PointerEvent('pointerdown', {
+      bubbles: true, composed: true, pointerId: 98, pointerType: 'touch',
+      isPrimary: false, button: 0
+    }))""")
+    expect(before_caption).to_be_focused()
+    handle.click()
+    expect(handle).to_be_focused()
+    expect(comparison).to_have_attribute("position", "50")
+    page.keyboard.press("ArrowRight")
+    expect(comparison).to_have_attribute("position", "51")
+
     after_caption = page.get_by_role(
         "button", name="after — the navigation rail", exact=True
     )
@@ -900,34 +1008,14 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
 
     comparison.evaluate("node => { node.position = 100; }")
     expect(comparison).to_have_attribute("position", "100")
-    button = page.get_by_role("button", name="Show after — the navigation rail")
-    expect(page.locator(".lf-margin-cluster").filter(has=button)).to_be_visible()
-    expect(button.locator(".lf-margin-entry-icon")).to_have_attribute(
-        "data-lf-icon", "compare-before"
-    )
-    button_bounds = button.bounding_box()
-    assert button_bounds is not None
-    button_at = (
-        button_bounds["x"] + button_bounds["width"] / 2,
-        button_bounds["y"] + button_bounds["height"] / 2,
-    )
-    page.mouse.click(*button_at)
-    expect(comparison).to_have_attribute("position", "0")
-    button = page.get_by_role("button", name="Show before — the navigation rail")
-    expect(button).to_be_focused()
-    assert "show before" in shortcut_bar_text(page)
-    expect(button.locator(".lf-margin-entry-icon")).to_have_attribute(
-        "data-lf-icon", "compare-after"
-    )
-    assert button.bounding_box() == button_bounds
-    page.mouse.down()
-    expect(button).to_be_focused()
-    page.mouse.up()
-    expect(comparison).to_have_attribute("position", "100")
-    page.keyboard.press("Enter")
-    expect(comparison).to_have_attribute("position", "0")
-    page.keyboard.press("Space")
-    expect(comparison).to_have_attribute("position", "100")
+    # The existing rail owns endpoint actions and retains focus after each press.
+    for state, position in (("after", "0"), ("before", "100")):
+        caption = page.locator(f'.lf-shotcap[data-lf-state="{state}"]')
+        caption.focus()
+        expect(caption).to_be_focused()
+        page.keyboard.press("Enter" if state == "after" else "Space")
+        expect(comparison).to_have_attribute("position", position)
+        expect(caption).to_be_focused()
 
     handle.focus()
     ring = handle.evaluate(
@@ -936,7 +1024,7 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
           width: cs.outlineStyle === 'none' ? 0 : parseFloat(cs.outlineWidth),
         }}"""
     )
-    assert ring["name"] == "shot" and ring["width"] > 0
+    assert ring["name"] == "comparison-handle" and ring["width"] > 0
 
 
 def test_a_tall_shot_drags_where_it_was_grabbed_without_moving_the_page(browser, serve):
@@ -1555,10 +1643,12 @@ def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path, headless_shell):
         )
         assert run.returncode == 1, run.stdout + run.stderr
         # "needs Playwright" here would mean the shim dispatched the plain `uv run`.
-        # The report names the widget and gives the renderer's reason, not the source.
+        # The report names the widget and gives the renderer's reason.
         assert "Error: page code reported 1 error" in run.stderr
         assert '<lf-diagram id="d-broken"> failed:' in run.stderr
-        assert "is unsupported" in run.stderr
+        assert "No diagram type detected" in run.stderr
+        assert "/widgets/lf-diagram.js:" not in run.stderr
+        assert "leaf-unsupported" not in run.stderr
         assert "Ada,Review,3" not in run.stderr
 
 

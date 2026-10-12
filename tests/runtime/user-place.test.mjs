@@ -1,16 +1,22 @@
 /* The user's place in a scroller, and the band of it they can see.
 
    The folds (which candidate holds the place, how far a correction scrolls) are asked
-   directly. The hold itself is asked over boxes this file
-   states, since happy-dom lays nothing out: a node the render replaced hands the place
-   to the node now rendered under its identity, and a synchronous hold lands its
-   reference whatever the browser's own anchoring did first. */
+   directly. The hold itself, and when focus marks the place, are asked over boxes this
+   file states, since happy-dom lays nothing out: a node the render replaced hands the
+   place to the node now rendered under its identity, a synchronous hold lands its
+   reference whatever the browser's own anchoring did first, and focus scrolled away or
+   riding in a stuck header names no place. */
 
 import assert from "node:assert/strict";
 import test from "node:test";
 
 import { pointerAt } from "/runtime/pointer.js";
-import { placeCandidates, placeCorrection, placeKeeper } from "/runtime/user-place.js";
+import {
+  focusedInView,
+  placeCandidates,
+  placeCorrection,
+  placeKeeper,
+} from "/runtime/user-place.js";
 
 test("the place follows the most recent named item, then visible items", () => {
   const visible = ["a", "b", "c", "d"];
@@ -163,6 +169,34 @@ test("a hold names only a visible focus or pointer target", () => {
     document.elementFromPoint = originalHitTest;
     scroller.remove();
   }
+});
+
+test("focus marks the place while some of it shows, and never from a stuck header", () => {
+  const { scroller, item, scrollTo } = laidOut();
+  const [first, second] = [item("a", 1000), item("b", 1250)];
+  first.tabIndex = 0;
+  // A heading sticking at the scroller's top, which holds it at its own place until
+  // its section scrolls past that top.
+  const heading = document.createElement("h2");
+  heading.tabIndex = 0;
+  heading.style.position = "sticky";
+  heading.style.top = "0px";
+  heading.getBoundingClientRect = () =>
+    new DOMRect(0, Math.max(second.getBoundingClientRect().top, 0), 300, 20);
+  second.append(heading);
+  scroller.append(first, second);
+
+  scrollTo(1000);
+  first.focus();
+  assert.equal(focusedInView(), first);
+  scrollTo(3000);
+  assert.equal(focusedInView(), null, "focus scrolled away still named the place");
+
+  scrollTo(1000);
+  heading.focus();
+  assert.equal(focusedInView(), heading);
+  scrollTo(1300);
+  assert.equal(focusedInView(), null, "a stuck heading named the place it rides over");
 });
 
 test("a wheel leaves the precise pointer position intact", () => {

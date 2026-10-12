@@ -17,10 +17,11 @@ Write semantic HTML and use the registry's elements and class idioms. The vendor
 theme owns palette, type, spacing, headings, tables, code, and widget presentation.
 Use a page-local `<style>` only for presentation unique to this page.
 
-Read the shared author instructions before choosing vocabulary:
+Read the shared author instructions, when the page's packages carry any, before
+choosing vocabulary:
 
 ```bash
-leaf page instructions <page> | jq -er '.author'
+leaf page instructions <page> | jq -r '.author // empty'
 ```
 
 `<page>/registry.json` is the vocabulary `page init` vendored; a
@@ -46,7 +47,7 @@ Before writing markup, read the composed author instructions for the entries you
 will use, including examples you copy:
 
 ```bash
-leaf page instructions <page> --use lf-options --use .eyebrow | jq -er '.author'
+leaf page instructions <page> --use lf-options --use .eyebrow | jq -r '.author // empty'
 ```
 
 Each repeated `--use` selects an element or idiom. The command includes shared
@@ -390,20 +391,11 @@ styles and geometry. Exact comments, Questions, decisions, Undo, live revisions 
 drawing capture still use the shared Leaf mechanisms. Changing the selection
 replaces the document through the ordinary revision lifetime.
 
-When the task needs conversations and actions kept in an independent region
-("Bounds and widths"), place one empty
-`<lf-annotation-rail id="annotations"></lf-annotation-rail>` there. It grows with
-its rows; where the page's CSS bounds its height, as a workspace region does, it
-scrolls inside that box. At narrow widths, give it a place the user can reach by
-touch and keyboard. Leaf supplies native disclosures,
-reply editors, action controls and retained reading; the page supplies their layout.
-Widget-local conversations keep their exact seats before the page rail takes
-remaining targets. The Threads panel remains the complete conversation index.
-
-Omitting the rail is valid. Comments open in Threads, and selection offers the
-banner's Comment on selection control. A custom package can supply the same
-page presentation through "Page annotation presentation" in `module-authoring.md`;
-do not reconstruct the event log or annotation inventory in page code.
+With nothing more, comments open in Threads, which remains the complete
+conversation index, and selection offers the banner's Comment on selection control.
+A page or package that shows conversations and actions in its own layout registers
+a presentation through "Page annotation presentation" in `module-authoring.md`; do
+not reconstruct the event log or annotation inventory in page code.
 
 ## Draw the subject
 
@@ -465,6 +457,9 @@ Widget attributes carry scalars; children carry prose; a titled compound member 
 leading `<strong>`. A data-bodied widget such as `lf-code` holds escaped
 notation in `<pre>`, because its whitespace is part of the data. Escape `&`
 first, then `<` and `>`; any other order can silently decode entity text.
+
+Format filenames and paths as inline code, using backticks in Markdown and
+`<code>` in HTML; use an authored link when the file has a known destination.
 
 Display source snippets as `<pre><code class="language-javascript">…</code></pre>`,
 or `lf-code language="javascript"` for a line-numbered walkthrough, naming the actual
@@ -741,9 +736,9 @@ Longer asides belong in prose, a disclosure, or a sidenote.
 
 ## Pre-handover review
 
-Step 3 of the main skill's "Operate" decides when a page takes this review. Every
-source activation already runs the deterministic markup check; this review adds the
-browser gate and a reading:
+The main skill's "Quick pages and records" step decides when a page takes this review.
+Every source activation already runs the deterministic markup check; this review adds
+the browser gate and a reading:
 
 ```bash
 leaf page check <page> --render
@@ -779,7 +774,7 @@ as `q` reaches it from the top, which is how a user working the page meets each
 question. At each arrival, confirm that the question, shared premise, alternatives,
 and evidence that distinguishes them are visible together, the displayed numbers
 match the available actions, and the next press of `q` reaches the next thing waiting
-on the user (an open Question, a thread whose question is theirs, or a move to send again)
+on the user (an open Question, a thread whose question is theirs, or an update to send again)
 while the complete page remains visible.
 
 Without a way to inspect the rendered page, read `leaf page state <page>`'s

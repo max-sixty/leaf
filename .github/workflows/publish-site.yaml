@@ -15,32 +15,29 @@ on:
       # from the kernel and bundled package alike — a change to either
       # is a change to what a visitor loads.
       - 'skills/leaf/**'
+      # The hosted agent installs the complete prepared plugin, including its
+      # harness registrations and skill discovery manifests.
+      - 'hooks/**'
+      - '.agents/plugins/**'
+      - '.claude-plugin/**'
+      - '.codex-plugin/**'
+      - '.claude/skills/developing-leaf/**'
+      - '.claude/skills/ui-sweep/**'
       - 'bin/leaf'
       - 'pyproject.toml'
       - 'uv.lock'
       - 'leaf-assets.json'
-      - 'dev/pyproject.toml'
-      - 'dev/leaf_dev/__init__.py'
-      - 'dev/leaf_dev/browser.py'
-      - 'dev/leaf_dev/arms.py'
-      - 'dev/leaf_dev/example_data.py'
-      - 'dev/leaf_dev/journey.py'
-      - 'dev/leaf_dev/leaf_assets.py'
-      - 'dev/leaf_dev/page_fixtures.py'
-      - 'dev/leaf_dev/preview.py'
-      - 'dev/leaf_dev/review_scenario.py'
-      - 'dev/leaf_dev/site.py'
-      - 'dev/leaf_dev/cli.py'
-      - 'dev/leaf_dev/distribution.py'
-      - 'dev/leaf_dev/verify_site.py'
-      - 'dev/leaf_dev/verify_site_browser.js'
+      # The site build and the deploy gate that verifies it are leaf_dev code.
+      - 'dev/**'
       - 'worker/**'
-      - 'build/runtime-bundle.mjs'
-      - 'build/browser/build.mjs'
+      # The site build compiles the runtime through build.mjs, which loads the
+      # rest of build/ (the bundle table, its entries and the registry generators).
+      - 'build/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - 'Dockerfile.website'
+      - 'Dockerfile.website.dockerignore'
       - '.github/workflows/publish-site.yaml'
   workflow_dispatch:
 

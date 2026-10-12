@@ -132,7 +132,7 @@ test("publisher refuses untrusted paths, foreign builds and non-dependency sourc
     assert.equal(calls.length, 0);
   }
   for (const options of [
-    { extra: ["build/vendor.py"] },
+    { extra: ["build/vendor.mjs"] },
     { lock: "package-lock.json" },
     { lock: null, extra: ["package.json", "pnpm-workspace.yaml"] },
   ]) {

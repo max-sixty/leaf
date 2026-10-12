@@ -42,10 +42,17 @@ import { tagsDeclaring } from "./registry.js";
 import { paintKeys } from "./keyboard/scopes.js";
 import { shownBox } from "./geometry.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
-import { iconElement } from "./icons.js";
+import { iconElement, iconTemplate } from "./icons.js";
 import { renderedParent } from "./shadow.js";
 import { keeps, keepsText } from "./keeps.js";
-import { Directive, PartType, directive, nothing } from "../vendor/browser-runtime.js";
+import {
+  Directive,
+  PartType,
+  directive,
+  nothing,
+  html,
+  render,
+} from "../vendor/browser-runtime.js";
 
 // A scroll target can sit inside a collapsed container — a closed <details>, an
 // inactive tab. Opening what the platform owns (details) and letting a container
@@ -444,17 +451,40 @@ document.addEventListener(
 // costs a printed page its words, and silently. Refusing throws where the widget
 // upgrades, which the console reports and the render gate reads back as a finding
 // — the loud direction, in front of whoever wrote the label.
-export function relabel(node, label, { says } = {}) {
+function markSaid(node, says) {
   if (typeof says !== "boolean" && says !== "echo")
     throw new TypeError(
-      `relabel(${label}): say whether this label is the page speaking — ` +
+      `Say whether this label is the page speaking: ` +
         `true, false, or "echo" for a copy of words it says elsewhere`,
     );
-  keepsText(node, label);
   keeps(node, "data-lf-gen", "1");
   node.toggleAttribute("data-lf-said", says === true);
   node.toggleAttribute("data-lf-echo", says === "echo");
 }
+
+export function relabel(node, label, { says } = {}) {
+  markSaid(node, says);
+  keepsText(node, label);
+}
+
+// Template labels declare the same speech and print contract as `relabel`, while Lit
+// owns their content: `<span ${said("echo")}>${title}</span>`.
+export const said = directive(
+  class extends Directive {
+    constructor(part) {
+      super(part);
+      if (part.type !== PartType.ELEMENT)
+        throw new TypeError("said belongs in a template's element part");
+    }
+    render() {
+      return nothing;
+    }
+    update(part, [says]) {
+      markSaid(part.element, says);
+      return nothing;
+    }
+  },
+);
 
 // A changing label reserves its widest words in its actual computed face. The shared
 // button rule reads --lf-reserved-width as a preferred size; the containing layout may
@@ -558,30 +588,17 @@ export function responseAction(
     control.setAttribute("aria-expanded", "false");
   if (behavior === "action") control.removeAttribute("aria-expanded");
   if (!control.hasAttribute("aria-label")) control.setAttribute("aria-label", label);
-  const [shownGlyph, , shownLabel] = control.children;
-  if (
-    shownLabel?.matches(".lf-response-action-label") &&
-    shownLabel.textContent === label &&
-    (icon
-      ? shownGlyph.dataset.lfIcon === icon
-      : shownGlyph.matches(".lf-response-action-glyph") &&
-        shownGlyph.textContent === glyph)
-  )
-    return control;
-  const glyphNode = icon ? iconElement(icon) : document.createElement("span");
-  if (!icon) {
-    glyphNode.className = "lf-response-action-glyph";
-    glyphNode.setAttribute("aria-hidden", "true");
-    glyphNode.textContent = glyph;
-  }
-  const spaceNode = document.createElement("span");
-  spaceNode.className = "lf-response-action-space";
-  spaceNode.setAttribute("aria-hidden", "true");
-  spaceNode.textContent = " ";
-  const labelNode = document.createElement("span");
-  labelNode.className = "lf-response-action-label";
-  labelNode.textContent = label;
-  control.replaceChildren(glyphNode, spaceNode, labelNode);
+  render(
+    html`${
+        icon
+          ? iconTemplate(icon)
+          : html`<span class="lf-response-action-glyph" aria-hidden="true"
+              >${glyph}</span
+            >`
+      }<span class="lf-response-action-space" aria-hidden="true"> </span
+      ><span class="lf-response-action-label">${label}</span>`,
+    control,
+  );
   return control;
 }
 

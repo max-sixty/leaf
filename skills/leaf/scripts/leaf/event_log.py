@@ -10,6 +10,8 @@ from copy import deepcopy
 from pathlib import Path
 
 from leaf.files import file_stamp, next_reading, read_json
+from leaf.refusals import Refused
+from leaf.registry.kernel import kernel_event_ownership
 from leaf.schema import CURSOR_FILE
 from leaf.state import EVENTS_FILE, flocked, now_iso
 
@@ -44,46 +46,35 @@ def jsonl_line(event: dict) -> str:
     return line
 
 
-class EventRefused(ValueError):
+class EventRefused(Refused):
     """The append door turned one event down, with what to do about it.
 
     Raised by `event_contracts.append_admitted`, the one door every writer
-    appends through. It lives beside the log rather than beside the gates so that
-    a layer between a writer and the file — `contract_writer`, which answers a
-    command's refusal — can name one without importing the contracts. `user` is
-    what the browser shows the person whose gesture it was: the reason itself,
-    unless the gate worded it for them (`Refusal`)."""
-
-    def __init__(self, reason: str):
-        super().__init__(reason)
-        self.user = getattr(reason, "user", reason)
+    appends through, and answered by the browser's endpoint as an event rejection."""
 
 
-class Refusal(str):
-    """A gate's reason with separate words for the user whose gesture it refuses,
-    where the reason names internals that user never sees."""
-
-    user: str
-
-    def __new__(cls, reason: str, user: str):
-        refusal = super().__new__(cls, reason)
-        refusal.user = user
-        return refusal
-
-
-class AttemptConflict(ValueError):
+class AttemptConflict(Refused):
     """One browser attempt was reused for a different event payload."""
 
 
+# The envelope the append lease itself assigns. Admission validates the complete
+# record, so pre-admission shape checks supply representative envelope fields.
+# Semantic admission allocates the real identity before folding the candidate.
+# A caller supplying an envelope field is held to the contract's reading of it.
+APPEND_STAMPED = {"id": "pending", "ts": "pending", "seq": 1}
+
+
 def _attempt_payload(event: dict) -> dict:
-    # Kind is part of the gesture. Only fields the append boundary itself assigns
-    # disappear from the equality check.
-    return {
-        key: value
-        for key, value in event.items()
-        if key
-        not in {"id", "ts", "author", "seq", "meaning", "attention", "publication"}
+    # Kind is part of the gesture. Only fields the server assigns disappear from
+    # the equality check: the append envelope, what admission derives, the author
+    # each writer stamps, and the publication a revision write names.
+    assigned = {
+        *APPEND_STAMPED,
+        *kernel_event_ownership()["derived"],
+        "author",
+        "publication",
     }
+    return {key: value for key, value in event.items() if key not in assigned}
 
 
 def _matching_attempt(events: list[dict], event: dict) -> dict | None:
@@ -119,15 +110,12 @@ def new_event_id(events: list[dict]) -> str:
             return candidate
 
 
-def _append_event_unlocked(f, event: dict, events: list[dict]) -> tuple[dict, bool]:
-    """Append while the caller holds this log file's exclusive lease."""
-    # Attempt identity is checked under the log's append lock. Checking before
-    # this point would leave two server threads free to observe absence together
-    # and append together. Content and time deliberately play no part: an
-    # intentional later identical message has a fresh attempt and is a second
-    # event.
-    if event.get("attempt") and (existing := _matching_attempt(events, event)):
-        return existing, False
+def _append_event_unlocked(f, event: dict, events: list[dict]) -> dict:
+    """Append while the caller holds this log file's exclusive lease.
+
+    Attempt identity is the append door's (`event_contracts.append_admitted`): it
+    reads the log under this same lease before its gates, so two server threads
+    cannot both observe an attempt's absence and append it twice."""
     if "id" in event:
         if _event_id_exists(events, event["id"]):
             raise ValueError(f"event id {event['id']!r} already exists")
@@ -152,7 +140,7 @@ def _append_event_unlocked(f, event: dict, events: list[dict]) -> tuple[dict, bo
     # The record as every reader reads it back: seq is its line number, which the
     # stored line does not carry.
     f.seek(0)
-    return {**event, "seq": f.read().count(b"\n")}, True
+    return {**event, "seq": f.read().count(b"\n")}
 
 
 def append_event(page_dir: Path, event: dict) -> dict:
@@ -163,8 +151,7 @@ def append_event(page_dir: Path, event: dict) -> dict:
     with flocked(log) as f:
         f.seek(0)
         events = _parse_events(f.read())
-        accepted, _appended = _append_event_unlocked(f, event, events)
-        return accepted
+        return _append_event_unlocked(f, event, events)
 
 
 def _parse_events(data: bytes, before: int = 0) -> list[dict]:
@@ -285,4 +272,4 @@ def cmd_events(page_dir: Path, after: int, *, follow: bool = False) -> None:
         os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
         sys.exit(0)
     except FileNotFoundError as error:
-        sys.exit(str(error))
+        raise Refused(str(error))

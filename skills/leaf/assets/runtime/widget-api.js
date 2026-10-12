@@ -94,7 +94,7 @@ export {
   threadActions,
 } from "./application.js";
 export { readThreads } from "./thread/state.js";
-export { threadSurface } from "./thread/surfaces.js";
+export { releaseOutlets, threadSurface } from "./thread/surfaces.js";
 export { watchThreads } from "./thread/watch.js";
 export { turns as threadTurns, threadSummary } from "./thread/model.js";
 export { threadInput } from "./thread/landing.js";

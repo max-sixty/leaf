@@ -77,6 +77,7 @@ from render_harness import (
     page_comment,
     panel_settled,
     primed,
+    reported_browser_errors,
     resized,
     round_trip,
     scroll_settled,
@@ -11326,21 +11327,73 @@ def test_a_thread_resolved_while_its_reply_is_written_keeps_the_user_on_it(
     expect(thread.locator(".lf-msg", has_text="Half tr a thought")).to_be_visible()
 
 
+def _seat_manifest(patch):
+    return {
+        "files": [
+            {
+                "path": "app.py",
+                "kind": "patch",
+                "additions": 1,
+                "deletions": 1,
+                "patch": patch,
+            }
+        ]
+    }
+
+
+def _refused_file(serve, page):
+    """The file's next deferred patch fails to load, so its error box takes the place
+    of the lines it had."""
+    page.route(
+        "**/api/deferred*",
+        lambda route: route.fulfill(status=500, json={"error": "unavailable"}),
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        _seat_manifest(SEAT_DIFF.replace('+return "new"', '+return "newer"')),
+    )
+    told(page)
+    expect(page.locator("lf-diff .lf-error")).to_contain_text("unavailable")
+    consume_browser_errors(page, "500")
+
+
+def _refused_patch(serve, page):
+    data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF + SEAT_DIFF)
+    told(page)
+    reported_browser_errors(
+        page, 'leaf: <lf-diff id="patch"> failed: unified diff repeats file path app.py'
+    )
+
+
 @pytest.mark.parametrize(
-    "patch",
+    "change",
     [
         SEAT_DIFF + "@@ -9 +9 @@\n-old = 1\n+new = 1\n",
         SEAT_DIFF.replace('+return "new"', '+return "newer"'),
+        SEAT_DIFF.replace("app.py", "other.py"),
+        _refused_file,
+        lambda serve, page: data_model.cmd_data_clear(serve.page_dir, "review-patch"),
+        _refused_patch,
     ],
-    ids=["elsewhere", "on-the-line"],
+    ids=[
+        "elsewhere",
+        "on-the-line",
+        "file-dropped",
+        "file-refused",
+        "source-cleared",
+        "patch-refused",
+    ],
 )
 def test_a_comment_being_written_on_a_diff_line_stays_in_hand_across_a_new_patch(
-    browser, serve, patch
+    browser, serve, change
 ):
     """The same drop one surface over: the comment box a diff seats on a line went
     with the rebuilt diff, and the user was left on the page. The draft stays about
     the patch it was written on, so the composer returns beside the diff and the user
-    goes on typing in it at the same caret."""
+    goes on typing in it at the same caret. That holds wherever the line goes: drawn
+    anew, dropped with its file, behind its file's or the whole patch's failure, or
+    with a source cleared."""
     url = serve(
         leaf_page(
             "diff",
@@ -11348,7 +11401,11 @@ def test_a_comment_being_written_on_a_diff_line_stays_in_hand_across_a_new_patch
             f'source="review-patch"><pre></pre></lf-diff>{SEAT_FILLER}',
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        _seat_manifest(SEAT_DIFF) if change is _refused_file else SEAT_DIFF,
+    )
     page = open_page(browser, url)
     line = page.locator(
         'lf-diff [data-line-type="change-addition"][data-lf-datum=\'["app.py","new",1]\']'
@@ -11366,10 +11423,14 @@ def test_a_comment_being_written_on_a_diff_line_stays_in_hand_across_a_new_patch
       window.blurs = 0;
       box.addEventListener('blur', () => window.blurs++);
     }""")
-    data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
+    if callable(change):
+        change(serve, page)
+    else:
+        data_model.cmd_data_set(serve.page_dir, "review-patch", change)
     told(page)
     expect(page.locator("lf-diff .lf-diff-thread-outlet")).to_have_count(0)
     expect(box).to_be_focused()
+    expect(box).to_be_in_viewport()
     expect(box).to_have_js_property("value", "Half a thought")
     assert box.evaluate("box => [box.selectionStart, box.selectionEnd]") == [4, 4]
     # The editor never leaves the document, so nothing has to put the user back.

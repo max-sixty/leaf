@@ -1400,7 +1400,11 @@ that is filtered, collapsed, or not yet hydrated. An outlet the widget stops ret
 typing in, until core moves it at commit. Remove such an outlet only from a function
 passed to `onCommit`, which runs once this batch's placement commits, and keep every
 returned outlet in the document when the widget redraws the data around it; moving an
-outlet with `move` keeps the user in it. Core maps each returned outlet to its target and validates target ownership
+outlet with `move` keeps the user in it. A widget that removes a node holding outlets
+outside `onCommit`, because its data went (a file dropped, a source cleared, a part
+or the whole widget replaced by `failSoft`'s box), first calls `releaseOutlets(node)`,
+ahead of any `holdFocus` around the removal: core's composer leaves every outlet under
+`node` at once, for where it would go once they are gone, and the user stays in it. Core maps each returned outlet to its target and validates target ownership
 and outlet containment before committing placements.
 Core moves its one composer node or renders retained messages, replies, reactions,
 settlement controls, and receipts into each outlet. A claimed thread does not also

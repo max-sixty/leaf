@@ -230,13 +230,20 @@ def test_the_render_gate_renders_each_scheme_viewport_and_margin_width_on_an_arm
 def test_the_render_gate_reports_trapped_margins_as_advice(browser, serve):
     """An author's inset and the heading's margin both count inside its selectable
     box. The report names the rendered sum without forbidding an intentional inset;
-    a card declaring edge trim keeps its padding and needs no advice."""
+    a card declaring edge trim keeps its padding and needs no advice.
+
+    On the same page, a widget that states the height its module draws at holds it
+    from first paint, so the gate has nothing to say about it; one stating none, or
+    another height, is told the height to state. And a row that fits the wide
+    viewport and spills from the compact one fails there alone, in both schemes."""
     source = leaf_page(
         "Authored block edges",
         """
 <style>
 @media (max-width:600px) { #compact-frame { padding:16px; } }
 @media (prefers-color-scheme:dark) { #dark-frame { padding:16px; } }
+@media (max-width: 600px) { #compact-overflow { width: 700px; } }
+lf-test-drawn { display: block; }
 </style>
 <h1>Audit</h1>
 <aside class="sidenote">This note introduces a margin viewport.</aside>
@@ -260,10 +267,32 @@ def test_the_render_gate_reports_trapped_margins_as_advice(browser, serve):
 </div>
 <section id="compact-frame"><h2 style="margin-block:32px 0">Compact inset</h2>Words</section>
 <section id="dark-frame"><h2 style="margin-block:32px 0">Dark inset</h2>Words</section>
+<lf-test-drawn id="reserved" data-height="120"></lf-test-drawn>
+<lf-test-drawn id="unreserved"></lf-test-drawn>
+<lf-test-drawn id="misreserved" data-height="40"></lf-test-drawn>
+<p id="compact-overflow">This row fits the wide viewport and spills from the compact one.</p>
 """,
     )
-    reading = render_gate_model.render_version(browser, serve(source, packages=()))
-    assert reading.failures == [], reading.failures
+    reading = render_gate_model.render_version(
+        browser,
+        serve(
+            source,
+            packages=(),
+            layer_registry=RESERVING_LAYER,
+            layer_widgets=RESERVING_WIDGETS,
+        ),
+    )
+    overflow = [f for f in reading.failures if "page scrolls sideways" in f]
+    assert len(overflow) == 2, reading.failures
+    assert all(
+        "(at 540x720)" in failure
+        and (failure in overflow or "compact-overflow" in failure)
+        for failure in reading.failures
+    ), reading.failures
+    assert {failure.split("]", 1)[0] + "]" for failure in overflow} == {
+        "[light]",
+        "[dark]",
+    }
     assert reading.margin_widths
     assert reading.advice == [
         (
@@ -299,6 +328,16 @@ def test_the_render_gate_reports_trapped_margins_as_advice(browser, serve):
             "drawn frame, or --lf-block-frame: trim for a transparent grouping; "
             "put spacing between "
             "selectable blocks in the parent's gap or outside margins (at 540x720)"
+        ),
+        (
+            "<lf-test-drawn id='unreserved'> draws 120px tall where its first paint "
+            "reserves no height, so what follows it moves when it is drawn: state "
+            'data-height="120"'
+        ),
+        (
+            "<lf-test-drawn id='misreserved'> draws 120px tall where its first paint "
+            "reserves 40px, so what follows it moves when it is drawn: state "
+            'data-height="120"'
         ),
     ]
 
@@ -392,35 +431,6 @@ def test_framing_advice_leaves_chrome_findings_to_leaf(browser, serve):
     ):
         assert any(line.startswith(f"<{tag} id={ident}> draws 16px") for line in advice)
     assert render_checks_model.evaluate_probe(page, "apparatusAmongAuthored") == []
-
-
-def test_the_render_gate_reports_a_defect_specific_to_the_compact_viewport(
-    browser, serve
-):
-    source = leaf_page(
-        "compact-only overflow",
-        """
-<style>
-@media (max-width: 600px) {
-  #compact-overflow { width: 700px; }
-}
-</style>
-<h1>Compact route</h1>
-<p id="compact-overflow">This row fits the wide viewport and spills from the compact one.</p>
-""",
-    )
-
-    failures = render_gate_model.render_version(
-        browser, serve(source, packages=())
-    ).failures
-
-    overflow = [failure for failure in failures if "page scrolls sideways" in failure]
-    assert len(overflow) == 2, failures
-    assert all("(at 540x720)" in failure for failure in overflow), overflow
-    assert {failure.split("]", 1)[0] + "]" for failure in overflow} == {
-        "[light]",
-        "[dark]",
-    }
 
 
 def _panel(name: str) -> str:
@@ -817,43 +827,6 @@ customElements.define('lf-test-drawn', class extends HTMLElement {
 });
 """
 }
-
-
-def test_a_widget_drawn_at_a_height_its_first_paint_did_not_reserve_gets_advice(
-    browser, serve
-):
-    """A widget that states the height its module draws at holds it from first paint,
-    so the gate has nothing to say about it; one stating none, or another height, is
-    told the height to state."""
-    source = leaf_page(
-        "reserved heights",
-        """
-<h1>Reserved heights</h1>
-<lf-test-drawn id="reserved" data-height="120"></lf-test-drawn>
-<lf-test-drawn id="unreserved"></lf-test-drawn>
-<lf-test-drawn id="misreserved" data-height="40"></lf-test-drawn>
-""",
-        head="<style>lf-test-drawn { display: block; }</style>",
-    )
-
-    reading = render_gate_model.render_version(
-        browser,
-        serve(source, layer_registry=RESERVING_LAYER, layer_widgets=RESERVING_WIDGETS),
-    )
-
-    assert reading.failures == []
-    assert reading.advice == [
-        (
-            "<lf-test-drawn id='unreserved'> draws 120px tall where its first paint "
-            "reserves no height, so what follows it moves when it is drawn: state "
-            'data-height="120"'
-        ),
-        (
-            "<lf-test-drawn id='misreserved'> draws 120px tall where its first paint "
-            "reserves 40px, so what follows it moves when it is drawn: state "
-            'data-height="120"'
-        ),
-    ]
 
 
 def test_the_pre_upgrade_proof_reads_the_held_authored_document(browser, serve):

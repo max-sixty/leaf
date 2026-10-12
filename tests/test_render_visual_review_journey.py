@@ -1180,7 +1180,6 @@ def test_visual_review_source_reorder_keeps_the_focused_case_draft(browser, serv
     page.keyboard.type("Keep this draft while the case order changes")
     page.keyboard.press("Shift+ArrowLeft")
     selection = field.evaluate("node => [node.selectionStart, node.selectionEnd]")
-    editor = field.element_handle()
     record = json.loads(VISUAL_REVIEW_GALLERY.with_suffix(".data.json").read_text())[
         "gallery-visual-run"
     ]
@@ -1195,9 +1194,13 @@ def test_visual_review_source_reorder_keeps_the_focused_case_draft(browser, serv
     expect(field).to_have_js_property(
         "value", "Keep this draft while the case order changes"
     )
-    assert field.evaluate("(node, old) => node === old", editor)
     assert (
         field.evaluate("node => [node.selectionStart, node.selectionEnd]") == selection
+    )
+    # The editor kept is the one typed into, so its undo history came with it.
+    page.keyboard.press("ControlOrMeta+z")
+    expect(field).not_to_have_js_property(
+        "value", "Keep this draft while the case order changes"
     )
 
 

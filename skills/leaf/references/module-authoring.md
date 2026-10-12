@@ -970,8 +970,11 @@ checks connection again before painting. Returning permits fresh scheduling; it 
 not replay cancelled work.
 
 Both helpers decide departures at the arrival mutation batch: a move within that
-batch retains resources. Teardown that must happen synchronously, such as cancelling
-a grab or removing hoisted dialog content, belongs in `disconnectedCallback`.
+batch retains resources. A connecting or returning element's `start` runs only after
+every element that left before it has released, so a widget a revision replaces hands
+a registration only one element may hold, such as `registerThreadPresentation`, to its
+replacement. Teardown that must happen synchronously, such as cancelling a grab or
+removing hoisted dialog content, belongs in `disconnectedCallback`.
 
 ## Data subscriptions and projections
 

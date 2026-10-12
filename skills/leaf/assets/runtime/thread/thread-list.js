@@ -4,8 +4,11 @@
    `renderThreads` drives, receipt updates among them, and the disclosure the browser
    drives when a user opens a card and the named group closes the one that was open.
    The hold is `user-place.js`'s, keyed by each card's thread; this module decides only
-   which changes take one. A resolution fold is followed frame by frame until it ends,
-   and its completion removes its node through `renderThreads`, under the same hold.
+   which changes take one. The open conversation stays the list's reading place even
+   when its title has scrolled above the visible band; a later card the user names by
+   pointer or focus takes precedence. A resolution fold is followed frame by frame
+   until it ends, and its completion removes its node through `renderThreads`, under
+   the same hold.
    A new agent turn, or growth of the last one, follows while the user has not named
    another card and the previous last message is visible in the panel's landing band.
    Where the list scrolls, that thread's tail must still reach the landing edge.
@@ -73,18 +76,15 @@ export function retainedThreadListProof(reason) {
   return reason.proof;
 }
 
-// The open threads, in the order t/T walk either surface. The panel's children are the
-// canonical list: folding a settled thread renames it out of this list in that frame.
-// With the panel shut the walk is the page's, whichever order the panel was left in.
+// The panel's thread cards, hidden ones included, which the queue walk finds a thread
+// among; with the panel shut, the open ones in the page's order, which t/T walk there,
+// whichever order the panel was left in. A folding card is renamed out of this list in
+// the frame its thread settles. The open panel's own walk is its list's (`walkRows`).
 export function createThreadListController({ panel, threadsBox, narrowingView }) {
-  const openThreads = ({
-    visibleOnly = true,
-    panelOpen = threadsBox.checkVisibility(),
-  } = {}) => {
+  const openThreads = () => {
+    const panelOpen = threadsBox.checkVisibility();
     const threads = [...threadsBox.querySelectorAll(":scope > .lf-thread")].filter(
-      (thread) =>
-        (!visibleOnly || !thread.hidden) &&
-        (panelOpen || thread.dataset.resolved !== "true"),
+      (thread) => panelOpen || thread.dataset.resolved !== "true",
     );
     return panelOpen ? threads : threadsBox.inPageOrder(threads);
   };
@@ -300,7 +300,6 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
       {
         card: {
           ...commands.card,
-          openThreads,
           listRoot: threadsBox,
           repaintThread: commands.repaintThread,
         },

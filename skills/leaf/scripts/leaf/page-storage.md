@@ -95,11 +95,11 @@ other page files and the external state listed below.
   event log remains the durable record of accepted decisions.
   Browser admission validates the diagnostic transport fields (timestamps,
   sequences, target paths, node identities, and split-record coordinates), while
-  observation types and other payload fields remain open. The reader reports
-  damaged stored rows and conflicting duplicates as `interaction_invalid`, with
-  their line, reason, and original record. Rows without a usable timestamp remain
-  visible under time filters as `unknown-time`; those without a usable session
-  remain visible under session filters.
+  observation types and other payload fields remain open. The reader trusts what
+  admission wrote: it skips a line a crash tore, keeps the first copy of a retried
+  row, and reassembles split records, marking a group whose parts join into no
+  entry as `interaction_unreadable`. Rows without a timestamp remain visible
+  under time filters as `unknown-time`.
 
 - `user-views.json` — replaceable per-document browser
   observations (`user_views.py`). These are author

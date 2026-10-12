@@ -18,12 +18,88 @@ the `codex queue` command, or a tool or Stop hook — so preparing, accepting, o
 and abandoning one live here rather than beside either client. The immutable
 payload itself belongs to `delivery`; what this module keeps is which task holds it and how far it has got.
 
+Each delivery has one globally addressed immutable envelope and one mutable record.
+The adapter and Codex's tool and Stop hooks capture into the same records under the
+session's delivery lock. Capture skips events already in any live record, an offer no
+transport has accepted yet included, and input collected after a record freezes
+belongs to a later delivery. The record's variant says how far it has got: capture
+(`collecting`), a frozen pointer (`offering`), an offer reserved to a hook's turn
+(`hook`), an uncertain provider start (`starting`), durable queue acceptance
+(`queued`), proven context entry (`opened`), or abandonment (`abandoned`). A frozen
+record keeps only the event identities its page receipts need. Recovery repeats an
+outcome's idempotent page effects before it removes each pending receipt, since the
+cursor alone cannot prove the exact pickup evidence was written. An outcome with no
+pending receipts moves under `history/`, including one a crash left in the live
+directory, and `leaf delivery read <id>` still resolves its envelope. Reinitializing a
+page path cannot revive a completed receipt, and a page whose events no longer match
+retires its old batch.
+
+A hook offer and the idle transport share each record. While a proven tool hook can
+reach the running claimant turn, the hook freezes a plain-reply pointer and records
+its offer's exact turn; Stop uses the same path, including for a resumed turn that
+runs no tool, and no hook repeats a pointer or takes an offer another transport owns.
+Reading the pointer in the task reserves acceptance before any page receipt. That
+exact reservation proves receipt eligibility even where no earlier tool hook proved
+delivery between steps, and the queue respects it while its turn stays eligible. An
+unread hook offer passes to the idle transport once Stop or Interrupt closes the turn,
+or once the activity reading stops believing the turn. Without an App Server
+observer, the idle transport is Codex's durable same-task queue, which receives the
+bounded id-only `leaf-delivery` pointer; a failed or uncertain queue call retries the
+same frozen pointer while the session owns a page, and the queue command never calls
+`turn/start`. With an observer, Leaf keeps the frozen delivery offering until the task
+is idle and then starts it directly. A tool-hook delivery during work owes a plain
+reply; an idle App Server delivery binds the turn's final message.
+
+A session that loses its final page leaves its collecting or offering record in place
+but inactive until the same session claims a page again. Acceptance has crossed the
+external-effect boundary, so an accepted record's remaining page receipts are
+reconciled before the adapter checks ownership and retires. If every website startup
+retry fails, its deterministic fallback settles the triggering event and removes the
+unaccepted record, while the immutable payload stays at its permanent path for a turn
+whose acceptance may have raced the failed response.
+
 Starting a delivery's App Server turn is shared as well: `start_app_server_delivery`
 makes the delivery's reply reservation (`delivery`), sends `turn/start`, and says
-whether a failed start may have left a turn running. Which delivery is offered,
-when, and what an uncertain start means for the turn it may have made are each
-client's own policy: the adapter's offer loop and the website's turn follower each
-keep theirs.
+whether a failed start may have left a turn running. Which delivery is offered, when,
+and what an uncertain start means for the turn it may have made are each client's own
+policy: the adapter's offer loop and the website's turn follower each keep theirs. The start returns the lifecycle
+publication it admitted, and both clients' folds retain its generation and provider ID
+through construction, activity and cleanup: a fold projects live activity only under
+the exact current publication with its matching turn open, under page→session locks,
+and cleans up under the matching publication after closure. A resumed new generation replaces an older live
+fold instead of borrowing it.
+
+A client that owns its task, as the website's host does, delivers the same immutable
+envelope with `turn/start` when the task is idle. The request carries the delivery id
+as its client message id, and App Server answers with the turn it made, so the starter
+knows its turn before reading a notification. The structured delivery also stays in
+the transcript, which is how a client that did not start a turn recovers the same
+binding: one resuming a task after the fact, or reading the turn a queued pointer
+opened. Once App Server accepts the turn, the host opens the claim turn under App
+Server's turn id, records the delivery against it, advances the page cursor, holds the
+task's wait lease for the container harness's lifetime, and keeps the initiating
+connection for activity. The pickup, the claim turn and streamed activity all name
+that one id, which Codex's own hooks name too, and a retry reads the durable pickup
+instead of starting the event again. Its subscription spans the active turn, the
+delivery turn's opening and that turn's terminal notification, recording both `opened`
+and the exact close, and a host that owns a starting connection closes only that turn
+on its terminal notification. A host owns the provider task and interrupts its turn
+when its initiating stream fails; the adapter observes a user-owned task and
+reconnects without interrupting it.
+
+An App Server client presents at most one thread reply in each turn's chronological
+delivery slice, with an exact response reference and `writer: "turn"`; once the turn's
+reply reservation holds it, its workflow keeps that reply operation and records that
+the turn writes it.
+The completed final-answer item finishes that exact response: the hook lets the
+provider turn close, and the client commits the provider text through the canonical
+reply writer when the terminal notification arrives. An explicit addressed reply
+commits at once through the same writer, so its validation refusals reach the agent
+while it can still correct them, and a provider final yields to a successful reply
+already recorded at its exact input. The reservation fences competing provider finals
+and failure receipts; it stores no authored content and survives a lost connection
+until commit or terminal release. `../../references/harness-codex-app-server.md`,
+"Replies", is the agent's side of this contract.
 
 Codex's hooks import this module between steps and before Stop for a task holding
 a page (`offer_hook_delivery`), so `thread`, which brings the page model and its validators,
@@ -140,11 +216,6 @@ def app_server_socket_path(endpoint: str) -> Path | None:
         "--app-server needs a local loopback ws:// endpoint or an absolute "
         "unix:/// socket"
     )
-
-
-def check_app_server_endpoint(endpoint: str) -> None:
-    """Keep the experimental unauthenticated transport on this machine."""
-    app_server_socket_path(endpoint)
 
 
 def app_server_connect(endpoint: str):

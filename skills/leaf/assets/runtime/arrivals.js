@@ -27,7 +27,9 @@
    An element's connection lifetime is one such watch over every element:
    `watchOwner(owner, {connect, disconnect})` connects while the owner stands and
    disconnects once a batch shows it gone, so a move within one batch keeps it. The
-   runtime's own subscriptions (data, projections, widget controllers) hold it directly.
+   runtime's own subscriptions (data, projections, widget controllers) hold it directly,
+   and the data and projection subscriptions paint through `readingPaint`, the one rule
+   for what a returning owner is drawn again.
    Widgets hold it through `whileConnected`, for resources, and `frameFor`, for
    scheduled paints, which `widget-api.js` exports in its place.
 
@@ -40,6 +42,7 @@
    host. */
 import { under } from "./shadow.js";
 import { cancelRender, nextRender } from "./rendering.js";
+import { clocked } from "./presence.js";
 
 const watches = new Set();
 const stages = new WeakSet();
@@ -141,6 +144,66 @@ export function frameFor(owner, run) {
       if (owner.isConnected) run();
     });
   };
+}
+
+/** The paint of one reading at a time, kept across the owner's departures. Calling
+ * `paint(key, ...args)` draws `draw(...args)` through `clocked`, unless `key` names
+ * the reading already painted: a return repaints only what changed while away. A drawn
+ * reading stands, failed or not, so a refusal is not reported twice; a draw whose
+ * returned promise does not settle while its owner stands was cut short, and the next
+ * call draws it again. Time readings pause while the owner is away and resume with
+ * it. `owes(key)` says whether `paint(key)` would draw, `forget()` owes the next call
+ * a draw, `refresh()` redraws the last reading, at once or on the return, and `stop()`
+ * retires the paint. Its owner's subscriptions stay the caller's. */
+export function readingPaint(owner, draw) {
+  const render = clocked(owner, draw);
+  let painted = false;
+  let key;
+  let pending = null;
+  let stopped = false;
+  const stopLifetime = watchOwner(owner, {
+    connect: () => render.resume(),
+    disconnect() {
+      render.stop();
+      if (pending) painted = false;
+      pending = null;
+    },
+  });
+  const owes = (next) => !painted || key !== next;
+  const paint = (next, ...args) => {
+    if (stopped || !owes(next)) return undefined;
+    // Claim the reading before drawing, so a synchronous failure or a re-entrant call
+    // cannot draw the same reading again.
+    painted = true;
+    key = next;
+    pending = null;
+    const result = render(...args);
+    if (typeof result?.then === "function") {
+      const mark = (pending = {});
+      const settled = () => {
+        if (pending !== mark) return;
+        pending = null;
+        if (!owner.isConnected) painted = false;
+      };
+      result.then(settled, settled);
+    }
+    return result;
+  };
+  paint.owes = owes;
+  paint.forget = () => {
+    painted = false;
+  };
+  // A refresh asked for while the owner is away is owed to its return.
+  paint.refresh = () => {
+    if (stopped) return undefined;
+    if (owner.isConnected) return render.refresh();
+    painted = false;
+  };
+  paint.stop = () => {
+    stopped = true;
+    stopLifetime();
+  };
+  return paint;
 }
 
 export function liveStages() {

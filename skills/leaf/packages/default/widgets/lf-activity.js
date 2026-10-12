@@ -191,6 +191,7 @@ customElements.define(
       for (const row of JSON.parse(drawing.reading.shown))
         this.#bind(this.#rows.get(row.id).item, row);
       this.#reading = new HeldReading(
+        this,
         () => [this.#notice, this.#list, this.#empty],
         () => this.#watching.refresh(),
       );
@@ -207,7 +208,6 @@ customElements.define(
       };
       whileConnected(this, (signal) => {
         paper.addEventListener("change", printing, { signal });
-        return () => this.#reading.dispose();
       });
       this.#watching = watchHistory(this, (history, { ready }) => {
         this.#ready = ready;

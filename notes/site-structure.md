@@ -45,5 +45,7 @@ Recommendation: adopt the reader-based routes above. The alternatives are keepin
 the current routes and regrouping their tabs, or rewriting every current page in
 place. A route change also updates the links between the site's pages,
 `PRODUCT_ROUTES`, the Worker's routing fixtures
-(`worker/test/index.test.ts`) and `tests/test_product_page.py`. Compare a rendered
-candidate before deciding.
+(`worker/test/index.test.ts`) and `tests/test_product_page.py`. Removing
+`/registry/` also needs a new page for the `x-` key index, which `leaf-dev keydocs`
+writes into `docs/registry.html` and a test in `tests/test_interact_product.py`
+checks is current. Compare a rendered candidate before deciding.

@@ -530,9 +530,9 @@ Revisit these when their stated trigger becomes real; they are not an active que
   support; test that list on a real table task before extending the protocol.
   Trigger: a page whose table the user needs to edit.
 - **#16 — Named widget interfaces:** let a typed reference name the interface its
-  target implements rather than a role in `$work.widgets`
-  ([proposal](notes/named-widget-interfaces.md)). Trigger: a second package
-  implements the same interfaces.
+  target implements rather than a role in its package's role table, such as
+  `$work.widgets` ([proposal](notes/named-widget-interfaces.md)). Trigger: a second
+  package implements the command `goal` or `readings` interface.
 - **Visual review beside Leaf:** coordinate a real browser target through the harness
   when review work needs it; expand inspection only when focused workspaces fail a
   real task.

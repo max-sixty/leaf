@@ -5,7 +5,7 @@ from hashlib import sha256
 from pathlib import Path
 from typing import NamedTuple
 
-from leaf.activity import answer_command
+from leaf.activity import answer_command, reply_command
 from leaf.delivery import (
     ReceiptRefused,
     current_responses,
@@ -554,17 +554,15 @@ def _resolve_obligation(
                 address.get("input") is None or failure is not None
             ):
                 refusal = f"event {for_event!r} is answered by this turn's messages; "
+                command = reply_command(expected, page_dir)
                 if failure is not None:
                     refusal += (
                         "failure receipts wait for this turn to release the answer; "
-                        "answer in your final message or use "
-                        "`leaf response reply <answer.ref>` without `--failure`"
+                        f"answer in your final message or use {command} without "
+                        "`--failure`"
                     )
                 else:
-                    refusal += (
-                        "use `leaf response reply <answer.ref>` to commit "
-                        "an explicit answer"
-                    )
+                    refusal += f"use {command} to commit an explicit answer"
                 raise Refused(refusal)
     else:
         standing = thread_obligation(events, responses, thread_id)

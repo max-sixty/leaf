@@ -95,8 +95,8 @@ page directory cannot serve, since a broken image posted to the log stays broken
 
 Every delivered answer carries an exact `ref`, qualified by the delivery and its
 page batch. Copy that complete value into `leaf response reply <answer.ref>`;
-no page path or message id is needed. Once delivered, the update's `answer` in
-`leaf page state` carries the same `ref`. A reply on a reference delivered before the
+no page path or message id is needed. While the session it was delivered to holds
+the page, the update's `answer` in `leaf page state` carries the same `ref`. A reply on a reference delivered before the
 user's newer correction does not answer that correction. The command refuses when
 the page's log was replaced or another session has claimed the page.
 

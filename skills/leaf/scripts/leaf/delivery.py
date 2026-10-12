@@ -284,11 +284,12 @@ def response_addresses(payload: dict) -> Iterator[dict]:
                 }
 
 
-def batch_refs(batch: dict) -> dict[str, str]:
+def batch_refs(batch: dict) -> dict[str, dict]:
     """The `answer.ref` one frozen envelope batch gives each input it owes an
-    answer, by input id."""
+    answer, by input id, with the claim the batch was captured under, which is the
+    only owner `post_reply` lets write at it."""
     return {
-        event["id"]: event["answer"]["ref"]
+        event["id"]: {"ref": event["answer"]["ref"], "claim": batch["claim"]}
         for event in batch["events"]
         if "answer" in event
     }
@@ -594,7 +595,7 @@ def record_pickup(
     session: str | None = None,
     turn: str | None = None,
     failure: str | None = None,
-    refs: dict[str, str] | None = None,
+    refs: dict[str, dict] | None = None,
 ) -> dict | None:
     """Durably record one delivery transition for exact attention-bearing inputs.
 
@@ -610,10 +611,11 @@ def record_pickup(
     events, while a retry of the same transition appends nothing.
 
     ``refs`` are the `answer.ref`s the receipt's envelope batch gave the inputs it
-    owes (`batch_refs`), which the record keeps for the inputs it names, so the
-    page's workflows can name each owed input's ref (`workflows`). A transition
-    that carries no envelope, such as the prompt re-presenting debt an earlier
-    receipt recorded, passes none.
+    owes, each with the claim the batch was captured under (`batch_refs`), which
+    the record keeps for the inputs it names, so the page's workflows can name each
+    owed input's ref to the owner who can use it (`activity._bind_receipt_refs`). A
+    transition that carries no envelope, such as the prompt re-presenting debt an
+    earlier receipt recorded, passes none.
     """
     claim = page.claim
     if session is None and claim:
@@ -621,24 +623,37 @@ def record_pickup(
     if phase == "opened" and turn is None and claim and claim["id"] == session:
         turn = claim["turn"]
     wanted = [event["id"] for event in events if requires_agent_attention(event)]
+    pickups = [event for event in page.events if event["kind"] == "pickup"]
     picked = {
         (event_id, event["phase"], event["session"], event["turn"])
-        for event in page.events
-        if event["kind"] == "pickup"
+        for event in pickups
         for event_id in event["events"]
     }
+    # Each input and claim some recorded ref was captured under.
+    referenced = {
+        (event_id, ref["claim"])
+        for event in pickups
+        for event_id, ref in event.get("refs", {}).items()
+    }
+    refs = refs or {}
+    # A transition already on record is recorded again only to give an input its
+    # first ref under a claim, as when a recovery reading re-delivers debt an older
+    # receipt, or an earlier owner's, left without one the page's owner can use,
+    # and the prompt has already re-presented it.
     fresh = list(
         dict.fromkeys(
             event_id
             for event_id in wanted
             if (event_id, phase, session, turn) not in picked
+            or (
+                event_id in refs
+                and (event_id, refs[event_id]["claim"]) not in referenced
+            )
         )
     )
     if not fresh:
         return None
-    carried = {
-        event_id: refs[event_id] for event_id in fresh if refs and event_id in refs
-    }
+    carried = {event_id: refs[event_id] for event_id in fresh if event_id in refs}
     from .event_contracts import append_admitted
 
     record, _ = append_admitted(

@@ -2709,6 +2709,7 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         "live_turn": None,
         "claim_session": "session-1",
         "claim_turn": "turn-1",
+        "cursor": 0,
         "turn_opened": old,
         "turn_closed": None,
         "turn_takes_input": False,
@@ -2790,6 +2791,7 @@ def test_fresh_exact_reply_supersedes_an_older_workflow_condition():
         "status": {"state": "idle", "ts": now.isoformat(), "detail": ""},
         "claim_session": "session-1",
         "claim_turn": "turn-1",
+        "cursor": 0,
         "turn_closed": None,
         "listening": True,
         "session_alive": True,
@@ -14004,6 +14006,11 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
         f"`leaf response reply {delivered_ref(claimed, asked['id'])}`"
     ) in reason
     assert "leaf thread reply <page>" not in reason
+    # A failure receipt waits for the turn, and its refusal names the same command.
+    ref = delivered_ref(claimed, asked["id"])
+    with pytest.raises(delivery_model.Refused) as refused:
+        thread_model.post_response(ref, "gave up", failure="turn_failed")
+    assert f"use `leaf response reply {ref}` without `--failure`" in str(refused.value)
     with service_model.PageTransaction(claimed) as page:
         page.clear_delivery_reply_reservation(session["id"], asked["id"], "a1")
 
@@ -18005,6 +18012,84 @@ def test_a_stale_stop_cannot_plan_or_continue_a_newer_turn(claimed, capsys):
     assert events_model.read_events(claimed) == before
     assert service_model.page_claim(claimed)["turn"] == "new"
     assert service_model.page_claim(claimed)["turn_closed"] is None
+
+
+def test_a_refusal_names_a_ref_only_while_its_owner_holds_the_page(
+    claimed, monkeypatch
+):
+    """A refusal on an owed message names the exact `answer.ref` its receipt
+    recorded. Once another session claims the page the reply writer refuses that
+    reference, so the refusal stops naming it and names the message instead: the
+    message was delivered, so `leaf wait` would not hand it out again."""
+    asked = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "why B?"}
+    )
+    earlier = delivery_through(claimed, last_deliverable_seq(claimed))
+    delivery_model.receive_delivery(earlier)
+    ref = delivered_ref(claimed, asked["id"])
+    reply = ["thread", "reply", str(claimed), asked["id"], "--text", "B"]
+    refused = CliRunner().invoke(cli_model.cli, reply)
+    assert refused.exit_code == 1
+    assert f"`leaf response reply {ref}` answers it" in refused.output
+
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s2")
+    assert service_model.claim_page(claimed)
+    refused = CliRunner().invoke(cli_model.cli, reply)
+    assert refused.exit_code == 1
+    assert ref not in refused.output
+    assert (
+        f"`leaf response reply <answer.ref>` for {asked['id']} answers it"
+        in refused.output
+    )
+
+    # A delivery captured under the new claim gives it a ref of its own, which a
+    # late receipt of the earlier owner's delivery neither hides nor records again.
+    receive_through(claimed, last_deliverable_seq(claimed))
+    successor = delivered_ref(claimed, asked["id"])
+    assert successor != ref
+    pickups = len(
+        [e for e in events_model.read_events(claimed) if e["kind"] == "pickup"]
+    )
+    delivery_model.receive_delivery(earlier)
+    assert delivered_ref(claimed, asked["id"]) == successor
+    assert pickups == len(
+        [e for e in events_model.read_events(claimed) if e["kind"] == "pickup"]
+    )
+
+
+def test_a_recovery_reading_records_the_refs_an_older_receipt_lacked(claimed, capsys):
+    """A receipt an older Leaf wrote carries no refs. The prompt re-presents the
+    owed message, recording its pickup in this turn, and hands a recovery reading
+    with fresh references; confirming that reading in the same turn records them,
+    though the transition itself is already on record."""
+    asked = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "why B?"}
+    )
+    [batch] = [
+        plan.batch for plan in hook_transport_model.read_plans("s1") if plan.batch
+    ]
+    with (
+        service_model.PageTransaction(claimed) as page,
+        delivery_model.receive_batch(page, batch, session_id="s1") as events,
+    ):
+        delivery_model.record_pickup(page, events, session="s1")
+    assert (
+        "ref"
+        not in delivery_model.current_responses(
+            claimed, events_model.read_events(claimed)
+        )[asked["id"]]
+    )
+
+    cleanup_model.prompt_turn("s1")
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    )
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    [recovery] = re.findall(r'<leaf-delivery id="(\w+)"', context)
+    delivery_model.receive_delivery(recovery)
+    assert delivered_ref(claimed, asked["id"]).startswith(f"{recovery}:")
 
 
 def test_hook_snapshot_serializes_receipt_and_reply(claimed, monkeypatch):

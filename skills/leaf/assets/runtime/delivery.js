@@ -31,7 +31,6 @@ export function createDelivery({
   applyAcceptedState,
   settleRejected,
   settlementChanged,
-  reportApplicationError,
 }) {
   let draining = false;
 
@@ -130,7 +129,7 @@ export function createDelivery({
           }
           settlementChanged(entry, accepted);
         } catch (error) {
-          reportApplicationError(error);
+          reportCarried(error, "event settlement");
         } finally {
           if (application) void application.finally(() => entry.resolve(accepted));
           else {

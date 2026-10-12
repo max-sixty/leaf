@@ -74,29 +74,42 @@ uv run pytest --lf --lfnf=none -x -n0
 uv run pytest --regtest-reset -n0 <node-id>
 ```
 
-Mark a test `nightly` when a pull request can land without it, including any test that
-needs the network; expense alone does not make a test nightly. Broad discovery skips
-nightly tests, and an explicit file, node id, `-k`, `-m`, or `--lf` runs what it
-names. Both landing gates pass `--nightly-changed-since`, which adds the nightly tests
-whose own lines the change edits.
+A test's tier is named for when CI runs it (`TIERS` in `conftest.py`):
+
+- **Unmarked** runs in every run, both landing gates and broad discovery included.
+- **`main`** runs on each push to main. Mark a test `main` when a pull request can
+  land without it, including any test that needs the network; expense alone does not
+  take a test out of the landing gates.
+- **`nightly`** runs only in the daily scheduled run and a manual dispatch. Mark a
+  `main` test `nightly` when it sweeps something broad, such as the whole example
+  corpus, so running it on every push costs more than learning of a break a day later.
+
+Broad discovery skips both marked tiers; `--run-main` adds the `main` tier and
+`--run-nightly` runs every tier. An explicit file, node id, `-k`, `-m`, or `--lf` runs
+what it names. Both landing gates pass `--changed-since`, which adds the marked tests,
+of either tier, whose own lines the change edits.
 
 Before handing over, run the tests that hold the behavior you changed, in any file and
-nightly ones included, named by node id or `-k`; find them by reading which tests
+any tier, named by node id or `-k`; find them by reading which tests
 exercise the code the change touches. Run `pnpm run test:runtime` too when the change
-reaches the runtime. A change lands only on a green landing gate, which runs the broad
+reaches the runtime. A change lands through a landing gate, which runs the broad
 selection: a pull request's `test` job, or `wt merge`'s pre-merge. A failure there
-that your selection missed is the gate doing its job; fix it and push. Every other
-nightly test is CI's to report: the `test` job in `ci.yaml` runs the complete suite
-once main moves, and `tend-ci-fix` answers what it fails. That trade is the user's
-choice (2026-10-04): a pull request can land green and break a nightly test it never
-ran, and main can stay red while `tend-ci-fix` repairs it, so a red main is no reason
-to widen a change, its gate, or its test selection. One complete suite always runs
-while newer commits land, and each new commit replaces the run waiting behind it,
-which GitHub records as cancelled. That is the design working: a suite per merge would
-report each commit slightly sooner at up to twenty times the CI usage. Don't run the
-broad selection, `--run-nightly`, `-m nightly`, or a whole browser file locally
-outside a landing: each takes minutes to over an hour and slows every other session on
-the machine. To learn what main fails, read that job's run, and reproduce a failure it
+that the change causes is the gate doing its job, even one your selection missed; fix
+it and push. A failure it doesn't cause, such as a test main's latest run also fails,
+blocks nothing and calls for no rerun: say so in the pull request and land it. `wt
+merge` refuses on any failure, so such a change lands through a pull request. Every
+other marked test is CI's to report: the `test` job in `ci.yaml` runs the `main` tier
+once main moves and every tier in the daily run, and `tend-ci-fix` answers what either
+fails. That trade is the user's choice (2026-10-04): a pull request can land green and
+break a marked test it never ran, and main can stay red while `tend-ci-fix` repairs it,
+so a red main is no reason to widen a change, its gate, or its test selection. One
+push suite always runs while newer commits land, and each new commit replaces the run
+waiting behind it, which GitHub records as cancelled; the daily run has a queue of its
+own. That is the design working: a suite per merge would report each commit slightly
+sooner at up to twenty times the CI usage. Don't run the broad selection,
+`--run-main`, `--run-nightly`, `-m main`, `-m nightly`, or a whole browser file
+locally outside a landing: each takes minutes to over an hour and slows every other
+session on the machine. To learn what main fails, read that job's run, and reproduce a failure it
 names by node id. `tend-ci-fix` sees only that run, so a failure on main that it does
 not show, such as one only macOS reproduces, is left to a local session. Check whether
 a live session, worktree or open pull request already covers it; if none does, start a
@@ -268,8 +281,9 @@ inside `lfUnwatched`.
 A layout shift the "Stability" rule in `skills/leaf/assets/AGENTS.md` forbids is one
 of those problems (`shift_watch.js`): a box that moves on screen without input, and
 typing that carries the field it types in, so every test in the broad selection checks
-both. Surveyed nightly tests opt in with `watch_shifts`; the rest await a fresh survey
-after the widget prepaint fixes (`render_harness.watches_shifts`). The watcher still
+both. Surveyed `main` and `nightly` tests opt in with `watch_shifts`; the rest await a
+fresh survey after the widget prepaint fixes (`render_harness.watches_shifts`). The
+watcher still
 exempts first presentation, whose remaining defects the widget quality check records
 in `known_widget_findings.py`. Playwright's clicks and keys are input, as is a
 viewport resize; a script's `click()`, a `value` written by script, and the server's
@@ -279,8 +293,8 @@ that window. Fix what moved rather than consuming the report; shift reports have
 per-test allowances.
 
 Typed words leaving the screen without a key or press, which the "Words stay where
-they were typed" rule forbids, is one too (`words_watch.js`), in every test, nightly
-included. A key that typed is editing rather than putting away, and a scroll, a
+they were typed" rule forbids, is one too (`words_watch.js`), in every test of every
+tier. A key that typed is editing rather than putting away, and a scroll, a
 resize, a script, and the server's news are none of them, so a test that closes a box
 must do it the way a user does.
 

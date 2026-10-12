@@ -122,8 +122,9 @@ leaf-website = { workspace = true }
 [tool.pytest.ini_options]
 addopts = "-n 2 --dist loadgroup --regtest-consider-line-endings --image-snapshot-save-diff -p leaf_dev.thread_snapshot_plugin -p leaf_dev.suite_profile"
 markers = [
-  "nightly: a pull request can land without it; `--run-nightly` runs it",
-  "watch_shifts: a surveyed nightly test also rejects unsolicited layout shifts and typing that carries its field",
+  "main: a pull request can land without it; each push to main runs it (`--run-main`)",
+  "nightly: a push to main skips it; the daily schedule runs it (`--run-nightly`)",
+  "watch_shifts: a surveyed `main` or `nightly` test also rejects unsolicited layout shifts and typing that carries its field",
 ]
 # A test still running after half an hour is hung, not slow: the slowest takes under
 # three minutes on CI, so even ten times slower it finishes. The worker prints every

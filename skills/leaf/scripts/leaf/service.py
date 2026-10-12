@@ -31,12 +31,10 @@ from leaf.state import (
     CLAIMED_SUFFIX,
     EVENTS_FILE,
     chat_exists,
-    close_session_turn,
     ensure_session,
     flocked,
     fsync_parents,
     now_iso,
-    open_session_turn,
     page_key,
     session_file,
     session_lock_path,
@@ -102,7 +100,7 @@ def publish_claim(page_dir: Path, claim: dict) -> None:
 # lifetime keys `claim_is_active` cascades on, and a `harness` whose value
 # `harness.claim_harness` looks up in `HARNESSES`.
 CLAIM_IDENTITY = frozenset(
-    {"page", "ts", "released", "id", "harness", "agent", "generation", "acquisition"}
+    {"page", "ts", "id", "harness", "agent", "generation", "acquisition"}
 )
 CLAIM_LIFETIMES = frozenset({"job", "chat", "pid"})
 
@@ -131,7 +129,6 @@ def readable_claim(claim: dict | None) -> dict | None:
         return {**claim, "turn": None, "turn_opened": None, "turn_closed": None}
     return {
         **claim,
-        "released": claim["released"] or record["ended"],
         **record["lifetime"],
         "turn": record["turn"],
         "turn_opened": record["turn_opened"],
@@ -140,7 +137,7 @@ def readable_claim(claim: dict | None) -> dict | None:
 
 
 def page_claim(page_dir: Path) -> dict | None:
-    """The page's last claim, including one released or whose lifetime ended."""
+    """The page's last claim, including one whose session or lifetime ended."""
     return readable_claim(read_json(claim_path(page_dir)))
 
 
@@ -151,7 +148,7 @@ def claim_is_active(claim: dict | None) -> bool:
     reading of that rule: cold hooks and the CLI both call it, so a harness that
     states its lifetime a new way joins here alone, beside the one constructor
     above that writes what this reads."""
-    if not claim or claim["released"] is not None:
+    if not claim:
         return False
     record = session_record(claim["id"])
     if (
@@ -169,8 +166,8 @@ def claim_is_active(claim: dict | None) -> bool:
 
 def claim_names_session(claim: dict | None, session_id: str) -> bool:
     """Whether the page is still `session_id`'s to record what its task took from
-    the page and answered there: the claim names that session, and neither a
-    release nor the session's end has let the page go.
+    the page and answered there: the claim names that session, and the session
+    has not ended.
 
     Unlike `claim_is_active`, this survives the session's own restart. A new
     lifetime begins its generation before it publishes that generation's claim,
@@ -178,7 +175,7 @@ def claim_names_session(claim: dict | None, session_id: str) -> bool:
     claim may name an older generation, or a lifetime that has gone, of a session
     still running. What that session's task received and answered stays its own
     to record; only another session's claim takes the page from it."""
-    if not claim or claim["id"] != session_id or claim["released"] is not None:
+    if not claim or claim["id"] != session_id:
         return False
     record = session_record(session_id)
     return record is not None and record["ended"] is None
@@ -367,26 +364,6 @@ class PageTransaction:
     def owned_by(self, harness: Harness | None) -> bool:
         """Whether this transaction may act for the given waiter."""
         return claimant_matches(self.active_claim, harness)
-
-    def release_claim(self) -> None:
-        claim = self.claim
-        if claim and claim["released"] is None:
-            write_json(
-                claim_path(self.page_dir),
-                {**read_json(claim_path(self.page_dir)), "released": now_iso()},
-            )
-
-    def close_turn(self, session_id: str, turn_id: str | None = None) -> None:
-        claim = self.claim
-        if claim and claim["id"] == session_id and claim_is_active(claim):
-            close_session_turn(session_id, turn_id)
-
-    def open_turn(self, session_id: str, turn_id: str | None = None) -> str | None:
-        claim = self.claim
-        if not claim or claim["id"] != session_id or not claim_is_active(claim):
-            return None
-        record = open_session_turn(session_id, turn_id)
-        return record["turn"] if record else None
 
     def note_messaged(self, ending: str) -> None:
         """Record that input reaching this page messaged its session after a turn
@@ -672,13 +649,9 @@ class PageTransaction:
         is the one caller — every writer reaches the log through that door, and
         nothing else here may append."""
         try:
-            accepted, appended = _append_event_unlocked(self._log, event, self.events)
-        except Exception:
+            return _append_event_unlocked(self._log, event, self.events)
+        finally:
             self._events = None
-            raise
-        if appended:
-            self._events = None
-        return accepted
 
     @property
     def cursor(self) -> int:
@@ -709,7 +682,6 @@ def prepare_claim(harness: Harness, page_dir: Path) -> dict:
     return {
         "page": str(page_dir),
         "ts": now_iso(),
-        "released": None,
         "id": harness.session,
         "generation": session["generation"],
         "acquisition": secrets.token_hex(16),

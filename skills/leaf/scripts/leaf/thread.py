@@ -234,8 +234,6 @@ def cmd_comment(
     # Reading a body may wait on stdin; do that before taking the page lease.
     body = read_text_arg(page_dir, text)
     with PageTransaction(page_dir) as page:
-        if title is not None and (refusal := title_refusal(page_dir, title)):
-            raise Refused(refusal)
         events = page.events
         revision, anchor = _current_anchor(
             page_dir, events, quote, section, part, transaction=page
@@ -255,7 +253,7 @@ def cmd_comment(
             event["markup"] = markup
         if title is not None:
             event["title"] = title
-        return append_admitted(page, event)
+        return append_admitted(page, event)[0]
 
 
 def is_answer(event: dict) -> bool:
@@ -321,6 +319,10 @@ def post_reply(
     """Post one complete threaded reply, optionally moving or detaching its anchor;
     the appended record, or the earlier reply a repeated `attempt` names, or none
     when `when_settled` leaves nothing to write.
+
+    A repeated ``attempt`` is matched more loosely than the append door's payload
+    identity: by kind, progress or answer, response address and declaration, so a
+    CLI retry whose text was reworded returns the first reply rather than refusing.
 
     ``for_event`` fences the write to the exact current obligation. Its response
     address may differ from ``to`` when a widget gesture belongs to a frozen
@@ -658,7 +660,7 @@ def post_reply(
 
             record = publish_checked_event(page, checked, event)
         else:
-            record = append_admitted(page, event)
+            record, _ = append_admitted(page, event)
         if in_hand is not None and page.status["state"] == "idle":
             page.set_status("waiting", "")
         return record
@@ -779,33 +781,6 @@ def _fail_markup_answer(
         return record_pickup(page, [update], phase="failed", failure=failure)
 
 
-@contract_writer
-def cmd_edit(page_dir: Path, to: str, text) -> dict:
-    """Append a text revision to one agent-authored message.
-
-    The message event is immutable: the edit points back to it, so the log retains
-    every wording while thread folds project the latest one. Markup stays frozen with
-    the original message because user actions may already rest on widgets it sent.
-    Admission refuses a message another voice wrote (`event_contracts._edit_error`).
-    """
-    from leaf.registry.storage import require_registry
-
-    body = read_text_arg(page_dir, text)
-    with PageTransaction(page_dir) as page:
-        require_registry(page_dir)
-        _message(page_dir, page.events, to)
-        return append_admitted(
-            page,
-            {
-                "kind": "edit",
-                "author": "agent",
-                **message_identity(),
-                "message": to,
-                "text": body,
-            },
-        )
-
-
 def title_event(thread: str, title: str, identity: dict) -> dict:
     """The `thread_title` event naming `thread`, in the voice of `identity`."""
     return {
@@ -817,44 +792,59 @@ def title_event(thread: str, title: str, identity: dict) -> dict:
     }
 
 
-def title_refusal(page_dir: Path, title: str) -> str | None:
-    """What admission would say of `title`, asked before a command posts the message
-    whose thread it names: a command that posts and names does neither when the name
-    is refused, rather than posting and then failing."""
-    from leaf.event_contracts import (
-        admitting_registry,
-        command_error,
-    )
-    from leaf.page_view import PageView
-
-    event = title_event("pending", title, message_identity())
-    registry = admitting_registry(PageView(page_dir), event, read_events(page_dir))
-    return command_error(event, registry["$events"]["kinds"])
-
-
 def name_untitled(page, thread: str, title: str, identity: dict) -> dict | None:
     """Append `thread`'s first title in the voice of `identity`, within the caller's
     page transaction, or nothing where it has one: a name given once stands until
-    someone renames the thread on purpose (`cmd_title`)."""
+    someone renames the thread on purpose (`cmd_edit`)."""
     if (
         build_threads(page.events, active_enclosing(page.page_dir))[thread]["title"]
         is not None
     ):
         return None
-    return append_admitted(page, title_event(thread, title, identity))
+    return append_admitted(page, title_event(thread, title, identity))[0]
 
 
 @contract_writer
-def cmd_title(page_dir: Path, thread: str, text: str) -> dict:
-    """Name the thread `thread` reaches without adding a turn or changing its
-    obligations."""
+def cmd_edit(
+    page_dir: Path, message: str, text, *, title: str | None = None
+) -> list[dict]:
+    """Append a text revision to one agent-authored message, rename the thread it is
+    in, or both, and return the records appended.
+
+    The message event is immutable: the edit points back to it, so the log retains
+    every wording while thread folds project the latest one. Markup stays frozen with
+    the original message because user actions may already rest on widgets it sent.
+    Admission refuses a message another voice wrote (`event_contracts._edit_error`).
+    A rename adds no turn and changes no obligation. Under one lease, the rename is
+    admitted before the edit is appended, so a refused title leaves the text unedited.
+    """
+    from leaf.event_contracts import admitted_event
+    from leaf.page_view import PageView
+    from leaf.registry.storage import require_registry
+
+    # Text comes from stdin when neither option gives it; read it before the lease.
+    body = read_text_arg(page_dir, text) if text is not None or title is None else None
     with PageTransaction(page_dir) as page:
-        return append_admitted(
-            page,
-            title_event(
-                thread_named(page_dir, page.events, thread), text, message_identity()
-            ),
-        )
+        require_registry(page_dir)
+        named = None
+        if title is not None:
+            thread = thread_named(page_dir, page.events, message)
+            named = title_event(thread, title, message_identity())
+            admitted_event(PageView(page_dir), page.events, named)
+        records = []
+        if body is not None:
+            _message(page_dir, page.events, message)
+            edit = {
+                "kind": "edit",
+                "author": "agent",
+                **message_identity(),
+                "message": message,
+                "text": body,
+            }
+            records.append(append_admitted(page, edit)[0])
+        if named is not None:
+            records.append(append_admitted(page, named)[0])
+        return records
 
 
 @contract_writer
@@ -873,7 +863,7 @@ def cmd_summarize(
     body = read_text_arg(page_dir, text, allow_empty=text == "")
     with PageTransaction(page_dir) as page:
         require_registry(page_dir)
-        return append_admitted(
+        record, _ = append_admitted(
             page,
             {
                 "kind": "summary",
@@ -886,6 +876,7 @@ def cmd_summarize(
                 **({"label": label} if label is not None else {}),
             },
         )
+        return record
 
 
 @contract_writer
@@ -901,7 +892,7 @@ def cmd_resolve(page_dir: Path, to: str) -> dict:
             **message_identity(),
             "parent": to,
         }
-        return append_admitted(page, event)
+        return append_admitted(page, event)[0]
 
 
 @contract_writer
@@ -938,4 +929,4 @@ def cmd_report(
             "detail": detail,
             "revision": require_revision(page_dir),
         }
-        return append_admitted(page, event)
+        return append_admitted(page, event)[0]

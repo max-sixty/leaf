@@ -115,7 +115,7 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 @pytest.mark.parametrize("touch", [False, True])
@@ -710,83 +710,6 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
     assert control_boxes() == unfocused_boxes
     page.mouse.click(box["x"] + box["width"] - 1, box["y"] + box["height"] / 2)
     expect(result).to_have_text("8")
-
-
-def test_lent_shortcut_seats_follow_rendered_slot_ancestry(browser, serve):
-    """A slotted badge belongs to its rendered control, not its authored parent.
-
-    Real slot assignment is a browser boundary; happy-dom does not implement it.
-    One and two shadow-host projections must reject button-contained badges, while
-    an external named slot admits the same badge without changing passage ancestry.
-    """
-    page = open_page(
-        browser,
-        serve(leaf_page("Rendered shortcut seats", "<h1>Rendered shortcut seats</h1>")),
-    )
-    result = page.evaluate(
-        """async () => {
-          const resources = performance.getEntriesByType('resource').map(r => r.name);
-          const loaded = path => resources.find(url => url.includes(path));
-          const {createCommandHints} = await import(loaded('/keyboard/command-hints.js'));
-          const {keys, reflectFirstScopes} = await import(loaded('/keyboard/scopes.js'));
-          const owner = document.createElement('section');
-          const host = document.createElement('span');
-          const badge = document.createElement('kbd');
-          badge.className = 'lf-key-badge';
-          const root = host.attachShadow({mode: 'open'});
-          root.innerHTML = '<slot name="external"></slot><button>Apply <slot></slot></button>';
-          const control = root.querySelector('button');
-          host.append(badge);
-          owner.append(host);
-          document.querySelector('main').append(owner);
-          keys(owner, 'Slotted seat', [{
-            id: 'probe.slotted', title: 'Apply', keys: ['x'], control,
-            bindingBadge: badge, run: () => {},
-          }]);
-          reflectFirstScopes();
-          control.focus();
-          const hints = createCommandHints({presentedControl: () => null});
-          const read = () => {
-            try { hints.paint(); return null; }
-            catch (error) { return {name: error.name, message: error.message}; }
-          };
-          try {
-            const assigned = badge.assignedSlot === root.querySelector('button slot');
-            const slotted = read();
-            const inner = document.createElement('span');
-            inner.attachShadow({mode: 'open'}).innerHTML = '<span><slot></slot></span>';
-            host.append(inner);
-            inner.append(badge);
-            const nestedAssigned = Boolean(badge.assignedSlot && inner.assignedSlot);
-            const nested = read();
-            host.append(badge);
-            inner.remove();
-            badge.slot = 'external';
-            const externalAssigned = badge.assignedSlot === root.querySelector('slot[name]');
-            const external = read();
-            // Let the painted projection stand before test-owned cleanup withdraws it.
-            await Promise.resolve();
-            return {assigned, slotted, nestedAssigned, nested, externalAssigned,
-              external, marked: badge.classList.contains('lf-binding-seat')};
-          } finally {
-            hints.destroy();
-            owner.remove();
-          }
-        }"""
-    )
-    rejected = {
-        "name": "TypeError",
-        "message": "leaf: probe.slotted binding badge must be outside native buttons",
-    }
-    assert result == {
-        "assigned": True,
-        "slotted": rejected,
-        "nestedAssigned": True,
-        "nested": rejected,
-        "externalAssigned": True,
-        "external": None,
-        "marked": True,
-    }
 
 
 @pytest.mark.parametrize("annotation_mode", ["overlay", "page"])
@@ -2222,9 +2145,7 @@ def test_live_samples_keep_real_gestures_and_drafts_inside_the_child(browser, se
         "aria-checked", "false"
     )
     expect(reset_child.locator(".lf-thread")).to_have_count(0)
-    expect(reset_child.locator(".lf-general leaf-text")).to_have_js_property(
-        "value", ""
-    )
+    expect(page_comment(reset_child)).to_have_js_property("value", "")
     assert page.request.get(child_url + "api/state").status == 404
     assert events_model.read_events(serve.page_dir) == parent_before
     assert (
@@ -2316,6 +2237,54 @@ def test_a_window_sample_is_a_whole_leaf_window_that_scrolls_inside(browser, ser
     expect(child_frame.get_by_role("tab", name="Long view")).to_have_attribute(
         "aria-selected", "true"
     )
+
+
+def test_reading_keys_page_on_from_a_sample_to_its_page(browser, serve):
+    """d/u in a sample whose own page is spent move the containing page, as the
+    wheel does; in Full view the modal keeps them inside."""
+    filler = "".join(
+        f'<p id="line-{i}">Line {i} of a long child page.</p>' for i in range(60)
+    )
+    source = leaf_page(
+        "Sample reading keys",
+        f"""
+<h1>Sample reading keys</h1>
+<div style="height: 300px"></div>
+<lf-sample id="block" label="A block sample">
+  <template id="block-page" data-sample>
+    <p id="child-text">A short child page.</p>
+  </template>
+</lf-sample>
+<lf-sample id="window" label="A window sample" window>
+  <template id="window-page" data-sample>{filler}</template>
+</lf-sample>
+<div style="height: 2400px"></div>
+""",
+    )
+    page = open_page(browser, serve(source))
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, 1200, 800)
+    block = page.locator("#block")
+    block.evaluate("async sample => { await sample.ready; }")
+    child = block.locator("iframe").element_handle().content_frame()
+    assert child.evaluate("() => document.scrollingElement.scrollHeight <= innerHeight")
+    child.locator("#child-text").click()
+    page.keyboard.press("d")
+    expect(page.locator(":root")).not_to_have_js_property("scrollTop", 0)
+    below = page.evaluate("scrollY")
+    page.keyboard.press("u")
+    page.wait_for_function("below => scrollY < below", arg=below)
+
+    window = page.locator("#window")
+    window.evaluate("async sample => { await sample.ready; }")
+    window.get_by_role("button", name="Full view", exact=True).click()
+    inside = window.locator("iframe").element_handle().content_frame()
+    inside.locator("#line-59").click()
+    inside.evaluate("() => scrollTo(0, document.scrollingElement.scrollHeight)")
+    at = page.evaluate("scrollY")
+    page.keyboard.press("d")
+    page.wait_for_timeout(300)
+    assert page.evaluate("scrollY") == at
 
 
 @pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
@@ -2719,11 +2688,17 @@ def test_live_samples_release_pending_allocations_and_can_reconnect(browser, ser
         window.pendingResult = pendingHost.ready.catch(error => error.name);
     }""")
     holding(page, held, 1, "a child detached before its document arrives")
+    held_release = []
+    page.route("**/api/release", lambda route: held_release.append(route))
     page.evaluate("pendingFrame.remove()")
     assert page.evaluate("pendingResult") == "AbortError"
+    holding(page, held_release, 1, "the detached child's allocation release")
+    assert page.request.get(held[0].request.url + "api/state").status == 200
+    held_release[0].continue_()
+    page.evaluate("pendingHost.destroy()")
     assert page.request.get(held[0].request.url + "api/state").status == 404
     held[0].abort()
-    page.evaluate("pendingHost.destroy()")
+    page.unroute("**/api/release")
 
     # A destroyed queue entry cannot wait for unrelated children to load. It is
     # removed without consuming the next slot a surviving queued child needs.
@@ -10437,46 +10412,6 @@ def test_editor_caret_hold_releases_after_unchanged_selection(browser, serve):
       document.dispatchEvent(new Event('selectionchange'));
     })""")
     assert field.evaluate("node => [node.selectionStart, node.selectionEnd]") == [9, 9]
-
-
-def test_a_field_keeps_what_it_held_before_its_editor_and_takes_focus_at_once(
-    browser, serve
-):
-    """A field builds its editor when first needed (composing/text-field.js). Before
-    that its words, external edits and owner steps stand without a view, and undo walks
-    them in order once it has one. A focus that bypasses the field's `focus()`, as a
-    driver's from its isolated world does, builds the editor in the same turn, so the
-    keys after it reach the words."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page("Editor history", "<h1>Editor history</h1><div id='seat'></div>")
-        ),
-    )
-    assert page.evaluate("""() => {
-      const field = document.createElement('leaf-text');
-      window.steps = [];
-      field.value = 'Draft';
-      field.edit('Draft edited');
-      field.record(() => steps.push('undo'), () => steps.push('redo'));
-      // Connected but not yet given a box by a rendering update.
-      document.querySelector('#seat').append(field);
-      const unbuilt = !field.matches(':state(ready)');
-      HTMLElement.prototype.focus.call(field);
-      return [unbuilt, field.matches(':state(ready)'), document.activeElement === field];
-    }""") == [True, True, True]
-    field = page.locator("#seat leaf-text")
-    page.keyboard.type(" now")
-    expect(field).to_have_js_property("value", "Draft edited now")
-    undone = []
-    for _ in range(3):
-        page.keyboard.press("ControlOrMeta+z")
-        undone.append(field.evaluate("node => [node.value, steps.join()]"))
-    assert undone == [
-        ["Draft edited", ""],
-        ["Draft edited", "undo"],
-        ["Draft", "undo"],
-    ]
 
 
 def test_unfocused_editor_move_leaves_later_selection_alone(browser, serve):

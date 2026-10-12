@@ -36,7 +36,7 @@ from render_harness import (
 )
 from test_render_threads import paste_image
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 STROKE = ((0.22, 0.62), (0.5, 0.25), (0.78, 0.62))

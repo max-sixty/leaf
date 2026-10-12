@@ -705,16 +705,17 @@ the source attachment withdraws its old routes. A nearer widget owns its declare
 an unavailable implemented binding reserves its key against a different outer meaning.
 
 Declare `bindingBadge` on a row or route to request an inline shortcut hint, whether or
-not the command is a Decision. An element names an empty face the widget positions
-outside every rendered native button; descendants through shadow roots or assigned
-slots are rejected. The presenter gives each lent
+not the command is a Decision. An element names an empty face the widget positions,
+inside the control it labels or beside it. The presenter gives each lent
 face the persistent `lf-binding-seat` class, whose shared style keeps it absolutely
-positioned even when empty or restored. Position that seat beside its control using
-its holder and offsets; filling it must not move the control. `null` requests a badge
+positioned even when empty or restored, so filling it moves neither the control nor
+anything holding it. Position the seat with its holder and offsets. `null` requests a badge
 at the control's corner. Each supplied face belongs to one action. The shared keyboard presenter writes its first reachable binding while the
 whole face is connected, visible, and uncovered; a reachable Question alias takes precedence
 over an intrinsic binding for the same command. Otherwise it paints a corner badge at
-the visible control. Commands without `bindingBadge` do not request an inline hint.
+the visible control. Commands without `bindingBadge` do not request an inline hint, so
+a command with `contextKeys` and no `bindingBadge` has a key the page never shows;
+`leaf package check --render` names one (`shows-context-keys`, packages.md, "Seeing it").
 The presenter reads the dispatcher's effective bindings, so hints withdraw outside the
 scope, during native text entry, or when the command is unavailable. A widget owns the
 face's placement, not its text or active state. Routes let one parameterized row
@@ -806,8 +807,10 @@ box before wiring it.
 
 A visual with generated part ids declares accepted `x-visual.prefixes` and calls
 `registerVisualParts(source, read, {reveal, label})`. The `read` function returns
-the parts currently drawn as `{id, element, label}` records. `reveal(id)` draws an
-absent part when someone follows its thread; `label(id)` names that part in
+the parts currently drawn as `{id, element, label}` records. `reveal(id)` settles
+the visual on the requested part when someone follows its thread, even if the
+part is already visible: cancel any pending work that would retire it before
+returning. `label(id)` names that part in
 Threads without changing the visual's state, and returns `null` for an unknown id.
 An `x-visual.parts` declaration may set `complete: true` when listing some drawn
 parts while leaving their peers unaddressable would confuse a reader. The render
@@ -1210,8 +1213,8 @@ command; Questions expose no separate answer collection or answer CRUD API.
 
 `readQueues()` and `watchQueues(owner, callback)` supply the immutable
 `{phase, onYou, onAgent, done}` that the Questions panel and `q` navigation use.
-Question rows have `kind === "question"`, their canonical `question` record and
-`ends` of `widget`, `reply` or `approval`. Explicit work rows have
+Question rows have `kind === "question"` and their canonical `question` record,
+whose `source.kind` is `widget`, `reply` or `approval`. Explicit work rows have
 `kind === "task"`; response
 obligations and delivery retries retain their own kinds. A Question is not also
 a task. Live rows carry their workflow or `null`, plus `offers: {open, done}`
@@ -1222,9 +1225,9 @@ Questions, including rows whose obligation record carries no explicit title.
 
 `queueActions.open(key)` resolves the current row and follows Leaf's arrival.
 It resolves to `false` for an unavailable row. `queueActions.done(key)` returns
-an admission promise only for a current `onYou` work task with `ends === "done"`;
-otherwise it returns `null`. A widget Question ends through its widget and a
-prose Question through a reply or settling reaction. An approval Question ends
+an admission promise only for a current `onYou` work task, which is one the agent
+opened on the user; otherwise it returns `null`. A widget Question ends through its
+widget and a prose Question through a reply or settling reaction. An approval Question ends
 through its stamped version's banner approval. Done removes its work task
 optimistically, a duplicate cannot send again, and refusal restores the admitted
 reading. The server remains final for all actions. Collections retain their shape

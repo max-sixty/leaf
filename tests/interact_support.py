@@ -118,7 +118,7 @@ def append_command(page_dir, command):
     event, including meaning and attention, to event_log.append_event instead.
     """
     with service_model.PageTransaction(page_dir) as page:
-        return event_contracts_model.append_admitted(page, command)
+        return event_contracts_model.append_admitted(page, command)[0]
 
 
 def response_reference(page_dir, event):
@@ -503,15 +503,23 @@ PAGE = """<!doctype html>
       </lf-option>
     </lf-options>
   </lf-ask>
-  <lf-diagram id="flow"><pre>
-graph LR
-  A --> B
-  </pre></lf-diagram>
 </section>
 </main>
 </body>
 </html>
 """
+# PAGE places no widget whose module only a browser can judge, so `page check` on it
+# and on the versions built from it never starts one (`needs_browser`). A test about a
+# data widget's body, its visual parts, or the section one supplies starts from
+# FLOW_PAGE, which closes the Plan section with a diagram.
+FLOW_PAGE = PAGE.replace(
+    "</section>",
+    """  <lf-diagram id="flow"><pre>
+graph LR
+  A --> B
+  </pre></lf-diagram>
+</section>""",
+)
 
 
 def package_path(path: Path) -> str:
@@ -522,7 +530,7 @@ def package_path(path: Path) -> str:
 def page_packages() -> tuple[str, ...]:
     """The integration page's package selection, resolved where it is initialized.
 
-    PAGE holds an lf-diagram, and the interact suite borrows lf-diagram and
+    FLOW_PAGE holds an lf-diagram, and the interact suite borrows lf-diagram and
     lf-diff declarations from the vendored registry.
     """
     return (package_path(COMMAND_HUB_PACKAGE), "diagram", "diff")
@@ -713,7 +721,6 @@ def record_claim(page, /, harness="claude-code", **fields):
         "agent": "Claude",
         "cwd": str(Path.cwd()),
         "ts": "t",
-        "released": None,
         "turn": observed["turn"] if observed else "turn-1",
         "turn_opened": observed["turn_opened"] if observed else cleanup_model.now_iso(),
         "turn_closed": observed["turn_closed"] if observed else None,
@@ -1202,11 +1209,8 @@ def trial_page(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     trial_family(tmp_path)
     page = tmp_path / "page"
-    # The version is built out of PAGE, which holds an lf-diagram; the project package
-    # under test is explicitly selected beside it.
     initialized = CliRunner().invoke(
-        cli_model.cli,
-        ["page", "init", "--package", "diagram", "--package", "./.leaf", str(page)],
+        cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
     )
     assert initialized.exit_code == 0, initialized.output
     (page / "index.html").write_text(trial_version(TRIAL_CACHE, TRIAL_LOG, PILOT_PURGE))
@@ -2121,11 +2125,11 @@ SnapshotHandlerRegistry.add_handler(
 def consume_pending_input(session_id):
     """Hand the session its pending input as a hook does inline: one complete
     envelope, confirmed as it is handed over."""
-    from leaf import delivery
+    from leaf import delivery, state
 
     batches = delivery.pending_batches(session_id)
     if not batches:
         return None
     payload = delivery.freeze_delivery(batches)
-    delivery.receive_held(payload, session_id)
+    delivery.receive_held(payload, session_id, state.session_record(session_id))
     return payload

@@ -351,17 +351,16 @@
                   <td>
                     On main (<a href="https://github.com/max-sixty/leaf/pull/1854"
                       >#1854</a
-                    >,
-                    <a href="https://github.com/max-sixty/leaf/pull/2240">#2240</a>,
+                    >, <a href="https://github.com/max-sixty/leaf/pull/2240">#2240</a>,
                     <a href="https://github.com/max-sixty/leaf/pull/2506">#2506</a>)
                   </td>
                 </tr>
                 <tr>
                   <th scope="row">6. Either side adds to the other's queue</th>
                   <td>
-                    The agent controls the to-dos: you ask for work in prose and it opens
-                    the to-do, and it asks for your sign-off with a widget ask or a prose
-                    ask (<a href="#task-done">who ends the agent's to-do</a>).
+                    The agent controls the to-dos: you ask for work in prose and it
+                    opens the to-do, and it asks for your sign-off with a widget ask or
+                    a prose ask (<a href="#task-done">who ends the agent's to-do</a>).
                   </td>
                   <td>Not needed for now</td>
                 </tr>
@@ -527,8 +526,8 @@
             </table>
             <p>
               Ending something differs on purpose, and I'd keep it:
-              <kbd>r</kbd> resolves a thread, and <kbd>x</kbd> is Done on a to-do on you.
-              Resolving closes a conversation; Done ends a piece of work.
+              <kbd>r</kbd> resolves a thread, and <kbd>x</kbd> is Done on a to-do on
+              you. Resolving closes a conversation; Done ends a piece of work.
             </p>
           </section>
 
@@ -600,11 +599,11 @@
             </p>
             <p>
               <em>Task</em> meant two things then, and a third already: the harness's
-              unit of work, as in a <em>task claim</em> or a Codex task. The candidates for the
-              shared record were <em>obligation</em>, what its owner owes until it ends;
-              <em>commitment</em>, Winograd and Flores's word, which fits Claude's tasks
-              but not a decision Claude asked of you; and <em>item</em>, which a queue
-              already uses for moves that aren't records.
+              unit of work, as in a <em>task claim</em> or a Codex task. The candidates
+              for the shared record were <em>obligation</em>, what its owner owes until
+              it ends; <em>commitment</em>, Winograd and Flores's word, which fits
+              Claude's tasks but not a decision Claude asked of you; and <em>item</em>,
+              which a queue already uses for moves that aren't records.
             </p>
           </section>
 
@@ -735,13 +734,15 @@
           <section id="asks-as-tasks">
             <h2>Step 5: should an Ask be a task on you?</h2>
             <p id="asks-now">
-              <strong>Today an ask is its own record, and a to-do is not an ask.</strong>
+              <strong
+                >Today an ask is its own record, and a to-do is not an ask.</strong
+              >
               Step 5 made every item on your side a task, as this tab records. Two later
               changes took it apart again:
-              <a href="https://github.com/max-sixty/leaf/pull/2240">#2240</a> gave
-              every request for your input, from a widget, a thread or a version's
-              sign-off, one ask record with its typed answer, which the lists select
-              directly and never turn into a to-do, and
+              <a href="https://github.com/max-sixty/leaf/pull/2240">#2240</a> gave every
+              request for your input, from a widget, a thread or a version's sign-off,
+              one ask record with its typed answer, which the lists select directly and
+              never turn into a to-do, and
               <a href="https://github.com/max-sixty/leaf/pull/2506">#2506</a> named the
               record left for explicit work a to-do. What B added still stands: a to-do
               on you about anything, its id, and its Done.
@@ -926,11 +927,10 @@
                 <li>
                   <strong>The record.</strong> A task gained <code>owner</code>, either
                   <code>agent</code> or <code>user</code>, and <code>ends</code>, how it
-                  ended, which Leaf derived once from its owner and subject: the
-                  agent's at <code>leaf task end</code> or a
-                  <code>--completes</code> stamp, yours on a widget at the widget's
-                  answer, yours on a thread at your reply, and yours on anything else at
-                  your Done.
+                  ended, which Leaf derived once from its owner and subject: the agent's
+                  at <code>leaf task end</code> or a <code>--completes</code> stamp,
+                  yours on a widget at the widget's answer, yours on a thread at your
+                  reply, and yours on anything else at your Done.
                   <em
                     >Now: the record is a to-do, and <code>ends</code> is gone (<a
                       href="https://github.com/max-sixty/leaf/pull/2451"
@@ -946,9 +946,9 @@
                   <code>leaf task open PAGE SUBJECT "…" --on user</code> put one on you
                   about anything else, where SUBJECT can also be any section.
                   <em
-                    >Now: only <code>--on user</code> makes a to-do on you. A widget,
-                    an agent thread or a reply sent with <code>--ask</code>, and a
-                    stamped version's sign-off each make an ask.</em
+                    >Now: only <code>--on user</code> makes a to-do on you. A widget, an
+                    agent thread or a reply sent with <code>--ask</code>, and a stamped
+                    version's sign-off each make an ask.</em
                   >
                 </li>
                 <li>
@@ -966,8 +966,8 @@
                 <li>
                   <strong>Done.</strong> A task on you with no widget got a Done
                   control, on its row in the panel and where the walk lands, with a key
-                  and a touch route, writing your end. It still does, on a to-do on
-                  you, and the end is now <code>todo_end</code>.
+                  and a touch route, writing your end. It still does, on a to-do on you,
+                  and the end is now <code>todo_end</code>.
                 </li>
                 <li>
                   <strong>What stayed.</strong> <code>lf-ask</code> stays the way to
@@ -1030,8 +1030,7 @@
               <code>work</code>, an update it has in hand; or <code>todo</code>. That
               set isn't a contract. From <code>leaf page state</code> on a scratch page
               with a decision widget, an agent thread asking a question, a to-do the
-              agent took on, and one it put on you about a section, with fields
-              trimmed:
+              agent took on, and one it put on you about a section, with fields trimmed:
             </p>
             <lf-code id="queues-example" language="json">
               <pre>
@@ -1173,8 +1172,8 @@ leaf task end PAGE TODO done "Version 4"
                   <th scope="row">A prose ask</th>
                   <td>An agent thread, or a reply sent with <code>--ask</code></td>
                   <td>
-                    Your next reply there or a settling reaction. The agent withdraws one
-                    with <code>task end … dropped</code>, which records no answer
+                    Your next reply there or a settling reaction. The agent withdraws
+                    one with <code>task end … dropped</code>, which records no answer
                   </td>
                 </tr>
                 <tr>
@@ -1448,10 +1447,10 @@ stateDiagram-v2
                 opens an owed answer on the agent in the same update.
               </li>
               <li>
-                <strong>A to-do inside a widget ask.</strong> “Show me a sketch first” in
-                the widget's thread opens an owed answer, and the agent may open a to-do
-                there. While that thread waits on the agent, the ask leaves Questions,
-                and it comes back when the agent answers.
+                <strong>A to-do inside a widget ask.</strong> “Show me a sketch first”
+                in the widget's thread opens an owed answer, and the agent may open a
+                to-do there. While that thread waits on the agent, the ask leaves
+                Questions, and it comes back when the agent answers.
               </li>
               <li>
                 <strong>A widget ask answered in prose.</strong> Your message opens an
@@ -1524,9 +1523,9 @@ stateDiagram-v2
               </ul>
               <p>
                 <strong>Why not a general tree now:</strong> a tree brings rules nothing
-                here needs yet. Does a parent end when its children do? Whose list
-                shows a child? Can a child outlive its parent? The two cases above need
-                at most one link each, so the tree can wait until a case needs more.
+                here needs yet. Does a parent end when its children do? Whose list shows
+                a child? Can a child outlive its parent? The two cases above need at
+                most one link each, so the tree can wait until a case needs more.
               </p>
               <p>
                 <strong>The broader question, for later:</strong> most work forms a
@@ -1540,9 +1539,9 @@ stateDiagram-v2
             <section id="task-done">
               <h3>Who decides the agent's to-do is done?</h3>
               <p>
-                <strong>Decided: the agent ends its own to-dos.</strong> It ends each one
-                itself, with <code>leaf task end</code> as done, failed or dropped and a
-                note saying where the result is, or with a version stamped
+                <strong>Decided: the agent ends its own to-dos.</strong> It ends each
+                one itself, with <code>leaf task end</code> as done, failed or dropped
+                and a note saying where the result is, or with a version stamped
                 <code>--completes</code>. A to-do on you ends at your Done, and an ask
                 at its answer (<a href="#task-ends">how each item ends</a>).
               </p>
@@ -1565,9 +1564,10 @@ stateDiagram-v2
               </ul>
               <p>
                 Either goes on Questions, so <kbd>q</kbd> reaches it. The to-do stays
-                open on Tasks while it waits, and the agent ends it once you answer. So there is no separate "to review" item, and no rule about
-                whether reading something accepts it. What's left is the agent's
-                instructions, which should say when to ask before ending.
+                open on Tasks while it waits, and the agent ends it once you answer. So
+                there is no separate "to review" item, and no rule about whether reading
+                something accepts it. What's left is the agent's instructions, which
+                should say when to ask before ending.
               </p>
             </section>
           </section>
@@ -1589,8 +1589,8 @@ stateDiagram-v2
           <section id="open-kinds">
             <h2>Which kinds of item exist</h2>
             <p>
-              Left open on purpose. The lists collect whatever is open and owed, under
-              a <code>kind</code>: <code>ask</code>, <code>todo</code> and
+              Left open on purpose. The lists collect whatever is open and owed, under a
+              <code>kind</code>: <code>ask</code>, <code>todo</code> and
               <code>resend</code> on Questions, and <code>answer</code>,
               <code>work</code> and <code>todo</code> on Tasks (<a href="#queue-kinds"
                 >How it works</a

@@ -78,9 +78,9 @@ def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
     )
     page.close()
     assert held == []
-    assert any("planted float" in found for found in reported), (
-        "the planted control covers no words, so a gate that never looked would pass too"
-    )
+    assert any(
+        "planted float" in (found["words"], found["covered"]) for found in reported
+    ), "the planted control covers no words, so a gate that never looked would pass too"
 
 
 def test_the_gate_passes_collapsed_words_that_overlap_when_visible(browser, serve):
@@ -99,7 +99,11 @@ def test_the_gate_passes_collapsed_words_that_overlap_when_visible(browser, serv
     collapsed.evaluate("node => node.removeAttribute('hidden')")
     expect(collapsed.locator("p").first).to_be_visible()
     visible = render_checks_model.evaluate_probe(page, "coveredWords")
-    assert any("hidden line" in found for found in visible), (
+    assert any(
+        {found["words"], found["covered"]}
+        == {"First hidden line", "Second hidden line"}
+        for found in visible
+    ), (
         "the visible lines fell on nobody, so a gate that never looked would pass this too"
     )
     collapsed.evaluate("node => node.setAttribute('hidden', 'until-found')")
@@ -184,9 +188,9 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
     serve(LONG_PAGE)
     d = serve.page_dir
 
-    def gate():
+    def gate(*flags):
         return subprocess.run(
-            [*LEAF_COMMAND, "page", "check", str(d), "--render"],
+            [*LEAF_COMMAND, "page", "check", str(d), "--render", *flags],
             capture_output=True,
             text=True,
             check=False,  # both exit codes are the subject
@@ -202,9 +206,15 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
     (d / "index.html").write_text(
         LONG_PAGE.replace("</main>", "<div style='width:150vw'>wide</div>\n</main>")
     )
-    broken = gate()
-    assert broken.returncode == 1
-    assert "scrolls sideways" in broken.stderr
+    broken = gate("--json")
+    assert broken.returncode == 1, broken.stderr
+    report = json.loads(broken.stdout)
+    assert report["status"] == 1
+    assert report["browser"]["asked"] == report["browser"]["ran"] == ["render check"]
+    assert report["browser"]["browser"] == "Chrome"
+    scrolls = [f for f in report["findings"] if f["code"] == "page-scrolls"]
+    assert {f["scheme"] for f in scrolls} == {"light", "dark"}, report
+    assert all(f["severity"] == "error" and f["values"]["past"] > 0 for f in scrolls)
 
 
 def test_a_passing_render_check_saves_the_screens_the_author_reads(

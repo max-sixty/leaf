@@ -775,6 +775,10 @@ leaf page check <page> --render
 
 It runs the browser gate in both color schemes, including when the host gives you
 no separate browser tool. Fix every failure; a screenshot is not a substitute.
+Add `--json` where a script reads the result: it prints one object with the exit
+`status`, each finding as a record (`code`, the element it names as `at`, the
+measured `values`, `severity` of `error` or `advice`, where it was read, and its
+`text`), and the browser that ran and the screens it saved.
 
 A clean check saves labeled screens at desktop, widest-window, and phone widths,
 up to eight screens down the page at each width. If the page extends beyond those,

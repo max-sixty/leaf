@@ -1954,15 +1954,18 @@ def test_page_check_names_an_older_leaf_beside_its_own(page_dir):
     """Between protocol bumps an update can still break an older page, and nothing
     compares the page's files with this Leaf's. So `page check` names the Leaf that
     vendored the page beside its own, with their dates, for the agent to judge a
-    re-vendor; a page this Leaf vendored gets no such line."""
+    re-vendor; a page this Leaf vendored gets no such line. With `--json` the same
+    reading is a record of both versions."""
     (page_dir / "index.html").write_text(PLAIN_PAGE, encoding="utf-8")
     stamp = page_dir / "registry.json"
     registry = json.loads(stamp.read_text(encoding="utf-8"))
 
-    def checked(producer):
+    def checked(producer, *flags):
         registry["$layer"]["producer"] = producer
         cleanup_model.write_json(stamp, registry)
-        result = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
+        result = CliRunner().invoke(
+            cli_model.cli, ["page", "check", str(page_dir), *flags]
+        )
         assert result.exit_code == 0, result.output
         return result.output
 
@@ -1977,6 +1980,18 @@ def test_page_check_names_an_older_leaf_beside_its_own(page_dir):
         f"this is Leaf {this_leaf}." in checked(older)
     )
     assert "vendored this page" not in checked(layer_model.payload_provenance())
+    report = json.loads(checked(older, "--json"))
+    assert (report["status"], report["browser"]) == (0, None)
+    [finding] = [f for f in report["findings"] if f["code"] == "leaf-version"]
+    assert finding["severity"] == "advice"
+    assert finding["values"] == {
+        "vendored": "a74b08365870, committed 2026-09-26T09:32:21-07:00",
+        "running": this_leaf,
+        "page": str(page_dir),
+    }
+    same = json.loads(checked(layer_model.payload_provenance(), "--json"))
+    assert {f["code"] for f in same["findings"]} == {"markup"}, same
+    assert {f["severity"] for f in same["findings"]} == {"advice"}, same
 
 
 def test_a_server_names_its_leaf_where_another_vendored_the_page(page_dir):

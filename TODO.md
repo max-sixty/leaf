@@ -2,6 +2,11 @@
 
 ## Biggest current challenges
 
+- **Improve our outputs against a standard HTML output.** Agents given plain
+  HTML wrote pages judges preferred on every configuration and some queues, at a
+  third to a half of Leaf's cost ([comparison](notes/agent-usability-evals.md#authoring-against-plain-html-2026-10-12)).
+  Make Leaf's pages at least as good, and find which widgets and instructions
+  help an author rather than constrain one.
 - **Simplify the harness, host, and CLI workflow.** Make feedback delivery and
   agent wake-up reliable, including Codex's message back into the session and
   Claude Code's potentially overcomplicated state machine.
@@ -94,8 +99,7 @@ has tried; settle that before building it.
   plain HTML's configurations, which put each alert's controls beside its evidence,
   and Leaf's documents, which put decisions on the page.
   [Teach the compositions that prove useful](notes/workspace-followups.md#item-20),
-  starting with per-item controls for configuration and progress through a queue,
-  and say where an owed input's `<answer.ref>` comes from.
+  starting with per-item controls for configuration and progress through a queue.
 - **Keep agent activity intelligible throughout a task.** Run the
   [status evaluations](notes/user-feedback-responsiveness.md) for delivery,
   multi-step work, and delegation. Show the plan as well as the current step;

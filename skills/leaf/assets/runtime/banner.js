@@ -84,6 +84,7 @@ approveBtn.title = "Approve this work; the page stays open for follow-up";
 // The page's decision is not actionable until the page itself is present. Discussion chrome
 // stays live during replay, but approving hidden authored content would decide a version
 // the user has not seen yet. The control states that refusal from its first reading.
+const AWAITING_STATE = "Approval waits until this page has read its current state";
 let approvalReason;
 // Keep a refused press focusable, with its reason available to keyboard and touch.
 function presentApproval({ reason, text, title }) {
@@ -93,8 +94,11 @@ function presentApproval({ reason, text, title }) {
   keeps(approveBtn, "aria-description", reason || null);
   keeps(approveBtn, "title", title);
 }
-const unread = "Approval waits until this page has read its current state";
-presentApproval({ reason: unread, text: "Approve version", title: unread });
+presentApproval({
+  reason: AWAITING_STATE,
+  text: "Approve version",
+  title: AWAITING_STATE,
+});
 
 // The toolbar owns this complete order from typed contributions rather than discovering
 // or reconstructing it from whichever nodes happen to be in the row.
@@ -879,7 +883,7 @@ export function paintApproval(blockingQuestions) {
     : runtime.currentStamp === null
       ? "There is no stamped version to approve yet"
       : !signoff || !pagePresented() || blockingQuestions === null
-        ? "Approval waits until this page has read its current state"
+        ? AWAITING_STATE
         : blockingQuestions.length
           ? "Answer every Question before approving this work"
           : null;

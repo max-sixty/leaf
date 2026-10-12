@@ -495,54 +495,56 @@ diff --git a/reading.py b/reading.py
 
 
 @pytest.mark.watch_shifts
-@pytest.mark.parametrize("box", ["general", "reply", "composer"])
-def test_a_single_space_is_message_content_in_every_composer(browser, serve, box):
-    """The shared field and both drawing-aware variants admit the smallest message.
+def test_a_single_space_is_message_content_in_every_composer(browser, serve):
+    """The shared field and both drawing-aware variants admit the smallest message,
+    each box sending in turn on one page.
 
     Each box sends from the one press the shared field dresses, and that press paints
     nothing of its own: at rest the accent glyph is the whole of what a user sees, and
     the disc behind it is a clear 28px that takes the accent tint under the pointer,
     which is why it stays the same size as the target around it grows.
     """
-    page = open_page(browser, serve(LONG_PAGE, comments=box == "reply"))
-    if box == "composer":
-        select_words(page, "#p0")
-        expect(page.locator(".lf-fab-input")).to_be_visible()
-        page.keyboard.press("c")
-        surface = page.locator(".lf-composer")
-    elif box == "general":
-        page_comment(page)
-        surface = page.locator(".lf-general")
-    else:
-        page.locator(".lf-threads-toggle").click()
-        panel_settled(page)
-        surface = page.locator(".lf-threads > .lf-thread").first
+    page = open_page(browser, serve(LONG_PAGE, comments=True))
+    for box in ("reply", "general", "composer"):
+        if box == "composer":
+            select_words(page, "#p0")
+            expect(page.locator(".lf-fab-input")).to_be_visible()
+            page.keyboard.press("c")
+            surface = page.locator(".lf-composer")
+        elif box == "general":
+            page_comment(page)
+            surface = page.locator(".lf-general")
+        else:
+            page.locator(".lf-threads-toggle").click()
+            panel_settled(page)
+            surface = page.locator(".lf-threads > .lf-thread").first
+            surface.locator(".lf-thread-summary").click()
+        field = surface.locator("leaf-text")
+        send = surface.locator(".lf-compose-submit")
+        write(field, " ")
+        expect(send).to_have_attribute("aria-disabled", "false")
+        face = glyph_action_face(send)
+        assert face["press"] == "rgba(0, 0, 0, 0)", (box, face)
+        assert face["glyph"] == token_colour(page, "--accent"), (box, face)
+        assert face["disc"] == "rgba(0, 0, 0, 0)", (box, face)
+        assert face["discWidth"] == "28px", (box, face)
+        send.hover()
+        hovered = glyph_action_face(send)
+        assert hovered["press"] == "rgba(0, 0, 0, 0)", (box, hovered)
+        assert hovered["disc"] == token_colour(page, "--accent-tint"), (box, hovered)
+        assert hovered["discWidth"] == "28px", (box, hovered)
+        with sending(page, f"the {box} message"):
+            send.click()
 
-    if box == "reply":
-        surface.locator(".lf-thread-summary").click()
-    field = surface.locator("leaf-text")
-    send = surface.locator(".lf-compose-submit")
-    write(field, " ")
-    expect(send).to_have_attribute("aria-disabled", "false")
-    face = glyph_action_face(send)
-    assert face["press"] == "rgba(0, 0, 0, 0)", face
-    assert face["glyph"] == token_colour(page, "--accent"), face
-    assert face["disc"] == "rgba(0, 0, 0, 0)", face
-    assert face["discWidth"] == "28px", face
-    send.hover()
-    hovered = glyph_action_face(send)
-    assert hovered["press"] == "rgba(0, 0, 0, 0)", hovered
-    assert hovered["disc"] == token_colour(page, "--accent-tint"), hovered
-    assert hovered["discWidth"] == "28px", hovered
-    with sending(page, f"the {box} message"):
-        send.click()
-
-    message = [
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] in {"comment", "reply"}
-    ][-1]
-    assert message["text"] == " "
+        message = [
+            event
+            for event in events_model.read_events(serve.page_dir)
+            if event["kind"] in {"comment", "reply"}
+        ][-1]
+        assert message["text"] == " ", box
+        if box == "reply":
+            page.locator(".lf-threads-toggle").click()
+            panel_settled(page, open=False)
 
 
 # A storage fault stands in an init script, because it has to run ahead of the
@@ -565,54 +567,58 @@ def cancel_draft(page, draft_id="draft-ops"):
     draft_control(page, "cancel", draft_id).click()
 
 
-@pytest.mark.parametrize("gesture", ["mouse", "mouse-in-scroller", "keyboard"])
-def test_completed_page_selection_opens_its_own_comment(browser, serve, gesture):
-    """A real page selection opens Comment without focusing it or carrying earlier words."""
-    later = '<p id="later">A later passage keeps native selection.</p>'
-    if gesture == "mouse-in-scroller":
-        later = (
-            '<p id="later" style="height:72px;overflow:auto">'
-            "A later passage keeps native selection.<br>"
-            + "Another line of evidence.<br>" * 40
-            + "</p>"
-        )
+def test_completed_page_selection_opens_its_own_comment(browser, serve):
+    """A real page selection opens Comment without focusing it or carrying earlier
+    words, whether a mouse drag, a drag inside a bounded scroller, or the keyboard's
+    select-all made it."""
     page = open_page(
         browser,
         serve(
             leaf_page(
                 "Selection gestures",
-                '<p id="earlier">Earlier subject.</p>' + later,
+                '<p id="earlier">Earlier subject.</p>'
+                '<p id="later">A later passage keeps native selection.</p>'
+                '<p id="later-box" style="height:72px;overflow:auto">'
+                "A later boxed passage keeps native selection.<br>"
+                + "Another line of evidence.<br>" * 40
+                + "</p>",
             )
         ),
     )
-    page.locator("#earlier").click(modifiers=["Alt"])
     field = page.locator(".lf-fab-input")
-    write(field, "Words about the earlier subject")
-    if gesture.startswith("mouse"):
-        line = page.locator("#later").evaluate("""p => {
-            const range = document.createRange();
-            range.selectNodeContents(p);
-            return range.getClientRects()[0].toJSON();
-        }""")
-        y = line["y"] + line["height"] / 2
-        hold_selection(page, (line["x"] + 2, y), (line["x"] + line["width"] - 2, y))
-        page.mouse.up()
-        if gesture == "mouse-in-scroller":
-            # A bounded reading region takes native focus as the drag begins.
-            expect(page.locator("#later")).to_be_focused()
-    else:
-        page.locator("#later").click()
-        page.keyboard.press("ControlOrMeta+a")
-    rendered(page)
-    assert page.evaluate("() => getSelection().toString()")
-    expect(field).to_be_visible()
-    expect(field).not_to_be_focused()
-    expect(field).to_have_js_property("value", "")
-    page.keyboard.press("c")
-    expect(field).to_be_focused()
-    page.keyboard.press("Escape")
-    page.locator("#earlier").click(modifiers=["Alt"])
-    expect(field).to_have_js_property("value", "Words about the earlier subject")
+    for gesture, later in (
+        ("mouse", "#later"),
+        ("mouse-in-scroller", "#later-box"),
+        ("keyboard", "#later"),
+    ):
+        page.locator("#earlier").click(modifiers=["Alt"])
+        write(field, "Words about the earlier subject")
+        if gesture.startswith("mouse"):
+            line = page.locator(later).evaluate("""p => {
+                const range = document.createRange();
+                range.selectNodeContents(p);
+                return range.getClientRects()[0].toJSON();
+            }""")
+            y = line["y"] + line["height"] / 2
+            hold_selection(page, (line["x"] + 2, y), (line["x"] + line["width"] - 2, y))
+            page.mouse.up()
+            if gesture == "mouse-in-scroller":
+                # A bounded reading region takes native focus as the drag begins.
+                expect(page.locator(later)).to_be_focused()
+        else:
+            page.locator(later).click()
+            page.keyboard.press("ControlOrMeta+a")
+        rendered(page)
+        assert page.evaluate("() => getSelection().toString()"), gesture
+        expect(field).to_be_visible()
+        expect(field).not_to_be_focused()
+        expect(field).to_have_js_property("value", "")
+        page.keyboard.press("c")
+        expect(field).to_be_focused()
+        page.keyboard.press("Escape")
+        page.locator("#earlier").click(modifiers=["Alt"])
+        expect(field).to_have_js_property("value", "Words about the earlier subject")
+        page.keyboard.press("Escape")
 
 
 @pytest.mark.parametrize(

@@ -31,9 +31,9 @@
 
    Presentation is not the end of the page's arrival. An owner may deliberately keep work
    off the presentation path, such as a widget's progressive upgrade, and that work
-   still moves boxes when it lands. `deferredArrival`
-   is where such an owner says so, and the `arrived` stage of `pageReadiness` answers
-   whether any of it is still outstanding. Startup waits for these arrivals before
+   still moves boxes when it lands. `deferredArrival` is where such an owner says so,
+   and the `arrived` stage of `pageReadiness` answers whether any of it is still
+   outstanding. Startup waits for these arrivals before
    its final retained fragment landing, so late geometry keeps the requested place.
    A reader outside the page waits on the
    page rather than on a widget it had to know about. Without it the only thing outside

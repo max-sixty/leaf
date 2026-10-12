@@ -34,10 +34,7 @@
     } else {
       let port;
       let settings;
-      let readyResolve;
-      const ready = new Promise((resolve) => {
-        readyResolve = resolve;
-      });
+      const { promise: ready, resolve: readyResolve } = Promise.withResolvers();
       const queued = [];
       const listeners = new Set();
       const send = (value) => (port ? port.postMessage(value) : queued.push(value));

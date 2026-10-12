@@ -978,16 +978,15 @@ def test_readiness_reopens_on_current_presentation_and_ignores_superseded_work(
             'test:current-readiness', document.body,
           );
           window.probeOlderSettled = false;
-          window.probeOlder = probePresentation.present(
-            'older',
-            new Promise(resolve => { window.releaseProbeOlder = resolve; }),
-          ).then(() => { probeOlderSettled = true; });
+          const older = probePresentation.present('older');
+          older.resolve(new Promise(resolve => { window.releaseProbeOlder = resolve; }));
+          window.probeOlder = older.ready.then(() => { probeOlderSettled = true; });
         }"""
     )
     assert page.locator("body").get_attribute("data-lf-presented") == "1"
     assert page.evaluate(readiness) == "presented"
 
-    page.evaluate("() => probePresentation.present('newer', undefined)")
+    page.evaluate("() => probePresentation.present('newer').resolve()")
     wait_until_ready(page)
     assert page.evaluate("() => probeOlderSettled") is False
 

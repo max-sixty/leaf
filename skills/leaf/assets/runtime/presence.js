@@ -248,7 +248,7 @@ export const quietSince = (ts) =>
 // answer can next change without any file moving, or Infinity when none is timed.
 export const activityTransitionAt = (state) =>
   Math.min(
-    ...[state?.activity, ...(state?.others ?? []).map((entry) => entry.activity)]
+    ...[state?.activity, ...(state?.others ?? []).map((entry) => entry?.activity)]
       .filter((activity) => activity?.next_transition_at)
       .map((activity) => Date.parse(activity.next_transition_at)),
   );

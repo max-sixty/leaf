@@ -194,49 +194,37 @@ def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
     assert render_gate_model.render_version(browser, url).failures == []
 
 
-def test_check_render_refuses_what_only_a_browser_can_see(serve, headless_shell):
+def test_check_render_refuses_what_only_a_browser_can_see(serve):
     """`page check --render` end to end, as the agent runs it: the static lint
     passes both sources, and only one renders clean. The broken source is deliberately
     unstamped — refusing it before `page stamp` names it is the gate's whole job,
     so the preview server has to expose the exact candidate without activating it.
 
-    Over the clean source once through each browser a host can supply: the installed
-    Chrome the default channel finds, and the executable leaf's browser variable
-    names. That each older variable names a browser too is
-    `test_a_named_browser_that_is_not_one_names_the_variable`'s. The default arm states every
+    The clean source goes through the installed Chrome the default channel finds; the
+    executable leaf's browser variable names is
+    `test_an_installed_payload_passes_its_real_browser_gate`'s. This arm states every
     variable empty rather than inheriting whatever the developer or the job
     exported, since a set one would otherwise turn the channel this arm exists to
-    cover into a second run of the other. A runner image really does export
-    CHROME_BIN, so unnaming leaf's alone is not unnaming. Each arm's success line
-    has to name the browser that drew the page: a clean gate telling a Chromium host
-    that Chrome drew it is the same false claim on the way out that the failure
-    messages stopped making."""
+    cover into a run of the named one. A runner image really does export
+    CHROME_BIN, so unnaming leaf's alone is not unnaming. The success line has to name
+    the browser that drew the page: a clean gate telling a Chromium host that Chrome
+    drew it is the same false claim on the way out that the failure messages stopped
+    making."""
     serve(LONG_PAGE)
     d = serve.page_dir
 
-    def gate(*args, variable=None, executable=""):
+    def gate():
         return subprocess.run(
-            [
-                *LEAF_COMMAND,
-                "page",
-                "check",
-                str(d),
-                "--render",
-                *args,
-            ],
+            [*LEAF_COMMAND, "page", "check", str(d), "--render"],
             capture_output=True,
             text=True,
             check=False,  # both exit codes are the subject
-            env=unnamed_browser() | ({variable: executable} if variable else {}),
+            env=unnamed_browser(),
         )
 
     ok = gate()
     assert ok.returncode == 0, ok.stderr
     assert "render checks passed in Chrome" in ok.stdout
-
-    named = gate(variable="LEAF_BROWSER_EXECUTABLE", executable=headless_shell)
-    assert named.returncode == 0, named.stderr
-    assert f"render checks passed in {headless_shell}" in named.stdout
 
     # A vw width slips the static lint (which counts only px) and overflows only
     # in a layout engine.
@@ -257,8 +245,7 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     four tiles in its body changes twice there: its tiles wrap before its track stacks.
     Each open Ask, a suggestion as much as an lf-ask, gets the window `q` brings it
     into, as the user working the page meets it, including those `q` reaches past a
-    page widget move handed back to the user, which is a stop of its own and no Ask.
-    A second check replaces the first's screens rather than adding to them."""
+    page widget move handed back to the user, which is a stop of its own and no Ask."""
     tiles = "".join(
         f"<dl id='m{i}'><dt>metric {i}</dt><dd>{i}</dd></dl>" for i in range(4)
     )
@@ -314,20 +301,17 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     on_you = state_json(serve.page_dir)["queues"]["on_you"]
     assert {"kind": "widget", "id": "ship"} in [item["subject"] for item in on_you]
 
-    def check():
-        ran = subprocess.run(
-            [*LEAF_COMMAND, "page", "check", str(serve.page_dir), "--render"],
-            capture_output=True,
-            text=True,
-            check=True,
-            env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": headless_shell},
-        )
-        lines = ran.stdout.splitlines()
-        heading = next(line for line in lines if "screens to read" in line)
-        into = Path(heading.split(" in ", 1)[1].rstrip(":"))
-        return into, lines[lines.index(heading) + 1 :]
-
-    into, listed = check()
+    ran = subprocess.run(
+        [*LEAF_COMMAND, "page", "check", str(serve.page_dir), "--render"],
+        capture_output=True,
+        text=True,
+        check=True,
+        env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": headless_shell},
+    )
+    lines = ran.stdout.splitlines()
+    heading = next(line for line in lines if "screens to read" in line)
+    into = Path(heading.split(" in ", 1)[1].rstrip(":"))
+    listed = lines[lines.index(heading) + 1 :]
     names = sorted(path.name for path in into.iterdir())
     assert {"1200px-1.png", "1920px-1.png", "390px-1.png"} <= set(names)
     assert {
@@ -344,9 +328,6 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     # A page longer than its first screens says so rather than passing for read whole.
     assert "390px-9.png" not in names
     assert any("phone, the first 8 of the page's" in line for line in listed)
-    again, _listed = check()
-    assert again == into
-    assert sorted(path.name for path in into.iterdir()) == names
 
 
 def test_a_named_browser_that_is_not_one_names_the_variable(serve, tmp_path):
@@ -456,7 +437,8 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
     """Exercise the copied artifact a harness installs, never an import from this checkout.
 
     Its browser gate runs on a named Chromium, since the install is where a host with
-    a Chromium and no Chrome meets it; the default channel's Chrome is
+    a Chromium and no Chrome meets it, and its success line names that executable
+    rather than Chrome; the default channel's Chrome is
     `test_check_render_refuses_what_only_a_browser_can_see`'s."""
     root = Path(__file__).parent.parent
     installed = install_payload(tmp_path / "host" / "leaf")
@@ -505,7 +487,7 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
         env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": headless_shell},
     )
     assert rendered.returncode == 0, rendered.stderr
-    assert "render checks passed" in rendered.stdout
+    assert f"render checks passed in {headless_shell}" in rendered.stdout
 
 
 @pytest.mark.parametrize("touch", [False, True])

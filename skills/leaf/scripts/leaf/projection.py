@@ -61,7 +61,7 @@ def _reports(projection) -> list[dict]:
                 "source": "report",
                 "action": event["action"],
                 "detail": event["detail"],
-                "text": event["detail"]["text"] if spec.get("report") else None,
+                "text": event["detail"]["text"] if spec.get("text") else None,
                 "ts": event["ts"],
                 "revision": event["revision"],
                 "seq": event["seq"],

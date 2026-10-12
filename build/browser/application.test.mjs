@@ -79,7 +79,7 @@ const wireQuestion = (
   next_actor: "user",
 });
 // A view's asks as the served lists hold them: each the user owes on Questions, each
-// that is answered or withdrawn, done, and each open one no one owes, held.
+// that is no longer open, done, and each open one no one owes, held.
 const askQueues = (asks) => {
   const item = (ask) =>
     servedAskItem(ask, {
@@ -1968,7 +1968,7 @@ test("pending undo withdraws a decision an earlier Leaf recorded with another fi
     },
   };
   const app = capture([[declared.id, declared]]);
-  // Before #2329 the recorded definition carried `update`, since renamed `report`.
+  // Before #2329 the recorded definition carried the verb flag as `update`.
   const accepted = {
     ...action("decided"),
     id: "e1",

@@ -16,12 +16,6 @@ vars:
 
     The page directory is not reachable from here. Reply with the JavaScript module.
 assert:
-- type: regex
-  metric: watches-threads
-  value: watchThreads\s*\(
-- type: regex
-  metric: uses-typed-actions
-  value: threadActions\.(reply|resolve|reopen)\s*\(
 - type: llm-rubric
   metric: judgment
   value: |

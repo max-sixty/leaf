@@ -390,6 +390,7 @@ export function createDesignMode({
       "Enter Design mode: comment on how the page looks and works — a widget, a control, a picture — rather than its words",
     title: "design mode",
     touch: "Design mode",
+    menu: "annotate",
     when: () => !designModeOn,
     run: () => setDesignMode(true),
   });

@@ -10,17 +10,17 @@
    encounter with the message's visible surface, not exhaustive inspection.
    Each observation pass batches newly completed versions into one `read` event, which
    the application sends outside the gesture queue (delivery.js). A refused receipt
-   leaves the message unread and is retried only on a new visit. The shared auxiliary
-   reach reading also schedules exposure: closing a nonmodal surface can reveal a body
-   without moving it or closing its permanent native ancestor.
+   leaves the message unread and is retried only on a new visit. A pass runs on each
+   change to what the page shows of its window (geometry.js, `watchRoom`), which
+   includes a nonmodal surface closing: it can reveal a body without moving it or
+   closing its permanent native ancestor.
 
    The first unread destination belongs to this reading too. Its Go-to route (`g u`)
    and the panel's visible control share the same exact-message arrival. Ordinary
    `u` remains paired with `d` in whichever reading region the user stands in. */
 import { nextRender, sizeObserver } from "../rendering.js";
-import { containingView, holdingFrames, presented, seenRect } from "../geometry.js";
+import { containingView, presented, seenRect, watchRoom } from "../geometry.js";
 import { intersect } from "../rect.js";
-import { SLIDE_END } from "../motion.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { moved } from "./model.js";
 import { readThreads } from "./state.js";
@@ -214,19 +214,12 @@ export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
   }
 
   function mount() {
-    addEventListener("scroll", scheduleScan, true);
-    addEventListener("resize", scheduleScan);
-    // Exposure reads the visual viewport (geometry.js, `shownWindow`), which a soft
-    // keyboard or a pinch-pan moves without a window scroll or resize.
-    window.visualViewport?.addEventListener("resize", scheduleScan);
-    window.visualViewport?.addEventListener("scroll", scheduleScan);
+    frameWatches.push(watchRoom(scheduleScan));
     addEventListener("focus", scheduleScan);
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState !== "visible") resetExposure();
       else scheduleScan();
     });
-    document.addEventListener("close", scheduleScan, true);
-    document.addEventListener(SLIDE_END, scheduleScan, true);
     addEventListener("blur", resetExposure);
     addEventListener("load", scheduleScan, true);
     frameWatches.push(
@@ -235,39 +228,14 @@ export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
         else resetExposure();
       }),
     );
-    // What a containing page shows of this one changes without a scroll or resize
-    // inside it: the owner scrolls a frame taller than its viewport through the band
-    // (`containingView`), moving the frame changes it without any scroll at all, and a
-    // surface the owner closes or slides away uncovers it. Watch each containing page
-    // for what this page watches in itself, and each frame in its owner's viewport.
-    for (const frame of sampleVisibility() ? [] : holdingFrames()) {
-      const owner = frame.ownerDocument.defaultView;
-      const observer = new owner.IntersectionObserver(scheduleScan, {
-        threshold: [0, 1],
-      });
-      observer.observe(frame);
-      owner.addEventListener("scroll", scheduleScan, true);
-      owner.addEventListener("resize", scheduleScan);
-      owner.document.addEventListener("close", scheduleScan, true);
-      owner.document.addEventListener(SLIDE_END, scheduleScan, true);
-      frameWatches.push(() => {
-        observer.disconnect();
-        owner.removeEventListener("scroll", scheduleScan, true);
-        owner.removeEventListener("resize", scheduleScan);
-        owner.document.removeEventListener("close", scheduleScan, true);
-        owner.document.removeEventListener(SLIDE_END, scheduleScan, true);
-      });
-    }
-    addEventListener(
-      "pagehide",
-      () => {
-        exposureGeneration++;
-        sizes.disconnect();
-        for (const unwatch of frameWatches) unwatch();
-        frameWatches.length = 0;
-      },
-      { once: true },
-    );
+    // A page kept for back and forward comes back with its watches.
+    addEventListener("pagehide", (event) => {
+      exposureGeneration++;
+      if (event.persisted) return;
+      sizes.disconnect();
+      for (const unwatch of frameWatches) unwatch();
+      frameWatches.length = 0;
+    });
   }
 
   function observeMessage(body, message) {
@@ -333,6 +301,5 @@ export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
     present,
     observeMessage,
     firstUnreadCommand,
-    exposureChanged: scheduleScan,
   };
 }

@@ -591,71 +591,17 @@ function renameNode(record) {
   return row;
 }
 
-function headerPath(side, path) {
-  return path.startsWith('"') && path.endsWith('"')
-    ? `"${side}/${path.slice(1)}`
-    : `${side}/${path}`;
-}
-
-function gitPath(path) {
-  if (!path.startsWith('"')) return path;
-  if (!path.endsWith('"')) return null;
-  const inner = path.slice(1, -1);
-  if (!/^(?:[^\\]|\\(?:[abtnvfr"\\]|[0-3][0-7]{2}|[0-7]{1,2}(?![0-7])))*$/.test(inner))
-    return null;
-  const escapes = { a: 7, b: 8, t: 9, n: 10, v: 11, f: 12, r: 13 };
-  const bytes = [];
-  const encoder = new globalThis.TextEncoder();
-  for (let i = 0; i < inner.length; i++) {
-    if (inner[i] !== "\\") {
-      const point = inner.codePointAt(i);
-      bytes.push(...encoder.encode(String.fromCodePoint(point)));
-      if (point > 0xffff) i++;
-      continue;
-    }
-    const match = /^(?:[0-3][0-7]{2}|[0-7]{1,2})/.exec(inner.slice(i + 1));
-    if (match) {
-      bytes.push(parseInt(match[0], 8));
-      i += match[0].length;
-    } else {
-      const escaped = inner[++i];
-      bytes.push(escapes[escaped] ?? escaped.charCodeAt(0));
-    }
-  }
-  if (bytes.includes(0)) return null;
-  try {
-    return new globalThis.TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
-      new Uint8Array(bytes),
-    );
-  } catch {
-    return null;
-  }
-}
-
-function pathOnlyRenames(source) {
-  return source
+// How many hunkless renames the source states in Git's exact path-only form. Pierre also
+// reads a rename whose hunk headers are missing as hunkless, which would show its
+// changed lines as a clean rename, so it must report no more than these.
+const pathOnlyRenames = (source) =>
+  source
     .split(/(?=^diff --git )/m)
-    .filter((section) => section.startsWith("diff --git "))
-    .flatMap((section) => {
-      const lines = section.replace(/\n+$/, "").split("\n");
-      if (lines.length !== 4 || lines[1] !== "similarity index 100%") return [];
-      const prevName = /^rename from (.+)$/.exec(lines[2])?.[1];
-      const name = /^rename to (.+)$/.exec(lines[3])?.[1];
-      if (
-        !prevName ||
-        !name ||
-        prevName === '""' ||
-        name === '""' ||
-        lines[0] !== `diff --git ${headerPath("a", prevName)} ${headerPath("b", name)}`
-      )
-        return [];
-      const decodedPrevName = gitPath(prevName);
-      const decodedName = gitPath(name);
-      return decodedPrevName !== null && decodedName !== null
-        ? [{ prevName: decodedPrevName, name: decodedName }]
-        : [];
-    });
-}
+    .filter((section) =>
+      /^diff --git .+\nsimilarity index 100%\nrename from .+\nrename to .+\n*$/.test(
+        section,
+      ),
+    ).length;
 
 // One file's evidence, the nodes that go under its disclosure's summary. Each kind of
 // Pierre stylesheet joins `sharedStyles` once, for the stage to hold.
@@ -706,6 +652,9 @@ async function renderFile(file, sharedStyles) {
   return { nodes: [...rendered.children], pre, lines };
 }
 
+// What the widget can present. The diff package's `patch_manifest.py` refuses the same
+// excluded entries before a manifest is stored, and `tests/diff_patch_cases.json` holds
+// both readers to one table of cases.
 async function parsedFiles(source) {
   if (/^copy (?:from|to) /m.test(source))
     throw new Error(
@@ -717,15 +666,9 @@ async function parsedFiles(source) {
     (patch) => patch.files,
   );
   if (!files.length) throw new Error("empty diff");
-  const pureRenames = files.filter((file) => file.type === "rename-pure");
-  const sourceRenames = pathOnlyRenames(source);
   if (
-    sourceRenames.length !== pureRenames.length ||
-    sourceRenames.some(
-      (rename, index) =>
-        rename.prevName !== pureRenames[index].prevName ||
-        rename.name !== pureRenames[index].name,
-    )
+    pathOnlyRenames(source) !==
+    files.filter((file) => file.type === "rename-pure").length
   )
     throw new Error(
       "unsupported hunkless rename (only an exact path-only block with " +
@@ -1272,6 +1215,14 @@ customElements.define(
       if (!entry.loaded || entry.filtered) return entry.node;
       const line = findDiffLine(entry.lines, coordinate);
       return line ? projectedDatum(this, diffDatumKey(line)) : null;
+    }
+
+    // A datum's label is its coordinate's, so a thread on a line of a file not yet
+    // loaded is named as the drawn line will be.
+    lfDatumLabel(key) {
+      const coordinate = readDiffCoordinate(key);
+      if (!coordinate || coordinate.source) return null;
+      return coordinate.file ? fileLabel(coordinate) : lineLabel(coordinate);
     }
 
     lfRevealDatum(key) {

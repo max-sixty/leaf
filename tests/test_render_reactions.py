@@ -28,7 +28,6 @@ from render_cases_widgets import (
     PART_DIAGRAM_PAGE,
 )
 from render_harness import (
-    FEATURE_GALLERY,
     RELEASE_FOCUS,
     ROOT,
     accessible_details,
@@ -325,13 +324,31 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     assert painted(page, []) == {"washed": "", "glyphs": [], "projected": 0}
 
 
-def test_e_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, serve):
+# A passage carrying the user's standing reaction, and its neighbour without one.
+REACTED_PAGE = leaf_page(
+    "reacted",
+    """
+<h1 id="title">Front desk</h1>
+<p id="react-ok"><strong>Keep.</strong> The spare key is with reception.</p>
+<p id="react-no"><strong>Change.</strong> This sample claims Tuesday follows Thursday.</p>
+""",
+)
+KEEP_REACTION = {
+    "kind": "comment",
+    "author": "user",
+    "revision": 1,
+    "token": "keep",
+    "anchor": {"section": "react-ok"},
+}
+
+
+def test_e_immediately_opens_a_passages_reactions_and_digit_chooses(browser, serve):
     """The shortcut unfolds the comment's reactions before digits become live."""
-    page = open_page(browser, serve(FEATURE_GALLERY))
-    settled = page.locator('[data-lf-margin-for="bg-react-ok"]').get_by_role(
+    page = open_page(browser, serve(REACTED_PAGE, events=(KEEP_REACTION,)))
+    settled = page.locator('[data-lf-margin-for="react-ok"]').get_by_role(
         "button", name="keep reaction actions", exact=True
     )
-    with sending(page, "the withdrawal the gallery opens on"):
+    with sending(page, "the withdrawal the page opens on"):
         settled.click()
         page.locator('[aria-label="Remove keep reaction"]:visible').click()
     # The withdrawal applied, and not merely delivered, before the raise below stands its
@@ -340,7 +357,7 @@ def test_e_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, se
     # is exactly what disarms the response mode the digit below is pressed into: the
     # press then reaches nothing, and the read finds the withdrawal still last in the log.
     told(page)
-    select_paragraph(page, "#bg-react-ok")
+    select_paragraph(page, "#react-ok")
     page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("e")
 
@@ -356,7 +373,7 @@ def test_e_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, se
         page.keyboard.press("2")
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["kind"] == "comment" and sent["token"] == "change"
-    assert sent["anchor"]["section"] == "bg-react-ok"
+    assert sent["anchor"]["section"] == "react-ok"
 
 
 def test_comment_reaction_digits_stop_at_nine_for_a_larger_vocabulary(browser, serve):
@@ -2788,17 +2805,14 @@ def test_a_reply_s_reactions_keep_their_keys_in_a_covering_threads_panel(
     what stands inside it. The reaction mode stood nowhere, so every one of its rows fell
     below the panel's floor: an arrow reached no row, read as a stray key, and closed the
     list the user was walking. The open list is where the mode stands."""
-    page = open_page(browser, serve(FEATURE_GALLERY))
+    url = serve(PANEL_PAGE)
+    _, reply = _thread(serve.page_dir)
+    page = open_page(browser, url)
     resized(page, 390, 844)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    # The reply strip that shows is in the panel; the page's own strips stand under it.
-    page.evaluate(
-        """() => [...document.querySelectorAll('.lf-react-strip.lf-open')]
-          .findLast((strip) => strip.checkVisibility())
-          .setAttribute('data-test-strip', '')"""
-    )
-    strip = page.locator(".lf-react-strip[data-test-strip]")
+    page.locator(".lf-thread-summary").click()
+    strip = page.locator(f'.lf-msg[data-mid="{reply}"] .lf-react-strip')
     strip.locator(".lf-react-trigger").click()
     choices = strip.locator(".lf-react-palette > .lf-react")
     expect(choices.nth(0)).to_be_focused()

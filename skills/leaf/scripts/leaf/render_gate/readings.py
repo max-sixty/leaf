@@ -238,7 +238,6 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     clipped = reachability["clipped"]
     unreachable = reachability["unreachable"]
     covered = reachability["covered"]
-    unread = evaluate_probe(page, "unreadSyntax")
     # Shadow roots the registry doesn't declare: the passage walk, the
     # capture and the id lookups cross exactly the declared ones, so an
     # undeclared root's words silently anchor quotes astray. Generated controls
@@ -351,7 +350,6 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     ]
     found += [f"[{scheme}] {w}" for w in unreachable]
     found += [f"[{scheme}] {c}" for c in covered]
-    found += [f"[{scheme}] {u}" for u in unread]
     if undeclared_shadow:
         found.append(
             f"[{scheme}] shadow roots the registry doesn't declare "
@@ -508,40 +506,6 @@ def arrangement_changes(readings) -> list[tuple[int, str, str]]:
     return changes
 
 
-def stacked_panes(readings, desktop: int) -> list[str]:
-    """Each workspace body that stacks its panes in one column while the Layout still
-    fills the window, where at the `desktop` width it stands them side by side, with the
-    swept widths it stacks them at.
-
-    A full-height workspace shares one window's height among its panes, so a column of
-    panes there is either a design of rows, which the page shows at its desktop width
-    too, or a side-by-side design's narrow fallback arriving before the Layout lets the
-    page scroll: three panes at 800x768 left one a 28px body. The desktop reading says
-    which the page is, so a body of rows that adds columns only in an ultrawide window
-    is not in question."""
-    meant = {
-        body["place"]
-        for width, reading in readings
-        if width == desktop
-        for body in reading["panes"]
-        if body["beside"] > 1
-    }
-    stacked = _swept(
-        readings,
-        lambda reading: (
-            (body["place"], body)
-            for body in reading["panes"]
-            if body["held"] and body["beside"] == 1 and body["place"] in meant
-        ),
-    )
-    return [
-        f"at {_span(widths)} wide, {body['at']} stacks its panes in one column while "
-        "the workspace fills the window, so they share one window's height; stack "
-        "them only where the Layout stops holding it (page-authoring.md, A workspace)"
-        for widths, body in stacked
-    ]
-
-
 def margin_changes(page, readings, height: int) -> list[int]:
     """The widths at which the page's margin content changes, narrowest first.
 
@@ -615,43 +579,6 @@ def shrunk_label_advice(readings) -> list[str]:
     ]
 
 
-def overflowing_region_advice(readings, height: int) -> list[str]:
-    """Advice naming each region of a screen that runs past the room it has, as
-    `overflowingRegions` reads it in a sweep taken at `height`.
-
-    A full-height workspace is a screen the reader moves through rather than scrolls,
-    so its regions should show what they hold, and one that scrolls is the exception
-    (page-authoring.md, A workspace). Advice rather than a failure: a region that
-    scrolls still shows everything, and whether to trim it or split it is the author's
-    call. A region holding more than one open Question is a queue of items to decide
-    stacked into one scroll, so its advice names the queue form instead of trimming."""
-    found = []
-    regions = _swept(
-        readings,
-        lambda reading: ((region["id"], region) for region in reading["regions"]),
-    )
-    for widths, region in regions:
-        where = (
-            f"at {_span(widths)} wide and {height}px tall {region['at']} runs past "
-            f"the region it scrolls in, {region['over']}px at {min(widths)}px"
-        )
-        if region["questions"] > 1:
-            found.append(
-                f"{where}, and holds {region['questions']} open Questions: a reader decides "
-                "them one at a time, so make the items a queue, one "
-                '`lf-tabs list="side"` whose tabs each hold one (page-authoring.md, '
-                "A workspace)"
-            )
-        else:
-            found.append(
-                f"{where}: a workspace is a screen the reader moves through, so trim "
-                "it to what the region shows or split it, unless the region is a "
-                "reader for something long, such as a source file or a log "
-                "(page-authoring.md, A workspace)"
-            )
-    return found
-
-
 def unreserved_height_advice(page, declarations: dict) -> list[str]:
     """Advice naming each widget whose module drew it at a height its first paint did
     not reserve (x-height), with the data-height that would have.
@@ -671,41 +598,3 @@ def unreserved_height_advice(page, declarations: dict) -> list[str]:
         + f', so what follows it moves when it is drawn: state data-height="{w["drawn"]}"'
         for w in evaluate_probe(page, "unreservedHeights", declarations)
     ]
-
-
-def framing_advice(page) -> list[str]:
-    """Report authored boxes whose visible inset includes a child's outer margin,
-    and rows whose edge trim separates their items.
-
-    Padding and margins can be intentional, so these measurements refuse nothing.
-    The shared probes also inspect Leaf's chrome and module implementations; their
-    findings belong to the suite rather than the author editing the page.
-    """
-
-    found = []
-    for box in evaluate_probe(page, "trappedMargins"):
-        if not box["authored"]:
-            continue
-        through = "".join(f" through <{tag}>" for tag in box["through"])
-        trim = (
-            "Restore the declared frame's content-edge trim"
-            if box["frameDeclared"]
-            else "Use --lf-block-frame: 1 for a drawn frame, or --lf-block-frame: trim "
-            "for a transparent grouping"
-        )
-        found.append(
-            f"{box['at']} draws {box['drawn']:g}px of inset and shows "
-            f"{box['drawn'] + box['margin']:g}px {box['edge']} its <{box['child']}>"
-            f"{through}: {box['margin']:g}px of child margin stays inside the box. "
-            f"{trim}; put spacing between selectable blocks in the parent's gap "
-            "or outside margins"
-        )
-    for row in evaluate_probe(page, "splitEdges"):
-        if not row["authored"]:
-            continue
-        found.append(
-            f"{row['at']} trims only one item at its {row['edge']} edge while "
-            f"another keeps {row['margin']:g}px of margin. Declare "
-            "--lf-holds-edge: 1 on this flex or grid row to keep its items aligned"
-        )
-    return list(dict.fromkeys(found))

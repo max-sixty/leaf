@@ -14,8 +14,8 @@
    record through `openDraft`. Every path that discards words empties
    the box first, so those hide silently.
 
-   Boot constructs the command owner with explicit travel, delivery, and repaint
-   capabilities. Importing this module exposes only passive nodes and live draft
+   The response surface (composing/surface.js) constructs the command owner with its bar's
+   commands and boot's travel, delivery, and repaint capabilities. Importing this module exposes only passive nodes and live draft
    readings. mount binds the field and its controls after those owners exist. */
 import { el, responseAction } from "../widget-elements.js";
 import { anchorKey } from "../anchor-coordinate.js";
@@ -880,13 +880,8 @@ export function createSelectionComposer({
     setDraftDrawing,
     draftKey: composerCtx,
     composerHolds,
-    setSuggestionMode,
     responseOptionsAreOpen,
     responseOptionsAvailable,
-    responseOptionButtons,
-    focusedResponseOption,
-    responseReactionButtons,
-    stepResponseOptions,
     setResponseOptions,
     syncResponseOptions,
     resetResponseOptions,

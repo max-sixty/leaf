@@ -7,6 +7,7 @@ import {
   keeps,
   keepsText,
   offer,
+  once,
   queueActions,
   queueItemKey,
   queueTitle,
@@ -23,41 +24,42 @@ import {
   threadTurns,
   watchQuestions,
   watchQueues,
+  whileConnected,
 } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-conversation-workspace",
   class extends HTMLElement {
     connectedCallback() {
-      if (!this.layout) this.build();
-      this.stopRegions = this.regionBodies.map(([name, body]) =>
-        registerReadingRegion({
-          id: compoundReadingRegionId(this, name),
-          host: body,
-          body,
-        }),
-      );
-      this.presentation = registerThreadPresentation(this, {
-        render: (collection, parts) => this.present(collection, parts),
-        // A layout that already draws the part asked for keeps it: Shelf draws every
-        // conversation whole, and Feed every message and the selected one's reply box.
-        reveal: (key, { part }) => {
-          this.selected = key;
-          const drawn =
-            this.mode === "Shelf" ||
-            (this.mode === "Feed" && (part === "message" || part === "reply"));
-          if (!drawn) this.mode = "Conversation";
-        },
+      if (!once(this)) return;
+      this.build();
+      whileConnected(this, () => {
+        const stopRegions = this.regionBodies.map(([name, body]) =>
+          registerReadingRegion({
+            id: compoundReadingRegionId(this, name),
+            host: body,
+            body,
+          }),
+        );
+        this.presentation = registerThreadPresentation(this, {
+          render: (collection, parts) => this.present(collection, parts),
+          // A layout that already draws the part asked for keeps it: Shelf draws every
+          // conversation whole, and Feed every message and the selected one's reply box.
+          reveal: (key, { part }) => {
+            this.selected = key;
+            const drawn =
+              this.mode === "Shelf" ||
+              (this.mode === "Feed" && (part === "message" || part === "reply"));
+            if (!drawn) this.mode = "Conversation";
+          },
+        });
+        return () => {
+          for (const stop of stopRegions) stop();
+          this.presentation.unregister();
+        };
       });
-      this.stopQuestions = watchQuestions(this, () => this.paintObligations());
-      this.stopQueues = watchQueues(this, () => this.paintObligations());
-    }
-    disconnectedCallback() {
-      for (const stop of this.stopRegions) stop();
-      this.presentation.unregister();
-      this.stopQuestions();
-      this.stopQueues();
-      this.indexOrder.dispose();
+      watchQuestions(this, () => this.paintObligations());
+      watchQueues(this, () => this.paintObligations());
     }
     build() {
       this.mode = "Conversation";
@@ -114,8 +116,8 @@ customElements.define(
       this.list = offer("ul");
       this.counts = offer("p", "counts");
       this.queues = Object.fromEntries(
-        ["onYou", "onAgent", "done"].map((key, i) => {
-          const heading = offer("h4", "", ["On you", "On agent", "Done"][i]);
+        ["questions", "tasks", "done"].map((key, i) => {
+          const heading = offer("h4", "", ["Questions", "Tasks", "Done"][i]);
           const list = offer("ul");
           const group = offer("div", "group");
           group.append(heading, list);
@@ -166,6 +168,7 @@ customElements.define(
         void this.presentation.update();
       });
       this.indexOrder = new HeldReading(
+        this,
         () => [this.list, ...Object.values(this.queues)],
         () => {
           void this.presentation.update();
@@ -273,7 +276,7 @@ customElements.define(
       const answered = questions.all.filter(
         (question) => question.status === "answered",
       );
-      // Counts cover every Question; this summary lists completed widget choices.
+      // Counts cover every ask; this summary lists completed widget choices.
       const labels = questions.all
         .filter(
           (question) =>
@@ -284,7 +287,7 @@ customElements.define(
       keepsText(
         this.counts,
         [
-          `${questions.user.length} Questions on you`,
+          `${questions.user.length} asks on you`,
           ...(answered.length ? [`${answered.length} answered`] : []),
           ...labels,
         ].join(" · "),

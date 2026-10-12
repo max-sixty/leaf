@@ -5,6 +5,31 @@ adapter selects the product or example page directory behind a clean public rout
 then hands the request to the same routes and event admission as a locally served
 Leaf. Agent input comes from Leaf's shared projections; this adapter owns no parallel
 state store or event semantics.
+
+The adapter also runs the hosted agent. The Worker posts each accepted event that owes
+a reply to `/_leaf/agent/start`, and `attach` starts or resumes one Codex App Server
+thread rooted at the page directory and hands it the event in Leaf's delivery envelope;
+while a turn is running, Leaf holds the delivery and starts it when that turn ends. A
+repeated start for the same event starts nothing new. Codex has the prepared Leaf plugin
+installed, as a terminal agent's Codex does, and `CODEX_INSTRUCTIONS` adds only the
+session's environment and scope. Each turn is bound to its delivery id, sent as
+`clientUserMessageId`, so the turn's follower knows its turn from the start. A delivery
+carries at most one plain reply, which streams into its thread and is committed through
+Leaf's reply writer even if the connection drops or the next turn opens first.
+
+`HostedTurn` follows a turn on the connection that started it. Completion ends it, and
+so do a dropped connection, silence past `STREAM_SILENCE`, and any fault; for those the
+follower interrupts the provider turn, since nothing else is reading it. Every ending
+closes the Leaf turn and gives each update the turn still owed an answer the
+`turn_failed` receipt, unless a rejected final reply starts a repair turn. The ending
+then starts the page's next owed update (`_continue_page`), because no other code
+looks for it.
+
+`write_failure_receipt` writes every failure receipt, whichever boundary gave up: the
+Worker posts `rate_limited` or `startup_failed` to `/_leaf/agent/fail`, and the
+container writes `startup_failed` for a next update it could not start and
+`turn_failed` for a turn it followed. `worker/README.md`, "Hosted turns", lists the
+codes and the records an operator reads.
 """
 
 from __future__ import annotations
@@ -383,9 +408,9 @@ class HostedTurn(CarriedTurn):
     """One delivery's hosted turn, from the start that made it to its receipt.
 
     The two names this opens for itself are Leaf's — the turn on the page, and the
-    reply seat the provider's final answer commits into — and the account it writes
-    at the end is the page's too: the turn closed, its reading off, and a receipt
-    for any move it was carrying that still has no answer.
+    reply reservation the provider's final answer commits under — and the account
+    it writes at the end is the page's too: the turn closed, its reading off, and a
+    receipt for any move it was carrying that still has no answer.
 
     A completion notification is the ordinary ending. A connection that drops, a
     silence past `STREAM_SILENCE`, and any fault in this code are endings as well,
@@ -444,7 +469,7 @@ class HostedTurn(CarriedTurn):
         self.record(event, **fields)
 
     def begin(self) -> None:
-        """Open this delivery's Leaf turn and reply seat for its provider turn.
+        """Open this delivery's Leaf turn and reply reservation for its provider turn.
 
         The `turn/start` request carried this delivery both as its
         `clientUserMessageId` and as its `leaf_delivery` tool output, and App Server
@@ -551,9 +576,9 @@ class HostedTurn(CarriedTurn):
         Closing the turn re-reads the page, which the turn's own work may have left
         unopenable, and the user is owed the rest whether or not it does, so the
         last two run from the `finally`. They can wait until then because the reply
-        seat has to be free before another writer can use it, and they have to run
-        at all because this turn's pickup is what stops every other writer from
-        answering for its move.
+        reservation has to be released before another writer can use it, and they
+        have to run at all because this turn's pickup is what stops every other
+        writer from answering for its move.
         """
         try:
             if reply_error is not None:
@@ -1024,10 +1049,10 @@ class WebsiteCodexHarness:
             # No turn to follow, and after an uncertain start possibly one this
             # request made and never named. This harness owns the thread, so it tells
             # the provider to drop whatever it began rather than waiting to adopt it,
-            # and gives up the delivery and any seat still reserved rather than
-            # leaving them standing, because both would otherwise block the `startup_failed`
-            # receipt the Worker writes when this raises — the receipt that tells
-            # the user to send the message again.
+            # and gives up the delivery and any reply reservation it holds rather than
+            # leaving them standing, because both would otherwise block the
+            # `startup_failed` receipt the Worker writes when this raises — the
+            # receipt that tells the user to send the message again.
             self._withdraw_delivery(
                 thread_id, prepared.payload["id"], prepared_events, reply_target
             )
@@ -1115,8 +1140,8 @@ class WebsiteCodexHarness:
     ) -> None:
         """Retire offered input that no follower took, so the Worker can receipt it.
 
-        Interrupt any provider turn the request started, release its reserved
-        reply seat, and give the moves back as unanswered input. The Worker's
+        Interrupt any provider turn the request started, release its reply
+        reservation, and give the moves back as unanswered input. The Worker's
         failure receipt then invites the user to send again; an offered delivery
         still holding those moves would swallow the retry.
         """

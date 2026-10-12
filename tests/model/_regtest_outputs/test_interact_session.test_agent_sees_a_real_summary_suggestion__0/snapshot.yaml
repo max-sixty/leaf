@@ -1,0 +1,119 @@
+# The summary hint from real thread events and the delivery an explicit wait prints.
+
+delivery:
+  format: leaf-delivery-v5
+  id: <delivery>
+  created_at: <time>
+  acknowledge: >-
+    Whoever ran the `leaf wait` that printed this delivery acknowledges it; until
+    then the user's updates read Sent rather than Picked up. If the output was cut
+    off, reread it with `leaf delivery read <delivery>`. Follow any `next` commands
+    before confirming. If you handle it, acknowledge before any other work; if you
+    forward it, acknowledge once it durably arrives there. To acknowledge, start
+    `leaf wait --ack <delivery>` as the next background task: it confirms this delivery
+    and waits for the next.
+  batches:
+    - page: <page>
+      claim: <claim-session>
+      through_seq: 8
+      threads:
+        - id: event-2
+          title: null
+          anchor: null
+          detached_from: null
+          resolved: null
+          elided:
+            messages: 0
+            actions: 0
+          messages:
+            - id: event-2
+              seq: 2
+              author: user
+              text: >-
+                Which rollout?
+            - id: event-3
+              seq: 3
+              author: agent
+              text: >-
+                Rollout consideration 1.
+            - id: event-4
+              seq: 4
+              author: user
+              text: >-
+                Rollout consideration 2.
+            - id: event-5
+              seq: 5
+              author: agent
+              text: >-
+                Rollout consideration 3.
+            - id: event-6
+              seq: 6
+              author: user
+              text: >-
+                Rollout consideration 4.
+          summaries: []
+          summary_hint:
+            from: event-2
+            through: event-5
+          actions: []
+      handling:
+        h1: >-
+          The user answered in a thread; the batch's `threads` carries the thread's
+          context, and `leaf page state <page> <thread-id>` reads its history in
+          pages.
+        h2: >-
+          This event's thread has no title yet: name it by adding `--title "<a few
+          words>"` to the reply that answers it, so the thread panel lists its subject
+          rather than its opening words. If Leaf has named it from its opening message
+          by then, that name stands.
+        h3: >-
+          This thread's entry in the batch's `threads` carries a `summary_hint`,
+          a suggested earlier range to review. Follow the Leaf skill's `references/threads.md`,
+          "Summarize a long discussion", as you answer this input. The hint adds
+          no separate response obligation.
+        h4: >-
+          When the event asks for work, say in its thread what you will do before
+          any other command, including reading the source it concerns: `leaf response
+          reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
+          The user reads it in the thread at once, and it takes the update in hand:
+          the update reads Working, and the line stands in the banner until you
+          answer. Do the work and put its result on the page, with whatever shows
+          it (captures, a figure, the numbers), then answer with `leaf response
+          reply <answer.ref> --done < reply.md`: what changed, in a sentence or
+          two, linking the section that shows it. When the event asks for no work,
+          as a question may not, answer it with that reply at once. The page carries
+          the work, and the thread only the conversation about it. `leaf response
+          reply` checks any saved page edit and makes it live before posting. If
+          a revision removes what the thread is anchored on, move the thread in
+          the reply that reports it with `--section <id>` (narrowed by `--quote`
+          or `--part` if needed), or `--detach` it if its subject has left the page.
+          Every answer says what it leaves: `--done` when it delivers what was asked,
+          `--ask` when its prose asks the user something back, or `--todo "<what
+          you owe>"` when it promises work that outlasts this turn, which then stays
+          on you, under the reply's id, until `leaf task end` (`references/conversation-loop.md`,
+          "Long-running work").
+        h5: >-
+          Your reply renders as Markdown in a narrow column: give each point its
+          own short paragraph or list item, link a page section as `[its name](#section-id)`,
+          and fence code or markup.
+      events:
+        - attention: true
+          kind: reply
+          author: user
+          parent: event-2
+          text: >-
+            What do you recommend now?
+          id: event-8
+          ts: <time>
+          seq: 8
+          subject:
+            kind: thread
+            id: event-2
+          threads: [event-2]
+          handling: [h1, h2, h3, h4, h5]
+          answer:
+            kind: reply
+            to: event-8
+            for: event-8
+            ref: <delivery>:0:event-8
+            writer: agent

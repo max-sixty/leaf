@@ -134,6 +134,7 @@ import { anchorLabel } from "../thread/messages.js";
 
 import { standingPoint } from "../pointed-place.js";
 import { keeps } from "../keeps.js";
+import { move } from "../dom-move.js";
 import { closeVersionMenu, versionMenuIsOpen } from "../version-picker.js";
 import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
 
@@ -217,12 +218,10 @@ export function createResponseSurface({
     if (reset && !repositioning) answerFabPosition(false);
   };
   // Reparenting the canonical response bar is presentation, not a composer transition,
-  // so the user's place in it, caret included, crosses light and shadow DOM moves with it.
+  // so the user's place in it, caret and composition included, crosses light and shadow
+  // DOM moves with it (`move`).
   function moveFab(parent) {
-    if (fabBar.parentElement === parent) return;
-    const restoreFocus = holdFocus(fabBar);
-    parent.append(fabBar);
-    restoreFocus?.();
+    if (fabBar.parentElement !== parent) move(parent, fabBar, null);
   }
 
   // Whether the bar stands inline in an outlet or floats, said as the one attribute the
@@ -246,12 +245,12 @@ export function createResponseSurface({
     const previousParent = fabBar.parentNode;
     const previousOutlet = fabInlineOutlet;
     const restoreFocus = holdFocus(fabBar);
-    if (fabBar.parentNode !== outlet) outlet.append(fabBar);
+    if (fabBar.parentNode !== outlet) move(outlet, fabBar, null);
     fabInlineOutlet = outlet;
     presentFab();
     if (!fabDrawn()) {
       if (previousParent && fabBar.parentNode !== previousParent)
-        previousParent.append(fabBar);
+        move(previousParent, fabBar, null);
       else if (!previousParent) fabBar.remove();
       fabInlineOutlet = previousOutlet;
       presentFab();
@@ -347,13 +346,16 @@ export function createResponseSurface({
       scrollToElement,
       scrollToRange,
     }) ?? null;
-  // An element response exits to its subject, or the declared proxy representing it.
-  // Resolve that structural parent from the current anchor, so c from a Question and an
-  // aimed press on the same Question unwind alike. There is no saved pre-command focus:
-  // standing on an option comments on its Question, and closing returns to the Question itself.
-  // A quoted selection clears to the page; a removed subject has no parent to land on.
+  // An element response exits to its subject, or the declared proxy representing it
+  // where the subject cannot take focus. Resolve that structural parent from the current
+  // anchor, so c from a Question and an aimed press on the same Question unwind alike.
+  // There is no saved pre-command focus: standing on an option comments on its Question,
+  // and closing returns to the Question itself. A drawing's proxy is the fallback, not
+  // the parent, even for a user who pressed it: focused, its face stands under the
+  // banner, away from the drawing it is about (chrome.css). A quoted selection clears to
+  // the page; a removed subject has no parent to land on.
   const returnPlaces = (anchor) =>
-    anchor && !anchor.quote ? [visualActionAnchor(anchor), anchorTargetAt(anchor)] : [];
+    anchor && !anchor.quote ? [anchorTargetAt(anchor), visualActionAnchor(anchor)] : [];
   // Putting the bar away is closing a layer (focus.js, `closeLayer`): `showFab(null)`
   // moves no focus, and the closer names where a user who stood in the bar lands, read
   // before it goes. `putAwayFab` hands them back to the bar's subject; `letGoOfFab` lets
@@ -365,8 +367,8 @@ export function createResponseSurface({
     const places = leavingBar || toPage ? returnPlaces(fabAnchor) : [];
     return layerLanding(() => {
       if (toPanel) focusDestination(threadsBox, "return");
-      // The shared return tests each representative: a hidden or rebuilt proxy cannot
-      // skip a subject that still takes focus. If none remains, it lands on the page.
+      // The shared return tests each place in turn: a subject that cannot take focus
+      // yields to its proxy. If neither remains, it lands on the page.
       else if (leavingBar && !toPage) handBack(...places);
       else if (leavingBar || (toPage && places.includes(document.activeElement)))
         letGo();
@@ -1408,7 +1410,6 @@ export function createResponseSurface({
     openComposer: composer.openComposer,
     openComposerWithMedia: composer.openComposerWithMedia,
     hideComposer: composer.hideComposer,
-    detachComposer: composer.detachComposer,
     syncResponseOptions: composer.syncResponseOptions,
     draftKey: composer.draftKey,
     draftDrawing: composer.draftDrawing,
@@ -1427,7 +1428,6 @@ export function createResponseSurface({
     updateFab,
     standDown,
     fabAnchorAt,
-    fabFrameAt,
     seatFab,
     restoreFab,
     finishPlacement,

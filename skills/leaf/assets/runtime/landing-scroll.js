@@ -28,6 +28,11 @@
  * Navigation does not: `nearest` stays the native alignment (rect.js,
  * `nearestScrollBy`), which fills the band with a tall destination partly in view, so a
  * fold the user goes to opens from its start.
+ *
+ * A landing is the reader's choice of where each box it moves stands (scrolling.js).
+ * One in motion is counted as it starts, since the navigation that lands often changes
+ * layout first, as opening a disclosure hands a region to a scroller of its own, and
+ * the keeper's restore for that change runs before the motion ends.
  */
 import { localScrollBy, scrollAxes } from "./element-frame.js";
 import {
@@ -40,9 +45,14 @@ import {
   visibleBand,
 } from "./geometry.js";
 import { scrollersOf } from "./reading-regions.js";
-import { moveScrollerBy, reachable, pageScroller } from "./scrolling.js";
+import { chooseScroll, reachable, pageScroller } from "./scrolling.js";
 import { clippingAxes, nearestScrollBy } from "./rect.js";
 import { renderedParent, renderedUnder } from "./shadow.js";
+
+const land = (box, by, behavior) => {
+  if (behavior !== "instant") chooseScroll(box);
+  box.scrollBy({ ...by, behavior });
+};
 
 const scrollMargin = (where, side = "Top") =>
   where instanceof Range
@@ -153,7 +163,7 @@ export function scrollIntoReadingBand(where, holder, block, behavior) {
     bottom += scrollMargin(where, "Bottom");
   }
   let { local, moved } = verticalTravel(box, placementBy(where, block, box, margin));
-  if (Math.abs(moved) >= 1) moveScrollerBy(box, local, behavior);
+  if (Math.abs(moved) >= 1) land(box, { top: local }, behavior);
   let inner = box;
   for (const outer of around) {
     top -= moved;
@@ -170,7 +180,7 @@ export function scrollIntoReadingBand(where, holder, block, behavior) {
       outer,
       nearestScrollBy(top, bottom, band.top, band.bottom),
     ));
-    if (Math.abs(moved) >= 1) moveScrollerBy(outer, local, behavior);
+    if (Math.abs(moved) >= 1) land(outer, { top: local }, behavior);
     inner = outer;
   }
 }
@@ -208,11 +218,7 @@ export function scrollIntoView(
       const byY = inside
         ? nearestScrollBy(destination.top, destination.bottom, top, bottom)
         : 0;
-      if (byX || byY)
-        box.scrollBy({
-          ...localScrollBy(box, { x: byX, y: byY }),
-          behavior: "instant",
-        });
+      if (byX || byY) land(box, localScrollBy(box, { x: byX, y: byY }), "instant");
     }
     if (box === pageScroller || getComputedStyle(box).position === "fixed") break;
   }

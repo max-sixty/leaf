@@ -12,7 +12,7 @@ A profile names the macOS version, architecture and locked Chromium version, and
 missing profile fails: browser upgrades require deliberately reviewed captures.
 Existing fetch-assets warms the same cache as every other asset reader.
 
-    uv run pytest -n0 tests/test_render_thread_snapshots.py
+    uv run pytest -n0 tests/*/test_render_thread_snapshots.py
     uv run leaf-dev thread-snapshots capture
     uv run leaf-dev thread-snapshots accept .tmp/thread-snapshots/captures/<run>
 
@@ -310,7 +310,7 @@ def capture():
             "--image-snapshot-update",
             "--thread-snapshot-store",
             str(directory),
-            "tests/test_render_thread_snapshots.py::test_message_delivery_appearance_and_first_frame",
+            "tests/journeys/test_render_thread_snapshots.py::test_message_delivery_appearance_and_first_frame",
         ],
         cwd=ROOT,
         check=False,
@@ -392,4 +392,6 @@ def accept(directory: Path):
             checkout, f"Accept reviewed thread appearance for {profile}"
         )
     click.echo(f"Accepted {len(files) // 2} thread images: {revision}")
-    click.echo("Validate with uv run pytest -n0 tests/test_render_thread_snapshots.py")
+    click.echo(
+        "Validate with uv run pytest -n0 tests/*/test_render_thread_snapshots.py"
+    )

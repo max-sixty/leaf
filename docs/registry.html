@@ -143,7 +143,6 @@
           <a href="#x-measured"><code>x-measured</code></a>
           <a href="#x-name"><code>x-name</code></a>
           <a href="#x-owners"><code>x-owners</code></a>
-          <a href="#x-paints"><code>x-paints</code></a>
           <a href="#x-patch"><code>x-patch</code></a>
           <a href="#x-prepaint"><code>x-prepaint</code></a>
           <a href="#x-question-context"><code>x-question-context</code></a>
@@ -159,6 +158,7 @@
           <a href="#x-thread-seat"><code>x-thread-seat</code></a>
           <a href="#x-thread-surface"><code>x-thread-surface</code></a>
           <a href="#x-tone"><code>x-tone</code></a>
+          <a href="#x-unique"><code>x-unique</code></a>
           <a href="#x-upgrade"><code>x-upgrade</code></a>
           <a href="#x-verbatim"><code>x-verbatim</code></a>
           <a href="#x-views"><code>x-views</code></a>
@@ -172,27 +172,33 @@
             <h3><code>x-awaits</code></h3>
             <div class="reference-copy">
               <p>
-                A widget requests user input when its authored attributes match when.
+                The widget asks the user for input while its authored attributes match
+                <code>when</code>.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-awaits contract">Full contract</summary>
                 <p>
-                  Its stable Question id is widget:&lt;source-id&gt;; presentation
-                  context only supplies prompt words and an arrival target. value names
-                  the x-state verb supplying the typed answer: its record value, or its
-                  standing action detail where it has no record. A verb folding on
-                  member units supplies their value mapping. answered independently
-                  declares completion; partial values may exist while open, and a
-                  completed empty value remains an answer. Core publishes one record
-                  with source, prompt, answer {value, event}, status and next_actor. A
-                  source previously registered remains answered or withdrawn when when
-                  stops holding; an unrelated instance that never requested input
-                  creates no Question. restated starts a fresh request. A discussion in
-                  its declared thread seat transfers next_actor to agent without
-                  answering the widget. Frozen widgets retain Questions when the
-                  containing thread closes, with no current next actor. Quoted sources
-                  register nothing. all retains the declared bulk answer. Questions and
-                  explicit Tasks are separate records; queues select Questions directly.
+                  The ask's id is widget:&lt;source-id&gt; and does not change; a
+                  framing x-question-context supplies only the prompt words and where
+                  travel to the ask lands. <code>value</code> names the x-state verb
+                  whose state is the typed answer: the verb's record value, or, where it
+                  has no record, the detail of its latest action still in force. A verb
+                  that keeps state per member unit gives a map from each unit to its
+                  value. <code>answered</code> declares when the ask is complete,
+                  separately from <code>value</code>: a partial value can exist while
+                  the ask is open, and a completed empty value is still an answer. Core
+                  publishes one record per ask with source, prompt, answer {value,
+                  event}, status and next_actor. An ask once registered stays answered
+                  or withdrawn after <code>when</code> stops holding; an element that
+                  never matched <code>when</code> creates no ask. A
+                  <code>restated</code> event starts a fresh request. A comment in the
+                  widget's thread box (x-thread-seat) makes the agent the next actor
+                  without answering the ask. A widget frozen into a thread keeps its ask
+                  after that thread closes, with no next actor. A quoted widget
+                  (x-exhibit) registers no ask. <code>all</code> names the outcome one
+                  banner control can give every ask of this kind at once. Asks and
+                  to-dos are separate records, and the Questions list reads asks
+                  directly.
                 </p>
               </details>
             </div>
@@ -259,7 +265,7 @@
             <div class="reference-copy">
               <p>
                 The element displays quoted content: nested widgets are not interactive,
-                and nested Questions do not enter the user's queue. Modules check
+                and nested asks do not enter the user's Questions. Modules check
                 <code>quoted(el)</code> before enabling input. The theme suppresses
                 interactive styling inside quoted content.
               </p>
@@ -269,22 +275,23 @@
             <h3><code>x-face</code></h3>
             <div class="reference-copy">
               <p>
-                Child selectors, each <code>:scope &gt; </code> and then a tag, classes,
-                or both (<code>:scope &gt; lf-new</code>,
-                <code>:scope &gt; .lf-shotrail</code>), naming the light-DOM children
-                that are painted boxes that draw the element's own face rather than
-                separate things it holds: a suggestion's tinted slots, a screenshot's
-                caption rail.
+                Child selectors, each <code>:scope &gt; </code> followed by a tag,
+                classes, or both (<code>:scope &gt; lf-new</code>,
+                <code>:scope &gt; .lf-shotrail</code>), naming light-DOM children whose
+                painted boxes are part of the element's own appearance rather than
+                separate things it contains, such as a suggestion's tinted slots or a
+                screenshot's caption rail.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-face contract">Full contract</summary>
                 <p>
-                  A margin pin whose target is this element may stand on them, as it
-                  stands on the element itself, and still keeps off their words; every
-                  other box inside the target that paints its own extent counts whole,
-                  since a pin on it reads as that box's, as a choice's pin on its first
-                  option's card would read as that option's. Declare it only where a pin
-                  on the part reads as the whole element's.
+                  A margin pin whose target is this element may sit over these children,
+                  as it may over the element itself, but still keeps off their words. A
+                  pin keeps entirely off every other box inside the target that paints
+                  its own area, because a pin over such a box reads as belonging to it,
+                  as a choice's pin over its first option's card would read as that
+                  option's. Declare a child here only where a pin over it reads as the
+                  whole element's.
                 </p>
               </details>
             </div>
@@ -366,11 +373,15 @@
           <section class="reference-entry" id="x-inline">
             <h3><code>x-inline</code></h3>
             <div class="reference-copy">
-              <p>
-                The element is set among the words around it, so the render gate holds
-                its box to no width of its own and the rule that a block widget stands
-                in a block slot passes over it.
-              </p>
+              <p>The element sits inline among the words around it.</p>
+              <details class="reference-more">
+                <summary aria-label="Full x-inline contract">Full contract</summary>
+                <p>
+                  The render gate therefore does not require it to have a width of its
+                  own, and does not apply the rule that a block widget must stand where
+                  a block is allowed.
+                </p>
+              </details>
             </div>
           </section>
           <section class="reference-entry" id="x-instructions">
@@ -386,11 +397,16 @@
           <section class="reference-entry" id="x-language">
             <h3><code>x-language</code></h3>
             <div class="reference-copy">
-              <p>
-                The attribute that names a code language, held to
-                <code>$languages.names</code> — the one list this page colors from — so
-                a second tag taking a language costs a declaration and no new reader.
-              </p>
+              <p>The attribute that names a code language.</p>
+              <details class="reference-more">
+                <summary aria-label="Full x-language contract">Full contract</summary>
+                <p>
+                  Its value must be one of <code>$languages.names</code>, the one list
+                  of languages the page highlights, so a new tag that takes a language
+                  needs only this declaration and no code of its own to read the
+                  attribute.
+                </p>
+              </details>
             </div>
           </section>
           <section class="reference-entry" id="x-measured">
@@ -404,9 +420,10 @@
                 <p>
                   <code>input</code> names the widget's data input and
                   <code>run</code> its required nonempty receipt attribute. When that
-                  source holds a different run, <code>page check</code> advises that the
-                  frozen measurement is stale and <code>page state</code> reports the
-                  same debt. Rewriting the same value is a new run; age alone is not.
+                  source holds a different run, <code>page check</code> warns that the
+                  authored measurement is stale and <code>page state</code> reports it
+                  too. A source rewritten with the same value counts as a new run; a
+                  measurement's age alone does not make it stale.
                 </p>
               </details>
             </div>
@@ -446,23 +463,6 @@
               </details>
             </div>
           </section>
-          <section class="reference-entry" id="x-paints">
-            <h3><code>x-paints</code></h3>
-            <div class="reference-copy">
-              <p>
-                Attributes the theme represents visually, such as a status marker's
-                tint.
-              </p>
-              <details class="reference-more">
-                <summary aria-label="Full x-paints contract">Full contract</summary>
-                <p>
-                  The runtime adds screen-reader text for each declared attribute, using
-                  its value or, for an empty flag attribute, its name. This text is
-                  visually hidden and excluded from text selection.
-                </p>
-              </details>
-            </div>
-          </section>
           <section class="reference-entry" id="x-patch">
             <h3><code>x-patch</code></h3>
             <div class="reference-copy">
@@ -488,30 +488,31 @@
             <div class="reference-copy">
               <p>
                 Markup an upgraded element shows at its first paint, before its module
-                draws: one element holding the structure the module will draw, with
-                words that size it as the drawing's will.
+                draws: one element with the structure the module will draw, holding
+                words that give it the size the drawing will have.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-prepaint contract">Full contract</summary>
                 <p>
                   Delivery writes it into every occurrence in the served document, as
                   the element's first child marked data-lf-prepaint, so the browser lays
-                  the widget out from its real structure, wrapping as its drawing will,
-                  rather than in a room summed from line heights; the theme holds that
-                  room and paints none of it, and a reading without the runtime hides
-                  it. The module takes it out in the same step that draws its
-                  replacement, so nothing moves, and draws by filling in a copy of the
-                  same markup, so the declaration is the one statement of that
-                  structure. <code>{"as": tag}</code> declares the markup of the named
-                  widget, for one that first paints as that widget will stand in it, as
-                  a command with no seat draws a readings seat at its head. It is
-                  written exactly as the parser reads it back, every element closed,
-                  since delivery inserts it as written and markup left open would take
-                  in the occurrence's own children; and it carries no id, no custom
-                  element and no script, since every occurrence gets a copy. Declare it
-                  on a widget whose drawn structure is fixed while its values come from
-                  the log, as a command's outcome and count tiles are; a drawing whose
-                  rows the log decides has no structure to write in.
+                  the widget out from its real structure and wraps it as the drawing
+                  will, instead of reserving a height computed from line heights. The
+                  theme keeps that space and paints none of the prepaint markup, and a
+                  reading without the runtime hides it. The module removes it in the
+                  same step that draws its replacement, so nothing moves, and draws by
+                  filling in a copy of the same markup, so this declaration is the only
+                  statement of that structure. <code>{"as": tag}</code> takes the named
+                  widget's prepaint, for an element that first paints as that widget
+                  will appear inside it, as a command with no readings seat draws one at
+                  its head. Write the markup exactly as the parser reads it back, with
+                  every element closed, because delivery inserts it as written and an
+                  unclosed element would take in the occurrence's own children. It
+                  carries no id, no custom element, and no script, since every
+                  occurrence gets a copy. Declare it on a widget whose drawn structure
+                  is fixed while its values come from the log, as a command's outcome
+                  and count tiles are; a widget whose rows depend on the log has no
+                  fixed structure to write here.
                 </p>
               </details>
             </div>
@@ -519,22 +520,21 @@
           <section class="reference-entry" id="x-question-context">
             <h3><code>x-question-context</code></h3>
             <div class="reference-copy">
-              <p>
-                A context region contributes the prompt text from its leading direct
-                heading and the arrival target of nested Questions.
-              </p>
+              <p>The element frames the asks nested in it.</p>
               <details class="reference-more">
                 <summary aria-label="Full x-question-context contract">
                   Full contract
                 </summary>
                 <p>
-                  It never replaces a Question identity, changes its answer or
-                  completion, or deduplicates sources. The nearest context is used. Leaf
-                  calls the context a question when referring to its type, unless its
-                  declared x-word module returns another label. lf-ask is one widget
-                  declaring this adapter; standalone question sources need no wrapper. A
-                  context may frame several sources, each retaining its
-                  widget:&lt;source-id&gt; identity.
+                  Its leading direct heading supplies their prompt text, and travel to
+                  one of those asks lands on the element. It never changes an ask's
+                  identity, answer or completion, and never merges asks from different
+                  sources. Where frames nest, an ask uses the nearest. One frame may
+                  hold several asks, each keeping its own widget:&lt;source-id&gt;
+                  identity. lf-ask is one element that declares this key; a widget that
+                  asks on its own needs no frame. When Leaf names the element's kind, it
+                  calls it a question, unless the element's x-word module returns
+                  another label.
                 </p>
               </details>
             </div>
@@ -542,24 +542,23 @@
           <section class="reference-entry" id="x-reading-role">
             <h3><code>x-reading-role</code></h3>
             <div class="reference-copy">
-              <p>
-                The structural role an element supplies: <code>pane</code>, the one
-                role, is a labeled reading region whose body scrolls on its own while
-                the workspace is full-height.
-              </p>
+              <p>The structural role an element supplies.</p>
               <details class="reference-more">
                 <summary aria-label="Full x-reading-role contract">
                   Full contract
                 </summary>
                 <p>
-                  A pane holds exactly one body element between an optional direct
-                  native <code>header</code> first and <code>footer</code> last.
-                  Role-derived validation reads this declaration rather than tag names.
-                  The role keeps markup content so packages may contribute differently
-                  named panes without joining a closed parent-child vocabulary. A pane
-                  requires a string <code>id</code> and a string <code>label</code>,
-                  which names its accessible region while a visible heading belongs in
-                  its authored header.
+                  The only role is <code>pane</code>: a labeled reading region whose
+                  body scrolls on its own while the workspace is full-height. A pane
+                  holds exactly one body element, optionally preceded by a direct native
+                  <code>header</code> and followed by a direct native
+                  <code>footer</code>. Validation of roles reads this declaration rather
+                  than tag names, and a pane's content stays markup, so packages can
+                  contribute panes under their own tag names without a fixed list of
+                  allowed parents and children. A pane requires a string
+                  <code>id</code> and a string <code>label</code>; the label names its
+                  accessible region, and a visible heading belongs in its authored
+                  header.
                 </p>
               </details>
             </div>
@@ -585,11 +584,19 @@
                   command fills the readings seat it names:
                   <code>page check</code> requires the target in the referrer's own
                   document, and every element there that the predicate selects named by
-                  exactly one referrer. In the browser a declared attribute is what a
-                  module hands <code>navigateToDatum</code> and the experimental
+                  exactly one referrer. A keyed contract <code>{tag, key}</code> names a
+                  member by an attribute rather than an id: the <code>tag</code> element
+                  whose <code>key</code> attribute holds the value, inside the
+                  referrer's own nearest owner of the tag <code>key</code> is unique
+                  within, which <code>tag</code> declares in x-unique (a playground
+                  preset's setting names a control of its own playground by
+                  <code>name</code>); <code>page check</code> and message markup refuse
+                  one naming no such member. In the browser a declared attribute is what
+                  a module hands <code>navigateToDatum</code> and the experimental
                   <code>indicate</code> to reach the named widget, which each resolves
-                  in the owner's own authored document first (its message's markup, for
-                  a widget in a reply) and then in the page.
+                  in that same owner for a keyed contract, and otherwise in the owner's
+                  own authored document first (its message's markup, for a widget in a
+                  reply) and then in the page.
                 </p>
               </details>
             </div>
@@ -598,19 +605,19 @@
             <h3><code>x-resident</code></h3>
             <div class="reference-copy">
               <p>
-                The margin posture an element takes as the only occupant, or one
-                occupant, of a column page's first <code>aside.sidebar</code>:
-                <code>map</code>, the one posture, is a contents map that rests on a
-                roomy fine-pointer screen as a spine in the left margin and reveals its
-                labels over the page.
+                How an element sits in the margin when it is the only occupant, or one
+                occupant, of a column page's first <code>aside.sidebar</code>.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-resident contract">Full contract</summary>
                 <p>
-                  Delivery paints it into the served document as
-                  <code>data-lf-resident</code>, so the kernel's margin layout reads the
-                  declaration rather than a widget's tag. A thread message has no
-                  margin, so it is not painted there.
+                  The only value is <code>map</code>, a contents map: where the margin
+                  has room and the pointer is fine, such as a mouse or trackpad, it
+                  shows as a spine in the left margin and reveals its labels over the
+                  page. Delivery writes the declaration into the served document as
+                  <code>data-lf-resident</code>, so the margin layout reads it rather
+                  than a widget's tag. A thread message has no margin, so delivery does
+                  not write it there.
                 </p>
               </details>
             </div>
@@ -619,8 +626,9 @@
             <h3><code>x-retired-when</code></h3>
             <div class="reference-copy">
               <p>
-                On a member: the owner's decision outcome that takes this element off
-                the page (a suggestion's <code>lf-old</code> under <code>accept</code>).
+                On a member: the outcome of its owner's decision that removes this
+                element from the page, as <code>accept</code> removes a suggestion's
+                <code>lf-old</code>.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-retired-when contract">
@@ -629,19 +637,20 @@
                 <p>
                   Requires x-owners. The outcome is a value of the
                   <code>outcome</code> detail field on the owner's one deciding verb, so
-                  only one settlement can stand. The layer renders the settlement whole,
-                  following the log's standing state both ways — reconciliation paints
+                  only one decision can be in force. The layer renders the decision
+                  itself and follows the log in both directions. Reconciliation writes
                   data-lf-state="&lt;outcome&gt;" on the owner and data-lf-retired on
-                  the members that outcome retires, takes both off when undo or a
-                  retraction removes the deciding action from the fold, and one theme
-                  rule hides the marked members — so no module owes any of it, though
-                  one may paint the same sooner as its own gesture (renderRetired).
-                  Those attributes are rendered output for CSS, export, and checks;
-                  semantic consumers read the publisher's explicit outcome rather than
-                  reading them back. The file's reading takes the fact from the log, and
-                  <code>page check</code> licenses dropping the member's ids on it;
-                  <code>page check --render</code> reports a settled member still
-                  showing words, or a mark the log never decided.
+                  the members that outcome removes, and takes both off when undo or a
+                  retraction withdraws the deciding action; one theme rule hides the
+                  marked members. No module has to do any of this, though a module may
+                  write the same attributes earlier as part of its own gesture
+                  (renderRetired). These attributes are rendered output for CSS, export,
+                  and checks; code that needs the decision reads the publisher's
+                  explicit outcome rather than the attributes. The file-side reading
+                  takes the decision from the log, and once the log decides it,
+                  <code>page check</code> allows a revision to drop the member's ids.
+                  <code>page check --render</code> reports a removed member that still
+                  shows words, and a mark the log never decided.
                 </p>
               </details>
             </div>
@@ -670,10 +679,10 @@
             <h3><code>x-shadow</code></h3>
             <div class="reference-copy">
               <p>
-                The module renders the page's words into an open shadow tree, which the
-                passage walk, the selection capture and every question asked by id
-                cross; a shadow root on a host whose entry lacks it is a render-gate
-                finding.
+                The module renders the page's words into an open shadow root. Leaf's
+                passage reading, selection capture, and every lookup by id reach into
+                it. The render gate reports a shadow root on an element whose
+                declaration lacks this key.
               </p>
             </div>
           </section>
@@ -684,9 +693,9 @@
                 The default width an element takes in a flow wider than the prose
                 measure: <code>column</code> keeps that measure and starts where the
                 prose does, for an element or idiom whose content is read as lines of
-                text or that frames prose (a Question, <code>.callout</code>), and it
-                widens to the widest allocation among its own blocks;
-                <code>wide</code> takes the vocabulary's shared capped evidence width;
+                text or that frames prose (an ask, <code>.callout</code>), and it widens
+                to the widest allocation among its own blocks; <code>wide</code> takes
+                the vocabulary's shared capped evidence width;
                 <code>available</code> takes all room the page shell can give after
                 enclosing frames, chrome, and actual margin residents.
               </p>
@@ -696,9 +705,9 @@
                   An element that declares none fills the box it stands in. The
                   declaration says nothing about how the package arranges content inside
                   that allocation. An authored occurrence may override the default with
-                  data-width=column|wide|available; delivery paints that choice into the
-                  served document as data-lf-space and the theme allocates it without
-                  moving the prose axis.
+                  data-width=wide|available; delivery paints that choice into the served
+                  document as data-lf-space and the theme allocates it without moving
+                  the prose axis.
                 </p>
               </details>
             </div>
@@ -707,48 +716,49 @@
             <h3><code>x-state</code></h3>
             <div class="reference-copy">
               <p>
-                What x-state declares, once per widget with state: each verb's fold
-                unit, who writes it, and either its recorded effect or its custom
-                unrecorded detail schema.
+                What x-state declares, once per widget that has state: for each verb,
+                the unit of the widget's state it changes, who writes it, and either its
+                recorded effect or the schema of its unrecorded detail.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-state contract">Full contract</summary>
                 <p>
-                  A recorded effect derives its closed payload from the effect kind and
-                  destination attribute; it declares no separate detail schema or
-                  payload-field mappings. A verb is the user's unless it declares
-                  <code>writer: "agent"</code>: the user writes theirs through the page
-                  as <code>action</code> events, and the agent reports its own through
-                  <code>leaf page report</code> as <code>report</code> events, so every
-                  coordinate has one writer. A user verb may declare a created child
-                  (<code>creates</code>). An agent verb requires a record form other
-                  than <code>body</code>, since a report moves declared state and never
-                  the page's words, which keeps the passage reading untouched by it; it
-                  may declare <code>report: true</code> to require non-empty
-                  <code>detail.text</code> as the report's short human-readable news,
-                  which the canonical report feed exposes without guessing from a
-                  widget, verb, or field name. The runtime paints a standing report live
-                  (data-lf-reported); it is provisional news, standing only until a
-                  version answers it, as $report says. Each verb is its own state: the
-                  owning Leaf element, the unit, and the verb together name one
-                  independently standing fact, the latest surviving action of that verb
-                  there supersedes its predecessors, and different verbs coexist. The
-                  framework composes the last surviving action per coordinate with typed
-                  authored values and gives every widget its complete state through
-                  renderState, keyed by verb, and one declaration drives POST
-                  validation, complete-state replay, construction-linked inspection, the
-                  runtime's user- and report-origin readings, and the version diff's
-                  state half. When an action's admission makes its widget's x-awaits
-                  <code>answered</code> condition hold, admission records meaning.answer
-                  on it: the widget's authored <code>resolves</code> attribute, read
-                  from the sending document, names the comment thread the answer closes,
-                  and null answers without closing one, which is also what a decision
-                  whose outcome is the widget's x-withdrawn-as records: it leaves the
-                  page as if nothing had been proposed. Historical settlement uses the
-                  admitted owner-unit-verb coordinate even after the widget retires. One
-                  detail field name is reserved: <code>outcome</code>, on the one user
-                  widget-unit verb that decides which retirable members leave the page
-                  (x-retired-when). The unit, creates, and record forms are $state's.
+                  A recorded effect's payload follows from the effect kind and the
+                  destination attribute, so it declares no detail schema or field
+                  mapping of its own. A verb is the user's unless it declares
+                  <code>writer: "agent"</code>. The user writes a user verb through the
+                  page, as <code>action</code> events; the agent writes an agent verb
+                  with <code>leaf page report</code>, as <code>report</code> events, so
+                  each [widget, unit, verb] key has one writer. A user verb may declare
+                  a child element it creates (<code>creates</code>). An agent verb needs
+                  a record form other than <code>body</code>, because a report changes
+                  declared state and never the page's words, so it never changes what
+                  the passage reader reads. An agent verb may declare
+                  <code>report: true</code> to require a non-empty
+                  <code>detail.text</code>, the report's short news for a person, which
+                  the report feed shows as written instead of composing it from the
+                  widget, verb, or field names. The runtime marks a report on the page
+                  as soon as it is in force (data-lf-reported); it stays only until a
+                  version answers it, as $report says. Each verb holds its own state:
+                  for each [widget, unit, verb] key, the latest action that has not been
+                  taken back replaces earlier ones, and different verbs on the same unit
+                  coexist. The framework combines those latest actions with the typed
+                  authored values and gives each widget its complete state through
+                  renderState, keyed by verb. The same declaration drives POST
+                  validation, replay of the complete state, inspection, the runtime's
+                  readings of user actions and reports, and the state half of a version
+                  diff. When an admitted action makes the widget's x-awaits
+                  <code>answered</code> condition hold, Leaf records meaning.answer on
+                  the event. Its value is the thread named by the widget's authored
+                  <code>resolves</code> attribute in the document the action was sent
+                  from, which the answer closes, or null when the answer closes no
+                  thread. A decision whose outcome is the widget's x-withdrawn-as value
+                  also records null, and the page then reads as if nothing had been
+                  proposed. A past action keeps the [widget, unit, verb] key it was
+                  admitted under, even after the widget leaves the page. One detail
+                  field name is reserved: <code>outcome</code>, on the one user verb
+                  that decides which retirable members leave the page (x-retired-when).
+                  $state documents units, <code>creates</code>, and record forms.
                 </p>
               </details>
             </div>
@@ -779,29 +789,31 @@
             <h3><code>x-thread-seat</code></h3>
             <div class="reference-copy">
               <p>
-                The module places a threadBox in each matching Leaf element, selected by
-                authored, static <code>when</code> attributes (an attribute written by
-                an x-state value record cannot drive this predicate).
+                The module places a thread box (threadBox) in each matching Leaf
+                element, chosen by the authored, static attributes in <code>when</code>;
+                an attribute that an x-state value record writes cannot satisfy
+                <code>when</code>.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-thread-seat contract">
                   Full contract
                 </summary>
                 <p>
-                  It projects exact-section threads textually from the whole log;
-                  Threads keeps the complete interactive view. Thread markup and quoted
-                  material take no second view. Where the widget also originates a local
-                  x-awaits Question, the seat is where the user deals with it in words:
-                  the Question leaves their queue while that thread waits on the agent,
-                  rather than being counted a second time under a box they have already
-                  used. It is not an answer — the widget's own state is untouched, so
-                  its controls still work and the Question still reads as unanswered. A
-                  <code>hold</code> comment is a seat thread like any other.
-                  <code>hold</code> labels a stronger send route whose comment carries
-                  <code>holds</code> naming this widget: that route remains available
-                  after ordinary roots, the unresolved held thread is the hold,
-                  resolution releases it, and undoing resolution restores it atomically.
-                  Dropping the widget drops only the inline view.
+                  The box shows, as text, the threads anchored exactly to that element,
+                  read from the whole log; the Threads panel keeps the full interactive
+                  view. A matching element inside thread markup or quoted content gets
+                  no box. If the widget also asks a question (x-awaits), the box is
+                  where the user answers it in words: while a thread there waits on the
+                  agent, the ask leaves the user's Questions list, so the user does not
+                  see it twice. That comment does not answer the ask. The widget's state
+                  is unchanged, its controls still work, and the ask still reads as
+                  unanswered. <code>hold</code> is the label of a second send control in
+                  the box, whose comment carries <code>holds</code>, naming this widget.
+                  A held comment starts a thread like any other comment in the box, and
+                  the control stays available after other threads have started there.
+                  The widget is held while that thread is unresolved; resolving the
+                  thread releases it, and undoing the resolution restores the hold in
+                  one step. Removing the widget removes only the box, not its threads.
                 </p>
               </details>
             </div>
@@ -810,25 +822,32 @@
             <h3><code>x-thread-surface</code></h3>
             <div class="reference-copy">
               <p>
-                The upgraded widget can seat the canonical response composer and Thread
-                views beside exact projected datums.
+                The upgraded widget can show Leaf's comment box and threads inside
+                itself, beside the exact data items (datums) they are about.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-thread-surface contract">
                   Full contract
                 </summary>
                 <p>
-                  Its module registers through placeThreads, receives one ordered batch
-                  of admitted exact targets, and returns matching outlet Elements or
-                  null. Core maps those outlets to their Threads or the active composer
-                  and commits their placement and lifetime. The returned handle can open
-                  Comment from one of the widget's projected elements. Leaf owns
-                  anchors, drafts, response modes, submission, Thread rendering, reply
-                  and reaction state, settlement, focus, receipts, and margin-projection
-                  fallback. A placement claims that active composer or Thread locally
-                  for the current reconciliation; unloaded, filtered, collapsed,
-                  outdated, or otherwise undisplayable datums receive no placement and
-                  remain in the global Threads index plus the ordinary fallback.
+                  Leaf registers the widget when it upgrades and retires it when it
+                  leaves the page. On each reconciliation pass Leaf calls the element's
+                  own
+                  <code>threadOutlets(targets, {signal, collection, onCommit})</code>
+                  with one ordered batch of the admitted targets anchored exactly to its
+                  items, and the method returns for each target an element to place it
+                  in (an outlet), or null. Leaf maps each outlet to its thread or to the
+                  open comment box and controls where it is placed and how long it
+                  stays. The widget reads its registration with
+                  <code>threadSurface(element)</code>: <code>update()</code> says its
+                  seats changed, and <code>open(datum)</code> opens Comment on one of
+                  its items. Leaf owns anchors, drafts, response modes, sending, thread
+                  rendering, reply and reaction state, settlement, focus, receipts, and
+                  the fallback to the margin. A placement holds that comment box or
+                  thread in the widget for the current reconciliation pass only. An item
+                  that is not loaded, filtered out, collapsed, outdated, or otherwise
+                  not shown gets no placement; its threads stay in the Threads panel and
+                  fall back to the margin as usual.
                 </p>
               </details>
             </div>
@@ -840,6 +859,25 @@
                 The attribute that names one of the layer's semantic tints, held to
                 <code>$tones.names</code>, which the theme has a rule for.
               </p>
+            </div>
+          </section>
+          <section class="reference-entry" id="x-unique">
+            <h3><code>x-unique</code></h3>
+            <div class="reference-copy">
+              <p>
+                A map from attributes whose values no two members share within one owner
+                to that owner's tag.
+              </p>
+              <details class="reference-more">
+                <summary aria-label="Full x-unique contract">Full contract</summary>
+                <p>
+                  <code>page check</code> and message markup refuse a member whose value
+                  repeats another's inside the same nearest enclosing owner of that tag,
+                  as two controls of one playground sharing a <code>name</code> or two
+                  choices of one control sharing a <code>value</code>. A keyed x-refers
+                  contract names members by such an attribute, so it always names one.
+                </p>
+              </details>
             </div>
           </section>
           <section class="reference-entry" id="x-upgrade">
@@ -858,18 +896,19 @@
             <h3><code>x-verbatim</code></h3>
             <div class="reference-copy">
               <p>
-                An upgraded element that preserves its own authored words and the order
-                and identity of nested upgraded widget boundaries, which makes those
-                words quotable.
+                The upgraded element keeps its authored words, and keeps nested upgraded
+                widgets in their authored order with their identity, so the passage
+                reader can quote those words.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-verbatim contract">Full contract</summary>
                 <p>
-                  Each nested upgraded widget keeps its own word and fence contract, so
-                  its generated rendering is not a claim by the wrapper. Without this
-                  promise the passage reader treats the widget as opaque, since its
-                  module may insert or replace words. The render gate refuses changed
-                  wrapper prose or removed and reordered nested ownership boundaries.
+                  Each nested upgraded widget keeps its own declarations about its words
+                  and boundaries, so what it generates is not a claim made by the
+                  wrapper. Without this declaration the passage reader treats the widget
+                  as opaque, since its module may insert or replace words. The render
+                  gate refuses a page where the wrapper's own words changed or a nested
+                  widget was removed or reordered.
                 </p>
               </details>
             </div>
@@ -958,7 +997,7 @@
                   Full contract
                 </summary>
                 <p>
-                  It answers the Question without closing the widget's
+                  It answers the ask without closing the widget's
                   <code>resolves</code> thread. A revision may also remove an unanswered
                   proposal directly, whether or not it has retirable slots; historical
                   ids do not veto the edit.
@@ -994,19 +1033,19 @@
             <h3><code>x-work</code></h3>
             <div class="reference-copy">
               <p>
-                <code>true</code>: this widget is a block prose seat that can admit
-                <code>leaf task open</code> without a pending update, so the task shows
-                as local chrome beside its authored markup.
+                <code>true</code>: the agent may open its own to-do on this widget with
+                <code>leaf task open</code> even when the widget holds no unsettled
+                update, and the runtime shows the to-do beside the widget's authored
+                markup.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-work contract">Full contract</summary>
                 <p>
                   Only a block widget whose x-content is markup may declare it. Once
-                  admitted, a page-widget task appears at the page edge through its
-                  target margin entry even if a later layer drops x-work. The
-                  declaration is permission for runtime chrome, not a consequence of
-                  x-content: markup may itself be an owner gesture or sit in a hidden
-                  panel.
+                  opened, a to-do on a page widget shows at the page edge through its
+                  target's margin entry, even if a later layer drops x-work. Markup
+                  content does not imply x-work, because markup can itself be a control
+                  its owner uses, or sit in a hidden panel.
                 </p>
               </details>
             </div>

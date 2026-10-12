@@ -37,10 +37,13 @@
         --lf-block-frame: 1;
         box-sizing: border-box;
         min-width: 0;
-        max-width: 100%;
         padding: var(--sp-2);
         border: 1px solid transparent;
         border-radius: var(--r);
+      }
+
+      .code-candidate[data-candidate] {
+        max-width: 100%;
       }
 
       .code-candidate-title,
@@ -97,14 +100,14 @@
     </style>
     <script type="module">
       import {
-        cancelRender,
+        frameFor,
         keeps,
         keepsText,
         layoutChanged,
-        nextRender,
         offer,
         once,
         sizeObserver,
+        whileConnected,
       } from "/runtime/widget-api.js";
 
       const DEFAULT_COMPARISON = {
@@ -120,24 +123,14 @@
           #state = clone(DEFAULT_COMPARISON);
           #notify = null;
           #change = null;
-          #watching = null;
-          #measurementFrame = 0;
           #readerLayout = (event) => {
             if (event.target.matches("lf-code")) this.#scheduleMeasurement();
           };
 
           connectedCallback() {
-            if (once(this)) this.#build();
-            this.#connect();
-          }
-
-          disconnectedCallback() {
-            this.#playground?.removeEventListener("lf-playground-change", this.#change);
-            this.removeEventListener("lf-layout", this.#readerLayout);
-            this.#watching?.disconnect();
-            this.#watching = null;
-            cancelRender(this.#measurementFrame);
-            this.#measurementFrame = 0;
+            if (!once(this)) return;
+            this.#build();
+            whileConnected(this, (signal) => void this.#connect(signal));
           }
 
           #button(label, run) {
@@ -158,18 +151,21 @@
             this.prepend(toolbar);
           }
 
-          async #connect() {
+          async #connect(signal) {
             await Promise.all([
               customElements.whenDefined("lf-playground"),
               customElements.whenDefined("lf-code"),
             ]);
-            if (!this.isConnected || this.#watching) return;
+            if (signal.aborted) return;
             if (!this.#notify) this.#initialize();
-            this.#playground.addEventListener("lf-playground-change", this.#change);
-            this.addEventListener("lf-layout", this.#readerLayout);
-            this.#watching = sizeObserver(() => this.#scheduleMeasurement());
+            this.#playground.addEventListener("lf-playground-change", this.#change, {
+              signal,
+            });
+            this.addEventListener("lf-layout", this.#readerLayout, { signal });
+            const watching = sizeObserver(this.#scheduleMeasurement);
+            signal.addEventListener("abort", () => watching.disconnect());
             for (const reader of this.querySelectorAll(".code-candidate lf-code")) {
-              this.#watching.observe(reader);
+              watching.observe(reader);
             }
             this.#render();
           }
@@ -232,38 +228,38 @@
           }
 
           // Reader rendering and box changes invalidate the same derived reading.
-          #scheduleMeasurement() {
-            if (!this.isConnected || this.#measurementFrame) return;
-            this.#measurementFrame = nextRender(() => {
-              this.#measurementFrame = 0;
-              for (const name of ["A", "B"]) {
-                const candidate = this.querySelector(`[data-candidate="${name}"]`);
-                const pre = candidate.querySelector("lf-code pre");
-                const measurement = candidate.querySelector(".code-measurement");
-                if (!pre || !measurement) continue;
-                keepsText(
-                  measurement,
-                  `${Math.round(pre.getBoundingClientRect().height)}px tall · ${pre.scrollWidth}px source width`,
-                );
-              }
-              layoutChanged(this);
-            });
-          }
+          #scheduleMeasurement = frameFor(this, () => {
+            for (const name of ["A", "B"]) {
+              const candidate = this.querySelector(`[data-candidate="${name}"]`);
+              const pre = candidate.querySelector("lf-code pre");
+              const measurement = candidate.querySelector(".code-measurement");
+              if (!pre || !measurement) continue;
+              keepsText(
+                measurement,
+                `${Math.round(pre.getBoundingClientRect().height)}px tall · ${pre.scrollWidth}px source width`,
+              );
+            }
+            layoutChanged(this);
+          });
         },
       );
     </script>
   </head>
   <body>
-    <main class="layout-wide">
+    <main class="layout-column">
       <p class="eyebrow">code reader design</p>
       <h1>Choose a code reader treatment</h1>
       <p class="lede">
         Compare a scrolling code reader with a wrapping one. Adjust their spacing and
         shared width, then choose the treatment to keep.
       </p>
-      <lf-ask id="code-comparison-ask" data-width="available">
+      <lf-ask id="code-comparison-ask">
         <h2>Which code-reader treatment should the agent keep?</h2>
-        <lf-playground id="code-comparison-playground" submit-label="Apply treatment">
+        <lf-playground
+          id="code-comparison-playground"
+          submit-label="Apply treatment"
+          data-width="available"
+        >
           <lf-playground-control
             name="width"
             label="Comparison viewport"
@@ -347,7 +343,7 @@ export function releaseLabels(releases) {
           </lf-playground-output>
         </lf-playground>
       </lf-ask>
-      <section id="code-reader-feedback" data-width="available">
+      <section id="code-reader-feedback">
         <h2>Point at the reader element you want changed</h2>
         <p id="code-reader-feedback-guide">
           Turn on Design mode with <kbd>l</kbd> or the More menu, then press the heading
@@ -356,7 +352,11 @@ export function releaseLabels(releases) {
           stays beside that element as its treatment changes. Describe a shared change
           in the comment when both readers should inherit it.
         </p>
-        <section id="target-reader-artifact" class="code-candidate">
+        <section
+          id="target-reader-artifact"
+          class="code-candidate"
+          data-width="available"
+        >
           <h3 id="target-reader-heading" class="reader-treatment-title">
             Reader sample
           </h3>

@@ -14,7 +14,6 @@ import {
   repeat,
   unsafeHTML,
   watchData,
-  watchOwner,
 } from "/runtime/widget-api.js";
 
 customElements.define(
@@ -22,19 +21,12 @@ customElements.define(
   class extends HTMLElement {
     connectedCallback() {
       if (!once(this)) return;
-      watchOwner(this, {
-        connect: () => {
-          this.paint = clocked(this, (snapshot) => this.show(snapshot));
-        },
-        disconnect: () => {
-          this.paint.stop();
-          this.paint = null;
-        },
-      });
+      const paint = clocked(this, (snapshot) => this.show(snapshot));
+      let deliveries = 0;
       watchData(this, "request", async (snapshot) => {
-        const paint = this.paint;
+        const delivery = ++deliveries;
         if (snapshot?.value) await loadMarkdown();
-        if (paint !== this.paint || !this.isConnected) return;
+        if (delivery !== deliveries || !this.isConnected) return;
         paint(snapshot);
         if (snapshot?.value) await highlightBlocks(this);
       });

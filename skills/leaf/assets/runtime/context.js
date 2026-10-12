@@ -66,16 +66,6 @@ const offlineMarker = document.querySelector(
 const offlinePayload = offlineMarker
   ? JSON.parse(offlineMarker.textContent || "null")
   : null;
-if (
-  offlineMarker &&
-  (!offlinePayload ||
-    typeof offlinePayload !== "object" ||
-    !offlinePayload.state ||
-    !offlinePayload.data ||
-    !offlinePayload.resources)
-)
-  throw new TypeError("Leaf's interactive export payload is incomplete");
-
 // This declaration participates in executable identity: changing it replaces this
 // document realm rather than switching initialized physical owners in place.
 export const annotationMode =
@@ -168,10 +158,5 @@ export const runtime = {
     return readApplication().effective.view;
   },
 };
-
-// A sample arrives without the surrounding user's arrangements. Passive gallery
-// replays stay inert and take one state reading; operable samples run the ordinary
-// live feed.
-export const passiveSample = document.body.hasAttribute("data-lf-sample-passive");
 
 export const revisionLabel = (revision) => runtime.state.revision_labels[revision];

@@ -34,6 +34,7 @@ import {
   says,
   tabStore,
   wear,
+  whileConnected,
   widgetController,
 } from "/runtime/widget-api.js";
 import "./lf-playground-output.js";
@@ -107,28 +108,26 @@ customElements.define(
     #ready = false;
     #interactive = false;
     #regions = [];
-    #unregister = [];
 
     connectedCallback() {
-      if (!once(this)) {
-        this.#registerRegions();
-        this.#paintAvailability();
-        return;
-      }
+      if (!once(this)) return;
       try {
         this.#build();
         this.#ready = true;
         if (this.#interactive)
           this.#controller.subscribe(() => this.#paintAvailability());
       } catch (error) {
-        this.#unregisterRegions();
         failSoft(this, error);
+        return;
       }
-    }
-
-    disconnectedCallback() {
-      clearTimeout(this.#copyTimer);
-      this.#unregisterRegions();
+      whileConnected(this, () => {
+        const stops = this.#regions.map((region) => registerReadingRegion(region));
+        this.#paintAvailability();
+        return () => {
+          clearTimeout(this.#copyTimer);
+          for (const stop of stops) stop();
+        };
+      });
     }
 
     get values() {
@@ -141,12 +140,8 @@ customElements.define(
       if (this.#controlByName.has(name))
         throw new Error(`contributor ${name} collides with a control`);
       if (this.#contributors.has(name)) throw new Error(`repeats contributor ${name}`);
-      if (
-        !operations ||
-        typeof operations.read !== "function" ||
-        typeof operations.apply !== "function"
-      )
-        throw new Error(`contributor ${name} needs read and apply operations`);
+      if (typeof operations?.read !== "function")
+        throw new Error(`contributor ${name} needs a read operation`);
 
       const initial = jsonSnapshot(defaultSnapshot, `contributor ${name}`);
       this.#contributors.set(name, { ...operations, defaultSnapshot: initial });
@@ -247,9 +242,7 @@ customElements.define(
         });
         this.#commands();
       }
-      this.#registerRegions();
       this.#paintPresets();
-      this.#paintAvailability();
     }
 
     #parse(control, raw) {
@@ -257,8 +250,6 @@ customElements.define(
     }
 
     #normalize(candidate) {
-      if (!candidate || typeof candidate !== "object" || Array.isArray(candidate))
-        throw new Error("configuration values must be an object");
       const names = [
         ...this.#controlByName.keys(),
         ...this.#contributors.keys(),
@@ -299,15 +290,6 @@ customElements.define(
       if (at?.localName === "iframe")
         return Boolean(at.closest("lf-sample")?.focusedContent);
       return Boolean(at) && at !== at.ownerDocument.body;
-    }
-
-    #registerRegions() {
-      this.#unregister = this.#regions.map((region) => registerReadingRegion(region));
-    }
-
-    #unregisterRegions() {
-      for (const stop of this.#unregister) stop();
-      this.#unregister = [];
     }
 
     #commands() {

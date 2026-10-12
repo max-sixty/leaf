@@ -147,6 +147,7 @@
       }
     ],
     "additionalProperties": false,
+    "x-unique": { "name": "lf-playground" },
     "x-owners": ["lf-playground"],
     "x-content": "members",
     "x-upgrade": false
@@ -168,6 +169,7 @@
     },
     "required": ["value", "label"],
     "additionalProperties": false,
+    "x-unique": { "value": "lf-playground-control" },
     "x-owners": ["lf-playground-control"],
     "x-content": "empty",
     "x-upgrade": false
@@ -204,6 +206,10 @@
     },
     "required": ["for", "value"],
     "additionalProperties": false,
+    "x-refers": {
+      "for": { "tag": "lf-playground-control", "key": "name" }
+    },
+    "x-unique": { "for": "lf-playground-preset" },
     "x-owners": ["lf-playground-preset"],
     "x-content": "empty",
     "x-upgrade": false
@@ -250,6 +256,9 @@
     },
     "required": ["for"],
     "additionalProperties": false,
+    "x-refers": {
+      "for": { "tag": "lf-playground-control", "key": "name" }
+    },
     "x-owners": ["lf-playground-output"],
     "x-content": "empty",
     "x-inline": true,

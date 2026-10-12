@@ -71,13 +71,18 @@ report.
 An ordinary document's thread namespace is the thread ids its log holds,
 including a thread whose opening comment the log lost. A sample template's
 namespace comes from its initial history. `sample_content.initial_sample_events`
-constructs it once for both static validation and allocation. `data-sample-events`
-names an inline inert JSON script in the captured parent document: its ordinary event
+constructs it once for static validation, message admission and allocation. A
+template is declared in the page's document or in a message's frozen markup, and
+`validation.source.sample_errors` checks its child as a page wherever it is declared:
+`check_source` for the page's templates, the shared message-markup gate for a
+message's. `data-sample-events` names an inline inert JSON script in the markup
+declaring the template: its ordinary event
 commands are admitted against the child, including file-side anchor capture and the
 shared message-markup gate. The resulting history defines the child's thread namespace
 before presentation and never writes the parent's log.
 
-Alternatively, `data-sample-threads` selects from the parent's available history.
+Alternatively, `data-sample-threads` selects from the parent page's available history,
+for a message's template as for the page's.
 A first version may name threads whose seed log has not been written yet; a thread
 the log does not hold leaves the child without it rather than refusing the page.
 Corpus generation selects against the shipped log it is composing from, where a
@@ -153,13 +158,14 @@ A standing decision may paint over a changed authored baseline; this is the
 state fold's behavior, not a reason to refuse the revision. `restated` explicitly
 retracts a decision when the agent needs a fresh answer.
 
-The render gate serves its probe modules from the Leaf running the command and the
-runtime those modules import from the page, so the ephemeral server it opens refuses
-a page whose recorded `$layer.runtime` is not the identity this payload's kernel
-runtime carries — the refusal every page server makes (`layer-registry.md`, `runtime`).
-Without it the mismatch arrives as a missing export in the probe module, which reads
-as a defect in the page. The vendored layer is the page's to keep, so the gate does
-not re-vendor on its behalf.
+The render gate serves its probe modules from the Leaf running the command, whichever
+Leaf captured the revision it reads, since its own readers call them, and the runtime
+those modules import from the page. A page another Leaf vendored at the same protocol
+is read whenever its runtime has every name the probes import
+(`layer-registry.md`, "Page protocol"). Where it lacks one, the probes fail to link,
+and the gate refuses with the browser's reason and the re-vendor that cures it, rather
+than reporting a missing export as if the page were at fault. The vendored layer is the page's to keep, so
+the gate does not re-vendor on its behalf. `page picture` loads no probe module.
 
 ## Passages
 

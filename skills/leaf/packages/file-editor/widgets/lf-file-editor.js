@@ -29,13 +29,12 @@ import {
   html,
   nothing,
   render,
-  repeat,
   offer,
   offered,
   once,
   shadowStage,
   tabStore,
-  watchOwner,
+  whileConnected,
   widgetController,
 } from "/runtime/widget-api.js";
 import { createEditor } from "./editor.js";
@@ -43,9 +42,18 @@ import { createEditor } from "./editor.js";
 customElements.define(
   "lf-file-editor",
   class extends HTMLElement {
+    #placeSelection = null;
+
     connectedCallback() {
       if (!once(this)) return;
       this.initialize();
+    }
+
+    // A move keeps the views and the user's focus in one, since their connection
+    // lifetime follows the arrival batch (`whileConnected`), but `moveBefore` collapses
+    // the native selection, which CodeMirror would read back as a caret at the start.
+    connectedMoveCallback() {
+      this.#placeSelection?.();
     }
 
     initialize() {
@@ -55,6 +63,7 @@ customElements.define(
       // mounts are persistent node values within the template.
       const view = offer("div", "lf-file-editor-view");
       const mount = offer("div", "lf-file-editor-edit");
+      const comparisonMount = offer("div", "lf-file-editor-comparison");
       view.append(mount);
       shadowStage(this, [view]);
       this.replaceChildren();
@@ -86,7 +95,6 @@ customElements.define(
         comparison = null;
       let generation = 0,
         timer = null,
-        stopWatch = null,
         slowTimer = null;
       let recovering = false,
         owed = false,
@@ -160,16 +168,13 @@ customElements.define(
                 Removed text is on disk. Added text is your draft.
               </p>
               <div ${offered("lf-file-editor-actions")}>
-                ${repeat(
-                  [
-                    ["Use file version", !latest, useFile],
-                    ["Save my version", !latest, keepDraft],
-                    ["Retry", !failure || !api.writable, retry],
-                  ],
-                  ([label]) => label,
+                ${[
+                  ["Use file version", !latest, useFile],
+                  ["Save my version", !latest, keepDraft],
+                  ["Retry", !failure || !api.writable, retry],
+                ].map(
                   ([label, hidden, run]) => html`
                     <button
-                      type="button"
                       ${offered("button")}
                       ?hidden=${hidden}
                       aria-disabled=${busy ? "true" : nothing}
@@ -180,7 +185,7 @@ customElements.define(
                   `,
                 )}
               </div>
-              <div ${offered("lf-file-editor-comparison")} ?hidden=${!latest}></div>
+              ${latest ? comparisonMount : nothing}
             </div>
             <span
               ${offered("lf-file-editor-announcement")}
@@ -191,7 +196,6 @@ customElements.define(
           `,
           view,
         );
-        const comparisonMount = view.querySelector(".lf-file-editor-comparison");
         if (latest) {
           if (!comparison)
             comparison = createEditor(comparisonMount, {
@@ -325,34 +329,33 @@ customElements.define(
         recovering = true;
       }
       paint();
+      this.#placeSelection = () => {
+        editor.placeSelection();
+        comparison?.placeSelection();
+      };
       let initial = true;
-      watchOwner(this, {
-        connect: () => {
-          connected = true;
-          editor.connect();
-          comparison?.connect();
-          window.addEventListener("beforeunload", beforeUnload);
-          document.addEventListener("visibilitychange", visibility);
-          const ready = refresh();
-          if (initial) {
-            widgetController(this).present(ready);
-            initial = false;
-          }
-          stopWatch = api.watch(() => void refresh());
-        },
-        disconnect: () => {
+      whileConnected(this, (signal) => {
+        connected = true;
+        editor.connect();
+        comparison?.connect();
+        window.addEventListener("beforeunload", beforeUnload, { signal });
+        document.addEventListener("visibilitychange", visibility, { signal });
+        const ready = refresh();
+        if (initial) {
+          widgetController(this).present(ready);
+          initial = false;
+        }
+        const stopWatch = api.watch(() => void refresh());
+        return () => {
           connected = false;
           stopWatch();
-          stopWatch = null;
           clearTimeout(timer);
           finishSaving();
           paint();
-          window.removeEventListener("beforeunload", beforeUnload);
-          document.removeEventListener("visibilitychange", visibility);
           remember();
           editor.disconnect();
           comparison?.disconnect();
-        },
+        };
       });
     }
   },

@@ -6,8 +6,10 @@ import {
   initialRender,
   once,
   presentContributionEntry,
+  presentContributionReceipts,
   registerContribution,
   relabel,
+  whileConnected,
 } from "/runtime/widget-api.js";
 
 function wireSample({ sample, key, control, disclosure }) {
@@ -27,20 +29,21 @@ function wireSample({ sample, key, control, disclosure }) {
         state: sample.state ?? "idle",
         count: sample.count ?? 1,
         disabled: !sample.interactive,
-        workflowReceipt: sample.workflowStage
-          ? {
-              id: key,
-              subject: { kind: "widget", id: key },
-              stage: sample.workflowStage,
-              detail: "",
-            }
-          : null,
         relation: disclosure ? { kind: "element", id: disclosure.id, expanded } : null,
       }),
-      {
-        selected: sample.selected ?? false,
-        awaitsUser: sample.awaitsUser ?? false,
-      },
+      { selected: sample.selected ?? false },
+    );
+    presentContributionReceipts(
+      control,
+      sample.workflowStage
+        ? {
+            id: key,
+            subject: { kind: "widget", id: key },
+            stage: sample.workflowStage,
+            detail: "",
+          }
+        : null,
+      sample.awaitsUser ?? false,
     );
   };
   paint();
@@ -57,27 +60,20 @@ function wireSample({ sample, key, control, disclosure }) {
 customElements.define(
   "lf-margin-entry-gallery",
   class extends HTMLElement {
-    #projection = null;
-
     connectedCallback() {
-      if (once(this)) {
-        const initial = initialRender(this);
-        for (const { node, words } of initial.labels)
-          relabel(node, words, { says: false });
-        initial.samples.forEach(wireSample);
-      }
-      this.#registerProjection();
+      if (!once(this)) return;
+      const initial = initialRender(this);
+      for (const { node, words } of initial.labels)
+        relabel(node, words, { says: false });
+      initial.samples.forEach(wireSample);
+      whileConnected(this, () => {
+        const projection = this.#registerProjection(initial.result);
+        return () => projection.unregister();
+      });
     }
 
-    disconnectedCallback() {
-      this.#projection?.unregister();
-      this.#projection = null;
-    }
-
-    #registerProjection() {
-      if (this.#projection) return;
-      const result = initialRender(this).result;
-      this.#projection = registerContribution({
+    #registerProjection(result) {
+      const projection = registerContribution({
         key: `gallery-projection:${this.id}`,
         target: () => this,
         read: () => ({
@@ -97,9 +93,10 @@ customElements.define(
         }),
         activate: () => {
           result.hidden = !result.hidden;
-          this.#projection.update({ immediate: true });
+          projection.update({ immediate: true });
         },
       });
+      return projection;
     }
   },
 );

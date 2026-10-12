@@ -305,10 +305,10 @@ customElements.define(
           ? [
               {
                 id: `suggestion:${this.id}`,
-                // Before settlement this contribution is the Question, so suppress the shared
-                // Question at the same target. Afterwards Undo remains without inventing a
+                // Before settlement this contribution is the ask, so suppress the shared
+                // ask at the same target. Afterwards Undo remains without inventing a
                 // second page-map reading.
-                kind: outcome ? "action" : "question",
+                kind: outcome ? "action" : "ask",
                 ...(outcome ? {} : { represents: true }),
                 text: outcome
                   ? `${outcome === "accept" ? "Accepted" : "Rejected"} suggested change`

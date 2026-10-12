@@ -101,8 +101,9 @@ export function createPageComment({
 
   // The control is the card's invoker, so the browser never counts its press as one
   // outside the card, and a press while the card stands puts it away. A press opening the
-  // card is `open`, the same as `c`'s, rather than the browser's opening: the browser
-  // would focus the box only through autofocus, which scrolls a sample's frame into view.
+  // card is `open`, the same as `c`'s: the browser's opening comes after every listener on
+  // the press, with no turn left to put focus in the box, short of an autofocus that
+  // scrolls a sample's frame into view.
   control.popoverTargetElement = card;
   control.addEventListener("click", (event) => {
     if (cardIsOpen()) return;

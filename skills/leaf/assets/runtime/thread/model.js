@@ -232,6 +232,7 @@ export function foldThreads(threads, gestures) {
       thread.msgs = thread.msgs.with(at, {
         ...message,
         text: gesture.text,
+        content_version: gesture.id,
         edited: {
           id: gesture.id,
           ts: gesture.ts,

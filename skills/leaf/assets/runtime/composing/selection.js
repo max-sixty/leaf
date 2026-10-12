@@ -9,7 +9,8 @@
    Escape hide without discarding words. A successful send settles only the submitted draft generation.
 
    A hidden draft is news and a place: hiding one that still holds words says so once,
-   and Resume writing brings its editor back. Startup reopens a stored composer
+   and Resume writing brings its editor back. A refused send reopens its box with the
+   words while the user has done nothing since Send. Startup reopens a stored composer
    record through `openDraft`. Every path that discards words empties
    the box first, so those hide silently.
 
@@ -711,6 +712,8 @@ export function createSelectionComposer({
         const point = fabPointAt();
         const epoch = composerEpoch;
         const currentIntent = retainUserIntent();
+        const untouched = retainUserIntent({ source: document.documentElement });
+        let flight = null;
         const sent = sendMessage(
           ctx,
           () => composerCtx(pendingAnchor) === ctx && owns(),
@@ -723,10 +726,21 @@ export function createSelectionComposer({
             if (suggestion) event.suggestion = true;
             if (about) event.about = about;
             if (drawing) event.drawing = drawing;
-            return createComment(event);
+            return (flight = createComment(event));
           },
         );
         if (!sent) return;
+        // A refusal withdraws the thread the send drew and hands the words back to this
+        // passage's draft. While the user has done nothing since Send, the box comes back
+        // with them, as the page comment card's does. Withdrawing the thread the send
+        // landed them on hands their focus on (`handBack`), so where focus stands is no
+        // reading of their intent here, only whether they have acted since. After a
+        // later gesture the words wait for Resume writing.
+        void Promise.resolve(flight).then((accepted) => {
+          if (accepted || composerEpoch !== epoch || composerOpen) return;
+          const record = composerRecord(ctx);
+          if (record && untouched()) untouched.handoff(() => openDraft(record));
+        });
         const revealSent = bindQueuedWork((options) =>
           openPageThread(sent.id, options),
         );

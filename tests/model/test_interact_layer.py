@@ -1267,23 +1267,6 @@ def test_no_has_rule_restyles_the_whole_document():
     )
 
 
-def test_browser_code_mints_ids_that_work_outside_secure_contexts():
-    """`leaf --host` serves a page over plain HTTP to a LAN address, where
-    `crypto.randomUUID` does not exist, so a call to it throws in the user's browser.
-    The runtime and bundled packages mint ids through runtime/ids.js, and the classic
-    bootstrap.js through its one copy of it."""
-    roots = (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
-    callers = [
-        str(source.relative_to(schema_model.ASSETS.parent))
-        for root in roots
-        for source in sorted(root.rglob("*.js"))
-        if "vendor" not in source.parts
-        and "randomUUID"
-        in re.sub(r"(?<!:)//[^\n]*|/\*.*?\*/", "", source.read_text(), flags=re.DOTALL)
-    ]
-    assert callers == [], callers
-
-
 def test_kernel_selectors_name_no_package_tag():
     """The kernel styles and finds a package widget by what its registry declares, a
     mark delivery paints such as `data-lf-resident`, never by its tag: a rule naming

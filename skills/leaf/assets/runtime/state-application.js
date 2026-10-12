@@ -76,7 +76,9 @@ export function createStateApplication({
       return;
     }
 
-    const threads = state.browser.thread.threads;
+    // Every view holds the same messages, read under its own registry; the active
+    // one is always served.
+    const threads = state.browser.views[state.active.revision].thread.threads;
     const frozenDocuments = [];
     const preparations = [
       prepareActivation(state),

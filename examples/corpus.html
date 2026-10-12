@@ -9395,8 +9395,7 @@ switch --readers checkout-api,orders-api</code></pre>
         <lf-tab id="bg-view-interactions" label="Interactions">
           <section id="bg-interactions" aria-labelledby="bg-interactions-title">
             <p class="eyebrow bg-feature-elements">
-              lf-sample · lf-suggestion · lf-old · lf-new · lf-board · lf-column ·
-              lf-card
+              lf-sample · lf-suggestion · lf-old · lf-new
             </p>
             <h2 id="bg-interactions-title">
               <strong>Interactions</strong
@@ -9406,7 +9405,8 @@ switch --readers checkout-api,orders-api</code></pre>
               Each sample below is a complete Leaf page running the production
               components and transitions. Do what its caption asks and watch the page
               answer. What you do stays in that sample's own log; “Reset” starts it
-              again, and nothing reaches this page.
+              again, and nothing reaches this page. To move a card, drag one on
+              <a id="bg-interactions-board" href="#bg-delivery">the delivery board</a>.
             </p>
 
             <section id="bg-interaction-accept">
@@ -9427,30 +9427,6 @@ switch --readers checkout-api,orders-api</code></pre>
                     >
                     before the next run begins.
                   </p>
-                </template>
-              </lf-sample>
-            </section>
-
-            <section id="bg-interaction-move">
-              <h3>Move a card</h3>
-              <p id="bg-interaction-move-guide">
-                Drag the card to “Tried”, or press <kbd>Enter</kbd> on its grip and move
-                it with the arrow keys. Leaf plays the same placement transition for
-                either route.
-              </p>
-              <lf-sample id="bg-motion-board-sample" label="migration checklist">
-                <template id="bg-motion-board-page" data-sample>
-                  <p class="eyebrow">migration checklist</p>
-                  <h1>Schema migration</h1>
-                  <lf-board id="bg-motion-board">
-                    <lf-column id="bg-motion-ready" label="Ready">
-                      <lf-card id="bg-motion-card"
-                        ><strong>Verify migration</strong> Run the schema
-                        sample.</lf-card
-                      >
-                    </lf-column>
-                    <lf-column id="bg-motion-tried" label="Tried"></lf-column>
-                  </lf-board>
                 </template>
               </lf-sample>
             </section>

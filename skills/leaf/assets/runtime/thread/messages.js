@@ -49,7 +49,7 @@ import { highlightBlocks } from "../syntax.js";
 import { ago } from "../presence.js";
 import { elementById } from "../passages.js";
 import { designName } from "../design-readings.js";
-import { addressableLabel, addressableWord } from "../addressable-names.js";
+import { addressableWord, sectionLabel } from "../addressable-names.js";
 import { datumLabel, visualPartLabel } from "../anchor-resolution.js";
 import { rememberPassageParts } from "../widget-loader.js";
 import { ReactionStripView } from "./reaction-strips.js";
@@ -498,9 +498,7 @@ function coordinateLabel(anchor, about) {
     const part = visualPartLabel(addressable, anchor.visual) ?? anchor.visual;
     return `§ ${addressable ? `${addressableWord(addressable)} · ${part}` : `${anchor.section} · ${part}`}`;
   }
-  if (!addressable) return `§ ${anchor.section}`;
-  const says = addressableLabel(addressable);
-  return `§ ${[addressableWord(addressable), says].filter(Boolean).join(" · ")}`;
+  return `§ ${addressable ? sectionLabel(addressable) : anchor.section}`;
 }
 
 // A named control part belongs to the coordinate in every reading, not just Design.

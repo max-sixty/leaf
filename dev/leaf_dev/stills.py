@@ -635,7 +635,7 @@ def diff_line_composer(page: Page) -> None:
 
 
 def code_source_by_touch(page: Page) -> None:
-    """Reading code by touch, with the corner control disclosed away."""
+    """Code stood on by touch, its Copy offered on the banner rather than over its words."""
     code_note(page)
     page.locator("lf-code pre").first.tap(position={"x": 60, "y": 20})
 

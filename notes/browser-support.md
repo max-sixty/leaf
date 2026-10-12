@@ -316,7 +316,7 @@ application. Recheck the affected Leaf journey when resolving this entry.
   counts later mutations up the target's ancestors through `getRootNode().host`. A
   removed `<a>` subtree answers with the link's host string, which SnapDOM uses as a
   WeakMap key, throwing an uncaught page error (Firefox 157 and Chrome 155).
-  `build/vendor.py` patches that climb to follow only a shadow root's host; drop
+  `build/vendor.mjs` patches that climb to follow only a shadow root's host; drop
   the patch once upstream fixes it.
 - **Published limitations:** the upstream
   [3.3.0 limitations](https://github.com/zumerlab/snapdom/blob/b27b35adfae9d9a8993c56b067837014bcef4750/README.md#limitations)

@@ -649,13 +649,9 @@ class PageTransaction:
         is the one caller — every writer reaches the log through that door, and
         nothing else here may append."""
         try:
-            accepted, appended = _append_event_unlocked(self._log, event, self.events)
-        except Exception:
+            return _append_event_unlocked(self._log, event, self.events)
+        finally:
             self._events = None
-            raise
-        if appended:
-            self._events = None
-        return accepted
 
     @property
     def cursor(self) -> int:

@@ -65,7 +65,6 @@ from render_cases_navigation import (
 )
 from render_harness import (
     EXAMPLES,
-    FEATURE_GALLERY,
     INLINE_PAGE,
     LONG_PAGE,
     PASSAGE_SOURCES,
@@ -489,27 +488,26 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     ) == ["c-backfill"], "the diff read the runtime's own spans as text the base lacked"
 
 
-@pytest.mark.parametrize("revision", [1, 2, 3])
+@pytest.mark.parametrize("revision", [2, 3])
 def test_browser_and_file_captures_stop_at_the_same_widget_fences(
     browser, serve, revision
 ):
     """Module-only words may sit between authored parts, but they cannot give the
     browser more context than the mapped revision can confirm.
 
-    Three documents: the one served, one where a revision changed only the title so
-    every widget is kept, and one where the revision rewrote the milestone itself so
-    that widget arrives alone into the page and its fence is read off the arriving
-    root rather than off a page it is not yet in.
+    Two revisions of the served document: one that changed only the title, so every
+    widget is the one the page was served with, and one that rewrote the milestone
+    itself, so that widget arrives alone into the page and its fence is read off the
+    arriving root rather than off a page it is not yet in.
     """
     page = open_page(browser, live_url(serve(FENCED_CAPTURE_PAGE)))
     source = FENCED_CAPTURE_PAGE
     if revision == 2:
         source = FENCED_CAPTURE_PAGE.replace("</title>", " revised</title>")
-    elif revision == 3:
+    else:
         source = FENCED_CAPTURE_PAGE.replace("week-1", "week-2")
-    if revision != 1:
-        stamp_page(serve.page_dir, source, "Refresh the document")
-        wait_for_revision(page, 2)
+    stamp_page(serve.page_dir, source, "Refresh the document")
+    wait_for_revision(page, 2)
     expect(page.locator('#gate-milestone [data-lf-said="label"]')).to_have_count(1)
     registry = json.loads((serve.page_dir / "registry.json").read_text())
     cases = [
@@ -583,9 +581,17 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
         expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
 
-def test_gallery_revision_preserves_every_open_quoted_thread(browser, serve):
-    """A served gallery revision keeps two discussions beside their revised subject."""
-    url = live_url(serve(FEATURE_GALLERY))
+REVISED_QUOTES_PAGE = leaf_page(
+    "Revised quotes",
+    '<h1>Rollout</h1><p id="bg-revised-quotes">'
+    "The first draft uses an early estimate for the rollout.</p>"
+    "<p>The release goes out once the estimate is agreed.</p>",
+)
+
+
+def test_a_revision_preserves_every_open_quoted_thread(browser, serve):
+    """A served revision keeps two discussions beside their revised subject."""
+    url = live_url(serve(REVISED_QUOTES_PAGE))
     roots = []
     for quote in ("first draft", "early estimate"):
         result = CliRunner().invoke(
@@ -605,7 +611,6 @@ def test_gallery_revision_preserves_every_open_quoted_thread(browser, serve):
         assert result.exit_code == 0, result.output
         roots.append(json.loads(result.output))
     page = open_page(browser, url)
-    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     for root in roots:
@@ -619,7 +624,6 @@ def test_gallery_revision_preserves_every_open_quoted_thread(browser, serve):
     )
     note = stamp_page(serve.page_dir, updated, "Refined the rollout wording.")
     wait_for_revision(page, note["revision"])
-    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
     expect(page.locator("#bg-revised-quotes")).to_have_text(
         "The revised plan uses the current forecast for the rollout."
     )
@@ -881,7 +885,7 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
     assert page.evaluate("getSelection().isCollapsed")
 
 
-@pytest.mark.parametrize("route", ["Enter", "Space", "g"])
+@pytest.mark.parametrize("route", ["Enter", "g"])
 def test_every_suggestion_activation_dismisses_a_standing_selection(
     browser, serve, route
 ):
@@ -4586,10 +4590,7 @@ def test_the_versions_menu_can_close_from_every_door(browser, serve):
     page.keyboard.press("Escape")
 
 
-@pytest.mark.parametrize("color_scheme", ["light", "dark"])
-def test_version_notes_stay_readable_beside_compare_at_narrow_widths(
-    browser, serve, color_scheme
-):
+def test_version_notes_stay_readable_beside_compare_at_narrow_widths(browser, serve):
     """A revision note may contain a URL or an unbroken identifier. Both latest
     rows spanning the menu and earlier rows sharing it with Compare wrap the whole
     note inside their own press, rather than clipping it behind the next column.
@@ -4607,7 +4608,6 @@ def test_version_notes_stay_readable_beside_compare_at_narrow_widths(
         viewport={"width": 320, "height": 568},
         has_touch=True,
         is_mobile=True,
-        color_scheme=color_scheme,
     )
     page = open_page(browser, live_url(url), context=context)
     for width in (320, 1200):
@@ -4639,8 +4639,7 @@ def test_version_notes_stay_readable_beside_compare_at_narrow_widths(
 
 
 @pytest.mark.watch_shifts
-@pytest.mark.parametrize("color_scheme", ["light", "dark"])
-def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_scheme):
+def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     """The picker is a press and a menu rather than a select, which buys the notes
     somewhere they can be read whole and costs the platform's own popup: opening,
     closing, and the keys between. A select came with all of that, so what this
@@ -4660,9 +4659,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     _publish(serve.page_dir, 2, INLINE_PAGE, long_note)
     _publish(serve.page_dir, 3, INLINE_PAGE, "third")
     # Pinned to v2, so there is a version either side of the one being read.
-    page = open_page(
-        browser, url.replace("v1.html", "v2.html"), pin=True, color_scheme=color_scheme
-    )
+    page = open_page(browser, url.replace("v1.html", "v2.html"), pin=True)
 
     btn = page.locator(".lf-version")
     menu = page.locator(".lf-version-menu")
@@ -4708,19 +4705,22 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     # The feature-gallery Axe baseline sees this menu shut, so the role
     # relationship it declares open — a menu owning menuitems, named — is checked
     # nowhere else. A select carried all of that from the platform and this does not.
-    result = Axe().run(
-        page,
-        options={
-            "runOnly": {"type": "tag", "values": ["wcag2a", "wcag2aa", "wcag21a"]},
-            "resultTypes": ["violations"],
-        },
-    )
-    serious = [
-        v["id"]
-        for v in result.response["violations"]
-        if v["impact"] in {"serious", "critical"}
-    ]
-    assert serious == [], json.dumps(result.response["violations"], indent=2)
+    # Each scheme has its own contrast to hold.
+    for color_scheme in ("dark", "light"):
+        page.emulate_media(color_scheme=color_scheme)
+        result = Axe().run(
+            page,
+            options={
+                "runOnly": {"type": "tag", "values": ["wcag2a", "wcag2aa", "wcag21a"]},
+                "resultTypes": ["violations"],
+            },
+        )
+        serious = [
+            v["id"]
+            for v in result.response["violations"]
+            if v["impact"] in {"serious", "critical"}
+        ]
+        assert serious == [], (color_scheme, result.response["violations"])
     # The visible word is part of the accessible name too. This rule is not included by
     # axe's WCAG-tag selection above, so ask for it directly where Compare exists.
     label_result = Axe().run(

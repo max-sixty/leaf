@@ -743,7 +743,9 @@ SHADOWED_DIFF = SHADOWED_DIFF_BODY.format(id="shadowed") + "\n</main>"
 # the surrounding ink is a valid theme choice; faint keywords, tinted strings and a
 # dark diff's numbers still need contrast findings. The later function name has the
 # same native style and background as its earlier readable control but inherits faint
-# ink. The media query keeps fixed fault colors out of the dark control half.
+# ink. The media query keeps fixed fault colors out of the dark control half. A diff
+# in the shipped palette is the control: its dark comment ink must clear the add-line
+# tint behind it, which a large real patch made visible at a former 4.4:1.
 CODE_FAULT_PAGE = LONG_PAGE.replace(
     "</head>",
     """<style>
@@ -762,14 +764,8 @@ CODE_FAULT_PAGE = LONG_PAGE.replace(
     + CODE_BLOCK.replace('id="snippet"', 'id="snippet-faint-name"')
     + TINTED_CODE
     + SHADOWED_DIFF_BODY.format(id="shadowed")
+    + SHADOWED_DIFF_BODY.format(id="default-shadow")
     + "\n</main>",
-)
-
-# The shipped dark comment ink must clear the add-line tint behind it. A large real patch
-# put enough comments on that surface for the former 4.4:1 contrast gap to become visible.
-CODE_CONTROL_PAGE = LONG_PAGE.replace(
-    "</main>",
-    CODE_BLOCK + SHADOWED_DIFF_BODY.format(id="default-shadow") + "\n</main>",
 )
 # Two sets, because pointing at a control and pressing it are different questions.
 #

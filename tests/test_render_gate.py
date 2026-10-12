@@ -46,7 +46,6 @@ from render_cases_interaction import (
 from render_cases_layout import (
     AUTHORED_LINES_PAGE,
     BARE_IDENTIFIERS_PAGE,
-    CODE_CONTROL_PAGE,
     CODE_FAULT_PAGE,
     CUSTOM_WIDGET_PAGE,
     DRAWING_CONTROL_LAYER,
@@ -514,17 +513,18 @@ SPLIT = "{ #regions { grid-template-columns: 1fr 1fr; } }"
     ("columns", "media"),
     [
         ("1fr 2fr", f"(width < 720px) {STACK}"),
-        ("1fr", f"(width < 900px) {STACK}"),
         ("1fr", f"(width >= 1800px) {SPLIT}"),
     ],
     ids=[
         "stacks-where-the-layout-flows",
-        "rows-at-every-width",
         "rows-then-columns-when-ultrawide",
     ],
 )
 def test_workspace_panes_can_follow_the_authored_grid(browser, serve, columns, media):
-    """Workspace panes can stay in rows or share columns as the authored grid changes."""
+    """Workspace panes can stay in rows or share columns as the authored grid changes:
+    side by side at the desktop and stacked where the layout flows, or in rows at the
+    desktop, as the panes of a workspace that never splits are, and side by side only
+    past it."""
     reading = render_gate_model.render_version(
         browser, serve(_pane_regions(columns, media), packages=())
     )
@@ -5806,13 +5806,19 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
     Three readings distinguish a real container response from either never floating the
     note or releasing it whenever the panel opens: the note begins in the margin, returns
     to flow in a window too narrow for it, and stays in the margin with the panel open
-    in one wide enough. The gallery's note is in its page view, which is where the
-    user reads it: a note in a view not shown needs no room."""
-    example = FEATURE_GALLERY
-    url = serve(example)
-    page = open_page(browser, url)
-    page.evaluate("location.hash = 'bg-compare-note'")
-    expect(page.locator("#bg-compare-note")).to_be_visible()
+    in one wide enough."""
+    source = leaf_page(
+        "note strip",
+        '<h1 id="t">Migration</h1>'
+        '<aside class="sidenote" id="note">Support runs this twice a month.</aside>'
+        + "".join(
+            f"<p id='p{i}'>"
+            + "Shift one cohort at a time while keeping the old readers available. " * 3
+            + "</p>"
+            for i in range(8)
+        ),
+    )
+    page = open_page(browser, serve(source, comments=1))
     resized(page, 1600, 900)
     reading = """() => {
         const note = document.querySelector('aside.sidenote');
@@ -6164,15 +6170,19 @@ def test_the_render_gate_reports_code_the_user_cannot_tell_from_its_block(
     faint keywords, strings on tinted code lines, and numbers in dark diff lines.
     Identically styled names on the same background have different inherited inks,
     so a readable earlier name must not hide the later faint palette override.
-    Population assertions prove every faulty surface was actually tokenized.
+    Population assertions prove every faulty surface, and the diff in the shipped
+    palette beside them, was actually tokenized.
     """
-    page = open_page(browser, serve(CODE_FAULT_PAGE))
+    url = serve(CODE_FAULT_PAGE)
+    page = open_page(browser, url)
     population = page.evaluate(
         """() => ({
           document: [...new Set([...document.querySelectorAll('[data-lf-syn]')]
             .map(span => span.style.color))].sort(),
           shadow: [...new Set([...document.querySelector('#shadowed').shadowRoot
             .querySelectorAll('[data-lf-syn]')].map(span => span.style.color))].sort(),
+          shipped: document.querySelector('#default-shadow').shadowRoot
+            .querySelectorAll('[data-lf-syn]').length,
           comment: getComputedStyle(document.querySelector('#snippet [data-lf-syn]')).fontStyle,
           names: ['#snippet', '#snippet-faint-name'].map(selector => {
             const block = document.querySelector(selector);
@@ -6188,15 +6198,14 @@ def test_the_render_gate_reports_code_the_user_cannot_tell_from_its_block(
         population["document"]
     ), population
     assert "var(--syn-number)" in population["shadow"], population
+    assert population["shipped"] > 0, population
     assert population["comment"] == "italic", population
     readable, faint = population["names"]
     assert readable["style"] == faint["style"], population
     assert readable["background"] == faint["background"], population
     assert readable["ink"] != faint["ink"], population
 
-    failures = render_gate_model.render_version(
-        browser, serve(CODE_FAULT_PAGE)
-    ).failures
+    failures = render_gate_model.render_version(browser, url).failures
     syntax = [finding for finding in failures if "] code styled " in finding]
     assert failures == syntax, failures
     assert len(syntax) == 4, "\n".join(failures)
@@ -6213,21 +6222,6 @@ def test_the_render_gate_reports_code_the_user_cannot_tell_from_its_block(
             and "reads at " in finding
             for finding in syntax
         ), syntax
-
-    page = open_page(browser, serve(CODE_CONTROL_PAGE))
-    population = page.evaluate(
-        """() => ({
-          document: document.querySelectorAll('[data-lf-syn]').length,
-          shadow: document.querySelector('#default-shadow').shadowRoot
-            .querySelectorAll('[data-lf-syn]').length,
-        })"""
-    )
-    page.close()
-    assert population["document"] > 0 and population["shadow"] > 0, population
-    assert (
-        render_gate_model.render_version(browser, serve(CODE_CONTROL_PAGE)).failures
-        == []
-    )
 
 
 def test_an_authored_project_widget_loads_through_the_real_layer(

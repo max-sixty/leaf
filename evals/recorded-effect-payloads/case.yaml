@@ -33,7 +33,7 @@ assert:
     omit record.value and record.rank field mappings. The note's edit declaration
     uses unit:"widget" and record:{kind:"body"}; its detail is
     {"value":"Corrected note"}. The check's finish declaration uses writer:"agent",
-    unit:"widget", record:{kind:"value",attr:"status"}, report:true; its detail is
+    unit:"widget", record:{kind:"value",attr:"status"}, text:true; its detail is
     {"value":"done","text":"Checks passed"}. The board's move declaration uses
     unit:"unit" and record:{kind:"position",within:"lf-lane"}; its detail is
     {"unit":"card-1","value":"archive","rank":"v"}. Equivalent key ordering

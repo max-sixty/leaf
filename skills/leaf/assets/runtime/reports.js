@@ -23,9 +23,9 @@
    when their source retains history. A module showing freshness therefore still sees
    when the log last heard from a worker after a stamp absorbs the worker's report.
 
-   An agent-written x-state verb may declare `report: true`, requiring non-empty
-   `detail.text`. That is the envelope's `text`; consumers never infer prose from
-   a field, verb, or widget name. The state boundary exposes it once.
+   An agent-written x-state verb may declare `text: true`, which requires each report
+   to carry non-empty `detail.text`. That is the envelope's `text`; consumers never
+   infer prose from a field, verb, or widget name. The state boundary exposes it once.
 
    `reportSequence` filters the server-normalized report feed. `watchReports` and
    `watchHistory` are `watchProjection` (`projection-watch.js`) with their own reading,

@@ -245,6 +245,37 @@ def test_public_and_private_snapshots_keep_a_stored_revisions_publication_date(
     assert candidate.context.active["activated_at"] == captured_at
 
 
+def test_saved_state_verifier_fixture_returns_the_admitted_event_ids(
+    page_dir, tmp_path, monkeypatch
+):
+    """Run the exact container fixture through its real admission API."""
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<lf-options>", '<lf-options id="heat-first" choose>').replace(
+            'id="backfill-first"', 'id="heat-opt-window"'
+        )
+    )
+    site = tmp_path / "site"
+    private = site / "page"
+    shutil.copytree(page_dir, private)
+    write_manifest(site, {"/examples/heat-loss": ("page", "example")})
+    monkeypatch.setenv("LEAF_SITE_ROOT", str(site))
+    monkeypatch.delenv("LEAF_PAGE_COMMIT", raising=False)
+    result = subprocess.run(
+        [sys.executable, "-c", verify_site.SAVED_STATE_FIXTURE],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+    )
+    assert result.returncode == 0, result.stderr
+    seeded = json.loads(result.stdout)
+    events = {event["id"]: event for event in read_events(private)}
+    assert events[seeded["choice"]]["detail"]["value"] == ["heat-opt-window"]
+    assert events[seeded["comment"]]["text"] == "Saved before the container stopped."
+    assert seeded["revision_name"] == revision_path(private, seeded["revision"]).name
+    assert (private / "page/saved-state-recall.css").read_text() == seeded["stylesheet"]
+
+
 def test_saved_website_record_keeps_an_unstamped_revisions_publication_date(
     page_dir, tmp_path, monkeypatch
 ):

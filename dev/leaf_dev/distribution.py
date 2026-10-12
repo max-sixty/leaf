@@ -48,10 +48,8 @@ def prepare(output: Path) -> None:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(data)
         assets = output / "skills/leaf/assets"
-        default_runtime = output / "skills/leaf/packages/default/runtime"
-        for runtime in (assets / "runtime", default_runtime):
-            for source in runtime.rglob("*.js"):
-                source.unlink()
+        for source in (assets / "runtime").rglob("*.js"):
+            source.unlink()
         subprocess.run(
             [
                 "node",

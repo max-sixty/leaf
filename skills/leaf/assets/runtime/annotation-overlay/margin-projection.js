@@ -34,8 +34,8 @@
 
 import { createThreadPreview } from "./thread-preview.js";
 
-import { afterScript, cancelRender, nextRender } from "/runtime/rendering.js";
-import { spokenSubject } from "/runtime/contribution-model.js";
+import { afterScript, cancelRender, nextRender } from "../rendering.js";
+import { spokenSubject } from "../contribution-model.js";
 import {
   layoutMarginRows,
   marginColumn,
@@ -56,7 +56,7 @@ import {
   presentContributionReceipts,
   syncContributionSelection,
   syncContributionUnread,
-} from "/runtime/contribution-controls.js";
+} from "../contribution-controls.js";
 import {
   entryEngaged,
   focusedOfferOf,
@@ -77,9 +77,9 @@ import {
   unreadIn,
   readingContext,
   clusterProjection,
-} from "/runtime/margin-model.js";
+} from "../margin-model.js";
 
-import { mapButton } from "/runtime/page-map-dialog.js";
+import { mapButton } from "../page-map-dialog.js";
 
 import {
   declareRelease,
@@ -94,42 +94,42 @@ import {
   focused,
   closeLayer,
   rove,
-} from "/runtime/focus.js";
+} from "../focus.js";
 
-import { el, offer } from "/runtime/widget-elements.js";
-import { keeps, keepsHidden } from "/runtime/keeps.js";
+import { el, offer } from "../widget-elements.js";
+import { keeps, keepsHidden } from "../keeps.js";
 
-import { PRESS, rowArrows } from "/runtime/keyboard/bindings.js";
-import { beginWalk, listWalkPosition, rowWalk } from "/runtime/walk-position.js";
+import { PRESS, rowArrows } from "../keyboard/bindings.js";
+import { beginWalk, listWalkPosition, rowWalk } from "../walk-position.js";
 
-import { readingRegionFor } from "/runtime/reading-regions.js";
+import { readingRegionFor } from "../reading-regions.js";
 
-import { keys, paintKeys } from "/runtime/keyboard/scopes.js";
-import { pageRung, pageScope } from "/runtime/keyboard/register.js";
+import { keys, paintKeys } from "../keyboard/scopes.js";
+import { pageRung, pageScope } from "../keyboard/register.js";
 
 import { annotationsHidden, watchAnnotations } from "./annotation-layer.js";
-import { repaint } from "/runtime/repaint.js";
-import { chromeRoot, chromeForeground } from "/runtime/chrome.js";
-import { versionBtn } from "/runtime/version-picker.js";
-import { questionHolding, declareSide, placeOf } from "/runtime/standing-target.js";
-import { readQuestions } from "/runtime/questions/model.js";
-import { closestAcross, inChrome } from "/runtime/passages.js";
-import { visualAt } from "/runtime/anchor-resolution.js";
-import { paintTrace } from "/runtime/target-paint.js";
+import { repaint } from "../repaint.js";
+import { chromeRoot, chromeForeground } from "../chrome.js";
+import { versionBtn } from "../version-picker.js";
+import { questionHolding, declareSide, placeOf } from "../standing-target.js";
+import { readQuestions } from "../questions/model.js";
+import { closestAcross, inChrome } from "../passages.js";
+import { visualAt } from "../anchor-resolution.js";
+import { paintTrace } from "../target-paint.js";
 
-import { allThreads } from "/runtime/thread/state.js";
-import { threadNames } from "/runtime/thread/model.js";
+import { allThreads } from "../thread/state.js";
+import { threadNames } from "../thread/model.js";
 
-import { claimed, revealHeld } from "/runtime/thread/surfaces.js";
+import { claimed, revealHeld } from "../thread/surfaces.js";
 
 import { createMarginClusterViews } from "./margin-cluster-view.js";
 
-import { bannerControlDoor } from "/runtime/banner-toolbar.js";
+import { bannerControlDoor } from "../banner-toolbar.js";
 
-import { seenRect, shownWindow, skipped, watchRoom } from "/runtime/geometry.js";
+import { seenRect, shownWindow, skipped, watchRoom } from "../geometry.js";
 
-import { hostIn, under } from "/runtime/shadow.js";
-import { retainUserIntent } from "/runtime/user-intent.js";
+import { hostIn, under } from "../shadow.js";
+import { retainUserIntent } from "../user-intent.js";
 
 export function createMarginProjection({
   inventory,

@@ -100,7 +100,7 @@ def _completed_tasks(
     unearned = sorted(set(completes) - {task["subject"]["id"] for task in on_widgets})
     if unearned:
         raise Refused(
-            "no open task on " + ", ".join(repr(widget) for widget in unearned)
+            "no open to-do on " + ", ".join(repr(widget) for widget in unearned)
         )
     completed = [task for task in on_widgets if task["subject"]["id"] in completes]
     not_later = sorted(
@@ -108,7 +108,7 @@ def _completed_tasks(
     )
     if not_later:
         raise Refused(
-            f"revision r{revision} is not later than the open task on "
+            f"revision r{revision} is not later than the open to-do on "
             + ", ".join(repr(widget) for widget in not_later)
         )
     return sorted(task["id"] for task in completed)
@@ -145,7 +145,7 @@ def _stamp_event(
         event["restated"] = sorted(parser.restated)
     settlements = [
         *({"kind": "report", "id": identity} for identity in sorted(settled_reports)),
-        *({"kind": "task", "id": identity} for identity in completed),
+        *({"kind": "todo", "id": identity} for identity in completed),
     ]
     if settlements:
         event["settles"] = settlements

@@ -153,13 +153,14 @@ A standing decision may paint over a changed authored baseline; this is the
 state fold's behavior, not a reason to refuse the revision. `restated` explicitly
 retracts a decision when the agent needs a fresh answer.
 
-The render gate serves its probe modules from the Leaf running the command and the
-runtime those modules import from the page, so the ephemeral server it opens refuses
-a page whose recorded `$layer.runtime` is not the identity this payload's kernel
-runtime carries — the refusal every page server makes (`layer-registry.md`, `runtime`).
-Without it the mismatch arrives as a missing export in the probe module, which reads
-as a defect in the page. The vendored layer is the page's to keep, so the gate does
-not re-vendor on its behalf.
+The render gate serves its probe modules from the Leaf running the command, whichever
+Leaf captured the revision it reads, since its own readers call them, and the runtime
+those modules import from the page. A page another Leaf vendored at the same protocol
+is read whenever its runtime has every name the probes import
+(`layer-registry.md`, "Page protocol"). Where it lacks one, the probes fail to link,
+and the gate refuses with the browser's reason and the re-vendor that cures it, rather
+than reporting a missing export as if the page were at fault. The vendored layer is the page's to keep, so
+the gate does not re-vendor on its behalf. `page picture` loads no probe module.
 
 ## Passages
 

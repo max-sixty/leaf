@@ -207,14 +207,14 @@ export function readingState(choice) {
 export const readingBehavior = (face) => (face.indication ? "status" : "disclosure");
 
 // Each member already carries canonical Thread attention. An aggregate keeps a concrete
-// Question ahead of another user recovery; it never re-derives attention from turns or
+// ask ahead of a resend; it never re-derives attention from turns or
 // workflow stages.
 const userAttention = (items) => {
   let first = null;
   for (const item of items) {
     const attention = item.userAttention;
     if (!attention) continue;
-    if (attention.reason === "question") return attention;
+    if (attention.reason === "ask") return attention;
     first ??= attention;
   }
   return first;

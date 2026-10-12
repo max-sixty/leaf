@@ -245,7 +245,10 @@ export async function patchDocument(scope, patch) {
 // before any module could turn that input into presentation. `presented` is the wait
 // each caller owes: the whole application at startup, the widgets it brought for a patch.
 async function settle(presentation, scope, arrived, presented) {
-  await presentation.present(scope, Promise.all(arrived.map(paintDeclaredWords)));
+  const painted = Promise.all(arrived.map(paintDeclaredWords));
+  const presenting = presentation.present(scope);
+  presenting.resolve(painted);
+  await presenting.ready;
   await presented();
   reachScrollers(scope);
 }

@@ -94,7 +94,7 @@ The comparison report's 390px render showed an anchored pin covering prose.
 Leaf's [overlay contract](../skills/leaf/assets/AGENTS.md) explicitly permits
 pins to cover content without reflowing it; `o` and More → Hide annotations
 provide reading routes. The placement owner searches for a clear seat, but
-[its fallback](../skills/leaf/packages/default/runtime/annotation-overlay/margin-placement.js)
+[its fallback](../skills/leaf/assets/runtime/annotation-overlay/margin-placement.js)
 can retain a pin without text clearance. The capture establishes the reading
 problem, not which fallback branch produced it. The existing annotation-placement
 TODO now includes this case. Compare a no-clear-seat disposition that preserves

@@ -191,7 +191,7 @@ variants:
   # passed 0/4, posing six separate Asks; the dependence wording passed 4/4.
   dispatch-two-of-six:
     metadata:
-      purpose: 'Asks: a choice constrained across items stays one Question whose answer is the set.'
+      purpose: 'Asks: a choice constrained across items stays one ask whose answer is the set.'
     vars:
       prompt: |
         I asked you to sweep the repository for duplicated logic. Six workstreams
@@ -217,10 +217,10 @@ variants:
     - type: llm-rubric
       metric: judgment
       value: |
-        Pass only if the pick of two is posed as one Question whose answer is the
+        Pass only if the pick of two is posed as one ask whose answer is the
         set of chosen workstreams (for example an lf-options with multiple, or an
         equivalent single answering widget), in which every option carries enough
         of its workstream's case (effect, verdict, size) to compare them without
-        leaving the Question. The page must say two are to be picked. Fail six
+        leaving the ask. The page must say two are to be picked. Fail six
         separate dispatch/decline Asks, which cannot express the two-session limit,
         and fail options that are bare names or links to sections elsewhere.

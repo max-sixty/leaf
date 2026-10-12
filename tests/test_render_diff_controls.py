@@ -579,3 +579,54 @@ diff --git a/other.md b/other.md
         held[0].continue_()
     rendered(page)
     expect(head.locator("..").locator("[data-line]").last).to_contain_text("new")
+
+
+PATH_PARTS = """head => {
+  const path = head.querySelector('.lf-diff-path');
+  const room = path.getBoundingClientRect();
+  return [...path.querySelectorAll('.lf-diff-dir, .lf-diff-base')].map(part => {
+    const words = new Range();
+    words.selectNodeContents(part);
+    const own = part.getBoundingClientRect();
+    return {text: part.textContent, shown: getComputedStyle(part).opacity !== '0',
+      whole: [...words.getClientRects()].every(ink =>
+        ink.left >= Math.max(own.left, room.left) - 0.5
+        && ink.right <= Math.min(own.right, room.right) + 0.5)};
+  });
+}"""
+
+
+def test_printed_diff_rows_hold_their_whole_paths(browser, serve):
+    """Paper gives no title, focus or press back to a cut path, so a printed file row
+    wraps to show every folder and the whole name; the screen row still cuts them."""
+    paths = (
+        "plugins/worktrunk/skills/worktrunk/references/configuration/hooks/README.md",
+        "src/picker/snapshots/wt__commands__picker__items__tests__unified_diff.snap",
+    )
+    patch = "".join(
+        f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+        "@@ -1 +1 @@\n-old\n+new\n"
+        for path in paths
+    )
+    url = serve(
+        leaf_page(
+            "Printed paths",
+            f'<lf-diff id="patch"><pre>{escape(patch)}</pre></lf-diff>',
+        )
+    )
+    # A5's printable width under the print dialog's default margins.
+    context = browser.new_context(viewport={"width": 483, "height": 800})
+    page = open_page(browser, url, context=context)
+    page.evaluate("document.fonts.ready")
+    heads = page.locator("#patch .lf-diff-head")
+    expect(heads).to_have_count(len(paths))
+    screen = [head.evaluate(PATH_PARTS) for head in heads.all()]
+    assert all(
+        not all(part["shown"] and part["whole"] for part in parts) for parts in screen
+    ), f"each path must be cut on screen, or print proves nothing: {screen}"
+    page.emulate_media(media="print")
+    one_frame(page)
+    for head, path in zip(heads.all(), paths, strict=True):
+        parts = head.evaluate(PATH_PARTS)
+        assert "".join(part["text"] for part in parts) == path
+        assert all(part["shown"] and part["whole"] for part in parts), (path, parts)

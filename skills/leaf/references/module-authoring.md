@@ -29,7 +29,8 @@ query private chrome, or duplicate a runtime helper inside itself. Of Lit, it ex
 the names under **Lit exports** below.
 Resolve canonical `/media/…` paths from typed data with `scopedMediaUrl(path)` before assigning them to
 generated images or links. It uses the page's public root across ordinary and
-published pages while the source retains its canonical path.
+published pages while the source retains its canonical path. `isCanonicalMediaUrl(href)`
+says whether a path is one of those canonical `/media/…` paths.
 
 Use `searchField(className, {name, label, placeholder = label})` for a search or
 filter field. It supplies the shared frame, accessible label, native editor and
@@ -68,13 +69,44 @@ block prose. `markdownSourceOffset(body, node, offset)` carries a rendered caret
 back to the exact source. Inline formatting does not interpret strings a module
 assigns with `textContent`. For changing Markdown prose, load the renderer with `loadMarkdown()`
 and paint the current value with `inlineMarkdownFragment()`; repaint that value when
-loading completes. A changing numeric readout keeps surrounding text still with
-tabular numerals and a slot wide enough for its largest value.
+loading completes. `renderMarkdown(text)` returns block Markdown as a safe HTML string,
+for a template's `unsafeHTML`; until the renderer has loaded it returns the escaped
+source, and `markdownReady()` says whether it has. A changing numeric readout keeps
+surrounding text still with tabular numerals and a slot wide enough for its largest
+value.
+
+`syntax(source, lang)` colours code: it resolves to the code's tokens, `[{text, style}]`
+in source order, where `style` holds CSS declarations from the page's syntax theme.
+`synNodes(tokens)` turns tokens into nodes, and `tokenLines(tokens)` cuts them into one
+array per line for a widget that numbers its lines. `lang` is one of the registry's
+`$languages` names; `langForPath(path)` derives one from a file name, or returns
+`undefined`, and `ensureSyntaxLanguage(lang)` loads a language before it is needed.
+`highlightBlocks(root)` colours each `pre > code` block in `root`, `root` included, whose
+`language-…` class names a language, as Leaf colours authored code.
+`copyCodeBlock(pre, source)` returns the Copy button for a code block; it copies
+`source()` when pressed. Append it beside the `pre`.
+
+`alignText(before, after)` shows how one text became another: it returns runs
+`{kind, text}`, where `kind` is `same`, `delete` or `insert`, aligned by words. The
+`same` and `delete` runs join to `before`, and the `same` and `insert` runs to `after`.
+To align a rewritten paragraph by sentences instead, pass an `Intl.Segmenter` with
+`granularity: "sentence"` as the third argument. `alignedNodes(runs)` renders the runs
+as text, `<del>` and `<ins>`.
+
+`compareImages(a, b)` compares two decoded images, such as an `HTMLImageElement` or an
+`ImageBitmap` at natural size, which must not taint a canvas. It resolves to
+`{changed, throughout, regions}`: the number of pixels that differ, whether they differ
+over most of the image, and outlines `{x, y, width, height, side, kind}` drawn on the
+`before` image (`a`) or the `after` image (`b`) around content that `changed` or
+`moved`. `differenceKind(reading)` classifies a reading as `identical`, `throughout`,
+`slight` or `areas`; `describeDifference(reading)` words it for the reader, and
+`countAreas(regions)` counts the changed and moved areas, each once. The comparison is
+experimental; `lf-shot` is the worked example.
 
 ### Lit exports
 
-`render`, `html`, `nothing`, `repeat`, `keyed`, `live`, `ref`, `classMap`, `styleMap`,
-`guard`, and `unsafeHTML`.
+`render`, `html`, `nothing`, `repeat`, `keyed`, `live`, `ref`, `createRef`, `classMap`,
+`styleMap`, `guard`, and `unsafeHTML`.
 
 ## Startup and presentation
 
@@ -134,8 +166,13 @@ moves as `keeps-first-box` ([packages.md, "Seeing it"](packages.md#seeing-it)).
   the drawing can take any. `page check --render` advises a page's author the height
   to state for a drawing that cannot.
 - Where the widget shows one of its members at a time, declare `x-views`, open on
-  `openingView`'s member, and show only the member marked `data-lf-opening` until the
-  module upgrades the element, as `lf-tabs` does.
+  `openingView(holder, members)`'s member, and show only the member marked
+  `data-lf-opening` until the module upgrades the element, as `lf-tabs` does. Record
+  each member the widget shows with `keepView(holder, member)`, so a reload reopens it.
+
+`tabStore.get(key)` and `tabStore.set(key, value)` keep a string of a widget's working
+state, such as which group the user collapsed, for this page in this browser tab;
+setting `null` removes it. An `x-initial` producer reads the same store.
 
 ## Template rendering
 
@@ -172,15 +209,26 @@ call `render(template, container)`. Retain that container on later stage updates
 `failSoft` on a staged host stages its error box in place of your nodes; your next
 `shadowStage` call replaces it.
 
+A module that writes stylesheet text of its own, for a constructed sheet or a `<style>`
+in its shadow root, wraps it in `inBaseLayer(css)`. The rules then join the theme's
+`lf-base` cascade layer, below Layouts, semantic state and the page's own stylesheet.
+
 ## What a behavior module owes
 
 A behavior module follows these rules:
 
-- Use `says()` over `textContent`.
-- Use `offer()` and `relabel()` for injected UI. Reserve its space in
+- Use `says()` over `textContent`. `wrote()` reads only the words the author wrote,
+  leaving out what an upgrade generated, for naming one of the widget's own parts.
+- Read a widget's `<pre>` body with `bodyText(this)`, which drops leading blank lines
+  and trailing whitespace, or `dataBody(this)` where whitespace is content, as in a
+  diff. The element's own `textContent` also holds the formatting around the `<pre>`.
+- Use `offer()` and `relabel()` for injected UI. `el(tag, className, text)` makes an
+  element with its class and first words and no Leaf markers, for structure that is not
+  injected UI. Reserve its space in
   `measure`. After a view swap, call `layoutChanged` and await its promise before
-  restoring scroll. A registry-declared widget registers asynchronous visible
-  preparation through `controller.present(promise)`.
+  restoring scroll; it dispatches the bubbling `LAYOUT` event, which a widget that
+  measures what it holds listens for. A registry-declared widget registers asynchronous
+  visible preparation through `controller.present(promise)`.
   In Lit templates, use `<button ${offered("lf-btn")}>` for the same generated
   control anatomy. `offered` owns the element's class and chrome markers; native
   button type defaults to `button`. A native input's `type` binding precedes
@@ -205,6 +253,10 @@ A behavior module follows these rules:
 - Use `keeps(node, name, value)` for names or state a reactive render writes,
   passing booleans and counts directly. Unconditional `setAttribute` repeats
   writes on every publication; `toggleAttribute` already handles flags.
+  `keepsText(node, text)` and `keepsHidden(node, hidden)` do the same for words and
+  `hidden`. Write a length measured off the page as `layoutPx(length)`, which rounds to
+  layout's 1/64px so a box that has not moved writes nothing new;
+  `atLayoutPrecision(length)` returns the rounded number.
 - Upgrade once: return from `connectedCallback` unless `once(this)`. Hold the
   listeners, observers, registrations and indications a connection needs in
   `whileConnected` ("Connection lifetimes"), which starts them again when the
@@ -345,6 +397,8 @@ words the render gate pairs with the file.
 the body that scrolls it whenever the theme makes it scroll. The host makes focus in a
 pane's header or footer select that pane. Register it in `whileConnected` and return
 its cleanup there, so an element that returns claims the same id again.
+`readingRegion(id)` returns a registered region's `{id, host, body}`, or `undefined`
+while none stands under that id.
 Containment follows rendered slots, so native conversation parts nominated into a
 shadow reader belong to the region registered around their outlets.
 `readingPosture(node)` is `bounded` exactly while the region's body is its own
@@ -368,6 +422,13 @@ A widget that re-renders or resizes content holds the user's place with
 This includes synchronous changes in the platform page scroller when native anchoring
 does not retain the focused control; `runtime/user-place.js` describes the hold.
 
+`scrollerFor(element)` is the box that scrolls an element: its reading region's
+scroller, or `pageScroller`, the document's. `scrollLimit(box)` is the furthest a box
+scrolls down, and `atScrollEnd(box)` says whether it stands there. `landingInsets(scroller)`
+reads the `scroll-padding` a scroller declares on each edge. `shownWindow({within, gap})`
+is the `DOMRect` of the window the page shows, below Leaf's banner and above its bottom
+bar, narrowed to the rectangle `within` and inset by `gap`.
+
 A widget that remembers where the user was reading, in a view it hides and shows again,
 keeps a place rather than an offset: `capturePlace()` reads the page's place as a
 landmark in its own words, and `restorePlace(place)` returns to it however the page has
@@ -386,6 +447,25 @@ opens the part the landing goes to.
 A handler that takes over a press, as a link that travels to a source line does, acts
 only on `plainPress(event)`: the primary button with no modifier. A modified press
 keeps its platform meaning, such as a new tab or a context menu.
+
+A control whose label is the page's own words checks `reachedForWords(control)` in its
+click handler: true means the press ended a text selection, so the user was taking the
+words rather than pressing. A container that takes a press anywhere on its box, as an
+option card does, first asks `worksInside(event.target, container)`, which returns the
+control or widget inside it the press was aimed at, or `null` where the container is
+the aim.
+
+A control that shows only part of its word, with the whole in its `title`, carries the
+class `HOLDS_WORD`. A finger held on it reads the word, and releasing presses it. While
+the press is held the control has `data-lf-held-word`, and the package's CSS shows the
+whole word in that state as it does under keyboard focus.
+
+A widget the user drags calls `dragging(this, true)` as the drag starts and
+`dragging(this, false)` as it ends, is cancelled, or the widget disconnects. While a drag
+is held, Leaf holds new state back from widgets and the page, and paints it once the last
+drag is released, so nothing moves under the pointer. The image that
+follows the pointer is `motionPreview(label)`, an inert box carrying the dragged item's
+label.
 
 A sticky header, a sticky box over the top of its scroller, has a stated height, sticks
 at `var(--lf-top)`, and adds its height to `--lf-top` for what it stands over. Its
@@ -474,7 +554,8 @@ closes with `closeLayer(close, land)`: `close` hides it, and `land` puts a user 
 in it where the close takes them, usually `handBack(openerOf(layer))`, which lets go onto
 the page where the opener is gone. Readers of where the user stands hear only where they
 end up. The layer's Escape is a command row like any other key. A group
-reached by its own arrows offers one Tab stop with `rove(items, stop)`. `standingIn(scope)`
+reached by its own arrows offers one Tab stop with `rove(items, stop)`. `focused()` is the
+element where the user stands, across shadow trees. `standingIn(scope)`
 says whether the user stands in a scope, across shadow trees, and `whenLeft(element, leave)`
 runs `leave` once when they move off an element.
 
@@ -528,13 +609,19 @@ markup is named by its words cut short and a widget by nothing: the label is emp
 `addressableWord(element)` is the word for its kind. A
 widget whose title is an attribute, as a column's `label` is, declares `x-name`.
 `anchorLabel(anchor, about)` names a comment's anchor the way Threads does, and
-`markdownWords(text)` is the words a Markdown string renders to.
+`markdownWords(text)` is the words a Markdown string renders to. `excerptWords(text, cap)`
+cuts words to at most `cap` characters at a word boundary, ending in an ellipsis.
+`inChrome(node)` says whether a node stands in Leaf's own interface rather than on the
+page, as a widget an agent sent in a Thread reply does.
 
 A message's HTML markup is a document of its own, and it may repeat the shapes the page
 holds. A module that finds a partner element by reference, as a seat names the widget it
 serves, searches `authoredScope(element)`: the page's `main`, or the body of the message
 whose markup holds the element. A search of the whole `document` lets quoted markup answer
-for the page.
+for the page. `elementById(id, root)` finds an id in the document, or only within `root`
+when one is given, such as `authoredScope(this)`. It searches the shadow trees widgets
+declare too, where `getElementById` misses an id a widget moved into its shadow root. `under(node, root)` says whether `node` is `root` or inside
+it, across the shadow boundaries where `contains` stops.
 
 A module that moves something calls `motion(element, keyframes, ms)` rather than
 `element.animate`. The stylesheet's reduced-motion guard reaches CSS animation and
@@ -590,6 +677,12 @@ does not report replacement and retains ordinary scrolling. A listener joins lat
 layout completion through `present(promise)`; travel waits for those promises and reads
 fresh geometry for its final placement. `lf-tabs` is the worked example.
 
+A widget folds content it may show again by setting its `hidden` to `HIDDEN`. Where the
+browser supports `hidden="until-found"`, find-in-page and fragment links still reach the
+content and fire `beforematch` on it, and the widget opens it there; elsewhere the content
+is plainly hidden. A folded element that is itself a Tab stop stays one, so the widget
+withdraws it.
+
 `registerContribution({key, target, source?, read, activate})` is the package boundary for
 shared page actions and statuses. `read()` returns the contribution's complete current reading,
 including immutable `contributionEntry({...})` records; it never returns controls. Leaf renders
@@ -629,7 +722,7 @@ icon name). `kind` belongs to the whole reading, never an entry. Entries default
 `behavior: "action"`, `tone: "neutral"`, `rank: "primary"`, and `state: "idle"`;
 `activation` defaults to their key. `CONTRIBUTION_ENTRY_SCHEMA`, exported by
 `/runtime/widget-api.js`, gives the accepted values for those four fields.
-For example, inside an existing widget whose `saveDraft()` owns the effect:
+For example, inside an existing widget whose own `save()` method owns the effect:
 
 ```js
 import {
@@ -652,7 +745,7 @@ connectedCallback() {
           key: "save", glyph: "✓", label: "Save", disabled: this.disabled,
         })],
       }),
-      activate: () => this.saveDraft(),
+      activate: () => this.save(),
     });
     return () => this.actions.unregister();
   });
@@ -674,6 +767,36 @@ page's content for it, so its controls come after the page's content in the tab 
 the margin's own keyboard routes, `t`, and the Page Map reach them from the target.
 Nothing about the contribution changes with the posture, and a package never places or
 sizes its controls itself.
+
+A widget that shows margin entries inside its own content, as the feature gallery's
+gallery of them does, paints a control it owns as one with
+`presentContributionEntry(control, entry, {selected})`, where `entry` is a
+`contributionEntry` record. `presentContributionReceipts(control, receipt, awaitsUser)`
+paints the control's turn: the agent's work on it, from a workflow's
+`{id, subject, stage, detail}` or `null`, and whether the user owes it an answer.
+
+## Notices and spoken words
+
+`notice(message)` shows a moment's news in Leaf's status line and announces it to screen
+readers, such as the acknowledgement of a gesture the widget recorded. News that arrives
+without the user's gesture passes `{background: true}` and waits behind what the user
+just did; `{announce: false}` shows it without announcing it. `announce(message)` only
+announces, for words the screen already shows.
+
+`quietWord(element, word)` gives an element a word screen readers say and the screen
+does not show, after the element's leading title; an empty word removes it. Pass the
+element's whole quiet word each time. Leaf writes the quiet words of the elements whose
+registry entry declares `x-paints`, so a module writes them only on parts it builds.
+
+## Reading declarations
+
+A module reads its registry entries rather than repeating them. `declarationFor(element,
+key)` is the value of one key in the entry for the element's tag, or `undefined`.
+`elementsDeclaring(root, key, {direct})` lists the elements under `root`, or only its
+children with `direct: true`, whose entries declare `key`. `matchesWhen(element, when)`
+says whether the element's attributes satisfy a declaration's `when`, as an
+`x-thread-seat` declaration's `when` selects its elements. `layerFact(name)` returns a
+copy of a layer-wide `$` declaration, such as `$reactions`.
 
 ## Following a reference
 
@@ -763,6 +886,10 @@ commands(classifier, actions);
 
 Arrows that step along a row of controls follow its text direction: `rowArrows(node)`
 returns `[back, ahead]`, which is `["ArrowRight", "ArrowLeft"]` in right-to-left text.
+`PRESS` is the keys a focused button answers, Enter and Space, for a row that presses a
+control a button would. `labelOf(row)` is the key text a row shows, for a tooltip that
+names its keys, and `saying(rows)` is what a set of rows answers right now in the words a
+screen reader speaks, for an announcement.
 
 For a native button, `control` and `run` declare one activation path: Leaf invokes
 `run` for both its click and its keyboard command, and paints native disabled state
@@ -860,8 +987,15 @@ two returned rows go into the list's own scope: ArrowUp and ArrowDown step and c
 Home and End reach the ends, and each landing shows its position, such as `Option 3 of
 7`. `rows()` returns the list as it stands at each press.
 
-A widget-owned composition box is the runtime's text field, `offer(TEXT_FIELD)` from the
-widget API: a Markdown editor that shows the draft the way the sent message will read
+A walk the widget moves itself, such as through its tabs or a diff's hunks, calls
+`beginWalk(key, noun, read)` at each step and announces the text it returns, such as
+`Hunk 3 of 7`. `read()` returns where the walk stands, usually
+`listWalkPosition(items, current, {identity})`, which is `null` when `current` is not in
+`items`. `key` names the walk, so a step that lands where the last one did shows that
+the walk reached its end.
+
+A widget-owned composition box is the runtime's text field, `offer(TEXT_FIELD)`: a
+Markdown editor that shows the draft the way the sent message will read
 and answers the textarea members a box needs (`value`, the selection, `placeholder`,
 `readOnly`, `name`, `aria-label`), firing `input` for the user's edits only. Wire it
 with `wireInput()`, which registers Enter for the contextual action on physical
@@ -869,9 +1003,9 @@ keyboards and leaves Shift+Enter as a newline. On touch keyboards, Enter stays a
 and the visible control submits; Mod+Enter is also available where a modifier key
 exists. The helper also owns shared draft persistence, busy state, and shortcut
 projections. A direct editor that needs more commands, such as Save and Cancel,
-registers those rows on its box with the same text-entry meanings. `TEXT_BOX` matches
-the text field and any native textarea, for code asking whether an element takes typed
-paragraphs.
+registers those rows on its box with the same text-entry meanings. `TEXT_FIELD` is the
+text field's tag, and `TEXT_BOX` matches the text field and any native textarea, for code
+asking whether an element takes typed paragraphs.
 
 A field has `:state(ready)` once its editor view exists. When it replaces a reading
 surface, keep that surface in flow until the field is ready: measuring a connecting
@@ -885,6 +1019,23 @@ leaves — and `sync()` says the box's standing changed. The send button, placeh
 whatever the widget's own `paint` option draws from the box repaint once, in the
 runtime's next standing paint, before that frame shows. Write `.value` only to seed the
 box before wiring it.
+
+A widget's box keeps its words as a draft, so they survive a reload, a new version and
+a closed tab, and every tab of the page shares them. `wireInput` calls its `save()`
+option on each edit and its `send(text, raw, owns)` option on submit, and the widget
+keeps the draft from those under a context string unique on the page, such as `option:`
+and its id. `loadDraft(ctx)` reads the words to seed the box, or `null` where none stand.
+`saveDraft(ctx, text, payload)` records an edit in `save`, with an optional `payload`
+the send needs, such as the choice the words go with. `watchDraft(ctx, callback,
+{input})` calls `callback(text, payload)` when another tab or view changes the draft,
+such as to `sync.load()` the words, and returns a function that stops it; register it in
+`whileConnected`. `sendDraft(ctx, owns, send)` sends in `send`: while the stored draft
+is the one the box shows and `owns()` returns true, it calls `send(attempt, payload)`,
+which dispatches and returns the delivery promise, and it resolves to that delivery's
+result, or `null` when it sent nothing. One `attempt` stands for one edit of the words,
+so a resend after a reload names the same attempt. The draft settles once the log
+accepts the send, and a refusal gives the words back to the box. `clearDraft(ctx)` drops
+the draft, as Cancel does. `lf-options`' box for adding an option is the worked example.
 
 ## Visual parts
 
@@ -924,6 +1075,14 @@ widget words those facts; it does not fold the log. The callback also receives
 `{ready}`: whether the authoritative application is ready. A widget that restores a
 tab-local retained reading keeps it through preparation, then compares it with the
 ready history; a preparation reading is not a new history baseline.
+
+A widget an agent reports on reads the reports with `reportSequence(this)` in a
+`watchReports(this, callback)` subscription. Each entry is one report about the widget
+from the log, in log order, carrying `id`, `target`, `source`, `action`, `detail`, its
+words as `text`, `ts`, and `disposition`. Pass `{kind: "thread", id}` to read a Thread's
+reports, or nothing to read every report. `saidAt(element)` is when the message holding
+`element` was sent, or when the page was published for an element on the page, for a
+widget that shows how long a worker has gone unheard.
 
 ## Connection lifetimes
 
@@ -1013,6 +1172,11 @@ Its `refresh()` repaints the last delivered snapshot through the same clock
 tracking, on the return when asked while the owner is away. It neither delivers a
 pending source reading nor revives a retired subscription.
 The callback must state the whole rendering and remain idempotent.
+
+A source whose contract declares `deferred` sends its rows without that field
+([packages.md, "External or derived data"](packages.md#external-or-derived-data)).
+`loadDeferred(snapshot, key)` fetches one row's field for the `snapshot` the callback
+received.
 
 Time readings made synchronously in controller, `watchData`, `watchReports`, and
 `watchHistory` callbacks subscribe that paint to Leaf's shared clock. Calls to `ago`,
@@ -1165,6 +1329,11 @@ a concurrent change. Message keys survive admission too. To open one message, us
 Leaf's reply editors keep one durable draft per Thread; a package input retains its
 own draft.
 
+A widget whose entry declares `x-thread-seat` builds the box where the user starts a
+thread about it with `threadBox(this, hint)`, where `hint` labels the box, and appends
+the element it returns. It returns `null` for an element in Leaf's interface or in quoted
+markup, and throws for one the declaration's `when` does not select or one with no id.
+
 ## Rendering Threads in a widget
 
 `mountThreadViews(owner, render)` lets a package supply containers for Leaf's core
@@ -1269,6 +1438,9 @@ owner is detached, and a return calls it by the rule in "Connection lifetimes": 
 when the comparison changed while the owner was away. A callback that throws is reported, and
 the next change calls it again. Its returned function permanently ends the watch.
 Use `comparisonChanges` in the callback to update counts or other local presentations.
+
+`revisionLabel(event.revision)` is the name the page gives the version an event was
+recorded in, for a widget that lists its own history.
 
 ## Reading asks and obligation queues
 

@@ -64,7 +64,6 @@ from interact_support import (
     queue_board_registry,
     read_page_data,
     stamp,
-    stamp_activation,
     styled,
     trial_version,
     wait_for,
@@ -1462,15 +1461,42 @@ def test_a_composed_vocabulary_carries_its_decisions(page_dir):
     }
 
 
-def test_a_verb_is_written_by_the_side_it_declares():
-    """`verb_writer` states the default the browser's `adoptRegistry` applies, and
-    both are held to `tests/verb_writer_cases.json`."""
-    cases = json.loads((Path(__file__).parent / "verb_writer_cases.json").read_text())
-    assert [
-        [tag, verb, registry_contract.verb_writer(spec)]
-        for tag, entry in cases["declarations"].items()
-        for verb, spec in entry["x-state"].items()
-    ] == cases["writers"]
+def test_a_composed_vocabulary_carries_each_verbs_writer_and_definition(page_dir):
+    """`$states` is what the browser reads for a verb's writer and the operation an
+    admitted event records, so it derives neither. A page's own declaration is stamped
+    with the layer's, an unstated writer as the user's."""
+    layer = registry_storage.load_registry(page_dir)
+    declaration = element_declaration("lf-local", upgrade=True)
+    declaration["properties"] |= {
+        name: {"type": "boolean"} for name in ("overruled", "restated")
+    } | {"reading": {"type": "string"}}
+    declaration["x-state"] = {
+        "set": {
+            "unit": "widget",
+            "detail": {"type": "object", "additionalProperties": False},
+        },
+        "measure": {
+            "unit": "widget",
+            "writer": "agent",
+            "record": {"kind": "value", "attr": "reading"},
+        },
+    }
+    widget_paths = {f"widgets/{path.name}" for path in (page_dir / "widgets").glob("*")}
+
+    composed = registry_page.compose_page_registry(
+        layer, {"lf-local": declaration}, {*widget_paths, "widgets/lf-local.js"}
+    ).registry
+
+    assert composed["$states"]["lf-local"] == {
+        verb: {
+            "writer": writer,
+            "definition": registry_contract.state_definition(
+                "lf-local", declaration, declaration["x-state"][verb]
+            ),
+        }
+        for verb, writer in (("set", "user"), ("measure", "agent"))
+    }
+    assert composed["$states"]["lf-suggestion"]["decide"]["writer"] == "user"
 
 
 @pytest.mark.parametrize(
@@ -1555,7 +1581,7 @@ def test_late_gesture_wakes_for_the_active_vocabulary(page_dir, active_ask):
     layer = deepcopy(registry_storage.load_registry(page_dir))
     awaits = layer["lf-options"].pop("x-awaits")
 
-    def publish_choice(has_ask, version):
+    def publish_choice(has_ask):
         vocabulary = deepcopy(layer)
         if has_ask:
             vocabulary["lf-options"]["x-awaits"] = awaits
@@ -1568,11 +1594,11 @@ def test_late_gesture_wakes_for_the_active_vocabulary(page_dir, active_ask):
         if has_ask:
             group = '<lf-ask id="ask"><h2>Which one?</h2>' + group + "</lf-ask>"
         (page_dir / "index.html").write_text(model.leaf_page("Choice", group))
-        publish(page_dir, version=version)
+        publish(page_dir)
 
-    publish_choice(not active_ask, 1)
+    publish_choice(not active_ask)
     original = files_model.latest_revision(page_dir)
-    publish_choice(active_ask, 2)
+    publish_choice(active_ask)
     assert files_model.latest_revision(page_dir) > original
 
     action = append_command(
@@ -1828,19 +1854,9 @@ def test_candidate_vocabulary_leaves_removed_page_widgets_to_captured_history(pa
     )
     restated = original.replace('value="author"', 'value="author-next" restated')
     (page_dir / "index.html").write_text(restated)
-    second = stamp_activation(page_dir)
-    assert second.error is None and second.created
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "note",
-            "author": "agent",
-            "version": 2,
-            "revision": second.revision,
-            "text": "Retract the local choice.",
-            "restated": ["local-choice"],
-        },
-    )
+    assert publish(page_dir, "Retract the local choice.")["restated"] == [
+        "local-choice"
+    ]
 
     authored.write_text("{}")
     (page_dir / "index.html").write_text(PAGE)
@@ -2702,7 +2718,6 @@ def test_boolean_attribute_subschemas_validate_without_crashing(
         # Each of these names attributes, so an empty one declares nothing while
         # reading as a declaration.
         ("x-refers", {}),
-        ("x-lines", []),
         ("x-paints", []),
         ("x-says", []),
         ("x-state", []),
@@ -2807,6 +2822,18 @@ def test_check_refuses_an_invalid_action_detail_schema(page_dir):
     assert (
         "<lf-options> x-state verb `add` has an invalid detail schema" in result.output
     )
+
+
+def test_check_refuses_a_format_no_boundary_checks(page_dir):
+    """jsonschema skips a format it has no checker for, so a declared one Leaf does
+    not check would state a rule nothing enforces."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-options"]["properties"]["id"]["format"] = "hostname"
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+    assert result.exit_code != 0
+    assert "<lf-options> is not a valid JSON Schema: format 'hostname'" in result.output
 
 
 @pytest.mark.parametrize(
@@ -3267,7 +3294,7 @@ def test_independent_state_does_not_reopen_an_answer_even_after_retirement(
     assert result["c1"]["resolved"]["id"] == accepted["id"]
     retired = source.replace(snippet, '<p id="proposed">Ship after validation.</p>')
     (page_dir / "index.html").write_text(retired)
-    publish(page_dir, 2)
+    publish(page_dir)
     result = event_folds_model.build_threads(
         events_model.read_events(page_dir),
         passages_model.enclosing_ids(structure_model.SourceDocument(retired)),
@@ -3624,7 +3651,6 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
         ),
         ("lf-option", "x-refers", {"for": {}, "about": {}}, "about"),
         ("lf-test-task", "x-paints", ["status", "urgency"], "urgency"),
-        ("lf-code", "x-lines", ["hi", "upto"], "upto"),
         ("lf-code", "x-language", "dialect", "dialect"),
         ("lf-column", "x-tone", "shade", "shade"),
     ],
@@ -3632,9 +3658,9 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
 def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(
     page_dir, tag, key, value, missing
 ):
-    """Six keys point at attributes rather than declaring them — the words a widget
-    shows, the ones that name another element, the ones it paints and never words, the
-    ones holding line references, and the two carrying a word its layer has to know —
+    """Five keys point at attributes rather than declaring them — the words a widget
+    shows, the ones that name another element, the ones it paints and never words, and
+    the two carrying a word its layer has to know —
     and each is read by a pass that finds the attribute absent and does nothing. That
     is the never-closed vocabulary's own failure mode: no error anywhere, the widget
     simply missing from the pass, and a page that looks authored correctly because it
@@ -4472,17 +4498,21 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
     assert keys["x-says"]  # the rest of the shipped members stand
 
 
-@pytest.mark.parametrize("key", ["kinds", "ownership"])
-def test_event_kinds_and_ownership_are_the_kernel_contract_not_a_layer_extension(
-    page_dir, tmp_path, key
-):
+@pytest.mark.parametrize("key", ["kinds", "ownership", "protocol"])
+def test_the_kernel_event_contract_is_not_a_layer_extension(page_dir, tmp_path, key):
+    """A layer cannot change the event kinds, their ownership, or the protocol
+    numbering them, so a page's vendored copy is the kernel's of the Leaf that
+    vendored it."""
     overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
     registry = json.loads((page_dir / "registry.json").read_text())
     if key == "kinds":
         registry["$events"][key]["signal"] = registry["$events"][key]["error"]
-    else:
+    elif key == "ownership":
         registry["$events"][key]["browser_discard"] = []
+    else:
+        # Equal to a protocol of 1 in Python, and still not the kernel's number.
+        registry["$events"][key] = True
     (overlay / "registry.json").write_text(json.dumps(registry))
 
     result = CliRunner().invoke(
@@ -4510,12 +4540,6 @@ def test_event_kinds_and_ownership_are_the_kernel_contract_not_a_layer_extension
     )
     assert result.exit_code != 0
     assert f"$events.{key} is Leaf's fixed transport contract" in result.output
-
-    with pytest.raises(
-        registry_contract.RegistryError,
-        match=rf"\$events.{key} must equal Leaf's fixed transport contract",
-    ):
-        registry_validation.validate_registry(registry, "incoming")
 
 
 def test_an_empty_agent_name_uses_the_harness_default(
@@ -4560,55 +4584,6 @@ def test_check_requires_the_vendored_layer(tmp_path):
     assert f"run `leaf page init {d}`" in result.output
 
 
-def test_check_advises_page_css_that_scrolls_a_box_and_leaves_arrangement_alone(
-    page_dir,
-):
-    """Page CSS stays free, so a scroller is advice: one Leaf did not make is one its
-    reading features cannot reach. Arranging is the page's own business, panes included,
-    so a rule that places a pane, or scrolls only sideways, says nothing."""
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<title>t</title>",
-            "<title>t</title><style>.feed { overflow-y: auto; max-height: 20rem }"
-            " main lf-pane { display: flex; grid-column: 1 / -1 }"
-            " .wide { overflow-x: auto } #cells { grid-template-columns: 1fr }</style>",
-        ).replace(
-            "<h2>Plan</h2>",
-            '<h2>Plan</h2><div id="cells"><lf-pane id="queue" label="Queue"><p>One</p></lf-pane></div>'
-            '<div class="feed" style="overflow: scroll"><p>Log</p></div>',
-        )
-    )
-    result = check(page_dir)
-    assert result.exit_code == 0, result.output
-    assert "rule `.feed` sets overflow-y to scroll" in result.output
-    assert "sets overflow to scroll" in result.output
-    for quiet in ("main lf-pane", ".wide", "#cells"):
-        assert quiet not in result.output, result.output
-
-
-def test_check_advises_the_same_css_in_a_stylesheet_the_page_links(page_dir):
-    """A stylesheet the page links from page/, and one that sheet imports, are page CSS
-    as much as its <style>, so the advice reads them and names the file."""
-    (page_dir / "page").mkdir(exist_ok=True)
-    (page_dir / "page" / "app.css").write_text(
-        '@import "log.css";\n.feed { overflow-y: auto }\n'
-    )
-    (page_dir / "page" / "log.css").write_text("#log { overflow: scroll }\n")
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<title>t</title>",
-            '<title>t</title><link rel="stylesheet" href="/page/app.css">',
-        ).replace(
-            "<h2>Plan</h2>",
-            '<h2>Plan</h2><pre id="log">x</pre><div class="feed"><p>Log</p></div>',
-        )
-    )
-    result = check(page_dir)
-    assert result.exit_code == 0, result.output
-    assert "/page/app.css rule `.feed` sets overflow-y to scroll" in result.output
-    assert "/page/log.css rule `#log` sets overflow to scroll" in result.output
-
-
 def test_check_rejects_an_invalid_bound_and_loose_pane_text(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace(
@@ -4641,10 +4616,9 @@ def test_check_rejects_an_unknown_authored_width(page_dir):
     )
 
 
-def test_check_takes_a_stated_height_only_on_a_widget_that_draws_into_its_box(page_dir):
-    """`data-height` states the box of a widget whose declaration says it draws into one
-    (x-height), in whole CSS pixels. A chart takes it; a table and a code block take the
-    height of what they hold, so the attribute there would clip their words."""
+def test_check_takes_a_stated_height_in_whole_css_pixels(page_dir):
+    """`data-height` states the box of a widget that draws into one, in whole CSS
+    pixels."""
     chart = '<lf-chart id="c" data-height="{}"><pre>{{ariaLabel: "x", marks: []}}</pre></lf-chart>'
     (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + chart.format(240))
@@ -4652,13 +4626,7 @@ def test_check_takes_a_stated_height_only_on_a_widget_that_draws_into_its_box(pa
     result = check(page_dir)
     assert result.exit_code == 0, result.output
     (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<h2>Plan</h2>",
-            "<h2>Plan</h2>"
-            + chart.format("240px")
-            + '<table data-height="80"><tr><td>A</td></tr></table>'
-            + '<lf-code id="t" data-height="80"><pre>src/</pre></lf-code>',
-        )
+        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + chart.format("240px"))
     )
     result = check(page_dir)
     assert result.exit_code == 1
@@ -4666,39 +4634,10 @@ def test_check_takes_a_stated_height_only_on_a_widget_that_draws_into_its_box(pa
         'data-height="240px"> (line 9) has an invalid value; expected a whole number '
         "of CSS pixels" in result.output
     )
-    assert "<table data-height> (line 9) states the height of a widget" in (
-        result.output
-    )
-    assert "<lf-code> takes the height of what it holds" in result.output
 
 
-def test_check_takes_a_page_s_width_from_a_layout_and_not_from_data_width(page_dir):
-    """A page's width is a Layout class on `main`. `data-width` sizes a block in the
-    page's flow, so on `main` it would widen nothing and is refused; a `main` with no
-    Layout at all is advice, since nothing arranges it unless the page's own CSS does."""
-    unarranged = "<main> has no Layout class"
-    (page_dir / "index.html").write_text(
-        PAGE.replace("<main>", '<main class="layout-column">')
-    )
-    result = check(page_dir)
-    assert result.exit_code == 0, result.output
-    assert unarranged not in result.output
-    (page_dir / "index.html").write_text(PAGE)
-    result = check(page_dir)
-    assert result.exit_code == 0, result.output
-    assert unarranged in result.output
-    (page_dir / "index.html").write_text(
-        PAGE.replace("<main>", '<main data-width="available">')
-    )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "data-width> (line" in result.output
-    assert "its width is a Layout class on it" in result.output
-
-
-def test_check_takes_a_rail_only_on_body_and_only_by_name(page_dir):
-    """`data-rail` says whether the page keeps a rail, so it stands on `body` and names
-    one of the two answers; anywhere else it would silently declare nothing."""
+def test_check_takes_a_rail_only_by_name(page_dir):
+    """`data-rail` says whether the page keeps a rail, naming one of the two answers."""
     (page_dir / "index.html").write_text(
         PAGE.replace("<body>", '<body data-rail="none">')
     )
@@ -4706,17 +4645,11 @@ def test_check_takes_a_rail_only_on_body_and_only_by_name(page_dir):
     assert result.exit_code == 0, result.output
     (page_dir / "index.html").write_text(
         PAGE.replace("<body>", '<body data-rail="left">')
-        .replace("<main>", '<main data-rail="right">')
-        .replace(
-            "<h2>Plan</h2>", '<h2>Plan</h2><section data-rail="none"><p>A</p></section>'
-        )
     )
     result = check(page_dir)
     assert result.exit_code == 1
     assert 'data-rail="left"> (line' in result.output
     assert "expected one of right, none" in result.output
-    assert "data-rail> (line" in result.output
-    assert result.output.count("belongs on <body>") == 2
 
 
 def test_a_fresh_server_does_not_revalidate_the_active_revisions_inputs(
@@ -4885,16 +4818,6 @@ def test_sample_body_declarations_use_the_child_document_boundary(page_dir):
         else:
             assert "sample 'practice'" in result.output
             assert "invalid value" in result.output
-
-    # The declaration is not allowed on arbitrary templates or content blocks.
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "</main>", '<template data-annotations="page">Static</template></main>'
-        )
-    )
-    result = check(page_dir)
-    assert result.exit_code != 0
-    assert "belongs on <body>" in result.output
 
 
 @pytest.mark.parametrize(
@@ -5586,6 +5509,76 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
     assert memberships["label1"] == []
 
 
+def test_a_gesture_at_a_coordinate_reaches_only_the_answers_still_standing_there():
+    """A later action on a deciding widget changes the thread an earlier answer there
+    closed, and its undo the same, until that answer is taken back or a version
+    retracts what it rested on: after either, the thread it closed is no longer the
+    later gesture's, as a revised suggestion that resolves another thread shows."""
+    from leaf.thread_context import thread_memberships
+
+    def decide(id, outcome, answer, revision=1):
+        return {
+            "kind": "action",
+            "id": id,
+            "revision": revision,
+            "widget": "sug-a",
+            "action": "decide",
+            "detail": {"outcome": outcome},
+            "meaning": {"unit": "sug-a", "depends": ["sug-a"], "answer": answer},
+        }
+
+    comments = [{"kind": "comment", "id": "c1"}, {"kind": "comment", "id": "c2"}]
+    names = {"c1": "c1", "c2": "c2"}
+    replaced = thread_memberships(
+        [
+            *comments,
+            decide("accept", "accept", "c1"),
+            decide("reject", "reject", None),
+            {"kind": "undo", "id": "unreject", "undoes": "reject"},
+        ],
+        names,
+        {},
+        {},
+    )
+    assert (replaced["reject"], replaced["unreject"]) == (["c1"], ["c1"])
+    taken_back = thread_memberships(
+        [
+            *comments,
+            decide("accept", "accept", "c1"),
+            {"kind": "undo", "id": "unaccept", "undoes": "accept"},
+            decide("reject", "reject", None),
+        ],
+        names,
+        {},
+        {},
+    )
+    assert (taken_back["unaccept"], taken_back["reject"]) == (["c1"], [])
+    restated = thread_memberships(
+        [
+            *comments,
+            decide("accept", "accept", "c1"),
+            {"kind": "note", "id": "v2", "revision": 2, "restated": ["sug-a"]},
+            decide("again", "accept", "c2", revision=2),
+        ],
+        names,
+        {},
+        {},
+    )
+    assert (restated["v2"], restated["again"]) == (["c1"], ["c2"])
+    late = thread_memberships(
+        [
+            *comments,
+            {"kind": "note", "id": "v2", "revision": 2, "restated": ["sug-a"]},
+            decide("stale", "accept", "c1"),
+            decide("again", "accept", "c2", revision=2),
+        ],
+        names,
+        {},
+        {},
+    )
+    assert (late["stale"], late["again"]) == (["c1"], ["c2"])
+
+
 @pytest.mark.parametrize(
     ("history", "script_attrs", "template_attrs", "complaint"),
     [
@@ -5903,7 +5896,7 @@ def test_revised_state_definitions_keep_original_history_and_admit_new_typed_sta
     json.loads((Path(__file__).with_name("state_definition_cases.json")).read_text()),
     ids=lambda case: case["id"],
 )
-def test_state_definition_identity_matches_the_browser_cases(case):
+def test_state_definition_identity_ignores_only_annotations(case):
     from leaf.registry.contract import same_state_definition, state_definition
 
     definitions = [

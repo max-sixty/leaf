@@ -15,7 +15,7 @@ server answers its API requests.
 
 Every `leaf` command a build runs comes from the Leaf its caller hands it. `leaf-dev
 site` hands it an installation prepared from this checkout (`leaf_dev.distribution`)
-beside its output, so each page vendors the compiled kernel a consumer install carries.
+beside its output, so each page vendors the compiled kernel.
 The website's container image installs the same tree, so a revision a hosted session
 writes captures the layer the published revisions were built from. The suite and
 `refresh-previews` serve the site with this checkout's adapter, which refuses pages
@@ -341,10 +341,7 @@ def catalog_markup(markup: str) -> str:
     for link in parsed.tree.select("a.example-link"):
         name = urlsplit(link.attrs["href"]).path.removeprefix("/examples/").strip("/")
         _, description = document_metadata(EXAMPLES / f"{name}.html")
-        caption = link.select_one(".example-description")
-        if caption is None:
-            raise ValueError(f"{name}: catalog card needs an example-description")
-        location = caption.source_location
+        location = link.select_one(".example-description").source_location
         start = index(location.start_tag.end_line, location.start_tag.end_col)
         end = index(location.end_tag.start_line, location.end_tag.start_col)
         replacements.append((start, end, escape(description, quote=False)))

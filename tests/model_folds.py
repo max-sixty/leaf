@@ -87,6 +87,7 @@ def served_reading(
     *,
     registry: dict | None = None,
     view_revision: int | None = None,
+    presence: dict | None = None,
 ) -> dict:
     """The `/api/state` reading of one page, folded in this process.
 
@@ -98,6 +99,9 @@ def served_reading(
     `id` (`e1`, `e2`, … in written order, which is what a later event names its
     parent by), `seq`, `ts`, `author` (the user) and `revision` (1) — are filled
     where the test leaves them out.
+
+    `presence` is the claim and watcher reading the fold sees, `UNCLAIMED` unless
+    the case needs a page someone holds.
 
     Each one then goes through the same append door the server admits it through,
     so what this folds is a log the page could really have. A command the door
@@ -153,8 +157,9 @@ def served_reading(
             registry=registry,
             stored_layer=lambda: registry["$layer"],
             stored_data=lambda: {"version": "0" * 16, "sources": {}},
+            bound_files=dict,
             versions=tuple(version_descriptors(log, parsed)),
-            presence=UNCLAIMED,
+            presence=presence or UNCLAIMED,
             live_stream=None,
             now=NOW,
             taken=float(len(log) + 1),

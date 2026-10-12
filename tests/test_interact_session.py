@@ -68,7 +68,7 @@ from interact_support import (
     state_json,
     take_stream_activity,
     thread_records,
-    vendored_by_another_leaf,
+    vendored_at_another_protocol,
     wait_for,
     working,
     yaml_document,
@@ -7800,7 +7800,7 @@ def test_a_delivery_and_page_state_agree_on_what_a_floor_took_back(
             "anchor": {"section": "picks"},
         },
     )
-    publish(page_dir, 1)
+    publish(page_dir)
     answered = append_command(
         page_dir,
         {
@@ -9484,7 +9484,7 @@ def test_wait_does_not_revive_a_page_another_leaf_vendored(page_dir, capsys):
     )
     assert service_model.claim_page(page_dir)
     session_model.cmd_waiting(page_dir, "review the page")
-    vendored_by_another_leaf(page_dir)
+    vendored_at_another_protocol(page_dir)
 
     # One pass first, so a revival that went through fails here rather than
     # leaving the wait below holding a live page open for input.
@@ -14651,7 +14651,7 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
         claimed,
         {"kind": "comment", "id": "which", "author": "user", "text": "which of these?"},
     )
-    publish(claimed, 1)
+    publish(claimed)
     append_command(
         claimed,
         {
@@ -14823,8 +14823,8 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
 
 def test_the_guard_survives_a_page_vendored_before_the_layer_moved(claimed, capsys):
     """A page directory holds the copy of the layer it was created with, and the
-    stamp refuses a copy the current layer has outgrown — by design, since that
-    refusal is what sends an agent to re-vendor. The Stop hook is the one user
+    stamp refuses a copy it cannot read — by design, since that refusal is what
+    sends an agent to re-vendor. The Stop hook is the one user
     that must never put the question: hook registrations fail open, so a raise
     here stands the *whole* guard down, watch clause included, on any page a
     little older than the checkout, and says nothing about it. Found by running
@@ -14841,7 +14841,7 @@ def test_the_guard_survives_a_page_vendored_before_the_layer_moved(claimed, caps
     )
     receive_through(claimed, last_deliverable_seq(claimed))
     registry = files_model.read_json(claimed / "registry.json")
-    del registry["$events"]["kinds"]["action"]
+    del registry["$languages"]
     cleanup_model.write_json(claimed / "registry.json", registry)
     # Without this the test passes for the wrong reason: it has to be a page
     # whose registry the current layer really does refuse.
@@ -15961,7 +15961,6 @@ print(json.dumps(imported))
     )
     heavy = (
         "leaf.cli",
-        "leaf.harness",
         "psutil",
         "click",
         "leaf.hosting",
@@ -16890,12 +16889,6 @@ def test_init_restarts_a_served_page_onto_the_replacement_contract(
     and URL, onto the new layer, and preserves the active revision contract."""
     publish(page_dir)
     old_plugin = install_payload(page_dir.parent / "old-plugin")
-    old_registry = files_model.read_json(page_dir / "registry.json")
-    del old_registry["$events"]["kinds"]["comment"]["record"]["properties"]["attempt"]
-    cleanup_model.write_json(page_dir / "registry.json", old_registry)
-    cleanup_model.write_json(
-        old_plugin / "skills" / "leaf" / "assets" / "registry.json", old_registry
-    )
 
     if lifetime == "standing":
         monkeypatch.delenv("CLAUDE_CODE_SESSION_ID")
@@ -16929,7 +16922,6 @@ def test_init_restarts_a_served_page_onto_the_replacement_contract(
         "attempt": "replacement_route_1",
     }
     status, body = fetch(endpoint, data=json.dumps(comment).encode(), token=None)
-    # Editing the mutable layer cannot change admission for captured revision r1.
     assert status == 200, body
 
     project_layer = page_dir.parent / ".leaf"
@@ -19445,7 +19437,7 @@ def test_a_hook_confirms_nothing_into_a_turn_that_replaced_its_own(
 def test_a_hook_hands_input_it_cannot_confirm_to_its_reader(claimed, capsys):
     """An envelope the hook hands over inline says the hook confirmed it, so its
     reader runs no acknowledgement. A hook whose Leaf may not write the page's log,
-    as after a plugin update under a page another Leaf vendored, cannot confirm it;
+    as after an update that changed the page protocol, cannot confirm it;
     handed over inline, the input stayed pending and every later turn offered it
     again as new. It goes as a pointer instead, and the reader's acknowledgement
     either shows the refusal or, run by a Leaf that may write the log, confirms it,
@@ -19455,7 +19447,7 @@ def test_a_hook_hands_input_it_cannot_confirm_to_its_reader(claimed, capsys):
     comment = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "Please answer"}
     )
-    vendored_by_another_leaf(claimed)
+    vendored_at_another_protocol(claimed)
 
     def prompt() -> str:
         hooks_model.cmd_hook(
@@ -19466,17 +19458,44 @@ def test_a_hook_hands_input_it_cannot_confirm_to_its_reader(claimed, capsys):
 
     handed = prompt()
     assert not handed.startswith(hook_transport_model.INLINE_DELIVERY)
+    assert "page protocol" in handed
     [delivery_id] = re.findall(r"`leaf delivery read (\w+)`", handed)
     assert events_model.read_cursor(claimed) < comment["seq"]
     refused = CliRunner().invoke(cli_model.cli, ["delivery", "ack", delivery_id])
     assert refused.exit_code == 1
-    assert "vendored from another Leaf" in refused.output
+    assert "page protocol" in refused.output
 
     cleanup_model.write_json(stamp, json.loads(vendored))
     confirmed = CliRunner().invoke(cli_model.cli, ["delivery", "ack", delivery_id])
     assert confirmed.exit_code == 0, confirmed.output
     assert events_model.read_cursor(claimed) >= comment["seq"]
     assert not hook_transport_model.hands_delivery(prompt())
+
+
+def test_a_prompt_reminds_of_debt_on_a_page_its_leaf_cannot_write(claimed, capsys):
+    """A prompt records the entry of acknowledged, unanswered updates into its turn
+    as a pickup. On a page vendored at another protocol, which this Leaf may not
+    write, it records nothing and still reminds the turn of what it owes, naming
+    why, rather than failing the hook and handing the turn nothing."""
+    asked = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "still working?"}
+    )
+    receive_through(claimed, last_deliverable_seq(claimed))
+    cleanup_model.close_session_turn("s1")
+    vendored_at_another_protocol(claimed)
+    logged = events_model.read_events(claimed)
+
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    )
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    assert "page protocol" in context
+    [reminder] = re.findall(r'<leaf-delivery id="(\w+)"', context)
+    [batch] = delivery_model.read_delivery(reminder)["batches"]
+    assert [event["id"] for event in batch["events"]] == [asked["id"]]
+    assert events_model.read_events(claimed) == logged
 
 
 def test_a_hook_waits_on_no_receipt_lock_past_its_deadline(

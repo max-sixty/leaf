@@ -163,6 +163,19 @@ export function closeNativeLayer(layer) {
   );
 }
 
+// Each native layer once it has opened or closed, in the document or any stage, where
+// `toggle` does not reach the document: what a modal admits changes with it
+// (`nativeModalAdmits`). Returns the call that stops listening.
+const changeListeners = new Set();
+export function watchLayerChanges(listener) {
+  changeListeners.add(listener);
+  return () => changeListeners.delete(listener);
+}
+const changed = (event) => {
+  if (!event.target?.matches?.("[popover], dialog")) return;
+  for (const listener of changeListeners) listener(event);
+};
+
 export function watchLayers(root) {
   if (watchedRoots.has(root)) return;
   watchedRoots.add(root);
@@ -175,6 +188,7 @@ export function watchLayers(root) {
   root.addEventListener("beforetoggle", opened, true);
   root.addEventListener("beforetoggle", closing, true);
   root.addEventListener("toggle", opened, true);
+  root.addEventListener("toggle", changed, true);
 }
 
 watchLayers(document);
@@ -203,6 +217,13 @@ export function nativeModalAdmits(node) {
   );
 }
 
+// The control that names `root` as its `popovertarget`: the platform's own record of
+// which button opens a popover, which a scripted reopening hands back as its source.
+const declaredInvoker = (root) =>
+  root.id
+    ? root.getRootNode().querySelector(`[popovertarget="${CSS.escape(root.id)}"]`)
+    : null;
+
 // Raising a native ancestor appends it above its standing descendants. Re-seat those
 // same layers after its transition, in their native order; their owners and retained
 // nodes keep the reading and the eventual return. The browser state changes in one
@@ -217,7 +238,7 @@ export function transitionNativeAncestor(root, transition) {
       for (const layer of descendants.toReversed()) closeNativeLayer(layer.root);
       transition();
       for (const layer of descendants)
-        showNativeLayer(layer.root, { source: layer.root.lfInvoker });
+        showNativeLayer(layer.root, { source: declaredInvoker(layer.root) });
     },
     () => held?.(),
   );

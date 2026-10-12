@@ -5,7 +5,8 @@
  * reader, so generated chrome never names anything. */
 import { isElementName } from "./registry-contract.js";
 import { registry } from "./registry.js";
-import { authoredScope, elementReading, TEXT_BLOCK } from "./passages.js";
+import { authoredScope, elementReading } from "./passages.js";
+import { TEXT_BLOCK } from "./passage-facts.js";
 import { uiInside, upFrom } from "./shadow.js";
 import { excerptWords } from "./words.js";
 
@@ -68,17 +69,20 @@ export function addressableSays(addressable) {
 // with `x-name`, else a leading disclosure summary, heading, or titled member's
 // <strong>, looked for inside a leading <header> or <hgroup> too. Leading means no words come
 // before it; elements may, as a titled member's comparison chips stand in the band
-// above its title and an eyebrow above a header's heading. The words are read the way
-// `addressableSays` reads them, and generated chrome is skipped, so it never names
-// anything: chrome inside the element, asked about the element's own insides, since
-// a widget an agent sent in a reply stands inside the thread panel's chrome and its
-// heading is still its name. An element the contract gives no name answers "".
+// above its title and an eyebrow above a header's heading. The words are the ones the
+// author wrote (the `wrote` reading), so a gloss's tip the page draws beside its phrase
+// is no part of a heading's name, and generated chrome names nothing: chrome inside
+// the element, asked about the element's own insides, since a widget an agent sent in
+// a reply stands inside the thread panel's chrome and its heading is still its name.
+// An element the contract gives no name answers "". The server names a Question's
+// element by the same rule off the document (`gesture_words.element_name`), and
+// `tests/name_cases.json` holds both to the same cases.
 const TITLES = "summary, h1, h2, h3, h4, h5, h6, strong";
 function leadingTitle(container) {
   for (const node of container.childNodes) {
     if (node.nodeType === Node.TEXT_NODE && node.data.trim()) return "";
     if (node.nodeType !== Node.ELEMENT_NODE || uiInside(node, container)) continue;
-    if (node.matches(TITLES)) return elementReading(node);
+    if (node.matches(TITLES)) return elementReading(node, "wrote");
     if (["header", "hgroup"].includes(node.localName)) return leadingTitle(node);
   }
   return "";

@@ -8,10 +8,17 @@ from ..files import stamped_version
 from ..gesture_words import GestureWords, RevisionReader
 from ..history import history, wants_history
 from ..passages import SourceReading
-from ..projection import FrozenThreadReading, canonical_reports, page_reading
+from ..projection import (
+    FrozenThreadReading,
+    canonical_reports,
+    page_reading,
+)
+from ..questions import approval_blocking, collection
 from ..schema import WIDGET_KINDS
+from ..thread_context import thread_memberships
 from .context import PageRead
 from .document import browser_document, browser_undo_candidates
+from .queues import queues
 from .thread import browser_thread
 from .work import WorkState, served_workflows, work_state
 
@@ -62,13 +69,11 @@ def _thread_attention(
             "kind": "waiting",
             "reason": "task",
             "workflow": None,
-            # The line of the start running on it, while that start holds.
+            # The line of the start running on it, while one holds it.
             "task": {
                 "id": task["id"],
                 "title": task["title"],
-                "line": task["running"]["text"]
-                if task["running"] and task["running"]["condition"] is None
-                else None,
+                "line": task["running"]["text"] if task["running"] else None,
             },
         }
     return None
@@ -337,6 +342,16 @@ def browser_state(
     _apply_thread_attention(
         work, thread["threads"], [task for task in tasks if task["owner"] == "agent"]
     )
+    # Each view's Questions are its own document's beside the frozen thread's, so
+    # each view carries the queues they add up to and the ones approving it waits on.
+    for view in views.values():
+        questions = view["document"]["questions"]["all"] + thread["questions"]["all"]
+        view["queues"] = queues(
+            thread["threads"], workflows, tasks, ended_tasks, collection(questions)
+        )
+        view["approval_blocking"] = [
+            question["id"] for question in approval_blocking(questions)
+        ]
     if wants_history(readings[revision] for revision in view_revisions):
         words = GestureWords(events, active_registry, revisions or readings.__getitem__)
         page_history = {
@@ -360,6 +375,19 @@ def browser_state(
         "tasks": tasks,
         "ended_tasks": ended_tasks,
         "receipts": [event for event in events if event.get("attempt")],
+        # Every thread whose history each logged event changes
+        # (`thread_context.thread_memberships`), which the browser reads for the
+        # gesture an unsent undo takes back or an unsent action replaces.
+        "thread_memberships": {
+            identity: threads
+            for identity, threads in thread_memberships(
+                events,
+                thread_reading.thread_by_name,
+                thread_reading.thread_by_widget,
+                active_page.within,
+            ).items()
+            if threads
+        },
         "version_notes": {
             str(event["version"]): event["text"]
             for event in events

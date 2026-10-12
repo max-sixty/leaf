@@ -9,7 +9,6 @@ import "/widgets/lf-shot.js";
 import "/vendor/webawesome.esm.js";
 
 import {
-  cancelRender,
   commands,
   countAreas,
   describeDifference,
@@ -17,11 +16,11 @@ import {
   placeThreads,
   placeKeeper,
   failSoft,
+  frameFor,
   focusDestination,
   holdFocus,
   keeps,
   layoutChanged,
-  nextRender,
   notice,
   nothing,
   offered,
@@ -45,6 +44,7 @@ import {
   shownWindow,
   sizeObserver,
   watchData,
+  whileConnected,
   widgetController,
   focused,
 } from "/runtime/widget-api.js";
@@ -111,9 +111,8 @@ customElements.define(
     #evidenceHost = null;
     #stopEvidence = null;
     #inspector = null;
-    #layoutFrame = null;
     #mode = "compare";
-    #onGeometryChange = () => this.#scheduleEvidenceLayout();
+    #scheduleEvidenceLayout = frameFor(this, () => this.#paintEvidenceLayout());
     #opacity = 50;
     #queueHost = null;
     #reviewUnits = {};
@@ -127,17 +126,27 @@ customElements.define(
     #threadSurface = null;
 
     connectedCallback() {
-      const firstConnection = once(this);
-      if (firstConnection) this.#buildLayout();
-      this.#sizes = sizeObserver(() => this.#scheduleEvidenceLayout());
-      this.#bindEvidence();
-      window.addEventListener("resize", this.#onGeometryChange);
-      this.#threadSurface ??= placeThreads(this, (targets) =>
-        targets.map((target) => this.#threadOutlet(target)),
-      );
+      if (!once(this)) return;
+      this.#buildLayout();
+      whileConnected(this, (signal) => {
+        this.#sizes = sizeObserver(this.#scheduleEvidenceLayout);
+        this.#bindEvidence();
+        window.addEventListener("resize", this.#scheduleEvidenceLayout, { signal });
+        this.#threadSurface = placeThreads(this, (targets) =>
+          targets.map((target) => this.#threadOutlet(target)),
+        );
+        return () => {
+          this.#threadSurface.unregister();
+          this.#threadSurface = null;
+          this.#sizes.disconnect();
+          this.#sizes = null;
+          this.#stopEvidence();
+          this.#stopEvidence = null;
+        };
+      });
       // renderState paints the complete reading; subscribing activates its lifecycle.
-      if (firstConnection) this.#controller.subscribe(() => {});
-      if (firstConnection) watchData(this, "run", (snapshot) => this.#show(snapshot));
+      this.#controller.subscribe(() => {});
+      watchData(this, "run", (snapshot) => this.#show(snapshot));
     }
 
     // A recovered template has new evidence nodes under the same region identity.
@@ -155,18 +164,6 @@ customElements.define(
         ".lf-vr-shot-host, .lf-vr-case-head, .lf-vr-toolbar-slot",
       ))
         this.#sizes.observe(stage);
-    }
-
-    disconnectedCallback() {
-      this.#threadSurface?.unregister();
-      this.#threadSurface = null;
-      this.#sizes?.disconnect();
-      this.#sizes = null;
-      window.removeEventListener("resize", this.#onGeometryChange);
-      if (this.#layoutFrame !== null) cancelRender(this.#layoutFrame);
-      this.#layoutFrame = null;
-      this.#stopEvidence?.();
-      this.#stopEvidence = null;
     }
 
     // The review composes the layer's pane grammar rather than choosing a posture: a
@@ -333,14 +330,6 @@ customElements.define(
       paintKeys();
     }
 
-    #scheduleEvidenceLayout() {
-      if (this.#layoutFrame !== null) return;
-      this.#layoutFrame = nextRender(() => {
-        this.#layoutFrame = null;
-        this.#paintEvidenceLayout();
-      });
-    }
-
     #paintEvidenceLayout() {
       const entry = this.#caseEntries.get(this.#selected);
       const shot = entry?.shotHost.querySelector("lf-shot");
@@ -478,9 +467,6 @@ customElements.define(
             `${node.closest(".lf-vr-case").dataset.lfDatum}/${node.dataset.disposition ?? [...node.classList].find((name) => name.startsWith("lf-vr-"))}`,
         });
         const run = snapshot?.value ?? null;
-        const ids = run?.cases.map(({ id }) => id) ?? [];
-        if (new Set(ids).size !== ids.length)
-          throw new Error("visual run repeats a case id");
         places.around(() => {
           this.#sourceReady = true;
           this.#snapshot = snapshot;
@@ -497,7 +483,7 @@ customElements.define(
             ({ classification }) => classification !== "clean",
           );
           if (!this.#caseEntries.has(this.#selected))
-            this.#selected = fallback?.id ?? ids[0];
+            this.#selected = fallback?.id ?? this.#run.cases[0].id;
           this.#paintInspector();
           this.#project();
           this.#threadSurface?.update();
@@ -729,7 +715,7 @@ customElements.define(
               outlines
               ._lfPresentGenerated=${this.#presentGenerated}
               ${ref(prepare)}
-              @captureload=${this.#onGeometryChange}
+              @captureload=${this.#scheduleEvidenceLayout}
             ></lf-shot>`,
           )}
         </div>

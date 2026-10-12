@@ -272,10 +272,8 @@ export function paintDeclaredWords(root) {
 // joined shape, the reserved strips, the hover wash — stands down inside one. The
 // declaration is the tag's and the question is the occurrence's, which is the shape
 // quoted() has too: whether this element sits inside an exhibit. So the mark goes on the
-// exhibit and the rules exclude what stands under it. That is the descendant half of the
-// question — quoted() answers for the element itself as well — and it is the half these
-// rules need while the tag they key on, lf-options, is not itself an exhibit. A layer
-// that declared one to be would have to say so in its own rules. Ten of those rules spelled lf-sample before: a bundled
+// exhibit and the rules exclude what stands under it, strictly within, as quoted()
+// does: the exhibit itself is no mention. Ten of those rules spelled lf-sample before: a bundled
 // tag, saying nothing about a project's own exhibit. quoted() still asks the registry
 // rather than this paint, which is the arrangement and not an oversight — the
 // declaration is the one representation, and the mark is how a stylesheet, which cannot
@@ -306,16 +304,21 @@ function* elementsIn(root, selector) {
 // Paint a message's declared marks, the root alongside its descendants: each tag's
 // declaration, and an occurrence's authored override over it.
 export function markDeclared(root) {
-  for (const [key, { paint, authored, message }] of Object.entries(registry.$marks)) {
+  for (const [key, mark] of Object.entries(registry.$marks)) {
+    const { paint, authored, message } = mark;
     if (!message) continue;
-    for (const tag of tagsDeclaring((entry) => entry[key])) {
+    const tags = tagsDeclaring((entry) => entry[key]);
+    for (const tag of tags) {
       const declared = registry[tag][key];
       for (const el of elementsIn(root, tag))
         keeps(el, paint, declared === true ? "" : declared);
     }
+    // Message markup is all content (`authored_on`, schema.DECLARED_MARKS), so only a
+    // mark held to declaring tags asks which tag an occurrence is.
     if (authored)
       for (const el of elementsIn(root, `[${authored}]`))
-        keeps(el, paint, el.getAttribute(authored));
+        if (mark.authored_on !== "declared" || tags.includes(el.localName))
+          keeps(el, paint, el.getAttribute(authored));
   }
 }
 

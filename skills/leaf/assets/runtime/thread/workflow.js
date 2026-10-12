@@ -50,10 +50,6 @@ export const workflowTitle = (workflow) => {
   return [label, workflow.detail].filter(Boolean).join(" · ");
 };
 
-// Whether the agent is at work on an update: the stage `served_state.browser.at_work`
-// reads the same way, whatever the update's condition.
-export const atWork = (workflow) => ["working", "replying"].includes(workflow.stage);
-
 export const isWorkflowProgress = (workflow) =>
   !workflow.condition && ["picked_up", "working", "replying"].includes(workflow.stage);
 

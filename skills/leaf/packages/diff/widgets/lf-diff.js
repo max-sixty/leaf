@@ -57,7 +57,7 @@ import {
   sizeObserver,
   widgetController,
   watchData,
-  watchOwner,
+  whileConnected,
   scrollIntoView,
   layoutPx,
 } from "/runtime/widget-api.js";
@@ -591,71 +591,17 @@ function renameNode(record) {
   return row;
 }
 
-function headerPath(side, path) {
-  return path.startsWith('"') && path.endsWith('"')
-    ? `"${side}/${path.slice(1)}`
-    : `${side}/${path}`;
-}
-
-function gitPath(path) {
-  if (!path.startsWith('"')) return path;
-  if (!path.endsWith('"')) return null;
-  const inner = path.slice(1, -1);
-  if (!/^(?:[^\\]|\\(?:[abtnvfr"\\]|[0-3][0-7]{2}|[0-7]{1,2}(?![0-7])))*$/.test(inner))
-    return null;
-  const escapes = { a: 7, b: 8, t: 9, n: 10, v: 11, f: 12, r: 13 };
-  const bytes = [];
-  const encoder = new globalThis.TextEncoder();
-  for (let i = 0; i < inner.length; i++) {
-    if (inner[i] !== "\\") {
-      const point = inner.codePointAt(i);
-      bytes.push(...encoder.encode(String.fromCodePoint(point)));
-      if (point > 0xffff) i++;
-      continue;
-    }
-    const match = /^(?:[0-3][0-7]{2}|[0-7]{1,2})/.exec(inner.slice(i + 1));
-    if (match) {
-      bytes.push(parseInt(match[0], 8));
-      i += match[0].length;
-    } else {
-      const escaped = inner[++i];
-      bytes.push(escapes[escaped] ?? escaped.charCodeAt(0));
-    }
-  }
-  if (bytes.includes(0)) return null;
-  try {
-    return new globalThis.TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
-      new Uint8Array(bytes),
-    );
-  } catch {
-    return null;
-  }
-}
-
-function pathOnlyRenames(source) {
-  return source
+// How many hunkless renames the source states in Git's exact path-only form. Pierre also
+// reads a rename whose hunk headers are missing as hunkless, which would show its
+// changed lines as a clean rename, so it must report no more than these.
+const pathOnlyRenames = (source) =>
+  source
     .split(/(?=^diff --git )/m)
-    .filter((section) => section.startsWith("diff --git "))
-    .flatMap((section) => {
-      const lines = section.replace(/\n+$/, "").split("\n");
-      if (lines.length !== 4 || lines[1] !== "similarity index 100%") return [];
-      const prevName = /^rename from (.+)$/.exec(lines[2])?.[1];
-      const name = /^rename to (.+)$/.exec(lines[3])?.[1];
-      if (
-        !prevName ||
-        !name ||
-        prevName === '""' ||
-        name === '""' ||
-        lines[0] !== `diff --git ${headerPath("a", prevName)} ${headerPath("b", name)}`
-      )
-        return [];
-      const decodedPrevName = gitPath(prevName);
-      const decodedName = gitPath(name);
-      return decodedPrevName !== null && decodedName !== null
-        ? [{ prevName: decodedPrevName, name: decodedName }]
-        : [];
-    });
-}
+    .filter((section) =>
+      /^diff --git .+\nsimilarity index 100%\nrename from .+\nrename to .+\n*$/.test(
+        section,
+      ),
+    ).length;
 
 // One file's evidence, the nodes that go under its disclosure's summary. Each kind of
 // Pierre stylesheet joins `sharedStyles` once, for the stage to hold.
@@ -706,6 +652,9 @@ async function renderFile(file, sharedStyles) {
   return { nodes: [...rendered.children], pre, lines };
 }
 
+// What the widget can present. The diff package's `patch_manifest.py` refuses the same
+// excluded entries before a manifest is stored, and `tests/diff_patch_cases.json` holds
+// both readers to one table of cases.
 async function parsedFiles(source) {
   if (/^copy (?:from|to) /m.test(source))
     throw new Error(
@@ -717,15 +666,9 @@ async function parsedFiles(source) {
     (patch) => patch.files,
   );
   if (!files.length) throw new Error("empty diff");
-  const pureRenames = files.filter((file) => file.type === "rename-pure");
-  const sourceRenames = pathOnlyRenames(source);
   if (
-    sourceRenames.length !== pureRenames.length ||
-    sourceRenames.some(
-      (rename, index) =>
-        rename.prevName !== pureRenames[index].prevName ||
-        rename.name !== pureRenames[index].name,
-    )
+    pathOnlyRenames(source) !==
+    files.filter((file) => file.type === "rename-pure").length
   )
     throw new Error(
       "unsupported hunkless rename (only an exact path-only block with " +
@@ -772,149 +715,140 @@ customElements.define(
     };
 
     connectedCallback() {
-      this.addEventListener("lf-reveal", this.revealPassage);
-      const firstConnection = once(this);
-      if (firstConnection) {
-        watchOwner(this, {
-          disconnect: () => {
-            this.rendering = (this.rendering ?? 0) + 1;
+      if (!once(this)) return;
+      commands(
+        this,
+        "In a diff review",
+        [
+          // The walk leads the scope, because the shortcut bar's shortlist is its first
+          // two live rows and moving is what a user standing on a diff row does
+          // next, where "filter files" is the press for someone who has not started
+          // reading yet. The rest of the scope is one `?`
+          // away in the compact shortcut bar and complete in the reference dialog.
+          //
+          // `]` and `[` are the reviewer's own step, and `}` and `{` the same step one
+          // unit out. Bracket pairs because that is what an editor and a review tool
+          // already spell this walk with, and punctuation spends none of the page's
+          // small alphabet: these live in the diff's own scope and answer only while
+          // the user is standing in it.
+          {
+            id: "diff.next-hunk",
+            keys: ["]"],
+            title: "next hunk",
+            when: () => this.hasHunks(),
+            run: () => this.present(this.stepHunk(false)),
           },
-        });
-      }
-      if (!this.threadSurface)
+          {
+            id: "diff.previous-hunk",
+            keys: ["["],
+            title: "previous hunk",
+            when: () => this.hasHunks(),
+            run: () => this.present(this.stepHunk(true)),
+          },
+          {
+            id: "diff.next-file",
+            keys: ["}"],
+            title: "next file",
+            description: "Go to the next file's header",
+            when: () => this.shownEntries().length > 1,
+            run: () => this.stepFile(false),
+          },
+          {
+            id: "diff.previous-file",
+            keys: ["{"],
+            title: "previous file",
+            description: "Go to the previous file's header",
+            when: () => this.shownEntries().length > 1,
+            run: () => this.stepFile(true),
+          },
+          {
+            id: "diff.search",
+            keys: ["/"],
+            title: "filter files",
+            description: "Filter the files in this diff",
+            run: () => {
+              const search = this.diffTools?.search;
+              if (search) {
+                focusDestination(search, "move");
+                scrollIntoView(search, { block: "nearest" });
+              }
+            },
+          },
+          // The filter is a layer of this widget, so its way out is read off the
+          // filter rather than off the press that put it on: a live query goes
+          // first, from anywhere in the patch, and then the box itself.
+          {
+            id: "diff.search.back",
+            keys: ["Escape"],
+            when: () => {
+              const search = this.diffTools?.search;
+              if (!search) return false;
+              return Boolean(
+                this.matches(":focus-within") &&
+                (search.value || search.matches(":focus-within")),
+              );
+            },
+            title: () => (this.diffTools?.search.value ? "show all files" : "back"),
+            description: () =>
+              this.diffTools?.search.value
+                ? "Show every file again"
+                : "Leave the diff filter",
+            run: () => {
+              const search = this.diffTools?.search;
+              if (search?.value) {
+                this.clearFilter();
+                focusDestination(search, "return");
+                return;
+              }
+              // The box's container is the patch it filters, so that is where it hands
+              // the user back: a blur alone would drop them out of this widget's
+              // scope with no ring anywhere, and the file walk would stop answering.
+              focusDestination(this, "return");
+            },
+          },
+        ],
+        () => Boolean(this.fileEntries?.length),
+      );
+      const bound = this.hasAttribute("source");
+      whileConnected(this, (signal) => {
+        this.addEventListener("lf-reveal", this.revealPassage, { signal });
         this.threadSurface = placeThreads(this, (targets) => {
           this.beginThreadSurface();
           const outlets = targets.map((target) => this.threadOutletFor(target));
           this.endThreadSurface();
           return outlets;
         });
-      // A page diff's file header pins at `--lf-top`, the top of the page's box that
-      // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,
-      // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
-      // the module answers it once with the layer's own predicate and paints the answer.
-      this.toggleAttribute("data-lf-diff-pinned", !inChrome(this));
-      if (!this.diffKeys) {
-        this.diffKeys = commands(
-          this,
-          "In a diff review",
-          [
-            // The walk leads the scope, because the shortcut bar's shortlist is its first
-            // two live rows and moving is what a user standing on a diff row does
-            // next, where "filter files" is the press for someone who has not started
-            // reading yet. The rest of the scope is one `?`
-            // away in the compact shortcut bar and complete in the reference dialog.
-            //
-            // `]` and `[` are the reviewer's own step, and `}` and `{` the same step one
-            // unit out. Bracket pairs because that is what an editor and a review tool
-            // already spell this walk with, and punctuation spends none of the page's
-            // small alphabet: these live in the diff's own scope and answer only while
-            // the user is standing in it.
-            {
-              id: "diff.next-hunk",
-              keys: ["]"],
-              title: "next hunk",
-              when: () => this.hasHunks(),
-              run: () => this.present(this.stepHunk(false)),
-            },
-            {
-              id: "diff.previous-hunk",
-              keys: ["["],
-              title: "previous hunk",
-              when: () => this.hasHunks(),
-              run: () => this.present(this.stepHunk(true)),
-            },
-            {
-              id: "diff.next-file",
-              keys: ["}"],
-              title: "next file",
-              description: "Go to the next file's header",
-              when: () => this.shownEntries().length > 1,
-              run: () => this.stepFile(false),
-            },
-            {
-              id: "diff.previous-file",
-              keys: ["{"],
-              title: "previous file",
-              description: "Go to the previous file's header",
-              when: () => this.shownEntries().length > 1,
-              run: () => this.stepFile(true),
-            },
-            {
-              id: "diff.search",
-              keys: ["/"],
-              title: "filter files",
-              description: "Filter the files in this diff",
-              run: () => {
-                const search = this.diffTools?.search;
-                if (search) {
-                  focusDestination(search, "move");
-                  scrollIntoView(search, { block: "nearest" });
-                }
-              },
-            },
-            // The filter is a layer of this widget, so its way out is read off the
-            // filter rather than off the press that put it on: a live query goes
-            // first, from anywhere in the patch, and then the box itself.
-            {
-              id: "diff.search.back",
-              keys: ["Escape"],
-              when: () => {
-                const search = this.diffTools?.search;
-                if (!search) return false;
-                return Boolean(
-                  this.matches(":focus-within") &&
-                  (search.value || search.matches(":focus-within")),
-                );
-              },
-              title: () => (this.diffTools?.search.value ? "show all files" : "back"),
-              description: () =>
-                this.diffTools?.search.value
-                  ? "Show every file again"
-                  : "Leave the diff filter",
-              run: () => {
-                const search = this.diffTools?.search;
-                if (search?.value) {
-                  this.clearFilter();
-                  focusDestination(search, "return");
-                  return;
-                }
-                // The box's container is the patch it filters, so that is where it hands
-                // the user back: a blur alone would drop them out of this widget's
-                // scope with no ring anywhere, and the file walk would stop answering.
-                focusDestination(this, "return");
-              },
-            },
-          ],
-          () => Boolean(this.fileEntries?.length),
-        );
-      }
-      const bound = this.hasAttribute("source");
-      if (!bound) {
-        if (this.classList.contains("lf-rendered")) return;
-        // Not bodyText: a diff's trailing whitespace is content — a hunk's last line
-        // can be a lone space, the context line for a blank source line — so only the
-        // closing newline is the <pre>'s layout.
-        if (this.inlineSource === undefined)
-          this.inlineSource = dataBody(this).replace(/^\n+/, "").replace(/\n$/, "");
-        this.present((this.sourceRendering = this.render(this.inlineSource)));
-        return;
-      }
-      if (firstConnection)
+        // A page diff's file header pins at `--lf-top`, the top of the page's box that
+        // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,
+        // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
+        // the module answers it once with the layer's own predicate and paints the answer.
+        this.toggleAttribute("data-lf-diff-pinned", !inChrome(this));
+        // An inline patch never changes, so it renders once, and again on a return
+        // only when the departure cut that rendering short: a refusal stands.
+        if (!bound && !this.settled) {
+          // Not bodyText: a diff's trailing whitespace is content — a hunk's last line
+          // can be a lone space, the context line for a blank source line — so only the
+          // closing newline is the <pre>'s layout.
+          this.inlineSource ??= dataBody(this).replace(/^\n+/, "").replace(/\n$/, "");
+          this.present((this.sourceRendering = this.render(this.inlineSource)));
+        }
+        return () => {
+          this.rendering = (this.rendering ?? 0) + 1;
+          for (const target of this.threadSizeTargets ?? [])
+            threadSizes.unobserve(target);
+          this.threadSizeTargets = null;
+          this.threadSurface.unregister();
+          this.threadSurface = null;
+          this.threadOutlets = null;
+          this.threadPairs = null;
+        };
+      });
+      if (bound)
         watchData(this, "document", (snapshot) => {
           const rendering = this.render(snapshot?.value ?? null, snapshot);
           this.sourceRendering = rendering;
           return rendering;
         });
-    }
-
-    disconnectedCallback() {
-      this.removeEventListener("lf-reveal", this.revealPassage);
-      for (const target of this.threadSizeTargets ?? []) threadSizes.unobserve(target);
-      this.threadSizeTargets = null;
-      this.threadSurface?.unregister();
-      this.threadSurface = null;
-      this.threadOutlets = null;
-      this.threadPairs = null;
     }
 
     // `snapshot` is the bound delivery, null when a bound source has no value, and
@@ -1015,6 +949,7 @@ customElements.define(
           this.stageFiles();
           this.projectFiles();
           this.classList.toggle("lf-rendered", true);
+          this.settled = true;
           this.filterFiles(this.diffTools.search.value);
           for (const restore of restores) restore?.();
         } finally {
@@ -1022,6 +957,7 @@ customElements.define(
         }
       } catch (err) {
         if (rendering !== this.rendering || !this.isConnected) return;
+        this.settled = true;
         this.fileEntries = null;
         this.sharedStyles = null;
         this.diffTools = null;
@@ -1272,6 +1208,14 @@ customElements.define(
       if (!entry.loaded || entry.filtered) return entry.node;
       const line = findDiffLine(entry.lines, coordinate);
       return line ? projectedDatum(this, diffDatumKey(line)) : null;
+    }
+
+    // A datum's label is its coordinate's, so a thread on a line of a file not yet
+    // loaded is named as the drawn line will be.
+    lfDatumLabel(key) {
+      const coordinate = readDiffCoordinate(key);
+      if (!coordinate || coordinate.source) return null;
+      return coordinate.file ? fileLabel(coordinate) : lineLabel(coordinate);
     }
 
     lfRevealDatum(key) {

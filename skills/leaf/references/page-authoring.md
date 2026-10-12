@@ -74,8 +74,7 @@ same registry.
 
 Write a complete HTML document. The authored head names and describes the page;
 Leaf adds the encoding, identity, theme, runtime, and canonical address when it
-delivers the document. Omit `<meta charset>`: delivery declares UTF-8 before
-authored head content. Put page-specific CSS in `<style>` and JavaScript in
+delivers the document. Put page-specific CSS in `<style>` and JavaScript in
 `<script>` ("Page behavior"). Every `lf-*` element has an explicit end tag.
 
 Delivery also supplies `width=device-width, initial-scale=1, viewport-fit=cover`
@@ -285,7 +284,7 @@ log beside the chart it explains, which the page's `<style>` places:
 ```
 
 Stack the panes below 720px, where the Layout lets the page scroll: panes stacked in a
-wider window still share its one height, and `page check --render` refuses them.
+wider window still share its one height.
 
 `density-working` is a style, not a Layout: on any block it sets smaller type, tighter
 spacing and options as rows, for a surface the reader operates rather than reads down.
@@ -307,10 +306,9 @@ Layout allocate the height: page-specific positioning should not be needed to ke
 pane or footer reachable. Where the window is too small to hold the regions, they take
 their natural height and the page scrolls.
 
-Keep a region's decision visible with its supporting content. `page check
---render` reports panes or bodies that overflow their regions and the window
-widths where this happens; trim or split them. A region for reading long content,
-such as a source file or log, can keep its scrolling and the advisory finding.
+Keep a region's decision visible with its supporting content: trim or split a pane
+whose body runs past its region. A region for reading long content, such as a source
+file or log, can keep its scrolling.
 
 ### Bounds and widths
 
@@ -326,7 +324,7 @@ the end its newest entry is at. A list that grows downward takes
 leaves them where they scrolled back to otherwise. A newest-first list takes
 `data-bound="start"`, which opens at the top, as the page's activity feed does.
 Don't make a box scroll vertically with page CSS: Leaf keeps no reading position
-in a scroller it did not make, and `page check` advises against one.
+in a scroller it did not make.
 
 An individual block or section may request a responsive allocation with
 `data-width="column"`, `data-width="wide"`, or `data-width="available"`. `column`
@@ -659,8 +657,9 @@ Reload reconnects the child; Reset replaces it with a fresh copy of its initial 
 Initial document admission failures reject `ready` after releasing the failed
 allocation; the sample keeps its error and Reset control. Later native navigation
 keeps the destination in the frame and Reset available. While that document has no
-Leaf connection, `ready` and presentation commands reject with `AbortError`; a
-valid Leaf reload reconnects. The containing page cannot distinguish an external
+Leaf connection, `ready` and presentation commands reject with
+`SampleDepartedError`; a valid Leaf reload reconnects and announces
+`lf-sample-ready` again. The containing page cannot distinguish an external
 destination from a failed reload inside the opaque frame.
 To select a conversation, call `await sample.showThread(id)` with its root event id;
 this shows the same page destination as its marker. To inspect it in Threads,
@@ -670,7 +669,7 @@ omitted values restore Open and unrestricted waiting. A panel view may omit the
 id to show its list. Completion means the selected view has presented; it returns
 false when a newer selection or Reset supersedes it. Outer controls keep keyboard
 focus. Use this method instead of clicking the child's private chrome or observing
-its DOM. Reapply the selected view on `lf-sample-ready` after Reset.
+its DOM. Reapply the selected view on `lf-sample-ready` after Reset or reload.
 Author child content in the
 template rather than copying rendered controls from the parent. Ordinary
 `lf-sample` children, without a template, remain static quoted material.

@@ -6,7 +6,7 @@
  * Browser history separately owns the native working place at each return checkpoint.
  * Restore selection resolves current words through shared travel, refusing a missing
  * or ambiguous passage rather than choosing another occurrence. */
-import { COLLAPSE } from "../collapse.js";
+import { COLLAPSE } from "../passage-facts.js";
 import {
   closestAcross,
   pageRange,

@@ -64,8 +64,8 @@
  * open, including when the platform dismisses it. Scopes sharing a title merge their
  * rows; an unavailable contributor supplies none.
  */
-import { nextRender } from "./rendering.js";
-import { whileConnected } from "./arrivals.js";
+import { nextRender, sizeObserver } from "./rendering.js";
+import { frameFor, whileConnected } from "./arrivals.js";
 import { LIVE_ROOT, layerRoot, pageUrl, revisionLabel, runtime } from "./context.js";
 import {
   documentWidgetDigests,
@@ -114,7 +114,7 @@ import {
   prepareDeclaredMarkdown,
   formatDeclaredMarkdown,
 } from "./markdown.js";
-import { moveScrollerBy, pageScroller } from "./scrolling.js";
+import { moveScrollerBy, pageScroller, SCROLL_SLACK } from "./scrolling.js";
 import {
   containingReadingRegionFor,
   effectiveScroller,
@@ -166,14 +166,15 @@ import {
   rememberPassageParts,
 } from "./widget-loader.js";
 import { under } from "./shadow.js";
-import { landingBand } from "./geometry.js";
 import { keepPageRulesOffLayer } from "./page-sheets.js";
 import { replaceEntry } from "./history.js";
 import {
+  blocksOnScreen,
   capturePlace,
   hasLandmark,
   rawOffsetFits,
   pageReadingBlock,
+  placeNode,
   restorePlace,
   textBlocks,
 } from "./reading-place.js";
@@ -1700,21 +1701,22 @@ export function createVersionController({
   // travel stores this reading per tab; restored chrome layout precedes scroll recovery.
 
   function captureView() {
-    dropGoneRegions();
+    dropGonePlaces();
     const blocks = textBlocks();
-    const active = activeReadingRegion(readingRegions());
+    const active = activeReadingRegion(readingRegions(), blocks);
     const view = Object.assign(capturePlace(null, blocks), {
       revision: runtime.currentRevision,
       activeRegion: active?.id,
-      regions: Object.fromEntries(regionViews),
+      regions: Object.fromEntries(
+        [...places].flatMap(([id, { reading }]) =>
+          id === PAGE ? [] : [[id, reading]],
+        ),
+      ),
     });
     for (const region of readingRegions()) {
       if (!shownRegionBounds(region)) continue;
-      const reading = capturePlace(region, blocks);
-      if (readingPosture(region) === "bounded" || region.id === active?.id) {
-        keepReading(region.id, reading);
-        view.regions[region.id] = regionViews.get(region.id);
-      }
+      if (readingPosture(region) === "bounded" || region.id === active?.id)
+        view.regions[region.id] = capturePlace(region, blocks);
     }
     return view;
   }
@@ -1764,182 +1766,227 @@ export function createVersionController({
     }
   }
 
-  // A posture change replaces scroll containers without replacing the document, and it
-  // happens in layout, with no moment before it to read the user's place in. So the
-  // place is recorded as the user moves — each scroll, a frame later — and a region
-  // whose scroller shifts is restored from that record. Keep each semantic region's last
-  // reading so a pane that becomes inactive does not inherit the shared page offset when
-  // it becomes bounded again. In flow, only the region the user is working represents
-  // the shared page scroller. A region no longer standing in the document has no place
-  // left to keep: its reading goes when the next reading is taken, so a page whose
-  // blocks come and go carries only the regions it has. `pageReader` names the flowing
-  // region whose reading stood for the page scroller when the page was last recorded,
-  // or none where the reader's line stood in the page's own words.
-  const regionViews = new Map();
-  let pageReader = null;
-  // A restore is the runtime's move, not the user's. What it restored stays the region's
-  // reading until the user next acts, so a restore the scroller's range cut short, as a
-  // pane already at its top cannot lower its words, neither records the place it reached
-  // nor hands that place to the next shift: narrowing again returns the words the user
-  // read. A restore that landed would record the same reading.
-  const restoredReadings = new Map();
-  const keepReading = (id, reading) => {
-    if (restoredReadings.get(id) === inputCount()) return;
-    restoredReadings.delete(id);
-    regionViews.set(id, reading);
-  };
-  const dropGoneRegions = () => {
-    const standing = new Set(readingRegions().map(({ id }) => id));
-    for (const id of regionViews.keys()) if (!standing.has(id)) regionViews.delete(id);
-  };
-
-  // Only the page's own regions, only those a scroll moved, and only their own words: a
-  // scroll is frequent, and a page with no regions (most documents) records nothing and
-  // reads no text at all. `moved` names the scrollers that moved; none names every one.
-  function recordRegions(moved = null) {
-    dropGoneRegions();
-    const main = pageDocument();
-    const shown = readingRegions().filter(
-      (region) =>
-        under(region.host, main) &&
-        (!moved || moved.has(effectiveScroller(region))) &&
-        shownRegionBounds(region),
-    );
-    const active = shown.length ? activeReadingRegion(shown) : undefined;
-    if (!moved || moved.has(pageScroller))
-      pageReader =
-        active && effectiveScroller(active) === pageScroller ? active.id : null;
-    for (const region of shown)
-      if (readingPosture(region) === "bounded" || region.id === active?.id)
-        keepReading(region.id, capturePlace(region, textBlocks(region.body)));
-  }
-  let recordQueued = false;
-  const scrolled = new Set();
-  const queueRecord = (event) => {
-    scrolled.add(event?.target === document ? pageScroller : event?.target);
-    if (recordQueued) return;
-    recordQueued = true;
-    nextRender(() => {
-      recordQueued = false;
-      const moved = scrolled.has(undefined) ? null : new Set(scrolled);
-      scrolled.clear();
-      if (!compositionChanges.size && regionsSettled()) recordRegions(moved);
-    });
-  };
-
-  // Continuity restores scroll geometry, not the reading-key subject. Frame furniture
-  // still names its own pane to d/u through userReadingRegion; because the furniture does
-  // not live in that pane's scroller, a posture change preserves the outer region that
-  // geometrically contains it. The same distinction keeps an inline response outside a
-  // nested region body with the outer scroller that actually carries it. Focus names the
-  // region only while in view (user-place.js, `focusedInView`): regions sharing the page
-  // scroller restore the active one's reading for it, and a pane the reader scrolled
-  // away from, though it keeps their focus, would take them back to it.
-  // Without focus or a gesture naming a region, the user reads the line at the top of the
-  // page's landing band, where the page measures its own place (reading-place.js), so the
-  // deepest region standing across that line is the one they work. A line in the page's
-  // own words, such as a section's heading above the queue it introduces, names none:
-  // a region starting lower in the window is not where the user reads.
-  const activeReadingRegion = (candidates = readingRegions()) => {
+  // The revision handoff restores the region the user works first, so that a box two
+  // regions share lands where that one left it. Focus names a region only while in view
+  // (user-place.js, `focusedInView`): a pane the reader scrolled away from, though it
+  // keeps their focus, would take them back to it.
+  const activeReadingRegion = (
+    candidates = readingRegions(),
+    blocks = textBlocks(),
+  ) => {
     const focusedRegion = containingReadingRegionFor(focusedInView());
     if (focusedRegion && candidates.some(({ id }) => id === focusedRegion.id))
       return focusedRegion;
     const recent = candidates.find(({ id }) => id === recentReadingRegion()?.id);
     if (recent) return recent;
-    const line = landingBand(pageScroller)?.top;
     return candidates
-      .filter((region) => {
-        const shown = shownRegionBounds(region);
-        return shown && shown.top <= line && shown.bottom > line;
-      })
-      .sort((a, b) => (under(a.host, b.body) ? -1 : under(b.host, a.body) ? 1 : 0))[0];
+      .map((region) => [region, blocksOnScreen(region, blocks).next().value?.[1]])
+      .filter(([, rect]) => rect)
+      .sort(([, a], [, b]) => a.top - b.top)[0]?.[0];
   };
 
-  // Each composition change in progress (`preserveReadingRegions`), by its owner: the
-  // user's intent when it began and the regions it may hide or reveal.
-  const compositionChanges = new Map();
+  // ---------- the user's place in each scroller, across layout changes ----------
+  // A window crossing a width, a viewport changing height or a panel opening rewraps the
+  // page and its regions, and can hand a region to another scroller, in layout, with no
+  // moment before it to read the user's place in. So each scroller's place is recorded as
+  // the user leaves it, and restored when its layout shifts.
+  //
+  // One place per scroller, read from the words that scroller carries: the page's from
+  // every word outside a box that scrolls on its own, flowing regions included
+  // (reading-place.js, `capturePlace`), and each bounded region's from its body. It is
+  // recorded when a scroll comes to rest in that scroller, and where the user stands or
+  // steps, in the scroller holding them. A place whose scroller is gone goes with the
+  // next record.
+  //
+  // After a shift, each scroller it touched takes the newest place that speaks for it:
+  // its own, one recorded in a scroller that carried its words before the shift, or one
+  // whose landmark it now carries. Where a region was handed across, that is usually the
+  // place recorded in the scroller that carried it before, so a pane that turns into
+  // flow brings its passage to the page, and a passage the page carried is found in the
+  // pane that now scrolls it. Where the newest such place has no landmark the scroller
+  // carries, it lands nowhere rather than on an older place the user has since left. A
+  // scroller given no place keeps what the browser's anchoring left, moved with its
+  // landing band.
+  //
+  // Only the user moves their place. A restore is the runtime's move: read back, it can
+  // name other words than the place it restored, and it can fall short of that place,
+  // cut off by its box's range, as a pane already at its top cannot lower its words to
+  // where the page had them, or a page cannot reach a passage below a widget still drawn
+  // at its old size. So a box the runtime restored holds the place it was given until
+  // the user moves it: nothing records over it, the next shift starts from the words the
+  // user read rather than from wherever the runtime left them, and the place is applied
+  // again whenever the layout under it changes, as a widget drawing a frame late changes
+  // it. The user moves it by an input, or by anything else that scrolls the box from
+  // where the runtime left it without a layout change to explain it, as a page's own
+  // script does. Travel the browser makes for the user, Back, Forward or a fragment, ends
+  // a hold too. Between a shift and its restore nothing is recorded, since the shift's
+  // own scrolls are no one's place.
+  const PAGE = "$page";
+  const places = new Map();
+  let placeCount = 0;
+  let shifting = false;
+  const holds = new Map();
+  let reapply = null;
+  const holding = (box) => {
+    const hold = holds.get(box);
+    if (
+      hold?.since === inputCount() &&
+      Math.abs(box.scrollTop - hold.at) <= SCROLL_SLACK
+    )
+      return true;
+    holds.delete(box);
+    return false;
+  };
+  // The bounded region scrolling a box, null for the page, undefined for neither.
+  const regionForBox = (box) =>
+    box === pageScroller
+      ? null
+      : readingRegions().find(
+          (region) => region.body === box && readingPosture(region) === "bounded",
+        );
+  const boxOf = (node) => effectiveScroller(containingReadingRegionFor(node));
+  const dropGonePlaces = () => {
+    const standing = new Set(readingRegions().map(({ id }) => id));
+    for (const id of places.keys())
+      if (id !== PAGE && !standing.has(id)) places.delete(id);
+  };
 
-  // Restore each region from its recorded reading, the one the user is working first so
-  // that a box two regions share lands where that one left it. Inside a composition,
-  // only the composition's own scrollers are restored: document travel belongs to the
-  // navigation that changed it, including native history.
-  function restoreRegions(
-    candidates,
-    currentIntent,
-    owner = null,
-    views = regionViews,
-  ) {
-    const active = activeReadingRegion(candidates);
-    const ordered = active
-      ? [active, ...candidates.filter(({ id }) => id !== active.id)]
-      : candidates;
-    const restored = new Set();
-    for (const region of ordered) {
-      const reading = views.get(region.id);
-      const box = effectiveScroller(region);
-      if (owner && !under(box, owner)) continue;
-      if (!reading || restored.has(box)) continue;
-      if (!hasLandmark(reading) && !rawOffsetFits(reading, box)) continue;
-      if (!currentIntent()) return;
-      restorePlace(reading, region, currentIntent);
-      regionViews.set(region.id, reading);
-      restoredReadings.set(region.id, inputCount());
-      restored.add(box);
+  function recordPlaces(boxes) {
+    if (shifting || compositionChanges.size || !regionsSettled()) return;
+    dropGonePlaces();
+    for (const box of boxes) {
+      const region = regionForBox(box);
+      if (region === undefined || holding(box)) continue;
+      if (region && !(under(region.host, pageDocument()) && shownRegionBounds(region)))
+        continue;
+      const reading = capturePlace(region);
+      places.set(reading.scroller, { reading, at: ++placeCount });
     }
   }
 
-  // A region handed to another scroller keeps the reading recorded before the handover.
-  // Focus can remain on a control the user has since scrolled past, so a posture change
-  // restores that reading. A visible focused element is itself a live reading landmark;
-  // focus retained on an element the reader scrolled past is not.
-  // A composition change in progress owns any shift inside it.
-  //
-  // The page shifts with the window. The browser's scroll anchoring holds its words where
-  // they stood in the window, but a place stands below the landing band, which moves when
-  // the banner takes another row: the line the user was reading went under it. So the
-  // page moves with its band first, and a region the page carries lands against the new
-  // band from its own record. A flowing region that only rewrapped in the page, as a
-  // queue does when the window narrows, was read through the page: unless its reading
-  // stood for the page (`pageReader`), the anchoring already holds the line the user
-  // read above it, and its own first line would pull the page away from that.
-  function restoreShifted(shifted, currentIntent, views, reader) {
+  // The newest place speaking for `box`, where it lands there: by a landmark the box now
+  // carries, by a section holding the whole box, which lands it at its start, or by the
+  // box's own end or raw offset. `before` names the scrollers that carried the box's
+  // words before the shift.
+  function placeFor(box, recorded, before) {
+    const own = box === pageScroller ? PAGE : regionForBox(box).id;
+    let found = null;
+    for (const [id, entry] of recorded) {
+      const node = placeNode(entry.reading);
+      const carried = node
+        ? boxOf(node) === box
+        : id === own && (entry.reading.end || rawOffsetFits(entry.reading, box));
+      if ((carried || id === own || before.has(id)) && !(found?.at > entry.at))
+        found = { ...entry, lands: carried || (node && under(box, node)) };
+    }
+    return found?.lands ? found.reading : null;
+  }
+
+  function restoreShifted(shifted, currentIntent, recorded) {
+    shifting = false;
     if (compositionChanges.size) return;
     if (!currentIntent()) return;
     const page = shifted.find(({ region }) => !region);
     if (page?.band) moveScrollerBy(pageScroller, -page.band);
-    const candidates = shifted
-      .filter(
-        ({ region, from, to }) =>
-          region && (from !== pageScroller || to !== from || region.id === reader),
-      )
-      .map(({ region }) => region)
-      .filter((region) => shownRegionBounds(region));
-    restoreRegions(candidates, currentIntent, null, views);
-    recordRegions();
+    const boxes = new Map(page ? [[pageScroller, new Set()]] : []);
+    const touch = (box) => boxes.get(box) ?? boxes.set(box, new Set()).get(box);
+    const idOf = (box) =>
+      box === pageScroller
+        ? PAGE
+        : readingRegions().find(({ body }) => body === box)?.id;
+    for (const { region, from, to } of shifted) {
+      if (!region || !shownRegionBounds(region)) continue;
+      touch(to);
+      if (from && from !== to) {
+        touch(from);
+        touch(to).add(idOf(from));
+      }
+    }
+    for (const [box, before] of boxes) {
+      const region = regionForBox(box);
+      if (region === undefined) continue;
+      const reading = placeFor(box, recorded, before);
+      if (!reading) continue;
+      restorePlace(reading, region, currentIntent);
+      holds.set(box, {
+        reading,
+        region,
+        since: inputCount(),
+        at: box.scrollTop,
+        currentIntent,
+      });
+    }
+    for (const [box, { region }] of holds)
+      if (regionForBox(box) !== region) holds.delete(box);
+    watchHolds();
   }
 
-  function readingRegionTransition({
-    phase,
-    owner,
-    regions,
-    cancelled,
-    retained,
-    shifted,
-  }) {
+  // Apply each held place again when the layout under it changes, until the user moves
+  // it. What moves a place is the page's own content or its bounded region's, and it
+  // lands only in the box it was restored into.
+  const stopReapplying = () => {
+    reapply?.disconnect();
+    reapply = null;
+  };
+  function watchHolds() {
+    stopReapplying();
+    if (!holds.size) return;
+    const again = frameFor(document.documentElement, () => {
+      for (const [box, hold] of holds) {
+        const { reading, region, currentIntent } = hold;
+        if (
+          hold.since !== inputCount() ||
+          !currentIntent() ||
+          regionForBox(box) !== region
+        )
+          holds.delete(box);
+        else {
+          restorePlace(reading, region, currentIntent);
+          hold.at = box.scrollTop;
+        }
+      }
+      if (!holds.size) stopReapplying();
+    });
+    reapply = sizeObserver(again);
+    reapply.observe(pageDocument());
+    for (const { region } of holds.values())
+      if (region) for (const child of region.body.children) reapply.observe(child);
+  }
+
+  // Each composition change in progress (`preserveReadingRegions`), by its owner: the
+  // user's intent when it began and the places of its own scrollers then. Inside a
+  // composition only its own scrollers are restored: document travel belongs to the
+  // navigation that changed it. A widget may recompose without the user, so what it
+  // captures serves its own restore and is no place the user recorded.
+  const compositionChanges = new Map();
+  const ownBoxes = (owner) =>
+    readingRegions()
+      .filter(
+        (region) =>
+          readingPosture(region) === "bounded" &&
+          under(region.body, owner) &&
+          shownRegionBounds(region),
+      )
+      .map((region) => region.body);
+
+  function readingRegionTransition({ phase, owner, cancelled, retained, shifted }) {
     // Announced from a resize observer's delivery; restoring there could reveal a
     // region and resize what the observer watches, so it waits for the next frame.
+    // Nothing is recorded from the announcement until then: a scroll the shift itself
+    // causes must not replace the place it is about to restore.
     if (phase === "shift") {
       const currentIntent = retainUserIntent();
-      // A resize can cause a scroll event before this frame. Keep the pre-shift
-      // reading now, so that event cannot replace it with the moved geometry.
-      const views = new Map(regionViews);
-      const reader = pageReader;
-      nextRender(() => restoreShifted(shifted, currentIntent, views, reader));
+      const recorded = new Map(places);
+      shifting = true;
+      stopReapplying();
+      nextRender(() => restoreShifted(shifted, currentIntent, recorded));
       return;
     }
-    // A composition change captures the intact view before hiding any region, and its
+    // A composition change captures the intact places before hiding any region, and its
     // restore owns the whole change: one nested inside it, such as tabs inside a
-    // switching tab, must not replace that reading with an intermediate layout.
+    // switching tab, must not replace those places with an intermediate layout. A region
+    // it hides keeps its place for its return, but continuity does not reveal it over a
+    // newer choice.
     if (
       cancelled ||
       [...compositionChanges.keys()].some(
@@ -1954,26 +2001,24 @@ export function createVersionController({
         compositionChanges.get(owner).currentIntent = retainUserIntent();
         return;
       }
-      const blocks = textBlocks();
-      for (const region of regions)
-        if (shownRegionBounds(region))
-          keepReading(region.id, capturePlace(region, blocks));
-      compositionChanges.set(owner, {
-        currentIntent: retainUserIntent(),
-        regions: regions.map(({ id }) => id),
-      });
+      const captured = new Map(
+        ownBoxes(owner).map((box) => {
+          const region = regionForBox(box);
+          return [region.id, capturePlace(region)];
+        }),
+      );
+      compositionChanges.set(owner, { currentIntent: retainUserIntent(), captured });
       return;
     }
     const change = compositionChanges.get(owner);
     compositionChanges.delete(owner);
     if (!change?.currentIntent()) return;
-    const live = new Map(readingRegions().map((region) => [region.id, region]));
-    // A composition can hide a region. Keep its recorded reading for its return, but
-    // continuity must not reveal it over a newer choice.
-    const candidates = change.regions
-      .map((id) => live.get(id))
-      .filter((region) => region && shownRegionBounds(region));
-    restoreRegions(candidates, change.currentIntent, owner);
+    for (const box of ownBoxes(owner)) {
+      const region = regionForBox(box);
+      const reading = change.captured.get(region.id) ?? places.get(region.id)?.reading;
+      if (reading && (hasLandmark(reading) || rawOffsetFits(reading, box)))
+        restorePlace(reading, region, change.currentIntent);
+    }
   }
 
   let readingContinuityInstalled = false;
@@ -1981,16 +2026,39 @@ export function createVersionController({
     if (readingContinuityInstalled) return;
     readingContinuityInstalled = true;
     watchReadingRegionTransitions(readingRegionTransition);
-    document.addEventListener("scroll", queueRecord, { capture: true, passive: true });
-    // Arriving or editing changes the reading place even when no scroller moves.
-    // Keep the intact place now: an immediate resize can invalidate geometry before
-    // the queued record runs. Record again after any seat or layout commits.
+    // A scroll is recorded on the first frame no scroll event reached: a long page is
+    // read once a gesture rather than each frame. `scrollend` would say the same, but
+    // Chrome holds it for a wheel until its gesture times out, past a resize that soon.
+    const moving = new Set();
+    let scrolls = 0;
+    let resting = false;
+    const rest = (seen) =>
+      nextRender(() => {
+        if (seen !== scrolls) return rest(scrolls);
+        resting = false;
+        const boxes = [...moving];
+        moving.clear();
+        recordPlaces(boxes);
+      });
+    const scrolled = (event) => {
+      moving.add(event.target === document ? pageScroller : event.target);
+      scrolls++;
+      if (resting) return;
+      resting = true;
+      rest(scrolls);
+    };
+    document.addEventListener("scroll", scrolled, { capture: true, passive: true });
+    for (const type of ["popstate", "hashchange"])
+      addEventListener(type, () => holds.clear());
+    // Arriving or editing changes the place even when no scroller moves. Keep the intact
+    // place now: an immediate resize can invalidate geometry before a later record runs.
+    // Record again after any seat or layout commits.
     const recordStanding = () => {
       const at = focused();
-      if (at && under(at, pageDocument())) {
-        if (!compositionChanges.size && regionsSettled()) recordRegions();
-        queueRecord();
-      }
+      if (!at || !under(at, pageDocument())) return;
+      const box = boxOf(at);
+      recordPlaces([box]);
+      nextRender(() => recordPlaces([box]));
     };
     onStanding(recordStanding);
     onReadingInput(recordStanding);
@@ -1999,7 +2067,14 @@ export function createVersionController({
     onUserInput((event) => {
       if (event.type === "keydown" || event.type === "input") recordStanding();
     });
-    queueRecord();
+    nextRender(() =>
+      recordPlaces([
+        pageScroller,
+        ...readingRegions()
+          .filter((region) => readingPosture(region) === "bounded")
+          .map((region) => region.body),
+      ]),
+    );
   }
 
   function installArrival() {

@@ -262,13 +262,16 @@ def test_a_page_keeps_its_place_below_the_banner_as_the_window_changes_width(
     )
 
 
+@pytest.mark.parametrize("wheel", [False, True], ids=["landed", "wheel-over-pane"])
 def test_a_heading_above_a_flowing_pane_keeps_its_place_as_the_window_changes_width(
-    browser, serve
+    browser, serve, wheel
 ):
     """The reader landed on a section's heading; a pane the page carries starts lower in
     the window. Text between them rewraps as the window changes width, so the pane's own
     first line and the heading cannot both keep their distances. The heading is what the
-    reader reads, so it stays where it stood below the banner, at each width and back."""
+    reader reads, so it stays where it stood below the banner, at each width and back,
+    even after they turned the wheel with the pointer over the pane's words, as a finger
+    scrolling a phone over a queue does."""
     filler = "".join(
         f"<p>Paragraph {n} sets the scene in enough words to rewrap to more lines when "
         "the window narrows to a phone, pushing what follows further down.</p>"
@@ -300,9 +303,17 @@ def test_a_heading_above_a_flowing_pane_keeps_its_place_as_the_window_changes_wi
     }"""
     page.evaluate("location.hash = 'section'")
     rendered(page)
+    if wheel:
+        box = page.locator("#reading p").first.bounding_box()
+        page.mouse.move(box["x"] + 20, min(box["y"] + 5, 780))
+        before = page.evaluate("document.scrollingElement.scrollTop")
+        page.mouse.wheel(0, -8)
+        page.wait_for_function(f"document.scrollingElement.scrollTop < {before}")
+        scroll_settled(page)
+        rendered(page)
     landed = page.evaluate(below)
     assert landed["paneShown"], landed
-    for width in (390, 1280):
+    for width in (390, 1280, 390, 1280):
         resized(page, width, 800)
         rendered(page)
         assert page.evaluate(below)["heading"] == pytest.approx(

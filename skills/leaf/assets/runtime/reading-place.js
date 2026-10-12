@@ -47,7 +47,6 @@ import { targetElement, targetSegments } from "./resolved-target.js";
 import {
   containingReadingRegionFor,
   effectiveScroller,
-  readingPosture,
   readingRegionFor,
   readingRegions,
   shownRegionBounds,
@@ -178,11 +177,7 @@ export function* blocksOnScreen(region = null, blocks = textBlocks()) {
       ? shownWindow({ within: shown })
       : shown;
   for (const [block, rect, runs] of renderedBlocks(blocks)) {
-    if (
-      region
-        ? !under(block, region.body)
-        : readingPosture(readingRegionFor(block)) === "bounded"
-    )
+    if (region ? !under(block, region.body) : effectiveScroller(block) !== pageScroller)
       continue;
     const clips = new Map();
     const onScreen = runs.filter(({ boxes }) =>
@@ -291,6 +286,23 @@ export function capturePlace(region = null, blocks = textBlocks()) {
     }
   }
   return view;
+}
+
+// The node a place stands on now: the live focused destination, the passage's first
+// drawn word, or the drawn section, found as `restorePlace` finds them. Null where the
+// place has no landmark the page draws, so only its own scroller's offset can take it.
+export function placeNode(view) {
+  const live = focusedPlace(view);
+  if (live) return live;
+  const segments = targetSegments(view.quote && resolveAnchor(view));
+  if (
+    segments.length &&
+    segments.every(({ node }) => drawsLandmark(renderedParent(node)))
+  )
+    return segments[0].node;
+  const section =
+    view.section && targetElement(resolveAnchor({ section: view.section }));
+  return section && drawsLandmark(section) ? section : null;
 }
 
 // A restore jumps rather than glides: a page is free to set scroll-behavior: smooth, and

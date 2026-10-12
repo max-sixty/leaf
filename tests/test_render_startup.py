@@ -4759,8 +4759,6 @@ customElements.define('lf-feed', class extends HTMLElement {
         "outletFor",
         "invalid-count",
         "invalid-outlet",
-        "unregister",
-        "end-unregister",
         "disconnect",
         "moved",
         "detached",
@@ -4782,10 +4780,10 @@ def test_a_failed_thread_surface_continues_the_keyboard_opened_reply(browser, se
 def _exercise_failed_thread_surface(browser, serve, failure, *, activation):
     """An adapter failure cannot keep stale local views or stop the next widget.
 
-    Each case is one way a surface stops holding its threads: its callback throws
-    (outletFor, after preparing the first datum), it unregisters outside or
-    inside its callback, it leaves the page, its outlet moves out of it or off the
-    page, it places nothing, or its datum goes while the callback awaits. Its threads
+    Each case is one way a surface stops holding its threads: its `threadOutlets`
+    throws (outletFor, after preparing the first datum) or answers with the wrong
+    shape, it leaves the page, its outlet moves out of it or off the page, it places
+    nothing, or its datum goes while `threadOutlets` awaits. Its threads
     fall back to the core surface with the unsent draft, and its picker lets go of the
     keyboard. The healthy surface stands later in registration order, so its updated
     reply proves reconciliation continued beyond the broken adapter.
@@ -4802,7 +4800,7 @@ def _exercise_failed_thread_surface(browser, serve, failure, *, activation):
         "x-example": '<lf-test-surface id="surface-example"></lf-test-surface>',
     }
     module = """
-import {projectData, placeThreads, setChildren} from '/runtime/widget-api.js';
+import {projectData, setChildren, threadSurface} from '/runtime/widget-api.js';
 customElements.define('lf-test-surface', class extends HTMLElement {
   connectedCallback() {
     const datums = ['first', 'second'].map(key => {
@@ -4817,41 +4815,36 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     });
     setChildren(this, datums.map(({node}) => node));
     projectData(this, datums);
-    this.surface = placeThreads(this, async (targets) => {
-      const outlets = targets.map((target) => {
-        const {anchor, placement} = target;
-        if (anchor.datum === 'second' && this.failure === 'outletFor')
-          throw new Error('surface fixture: outletFor');
-        return this.failure === 'hidden' ? null : placement.datumElement.outlet;
-      });
-        if (this.failure === 'end-unregister') {
-          this.failure = null;
-          this.surface.unregister();
-        }
-        for (const row of this.children) {
-          if (this.failure === 'moved') document.querySelector('main').append(row.outlet);
-          if (this.failure === 'detached') row.outlet.remove();
-        }
-        if (this.failure === 'target-removed') {
-          await Promise.resolve();
-          for (const row of [...this.children].filter(row => row.outlet)) {
-            this.append(row.outlet);
-            row.remove();
-          }
-        }
-      if (this.failure === 'invalid-count') return outlets.slice(1);
-      if (this.failure === 'invalid-outlet') return outlets.map(() => undefined);
-      return outlets;
+  }
+  async threadOutlets(targets) {
+    const outlets = targets.map((target) => {
+      const {anchor, placement} = target;
+      if (anchor.datum === 'second' && this.failure === 'outletFor')
+        throw new Error('surface fixture: outletFor');
+      return this.failure === 'hidden' ? null : placement.datumElement.outlet;
     });
+    for (const row of this.children) {
+      if (this.failure === 'moved') document.querySelector('main').append(row.outlet);
+      if (this.failure === 'detached') row.outlet.remove();
+    }
+    if (this.failure === 'target-removed') {
+      await Promise.resolve();
+      for (const row of [...this.children].filter(row => row.outlet)) {
+        this.append(row.outlet);
+        row.remove();
+      }
+    }
+    if (this.failure === 'invalid-count') return outlets.slice(1);
+    if (this.failure === 'invalid-outlet') return outlets.map(() => undefined);
+    return outlets;
   }
   fail(phase) {
     this.failure = phase;
-    if (phase === 'unregister') this.surface.unregister();
-    else if (phase === 'disconnect') {
+    if (phase === 'disconnect') {
       this.remove();
-      document.querySelector('#healthy').surface.update();
+      threadSurface(document.querySelector('#healthy')).update();
     }
-    else this.surface.update();
+    else threadSurface(this).update();
   }
 });
 """
@@ -5012,7 +5005,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     expect(fallback.locator("leaf-text")).to_have_js_property(
         "value", "Keep this unsent reply."
     )
-    if failure not in {"unregister", "end-unregister", "disconnect", "target-removed"}:
+    if failure not in {"disconnect", "target-removed"}:
         page.keyboard.press("Escape")
         broken.evaluate("""widget => {
             widget.failure = null;
@@ -6752,7 +6745,7 @@ def test_widgets_claim_before_page_and_only_required_page_failures_fail_proof(
         "x-example": '<lf-test-seat id="sample"></lf-test-seat>',
     }
     module = """
-import {projectData, placeThreads, setChildren} from '/runtime/widget-api.js';
+import {projectData, setChildren, threadSurface} from '/runtime/widget-api.js';
 customElements.define('lf-test-seat', class extends HTMLElement {
   connectedCallback() {
     const datums = ['row'].map(key => {
@@ -6763,11 +6756,14 @@ customElements.define('lf-test-seat', class extends HTMLElement {
     setChildren(this, datums.map(({node}) => node));
     projectData(this, datums);
   }
+  // Until `start`, the seat offers none, so the page presents every thread first.
+  threadOutlets(targets) {
+    if (this.fail) throw new Error('exact widget failed');
+    return targets.map(target => this.started ? target.placement.datumElement.outlet : null);
+  }
   start() {
-    this.surface = placeThreads(this, (targets) => {
-      if (this.fail) throw new Error('exact widget failed');
-      return targets.map(target => target.placement.datumElement.outlet);
-    });
+    this.started = true;
+    threadSurface(this).update();
   }
 });
 """
@@ -6895,7 +6891,7 @@ def test_required_page_failure_retains_composer_seat_focus_and_caret(browser, se
         "x-example": '<lf-test-seat id="seat"></lf-test-seat>',
     }
     module = """
-import {projectData,placeThreads,setChildren} from '/runtime/widget-api.js';
+import {projectData,setChildren} from '/runtime/widget-api.js';
 customElements.define('lf-test-seat',class extends HTMLElement{
   connectedCallback(){
     this.style.cssText='display:block;height:360px;overflow:auto';
@@ -6907,8 +6903,9 @@ customElements.define('lf-test-seat',class extends HTMLElement{
     setChildren(this,datums.map(({node})=>node));
     projectData(this,datums);
     this.side='a';
-    this.surface=placeThreads(this,targets=>
-      targets.map(target=>target.placement.datumElement[this.side]));
+  }
+  threadOutlets(targets){
+    return targets.map(target=>this.side?target.placement.datumElement[this.side]:null);
   }
 });
 """
@@ -6952,9 +6949,10 @@ customElements.define('lf-test-seat',class extends HTMLElement{
     }""")
     expect(page.locator("#rail .lf-page-thread")).to_have_count(1)
     expect(page.locator("[data-seat=a] .lf-page-thread")).to_have_count(1)
-    page.evaluate("""() => {
+    page.evaluate("""async () => {
+      const {threadSurface}=await __lfRuntimeImport('/runtime/widget-api.js');
       const seat=document.querySelector('#seat');
-      seat.surface.open(seat.querySelector('[data-lf-datum]'));
+      threadSurface(seat).open(seat.querySelector('[data-lf-datum]'));
     }""")
     editor = page.locator(".lf-fab-input")
     expect(editor).to_be_focused()
@@ -7084,7 +7082,11 @@ customElements.define('lf-test-seat',class extends HTMLElement{
         )
         == current
     )
-    page.evaluate("()=>document.querySelector('#seat').surface.unregister()")
+    # The widget stops offering its seat, so the page presents both threads.
+    page.evaluate("""async()=>{
+      const {threadSurface}=await __lfRuntimeImport('/runtime/widget-api.js');
+      const seat=document.querySelector('#seat');seat.side=null;threadSurface(seat).update();
+    }""")
     news.click()
     expect(page.locator("#rail .lf-page-thread")).to_have_count(2)
 

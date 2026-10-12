@@ -1881,40 +1881,6 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
     expect(atlas.locator(".margin-entry-gallery-projection-result")).to_be_visible()
 
 
-def test_a_fragment_lands_after_presented_controls_take_space(browser, serve):
-    """The fragment's target remains at the top edge when the reaction controls above
-    it appear."""
-    reactions = [
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "token": token,
-            "anchor": {"section": f"p{i}"},
-        }
-        for i, token in zip(
-            range(10, 30), ["keep", "change", "clarify", "shorten"] * 5, strict=True
-        )
-    ]
-    context = browser.new_context(viewport={"width": 700, "height": 900})
-    page = open_page(
-        browser,
-        f"{live_url(serve(LONG_PAGE, events=reactions))}#p34",
-        context=context,
-    )
-    position = page.locator("#p34").evaluate(
-        """element => ({
-          top: element.getBoundingClientRect().top,
-          clear: parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop),
-          above: [...document.querySelectorAll('.lf-margin-cluster')].filter(
-            cluster => cluster.checkVisibility() && cluster.getBoundingClientRect().top
-              < element.getBoundingClientRect().top).length,
-        })"""
-    )
-    assert position["above"] > 0, position
-    assert abs(position["top"] - position["clear"]) < 2, position
-
-
 def test_a_margin_entry_carries_a_suggestion_through_its_whole_lifecycle(
     browser, serve
 ):

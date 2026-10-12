@@ -1461,15 +1461,42 @@ def test_a_composed_vocabulary_carries_its_decisions(page_dir):
     }
 
 
-def test_a_verb_is_written_by_the_side_it_declares():
-    """`verb_writer` states the default the browser's `adoptRegistry` applies, and
-    both are held to `tests/verb_writer_cases.json`."""
-    cases = json.loads((Path(__file__).parent / "verb_writer_cases.json").read_text())
-    assert [
-        [tag, verb, registry_contract.verb_writer(spec)]
-        for tag, entry in cases["declarations"].items()
-        for verb, spec in entry["x-state"].items()
-    ] == cases["writers"]
+def test_a_composed_vocabulary_carries_each_verbs_writer_and_definition(page_dir):
+    """`$states` is what the browser reads for a verb's writer and the operation an
+    admitted event records, so it derives neither. A page's own declaration is stamped
+    with the layer's, an unstated writer as the user's."""
+    layer = registry_storage.load_registry(page_dir)
+    declaration = element_declaration("lf-local", upgrade=True)
+    declaration["properties"] |= {
+        name: {"type": "boolean"} for name in ("overruled", "restated")
+    } | {"reading": {"type": "string"}}
+    declaration["x-state"] = {
+        "set": {
+            "unit": "widget",
+            "detail": {"type": "object", "additionalProperties": False},
+        },
+        "measure": {
+            "unit": "widget",
+            "writer": "agent",
+            "record": {"kind": "value", "attr": "reading"},
+        },
+    }
+    widget_paths = {f"widgets/{path.name}" for path in (page_dir / "widgets").glob("*")}
+
+    composed = registry_page.compose_page_registry(
+        layer, {"lf-local": declaration}, {*widget_paths, "widgets/lf-local.js"}
+    ).registry
+
+    assert composed["$states"]["lf-local"] == {
+        verb: {
+            "writer": writer,
+            "definition": registry_contract.state_definition(
+                "lf-local", declaration, declaration["x-state"][verb]
+            ),
+        }
+        for verb, writer in (("set", "user"), ("measure", "agent"))
+    }
+    assert composed["$states"]["lf-suggestion"]["decide"]["writer"] == "user"
 
 
 @pytest.mark.parametrize(
@@ -2795,6 +2822,18 @@ def test_check_refuses_an_invalid_action_detail_schema(page_dir):
     assert (
         "<lf-options> x-state verb `add` has an invalid detail schema" in result.output
     )
+
+
+def test_check_refuses_a_format_no_boundary_checks(page_dir):
+    """jsonschema skips a format it has no checker for, so a declared one Leaf does
+    not check would state a rule nothing enforces."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-options"]["properties"]["id"]["format"] = "hostname"
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+    assert result.exit_code != 0
+    assert "<lf-options> is not a valid JSON Schema: format 'hostname'" in result.output
 
 
 @pytest.mark.parametrize(
@@ -4459,17 +4498,21 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
     assert keys["x-says"]  # the rest of the shipped members stand
 
 
-@pytest.mark.parametrize("key", ["kinds", "ownership"])
-def test_event_kinds_and_ownership_are_the_kernel_contract_not_a_layer_extension(
-    page_dir, tmp_path, key
-):
+@pytest.mark.parametrize("key", ["kinds", "ownership", "protocol"])
+def test_the_kernel_event_contract_is_not_a_layer_extension(page_dir, tmp_path, key):
+    """A layer cannot change the event kinds, their ownership, or the protocol
+    numbering them, so a page's vendored copy is the kernel's of the Leaf that
+    vendored it."""
     overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
     registry = json.loads((page_dir / "registry.json").read_text())
     if key == "kinds":
         registry["$events"][key]["signal"] = registry["$events"][key]["error"]
-    else:
+    elif key == "ownership":
         registry["$events"][key]["browser_discard"] = []
+    else:
+        # Equal to a protocol of 1 in Python, and still not the kernel's number.
+        registry["$events"][key] = True
     (overlay / "registry.json").write_text(json.dumps(registry))
 
     result = CliRunner().invoke(

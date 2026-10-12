@@ -45,17 +45,6 @@ records its identities under `$layer`:
   identity and its age in its low-frequency banner controls; a press copies the full
   layer diagnostics. A harness can ask its running payload for the same source identity
   and date with `leaf --version`.
-- `protocol` is the number of the contract between the page and any Leaf that serves
-  it or writes its log (`layer.PROTOCOL`, whose comment says when to bump it). Every
-  page server — durable, temporary, the gate's ephemeral one, and the website's — and
-  the one append door compare it with their own when they bind the page or admit an
-  event (`layer.incompatible_layer`), and refuse a page vendored at another number,
-  naming `leaf page init`. Any other Leaf at the same number serves and writes the
-  page, so a plugin update leaves open pages working: event admission validates a
-  kernel record against the running Leaf's own `$events` (`registry.kernel`), which
-  no layer can change, so a field a newer Leaf writes passes on a page an older one
-  vendored. Breaking changes are the deliberate exception, and a page vendored before
-  the number existed records none and is refused once.
 - `runtime` is the SHA-256 identity of the kernel runtime modules the payload vendored
   from, read from its own `assets/runtime/` rather than recomposed from the page's
   selections. The render gate serves its probe modules from the Leaf running the
@@ -82,17 +71,45 @@ disappears. A rejected or unchanged re-vendor preserves its running server and
 layer, so neither triggers a reload. Source files carry neither
 script, and an export no supervisor.
 
+## Page protocol
+
+The kernel registry's `$events.protocol` numbers the contract between a page and any
+Leaf that serves it or writes its log: the kernel event records and their ownership
+beside it, the reading the server serves the page's runtime, and each runtime module
+the server relies on. The page carries the number in the `$events` it was vendored
+with, which no layer can change, and every page server — durable, temporary, the
+gate's ephemeral one, and the website's — and the one append door compare it with
+the running Leaf's own when they bind the page or admit an event
+(`layer.incompatible_layer`), refusing another number and naming `leaf page init`.
+Each reads the registry it would serve the page under: a snapshot's captured one, or
+else the vendored layer.
+
+Any other Leaf at the same number serves and writes the page, so a plugin update
+leaves open pages working: admission validates a kernel record against the running
+Leaf's own `$events` (`registry.kernel`), so a field a newer Leaf writes passes on a
+page an older one vendored. Bump the number when a page an older Leaf vendored at it
+would break under this one: the served state, a runtime module the server relies on,
+or an event drops, renames or changes the meaning of something the other side reads,
+or a field the page's runtime sends becomes required, as a new drawing `format` does.
+Adding a field or kind the older code ignores needs no bump. The promise runs one
+way: an older Leaf serving a page a newer one vendored may refuse a field it does not
+know. Every page vendored before a bump, and one vendored before the number was
+declared, is refused until `leaf page init` re-vendors it.
+
 ## Composition stamps
 
-Every composition writes two facts the browser reads instead of deriving
+Every composition writes these facts the browser reads instead of deriving
 (`registry/layer.stamp_composition`):
 
 - `$decisions`, each widget's deciding `x-state` verb and the member tags each of its
   outcomes retires;
+- `$states`, each `x-state` verb's writer and the operation definition an admitted
+  event records, which the browser compares a recorded definition with;
 - `$marks`, each declaration a stylesheet reads, with the attribute it is painted as,
   the attribute an occurrence overrides it with, and whether it holds in a thread
   message, and whether an idiom may declare it (`schema.DECLARED_MARKS`).
 
 `page init` stamps them into the layer, and a page's composition stamps them again
-over its own declarations, overwriting any declared `$decisions` or `$marks`.
+over its own declarations, overwriting any declared `$decisions`, `$states` or
+`$marks`.
 Delivery paints a page document's marks from the same table.

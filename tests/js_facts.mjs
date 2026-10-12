@@ -255,14 +255,23 @@ function imports() {
           use(specifier, reference);
       } else if (target) take(specifier, "*");
     };
-    // What the expression `node`, which evaluates to a namespace, takes from it.
+    // What the expression `node`, which evaluates to a namespace, takes from it. An
+    // expression a namespace passes through whole, such as `await` or one branch of a
+    // conditional, is what the namespace is read from; a statement or a condition that
+    // only tests it reads nothing.
     const use = (specifier, node) => {
       let parent = parents.get(node);
-      while (["ParenthesizedExpression", "AwaitExpression"].includes(parent.type)) {
+      while (
+        ["ParenthesizedExpression", "AwaitExpression", "LogicalExpression"].includes(
+          parent.type,
+        ) ||
+        (parent.type === "ConditionalExpression" && parent.test !== node)
+      ) {
         node = parent;
         parent = parents.get(node);
       }
-      if (parent.type === "ExpressionStatement") return;
+      if (parent.type === "ExpressionStatement" || parent.test === node) return;
+      if (parent.type === "UnaryExpression" && parent.operator === "!") return;
       if (parent.type === "MemberExpression" && parent.object === node) {
         const name = parent.computed ? spelled(parent.property) : parent.property.name;
         const call = parents.get(parent);

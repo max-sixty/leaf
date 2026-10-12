@@ -1848,33 +1848,43 @@ def test_reply_for_a_stale_event_reports_the_failed_fence(page_dir):
     [
         (
             '<script type="module" src="/leaf.js"></script>',
-            ("capture-failed", ""),
+            ("capture-failed", {"error": "public layer entry point"}),
         ),
         (
             '<link rel="stylesheet" href="/theme.css" media="print">',
-            ("capture-failed", ""),
+            ("capture-failed", {"error": "escapes /page/ and /media/"}),
         ),
-        ('<base href="https://outside.example/">', ("document-declaration", "<base>")),
+        (
+            '<base href="https://outside.example/">',
+            ("document-declaration", {"at": "<base>"}),
+        ),
         (
             '<meta http-equiv="Content-Security-Policy" content="default-src none">',
-            ("document-declaration", "<meta>"),
+            ("document-declaration", {"at": "<meta>"}),
         ),
         (
             '<script type="importmap">{"imports": {}}</script>',
-            ("document-declaration", "<script>"),
+            ("document-declaration", {"at": "<script>"}),
         ),
     ],
     ids=["runtime-module", "theme", "base", "policy", "import-map"],
 )
 def test_check_rejects_authored_delivery_assets(page_dir, asset, expected):
-    """Capture refuses a delivery asset the page would load, and the markup check a
-    declaration about the whole document."""
+    """Capture refuses a delivery asset the page would load, for its own reason, and
+    the markup check a declaration about the whole document."""
     (page_dir / "index.html").write_text(PAGE.replace("</head>", f"{asset}\n</head>"))
 
     status, findings = check_findings(page_dir)
 
     assert status == 1
-    assert [(f.code, f.at) for f in findings] == [expected]
+    code, holds = expected
+    [finding] = findings
+    assert finding.code == code
+    # A capture refusal is still its exception's words (`capture-failed`).
+    if "error" in holds:
+        assert holds["error"] in finding.values["error"]
+    else:
+        assert finding.at == holds["at"]
 
 
 @pytest.mark.parametrize(

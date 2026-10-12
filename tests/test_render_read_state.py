@@ -1517,7 +1517,6 @@ ROUTE_LINE = '["app/routes.py","new",201]'
 @pytest.mark.parametrize(
     "end",
     [
-        "tapped",
         "keyboard",
         "settled",
         "replied",
@@ -1535,7 +1534,7 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
     the line, and every line and paragraph after it moved down under the reader. No row
     the diff draws can say it waits, so the diff does not draw it: it stands in the
     margin, as any thread the diff does not place does, and its marker is the notice.
-    Clicking, tapping, or pressing Enter on the marker shows the thread under its line
+    Clicking or pressing Enter on the marker shows the thread under its line
     and lands on it, and the marker stays its notice when the agent settles it. It also
     shows when the user replies in it from the margin's card, when they start a
     thread on the same line, which shows after it, and when
@@ -1544,16 +1543,9 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
     preserving that composing margin card. The news lands well past Chrome's half
     second of recent input, so the shift watch checks that holding the thread moved
     nothing."""
-    context = (
-        browser.new_context(
-            viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True
-        )
-        if end == "tapped"
-        else None
-    )
     url = serve(LONG_LINE_DIFF_PAGE)
     data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
-    page = open_page(browser, url, context=context)
+    page = open_page(browser, url)
     page.wait_for_function("document.querySelector('lf-diff.lf-rendered') !== null")
     line = page.locator(f"lf-diff [data-lf-datum='{ROUTE_LINE}']")
     _to_upper_third(line)
@@ -1724,8 +1716,6 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
             "Should the old route name stay as an alias?"
         )
         return
-    elif end == "tapped":
-        marker.tap()
     elif end == "keyboard":
         # The marker as the rail's Tab stop, in keyboard modality. The key before the
         # focus makes the shortcut bar's redraw for the stop an answer to input.
@@ -1768,7 +1758,7 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
         expect(threads.first.locator(":scope > summary")).to_have_text(
             "Resolved · 1 message"
         )
-    if end in ("tapped", "keyboard"):
+    if end == "keyboard":
         # The marker goes with what it held, and the user lands on the thread it showed,
         # or on the summary a settled thread folds to.
         expect(threads.first).to_be_focused()

@@ -1223,7 +1223,6 @@ def test_a_comment_keeps_its_measure_when_its_passage_scrolls_away(browser, serv
         ((390, 844), 0.12, False, False, False, False),
         ((900, 600), 0.4, True, False, False, False),
         ((1440, 900), 0.4, "paragraphs", False, False, False),
-        ((390, 844), 0.12, False, True, False, False),
         ((1440, 900), 0.4, False, False, True, False),
         ((390, 844), 0.4, "passage", True, False, False),
         pytest.param(

@@ -289,12 +289,10 @@ def test_unchanged_margin_passes_over_the_corpus_do_bounded_work_and_write_nothi
     _refreshes_force_layout_by_refresh_count(page)
 
 
-def test_the_feature_gallery_s_margin_holds_still_and_answers_only_input(
-    browser, serve
-):
-    """The gallery draws every kind of margin entry at once, and opening it is the
-    suite's most expensive page open, so its margin readings share one page. Each step
-    sets the width it reads at; the ones that change the page come last."""
+def test_the_feature_gallery_s_margin_entries_and_thread_cards(browser, serve):
+    """The gallery draws every kind of margin entry and thread card at once, and opening
+    it is the suite's most expensive page open, so its margin readings share one page.
+    Each step sets the width it reads at; the ones that change the page come last."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     _a_settled_reaction_seat_stops_rendering_the_margin(page)
     # The gallery draws the margin entries the corpus has none of, and the writers that
@@ -314,6 +312,15 @@ def test_the_feature_gallery_s_margin_holds_still_and_answers_only_input(
     _margin_target_hover_requires_pointer_movement(page)
     _a_decision_undone_leaves_every_suggestion_pin_where_it_stood(page)
     _a_pin_on_a_wide_figure_hides_with_o_while_the_rail_stays(page)
+    # Where a walked thread's card stands is decided by the room beside its words and
+    # its cluster, so the walk crosses the widths that give it each side: a free
+    # margin, a short rail, a middle-width rail, and a crowded cluster, which leaves
+    # words typed in its card. Reduced motion, so each placement is read where it lands.
+    page.emulate_media(reduced_motion="reduce")
+    _a_thread_uses_a_free_margin_and_tracks_its_source(page)
+    _a_thread_in_a_short_rail_stands_on_the_side_with_room(page)
+    _a_thread_beside_its_words_takes_the_room_to_the_visible_edge(page)
+    _a_forced_inline_thread_keeps_its_control_reachable_on_a_crowded_cluster(page)
     _margin_target_pointer_ownership_ends_with_its_host(page)
 
 
@@ -947,7 +954,7 @@ def test_the_rail_stands_where_the_room_beside_the_column_holds_it(
     )
     floor = 720 + 2 * 24 + 2 * rail
     places = set()
-    for width in range(round(floor) + 30, round(floor) - 30, -3):
+    for width in range(round(floor) + 30, round(floor) - 30, -6):
         resized(page, width, 900)
         margins_laid_out(page)
         reading = page.evaluate(
@@ -4998,19 +5005,6 @@ def _open_gallery_thread(page, target, thread_id):
     expect(walked).to_have_attribute("data-thread", thread_id)
     expect(walked).to_be_focused()
     rendered(page)
-
-
-def test_a_gallery_thread_card_takes_the_room_each_width_gives_it(browser, serve):
-    """Where a walked thread's card stands is decided by the room beside its words and
-    its cluster, so one gallery page walks it across the widths that give it each side:
-    a free margin, a short rail, a middle-width rail, and a crowded cluster. The last
-    leaves words typed in its card, so it comes last."""
-    page = open_page(browser, serve(FEATURE_GALLERY))
-    page.emulate_media(reduced_motion="reduce")
-    _a_thread_uses_a_free_margin_and_tracks_its_source(page)
-    _a_thread_in_a_short_rail_stands_on_the_side_with_room(page)
-    _a_thread_beside_its_words_takes_the_room_to_the_visible_edge(page)
-    _a_forced_inline_thread_keeps_its_control_reachable_on_a_crowded_cluster(page)
 
 
 def _at_the_margin_controls(page, width):

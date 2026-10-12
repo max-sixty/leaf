@@ -97,14 +97,11 @@ jobs:
 
       # The bundles build from the installed lock, so a rebuild reproduces the
       # tracked bytes exactly and any difference is a lock nobody rebuilt from.
-      - name: Check vendored bundles
-        run: pnpm run check:bundles
-
-      - name: Check browser, runtime, Worker and eval assertions
+      - name: Check bundles, browser, runtime, Worker and eval assertions
         run: pnpm run check
 
-      # Rebuilds above finish writing tracked source before lint reads it. Hooks
-      # only check source, so they can overlap Python and the private website build.
+      # Hooks only check source, so they can overlap Python and the private website
+      # build.
       - name: 🔍 Pre-commit hooks
         id: lint
         background: true

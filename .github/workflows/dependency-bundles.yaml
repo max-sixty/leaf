@@ -24,7 +24,6 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build:browser
-      - run: uv run build/vendor.py
       - run: node .github/scripts/dependency-bundles.mjs capture /tmp/bundles.json
       - uses: actions/upload-artifact@v7
         with:

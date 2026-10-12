@@ -218,7 +218,7 @@ install must be writable, and Leaf writes nothing else there. Point Codex
 at the git source, since a local-directory marketplace copies a checkout's
 `.venv` too. A plugin update may replace the directory wholesale, so what has to
 survive one belongs in the page directory or the state home. Runtime
-dependencies, and those a package script declares, state a floor and no cap. The
+dependencies, and those a bundled package script declares, state a floor and no cap. The
 host supplies Chrome and `jq`; leaf never downloads a browser.
 
 Files under `skills/leaf/assets/vendor/` and each package's `vendor/` are

@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import tomllib
 from datetime import datetime
 from pathlib import Path
 
@@ -59,6 +60,8 @@ from leaf.render_gate import browser as browser_model
 from leaf.render_gate.preview import preview_server
 from leaf.revisioning import activate_source
 from model_folds import leaf_page
+from packaging.requirements import Requirement
+from packaging.specifiers import SpecifierSet
 
 
 def storage_contract() -> tuple[list[str], list[str]]:
@@ -4487,93 +4490,72 @@ def test_an_installed_package_runs_its_own_scripts_by_name(tmp_path, monkeypatch
     assert "unknown package 'tallies'" in unknown.stderr
 
 
-@pytest.mark.parametrize(
-    ("header", "message"),
-    [
-        ("", "needs one inline `# /// script` metadata block"),
-        (
-            '# /// script\n# dependencies = ["unidiff>=1,<2"]\n# ///\n',
-            "dependency 'unidiff<2,>=1' must state a floor (>=) and nothing else",
-        ),
-        (
-            '# /// script\n# dependencies = ["unidiff==1.0.1"]\n# ///\n',
-            "dependency 'unidiff==1.0.1' must state a floor",
-        ),
-        (
-            '# /// script\n# dependencies = ["unidiff"]\n# ///\n',
-            "dependency 'unidiff' must state a floor",
-        ),
-        (
-            '# /// script\n# requires-python = "<3.13"\n# ///\n',
-            "requires-python must state a floor",
-        ),
-        (
-            '# /// script\n# dependencies = "unidiff>=1"\n# ///\n',
-            "invalid script metadata",
-        ),
-    ],
-)
 def test_package_check_refuses_a_script_that_would_run_in_the_callers_project(
-    tmp_path, monkeypatch, header, message
+    tmp_path, monkeypatch
 ):
     """Without an inline `script` block, `uv run --script` runs a file in whatever
-    project the caller's directory reaches, so check and install refuse one; a
-    declared constraint must be a floor with no cap, since no lock ships beside it.
-    """
+    project the caller's directory reaches, so check and install refuse one."""
     monkeypatch.chdir(tmp_path)
     source = tmp_path / "src" / "tally"
     created = CliRunner().invoke(cli_model.cli, ["package", "init", str(source)])
     assert created.exit_code == 0, created.output
     (source / "scripts").mkdir()
     script = source / "scripts" / "count.py"
-    script.write_text(f"{header}print('counted')\n")
+    script.write_text("print('counted')\n")
 
     checked = CliRunner().invoke(cli_model.cli, ["package", "check", str(source)])
     installed = CliRunner().invoke(cli_model.cli, ["package", "install", str(source)])
 
     assert checked.exit_code == 1
     assert checked.output.startswith(f"Error: {script}")
+    message = "needs an inline `# /// script` metadata block"
     assert message in checked.output
     assert installed.exit_code == 1
     assert message in installed.output
     assert not (machine_model.package_store() / "tally").exists()
 
 
-def test_script_requirements_read_a_multiline_dependency_list(tmp_path):
-    """The reading `package check` applies is the one the suite's pin guard uses, so
-    a header written across several comment lines is read whole by both."""
-    script = tmp_path / "tool.py"
-    script.write_text(
-        "# /// script\n"
-        "# dependencies = [\n"
-        '#   "unidiff>=1",\n'
-        '#   "rich>=13",\n'
-        "# ]\n"
-        "# ///\n"
-    )
-    assert [str(r) for r in packages_model.script_requirements(script)] == [
-        "unidiff>=1",
-        "rich>=13",
+def bundled_script_metadata(script: Path) -> dict:
+    """The inline `script` block of one bundled script, read as PEP 723 reads it."""
+    (block,) = [
+        match["content"]
+        for match in packages_model.INLINE_METADATA.finditer(script.read_text())
+        if match["type"] == "script"
     ]
+    return tomllib.loads(
+        "".join(
+            line[2:] if line.startswith("# ") else line[1:]
+            for line in block.splitlines(keepends=True)
+        )
+    )
 
 
 def test_the_suite_pins_every_bundled_script_dependency():
     """A bundled script's header declares its dependencies and ships no lock, so
-    the dev group repeats each one: `uv.lock` then pins what the suite runs the
-    script against, and the suite needs no network to run it."""
+    they follow the tree's dependency policy, a floor and no cap (AGENTS.md, "The
+    install runs this tree"), and the dev group repeats each one: `uv.lock` then pins
+    what the suite runs the script against, and the suite needs no network to run it.
+    """
     pyproject = (PLUGIN_ROOT / "pyproject.toml").read_text()
-    declared = {
-        str(requirement)
-        for script in schema_model.BUNDLED_PACKAGES.glob("*/scripts/*.py")
-        for requirement in packages_model.script_requirements(script)
-    }
-    assert "unidiff>=1" in declared
+    scripts = sorted(schema_model.BUNDLED_PACKAGES.glob("*/scripts/*.py"))
+    assert scripts
+    declared = set()
+    for script in scripts:
+        metadata = bundled_script_metadata(script)
+        constraints = [metadata[key] for key in ["requires-python"] if key in metadata]
+        for value in metadata.get("dependencies", []):
+            requirement = Requirement(value)
+            assert requirement.url is None, (script, value)
+            constraints.append(str(requirement.specifier))
+            declared.add(str(requirement))
+        for constraint in constraints:
+            assert {spec.operator for spec in SpecifierSet(constraint)} == {">="}, (
+                script,
+                constraint,
+            )
     # Bundled packages never pass through `package install`, so hold their scripts
     # to the same check here.
-    for package in {
-        script.parent.parent
-        for script in schema_model.BUNDLED_PACKAGES.glob("*/scripts/*.py")
-    }:
+    for package in {script.parent.parent for script in scripts}:
         checked = CliRunner().invoke(cli_model.cli, ["package", "check", str(package)])
         assert checked.exit_code == 0, checked.output
     assert [

@@ -22,6 +22,7 @@ import { leavesBox } from "../thread/landing.js";
 import { claimsEsc, documentFocused } from "./scopes.js";
 import { DISCLOSE, DISCLOSURE_SELECTOR, disclosed } from "./disclosure.js";
 import { nativeLayers } from "./layer-stack.js";
+import { LINK } from "./text-entry.js";
 import { pageCommand, pageRung, pageScope } from "./register.js";
 
 // Where the user is standing, when what they are standing on is one of the page's own
@@ -59,7 +60,7 @@ function standingOn(name, title, sel, rows) {
 // A link's press is the browser's whole answer, so this row binds no `run`: it promises
 // nothing the browser does not already do, and what it adds is the promise being on
 // screen. Enter alone, Space under a link being the page's own scroll.
-standingOn("link", "On a link", "a[href]", [
+standingOn("link", "On a link", LINK, [
   { id: "link.follow", keys: ["Enter"], title: "Follow" },
 ]);
 

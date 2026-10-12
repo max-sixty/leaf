@@ -22,12 +22,12 @@
    checkbox, Escape, or unrelated function keys merely because they are form-related.
    Radio and slider navigation has its own narrow claim at the focused control, so
    an arrow changes that control without also moving its containing widget. Open select
-   options retain typeahead when focus moves into their list. Native activation, Enter on
-   a link and Enter or Space on a button, is the narrowest claim: it withholds its press
-   from every outer row that would run something and leaves the rows that only name the
-   press (`nativeActivationAt`). An exact element scope stands before these native claims,
-   so a wired text field keeps its own Escape or submit binding; the claims then stand
-   before ancestor widget scopes.
+   options retain typeahead when focus moves into their list. Native activation, such as
+   Enter on a link or Space on a button, is the narrowest claim: it withholds its press
+   from every outer row that would run something else and leaves the rows that only name
+   the press (`nativeActivationAt`). An exact element scope stands before these native
+   claims, so a wired text field keeps its own Escape or submit binding; the claims then
+   stand before ancestor widget scopes.
 
    One box inside another scope states only what it does differently. The find box
    registers Enter on the exact input to enter the first search result. Its Escape uses
@@ -278,34 +278,43 @@ export function stack(binding = null) {
 // than DOM ancestors, so their rows retain the existing live-command resolution instead
 // of shadowing siblings.
 //
-// Native activation at the focused control is narrower: it takes its press from every row
-// beyond it that would run something, whether its own `run`, a routed command, or a click
-// on a `control`, and leaves the rows that only name the press. So `takes` asks about a
-// row where it has one, and an ancestor's implemented binding that activation took owns
-// nothing further out: a link's Follow still names the press under a container's Enter.
+// Native activation at the focused control is narrower. It takes its press from every
+// row beyond the control that would run something else, whether its own `run`, a routed
+// command, or a click on another `control`, and leaves the rows that only name the press.
+// A scope rooted at the focused control speaks for that control, as its exact element
+// scope does: a disclosure's toggle or a thread title's reply keeps its press. A page
+// scope rooted at focus that stands over a whole surface, as the thread scope does,
+// therefore keeps its Enter and Space rows dead anywhere but on its own subject. A
+// contextual alias follows native activation as it follows native editing. So `takes`
+// asks about the row and its scope where it has them, and an ancestor's implemented
+// binding that activation took owns nothing further out: a link's Follow still names the
+// press under a container's Enter.
 const ownsLeafInvocation = (row) =>
   Boolean(row.run) || commandRoutes(row).some((route) => routedCommand(route));
-const invokesLeaf = (row) =>
-  ownsLeafInvocation(row) ||
-  row.control != null ||
-  commandRoutes(row).some((route) => route.control != null);
+const runsElsewhere = (row, scope, control) => {
+  if (!scope.contextual && scopeRoot(scope) === control) return false;
+  const controls = [row, ...commandRoutes(row)].map((part) => word(part.control));
+  if (controls.includes(control)) return false;
+  return ownsLeafInvocation(row) || controls.some((each) => each != null);
+};
 export const shadow = () => {
   const claims = [];
-  const activations = [];
+  let activation = null;
   return {
-    takes: (binding, row) =>
+    takes: (binding, row, scope) =>
       claims.some((c) => c(binding)) ||
-      (row !== undefined && activations.some((c) => c(binding)) && invokesLeaf(row)),
+      (row !== undefined &&
+        Boolean(activation?.claims(binding)) &&
+        runsElsewhere(row, scope, activation.control)),
     past: (scope) => {
       if (scope.claims) claims.push(scope.claims);
-      if (scope.activation) activations.push(scope.activation);
+      if (scope.activation)
+        activation = { claims: scope.activation, control: scope.root };
       const owned = scope.el
         ? scope.rows
             .filter(ownsLeafInvocation)
             .flatMap(bindings)
-            .filter(
-              (binding) => binding !== "Escape" && !activations.some((c) => c(binding)),
-            )
+            .filter((binding) => binding !== "Escape" && !activation?.claims(binding))
         : [];
       if (owned.length) claims.push((binding) => owned.includes(binding));
     },
@@ -399,7 +408,7 @@ export function lineOwner(binding) {
     const owners = scope.rows.filter(
       (row) =>
         bindings(row).includes(binding) &&
-        !nearer.takes(binding, row) &&
+        !nearer.takes(binding, row, scope) &&
         commandEntries(row, [binding]).length > 0 &&
         lineOf(row) !== false,
     );
@@ -451,7 +460,7 @@ export function dispatchKey(ev, { beforeCommand }) {
       // `nearer.past(scope)` still records its ordinary declarations before the walk
       // reaches an outer scope, while Escape continues to the next live unwind.
       const binding = bindings(row).find((b) => answers(b, ev));
-      if (!binding || nearer.takes(binding, row) || !live(row)) continue;
+      if (!binding || nearer.takes(binding, row, scope) || !live(row)) continue;
       const entry = commandEntries(row, [binding])[0];
       const invocation = invocationFor(row, binding, entry, recovered);
       if (!invocation) continue;
@@ -497,7 +506,7 @@ const reachableBindings = (row, scope, nearer, unclaimedEscape, commands) =>
       ? true
       : binding === "Escape"
         ? unclaimedEscape.has(scopeIdentity(scope))
-        : !nearer.takes(binding, row),
+        : !nearer.takes(binding, row, scope),
   );
 function commandMatching(matches, commands = false) {
   const unclaimedEscape = unclaimedScopes("Escape");

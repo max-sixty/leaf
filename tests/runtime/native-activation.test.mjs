@@ -8,7 +8,10 @@ import {
   lineOwner,
 } from "../../skills/leaf/assets/runtime/keyboard/dispatch.js";
 import { registerCoveringAuxiliarySurface } from "../../skills/leaf/assets/runtime/keyboard/register.js";
-import { keys } from "../../skills/leaf/assets/runtime/keyboard/scopes.js";
+import {
+  keys,
+  reflectFirstScopes,
+} from "../../skills/leaf/assets/runtime/keyboard/scopes.js";
 
 registerCoveringAuxiliarySurface(() => null);
 
@@ -36,7 +39,12 @@ test("Enter and Space on a link or button inside a container stay native", () =>
   link.textContent = "elsewhere";
   const button = document.createElement("button");
   button.textContent = "Press";
-  container.append(link, button);
+  const disclosure = document.createElement("button");
+  disclosure.setAttribute("aria-expanded", "false");
+  disclosure.textContent = "More";
+  let toggled = 0;
+  disclosure.addEventListener("click", () => toggled++);
+  container.append(link, button, disclosure);
   document.body.append(container);
   let acted = 0;
   keys(container, "In a container", [
@@ -66,7 +74,42 @@ test("Enter and Space on a link or button inside a container stay native", () =>
     assert.deepEqual(press("Enter"), native);
     assert.deepEqual(press(" "), native);
     assert.equal(acted, 3);
+
+    // A disclosure's own scope speaks for the button: it keeps the press and its name.
+    disclosure.focus();
+    const toggle = { handled: true, prevented: true, named: "disclosure.toggle" };
+    assert.deepEqual(press("Enter"), toggle);
+    assert.deepEqual(press(" "), toggle);
+    assert.equal(toggled, 2);
+    assert.equal(acted, 3);
   } finally {
     container.remove();
+  }
+});
+
+test("a context alias on a button yields its Enter and Space, as dispatch and aria agree", () => {
+  const button = document.createElement("button");
+  button.textContent = "Act";
+  document.body.append(button);
+  let acted = 0;
+  keys(button, "On a button", [
+    {
+      id: "button.act",
+      keys: ["y"],
+      contextKeys: ["Enter", " "],
+      title: "act",
+      run: () => acted++,
+    },
+  ]);
+  try {
+    reflectFirstScopes();
+    button.focus();
+    const native = { handled: false, prevented: false, named: null };
+    assert.deepEqual(press("Enter"), native);
+    assert.deepEqual(press(" "), native);
+    assert.equal(acted, 0);
+    assert.equal(button.getAttribute("aria-keyshortcuts"), "y");
+  } finally {
+    button.remove();
   }
 });

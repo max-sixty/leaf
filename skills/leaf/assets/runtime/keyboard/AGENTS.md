@@ -27,9 +27,11 @@ page scopes, then the browser. An implemented declaration gets first refusal whi
 (`dispatch.js`'s `standing`: the user is in it and the page has it); if its command is
 unavailable, the press does not fall through to another Leaf meaning. Text entry keeps
 characters, composition, caret movement, and deletion ahead of ancestor widgets; an
-exact control may still claim Enter or its own Escape step. A link keeps its Enter and
-a button its Enter and Space the same way: no scope around them runs a command on that
-press, and a row that only names it, such as a link's Follow, still names it.
+exact control may still claim Enter or its own Escape step. A native control keeps its
+activation press, such as Enter on a link or Space on a button: no widget or page scope
+around it runs another command on that press, while a mode that owns the keyboard still
+does. Unlike the text-entry claim, a row that only names the press, such as a link's
+Follow, still names it.
 
 ## Escape
 

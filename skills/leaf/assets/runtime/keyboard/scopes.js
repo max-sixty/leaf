@@ -449,7 +449,8 @@ export function merge(sections, { title, when, at, liveInCommandReference, rows 
  * optional configuration carries `when` (whether the page has this scope at all) and
  * `escape: "inner"` when this scope owns a cancellation step ahead of every step the
  * ladder offers. A function in the fourth position is shorthand for `{when: function}`.
- * A link or button inside `where` keeps its own Enter and Space (`nativeActivationAt`).
+ * A link, button or other native control inside `where` keeps its own activation
+ * press (`nativeActivationAt`).
  *
  * A scope's `when` and a row's `when` are different questions, and keeping them apart is
  * what lets one declaration feed both surfaces. The scope's is the capability — does this

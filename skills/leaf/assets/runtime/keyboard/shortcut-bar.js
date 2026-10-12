@@ -276,7 +276,7 @@ function lineRows(scopes) {
           ? escape?.visible &&
             scopeIdentity(escape.scope) === scopeIdentity(scope) &&
             escape.row === row
-          : !named.has(binding) && !nearer.takes(binding, row),
+          : !named.has(binding) && !nearer.takes(binding, row, scope),
       );
       return active.length ? [effectiveRow(row, bound, active)] : [];
     });

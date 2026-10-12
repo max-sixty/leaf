@@ -44,21 +44,26 @@ export function nativeClaimAt(control) {
     : null;
 }
 
-// Native activation: Enter follows a link, and Enter or Space presses a button. The press
-// belongs to the focused control, so no scope above it runs a Leaf command on it: a
-// container answering Enter, such as a code block's Copy, leaves a link or button inside
-// it its own press. A row that only names the press, with nothing of its own to run (a
-// link's Follow, a list naming what its buttons open), still names it, since the browser
-// does what it says. The control's own exact scope stands nearer and may take the press.
-// Modified presses stay with the scopes: they are the browser's or Leaf's shortcuts, not
-// activation. A span offered with a button's role has no platform activation, so its
-// owner declares the press (`selectableOffer`).
+// Native activation: Enter follows a link, Enter or Space presses a button or works a
+// <summary>, and Space checks a checkbox or radio button. The press belongs to the focused
+// control, so no scope above it runs a different Leaf command on it: a container
+// answering Enter, such as a code block's Copy, leaves a link or button inside it its own
+// press. A row that only names the press, with nothing of its own to run (a link's
+// Follow, a list naming what its buttons open), still names it, since the browser does
+// what it says. The control's own scopes stand nearer and may take the press, whether
+// its exact element scope or a page scope rooted at it (dispatch.js, `shadow`), while a
+// contextual alias on it yields, as it yields to native editing. Modified presses stay
+// with the scopes: they are the browser's or Leaf's shortcuts, not activation. A span
+// offered with a button's role has no platform activation, so its owner declares the
+// press (`selectableOffer`).
+export const LINK = "a[href], area[href]";
 const ACTIVATION = [
-  ["a[href], area[href]", ["Enter"]],
+  [LINK, ["Enter"]],
   [
-    'button, input:is([type="button"], [type="submit"], [type="reset"], [type="image"])',
+    'button, details > summary, input:is([type="button"], [type="submit"], [type="reset"], [type="image"])',
     PRESS,
   ],
+  ['input:is([type="checkbox"], [type="radio"])', [" "]],
 ];
 export function nativeActivationAt(control) {
   const presses = ACTIVATION.find(([selector]) => control?.matches?.(selector))?.[1];

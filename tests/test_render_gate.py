@@ -3687,12 +3687,17 @@ def test_reader_state_observes_behavior_without_freezing_the_dom(browser, serve)
 # page with nothing for a drawer has no door to it. Escape unwinds any of them to the
 # page (keyboard/AGENTS.md); the ones Go-to opens take the most presses. A new surface
 # joins by its keys.
+#
+# A page has a thread card to open when the Threads control counts an open thread, in
+# its `data-lf-count` (banner.js). Its words are no door: Playwright's `:text-matches`
+# matches the smallest element holding them, the label inside the control.
+OPEN_THREADS = '.lf-threads-toggle[data-lf-count]:not([data-lf-count="0"])'
 SURFACES = {
     "composer": (["c"], None),
     "target picker": (["s"], None),
     "page search": (["/"], None),
     "go-to": (["g"], None),
-    "thread card": (["t"], '.lf-threads-toggle:text-matches("Threads: [1-9]")'),
+    "thread card": (["t"], OPEN_THREADS),
     "threads panel": (["g", "Shift+t"], None),
     "questions panel": (["g", "Shift+q"], ".lf-btn.lf-queue"),
     "leaves drawer": (["g", "Shift+l"], ".lf-btn.lf-others"),
@@ -3917,10 +3922,7 @@ TYPED_BOXES = {
     "comment on an item": lambda page: into_the_page(page) and ["c"],
     "comment on the page": lambda page: ["c"],
     "thread card reply": lambda page: (
-        page.locator(
-            '.lf-threads-toggle:text-matches("Threads: [1-9]")'
-        ).first.is_visible()
-        and ["t", "c"]
+        page.locator(OPEN_THREADS).first.is_visible() and ["t", "c"]
     ),
 }
 

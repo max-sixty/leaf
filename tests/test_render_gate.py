@@ -879,7 +879,7 @@ def test_recursive_rows_share_the_window_and_keep_pane_furniture_in_view(
 
 
 def test_a_broken_probe_module_is_a_gate_finding(browser, serve):
-    """A missing public export names the browser boundary instead of raising a traceback.
+    """A probe module fault names the browser boundary instead of raising a traceback.
 
     The neighboring stalled-module test owns the short deadline. This test uses the
     gate's default so the module rejection, rather than the driver's timeout, supplies
@@ -892,7 +892,7 @@ def test_a_broken_probe_module_is_a_gate_finding(browser, serve):
             lambda route: route.fulfill(
                 status=200,
                 content_type="text/javascript; charset=utf-8",
-                body='import { missingForTest } from "/runtime/widget-api.js";',
+                body='throw new Error("probe module failed for test");',
             ),
         )
 
@@ -902,7 +902,7 @@ def test_a_broken_probe_module_is_a_gate_finding(browser, serve):
 
     assert failures
     assert all("browser probe module failed" in failure for failure in failures)
-    assert all("missingForTest" in failure for failure in failures)
+    assert all("probe module failed for test" in failure for failure in failures)
 
 
 def test_an_async_wait_probe_is_refused_instead_of_passing_as_a_promise(browser, serve):

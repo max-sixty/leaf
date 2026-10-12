@@ -386,3 +386,48 @@ test("zoom clearance reaches the solver through the floating driver", async () =
     floating.remove();
   }
 });
+
+test("a carried surface stands where it was dropped, past the attachment limit", async () => {
+  const ui = await import("/vendor/floating-ui.esm.js");
+  // One line of words, with the whole room right of it.
+  const clear = block(300, 300, 300, 330);
+  const dimensions = () => ({ width: 320, height: 100 });
+  const platform = {
+    getElementRects: ({ reference }) => ({
+      reference: reference.getBoundingClientRect(),
+      floating: { x: 0, y: 0, ...dimensions() },
+    }),
+    getOffsetParent: () => window,
+    getDimensions: dimensions,
+    getClippingRect: () => boundary,
+    convertOffsetParentRelativeRectToViewportRelativeRect: ({ rect }) => rect,
+    isElement: () => false,
+    getDocumentElement: () => document.documentElement,
+    isRTL: () => false,
+  };
+  const dropped = new DOMRect(700, 600, 320, 100);
+  const stand = async (moved) => {
+    const rule = commentPlacement();
+    const input = { clear, boundary, scroller: scroller(1000), coarse: false };
+    rule.choose(input);
+    rule.adopt({ box: dropped, placement: { ...rule.capture(), moved } });
+    assert.equal(rule.choose(input).fresh, false);
+    const { reference, placement, middleware } = rule.options(ui, {
+      clear,
+      row: clear.top,
+      boundary,
+      fit() {},
+    });
+    return ui.computePosition(
+      { getBoundingClientRect: () => reference },
+      document.body,
+      { placement, middleware, platform, strategy: "fixed" },
+    );
+  };
+  // Handed over by Send, a frame below its words is held level with them.
+  const handed = await stand(false);
+  assert.ok(handed.y <= clear.top, `${handed.y}`);
+  // Carried there by the user, it stands where it was put.
+  const carried = await stand(true);
+  assert.deepEqual([carried.x, carried.y], [dropped.left, dropped.top]);
+});

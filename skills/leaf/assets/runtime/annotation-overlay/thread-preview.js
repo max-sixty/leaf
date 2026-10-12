@@ -65,6 +65,7 @@ import {
 } from "./comment-placement.js";
 import { passageGeometry } from "../resolved-target.js";
 import { floatingPlacement, floatingUi } from "./floating.js";
+import { surfaceGrip } from "./surface-grip.js";
 import { placeKeeper } from "../user-place.js";
 import { under } from "../shadow.js";
 import { retainUserIntent } from "../user-intent.js";
@@ -115,7 +116,22 @@ export function createThreadPreview({
   previewNext.title = "Next thread";
   previewNav.append(previewPrevious, previewPosition, previewNext);
   const previewList = el("div", "lf-margin-preview-list");
-  preview.append(previewList);
+  // Carried by its grip, the card stands where the user drops it, relative to what it is
+  // about, at the width it was carried at, until its placement chooses afresh.
+  const grip = surfaceGrip({
+    surface: preview,
+    dropped(box) {
+      const session = previewSession;
+      if (!session) return;
+      session.carried = box.width;
+      session.side.adopt({
+        box,
+        placement: { ...session.side.capture(), moved: true },
+      });
+      placeThreadPreview();
+    },
+  });
+  preview.append(grip, previewList);
   let previewRegionMounted = false;
   // The card's transcript is re-rendered on every reading of its thread; a message holds
   // the user's place in it under the event id it is rendered with (user-place.js).
@@ -456,7 +472,12 @@ export function createThreadPreview({
               end: !fresh && atScrollEnd(session.transcript),
               latest: session.arriving,
             };
-            const room = Math.min(cardMeasure(), width);
+            if (fresh) session.carried = null;
+            const room = Math.min(
+              cardMeasure(),
+              width,
+              (session.carried ?? Infinity) / scale.x,
+            );
             preview.style.setProperty(
               "--lf-thread-min-width",
               layoutPx(Math.min(cardMinimum(), room)),
@@ -595,6 +616,7 @@ export function createThreadPreview({
       place: null,
       stopRegion: null,
       side: commentPlacement(),
+      carried: null,
     };
     carryCommentFrame(origin);
     if (origin) previewSession.side.adopt(origin.frame);

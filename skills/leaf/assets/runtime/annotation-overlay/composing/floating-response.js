@@ -39,6 +39,7 @@ import { LAYOUT } from "../../widget-elements.js";
 import { under } from "../../shadow.js";
 import { union } from "../../rect.js";
 import { floatingPlacement, floatingUi } from "../floating.js";
+import { surfaceGrip } from "../surface-grip.js";
 import {
   commentAttachment,
   commentReference,
@@ -75,6 +76,22 @@ export function createFloatingResponsePlacement({
     update: () => scheduleFabPosition(),
   });
   let nativeAttachment = false;
+  // Carried by its grip, the box stands where the user drops it, relative to its
+  // passage, and its card opens there on Send.
+  fabBar.append(
+    surfaceGrip({
+      surface: fabBar,
+      dropped(box) {
+        if (!response.open || !response.floating) return;
+        fabPlacement.adopt({
+          box,
+          placement: { ...fabPlacement.capture(), moved: true },
+        });
+        nativeAttachment = false;
+        placeFab();
+      },
+    }),
+  );
   // The browser's selected Range is a mechanical place even when its durable quote
   // is ambiguous. Keep it for this response transaction, only while its original
   // endpoints survive. A revision replacing them retires it; semantic resolution
@@ -347,6 +364,7 @@ export function createFloatingResponsePlacement({
     };
     fabPlacement.choose({
       clear: place.clear,
+      row: place.row,
       column: place.column,
       extent: place.extent,
       boundary,

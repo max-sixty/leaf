@@ -567,9 +567,6 @@ Revisit these when their stated trigger becomes real; they are not an active que
   A disposable full-history rewrite saved about 27 MiB. Coordinate the rewrite
   across remote refs and local worktrees, retaining the commit mapping and testing
   that updates preserve active work without restoring the removed history.
-- **Consider dragging thread cards and comment boxes.** Once both share placement,
-  try temporary, passage-relative movement from a handle. Keep it only if scrolling,
-  typing, and resizing stay predictable and the implementation stays simple.
 - **Calibrate agent-driven UI diagnosis.** Try one known miss and one intentional or
   invalid control with a bounded explorer and cold user. The
   [quality brief](notes/agent-driven-ui-quality.md) also proposes a Tend acceptance-policy

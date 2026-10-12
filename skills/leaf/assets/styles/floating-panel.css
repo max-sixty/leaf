@@ -191,6 +191,10 @@ html[data-lf-floating-chrome] .lf-chrome {
 
   @media screen and (width <= 480px) {
     .lf-fp-desk { display: none; }
+    /* Where the words go takes its own line, and the thread's actions the next. */
+    .lf-fp-to { flex-wrap: wrap; padding-left: calc(var(--lf-fp-inset) + 8px); }
+    .lf-fp-dest { flex-basis: 100%; padding-top: 4px; }
+    .lf-fp-to button { margin-left: -8px; margin-right: 8px; }
   }
   @media (prefers-reduced-motion: reduce) {
     .lf-fp-peek { transition: none; }

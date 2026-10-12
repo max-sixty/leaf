@@ -59,7 +59,7 @@ import { reducedMotion } from "./motion.js";
 import { pagePresented } from "./page-paint.js";
 import { focusDestination, focused, onStanding, releaseFocus } from "./focus.js";
 import { sizeObserver } from "./rendering.js";
-import { agentName, watchSemantic } from "./semantic-state.js";
+import { watchSemantic } from "./semantic-state.js";
 
 const prefs = () => document.documentElement.lfChrome;
 // The Codex panel's tween: one strong ease-out for every change of size and fade.
@@ -210,6 +210,12 @@ export function createFloatingPanel({ wireInput, threadActions, read, openThread
     return words.join(" · ");
   };
   const rows = () => bannerRows();
+
+  // Who a reply goes to: the agent that has spoken in the thread, by its own name.
+  const replyWords = (thread) => {
+    const agent = thread.msgs.findLast((message) => message.author === "agent")?.agent;
+    return agent ? `Reply in this thread · to ${agent}` : "Reply in this thread";
+  };
 
   // ---------- navigation ----------
   const routeKey = (route) =>
@@ -763,8 +769,8 @@ export function createFloatingPanel({ wireInput, threadActions, read, openThread
                 thread
                   ? thread.resolved
                     ? "Resolved · its history stays here"
-                    : `Reply in this thread · to ${agentName()}`
-                  : `Comment on this page · to ${agentName()}`
+                    : replyWords(thread)
+                  : "Comment on this page"
               }</span
             >${
               thread

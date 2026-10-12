@@ -1301,9 +1301,11 @@ stateDiagram-v2
             <h2>The four records behind the lists</h2>
             <p>
               Each record below is registered its own way and kept in its own place. A
-              list item is one of them read out, or a resend. An ask's source holds it,
-              the markup or the thread, so no event opens one; a to-do is the only one
-              an event opens and an event ends.
+              list item is one of them read out, or a resend. A widget ask comes from
+              the markup with no event of its own, and a prose ask from the agent's
+              message that asks it. A to-do opens with a <code>todo</code> event or a
+              reply that carries one, and ends with <code>todo_end</code>, which also
+              withdraws a prose ask.
             </p>
             <table id="map-records" data-width="wide">
               <thead>
@@ -1370,7 +1372,10 @@ stateDiagram-v2
                     <code>--on user</code> for one on you, or a reply with
                     <code>--todo TITLE</code>
                   </td>
-                  <td>A <code>todo</code> event</td>
+                  <td>
+                    A <code>todo</code> event, or a reply event carrying
+                    <code>todo</code>
+                  </td>
                   <td>
                     A <code>todo_end</code> event, written by
                     <code>leaf task end</code> or your Done, or a stamp with

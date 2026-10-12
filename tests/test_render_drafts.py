@@ -75,6 +75,7 @@ from render_harness import (
     sending,
     shortcut_bar_text,
     stamp_page,
+    stored_draft,
     stored_draft_settled,
     stored_draft_text,
     take_browser_errors,
@@ -1865,9 +1866,15 @@ def test_a_reply_behind_a_refused_parent_is_withdrawn_rather_than_sent(
     assert not [
         route for route in held if "pending:" in (route.request.post_data or "")
     ], "a gesture reached the wire naming a thread the log never took"
-    # The thread went with its parent, so the reply's words wait with the parent's draft.
+    # The thread went with its parent, so the reply's words wait in the parent's draft.
     assert stored_draft_text(page, f"reply:{attempt}") is None
-    assert stored_draft_text(page, "reply-after:general") == words
+    assert (
+        page.evaluate(
+            "([read, ctx]) => read(ctx)?.held ?? null",
+            [stored_draft(page), "general"],
+        )
+        == words
+    )
     consume_browser_errors(page, "400")
 
 
@@ -1955,6 +1962,67 @@ def test_a_reply_under_a_refused_parent_comes_back_with_it(
             else [f'typed words left the screen without a key or press: "{reply}"']
         ),
     )
+
+
+def test_a_refused_comments_reply_travels_with_it_to_another_passage(
+    held_events, serve
+):
+    """The reply a refusal hands back is part of the comment's draft, so whatever moves
+    the draft moves the reply: carried with Alt-click to another passage and sent from
+    there, the comment's new thread has the reply back in its box."""
+    browser, held = held_events
+    page = open_page(browser, serve(LONG_PAGE))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    parent = "The anchored parent the server will refuse."
+    compose(page, "#p3", parent)
+    page.keyboard.press("Enter")
+    holding(page, held, 1, "the anchored parent")
+    card = page.locator('.lf-threads .lf-thread[data-id^="pending:"]')
+    expect(card).to_have_count(1)
+    reply = "A reply under the anchored parent."
+    write(card.locator("leaf-text").first, reply)
+    card.get_by_role("button", name="Send", exact=True).click()
+
+    attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        held.pop(0).fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+    expect(page.locator(".lf-notice")).to_contain_text(
+        "Reply kept — it returns when its comment sends"
+    )
+
+    page.locator("h1").click()
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", parent)
+    page.locator("#p5").scroll_into_view_if_needed()
+    page.locator("#p5").click(modifiers=["Alt"])
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", parent)
+    page.keyboard.press("Enter")
+    holding(page, held, 1, "the parent sent from its new passage")
+    held.pop(0).continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    sent = next(
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("text") == parent
+    )
+    assert sent["anchor"]["section"] == "p5"
+    thread = page.locator(f'.lf-thread[data-id="{sent["id"]}"]')
+    expect(thread.locator("leaf-text").first).to_have_js_property("value", reply)
+    consume_browser_errors(page, "400")
 
 
 def test_a_refused_comment_takes_its_message_back_and_returns_the_words(

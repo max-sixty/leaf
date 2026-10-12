@@ -29,7 +29,7 @@
    writing in it when the revision came; no other hidden editor is opened by this
    mechanical handoff, and a newer edit is never overwritten by it.
 
-   A draft generation stores `{text, attempt, base, payload?}` while active and
+   A draft generation stores `{text, attempt, base, payload?, held?}` while active and
    `{attempt, base, settled: true}` after settlement. Its attempt is minted when an edit
    creates the generation, not on Send, and is reused by every tab that sends it.
    A refusal does not mint a new attempt. Pressing Send again re-evaluates the same
@@ -149,8 +149,9 @@ const parseDraftRecord = (value) => {
             (!record.payload ||
               typeof record.payload !== "object" ||
               Array.isArray(record.payload))) ||
+          (record.held !== undefined && typeof record.held !== "string") ||
           Object.keys(record).some(
-            (key) => !["attempt", "text", "base", "payload"].includes(key),
+            (key) => !["attempt", "text", "base", "payload", "held"].includes(key),
           ))
     )
       return null;
@@ -264,7 +265,7 @@ const settleDraft = (ctx, attempt) => {
   draftCache.set(ctx, { record, durable });
   return true;
 };
-export const saveDraft = (ctx, text, payload) => {
+export const saveDraft = (ctx, text, payload, held = carriedHeld(ctx)) => {
   const cached = draftCache.get(ctx);
   const previous = rawDraftRecord(ctx);
   // A series of local edits whose writes all fail is one branch from the last shared
@@ -276,10 +277,32 @@ export const saveDraft = (ctx, text, payload) => {
     attempt: randomId(),
     base,
     ...(payload === undefined ? {} : { payload }),
+    ...(held ? { held } : {}),
   };
   const durable = writeDraftRecord(ctx, record);
   draftCache.set(ctx, { record, durable });
   return durable;
+};
+// A reply a refusal handed back to the draft whose message opened its thread
+// (`keepRefusedWords`) is part of that draft: every edit of it keeps the reply, and
+// whatever moves the draft moves the reply with it (`transferDraft`). A generation in
+// flight has already put its reply in the thread its send opened (`sendMessage`), so an
+// edit made meanwhile starts without it.
+const carriedHeld = (ctx) => {
+  const previous = rawDraftRecord(ctx);
+  return previous && !previous.settled && standingGestures.get(ctx) !== previous.attempt
+    ? previous.held
+    : undefined;
+};
+// Set the held reply on the draft's standing generation without minting another: the
+// refused attempt stays the one a resend re-evaluates.
+const holdReply = (ctx, held) => {
+  const current = activeDraftRecord(ctx);
+  if (!current) return false;
+  const { held: _, ...rest } = current;
+  const record = held ? { ...rest, held } : rest;
+  draftCache.set(ctx, { record, durable: writeDraftRecord(ctx, record) });
+  return true;
 };
 export const clearDraft = (ctx) => {
   const current = rawDraftRecord(ctx);
@@ -293,9 +316,10 @@ export const clearDraft = (ctx) => {
 // that value durably before settling the exact source generation, so a later source
 // edit is never discarded. A failed destination write keeps its local branch and the
 // persisted source. Every live destination view reads the same transferred draft.
-// This explicit content move also moves Resume writing, with the source's caret, unless
-// the destination is no box the user can resume in (`resume: false`).
-export function transferDraft(from, to, text, { resume = true } = {}) {
+// This explicit content move also moves Resume writing, with the source's caret, and the
+// reply the source holds (`held`): a reply box opens no thread, so there the reply's
+// words join the moved words.
+export function transferDraft(from, to, text) {
   const source = activeDraftRecord(from);
   if (!source || from === to) return false;
   const editor =
@@ -305,16 +329,18 @@ export function transferDraft(from, to, text, { resume = true } = {}) {
     writingPlace?.context === from
       ? writingPlace.selection
       : readCaret(editor && editorInput(editor));
-  const durable = saveDraft(to, text);
-  if (resume)
-    keepWritingPlace({
-      context: to,
-      selection: selection ?? [0, 0],
-      generation: randomId(),
-    });
+  const held = carriedHeld(from) ?? null;
+  const durable = to.startsWith("reply:")
+    ? saveDraft(to, held ? `${text}\n\n${held}` : text, undefined, null)
+    : saveDraft(to, text, undefined, held);
+  keepWritingPlace({
+    context: to,
+    selection: selection ?? [0, 0],
+    generation: randomId(),
+  });
   if (durable && settleDraft(from, source.attempt))
     projectDraftRecord(from, draftCache.get(from).record);
-  tellDraft(to, text);
+  tellDraft(to, activeDraftRecord(to)?.text ?? text);
   return true;
 }
 export const loadDraft = (ctx) => activeDraftRecord(ctx)?.text ?? null;
@@ -431,14 +457,14 @@ export function sendMessage(ctx, owns, send) {
   }
   // A first message opens a thread keyed by its attempt. Until the log takes it, the
   // draft it was sent from owns what is written under it, and a reply a refusal handed
-  // back to that draft goes on to the thread this send opens (`keepRefusedWords`).
+  // back to that draft (`held`) stands in the box of the thread this send opens.
   if (!ctx.startsWith("reply:")) {
     openedFrom.set(current.attempt, ctx);
-    const held = activeDraftRecord(heldReply(ctx));
-    if (held?.text)
-      transferDraft(heldReply(ctx), `reply:${current.attempt}`, held.text, {
-        resume: false,
-      });
+    const under = `reply:${current.attempt}`;
+    if (current.held && !activeDraftRecord(under)) {
+      saveDraft(under, current.held);
+      tellDraft(under, current.held);
+    }
   }
   // A sent first message now has a durable conversation identity: its attempt is
   // the thread key before and after admission. Continue there, with an empty reply.
@@ -467,12 +493,10 @@ export function sendMessage(ctx, owns, send) {
   return { attempt: current.attempt, id: `${PENDING}${current.attempt}` };
 }
 
-// The draft each first message still in flight was sent from, by its attempt, and the
-// context where that draft holds a reply written under the thread a refusal withdrew.
-// The draft, not the attempt, is what lasts: a refusal keeps the attempt only until the
+// The draft each first message still in flight was sent from, by its attempt. The
+// draft, not the attempt, is what lasts: a refusal keeps the attempt only until the
 // user edits the words, and the thread comes back under whichever one is sent.
 const openedFrom = new Map();
-const heldReply = (ctx) => `reply-after:${ctx}`;
 
 // Existing draft subscriptions own current editor identity and lifetime. The store
 // supplies active words and an optional submission payload, or null and no payload
@@ -548,10 +572,11 @@ export function forgetWritingPlace(ctx) {
 //
 // A thread this tab opened goes with its first message, and with it the box under it,
 // whose draft keys by that message's attempt (`reply:<attempt>`), whether its words were
-// sent behind the message or still unsent. Those words go to the draft the message was
-// sent from (`openedFrom`), which carries them to the thread its next send opens, edited
-// or not (`sendMessage`); Resume writing standing in the withdrawn box moves to that
-// draft, the one place the user acts to get them back.
+// sent behind the message or still unsent. That box began with any reply the draft held,
+// so its words now are the draft's held reply (`held`), part of the draft the message
+// was sent from (`openedFrom`), which brings them to the thread its next send opens,
+// edited, carried elsewhere or not (`sendMessage`). Resume writing standing in the
+// withdrawn box moves to that draft, the one place the user acts to get them back.
 //
 // Words back in a box on screen need no sentence. Words back only in a box out of view
 // are the ones a refusal otherwise appears to lose, so they become the Resume writing
@@ -563,16 +588,13 @@ export function keepRefusedWords(attempts) {
     const from = openedFrom.get(attempt);
     openedFrom.delete(attempt);
     const under = `reply:${attempt}`;
-    const reply = activeDraftRecord(under)?.text;
-    if (from === undefined || !reply) continue;
+    const box = activeDraftRecord(under);
+    if (from === undefined || !box || !holdReply(from, box.text)) continue;
     const resumed = writingPlace?.context === under;
-    const before = activeDraftRecord(heldReply(from))?.text;
-    transferDraft(under, heldReply(from), before ? `${before}\n\n${reply}` : reply, {
-      resume: false,
-    });
+    clearDraft(under);
     if (resumed)
       keepWritingPlace({ context: from, selection: [0, 0], generation: randomId() });
-    held += 1;
+    if (box.text) held += 1;
   }
   const returned = attempts.flatMap((attempt) => {
     const ctx = [...draftContexts()].find(

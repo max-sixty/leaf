@@ -379,6 +379,15 @@ export function createMarginProjection({
           });
           return options.visible.length + (options.spill ? 1 : 0) + 1;
         },
+        // Whether the pin, standing folded, shows its options beside the toggle. The
+        // row's own `data-lf-options-open` describes the face it stands in now, and an
+        // unfolded face shows its peers inline, so a row this pass folds reads it open.
+        open: () =>
+          clusterProjection(row.lfEntry, {
+            expandedKey: expandedOptionsKey,
+            expandedOwner: expandedOptionsOwner,
+            folded: true,
+          }).optionsOpen,
         // Told from inside the layout pass, which has already seated the row at its new
         // size: the cluster is presented again once that pass has written, before the
         // frame paints, however many rows it folded.

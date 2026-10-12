@@ -1,13 +1,13 @@
 """Leaf's fixed kernel facts, read off the kernel's own registry.
 
-`$events.kinds` and `$events.ownership` are the transport contract no layer can change
-(`layer.merge_layer_declarations`), and `$passages` is how a page reads as text, which
-the browser's generated copy (`runtime/passage-facts.js`) shares. Both are read from
-the running Leaf's shipped `registry.json` rather than from a page's composed
-vocabulary, which may be another Leaf's at the same protocol (`leaf.layer.PROTOCOL`).
-Reading them needs no schema validator, and this module imports none: the page
-service sorts every event by these kinds, including in a harness hook that validates
-nothing."""
+Every `$events` member but `handling` and `answering` is the transport contract no
+layer can change (`layer.merge_layer_declarations`), and `$passages` is how a page reads
+as text, which the browser's generated copy (`runtime/passage-facts.js`) shares. Both
+are read from the running Leaf's shipped `registry.json` rather than from a page's
+composed vocabulary, which may be another Leaf's at the same `protocol`
+(`kernel_protocol`). Reading them needs no schema validator, and this module imports
+none: the page service sorts every event by these kinds, including in a harness hook
+that validates nothing."""
 
 from functools import cache
 
@@ -34,6 +34,13 @@ def kernel_passages() -> dict:
 def kernel_event_kinds() -> dict:
     """The fixed event records produced and consumed by Leaf's kernel."""
     return _kernel_events()["kinds"]
+
+
+def kernel_protocol() -> int:
+    """The number of the contract between a page and the Leaf serving it, which a
+    page records by carrying the `$events` it was vendored with
+    (`layer.incompatible_layer`)."""
+    return _kernel_events()["protocol"]
 
 
 def kernel_event_ownership() -> dict:

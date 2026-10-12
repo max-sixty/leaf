@@ -65,7 +65,6 @@ from render_cases_navigation import (
 )
 from render_harness import (
     EXAMPLES,
-    FEATURE_GALLERY,
     INLINE_PAGE,
     LONG_PAGE,
     PASSAGE_SOURCES,
@@ -584,9 +583,19 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
         expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
 
-def test_gallery_revision_preserves_every_open_quoted_thread(browser, serve):
-    """A served gallery revision keeps two discussions beside their revised subject."""
-    url = live_url(serve(FEATURE_GALLERY))
+# One sentence two quoted threads discuss, which the agent's next revision rewrites.
+REVISED_QUOTES_PAGE = leaf_page(
+    "revised quotes",
+    """
+<h1 id="title">Rollout</h1>
+<p id="revised-quotes">The first draft uses an early estimate for the rollout.</p>
+""",
+)
+
+
+def test_a_revision_preserves_every_open_quoted_thread(browser, serve):
+    """A served revision keeps two discussions beside their revised subject."""
+    url = live_url(serve(REVISED_QUOTES_PAGE))
     roots = []
     for quote in ("first draft", "early estimate"):
         result = CliRunner().invoke(
@@ -596,7 +605,7 @@ def test_gallery_revision_preserves_every_open_quoted_thread(browser, serve):
                 "open",
                 str(serve.page_dir),
                 "--section",
-                "bg-revised-quotes",
+                "revised-quotes",
                 "--quote",
                 quote,
                 "--text",
@@ -606,7 +615,6 @@ def test_gallery_revision_preserves_every_open_quoted_thread(browser, serve):
         assert result.exit_code == 0, result.output
         roots.append(json.loads(result.output))
     page = open_page(browser, url)
-    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     for root in roots:
@@ -620,8 +628,7 @@ def test_gallery_revision_preserves_every_open_quoted_thread(browser, serve):
     )
     note = stamp_page(serve.page_dir, updated, "Refined the rollout wording.")
     wait_for_revision(page, note["revision"])
-    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
-    expect(page.locator("#bg-revised-quotes")).to_have_text(
+    expect(page.locator("#revised-quotes")).to_have_text(
         "The revised plan uses the current forecast for the rollout."
     )
     for root in roots:
@@ -640,7 +647,7 @@ def test_gallery_revision_preserves_every_open_quoted_thread(browser, serve):
         if event["kind"] == "reanchor"
     ]
     assert {event["thread"] for event in moves} == {root["id"] for root in roots}
-    assert all(event["anchor"] == {"section": "bg-revised-quotes"} for event in moves)
+    assert all(event["anchor"] == {"section": "revised-quotes"} for event in moves)
 
 
 @pytest.mark.parametrize("panes", [False, True], ids=["ask", "panes"])

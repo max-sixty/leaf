@@ -210,7 +210,7 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
     assert broken.returncode == 1, broken.stderr
     report = json.loads(broken.stdout)
     assert report["status"] == 1
-    assert report["browser"]["gates"] == ["render check"]
+    assert report["browser"]["asked"] == report["browser"]["ran"] == ["render check"]
     assert report["browser"]["browser"] == "Chrome"
     scrolls = [f for f in report["findings"] if f["code"] == "page-scrolls"]
     assert {f["scheme"] for f in scrolls} == {"light", "dark"}, report

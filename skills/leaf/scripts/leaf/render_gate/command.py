@@ -85,7 +85,8 @@ class BrowserCheck:
     """What the browser gates read of the candidate: `gates` names those asked for;
     `unavailable` says why no browser ran them, or is None where `browser` did. Page
     code that fails ends the check before the render reading, so `render` is None
-    there as well as where it was not asked for. `screens` is the directory and each
+    there as well as where it was not asked for, and `ran` names only the gates that
+    read the page. `screens` is the directory and each
     saved screen with what it shows, for a page the render gate passed."""
 
     gates: list[str]
@@ -103,8 +104,19 @@ class BrowserCheck:
     def findings(self) -> list[Finding]:
         return [*(self.page_code or []), *(self.render.findings if self.render else [])]
 
+    @property
+    def ran(self) -> list[str]:
+        return [
+            gate
+            for gate, reading in (
+                ("page code", self.page_code),
+                ("render check", self.render),
+            )
+            if reading is not None
+        ]
+
     def json(self) -> dict:
-        reading = {"gates": self.gates, "browser": self.browser}
+        reading = {"asked": self.gates, "ran": self.ran, "browser": self.browser}
         if self.unavailable is not None:
             reading["unavailable"] = self.unavailable
         if self.render is not None:

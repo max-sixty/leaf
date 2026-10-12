@@ -5,6 +5,7 @@ import json
 import pytest
 from leaf.render_gate import readings as render_gate_readings
 from leaf.render_gate import version as render_gate_model
+from leaf.render_gate.command import BrowserCheck
 from leaf.render_gate.findings import Finding
 
 
@@ -124,6 +125,19 @@ def test_a_finding_is_a_record_its_words_and_json_are_rendered_from():
     assert str(stalled) == (
         "[light] pre-upgrade proof failed: the document never reached an authored"
         " main; still requesting /page.css — 401 http://page/\nwarning: slow"
+    )
+
+
+def test_page_check_json_names_only_the_gates_that_read_the_page():
+    """Failing page code ends the check before the render gate reads anything, so
+    `--json` says the render check was asked for and did not run."""
+    failed = Finding("page-report", values={"text": "leaf: <lf-x> failed"})
+    check = BrowserCheck(
+        ["page code", "render check"], "Chrome", page_code=[failed]
+    ).json()
+    assert (check["asked"], check["ran"]) == (
+        ["page code", "render check"],
+        ["page code"],
     )
 
 

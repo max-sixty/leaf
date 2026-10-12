@@ -3,8 +3,10 @@
 `page check` prints its findings for a reader, or with `--json` one JSON object on
 stdout: `status`, the exit status; `findings`, every finding as
 `render_gate.findings.Finding.json` gives it, the markup checks' first; and `browser`,
-which gates ran in which browser, or why none could, with the render gate's margin
-widths and saved screens where it passed. `browser` is null where no gate needed one.
+the browser gates `asked` for and those that `ran` (failing page code ends the check
+before the render gate reads anything), in which browser or why none could, with the
+render gate's margin widths and saved screens where it passed. `browser` is null where
+no gate needed one.
 """
 
 import json

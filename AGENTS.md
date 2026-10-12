@@ -35,8 +35,9 @@ primitive must give the user something that site would not:
 - **Presentation craft.** Layout, type, and composition that hold at every
   width and beside every open panel, improved once and inherited by every
   page. A bespoke site starts from nothing each time.
-- **Self-checks.** A check the agent runs on its own page, so a mistake reaches
-  the agent rather than the user.
+- **Self-checks.** `page check` finds what would break a page, such as a widget
+  missing an attribute it needs, so the agent fixes it before the user sees the
+  page.
 
 Leaf standardizes reading, commenting, and actions across sessions and agents.
 Page content and composition remain the agent's and user's choices.

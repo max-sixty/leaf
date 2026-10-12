@@ -134,6 +134,7 @@ import { anchorLabel } from "../thread/messages.js";
 
 import { standingPoint } from "../pointed-place.js";
 import { keeps } from "../keeps.js";
+import { move } from "../dom-move.js";
 import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
 
 export function createResponseSurface({
@@ -218,12 +219,10 @@ export function createResponseSurface({
     if (reset && !repositioning) answerFabPosition(false);
   };
   // Reparenting the canonical response bar is presentation, not a composer transition,
-  // so the user's place in it, caret included, crosses light and shadow DOM moves with it.
+  // so the user's place in it, caret and composition included, crosses light and shadow
+  // DOM moves with it (`move`).
   function moveFab(parent) {
-    if (fabBar.parentElement === parent) return;
-    const restoreFocus = holdFocus(fabBar);
-    parent.append(fabBar);
-    restoreFocus?.();
+    if (fabBar.parentElement !== parent) move(parent, fabBar, null);
   }
 
   // Whether the bar stands inline in an outlet or floats, said as the one attribute the
@@ -247,12 +246,12 @@ export function createResponseSurface({
     const previousParent = fabBar.parentNode;
     const previousOutlet = fabInlineOutlet;
     const restoreFocus = holdFocus(fabBar);
-    if (fabBar.parentNode !== outlet) outlet.append(fabBar);
+    if (fabBar.parentNode !== outlet) move(outlet, fabBar, null);
     fabInlineOutlet = outlet;
     presentFab();
     if (!fabDrawn()) {
       if (previousParent && fabBar.parentNode !== previousParent)
-        previousParent.append(fabBar);
+        move(previousParent, fabBar, null);
       else if (!previousParent) fabBar.remove();
       fabInlineOutlet = previousOutlet;
       presentFab();

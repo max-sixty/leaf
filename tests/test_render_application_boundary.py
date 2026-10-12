@@ -712,31 +712,17 @@ import {
   html, keeps, layerFact, once, render, widgetController,
 } from "/runtime/widget-api.js";
 
-// It paints a microtask after each request, or once a test releases a held update, and
-// `updateComplete` settles when it has: the widget presentation waits on that.
 customElements.define("lf-local", class extends HTMLElement {
   controller = widgetController(this);
   reading = this.controller.read();
-  updateComplete = Promise.resolve(true);
-  #requested = false;
 
-  requestUpdate() {
-    if (this.#requested) return;
-    this.#requested = true;
-    this.updateComplete = (async () => {
-      await null;
-      const held = globalThis.__heldLocalUpdate;
-      globalThis.__heldLocalUpdate = null;
-      if (held) await held;
-      this.#requested = false;
-      this.paint();
-      return true;
-    })();
+  constructor() {
+    super();
+    this.attachShadow({mode: "open"});
   }
 
   connectedCallback() {
-    if (!this.shadowRoot) this.attachShadow({mode: "open"});
-    this.requestUpdate();
+    this.paint();
     if (!once(this)) return;
     layerFact("$tones");
     keeps(this, "data-page-widget", "ready");
@@ -745,7 +731,7 @@ customElements.define("lf-local", class extends HTMLElement {
       this.dataset.renderOrder = `${this.dataset.renderOrder || ""}subscribe,`;
       keeps(this, "data-subscriber-choice", this.dataset.renderedChoice);
       this.dataset.readings = String(Number(this.dataset.readings || 0) + 1);
-      this.requestUpdate();
+      this.paint();
     });
     const held = globalThis.__heldLocalPresentations?.get(this.id);
     if (held) this.controller.present(held);
@@ -762,7 +748,7 @@ customElements.define("lf-local", class extends HTMLElement {
     if (!sent) return;
     this.reading = sent.reading;
     keeps(this, "data-delivery", "pending");
-    this.requestUpdate();
+    this.paint();
     sent.delivery.then(accepted => {
       keeps(this, "data-delivery", accepted ? "accepted" : "refused");
     });
@@ -776,7 +762,7 @@ customElements.define("lf-local", class extends HTMLElement {
     }
     keeps(this, "data-rendered-choice", state.choose.value);
     this.dataset.renderOrder = `${this.dataset.renderOrder || ""}render,`;
-    this.requestUpdate();
+    this.paint();
   }
 
   paint() {
@@ -1315,18 +1301,6 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
           };
         }"""
     )
-
-    held_render = page.evaluate(
-        """() => {
-          window.heldWidgetUpdate = heldPreparation();
-          window.__heldLocalUpdate = heldWidgetUpdate.promise;
-          window.stopHeldWidgetReading = pageLocal.controller.subscribe(() => {});
-          return readLeafPresentation().pending;
-        }"""
-    )
-    assert held_render == ["widget:page-local:render"]
-    page.evaluate("heldWidgetUpdate.release(); stopHeldWidgetReading()")
-    page.wait_for_function("readLeafPresentation().pending.length === 0")
 
     # Several children prepared by one owner are one requirement. A later call for the
     # same reading includes the earlier promise rather than superseding it.

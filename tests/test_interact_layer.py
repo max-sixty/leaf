@@ -1559,7 +1559,9 @@ def test_every_widget_api_export_has_a_behavior_module_reader():
         *schema_model.BUNDLED_PACKAGES.glob("*/instructions/*.md"),
     ]
     # The list of Lit's names has its own section, which teaches none of them.
-    listed = re.compile(r"^### Lit exports\n.*?(?=^#)", flags=re.DOTALL | re.MULTILINE)
+    listed = re.compile(
+        r"^### Lit exports\n.*?(?=^#|\Z)", flags=re.DOTALL | re.MULTILINE
+    )
     in_code = "\n".join(
         code
         for path in references

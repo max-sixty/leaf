@@ -227,8 +227,8 @@ what fails and what still works.
   cross-root transfers, and engines without the API use `insertBefore` and restore
   the user's focus and caret in the moved node.
 - **Consumers:** authored revisions and renderer child reconciliation, board
-  placement, the vendored Sortable move sites, and lit-html’s keyed and child-part
-  insertions. Both vendor adaptations fail if their pinned upstream seams change.
+  placement, the response bar's seats, the vendored Sortable move sites, and
+  lit-html’s keyed and child-part insertions. Both vendor adaptations fail if their pinned upstream seams change.
 - **Browser support, checked 2026-10-10:** Chrome/Edge 133+ and Firefox 144+
   support the API. Safari, including iOS Safari, is listed as unsupported in
   [MDN's compatibility data](https://developer.mozilla.org/en-US/docs/Web/API/Element/moveBefore#browser_compatibility).

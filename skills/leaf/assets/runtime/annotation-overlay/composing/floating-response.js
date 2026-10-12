@@ -76,14 +76,15 @@ export function createFloatingResponsePlacement({
     update: () => scheduleFabPosition(),
   });
   let nativeAttachment = false;
-  // The boundary the last placement stood the box in, which a carry is held inside.
-  let fabBoundary = null;
+  // The reading region the last placement stood the box in, whose boundary holds a
+  // carry in.
+  let fabRegion = null;
   // Carried by its grip, the box stands where the user drops it, relative to its
   // passage, and its card opens there on Send.
   fabBar.append(
     surfaceGrip({
       surface: fabBar,
-      bounds: () => fabBoundary ?? floatBoundary(),
+      bounds: () => floatBoundary(fabRegion),
       dropped(box) {
         if (!response.anchor || !response.floating) return;
         if (box && response.open)
@@ -347,7 +348,7 @@ export function createFloatingResponsePlacement({
     });
     const boundary = place.region ? floatBoundary(place.region) : windowBoundary;
     if (boundary.width <= 0 || boundary.height <= 0) return false;
-    fabBoundary = boundary;
+    fabRegion = place.region;
     // Width before coordinates: the side is chosen from the card's minimum, then the size
     // pass gives CSS that side's actual inline room. If a later resize makes the chosen
     // side narrower than the bar's minimum, use the whole boundary and let shift overlap

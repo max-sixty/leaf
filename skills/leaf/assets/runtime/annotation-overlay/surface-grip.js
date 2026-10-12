@@ -2,7 +2,7 @@
    (composing/floating-response.js) and the thread card (thread-preview.js).
 
    While the pointer is down the surface stays under it by a CSS `translate`, held inside
-   the boundary its placement last stood it in (`bounds`). Its owner places it afresh
+   the boundary its placement would stand it in now (`bounds`). Its owner places it afresh
    only once the carry ends (`data-lf-carried`); the browser's anchoring still carries it
    through a scroll, so each frame of the carry measures the translate against where it
    stands then, and the surface stays under the pointer. On release the owner is told (`dropped`), with the
@@ -18,28 +18,27 @@ import { el } from "../widget-elements.js";
 import { clamp } from "../rect.js";
 import { cancelAnimation, nextAnimation } from "../rendering.js";
 
-// Below this travel a press is not a move, and the surface stays where it stood.
+// Below this travel a press is not a move, and the surface goes back to where its
+// placement stands it.
 const SLOP = 3;
 
 export function surfaceGrip({ surface, bounds, dropped }) {
   const grip = el("div", "lf-ui lf-surface-grip");
   grip.title = "Drag to move";
   let held = null;
-  // Stands the surface at its grabbed box plus the pointer's travel, short of the
-  // boundary, from wherever its placement has it now.
+  // Stands the surface at its grabbed box plus the pointer's travel, inside the
+  // boundary as far as it fits, from wherever its placement has it now.
   function follow() {
-    const { box, boundary, travel, offset } = held;
-    const along = (from, start, end) =>
-      clamp(
-        from,
-        Math.min(0, boundary[start] - box[start]),
-        Math.max(0, boundary[end] - box[end]),
-      );
-    const dx = along(travel.x, "left", "right");
-    const dy = along(travel.y, "top", "bottom");
-    held.moved ||= Math.hypot(dx, dy) >= SLOP;
-    if (!held.moved) return;
+    const { box, travel, offset } = held;
+    const boundary = bounds();
+    held.moved ||= Math.hypot(travel.x, travel.y) >= SLOP;
     const now = surface.getBoundingClientRect();
+    const within = (at, start, end, length) =>
+      clamp(at, boundary[start], Math.max(boundary[start], boundary[end] - length));
+    const spot = {
+      x: within(box.left + travel.x, "left", "right", now.width),
+      y: within(box.top + travel.y, "top", "bottom", now.height),
+    };
     const scale = {
       x: now.width / surface.offsetWidth || 1,
       y: now.height / surface.offsetHeight || 1,
@@ -50,10 +49,11 @@ export function surfaceGrip({ surface, bounds, dropped }) {
       y: now.top - offset.y * scale.y,
     };
     held.offset = {
-      x: (box.left + dx - placed.x) / scale.x,
-      y: (box.top + dy - placed.y) / scale.y,
+      x: (spot.x - placed.x) / scale.x,
+      y: (spot.y - placed.y) / scale.y,
     };
-    surface.style.translate = `${held.offset.x}px ${held.offset.y}px`;
+    const translate = `${held.offset.x}px ${held.offset.y}px`;
+    if (surface.style.translate !== translate) surface.style.translate = translate;
   }
   // Each frame of the carry, since anchoring moves the surface with no event to say so.
   const frame = () => {
@@ -70,7 +70,6 @@ export function surfaceGrip({ surface, bounds, dropped }) {
       travel: { x: 0, y: 0 },
       offset: { x: 0, y: 0 },
       box: surface.getBoundingClientRect(),
-      boundary: bounds(),
       moved: false,
     };
     surface.toggleAttribute("data-lf-carried", true);
@@ -84,6 +83,8 @@ export function surfaceGrip({ surface, bounds, dropped }) {
   grip.addEventListener("mousedown", (event) => event.stopPropagation());
   const finish = (event) => {
     if (held?.pointerId !== event.pointerId) return;
+    // The pointer's last travel may not have had its frame yet.
+    follow();
     const { moved } = held;
     cancelAnimation(held.frame);
     held = null;

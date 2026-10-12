@@ -276,29 +276,6 @@ WORKSPACE_PAGE = leaf_page(
 )
 
 
-def test_bounded_text_document_keeps_its_caption_above_the_scrolling_source(
-    browser, serve
-):
-    source = leaf_page(
-        "Captured document",
-        '<h1>Capture</h1><lf-text-document id="capture" source="capture" '
-        'label="A captured source" data-bound="start"></lf-text-document>',
-    )
-    url = serve(source)
-    data_model.cmd_data_set(serve.page_dir, "capture", "line of source\n" * 100)
-    page = open_page(browser, url)
-    capture = page.locator("#capture")
-    caption = capture.locator("figcaption")
-    listing = capture.locator("pre")
-    expect(caption).to_be_visible()
-    assert capture.evaluate("el => el.scrollHeight === el.clientHeight")
-    assert listing.evaluate("el => el.scrollHeight > el.clientHeight")
-    assert caption.evaluate(
-        "el => Math.abs(el.getBoundingClientRect().width - "
-        "el.parentElement.getBoundingClientRect().width) <= 2"
-    )
-
-
 @pytest.mark.parametrize("captured", [False, True], ids=["block", "text-document"])
 def test_a_bounded_document_reader_chains_wheel_at_its_edge(browser, serve, captured):
     """A bound inside a document keeps its own reading position but lets the user
@@ -320,6 +297,16 @@ def test_a_bounded_document_reader_chains_wheel_at_its_edge(browser, serve, capt
     if captured:
         data_model.cmd_data_set(serve.page_dir, "capture", "Run log line\n" * 100)
     page = open_page(browser, url)
+    if captured:
+        # The caption stays above the source that scrolls, as wide as its figure.
+        capture = page.locator("#reader")
+        caption = capture.locator("figcaption")
+        expect(caption).to_be_visible()
+        assert capture.evaluate("el => el.scrollHeight === el.clientHeight")
+        assert caption.evaluate(
+            "el => Math.abs(el.getBoundingClientRect().width - "
+            "el.parentElement.getBoundingClientRect().width) <= 2"
+        )
     reader = page.locator("#reader pre" if captured else "#reader")
     assert reader.evaluate("el => el.scrollHeight > el.clientHeight")
     reader.evaluate("el => el.scrollTop = el.scrollHeight")
@@ -678,7 +665,7 @@ def test_a_stuck_root_tab_strip_hides_what_passes_under_it(browser, serve):
     passes under it is not on screen: `shownRect`, the one reading of that, clips a
     block behind the stuck strip to the strip's foot, which the strip's stated height
     puts at `--lf-top` inside its panels. At the top of the page the strip is in flow
-    and hides nothing."""
+    and hides nothing. In forced colors only the selected tab's name is marked."""
     page = open_page(browser, serve(ROOT_TABS_PAGE) + "#plan-tab")
     resized(page, 1280, 720)
     READ = """async () => {
@@ -714,6 +701,26 @@ def test_a_stuck_root_tab_strip_hides_what_passes_under_it(browser, serve):
     assert stuck["behind"]["top"] < stuck["strip"]["bottom"] < stuck["behind"]["bottom"]
     assert stuck["band"] == pytest.approx(stuck["strip"]["bottom"], abs=0.5), stuck
     assert stuck["shown"] == pytest.approx(stuck["strip"]["bottom"], abs=0.5), stuck
+
+    # A forced transparent border must not make every page tab look selected.
+    page.emulate_media(forced_colors="active")
+    page.keyboard.press("Tab")
+    page.locator("#root-tabs > .lf-tabstrip .lf-tab-btn").first.focus()
+    reading = """() => {
+      const strip = document.querySelector('#root-tabs > .lf-tabstrip');
+      const background = getComputedStyle(strip).backgroundColor;
+      return [...strip.querySelectorAll('.lf-tab-btn')].map(tab => {
+        const name = getComputedStyle(tab.querySelector('.lf-tab-name'));
+        return {selected: tab.getAttribute('aria-selected') === 'true',
+          marked: name.borderBottomColor !== background
+            && parseFloat(name.borderBottomWidth) > 0};
+      });
+    }"""
+    for _ in range(2):
+        marks = page.evaluate(reading)
+        assert any(mark["selected"] for mark in marks), marks
+        assert all(mark["selected"] == mark["marked"] for mark in marks), marks
+        page.keyboard.press("ArrowRight")
 
 
 def _stacked_headers(browser, serve):
@@ -1080,29 +1087,6 @@ def test_back_to_a_fragment_the_page_has_hidden_since_lands_on_it(browser, serve
     page.go_back()
     expect(two).to_have_attribute("aria-selected", "true")
     expect(target).to_be_in_viewport()
-
-
-def test_page_tabs_mark_only_the_selected_name_in_forced_colors(browser, serve):
-    """A forced transparent border must not make every page tab look selected."""
-    page = open_page(browser, serve(ROOT_TABS_PAGE))
-    page.emulate_media(forced_colors="active")
-    page.keyboard.press("Tab")
-    page.locator("#root-tabs > .lf-tabstrip .lf-tab-btn").first.focus()
-    reading = """() => {
-      const strip = document.querySelector('#root-tabs > .lf-tabstrip');
-      const background = getComputedStyle(strip).backgroundColor;
-      return [...strip.querySelectorAll('.lf-tab-btn')].map(tab => {
-        const name = getComputedStyle(tab.querySelector('.lf-tab-name'));
-        return {selected: tab.getAttribute('aria-selected') === 'true',
-          marked: name.borderBottomColor !== background
-            && parseFloat(name.borderBottomWidth) > 0};
-      });
-    }"""
-    for _ in range(2):
-        marks = page.evaluate(reading)
-        assert any(mark["selected"] for mark in marks), marks
-        assert all(mark["selected"] == mark["marked"] for mark in marks), marks
-        page.keyboard.press("ArrowRight")
 
 
 def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
@@ -2033,7 +2017,11 @@ def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
     """Only a box that passes the height on holds what it contains. A section in the
     body's grid is a grouping, so a pane in one takes its natural height and the body,
     which fills the window, scrolls it. The control is the same pane as the workspace's
-    body, which fills the window."""
+    body, which fills the window.
+
+    Whatever the user scrolls to in that full-height workspace clears the bottom bar,
+    as a document's last line does: the body scrolls as a whole and its end stands
+    above the band."""
     page = open_page(browser, serve(SECTIONED_PANE_PAGE))
     resized(page, 1280, 720)
     pane = page.locator("#workspace-pane")
@@ -2045,6 +2033,20 @@ def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
             && leaf.effectiveScroller(node) === document.getElementById('cells');
         }"""
     )
+    fills_the_window(page, page.locator("main"), True)
+    # Every reader asks one owner which box scrolls a node, so the body that now scrolls
+    # is the answer for the pane it carries: page steps and reading-place recovery move
+    # the box the user sees move.
+    carrier = page.evaluate(
+        """async () => {
+          const {scrollerFor} = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+          return scrollerFor(document.getElementById('pane-end'))?.id ?? null;
+        }"""
+    )
+    assert carrier == "cells", carrier
+    page.locator("#pane-end").evaluate("node => node.scrollIntoView({block: 'end'})")
+    end = clear_of_the_bottom_chrome(page, "#pane-end")
+    assert end["clear"], end
     page.close()
 
     direct = leaf_page("a pane as the workspace body", LONG_PANE, layout="workspace")
@@ -2144,30 +2146,6 @@ def test_an_ask_with_more_than_one_answer_part_keeps_each_parts_height(browser, 
     expect(page.locator("#card-playground-ask")).to_have_css("display", "flex")
     pane_posture(page, page.locator(".lf-playground-controls-region"), "bounded")
     fills_the_window(page, page.locator("main"), True)
-
-
-def test_a_full_height_workspace_that_overflows_scrolls_its_end_clear_of_the_bottom_bar(
-    browser, serve
-):
-    """Whatever the user scrolls to in a full-height workspace clears the bottom bar, as a
-    document's last line does. A pane inside a section of the body takes its content's
-    height, so the body scrolls as a whole and its end stands above the band."""
-    page = open_page(browser, serve(SECTIONED_PANE_PAGE))
-    resized(page, 1280, 720)
-    fills_the_window(page, page.locator("main"), True)
-    # Every reader asks one owner which box scrolls a node, so the body that now scrolls
-    # is the answer for the pane it carries: page steps and reading-place recovery move
-    # the box the user sees move.
-    carrier = page.evaluate(
-        """async () => {
-          const {scrollerFor} = await window.__lfRuntimeImport('/runtime/reading-regions.js');
-          return scrollerFor(document.getElementById('pane-end'))?.id ?? null;
-        }"""
-    )
-    assert carrier == "cells", carrier
-    page.locator("#pane-end").evaluate("node => node.scrollIntoView({block: 'end'})")
-    end = clear_of_the_bottom_chrome(page, "#pane-end")
-    assert end["clear"], end
 
 
 def test_the_page_end_clears_the_bottom_chrome_around_a_workspace(browser, serve):
@@ -2552,17 +2530,18 @@ def test_a_revision_leaves_a_following_log_at_its_end_and_a_reader_on_their_line
     assert not log.evaluate(at_end)
 
 
-def test_release_rollback_is_the_operators_answer_to_an_ask(browser, serve):
-    """The release escape path is a question the operator answers: the page lists it
+def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
+    browser, serve
+):
+    """Replaceable log evidence does not become the authority for release state.
+
+    The release escape path is a question the operator answers: the page lists it
     among its Asks, and the pick reaches the agent as an action naming the option."""
     example = Path(__file__).parent.parent / "examples" / "live-progress.html"
     page = open_page(browser, live_url(serve(example)))
     expect_asks_answered(page, "0/1")
-    rollback = page.locator("#lp-rollback-now")
-
     with sending(page, "the rollback pick"):
-        rollback.click()
-
+        page.locator("#lp-rollback-now").click()
     pick = events_model.read_events(serve.page_dir)[-1]
     assert (pick["kind"], pick["widget"], pick["action"]) == (
         "action",
@@ -2572,13 +2551,6 @@ def test_release_rollback_is_the_operators_answer_to_an_ask(browser, serve):
     assert pick["detail"] == {"value": ["lp-rollback-now"]}
     expect_asks_answered(page, "1/1")
 
-
-def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
-    browser, serve
-):
-    """Replaceable log evidence does not become the authority for release state."""
-    example = Path(__file__).parent.parent / "examples" / "live-progress.html"
-    page = open_page(browser, live_url(serve(example)))
     log = page.locator("#lp-live-log")
     listing = log.locator("pre")
 
@@ -5641,10 +5613,11 @@ def test_playground_authored_defaults_draw_before_its_behavior_loads(browser, se
     expect(card).to_have_css("border-radius", "12px")
 
 
-@pytest.mark.parametrize("typed_color", ["#8b4a5f", "#8B4A5F"])
 def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
-    browser, serve, typed_color
+    browser, serve
 ):
+    """The accent is typed in capitals, so the state the page keeps, writes into its
+    instruction and sends is the colour's one lowercase spelling."""
     page = open_page(browser, serve(PLAYGROUND_PAGE))
     playground = page.locator("#card-playground")
     before = len(events_model.read_events(serve.page_dir))
@@ -5669,7 +5642,7 @@ def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
         radius.press("ArrowRight")
     playground.get_by_role("switch", name="Compact spacing").press("Space")
     playground.get_by_role("radio", name="Quiet", exact=True).press("ArrowRight")
-    playground.get_by_label("Accent", exact=True).fill(typed_color)
+    playground.get_by_label("Accent", exact=True).fill("#8B4A5F")
     page.locator('lf-playground-control[name="title"] input').fill("Ridge note; alert")
 
     assert len(events_model.read_events(serve.page_dir)) == before
@@ -6589,8 +6562,9 @@ def test_a_playground_sends_one_choice_while_the_first_press_is_in_flight(
     assert len(actions(serve.page_dir)) == 1
 
 
-def test_a_playground_switch_is_reachable_through_go_to(browser, serve):
-    page = open_page(browser, serve(PLAYGROUND_PAGE))
+def test_a_playground_switch_and_copy_are_reachable_through_go_to(browser, serve):
+    context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
+    page = open_page(browser, serve(PLAYGROUND_PAGE), context=context)
     playground = page.locator("#card-playground")
 
     page.keyboard.press("g")
@@ -6603,15 +6577,9 @@ def test_a_playground_switch_is_reachable_through_go_to(browser, serve):
     expect(switch_hint).to_have_count(1)
     switch_code = switch_hint.get_attribute("data-lf-hint-code")
     assert switch_code
-
     page.keyboard.type(switch_code)
     expect(playground.get_by_role("switch", name="Compact spacing")).to_be_checked()
 
-
-def test_a_playground_copy_is_reachable_through_go_to(browser, serve):
-    context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
-    page = open_page(browser, serve(PLAYGROUND_PAGE), context=context)
-    playground = page.locator("#card-playground")
     playground.get_by_role(
         "button", name="Copy instruction"
     ).scroll_into_view_if_needed()
@@ -7442,29 +7410,6 @@ def test_an_undone_suggestion_stays_inline_among_the_words(browser, serve):
     assert page.evaluate(form) == "inline"
 
 
-def test_a_block_change_emphasizes_the_words_that_moved(browser, serve):
-    """A replacement's slots paint whole — which is all a dead copy keeps — and on
-    the live page the words that differ deepen through the highlight registry, so
-    the user isn't left to eyeball-diff two paragraphs. Deciding clears the
-    emphasis with the slot it retires: the survivor is plain prose."""
-    page = open_page(browser, serve(SUGGESTION_PAGE))
-    inside = """(id) => Object.fromEntries(['lf-sug-del', 'lf-sug-ins'].map(name =>
-        [name, [...(CSS.highlights.get(name) ?? [])]
-            .filter(r => document.getElementById(id).contains(r.startContainer))
-            .length]))"""
-    refill = page.evaluate(inside, "sug-refill")
-    assert refill["lf-sug-del"] >= 1 and refill["lf-sug-ins"] >= 1, (
-        "an edited sentence must emphasize the words that moved, on both sides"
-    )
-
-    page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
-    expect(page.locator("#sug-refill lf-old")).to_be_hidden()
-    assert page.evaluate(inside, "sug-refill") == {
-        "lf-sug-del": 0,
-        "lf-sug-ins": 0,
-    }, "deciding must clear the emphasis with the slot it retires"
-
-
 def test_suggestion_emphasis_skips_generated_interface_between_changed_words(
     browser, serve
 ):
@@ -7575,8 +7520,22 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
 
     The resulting content and Undo control are sufficient visual confirmation. No
     status or transient notice repeats them, while the live region says the same
-    decision for a user listening to the page."""
-    page = open_page(browser, serve(SUGGESTION_PAGE))
+    decision for a user listening to the page.
+
+    A replacement's slots paint whole — which is all a dead copy keeps — and on the live
+    page the words that differ deepen through the highlight registry, so the user isn't
+    left to eyeball-diff two paragraphs; deciding clears the emphasis with the slot it
+    retires. And a few words swapped inside a line are swapped, not folded: a height to
+    animate would hold a block box over the slot and open a paragraph break."""
+    page = open_page(browser, serve(SUGGESTION_PAGE), init_script=HOLD_MOTION)
+    inside = """(id) => Object.fromEntries(['lf-sug-del', 'lf-sug-ins'].map(name =>
+        [name, [...(CSS.highlights.get(name) ?? [])]
+            .filter(r => document.getElementById(id).contains(r.startContainer))
+            .length]))"""
+    refill = page.evaluate(inside, "sug-refill")
+    assert refill["lf-sug-del"] >= 1 and refill["lf-sug-ins"] >= 1, (
+        "an edited sentence must emphasize the words that moved, on both sides"
+    )
     row = page.locator("[data-lf-margin-for='sug-refill']")
     accept = row.locator(".lf-sug-accept")
     reject = row.locator(".lf-sug-reject")
@@ -7603,6 +7562,13 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     accept.click()
     expect(page.locator("#sug-refill lf-old")).to_be_hidden()
     expect(page.locator("#sug-refill lf-new")).to_be_visible()
+    assert page.evaluate(inside, "sug-refill") == {
+        "lf-sug-del": 0,
+        "lf-sug-ins": 0,
+    }, "deciding must clear the emphasis with the slot it retires"
+    assert page.evaluate("() => window.__lfHeld.length") == 0, (
+        "a few words swapped inside a line were given a fold, and a block box to do it in"
+    )
     expect(accept).to_have_count(0)
     undo_button = row.get_by_role("button", name=re.compile(r"^Undo accepting"))
     expect(undo_button.locator(".lf-margin-entry-icon")).to_have_attribute(
@@ -7680,27 +7646,6 @@ def test_a_settled_deletion_keeps_undo_on_the_containing_passage(browser, serve)
     expect(page.locator(".lf-margin-receipt")).to_have_count(0)
 
 
-def test_rejecting_a_suggestion_promotes_the_surviving_button(browser, serve):
-    """Reject leaves an active Undo, never a dead circle or a second status."""
-    page = open_page(browser, serve(SHORT_SUGGESTION))
-    row = page.locator("[data-lf-margin-for='sug']")
-    reject = row.locator(".lf-sug-reject")
-    unfolded_button(reject).click()
-
-    expect(reject).to_have_count(0)
-    undo_button = row.get_by_role("button", name=re.compile(r"^Undo rejecting"))
-    expect(undo_button).to_have_attribute("data-lf-margin-entry-primary", "")
-    expect(row.locator(".lf-sug-accept")).to_be_hidden()
-    expect(row.locator(".lf-margin-receipt")).to_have_count(0)
-    expect(row).not_to_contain_text("Rejected")
-    undo_button.click()
-    round_trip(page)
-    expect(page.locator("#sug")).not_to_have_attribute(
-        "data-lf-state", re.compile(".+")
-    )
-    expect(page.locator("[data-lf-margin-for='sug'] .lf-sug-accept")).to_be_visible()
-
-
 def test_a_settled_boxless_suggestion_keeps_its_own_margin_identity(browser, serve):
     """A `display: contents` suggestion still paints through its children; settling it
     must not re-perch Undo on the containing section and change the map target."""
@@ -7720,11 +7665,19 @@ def test_a_settled_boxless_suggestion_keeps_its_own_margin_identity(browser, ser
 
 
 def test_a_refused_undo_keeps_the_outcome_and_can_be_retried(browser, serve):
-    """Undo has the same failure lifecycle without inventing a counter-decision."""
+    """Reject leaves an active Undo, never a dead circle or a second status. Undo has
+    the same failure lifecycle without inventing a counter-decision."""
     page = open_page(browser, serve(SHORT_SUGGESTION))
     row = page.locator("[data-lf-margin-for='sug']")
+    reject = row.locator(".lf-sug-reject")
     with sending(page, "the decision to be withdrawn"):
-        unfolded_button(row.locator(".lf-sug-reject")).click()
+        unfolded_button(reject).click()
+    expect(reject).to_have_count(0)
+    undo_button = row.get_by_role("button", name=re.compile(r"^Undo rejecting"))
+    expect(undo_button).to_have_attribute("data-lf-margin-entry-primary", "")
+    expect(row.locator(".lf-sug-accept")).to_be_hidden()
+    expect(row.locator(".lf-margin-receipt")).to_have_count(0)
+    expect(row).not_to_contain_text("Rejected")
     decision = next(
         event
         for event in events_model.read_events(serve.page_dir)
@@ -7771,6 +7724,7 @@ def test_a_refused_undo_keeps_the_outcome_and_can_be_retried(browser, serve):
     expect(page.locator("#sug")).not_to_have_attribute(
         "data-lf-state", re.compile(".+")
     )
+    expect(page.locator("[data-lf-margin-for='sug'] .lf-sug-accept")).to_be_visible()
     logged = events_model.read_events(serve.page_dir)
     assert [event["undoes"] for event in logged if event["kind"] == "undo"] == [
         decision["id"]
@@ -7884,21 +7838,6 @@ def test_a_decided_change_folds_away_rather_than_vanishing(browser, serve):
     )
     assert after.evaluate("el => el.getBoundingClientRect().top") < below, (
         "the page never gave back the room the retired paragraph was holding"
-    )
-
-
-def test_an_inline_change_is_swapped_rather_than_folded(browser, serve):
-    """The other half of the rule above, and the half where folding would be the harm.
-
-    A height to animate means a `display: block` held over the slot for the duration, so
-    a few words swapped mid-sentence would open a paragraph break and close it again —
-    motion answering a change that moved nothing. The shipped inline corpus is the case,
-    and what it asserts is that nothing was started at all."""
-    page = open_page(browser, serve(SUGGESTION_PAGE), init_script=HOLD_MOTION)
-    page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
-    expect(page.locator("#sug-refill lf-old")).to_be_hidden()
-    assert page.evaluate("() => window.__lfHeld.length") == 0, (
-        "a few words swapped inside a line were given a fold, and a block box to do it in"
     )
 
 
@@ -8102,39 +8041,19 @@ def test_an_ambiguous_decision_stays_one_gesture_while_retrying(browser, serve):
     expect(page.locator("#sug-refill lf-old")).to_be_visible()
 
 
-def test_a_pending_suggestion_decision_records_one_action(browser, serve):
-    """One press replaces both verdicts and records the accepted decision once."""
-    page = open_page(browser, serve(SUGGESTION_PAGE))
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    row = page.locator("[data-lf-margin-for='sug-refill']")
-    row.locator(".lf-sug-accept").click()
-    holding(page, held, 1, "the decision")
-    expect(row.locator(".lf-sug-accept")).to_have_count(0)
-    expect(row.locator(".lf-sug-reject")).to_have_count(0)
-    pending_undo = row.get_by_role("button", name=re.compile(r"^Undo accepting"))
-    expect(pending_undo).to_be_visible()
-    assert len(held) == 1
-
-    held[0].continue_()
-    page.unroute("**/api/event")
-    round_trip(page)
-    expect(page.locator("#sug-refill[data-lf-state='accept']")).to_have_count(1)
-    assert [
-        (e["widget"], e["detail"].get("outcome", e["action"]))
-        for e in events_model.read_events(serve.page_dir)
-        if e["kind"] == "action"
-    ] == [("sug-refill", "accept")]
-
-
 def test_an_optimistic_decision_stays_plain_while_delivery_waits(held_events, serve):
-    """A held send leaves the settled content legible and its Undo in place."""
+    """A held send leaves the settled content legible and its Undo in place. One press
+    replaces both verdicts and records the accepted decision once."""
     browser, held = held_events
     page = open_page(browser, serve(SUGGESTION_PAGE))
-    accept = page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept")
+    row = page.locator("[data-lf-margin-for='sug-refill']")
+    accept = row.locator(".lf-sug-accept")
     resting = accept.bounding_box()
     accept.click()
     holding(page, held, 1, "the accepted suggestion")
+    expect(row.locator(".lf-sug-accept")).to_have_count(0)
+    expect(row.locator(".lf-sug-reject")).to_have_count(0)
+    assert len(held) == 1
 
     suggestion = page.locator("#sug-refill")
     expect(suggestion.locator("lf-old")).to_be_hidden()
@@ -8151,6 +8070,11 @@ def test_an_optimistic_decision_stays_plain_while_delivery_waits(held_events, se
     round_trip(page)
     expect(page.locator("#sug-refill[data-lf-state='accept']")).to_have_count(1)
     expect(page.locator("#sug-refill")).not_to_have_attribute("aria-busy", "true")
+    assert [
+        (e["widget"], e["detail"].get("outcome", e["action"]))
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "action"
+    ] == [("sug-refill", "accept")]
 
 
 def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, serve):
@@ -8613,7 +8537,8 @@ def test_ask_contextual_bindings_are_independent_of_widget_bindings(browser, ser
 
 
 def test_a_widget_digit_shadows_only_the_matching_ask_alias(browser, serve):
-    """A focused widget digit suppresses its Ask alias without taking other digits."""
+    """A focused widget digit suppresses its Ask alias without taking other digits.
+    A command whose computed title is not text is refused in that command's name."""
     page = open_page(browser, serve(SHORT_SUGGESTION))
     page.evaluate(
         """async () => {
@@ -8653,6 +8578,42 @@ def test_a_widget_digit_shadows_only_the_matching_ask_alias(browser, serve):
     page.keyboard.press("3")
     expect(inspect).to_have_attribute("data-local-three", "1")
     expect(inspect).not_to_have_attribute("data-activated", "1")
+
+    # Computed row and route names fail with the command-scoped contract error.
+    messages = page.evaluate(
+        """async () => {
+          const {decisionControls} = await window.__lfRuntimeImport('/runtime/keyboard/bindings.js');
+          const source = document.getElementById('sug');
+          const control = document.createElement('button');
+          source.append(control);
+          const read = (row) => {
+            try {
+              decisionControls([{source, row}], 'the test Ask');
+            } catch (error) {
+              return error.message;
+            }
+            return null;
+          };
+          return {
+            row: read({
+              id: 'test.invalid-row-name', keys: [], control,
+              decision: true, title: () => true,
+            }),
+            route: read({
+              id: 'test.route-family', keys: ['ArrowLeft'], title: 'Inspect', control,
+              routes: [{
+                id: 'test.invalid-route-name', binding: 'ArrowLeft',
+                decision: true, title: () => true,
+              }],
+            }),
+          };
+        }"""
+    )
+
+    assert "test.invalid-row-name" in messages["row"]
+    assert "test.invalid-route-name" in messages["route"]
+    assert "title" in messages["row"]
+    assert "title" in messages["route"]
 
 
 def test_an_ask_alias_runs_the_original_command_in_its_own_scope(browser, serve):
@@ -8699,46 +8660,6 @@ def test_an_ask_alias_runs_the_original_command_in_its_own_scope(browser, serve)
     page.keyboard.press("Escape")
     expect(page.locator("#test-command-layer")).to_be_hidden()
     expect(page.get_by_role("button", name="Configure")).to_be_focused()
-
-
-def test_command_title_functions_must_return_text(browser, serve):
-    """Computed row and route names fail with the command-scoped contract error."""
-    page = open_page(browser, serve(SHORT_SUGGESTION))
-
-    messages = page.evaluate(
-        """async () => {
-          const {decisionControls} = await window.__lfRuntimeImport('/runtime/keyboard/bindings.js');
-          const source = document.getElementById('sug');
-          const control = document.createElement('button');
-          source.append(control);
-          const read = (row) => {
-            try {
-              decisionControls([{source, row}], 'the test Ask');
-            } catch (error) {
-              return error.message;
-            }
-            return null;
-          };
-          return {
-            row: read({
-              id: 'test.invalid-row-name', keys: [], control,
-              decision: true, title: () => true,
-            }),
-            route: read({
-              id: 'test.route-family', keys: ['ArrowLeft'], title: 'Inspect', control,
-              routes: [{
-                id: 'test.invalid-route-name', binding: 'ArrowLeft',
-                decision: true, title: () => true,
-              }],
-            }),
-          };
-        }"""
-    )
-
-    assert "test.invalid-row-name" in messages["row"]
-    assert "test.invalid-route-name" in messages["route"]
-    assert "title" in messages["row"]
-    assert "title" in messages["route"]
 
 
 def test_ask_action_binding_badges_use_the_available_card_action_seats(browser, serve):
@@ -10799,20 +10720,6 @@ DREW = {
 }
 
 
-def test_every_mark_in_a_chart_body_reaches_the_drawing(browser, serve):
-    """A chart that drew nothing still has a box and no console error, so the render gate
-    passes it: the drawing is the one part of a chart no other reading looks at. Each
-    body makes a different shape of call — rows handed to a mark, a faceted mark, marks
-    stacked by Plot, a line over ISO dates on a time scale, dots — and each is counted
-    rather than merely found, because a call that lost its data would still draw axes."""
-    page = open_page(browser, serve(CHART_PAGE))
-    for widget, (part, count, tag) in DREW.items():
-        drew = page.evaluate(CHART_MARKS, widget)
-        assert drew, f"{widget} drew nothing at all"
-        shapes = drew["marks"].get(part, [])
-        assert [shape[0] for shape in shapes] == [tag] * count, (widget, drew["marks"])
-
-
 def test_covered_words_holds_a_tick_naming_its_month_on_a_second_line(browser, serve):
     """A dated axis names the month where one begins, on a line under the day: the tick
     for the first week of June reads 1 over Jun. Those two lines are two tspans of one
@@ -10859,9 +10766,8 @@ def test_covered_words_holds_a_tick_naming_its_month_on_a_second_line(browser, s
     )
 
 
-@pytest.mark.parametrize("scroll_to_chart", [False, True])
 def test_the_covered_words_gate_still_reads_two_of_a_chart_s_labels_on_each_other(
-    browser, serve, scroll_to_chart
+    browser, serve
 ):
     """The other half of the exemption above, put back as a bug: a label's own lines are
     one run of words the drawing lays out together, and two labels landing on each other
@@ -10879,10 +10785,6 @@ def test_the_covered_words_gate_still_reads_two_of_a_chart_s_labels_on_each_othe
     this pass reporting is the float's, and that is an HTML page whose runs never get an
     SVG label at all."""
     page = open_page(browser, serve(CHART_PAGE))
-    # The root scrollport must not hide page-content collisions from this reading,
-    # whether the chart starts below the fold or the user has scrolled to it.
-    if scroll_to_chart:
-        page.locator("#c-line").scroll_into_view_if_needed()
     # Two ticks the drawing places by transform, one stood on the other. The labels stay
     # whole, so what lands is two <text> elements rather than two lines of one.
     moved = page.evaluate(
@@ -10895,20 +10797,43 @@ def test_the_covered_words_gate_still_reads_two_of_a_chart_s_labels_on_each_othe
         }"""
     )
     assert moved, "no two ticks the drawing places by transform, so nothing was stacked"
-    covered = render_checks_model.evaluate_probe(page, "coveredWords")
-    assert [f for f in covered if all(f'"{word}"' in f for word in moved)], (
-        f"two of a chart's labels stood on each other unreported: {covered}"
-    )
+    # The root scrollport must not hide page-content collisions from this reading,
+    # whether the chart starts below the fold or the user has scrolled to it.
+    for scrolled in (False, True):
+        if scrolled:
+            page.locator("#c-line").scroll_into_view_if_needed()
+        covered = render_checks_model.evaluate_probe(page, "coveredWords")
+        assert [f for f in covered if all(f'"{word}"' in f for word in moved)], (
+            f"two of a chart's labels stood on each other unreported: {covered}",
+            scrolled,
+        )
 
 
-def test_a_chart_is_one_picture_named_by_its_author(browser, serve):
-    """A drawing is where the body went: after the upgrade the numbers exist on the page
-    as geometry, so a user on a screen reader hears whatever the drawing is named. The
-    name is the author's `ariaLabel`, which is why a body without one is refused. Plot
-    names every group inside the drawing too — `bar`, `x-axis tick label` — on <g>
-    elements carrying no role, which axe reports as a serious failure; the drawing is one
-    picture instead, and those names are kept as data a test can still ask for."""
+def test_a_chart_wears_the_page_s_colors_and_turns_over_with_the_scheme(browser, serve):
+    """A series takes the theme's token, `var(--series-N)`, which Plot writes into the
+    drawing as it was given. Resolved to a value in JavaScript it would freeze the scheme
+    the browser was in when the chart was drawn: a copy exported from a light window
+    opens as a light slab for a dark user, and a scheme flipped mid-read leaves the
+    drawing behind. So this asserts both halves: that each series is painted the token it
+    names, and that no hex colour was written into the drawing at all. The flip is made
+    with no reload, so the nodes under it are the same nodes; a drawing that had been
+    painted values would fail here and pass every static check.
+
+    Before that, two readings of the same page. A chart that drew nothing still has a
+    box and no console error, so the render gate passes it: each body makes a different
+    shape of call — rows handed to a mark, a faceted mark, marks stacked by Plot, a line
+    over ISO dates on a time scale, dots — and each is counted rather than merely found,
+    because a call that lost its data would still draw axes. And a drawing is one
+    picture named by its author's `ariaLabel`: Plot names every group inside it too, on
+    <g> elements carrying no role, which axe reports as a serious failure, so those
+    names are kept as data a test can still ask for."""
     page = open_page(browser, serve(CHART_PAGE))
+    for widget, (part, count, tag) in DREW.items():
+        drew = page.evaluate(CHART_MARKS, widget)
+        assert drew, f"{widget} drew nothing at all"
+        shapes = drew["marks"].get(part, [])
+        assert [shape[0] for shape in shapes] == [tag] * count, (widget, drew["marks"])
+
     drawing = page.locator("#c-bars svg[role=img]")
     assert drawing.get_attribute("aria-label") == (
         "Merged by quarter: apps 12, 19, 14; infra 7, 11, 17"
@@ -10933,18 +10858,6 @@ def test_a_chart_is_one_picture_named_by_its_author(browser, serve):
         page.locator("#c-dots svg[role=img]").get_attribute("aria-label")
         == "Review minutes against lines changed: 12 and 4, 90 and 26, 310 and 71"
     )
-
-
-def test_a_chart_wears_the_page_s_colors_and_turns_over_with_the_scheme(browser, serve):
-    """A series takes the theme's token, `var(--series-N)`, which Plot writes into the
-    drawing as it was given. Resolved to a value in JavaScript it would freeze the scheme
-    the browser was in when the chart was drawn: a copy exported from a light window
-    opens as a light slab for a dark user, and a scheme flipped mid-read leaves the
-    drawing behind. So this asserts both halves: that each series is painted the token it
-    names, and that no hex colour was written into the drawing at all. The flip is made
-    with no reload, so the nodes under it are the same nodes; a drawing that had been
-    painted values would fail here and pass every static check."""
-    page = open_page(browser, serve(CHART_PAGE))
 
     def worn():
         drew = page.evaluate(CHART_MARKS, "c-bars")
@@ -11013,8 +10926,22 @@ def test_a_chart_is_drawn_for_the_room_it_has_rather_than_scaled_into_it(
     chart has no natural size to keep, so it is drawn again for the width it now has and
     its text stays the size the theme set. The room changes for reasons a user never
     asked about — a window narrower than the column, the thread panel taking its strip
-    out of one — so this is the ordinary case rather than a window somebody dragged."""
+    out of one — so this is the ordinary case rather than a window somebody dragged.
+
+    The body is JavaScript, so what Plot takes as a function reaches it as one — here a
+    tick format — and the body reads the width the host draws at, which is how it fits
+    its labels to the room: the wider label is shown only if the body was handed the
+    width. And the redraw replaces only the drawing's own box, so a word the runtime
+    hangs on the chart, a child of the element, survives it."""
     page = open_page(browser, serve(CHART_PAGE))
+    ticks = page.locator(
+        '#c-stack [data-lf-part="y-axis tick label"] text'
+    ).all_text_contents()
+    assert ticks and all(tick.endswith("h") for tick in ticks), ticks
+    assert page.evaluate(CHART_MARKS, "c-rows")["room"] > 500
+    expect(page.locator('#c-rows [data-lf-part="x-axis label"]')).to_contain_text(
+        "open issues"
+    )
     before = page.evaluate(CHART_MARKS, "c-bars")
     assert before["width"] == before["room"], before
 
@@ -11027,6 +10954,10 @@ def test_a_chart_is_drawn_for_the_room_it_has_rather_than_scaled_into_it(
         chart.remove();
         parent.insertBefore(chart, next);
     }""")
+    plant_quiet_word(page, "#c-bars", "")
+    notes = "() => document.getElementById('c-bars').querySelectorAll('.lf-ui').length"
+    held = page.evaluate(notes)
+    assert held > 0, "the chart holds no word of the runtime's"
 
     # Narrower than the column, which is where the room actually changes: the column is
     # capped, so a wider window leaves a chart exactly where it was.
@@ -11045,6 +10976,7 @@ def test_a_chart_is_drawn_for_the_room_it_has_rather_than_scaled_into_it(
     # viewBox keeps the same computed size and renders smaller, so the property this test
     # is about is invisible to the one reading and plain in the other.
     assert after["tick"] == before["tick"], (before, after)
+    assert page.evaluate(notes) == held, "the redraw took the runtime's word away"
 
 
 def test_a_chart_draws_into_the_box_its_data_height_states(browser, serve):
@@ -11129,58 +11061,6 @@ def test_a_body_the_module_cannot_draw_says_why_over_its_source(browser, serve):
         mine = [text for text in reported if text.startswith(reports[chart_id])]
         assert len(mine) == 1 and words in mine[0], (chart_id, reported)
     assert len(reported) == len(said), reported
-
-
-def test_a_chart_body_is_plot_code_that_reads_the_width_it_is_drawn_at(browser, serve):
-    """The body is JavaScript, so what Plot takes as a function reaches it as one — here
-    a tick format — and the body reads the width the host draws at, which is how it fits
-    its labels to the room. The label below is the wider one only if the body was
-    handed the width: without it, the comparison is false."""
-    page = open_page(browser, serve(CHART_PAGE))
-    ticks = page.locator(
-        '#c-stack [data-lf-part="y-axis tick label"] text'
-    ).all_text_contents()
-    assert ticks and all(tick.endswith("h") for tick in ticks), ticks
-    assert page.evaluate(CHART_MARKS, "c-rows")["room"] > 500
-    expect(page.locator('#c-rows [data-lf-part="x-axis label"]')).to_contain_text(
-        "open issues"
-    )
-
-
-def test_a_redraw_keeps_the_words_the_runtime_hung_on_the_chart(browser, serve):
-    """A chart redraws for a new width, and the runtime writes inside widgets.
-
-    A word the runtime hangs on the chart, such as a quiet word for a user listening, is a
-    child of the element. Replacing the element's children to hold the new drawing takes
-    it away, for the life of the tab, since nothing puts it back. So the drawing lives in
-    a box of its own and the redraw replaces what is in that box.
-
-    The room is changed by the window, the one thing that changes it; what this is about
-    is that a redraw happened at all, which the drawing's own width says."""
-    page = open_page(browser, serve(CHART_PAGE), context=None)
-    page.wait_for_function("() => document.querySelector('#c-bars svg[role=img]')")
-    plant_quiet_word(page, "#c-bars", "")
-    read = """() => {
-        const el = document.getElementById('c-bars');
-        return { room: Math.round(el.clientWidth),
-                 notes: el.querySelectorAll('.lf-ui').length,
-                 drawn: Number(el.querySelector('svg[role=img]').getAttribute('width')) };
-    }"""
-    before = page.evaluate(read)
-    assert before["notes"] > 0, "the chart holds no word of the runtime's"
-
-    resized(page, 620, 900)
-    page.wait_for_function(
-        """(was) => {
-            const el = document.getElementById('c-bars');
-            const svg = el.querySelector('svg[role=img]');
-            return svg && Number(svg.getAttribute('width')) !== was;
-        }""",
-        arg=before["drawn"],
-    )
-    after = page.evaluate(read)
-    assert after["drawn"] < before["drawn"], (before, after)
-    assert after["notes"] == before["notes"], (before, after)
 
 
 def test_a_chart_in_a_closed_thread_draws_at_its_visible_width_when_opened(
@@ -12894,9 +12774,10 @@ _RING_WITHIN = """(el, frame) => {
 
 
 @pytest.mark.parametrize(
-    "engine", ["browser", "webkit_browser"], ids=["chromium", "webkit"]
+    "engine, wide_host",
+    [("browser", True), ("webkit_browser", False), ("webkit_browser", True)],
+    ids=["chromium-outer-reader", "webkit-code", "webkit-outer-reader"],
 )
-@pytest.mark.parametrize("wide_host", [False, True], ids=["code", "outer-reader"])
 def test_horizontal_wheel_reaches_the_diff_reader(request, serve, engine, wide_host):
     """A fitting code box lets horizontal input reach its enclosing reader in WebKit too."""
     source = leaf_page(

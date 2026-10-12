@@ -77,7 +77,6 @@ from render_cases_widgets import (
     TYPED_PARTS_PAGE,
 )
 from render_harness import (
-    CORPUS_PAGE,
     EXAMPLES,
     FEATURE_GALLERY,
     LONG_PAGE,
@@ -220,15 +219,6 @@ def test_the_gallery_embeds_an_ordinary_stamped_page(browser, serve):
     expect(frame.locator("#bg-choice-ask h3")).to_have_text(
         "Which map should the sample team carry?"
     )
-
-
-def test_a_composed_page_does_not_offer_history_it_does_not_have(browser, serve):
-    """Corpus composition preserves markup, not another page's durable versions."""
-    page = open_page(browser, live_url(serve(CORPUS_PAGE)))
-    page.locator('[role="tab"][aria-controls="corpus-feature-gallery"]').click()
-    page.locator('[role="tab"][aria-controls="bg-view-page"]').click()
-    expect(page.locator("#bg-durable-embedding")).to_have_attribute("hidden", "")
-    assert page.locator("#bg-durable-frame").get_attribute("src") == "about:blank"
 
 
 def test_a_live_page_refuses_a_same_site_parent_at_another_port(browser, serve):

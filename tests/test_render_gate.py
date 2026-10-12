@@ -4304,69 +4304,6 @@ RESTORE_ADOPTED = """async () => {
 }"""
 
 
-def test_the_adopted_sheet_decides_nothing_by_standing_last(browser, serve):
-    """The runtime's sheets are adopted, so they cascade after theme.css and after every
-    package theme concatenated onto it. That position is an accident of how they are
-    delivered, and a rule that wins by it beats the page's own rule at equal specificity
-    — a default outranking the thing it is a default for. Nothing catches that, because
-    no test and no browser gate can read a rule that never applied: .lf-ui's face stated
-    there drew .lf-ref at 14px ink where its own rule asked for 11.5px muted, and
-    .lf-margin-more's ink never reached the `…` it was written for.
-
-    So the same rules are served from a stylesheet standing first in the head instead.
-    Specificity does not change, so every computed value that moves was decided by sheet
-    order alone. Zero of them is the contract: what the runtime lays over the page has
-    to beat page and widget alike, and it must do that on its selectors rather than on
-    where it is delivered.
-
-    Layer order is the one other thing the move could reverse. A module sheet adopted
-    first names `lf-base` before chrome.css names `lf-reset`, so the copy opens with the
-    statement the page's first sheet makes (`@layer lf-reset, lf-base, lf-layouts`). An
-    anonymous layer theme.css opens meets nothing here: every rule in it asks for a body
-    without `data-lf-presented` or `data-lf-upgraded`, and open_page has waited for both.
-
-    The corpus, because a tie shows only where both rules meet one element, and it is
-    the page that holds every widget and every idiom at once."""
-    # The corpus's sort film otherwise repaints SVG values while the sheets move.
-    page = open_page(
-        browser,
-        serve(CORPUS_PAGE),
-        context=browser.new_context(reduced_motion="reduce"),
-    )
-    page.evaluate("() => document.getAnimations().forEach((one) => one.pause())")
-    adopted = page.evaluate(COMPUTED_FACES, [list(ORDER_SENSITIVE)])
-    rules = page.evaluate(RELOCATE_ADOPTED)
-    assert rules["adopted"] and rules["adopted"] == rules["linked"], (
-        f"{rules['adopted']} adopted rules became {rules['linked']} linked ones,"
-        " so the comparison below is between a page and itself"
-    )
-    linked = page.evaluate(COMPUTED_FACES, [list(ORDER_SENSITIVE)])
-    # Put the sheets back. The corpus is still going about its business — the
-    # gallery builds a replay frame, a pulse reaches its next step — and those
-    # values move whatever this test does to the cascade. A value the sheet's
-    # position decided comes back when the position does; one the page moved by
-    # itself stays where it went.
-    assert page.evaluate(RESTORE_ADOPTED), "the sheets were not put back"
-    restored = page.evaluate(COMPUTED_FACES, [list(ORDER_SENSITIVE)])
-
-    assert len(adopted) > 1000, f"only {len(adopted)} elements read from the corpus"
-    decided = []
-    for key in adopted.keys() & linked.keys() & restored.keys():
-        moved = [
-            f"{ORDER_SENSITIVE[at]} {was} -> {now}"
-            for at, (was, now, back) in enumerate(
-                zip(adopted[key], linked[key], restored[key], strict=True)
-            )
-            if was != now and back == was
-        ]
-        if moved:
-            decided.append(f"{key}: {', '.join(moved)}")
-    assert not decided, (
-        f"{len(decided)} of {len(adopted)} elements are drawn by the adopted sheet's"
-        " position rather than by its selectors:\n" + "\n".join(sorted(decided)[:20])
-    )
-
-
 # The layer's own list of aims, read from the rule that floors them rather than copied
 # here: a control joins the floor by joining that selector list, and the sweep below has
 # to follow it there. The list states the inline floor; the block floor is padding on
@@ -4419,7 +4356,104 @@ AIM_BOXES = """(selectors) => {
 }"""
 
 
-def test_every_aim_the_layer_offers_takes_a_finger(browser, serve):
+# Everything an injected control still draws once the medium has taken the press away.
+# `cursor` first, the hand being the plainest promise a page makes; the rest is the dress
+# a control wears — a chip ground, a pill's corner, a border, a link's underline, a
+# summary's marker. Colour is not read: a chip that is red is saying something, and what a
+# control says is the other half of this bargain rather than this half.
+PRINTED_OFFERS = """() => [...document.querySelectorAll('[data-lf-offer]')]
+  .filter(n => n.checkVisibility() && n.getBoundingClientRect().width > 0)
+  .map(n => {
+    const s = getComputedStyle(n);
+    return {
+      what: (n.className || n.tagName).toString().trim().split(/\\s+/)[0],
+      said: n.hasAttribute('data-lf-said'),
+      pressable: [
+        s.cursor === 'pointer' && 'a pointer hand',
+        s.backgroundColor !== 'rgba(0, 0, 0, 0)' && 'a filled ground',
+        parseFloat(s.borderTopLeftRadius) > 0 && 'a rounded corner',
+        parseFloat(s.borderTopWidth) > 0 && 'a border',
+        s.textDecorationLine.includes('underline') && 'an underline',
+        s.listStyleType !== 'none' && 'a marker',
+      ].filter(Boolean),
+    };
+  })"""
+
+# Each disclosure and whether the sheet shows its authored content. Injected controls
+# may sit beside that content for keyboard order, but are intentionally absent on paper.
+DISCLOSURES = """() => [...document.querySelectorAll('details')]
+  .filter(d => !d.closest('.lf-chrome'))
+  .map(d => ({
+    open: d.open,
+    displayed: d.checkVisibility(),
+    summary: (d.querySelector('summary')?.textContent || '').trim().slice(0, 40),
+    // An authored output placeholder that is explicitly hidden has no paper reading.
+    shown: [...d.children].filter(c =>
+      !c.matches('summary, script, style, template') &&
+      !c.hasAttribute('data-lf-gen') && !c.hidden)
+      .every(c => c.checkVisibility()),
+  }))"""
+
+
+def adopted_sheet_findings(page):
+    """The runtime's sheets are adopted, so they cascade after theme.css and after every
+    package theme concatenated onto it. That position is an accident of how they are
+    delivered, and a rule that wins by it beats the page's own rule at equal specificity
+    — a default outranking the thing it is a default for. Nothing catches that, because
+    no test and no browser gate can read a rule that never applied: .lf-ui's face stated
+    there drew .lf-ref at 14px ink where its own rule asked for 11.5px muted, and
+    .lf-margin-more's ink never reached the `…` it was written for.
+
+    So the same rules are served from a stylesheet standing first in the head instead.
+    Specificity does not change, so every computed value that moves was decided by sheet
+    order alone. Zero of them is the contract: what the runtime lays over the page has
+    to beat page and widget alike, and it must do that on its selectors rather than on
+    where it is delivered.
+
+    Layer order is the one other thing the move could reverse. A module sheet adopted
+    first names `lf-base` before chrome.css names `lf-reset`, so the copy opens with the
+    statement the page's first sheet makes (`@layer lf-reset, lf-base, lf-layouts`). An
+    anonymous layer theme.css opens meets nothing here: every rule in it asks for a body
+    without `data-lf-presented` or `data-lf-upgraded`, and open_page has waited for both.
+
+    A tie shows only where both rules meet one element, so this reads the corpus."""
+    page.evaluate("() => document.getAnimations().forEach((one) => one.pause())")
+    adopted = page.evaluate(COMPUTED_FACES, [list(ORDER_SENSITIVE)])
+    rules = page.evaluate(RELOCATE_ADOPTED)
+    assert rules["adopted"] and rules["adopted"] == rules["linked"], (
+        f"{rules['adopted']} adopted rules became {rules['linked']} linked ones,"
+        " so the comparison below is between a page and itself"
+    )
+    linked = page.evaluate(COMPUTED_FACES, [list(ORDER_SENSITIVE)])
+    # Put the sheets back. The corpus is still going about its business — the
+    # gallery builds a replay frame, a pulse reaches its next step — and those
+    # values move whatever this test does to the cascade. A value the sheet's
+    # position decided comes back when the position does; one the page moved by
+    # itself stays where it went.
+    assert page.evaluate(RESTORE_ADOPTED), "the sheets were not put back"
+    restored = page.evaluate(COMPUTED_FACES, [list(ORDER_SENSITIVE)])
+
+    assert len(adopted) > 1000, f"only {len(adopted)} elements read from the corpus"
+    decided = []
+    for key in adopted.keys() & linked.keys() & restored.keys():
+        moved = [
+            f"{ORDER_SENSITIVE[at]} {was} -> {now}"
+            for at, (was, now, back) in enumerate(
+                zip(adopted[key], linked[key], restored[key], strict=True)
+            )
+            if was != now and back == was
+        ]
+        if moved:
+            decided.append(f"{key}: {', '.join(moved)}")
+    if not decided:
+        return []
+    return [
+        f"{len(decided)} of {len(adopted)} elements are drawn by the adopted sheet's"
+        " position rather than by its selectors:\n" + "\n".join(sorted(decided)[:20])
+    ]
+
+
+def short_aim_findings(page):
     """One floor, and it has to reach the page as well as the chrome.
 
     The rule naming Leaf's aims used to stand inside chrome.css's `@scope`, so it floored
@@ -4432,23 +4466,128 @@ def test_every_aim_the_layer_offers_takes_a_finger(browser, serve):
     rule that states a minimum of its own for one of these outranks it — and a package's
     38px button or the chrome's 28px step is shorter than a finger. Those fold the floor
     in with max(), and this sweep is what says they did: it reads the layer's selector
-    list, then measures every visible control on the corpus, which is the page that holds
-    every widget and idiom at once."""
-    context = browser.new_context(
-        viewport={"width": 1200, "height": 900}, has_touch=True
-    )
-    page = open_page(browser, serve(CORPUS_PAGE), context=context)
-    assert page.evaluate("() => matchMedia('(pointer: coarse)').matches"), (
-        "the touch fixture never reached Leaf's coarse-pointer rules"
-    )
-    measured = page.evaluate(AIM_BOXES, aim_selectors())
-
+    list, then measures every visible control under an emulated finger."""
+    cdp = page.context.new_cdp_session(page)
+    cdp.send("Emulation.setTouchEmulationEnabled", {"enabled": True})
+    try:
+        assert page.evaluate("() => matchMedia('(pointer: coarse)').matches"), (
+            "the touch emulation never reached Leaf's coarse-pointer rules"
+        )
+        measured = page.evaluate(AIM_BOXES, aim_selectors())
+    finally:
+        cdp.send("Emulation.setTouchEmulationEnabled", {"enabled": False})
+        cdp.detach()
     assert measured["floor"] == 44, f"a finger asked for {measured['floor']}px"
     assert measured["seen"] > 50, f"only {measured['seen']} aims stood on the corpus"
-    assert not measured["short"], (
+    if not measured["short"]:
+        return []
+    return [
         f"{len(measured['short'])} of {measured['seen']} aims are smaller than "
         f"{measured['floor']}px under a finger:\n"
         + "\n".join(sorted(measured["short"]))
+    ]
+
+
+def pressable_paper_findings(page):
+    """Nothing on a sheet is interactive, so nothing on it should look as though it is.
+
+    Injected controls go on paper, which the layer has always done — but the ones whose
+    label is the page speaking stay, because their words are the page's only statement of
+    what they say, and twenty of the corpus's 236 came through still dressed as controls:
+    the command hub's counts as filled pills with a pointer hand, its worktree heads with
+    a disclosure marker, a decision's links underlined. The words are what data-lf-said
+    keeps; the shape was never part of that bargain.
+
+    A shut disclosure is the same fault from the other side — the words are in the
+    document, nothing on the sheet says so, and there is no press to open it with. The
+    layer already prints a settled group's cards and an inactive tab's panel open;
+    <details> was the one way of putting content behind a gesture that was missed. Six of
+    them printed as stubs, one holding 3270px of an exact source.
+
+    Both readings are taken on screen first, and that half is what makes the print half
+    mean anything: a corpus whose controls were bare and whose disclosures were open
+    everywhere would pass the assertions below while proving nothing about the medium.
+    """
+    page.get_by_role("tab", name="Command", exact=True).click()
+    expect(page.locator("#corpus-command-hub")).to_be_visible()
+    on_screen = page.evaluate(PRINTED_OFFERS)
+    assert sum(1 for offer in on_screen if offer["pressable"]) > 20, (
+        f"the page draws almost nothing as pressable on screen, so paper taking it away "
+        f"is not something this can see: {on_screen}"
+    )
+    shut = [d for d in page.evaluate(DISCLOSURES) if not d["open"]]
+    assert len(shut) >= 3, f"the corpus has no shut disclosures to print: {shut}"
+    assert not any(d["displayed"] and d["shown"] for d in shut), (
+        f"the page shows what its shut disclosures hold before the medium changes: {shut}"
+    )
+
+    page.emulate_media(media="print")
+    printed = page.evaluate(PRINTED_OFFERS)
+    # A disclosure omitted from paper altogether, such as a draft's edit history,
+    # is not a visible summary concealing content from a reader of the sheet.
+    on_paper = [
+        d for d in page.evaluate(DISCLOSURES) if d["displayed"] and not d["open"]
+    ]
+    page.emulate_media(media="screen")
+    assert len(printed) >= 10, (
+        f"paper kept {len(printed)} injected controls, which is too few for the "
+        f"assertion below to be about the ones that speak"
+    )
+    assert on_paper, "no shut disclosure printed, so none was read on paper"
+    dressed = [
+        f"{offer['what']} still draws {', '.join(offer['pressable'])}"
+        for offer in printed
+        if offer["pressable"]
+    ]
+    findings = []
+    if dressed:
+        findings.append(
+            f"{len(dressed)} of the {len(printed)} controls paper kept still promise "
+            "a press nothing on a sheet can answer:\n  " + "\n  ".join(dressed)
+        )
+    if stubs := [d for d in on_paper if not d["shown"]]:
+        findings.append(
+            "a shut disclosure printed as a summary and a stub, with no press on the "
+            f"sheet to open it: {stubs}"
+        )
+    return findings
+
+
+def test_the_layer_holds_its_whole_page_rules_on_the_corpus(browser, serve):
+    """The corpus is the page that holds every widget and idiom at once, so the layer's
+    whole-page rules are read on it, on one page, in turn: the adopted sheet decides
+    nothing by standing last (`adopted_sheet_findings`), every aim takes a finger
+    (`short_aim_findings`), and paper takes the press off everything it cannot press
+    (`pressable_paper_findings`). The touch emulation and print media are each put back
+    before the next reading.
+
+    First, composition preserves markup, not another page's durable versions: the
+    gallery's durable-embedding scenario stays hidden and unloaded in the corpus,
+    which has no version 2 to embed. The corpus then goes back to its first tab, where
+    the aims are measured."""
+    # The corpus's sort film otherwise repaints SVG values while the sheets move.
+    page = open_page(
+        browser,
+        serve(CORPUS_PAGE),
+        context=browser.new_context(
+            viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
+        ),
+    )
+    page.locator('[role="tab"][aria-controls="corpus-feature-gallery"]').click()
+    page.locator('[role="tab"][aria-controls="bg-view-page"]').click()
+    expect(page.locator("#bg-durable-embedding")).to_have_attribute("hidden", "")
+    assert page.locator("#bg-durable-frame").get_attribute("src") == "about:blank"
+    page.locator('[role="tab"][aria-controls="corpus-review-a-plan"]').click()
+    expect(page.locator("#corpus-review-a-plan")).to_be_visible()
+
+    findings = {
+        "sheet order": adopted_sheet_findings(page),
+        "aims": short_aim_findings(page),
+        "paper": pressable_paper_findings(page),
+    }
+    failed = {reading: found for reading, found in findings.items() if found}
+    assert failed == {}, "\n\n".join(
+        f"{reading}:\n" + "\n".join(found) for reading, found in failed.items()
     )
 
 

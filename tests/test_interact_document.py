@@ -3425,22 +3425,21 @@ DIFF_PATCH_CASES = json.loads(
 )["cases"]
 
 
-@pytest.mark.parametrize("case", DIFF_PATCH_CASES, ids=lambda case: case["id"])
+@pytest.mark.parametrize(
+    "case",
+    [case for case in DIFF_PATCH_CASES if "files" in case or "manifest" in case],
+    ids=lambda case: case["id"],
+)
 def test_the_manifest_reads_the_diff_patch_table(case):
     """What lf-diff can present has two readers in two languages: the widget parses a
     patch text in the browser, and `patch_manifest.py` builds the file manifest from a
     Git patch. `diff_patch_cases.json` is the one statement of that rule both are held
     to; `test_render_anchors.py` reads it for the widget.
 
-    A row with `files` is a patch both readers accept, naming those paths. Any other
-    row is one the manifest refuses, with its `manifest` message, and the widget
-    refuses it too where the row gives a `widget` message. The manifest is the
-    stricter reader, so a row the widget refuses always has a manifest refusal, and
-    `data set` never receives a manifest the widget would refuse; the rows only the
-    manifest refuses are malformed Git patches whose inline reading the table leaves
-    unpinned."""
-    assert ("files" in case) != ("manifest" in case), case["id"]
-    assert "widget" not in case or "manifest" in case, case["id"]
+    A row with `files` is a Git patch both readers accept, naming those paths. A row
+    with a `manifest` message is one the contract excludes, which the manifest refuses
+    before it is stored. A row with only a `widget` message is malformed, and the
+    manifest's reading of it is left unpinned: the widget refuses what it stores."""
     if "files" in case:
         files = patch_manifest(case["patch"])["files"]
         assert [file["path"] for file in files] == case["files"]

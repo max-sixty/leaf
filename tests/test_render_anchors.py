@@ -2783,8 +2783,7 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
     readers (`test_interact_document.py`, "the manifest reads the diff patch table").
     The widget draws each accepted patch, under the row's paths, as inline text and
     as the manifest `patch_manifest.py` builds from it, and refuses each row with a
-    `widget` message
-    without hiding evidence, quoting the patch it could not draw."""
+    `widget` message without hiding evidence, quoting the patch it could not draw."""
     accepted = [case for case in DIFF_PATCH_CASES if "files" in case]
     refused = [case for case in DIFF_PATCH_CASES if "widget" in case]
     markup = "".join(

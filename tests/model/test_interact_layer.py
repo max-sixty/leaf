@@ -685,6 +685,23 @@ def test_the_launcher_uses_the_hosts_selected_leaf_for_commands_and_hooks(
             "".join(f"{arg}\n" for arg in args) + payload,
             "",
         )
+    # A host may prepare its environment in a wrapper that invokes Leaf again.
+    # The selection belongs to this dispatch, not to the wrapper's child.
+    selected.write_text(
+        '#!/bin/sh\nexec "' + str(PLUGIN_ROOT / "bin" / "leaf") + '" "$@"\n'
+    )
+    delegated = subprocess.run(
+        [launcher, "--root"],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=False,
+    )
+    assert (delegated.returncode, delegated.stdout, delegated.stderr) == (
+        0,
+        f"{PLUGIN_ROOT}\n",
+        "",
+    )
     monkeypatch.setenv("LEAF_HOST_LAUNCHER", "leaf")
     refused = subprocess.run(
         [launcher, "--version"],

@@ -238,7 +238,7 @@ def test_instruction_cases_selected_together_each_receive_their_own_source(tmp_p
     payloads = arms(tmp_path, "candidate")
     addresses = {
         "review-shows-the-change": ".claude/skills/developing-leaf/SKILL.md",
-        "handover-leaves-the-broad-selection-to-landing": "AGENTS.md",
+        "review-shows-the-change/capture-first-reading": ".claude/skills/ui-sweep/SKILL.md",
     }
     for source in addresses.values():
         path = payloads["candidate"] / source

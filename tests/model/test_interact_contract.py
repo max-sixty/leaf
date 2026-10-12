@@ -2812,6 +2812,10 @@ def test_patterns_read_as_the_browser_reads_them(page_dir):
     letters = {"type": "string", "pattern": r"^\p{L}+$"}
     registry_schema.check_schema(letters)
     assert registry_schema.schema_error(letters, "héllo") is None
+    # So does a value a schema declares a regular expression.
+    regex = {"type": "string", "format": "regex"}
+    assert registry_schema.schema_error(regex, r"^\p{L}+$") is None
+    assert registry_schema.schema_error(regex, "(?P<id>a)") is not None
 
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-options"]["properties"]["id"]["pattern"] = "^(?P<id>[a-z]+)$"
@@ -5176,6 +5180,24 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
         data=json.dumps({"kind": "undo", "undoes": reaction["id"]}).encode(),
     )
     assert status == 400 and "has been answered" in json.loads(body)["error"]
+    # A Leaf older than the parent rule could have admitted that reply to the
+    # withdrawn mark; the log it left still reads, the reply standing on nothing.
+    logged = events_model.read_events(page_dir)
+    with (page_dir / schema_model.EVENTS_FILE).open("a") as log:
+        log.write(
+            json.dumps(
+                {
+                    **nod,
+                    "id": "older-leaf-reply",
+                    "parent": nod["id"],
+                    "seq": logged[-1]["seq"] + 1,
+                }
+            )
+            + "\n"
+        )
+    assert fetch(f"{server}/api/state")[0] == 200
+    read = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
+    assert read.exit_code == 0, read.output
 
 
 def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(

@@ -307,8 +307,13 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
                     return !n || !range.intersectsNode(n);
                 }))
                 astray.push(quoted.slice(0, 70));
+            // The next drag reads the Comment field's state afresh only once this
+            // selection's composer has closed; the rest of the page's rendering
+            // settles before that drag is read.
             sel.removeAllRanges();
-            await rendered();
+            for (let i = 0; fab()?.style.display === 'block' && i < 1000; i++) await tick();
+            if (fab()?.style.display === 'block')
+                missed.push('Comment stayed open once the selection cleared');
         }
         return {attempted, detached, fallback, missed, skipped, astray, nonexact};
     }"""

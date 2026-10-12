@@ -364,8 +364,11 @@ summary { align-content: center; }
           border-top: 1px solid var(--rule); pointer-events: none; }
 /* Every conversation shares its reading edge, including a floating draft. The
    field subtracts its border; messages and metadata take the full inset. */
+/* An open progress group's border overhangs the transcript's end by
+   `--lf-group-ring-end`, so a transcript that scrolls keeps that much room there. */
 :root, .lf-page-thread, .lf-thread, .lf-fab-bar {
           --lf-thread-text-inset: 13px;
+          --lf-group-ring-end: 6px;
           --lf-msg-head-height: max(28px, var(--aim-floor));
           --lf-msg-body-gap: 4px; }
 .lf-thread-transcript { min-width: 0; padding-inline: var(--lf-thread-text-inset) 0; }
@@ -415,7 +418,8 @@ summary { align-content: center; }
    reader is on keeps it open in place (held-news.js). Collapsed disclosures stay inline. */
 .lf-thread-checkpoint[data-expanded="true"] { position: relative; }
 .lf-thread-checkpoint[data-expanded="true"]::before { content: ""; position: absolute;
-  inset-block: -7px; inset-inline: -12px -6px; border: 1px solid var(--rule);
+  inset-block: -7px; inset-inline: -12px calc(-1 * var(--lf-group-ring-end));
+  border: 1px solid var(--rule);
   border-radius: 5px; pointer-events: none; }
 .lf-summary-checkpoint { padding-block: 4px; }
 /* Keep the context label readable when the disclosure needs another line. */

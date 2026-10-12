@@ -235,6 +235,7 @@ summary {
 .lf-thread,
 .lf-fab-bar {
   --lf-thread-text-inset: 13px;
+  --lf-group-ring-end: 6px;
   --lf-msg-head-height: max(28px, var(--aim-floor));
   --lf-msg-body-gap: 4px;
 }
@@ -326,7 +327,7 @@ summary {
   content: "";
   position: absolute;
   inset-block: -7px;
-  inset-inline: -12px -6px;
+  inset-inline: -12px calc(-1 * var(--lf-group-ring-end));
   border: 1px solid var(--rule);
   border-radius: 5px;
   pointer-events: none;

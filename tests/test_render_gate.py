@@ -5114,7 +5114,8 @@ def test_the_render_gate_measures_sideways_room_at_the_root_scrollport(browser, 
     """A narrow authored body is not the page's viewport. Its child can be wider than
     that body while still fitting on screen, so measuring body would invent sideways
     document overflow where the canonical root scrollport has none. Sized in vw, the page
-    keeps that contrast at every width the gate reads."""
+    keeps that contrast at every width the gate reads, so `rootOverflow`, the gate's
+    own reading, is asked at both of its viewports."""
     source = leaf_page(
         "root scrollport width",
         """
@@ -5127,16 +5128,14 @@ body { width: 40vw; }
 """,
     )
 
-    url = serve(source)
-    page = open_page(browser, url)
-    body = page.evaluate("() => document.body.scrollWidth - document.body.clientWidth")
-    assert body > 0, "the two candidate measurements do not diverge"
-    assert root_overflow(page) == 0, body
-    page.close()
-
-    failures = render_gate_model.render_version(browser, url).failures
-
-    assert not [f for f in failures if "page scrolls sideways" in f], failures
+    page = open_page(browser, serve(source))
+    for width, height in ((1200, 900), (540, 720)):
+        resized(page, width, height)
+        body = page.evaluate(
+            "() => document.body.scrollWidth - document.body.clientWidth"
+        )
+        assert body > 0, f"the two candidate measurements do not diverge at {width}px"
+        assert root_overflow(page) == 0, (width, body)
 
 
 def test_a_change_level_with_a_note_is_decided_on_the_change(browser, serve):

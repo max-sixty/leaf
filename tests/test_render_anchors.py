@@ -885,11 +885,12 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
     assert page.evaluate("getSelection().isCollapsed")
 
 
-@pytest.mark.parametrize("route", ["Enter", "g"])
-def test_every_suggestion_activation_dismisses_a_standing_selection(
-    browser, serve, route
+def test_a_suggestion_decided_by_its_address_dismisses_a_standing_selection(
+    browser, serve
 ):
-    """A decision replaces the selection instead of reopening its Comment field."""
+    """A decision replaces the selection instead of reopening its Comment field. A
+    press on the control is `test_the_comment_button_stands_on_no_control`; this
+    decides it through its go-to address."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
     # This width leaves the suggestion's actions exposed beside the selected passage.
     # Generated hints deliberately omit controls covered by the response overlay.
@@ -904,13 +905,8 @@ def test_every_suggestion_activation_dismisses_a_standing_selection(
     expect(page.locator(".lf-composer")).to_be_visible()
     assert not page.evaluate("getSelection().isCollapsed")
 
-    accept = page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept")
-    if route == "g":
-        page.keyboard.press("g")
-        page.keyboard.type(address_code(page, "Margin entry", "sug-refill", "accept"))
-    else:
-        accept.focus()
-        page.keyboard.press(route)
+    page.keyboard.press("g")
+    page.keyboard.type(address_code(page, "Margin entry", "sug-refill", "accept"))
 
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
     expect(page.locator(".lf-composer")).to_be_hidden()
@@ -1549,27 +1545,6 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
         "two",
     )
     wait_for_revision(page, 2)
-
-
-def test_a_plain_block_in_a_language_the_layer_cannot_color_stays_plain(browser, serve):
-    """A plain <pre><code class="language-…"> claims no vocabulary: what every Markdown
-    renderer emits carries whatever word its author wrote. One outside $languages stays
-    the ink of an uncolored block, as it would on any page that colors nothing, with no
-    console error to fail the page over it. The known word beside it is the control."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "plain blocks",
-                '<h1 id="t">Blocks</h1>\n'
-                '<pre id="known"><code class="language-python">x = 1</code></pre>\n'
-                '<pre id="unknown"><code class="language-pythn">y = 2</code></pre>',
-            )
-        ),
-    )
-    expect(page.locator("#known [data-lf-syn]").first).to_be_attached()
-    assert page.locator("#unknown [data-lf-syn]").count() == 0
-    assert page.locator("#unknown code").text_content() == "y = 2"
 
 
 def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
@@ -2247,7 +2222,19 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
 
     The file extension selects Bash in a diff; ordinary arguments and heredoc
     bodies stay distinct from executable command names, without changing source.
-    """
+
+    A plain <pre><code class="language-…"> claims no vocabulary: what every Markdown
+    renderer emits carries whatever word its author wrote. One outside $languages stays
+    the ink of an uncolored block, with no console error to fail the page over it; the
+    known word beside it is the control.
+
+    And `syntax` promises the tokens partition the source exactly: lf-code's line
+    numbers, `hi`, and every note's `at` are counted off that partition, so a tokenizer
+    that dropped a character would slide all three with nothing on screen saying so.
+    The promise is checked at the boundary and the check throws; every language the
+    registry offers is driven through the real module, including each one against
+    another language's source, which is where a lexer meets input it was never written
+    for. It is also what a version bump of the vendored bundle has to survive."""
     source = 'leaf page check "$OUTPUT" --render && cat ./review # inspect\n'
     url = serve(
         leaf_page(
@@ -2262,10 +2249,15 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
 @@ -1 +1 @@
 -leaf page check ./review
 +{escape(source)}</pre></lf-diff>
+<pre id="known"><code class="language-python">x = 1</code></pre>
+<pre id="unknown"><code class="language-pythn">y = 2</code></pre>
 """,
         )
     )
     page = open_page(browser, url)
+    expect(page.locator("#known [data-lf-syn]").first).to_be_attached()
+    assert page.locator("#unknown [data-lf-syn]").count() == 0
+    assert page.locator("#unknown code").text_content() == "y = 2"
     reading = page.evaluate("""() => {
       const plain = document.querySelector('#shell-plain code');
       const widget = document.querySelector('#shell-widget');
@@ -2323,34 +2315,7 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
     })""")
     assert inherited["connected"], inherited
     assert inherited["after"] == ["rgb(161, 35, 69)"] * 3, inherited
-    assert all(color != "rgb(161, 35, 69)" for color in inherited["before"]), inherited
 
-    heredoc = page.evaluate("""async () => {
-      const { syntax } = await window.__lfRuntimeImport('/runtime/syntax.js');
-      return await syntax("cat <<'EOF'\\nleaf is literal text\\nEOF\\n", 'bash');
-    }""")
-    assert any(
-        token["style"].get("color") == "var(--syn-string)"
-        and "leaf is literal text" in token["text"]
-        for token in heredoc
-    )
-    assert not any(
-        token["style"].get("color") == "var(--syn-name)" and "leaf" in token["text"]
-        for token in heredoc
-    )
-
-
-def test_every_language_returns_the_source_it_was_given(browser, serve):
-    """`syntax` promises the tokens partition the source exactly, and lf-code's line
-    numbers, `hi`, and every note's `at` are counted off that partition — so a tokenizer
-    that dropped a character would slide all three with nothing on screen saying so. The
-    promise is checked at the boundary and the check throws; this drives every language
-    the registry offers through the real module, including each one against another
-    language's source, which is where a lexer meets input it was never written for.
-
-    It is also what a version bump of the vendored bundle has to survive."""
-    url = serve(CODE_PAGE)
-    page = open_page(browser, url)
     langs = registry_storage.load_registry(serve.page_dir)["$languages"]["names"]
     samples = [
         'def f(x):\n    """doc\n    <b>&amp;</b>\n    """\n    return f"{x!r}"  # ok\n',
@@ -2415,6 +2380,21 @@ def test_every_language_returns_the_source_it_was_given(browser, serve):
         langs,
     )
     assert pierre_bad == [], f"Pierre lacks a declared language: {pierre_bad}"
+    assert all(color != "rgb(161, 35, 69)" for color in inherited["before"]), inherited
+
+    heredoc = page.evaluate("""async () => {
+      const { syntax } = await window.__lfRuntimeImport('/runtime/syntax.js');
+      return await syntax("cat <<'EOF'\\nleaf is literal text\\nEOF\\n", 'bash');
+    }""")
+    assert any(
+        token["style"].get("color") == "var(--syn-string)"
+        and "leaf is literal text" in token["text"]
+        for token in heredoc
+    )
+    assert not any(
+        token["style"].get("color") == "var(--syn-name)" and "leaf" in token["text"]
+        for token in heredoc
+    )
 
 
 def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
@@ -2424,7 +2404,13 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     stays plain. Line-number and indicator columns are presentation, not source: both must
     be absent from syntax input and selection text. Pierre still tokenizes each
     reconstructed side as a whole, so a Python string spanning changed lines remains a
-    string."""
+    string.
+
+    Pierre owns changed-line pairing; Leaf preserves its useful visual hierarchy. A
+    changed line gets a full semantic background and a brighter inline span where
+    Pierre can identify the changed words. The spans must preserve both source text and
+    the syntax theme, and a file with no declared language still gets the same diff
+    treatment without gaining invented syntax colour."""
     page = open_page(browser, serve(DIFF_PAGE))
     page.wait_for_function(
         "() => document.querySelector('lf-diff.lf-rendered') !== null"
@@ -2630,20 +2616,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
       return selection.toString();
     }""")
     assert selected == "  burst: 40"
-
-
-def test_a_changed_diff_line_marks_the_words_that_moved(browser, serve):
-    """Pierre owns changed-line pairing; Leaf preserves its useful visual hierarchy.
-
-    A changed line gets a full semantic background and a brighter inline span where
-    Pierre can identify the changed words. The spans must preserve both source text and
-    the syntax theme, and a file with no declared language still gets the same diff
-    treatment without gaining invented syntax colour.
-    """
-    page = open_page(browser, serve(DIFF_PAGE))
-    page.wait_for_function(
-        "() => document.querySelector('lf-diff.lf-rendered') !== null"
-    )
+    page.evaluate("getSelection().removeAllRanges()")
 
     files = page.evaluate("""() => [...document.querySelector('#patch').shadowRoot
       .querySelectorAll('details')].map(d => ({
@@ -2742,10 +2715,16 @@ def test_a_diff_can_start_with_every_file_collapsed(browser, serve):
     assert lines.count() == details.first.locator("[data-line]").count()
 
 
-def test_a_diff_keeps_source_markup_inert(browser, serve):
-    """Pierre returns HTML, but the diff remains data rather than a markup door."""
+def test_a_diff_renders_its_source_as_data_and_refuses_what_it_cannot_draw(
+    browser, serve
+):
+    """Missing or wrong hunk ranges must fail instead of hiding review evidence, while
+    the diffs beside them render exactly: Pierre returns HTML, but the diff remains data
+    rather than a markup door; a path-only rename remains evidence without an invented
+    textual hunk; and the documented entity for an empty context line survives wrapper
+    cleanup."""
     payload = "<img src=x onerror=globalThis.__lfDiffPwned=1>"
-    source = "\n".join(
+    inert_source = "\n".join(
         [
             "diff --git a/example.html b/example.html",
             "--- a/example.html",
@@ -2755,28 +2734,36 @@ def test_a_diff_keeps_source_markup_inert(browser, serve):
             f"+{payload}",
         ]
     )
-    page = open_page(browser, serve(_diff_page(("inert-diff", escape(source)))))
-    result = page.evaluate("""() => {
-      const host = document.querySelector('#inert-diff');
-      const added = [...host.shadowRoot.querySelectorAll('[data-line]')]
-        .find(line => line.dataset.lineType === 'change-addition');
-      return {
-        text: added.textContent,
-        images: host.shadowRoot.querySelectorAll('img').length,
-        handlers: host.shadowRoot.querySelectorAll('[onerror]').length,
-        executed: globalThis.__lfDiffPwned === 1,
-      };
-    }""")
-    assert result == {
-        "text": "<img src=x onerror=globalThis.__lfDiffPwned=1>",
-        "images": 0,
-        "handlers": 0,
-        "executed": False,
-    }
-
-
-def test_a_diff_rejects_incomplete_hunks(browser, serve):
-    """Missing or wrong hunk ranges must fail instead of hiding review evidence."""
+    rename_source = '''diff --git a/app.js b/app.js
+--- a/app.js
++++ b/app.js
+@@ -1 +1 @@
+-const value = 1;
++const value = 2;
+diff --git a/old-name.js b/new-name.js
+similarity index 100%
+rename from old-name.js
+rename to new-name.js
+diff --git "a/old\\tname.js" "b/new\\tname.js"
+similarity index 100%
+rename from "old\\tname.js"
+rename to "new\\tname.js"
+diff --git "a/\\357\\273\\277old.js" "b/\\357\\273\\277new.js"
+similarity index 100%
+rename from "\\357\\273\\277old.js"
+rename to "\\357\\273\\277new.js"'''
+    empty_context_markup = """diff --git a/example.txt b/example.txt
+--- a/example.txt
++++ b/example.txt
+@@ -1,2 +1,2 @@
+ visible
+&#32;
+"""
+    rendered_samples = (
+        ("inert-diff", escape(inert_source)),
+        ("mixed-rename-diff", escape(rename_source)),
+        ("final-empty-context-diff", empty_context_markup),
+    )
     expected = [
         {
             "rendered": False,
@@ -2899,11 +2886,12 @@ def test_a_diff_rejects_incomplete_hunks(browser, serve):
                 *(
                     (identifier, escape(case["source"]))
                     for identifier, case in zip(identifiers, expected, strict=True)
-                )
+                ),
+                *rendered_samples,
             )
         ),
     )
-    result = page.locator("lf-diff").evaluate_all(
+    result = page.locator(", ".join(f"#{i}" for i in identifiers)).evaluate_all(
         """hosts => hosts.map(host => ({
           rendered: host.classList.contains('lf-rendered'),
           error: host.querySelector('.lf-error')?.firstChild?.textContent ?? null,
@@ -2917,28 +2905,24 @@ def test_a_diff_rejects_incomplete_hunks(browser, serve):
     )
     assert len(reported) == len(identifiers), reported
 
+    result = page.evaluate("""() => {
+      const host = document.querySelector('#inert-diff');
+      const added = [...host.shadowRoot.querySelectorAll('[data-line]')]
+        .find(line => line.dataset.lineType === 'change-addition');
+      return {
+        text: added.textContent,
+        images: host.shadowRoot.querySelectorAll('img').length,
+        handlers: host.shadowRoot.querySelectorAll('[onerror]').length,
+        executed: globalThis.__lfDiffPwned === 1,
+      };
+    }""")
+    assert result == {
+        "text": "<img src=x onerror=globalThis.__lfDiffPwned=1>",
+        "images": 0,
+        "handlers": 0,
+        "executed": False,
+    }
 
-def test_a_diff_shows_a_path_only_rename_without_an_empty_disclosure(browser, serve):
-    """A path-only rename remains evidence without an invented textual hunk."""
-    source = '''diff --git a/app.js b/app.js
---- a/app.js
-+++ b/app.js
-@@ -1 +1 @@
--const value = 1;
-+const value = 2;
-diff --git a/old-name.js b/new-name.js
-similarity index 100%
-rename from old-name.js
-rename to new-name.js
-diff --git "a/old\\tname.js" "b/new\\tname.js"
-similarity index 100%
-rename from "old\\tname.js"
-rename to "new\\tname.js"
-diff --git "a/\\357\\273\\277old.js" "b/\\357\\273\\277new.js"
-similarity index 100%
-rename from "\\357\\273\\277old.js"
-rename to "\\357\\273\\277new.js"'''
-    page = open_page(browser, serve(_diff_page(("mixed-rename-diff", escape(source)))))
     result = page.evaluate("""async () => {
       const host = document.querySelector('#mixed-rename-diff');
       const shadow = host.shadowRoot;
@@ -2989,20 +2973,6 @@ rename to "\\357\\273\\277new.js"'''
         "wroteRename": False,
     }
 
-
-def test_a_diff_preserves_a_final_empty_context_line(browser, serve):
-    """The documented entity for an empty context line survives wrapper cleanup."""
-    source_markup = """diff --git a/example.txt b/example.txt
---- a/example.txt
-+++ b/example.txt
-@@ -1,2 +1,2 @@
- visible
-&#32;
-"""
-    page = open_page(
-        browser,
-        serve(_diff_page(("final-empty-context-diff", source_markup))),
-    )
     result = page.evaluate("""() => {
       const host = document.querySelector('#final-empty-context-diff');
       return {
@@ -4502,31 +4472,28 @@ def test_the_number_hint_names_only_versions_that_still_exist(browser, serve):
     assert "1–3" not in menu_line, menu_line
 
 
-def test_a_layer_opened_from_nowhere_lets_go_as_it_closes(browser, serve):
-    """A popover opened while nothing held focus has nobody to hand focus back to, so
-    the browser left focus on its hidden row until the next rendering update: a key
-    pressed in that frame was dispatched from a control the user could no longer see.
-    Closing it lets go in the same task."""
-    page = open_page(browser, live_url(serve(INLINE_PAGE)))
-    assert page.evaluate("() => document.activeElement === document.body")
-    open_versions(page)
-    menu = page.locator(".lf-version-menu")
-    expect(menu).to_be_visible()
-    assert menu.evaluate("m => m.contains(document.activeElement)"), "no row took focus"
-    assert menu.evaluate(
-        "m => { m.hidePopover(); return document.activeElement === document.body; }"
-    )
-
-
 def test_the_versions_menu_can_close_from_every_door(browser, serve):
     """A version menu opened from either door returns to its actual origin.
 
     A first version's menu has no version walk, so its exits cannot depend on one.
+
+    A menu opened while nothing held focus has nobody to hand focus back to, so the
+    browser left focus on its hidden row until the next rendering update: a key
+    pressed in that frame was dispatched from a control the user could no longer see.
+    Closing it lets go in the same task.
     """
     url = serve(INLINE_PAGE)
     page = open_page(browser, live_url(url))
     menu = page.locator(".lf-version-menu")
     line = page.locator(".lf-shortcut-bar")
+
+    assert page.evaluate("() => document.activeElement === document.body")
+    open_versions(page)
+    expect(menu).to_be_visible()
+    assert menu.evaluate("m => m.contains(document.activeElement)"), "no row took focus"
+    assert menu.evaluate(
+        "m => { m.hidePopover(); return document.activeElement === document.body; }"
+    )
 
     # One version: the menu opens from the global route and Escape ends it.
     page.keyboard.press("g")

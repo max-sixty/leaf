@@ -784,10 +784,10 @@ function coveredBy(range, node) {
 }
 
 // The page reading's segments a range covers, clipped to where it starts and ends.
-// Every reader of a passage asks where it stands in that reading (`spanIn`), so the
-// segments are the reading's own. A walk from the range's own root reads whatever that
-// root holds: select-all beside an x-shadow widget composes a range over <html>, whose
-// <title> no position of the reading holds.
+// Callers place a passage in that reading (`spanIn`), so the segments are the reading's
+// own. A walk from the range's own root reads whatever that root holds: select-all
+// beside an x-shadow widget composes a range over <html>, and the reading has no
+// position for its <title>.
 export function segmentsIn(range) {
   const segments = [];
   for (const segment of pageText().segments) {

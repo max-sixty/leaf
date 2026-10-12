@@ -888,7 +888,8 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
 
 def test_page_search_starts_with_the_first_match_at_the_reading_edge(browser, serve):
     """Search begins at the top of the visible reading rather than whichever match is
-    nearest the viewport midpoint, so an opening title is the result that gets paint."""
+    nearest the viewport midpoint, so an opening title is the result that gets paint.
+    Tab still reaches the next match after the words under the search are rewritten."""
     html = leaf_page(
         "search from reading edge",
         """
@@ -907,6 +908,21 @@ def test_page_search_starts_with_the_first_match_at_the_reading_edge(browser, se
     assert title is not None and match is not None
     assert title["x"] <= match["x"] < title["x"] + title["width"]
     assert title["y"] <= match["y"] < title["y"] + title["height"]
+
+    # Words rewritten under the open search, as a revision does, leave the matches naming
+    # nodes the page no longer reads. Moving on finds them again rather than placing a
+    # match in a reading that has no position for it, which once never returned.
+    page.evaluate(
+        """() => {
+          const body = document.querySelector('main p');
+          body.firstChild.replaceWith(document.createTextNode('Unified body, rewritten.'));
+        }"""
+    )
+    page.get_by_role("searchbox", name="Search page text").press("Tab", timeout=5000)
+    expect(page.locator(".lf-page-search-status")).to_have_text("2 of 2")
+    expect(page.locator(".lf-live")).to_contain_text(
+        "Match 2 of 2: …Unified title Unified body, rewritten."
+    )
 
 
 def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):

@@ -56,6 +56,7 @@ from .delivery import (
     ReceiptRefused,
     batch_data,
     current_responses,
+    deliverable,
     delivery_path,
     delivery_pointer_prompt,
     freeze_delivery,
@@ -78,7 +79,6 @@ from .service import (
     owned_pages,
     restore_page_claim,
     same_claim,
-    unacknowledged,
 )
 from .state import (
     close_session_turn,
@@ -1982,7 +1982,7 @@ def offer_hook_delivery(
                     if session_record(session_id) != expected:
                         return None, expected
                     expected = renew_turn(expected)
-                    if batch := unacknowledged(page.events, page.cursor):
+                    if batch := deliverable(page):
                         append_batch(session_id, page_dir, page, batch)
         except FileNotFoundError:
             continue
@@ -2262,7 +2262,7 @@ def prepare_codex_delivery(page_dir: Path, harness: Harness) -> PreparedDelivery
                     offered = offer_delivery(*pending, transport="app-server")
                     return offered
             transition = page.take_claim(harness)
-            batch = unacknowledged(page.events, page.cursor)
+            batch = deliverable(page)
             with flocked(lock):
                 if not batch:
                     raise RuntimeError("the page has no Leaf input to deliver")

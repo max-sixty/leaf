@@ -79,6 +79,13 @@ def _ensure_driver(page) -> None:
         page.evaluate(DRIVER_SOURCE.read_text(encoding="utf-8"))
 
 
+class ProbesUnlinked(Exception):
+    """The probe modules failed to load with a `SyntaxError`: how a module importing a
+    name the page's runtime lacks fails to link, as on a page another Leaf vendored,
+    and how malformed probe code fails too. Its message is the browser's reason, which
+    tells the two apart (`render-checks/driver.js`)."""
+
+
 def _load_probes(page, timeout_ms: int) -> None:
     """Start the module load and observe its result from a bounded driver wait.
 
@@ -91,19 +98,21 @@ def _load_probes(page, timeout_ms: int) -> None:
     if loaded is None:
         _ensure_driver(page)
         loaded = page.evaluate(_LOAD_PROBES, PROBE_ROUTE)
-    if loaded:
-        return
-    try:
-        # Probe readiness is independent of animation frames. A complete child
-        # document in a closed disclosure or inactive tab still needs inspection,
-        # but browsers suspend its requestAnimationFrame callbacks.
-        page.wait_for_function(
-            _LOAD_PROBES, arg=PROBE_ROUTE, timeout=timeout_ms, polling=PROBE_POLL_MS
-        )
-    except PlaywrightTimeout as error:
-        raise PlaywrightError(
-            f"Leaf browser probes did not load from {PROBE_ROUTE} within {timeout_ms}ms"
-        ) from error
+    if not loaded:
+        try:
+            # Probe readiness is independent of animation frames. A complete child
+            # document in a closed disclosure or inactive tab still needs inspection,
+            # but browsers suspend its requestAnimationFrame callbacks.
+            loaded = page.wait_for_function(
+                _LOAD_PROBES, arg=PROBE_ROUTE, timeout=timeout_ms, polling=PROBE_POLL_MS
+            ).json_value()
+        except PlaywrightTimeout as error:
+            raise PlaywrightError(
+                f"Leaf browser probes did not load from {PROBE_ROUTE} "
+                f"within {timeout_ms}ms"
+            ) from error
+    if isinstance(loaded, dict):
+        raise ProbesUnlinked(loaded["unlinked"])
 
 
 def evaluate_probe(page, name: str, *args):

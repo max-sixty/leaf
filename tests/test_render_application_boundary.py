@@ -967,7 +967,7 @@ def test_admission_holds_approval_until_the_answer_is_in_the_log(
     expect_asks_answered(page, "0/1")
     expect(approval).to_be_disabled()
     expect(approval).to_have_attribute(
-        "title", "Answer every Question before approving this work"
+        "title", "Answer every ask before approving this work"
     )
 
     if expanded:
@@ -2881,7 +2881,7 @@ def package_workspace(serve, *, before_reader="", primary=True):
         },
         {
             "id": "proofread",
-            "kind": "task",
+            "kind": "todo",
             "author": "agent",
             "agent": "Agent",
             "session": "proofread",
@@ -2913,12 +2913,12 @@ def test_package_answer_summary_waits_for_widget_completion(browser, serve):
     counts = workspace.locator(".counts")
     workspace.get_by_role("button", name="Which extras? Chat", exact=True).click()
     expect(workspace.locator("#extra-chat").get_by_role("checkbox")).to_be_checked()
-    expect(counts).to_have_text("2 Questions on you")
+    expect(counts).to_have_text("2 asks on you")
     with sending(page, "complete the selected extras"):
         workspace.locator("#extras").get_by_role(
             "button", name="Done: my picks here are complete", exact=True
         ).click()
-    expect(counts).to_have_text("1 Questions on you · 1 answered · Chat")
+    expect(counts).to_have_text("1 asks on you · 1 answered · Chat")
 
 
 @pytest.mark.parametrize("width", [1440, 390])
@@ -2944,7 +2944,7 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
                 "revision": 1,
                 "parent": "opening",
                 "text": text,
-                "question": True,
+                "ask": True,
             },
         )
     page = open_page(browser, url, context=context)
@@ -2982,7 +2982,7 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
     # One reply answers both prose Questions. Counts include them, while the
     # compact answer summary names only widget choices instead of repeating prose.
     expect(workspace.locator(".counts")).to_have_text(
-        "0 Questions on you · 3 answered · Email"
+        "0 asks on you · 3 answered · Email"
     )
     with sending(page, "create a real conversation from a package"):
         workspace.get_by_role("textbox", name="New conversation").fill(
@@ -3006,17 +3006,17 @@ def test_public_queue_commands_recheck_membership_and_restore_refusals(browser, 
         "async () => { window.api = await window.__lfRuntimeImport('/runtime/widget-api.js'); }"
     )
     key = page.evaluate(
-        "api.queueItemKey(api.readQueues().onYou.find(item => item.id === 'proofread'))"
+        "api.queueItemKey(api.readQueues().questions.find(item => item.id === 'proofread'))"
     )
     assert page.evaluate(
-        "api.queueActions.done(api.queueItemKey(api.readQueues().onYou.find(item => item.question?.source.kind === 'widget'))) === null"
+        "api.queueActions.done(api.queueItemKey(api.readQueues().questions.find(item => item.ask?.source.kind === 'widget'))) === null"
     )
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     page.evaluate("key => { window.doneDelivery = api.queueActions.done(key); }", key)
     holding(page, held, 1, "a package Done awaiting admission")
     assert page.evaluate(
-        "!api.readQueues().onYou.some(item => item.id === 'proofread')"
+        "!api.readQueues().questions.some(item => item.id === 'proofread')"
     )
     assert page.evaluate("api.readQueues().done.some(item => item.id === 'proofread')")
     assert page.evaluate("key => api.queueActions.done(key) === null", key)
@@ -3035,7 +3035,9 @@ def test_public_queue_commands_recheck_membership_and_restore_refusals(browser, 
     page.unroute("**/api/event")
     assert page.evaluate("doneDelivery") is None
     round_trip(page)
-    assert page.evaluate("api.readQueues().onYou.some(item => item.id === 'proofread')")
+    assert page.evaluate(
+        "api.readQueues().questions.some(item => item.id === 'proofread')"
+    )
     with sending(page, "a current package Done"):
         page.locator("#workspace").get_by_role(
             "button", name="Done", exact=True
@@ -3046,8 +3048,8 @@ def test_public_queue_commands_recheck_membership_and_restore_refusals(browser, 
     assert [
         event["kind"]
         for event in events_model.read_events(serve.page_dir)
-        if event.get("task") == "proofread"
-    ] == ["task_end"]
+        if event.get("todo") == "proofread"
+    ] == ["todo_end"]
 
 
 def test_failed_primary_reader_restores_the_same_native_ask_in_core(browser, serve):
@@ -3257,7 +3259,7 @@ def test_queue_ask_arrival_selects_the_primary_reader(browser, serve):
         "async () => { window.api = await window.__lfRuntimeImport('/runtime/widget-api.js'); }"
     )
     assert page.evaluate(
-        "async () => { const item = api.readQueues().onYou.find(item => item.question?.source.kind === 'widget'); return await api.queueActions.open(api.queueItemKey(item)); }"
+        "async () => { const item = api.readQueues().questions.find(item => item.ask?.source.kind === 'widget'); return await api.queueActions.open(api.queueItemKey(item)); }"
     )
     expect(workspace.locator("lf-option#email")).to_be_visible()
     assert page.evaluate(

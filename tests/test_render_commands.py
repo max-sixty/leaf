@@ -311,8 +311,8 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
             "turn": "turn-1",
         },
     )
-    on_you = state_json(serve.page_dir)["queues"]["on_you"]
-    assert {"kind": "widget", "id": "ship"} in [item["subject"] for item in on_you]
+    questions = state_json(serve.page_dir)["queues"]["questions"]
+    assert {"kind": "widget", "id": "ship"} in [item["subject"] for item in questions]
 
     def check():
         ran = subprocess.run(

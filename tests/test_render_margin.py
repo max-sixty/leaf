@@ -936,7 +936,7 @@ def test_an_ask_marker_s_label_and_name_identify_its_question(browser, serve):
     seen = {}
     for ask in ("short-ask", "long-ask"):
         marker = page.locator(
-            f'[data-lf-margin-for="{ask}"] .lf-margin-marker[data-lf-kinds~="question"]'
+            f'[data-lf-margin-for="{ask}"] .lf-margin-marker[data-lf-kinds~="ask"]'
         )
         marker.scroll_into_view_if_needed()
         marker.hover()
@@ -2170,7 +2170,7 @@ def test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_secti
     expect(
         page.locator(
             '[data-lf-margin-for="bg-choice-ask"] '
-            '.lf-margin-marker[data-lf-kinds="question"] '
+            '.lf-margin-marker[data-lf-kinds="ask"] '
             'svg[data-lf-icon="question"]'
         )
     ).to_be_visible()
@@ -4273,7 +4273,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     marker = cluster.locator(":scope > .lf-margin-marker")
     expect(marker).to_have_attribute(
         "data-lf-kinds",
-        "comment question" if target == "bracket-decision" else "comment",
+        "comment ask" if target == "bracket-decision" else "comment",
     )
     expect(marker).not_to_have_attribute("data-lf-turn", re.compile(".+"))
     marker.evaluate("node => node.dataset.identityProbe = 'retained'")
@@ -4330,7 +4330,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
             "agent": "Claude",
             "parent": agent_comment["id"],
             "text": "Which visit should we choose?",
-            "question": True,
+            "ask": True,
         },
     )
     told(page)
@@ -6016,7 +6016,7 @@ def test_one_information_margin_entry_does_not_raise_a_preview(browser, serve):
     """A single non-thread reading travels directly; cards are reserved for threads."""
     page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
     resized(page, 1600, 900)
-    marker = page.locator('.lf-margin-marker[data-lf-kinds="question"]').first
+    marker = page.locator('.lf-margin-marker[data-lf-kinds="ask"]').first
     expect(marker).not_to_have_attribute("aria-controls", re.compile(".+"))
     expect(marker).not_to_have_attribute("aria-expanded", re.compile(".+"))
     marker.hover()

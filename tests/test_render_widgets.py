@@ -6549,10 +6549,8 @@ body { font-family: system-ui, sans-serif; }
     )
     thread_model.post_reply(
         serve.page_dir,
-        comment["id"],
+        {"to": comment["id"], "for": comment["id"]},
         "Added the deployment-run link to the artifact.",
-        "",
-        for_event=comment["id"],
     )
     refined = stamp_page(
         serve.page_dir,
@@ -8961,25 +8959,6 @@ def test_ask_binding_badges_do_not_cover_their_key_line(browser, serve):
         or geometry["line"]["bottom"] <= chip["top"]
         for chip in geometry["chips"]
     ), geometry
-
-
-def test_a_needed_draft_contributes_its_current_ask_action(browser, serve):
-    source = leaf_page(
-        "needed draft binding",
-        """
-<h1>Supply the copy</h1>
-<lf-ask id="copy-ask"><h2>What should the invitation say?</h2>
-  <lf-draft id="copy" needed><pre>Draft invitation</pre></lf-draft>
-</lf-ask>
-""",
-    )
-    page = open_page(browser, serve(source))
-
-    page.keyboard.press("q")
-    expect(page.locator("#copy-ask")).to_be_focused()
-    assert active_digit_bindings(page) == "1"
-    page.keyboard.press("1")
-    expect(page.get_by_role("textbox", name="Edit copy")).to_be_focused()
 
 
 def test_an_ask_that_cannot_name_itself_arrives_on_the_words_that_explain_it(

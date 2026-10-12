@@ -130,11 +130,9 @@ def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
 
     answer = thread_model.post_reply(
         page_dir,
-        "question",
+        {"to": "question", "for": "question"},
         "Here is the completed answer.",
-        None,
-        for_event="question",
-        when_settled="post",
+        settlement=thread_model.ProviderFinal("test-final"),
     )
     assert answer["responds"] == "question"
     threads = event_folds_model.build_threads(events_model.read_events(page_dir), {})
@@ -160,11 +158,9 @@ def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
     assert threads["question"]["resolved"] is None
     thread_model.post_reply(
         page_dir,
-        "question",
+        {"to": "question", "for": "question"},
         "Additional detail on the original question.",
-        None,
-        for_event="question",
-        when_settled="post",
+        settlement=thread_model.ProviderFinal("test-final"),
     )
     assert delivery_model.current_responses(
         page_dir, events_model.read_events(page_dir)
@@ -209,11 +205,9 @@ def test_late_answer_to_a_frozen_widget_reopens_without_repeating_its_obligation
     thread_model.cmd_resolve(page_dir, question["id"])
     answer = thread_model.post_reply(
         page_dir,
-        question["id"],
+        {"to": question["id"], "for": choice["id"]},
         "I applied your choice.",
-        None,
-        for_event=choice["id"],
-        when_settled="post",
+        settlement=thread_model.ProviderFinal("test-final"),
     )
     assert answer["responds"] == choice["id"]
     threads = event_folds_model.build_threads(events_model.read_events(page_dir), {})
@@ -1334,7 +1328,7 @@ def test_revendoring_serializes_with_thread_markup_entering_the_log(
         monkeypatch,
         "reply",
         lambda: thread_model.post_reply(
-            page_dir, "c1", "Pick one:", markup, for_event="c1"
+            page_dir, {"to": "c1", "for": "c1"}, "Pick one:", markup
         ),
     )
 
@@ -1357,7 +1351,7 @@ def test_revendoring_can_change_frozen_thread_widget_vocabulary(
         '<lf-option id="thread-a">A</lf-option>'
         "</lf-options></lf-ask>"
     )
-    thread_model.post_reply(page_dir, "c1", "Pick one:", markup, for_event="c1")
+    thread_model.post_reply(page_dir, {"to": "c1", "for": "c1"}, "Pick one:", markup)
 
     registry = json.loads((page_dir / "registry.json").read_text())
     options = registry["lf-options"]
@@ -1912,10 +1906,9 @@ def test_candidate_vocabulary_can_change_after_frozen_thread_actions(page_dir):
     )
     thread_model.post_reply(
         page_dir,
-        "c1",
+        {"to": "c1", "for": "c1"},
         "Use this control.",
         '<lf-thread-local id="thread-choice" value="author">Local</lf-thread-local>',
-        for_event="c1",
     )
     append_command(
         page_dir,
@@ -5498,13 +5491,7 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
     assert "already been taken back" in answer["error"], body
     # Answered, the page reaction is a thread, and the withdrawal would orphan
     # the answer; the user's move is in the thread it opened.
-    thread_model.post_reply(
-        page_dir,
-        reaction["id"],
-        "Which part is long?",
-        None,
-        for_event=None,
-    )
+    thread_model.post_reply(page_dir, {"to": reaction["id"]}, "Which part is long?")
     status, body = fetch(
         f"{server}/api/event",
         data=json.dumps({"kind": "undo", "undoes": reaction["id"]}).encode(),

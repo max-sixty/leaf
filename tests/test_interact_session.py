@@ -16032,7 +16032,6 @@ print(json.dumps(imported))
     )
     heavy = (
         "leaf.cli",
-        "leaf.harness",
         "psutil",
         "click",
         "leaf.hosting",

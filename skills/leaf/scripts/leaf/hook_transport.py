@@ -351,7 +351,7 @@ def render(
 
 
 def carry_turn(
-    harness: type[Harness],
+    harness: Harness,
     event: str | None,
     sid: str,
     payload: dict,

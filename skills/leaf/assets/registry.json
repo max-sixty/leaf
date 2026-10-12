@@ -80,7 +80,7 @@
     "contracts": {}
   },
   "$events": {
-    "protocol": 2,
+    "protocol": 3,
     "ownership": {
       "derived": ["meaning", "attention"],
       "browser_discard": ["id", "author", "agent", "session", "ts", "seq", "attention"]

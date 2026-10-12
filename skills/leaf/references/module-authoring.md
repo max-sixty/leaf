@@ -713,7 +713,9 @@ anything holding it. Position the seat with its holder and offsets. `null` reque
 at the control's corner. Each supplied face belongs to one action. The shared keyboard presenter writes its first reachable binding while the
 whole face is connected, visible, and uncovered; a reachable Question alias takes precedence
 over an intrinsic binding for the same command. Otherwise it paints a corner badge at
-the visible control. Commands without `bindingBadge` do not request an inline hint.
+the visible control. Commands without `bindingBadge` do not request an inline hint, so
+a command with `contextKeys` and no `bindingBadge` has a key the page never shows;
+`leaf package check --render` names one (`shows-context-keys`, packages.md, "Seeing it").
 The presenter reads the dispatcher's effective bindings, so hints withdraw outside the
 scope, during native text entry, or when the command is unavailable. A widget owns the
 face's placement, not its text or active state. Routes let one parameterized row
@@ -805,8 +807,10 @@ box before wiring it.
 
 A visual with generated part ids declares accepted `x-visual.prefixes` and calls
 `registerVisualParts(source, read, {reveal, label})`. The `read` function returns
-the parts currently drawn as `{id, element, label}` records. `reveal(id)` draws an
-absent part when someone follows its thread; `label(id)` names that part in
+the parts currently drawn as `{id, element, label}` records. `reveal(id)` settles
+the visual on the requested part when someone follows its thread, even if the
+part is already visible: cancel any pending work that would retire it before
+returning. `label(id)` names that part in
 Threads without changing the visual's state, and returns `null` for an unknown id.
 An `x-visual.parts` declaration may set `complete: true` when listing some drawn
 parts while leaving their peers unaddressable would confuse a reader. The render

@@ -966,16 +966,18 @@
                   A missing token or registration detaches on replay rather than
                   widening to the whole picture. A visual that draws its parts over time
                   passes <code>registerVisualParts(source, read, {reveal})</code>:
-                  <code>reveal(id)</code> synchronously draws a state whose inventory
-                  holds that declared part. A declared part absent from the current
-                  state then places its threads on the whole picture, and travel to the
-                  part, whether a thread anchored there or a module's
-                  <code>navigateToDatum</code>, calls <code>reveal</code> before landing
-                  on it. The registration's <code>update()</code> signals any rendering
-                  or geometry change, including an in-place attribute or style change.
-                  The render gate validates every record, requires each authored token
-                  to resolve, in the current state or after its <code>reveal</code>, and
-                  refuses a registered id its prefixes do not admit. A
+                  <code>reveal(id)</code> synchronously settles on a state whose
+                  inventory holds that declared part, even when it is already visible,
+                  cancelling any pending replacement that would retire it. A declared
+                  part absent from the current state then places its threads on the
+                  whole picture, and travel to the part, whether a thread anchored there
+                  or a module's <code>navigateToDatum</code>, calls
+                  <code>reveal</code> before landing on it. The registration's
+                  <code>update()</code> signals any rendering or geometry change,
+                  including an in-place attribute or style change. The render gate
+                  validates every record, requires each authored token to resolve, in
+                  the current state or after its <code>reveal</code>, and refuses a
+                  registered id its prefixes do not admit. A
                   <code>{parts: ATTR, all: TOKEN}</code> declaration admits the complete
                   registered inventory when ATTR is TOKEN, preserving a whole-picture
                   target when ATTR is omitted. A

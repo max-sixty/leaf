@@ -9,7 +9,7 @@
  * own served identity through the same document delivery as an ordinary page.
  */
 import { applicationState } from "./semantic-state.js";
-import { LIVE_ROOT } from "./storage.js";
+import { LIVE_ROOT } from "./context.js";
 
 const servedRevision = document.querySelector(
   'meta[name="lf-revision"][data-lf-runtime]',

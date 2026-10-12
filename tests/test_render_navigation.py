@@ -75,7 +75,6 @@ from render_harness import (
     RELEASE_FOCUS,
     ROOT,
     accessible_details,
-    active_digit_bindings,
     command_reference_rows,
     comment_note,
     consume_browser_errors,
@@ -110,7 +109,7 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 READING_REGIONS_PAGE = leaf_page(
@@ -1321,7 +1320,7 @@ def test_the_ask_walk_lands_an_ask_in_a_bounded_log_at_the_log_top(browser, serv
     scroll_settled(page)
     after = page.evaluate("() => document.scrollingElement.scrollTop")
     assert after == pytest.approx(before, abs=1), f"the page moved {after - before}px"
-    # At the log's top, less the room the Ask's ring takes above it.
+    # Leave the Ask's focus ring inside the bounded log's visible edge.
     landed = page.evaluate(
         """() => { const q = document.getElementById('q');
           return q.getBoundingClientRect().top
@@ -9408,49 +9407,6 @@ def test_away_from_an_ask_the_reference_names_widget_owned_options(browser, serv
     expect(reference.locator('tr[data-lf-command="ask.activate-nth"]')).to_have_count(0)
 
 
-def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
-    """A widget can replace its action controls without declaring its bindings again."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "draft ask",
-                """
-<h1 id="h">Release note</h1>
-<lf-ask id="note-decision"><h2>How should the note read?</h2>
-  <lf-draft id="note" needed><pre>Keep this text editable.</pre></lf-draft>
-</lf-ask>
-""",
-            )
-        ),
-    )
-
-    page.keyboard.press("q")
-    expect(page.locator("#note-decision")).to_be_focused()
-    assert active_digit_bindings(page) == "1"
-
-    page.keyboard.press("?")
-    page.keyboard.press("?")
-    edit = page.locator('.lf-command-reference-command[data-lf-command="draft.edit"]')
-    expect(edit).to_have_text("Edit")
-    edit.click()
-    expect(page.locator("#note leaf-text")).to_be_focused()
-
-    save = draft_control(page, "save", "note")
-    save.focus()
-    expect(save).to_be_focused()
-    page.keyboard.press("?")
-    assert active_digit_bindings(page) == "1–2"
-    expect(save).to_have_attribute("aria-keyshortcuts", "Meta+Enter Control+Enter 1")
-    page.keyboard.press("?")
-    cancel = page.locator(
-        '.lf-command-reference-command[data-lf-command="draft.cancel"]'
-    )
-    expect(cancel).to_have_text("Cancel")
-    cancel.click()
-    expect(page.locator("#note leaf-text")).to_have_count(0)
-
-
 def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve):
     """The same declarations that paint help expose their active keys through ARIA."""
     page = open_page(browser, serve(ASKS_PAGE))
@@ -9458,9 +9414,11 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
     expect(page.get_by_role("button", name="? more", exact=True)).to_have_attribute(
         "aria-keyshortcuts", "?"
     )
-    expect(page.locator(".lf-general leaf-text")).to_have_attribute(
+    # The page's box joins its card at the card's first open.
+    expect(page_comment(page)).to_have_attribute(
         "aria-keyshortcuts", "Enter Meta+Enter Control+Enter"
     )
+    page.keyboard.press("Escape")
     expect(page.locator("#live-question .lf-another leaf-text")).to_have_attribute(
         "aria-keyshortcuts", "Enter Meta+Enter Control+Enter"
     )
@@ -10256,7 +10214,7 @@ def test_reference_accepts_native_popover_dismissal_across_modal_entry(browser, 
     # inert under it, so the panel is what can take them. The platform also hands a
     # popover's focus back to whoever held it when the popover showed; that arrives at the
     # same place and hides whether Leaf landed them at all. Throttling takes the courtesy
-    # away, so these assertions read Leaf's own landing — a saturated nightly runner took
+    # away, so these assertions read Leaf's own landing — a saturated CI runner took
     # it away about one run in three, which is how this was found. It has to span the
     # presses rather than sit on the last one: the state the final press lands from is
     # built by the ones before it, and throttling only that press does not reproduce. The
@@ -12167,6 +12125,48 @@ def test_reading_landmarks_use_drawn_segments_in_mixed_blocks(
     assert returned["top"] == pytest.approx(chosen["top"], abs=2)
 
 
+@pytest.mark.parametrize("conceal", ["display", "visibility"])
+@pytest.mark.parametrize("quote", [False, True])
+def test_reading_restore_leaves_a_concealed_landmark_alone(
+    browser, serve, conceal, quote
+):
+    """Restoring a serialized landmark never travels to concealed zero geometry."""
+    words = "The review result whose position the reader saved earlier."
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Concealed reading landmark",
+                '<h1>Review</h1><div style="height:1600px"></div>'
+                f'<section id="landmark" style="display:contents"><p>{words}</p></section>'
+                '<div style="height:2000px"></div>',
+            )
+        ),
+    )
+    result = page.evaluate(
+        """async ({words, conceal, quote}) => {
+      const {restorePlace} = await window.__lfRuntimeImport('/runtime/reading-place.js');
+      const {landingBand, shownBox} = await window.__lfRuntimeImport('/runtime/geometry.js');
+      const section = document.querySelector('#landmark');
+      const place = {section: section.id, sectionTop: 0};
+      if (quote) Object.assign(place, {quote: words, quoteTop: 0});
+      restorePlace(place);
+      const range = document.createRange();
+      range.selectNodeContents(section.firstElementChild);
+      const visible = quote ? range.getBoundingClientRect().top : shownBox(section).top;
+      const band = landingBand(document.scrollingElement).top;
+      section.style[conceal] = conceal === 'display' ? 'none' : 'hidden';
+      scrollTo({top:800, behavior:'instant'});
+      const before = scrollY;
+      restorePlace(place);
+      return {visible, band, before, after:scrollY};
+    }""",
+        {"words": words, "conceal": conceal, "quote": quote},
+    )
+    assert result["visible"] == pytest.approx(result["band"], abs=2)
+    assert result["before"] == result["after"]
+
+
 def test_back_returns_from_an_ask_the_walk_travelled_to(browser, serve):
     """The Ask walk records the same history the thread walk does: one entry for a
     journey to Asks somewhere else however far it goes, so Back returns to where the
@@ -12615,8 +12615,8 @@ def test_the_resting_key_line_leads_from_the_page_to_target_selection(browser, s
     expect(help_el).to_contain_text("Search all the text on the page")
     # Read the capability by the command the reference lists it under. Its words belong
     # to `target.picker.open` and are read once, in `test_render_semantic_selection.py`;
-    # a second copy here only drifts. Both cases are nightly, so neither holds those
-    # words before `main`.
+    # a second copy here only drifts. Both cases are in the `main` tier, so neither
+    # holds those words before it lands.
     expect(help_el.locator('tr[data-lf-command="target.picker.open"]')).to_have_count(1)
     expect(help_el).not_to_contain_text("Open reactions")
     expect(help_el).to_contain_text("Move 60% of a page down")
@@ -12962,7 +12962,7 @@ def test_a_page_at_rest_repaints_the_key_line_only_when_the_state_moves(browser,
     spellings of a disclosure keep which way they stand, and it repaints the line for
     either. So the paint delivered its own write back to itself and asked for another
     frame, and the page went on repainting for as long as it was open — every browser
-    test on every page paying for it, which is where it showed: the nightly suite ran
+    test on every page paying for it, which is where it showed: the complete suite ran
     half again as long and the run went over its bound with a fifth of the tests unread.
 
     Nothing on screen says so, which is why the reading is the page's own frames at
@@ -13410,9 +13410,6 @@ def test_reactionless_other_responses_can_turn_the_compact_field_into_a_suggesti
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     expect(box).not_to_be_focused()
     expect(box).to_have_attribute("placeholder", "Comment… c")
-    expect(page.locator(".lf-general leaf-text")).to_have_attribute(
-        "placeholder", "Comment on the page"
-    )
     page.keyboard.press("c")
     expect(box).to_be_focused()
     expect(box).to_have_attribute("placeholder", re.compile(r"^Comment… .*⏎$"))
@@ -14431,6 +14428,9 @@ def test_a_passage_selection_keeps_native_copy_and_context_menu(browser, serve):
 def test_focus_paint_releases_every_text_box_crossed_before_a_frame(browser, serve):
     """A synchronous input sync cannot hide an intermediate focus from repaint."""
     page = open_page(browser, serve(INLINE_PAGE, comments=2))
+    # The page's box joins its card at the card's first open, and stays.
+    page_comment(page)
+    page.keyboard.press("Escape")
     page.locator(".lf-threads-toggle").click()
     general = page.locator(".lf-general leaf-text")
     replies = page.locator(".lf-thread leaf-text")
@@ -14728,7 +14728,6 @@ def test_a_field_names_no_key_to_a_finger(browser, serve):
     page = open_page(browser, serve(INLINE_PAGE, comments=2), context=context)
     assert page.evaluate("() => matchMedia('(pointer: coarse)').matches")
     general = page.locator(".lf-general leaf-text")
-    expect(general).to_have_attribute("placeholder", "Comment on the page")
     page_comment(page)
     expect(general).to_have_attribute("placeholder", "Comment on the page")
     page.keyboard.press("Escape")

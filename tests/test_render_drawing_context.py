@@ -5,7 +5,7 @@ from playwright.sync_api import expect
 from render_harness import holding, leaf_page, open_page, rendered
 from test_render_drawing import draw_over, trace
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 CONTEXT_PAGE = leaf_page(
     "drawing context",

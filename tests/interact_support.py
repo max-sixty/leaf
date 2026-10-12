@@ -503,15 +503,23 @@ PAGE = """<!doctype html>
       </lf-option>
     </lf-options>
   </div>
-  <lf-diagram id="flow"><pre>
-graph LR
-  A --> B
-  </pre></lf-diagram>
 </section>
 </main>
 </body>
 </html>
 """
+# PAGE places no widget whose module only a browser can judge, so `page check` on it
+# and on the versions built from it never starts one (`needs_browser`). A test about a
+# data widget's body, its visual parts, or the section one supplies starts from
+# FLOW_PAGE, which closes the Plan section with a diagram.
+FLOW_PAGE = PAGE.replace(
+    "</section>",
+    """  <lf-diagram id="flow"><pre>
+graph LR
+  A --> B
+  </pre></lf-diagram>
+</section>""",
+)
 
 
 def package_path(path: Path) -> str:
@@ -522,7 +530,7 @@ def package_path(path: Path) -> str:
 def page_packages() -> tuple[str, ...]:
     """The integration page's package selection, resolved where it is initialized.
 
-    PAGE holds an lf-diagram, and the interact suite borrows lf-diagram and
+    FLOW_PAGE holds an lf-diagram, and the interact suite borrows lf-diagram and
     lf-diff declarations from the vendored registry.
     """
     return (package_path(COMMAND_HUB_PACKAGE), "diagram", "diff")
@@ -1202,11 +1210,8 @@ def trial_page(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     trial_family(tmp_path)
     page = tmp_path / "page"
-    # The version is built out of PAGE, which holds an lf-diagram; the project package
-    # under test is explicitly selected beside it.
     initialized = CliRunner().invoke(
-        cli_model.cli,
-        ["page", "init", "--package", "diagram", "--package", "./.leaf", str(page)],
+        cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
     )
     assert initialized.exit_code == 0, initialized.output
     (page / "index.html").write_text(trial_version(TRIAL_CACHE, TRIAL_LOG, PILOT_PURGE))

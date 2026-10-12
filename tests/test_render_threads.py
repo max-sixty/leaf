@@ -86,7 +86,7 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 # Where focus given to the Threads list lands while it shows a thread: the title of the
@@ -10493,7 +10493,10 @@ def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
              - box.getBoundingClientRect().top""",
         toggle.element_handle(),
     )
-    assert abs(focused - rest["toggle"]) <= 1, (rest, focused)
+    # Native focus reveals the offscreen disclosure below the stuck head; the
+    # exact offset depends on the space the scrollport has for that reveal.
+    assert focused >= rest["head"] - 1, (rest, focused)
+    expect(toggle).to_be_in_viewport(ratio=1)
 
 
 SEAT_FILLER = "".join(

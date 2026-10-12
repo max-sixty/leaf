@@ -430,10 +430,7 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
             if event["id"] == record["id"]
         )
 
-    # PAGE holds an lf-diagram, so the page selects the package that widget lives in.
-    assert written(["page", "init", "--package", "diagram", str(page_dir)]) == [
-        {"page": str(page_dir)}
-    ]
+    assert written(["page", "init", str(page_dir)]) == [{"page": str(page_dir)}]
     (page_dir / "index.html").write_text(PAGE)
 
     audiences = runner.invoke(cli_model.cli, ["page", "instructions", str(page_dir)])
@@ -750,7 +747,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
     # payload naming one — in the project file, or in a `uv.toml` beside it —
     # so that is what this forbids. Read off the lines rather than a parsed
     # table because a comment is free to discuss an index where a setting is
-    # not. The nightly test below drives the same claim through a real
+    # not. The `main` test below drives the same claim through a real
     # resolve against a closed port; this is the half every run sees.
     configured = [
         line
@@ -918,7 +915,7 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_
     ]
 
 
-@pytest.mark.nightly  # the sync resolves the payload against the host's index
+@pytest.mark.main  # the sync resolves the payload against the host's index
 def test_the_launcher_resolves_through_the_hosts_own_index(tmp_path):
     """The index a host configures is the only place leaf may look for its
     dependencies, and syncing the payload project is the only way it gets a
@@ -4575,11 +4572,8 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
     assert checked.exit_code == 0, checked.output
 
     page = tmp_path / "page"
-    # PAGE holds an lf-diagram, so the page selects the package that widget lives in
-    # beside the project package this test is about.
     initialized = runner.invoke(
-        cli_model.cli,
-        ["page", "init", "--package", "diagram", "--package", "./.leaf", str(page)],
+        cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
     )
     assert initialized.exit_code == 0, initialized.output
     # The package's rule reaches the page confined to the package's own widget.

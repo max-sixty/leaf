@@ -222,10 +222,13 @@ Usage: leaf page check [OPTIONS] PAGE
   Runs deterministic markup checks. --render also checks the drawn page in the
   host's browser: whichever executable LEAF_BROWSER_EXECUTABLE, CHROME_PATH, or
   CHROME_BIN names, else the installed Chrome, else the first browser on PATH. A
-  host with no browser gets a note in place of each browser check.
+  host with no browser gets a note in place of each browser check. --json prints
+  one object instead: the exit status, every finding with its code, element,
+  measured values and severity, and what each browser check ran in.
 
 Options:
   --render  also check the rendered page in the host's browser
+  --json    print the findings as one JSON object instead of lines
   --help    Show this message and exit.
 
 ## leaf page stamp --help

@@ -19,11 +19,9 @@ from leaf.thread import successful_replies
 
 from leaf_dev import ROOT
 from leaf_dev.arms import PageClient, run_leaf
+from leaf_dev.eval_cases import definition
 
-REQUEST = (
-    "I wrote a Leaf page at ./page. Serve it so I can review it in my browser, "
-    "and handle the comments I leave on it."
-)
+REQUEST = definition("delivery_eval")["prompts"]["initial"]
 
 # Each step's comment, on the section it is posted on.
 COMMENTS = {

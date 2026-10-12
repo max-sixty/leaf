@@ -9,7 +9,7 @@ the document reading's own (`SourceReading.decided_passages`).
 
 from typing import NamedTuple
 
-from .events import retractions, seats_with_agent
+from .events import retractions
 from .passages import Passages
 from .projection import PageReading, StateProjection, retirement_outcomes
 from .questions import approval_question, collection, page_question_readings
@@ -49,7 +49,8 @@ def read_document(page: PageReading, threads: dict) -> DocumentReading:
         spk,
         registry,
         dropped,
-        seats_with_agent(threads),
+        threads,
+        page.within,
         settled_away=set(passages.gone),
         prior=page.prior,
         revision=revision,

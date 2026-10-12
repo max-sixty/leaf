@@ -17,12 +17,13 @@
    without one, the card's minimum width ends at `clear`'s right edge. `margin` is where
    across the page the margin row for it stands,
    or would stand in the rail once its thread is sent (margin-layout.js, `marginSpot`),
-   or nothing where no row stands and its rows would be pins. A caller requesting
+   or nothing where no row stands and its rows would be pins. When local pin seating
+   exhausted a pane, this reading also supplies its chosen external attachment and
+   outer scroller. Both comment surfaces use that boundary, so a small pane does not
+   squeeze an opened thread into an unreadable transcript or carry it with inner scroll.
+   The semantic comment anchor remains the original target. A caller requesting
    window placement without a visible attachment supplies `clear: null` and stands
    at its upper inline edge through the same sizing and placement machinery.
-   An existing target with no drawn part has no attachment: seated surfaces withhold
-   their native editing state until it returns. An explicit open can request the
-   unanchored window posture, retaining the hidden subject as its semantic anchor.
    The editing surface uses this solver for its initial attachment, then retains
    browser-owned following (`composing/floating-response.js`).
 
@@ -72,10 +73,7 @@
    clear of, so a reflow of what it is about carries it. The card keeps its reply row
    still that way while a turn joins the transcript above it.
 
-   A seated surface whose target or attachment kind changes carries its frame into
-   that new attachment (`adopt`), preserving its seat while its semantic target stays
-   with its own owner. Send uses the same handoff from the editor to the card.
-   Its next choice keeps the
+   Send hands the editor's frame to the card (`adopt`). Its next choice keeps the
    frame's side and inline start where the boundary still matches, and returns its
    block offsets for the card to hold. The attachment is then the card's current one:
    scrolling retains it, while a boundary or target-width change chooses afresh.
@@ -100,8 +98,13 @@
    scale, and `fit` is handed lengths in that space, as CSS sizes the surface in it. */
 
 import { scrollAxes } from "../element-frame.js";
-import { shellRight, shownWindow, shownParts, shownRect } from "../geometry.js";
-import { drawn } from "../focus.js";
+import {
+  shellRight,
+  shownWindow,
+  shownExtent,
+  shownParts,
+  shownRect,
+} from "../geometry.js";
 import { clamp, union } from "../rect.js";
 import { moveScrollerBy, scrollLimit } from "../scrolling.js";
 
@@ -141,29 +144,34 @@ export function commentAttachment({
       scroller: effectiveScroller(element),
     };
   }
-  const parts = shownParts(target).filter(drawn);
-  if (!parts.length) return null;
-  const context = point ?? passage?.contextNode ?? target;
-  const element = point ?? target;
+  const margin = marginSpot(target, point);
+  const external = margin?.attachment && margin.attachment !== target;
+  const attachment = external ? margin.attachment : target;
+  const context = external ? attachment : (point ?? passage?.contextNode ?? target);
+  const element = external ? attachment : (point ?? target);
   const geometry = floatingGeometry([element, context]);
   const clips = new Map();
-  const shown = union(parts.map((part) => shownRect(part, clips)).filter(Boolean));
-  const whole = union(parts.map((part) => part.getBoundingClientRect()));
-  const extent = point ? pointBand(whole, point) : whole;
-  const clear = point ? extent : (shown ?? whole);
-  const region = containingReadingRegionFor(element);
+  const shown = union(
+    shownParts(attachment)
+      .map((part) => shownRect(part, clips))
+      .filter(Boolean),
+  );
+  const whole = shownExtent(attachment) ?? attachment.getBoundingClientRect();
+  const extent = point && !external ? pointBand(whole, point) : whole;
+  const clear = point && !external ? extent : (shown ?? whole);
+  const region = containingReadingRegionFor(external ? margin.scroller : element);
   return {
     element,
     contextNode: context,
     geometry,
     clear,
     extent,
-    row: (passage?.attachment ?? extent).top,
-    lastRow: passage?.attachment ? passage.attachment.top : extent.bottom,
-    column: passage?.attachment?.left ?? null,
-    margin: marginSpot(target, point),
+    row: (!external && passage?.attachment ? passage.attachment : extent).top,
+    lastRow: !external && passage?.attachment ? passage.attachment.top : extent.bottom,
+    column: !external ? (passage?.attachment?.left ?? null) : null,
+    margin,
     region,
-    scroller: effectiveScroller(region ?? element),
+    scroller: external ? margin.scroller : effectiveScroller(region ?? element),
   };
 }
 

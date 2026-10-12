@@ -17,6 +17,7 @@ here knows the page's structure. Two moves cover what the user does there:
 
 `reveal` is shared with the screenshots, which open the commented item before the
 judge sees the final version.
+The simulated user's prompt lives in `evals/workflows/eval_user.yaml`.
 """
 
 import json
@@ -40,6 +41,7 @@ from leaf_dev.arms import (
     trace_summary,
 )
 from leaf_dev.browser import BESIDE, DESKTOP, chrome, load, settle, tab
+from leaf_dev.eval_cases import definition
 
 # Elements a reader clicks to open what a list or a disclosure holds.
 OPENERS = (
@@ -228,24 +230,7 @@ def comment_on_passage(
 DECIDING_LIMIT = 30 * 60
 COMMAND_LIMIT = 120
 
-USER = """You are the user of a web page an assistant built for you. It is open in
-a browser tab you control with playwright-cli, already attached as session
-`{session}`: run `playwright-cli -s={session} snapshot` to see the page and its
-element refs, and `click`, `fill`, `select`, `check`, `uncheck`, `press`, `hover` and
-`snapshot` with the same `-s={session}` to use it. Use the page as a person would,
-through its own controls: don't run JavaScript (`eval`, `run-code`), change the
-page's storage, open another page, or close or detach the session.
-
-Do this on the page: {task}
-
-When you have made them, finish the way the page offers: if it has a control that
-sends your decisions to the assistant, use it; otherwise, if it offers to copy or
-export them for the assistant, such as a copy button or a box of text summarizing
-them, use that.
-
-Reply with only JSON: {{"made": true if the page took every decision above, else
-false, "copied": the text the page showed you to copy, verbatim, or null, "notes":
-"a sentence on anything the page did not let you do, or empty"}}"""
+USER = definition("eval_user")["prompt"]
 
 
 def cli() -> str:

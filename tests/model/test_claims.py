@@ -6,6 +6,7 @@ import json
 import os
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import threading
@@ -377,6 +378,51 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
     first.communicate(timeout=STATED_TIMEOUT)
     assert lease_path.exists()
     assert not leases_model.lock_is_held(lease_path)
+
+
+def test_a_sigterm_its_handler_takes_inside_a_finalizer_still_ends_the_wait(
+    page_dir, monkeypatch, spawn
+):
+    """Python discards an exception raised in a weakref callback, as it does one
+    raised in `__del__` or a GC callback, so a SIGTERM whose handler runs inside
+    one cannot end the wait by raising. A page memory's finalizer joins threads,
+    which is where a stopped wait once kept running. The wait still ends with
+    SIGTERM's status and releases its lease."""
+    for name in harness_model.IDENTITY_VARIABLES:
+        monkeypatch.delenv(name, raising=False)
+    serving(page_dir, 1)
+    session_model.cmd_waiting(page_dir, "comment on the prototype")
+    waiter = spawn_probe(
+        spawn,
+        page_dir,
+        """\
+import signal
+import weakref
+from leaf import session
+
+def receive_termination():
+    signal.raise_signal(signal.SIGTERM)
+    # The handler runs at this loop's next bytecode check, inside the callback.
+    for _ in range(1000):
+        pass
+
+class Collected:
+    pass
+
+read_watch_pass = session.read_watch_pass
+def pass_after_a_finalizer(*args, **kwargs):
+    session.read_watch_pass = read_watch_pass
+    weakref.finalize(Collected(), receive_termination)
+    return read_watch_pass(*args, **kwargs)
+session.read_watch_pass = pass_after_a_finalizer
+sys.argv = ["leaf", "wait", os.environ["PAGE"]]
+cli_model.cli()
+""",
+    )
+    _out, err = waiter.communicate(timeout=STATED_TIMEOUT)
+    assert "Exception ignored" in err and "SystemExit" in err, err
+    assert waiter.returncode == 128 + signal.SIGTERM, err
+    assert not leases_model.lock_is_held(page_dir / "waiter.lock")
 
 
 @pytest.mark.parametrize("prepared", [False, True])

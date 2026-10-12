@@ -290,17 +290,25 @@ def package_run(name: str, script: str, arguments: tuple[str, ...]) -> None:
 @click.option(
     "--render", is_flag=True, help="also check the rendered page in the host's browser"
 )
-def check(dir: str, render: bool) -> None:
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    help="print the findings as one JSON object instead of lines",
+)
+def check(dir: str, render: bool, as_json: bool) -> None:
     """Check PAGE/index.html.
 
     Runs deterministic markup checks. --render also checks the drawn page in the
     host's browser: whichever executable LEAF_BROWSER_EXECUTABLE, CHROME_PATH, or
     CHROME_BIN names, else the installed Chrome, else the first browser on PATH.
-    A host with no browser gets a note in place of each browser check.
+    A host with no browser gets a note in place of each browser check. --json prints
+    one object instead: the exit status, every finding with its code, element,
+    measured values and severity, and what each browser check ran in.
     """
     from leaf.validation.command import cmd_check
 
-    sys.exit(cmd_check(resolve_dir(dir), render))
+    sys.exit(cmd_check(resolve_dir(dir), render, as_json))
 
 
 @page.command()

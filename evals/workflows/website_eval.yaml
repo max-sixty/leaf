@@ -1,0 +1,52 @@
+# Hosted reply scenarios and native Promptfoo grading, including grader controls.
+cases:
+  question:
+    inputs:
+      questions:
+      - When does the rollout begin, and why is it phased?
+    assert:
+    - &answer_question
+      type: llm-rubric
+      metric: answers-user
+      value: Read the user turns and replies. Pass only if The rollout begins 19 November. It is
+        phased so errors can be caught before all customers are affected. Each completed reply must
+        answer the question, rather than only promise to inspect or answer it later. Do not require
+        exact wording.
+    - &opening
+      type: llm-rubric
+      metric: opening-addresses-user
+      value: Read the shown reply updates as well as completed replies. Any opening shown before
+        an answer should address the user as a brief acknowledgement or a relevant update on reading
+        their page. A first-person plan to read or check and reply shortly is acceptable, including
+        a brief mention of the conversation. Judge the audience and relevance, rather than the presence
+        of future tense or the word reply. Reject internal instruction or tool planning, or a third-person
+        description of an assignment to serve 'the user'. An immediate answer with no opening is
+        also good. Do not require a greeting, fixed phrase, or an opening on every turn.
+  follow-up:
+    inputs:
+      questions:
+      - What blocks this release?
+      - What should we check before clearing that blocker?
+    assert:
+    - type: llm-rubric
+      metric: answers-user
+      value: Read the user turns and replies. Pass only if The first answer identifies the migration
+        rerun applying account credits twice as the release blocker. The follow-up recommends checking
+        that rerunning the migration cannot double-apply credits, using the previous conversation
+        rather than asking what blocker the user means. Each completed reply must answer the question,
+        rather than only promise to inspect or answer it later. Do not require exact wording.
+    - *opening
+  grader-reading:
+    inputs: {}
+    assert:
+    - *opening
+  grader-internal:
+    inputs: {}
+    assert:
+    - <<: *opening
+      type: not-llm-rubric
+  grader-promise:
+    inputs: {}
+    assert:
+    - <<: *answer_question
+      type: not-llm-rubric

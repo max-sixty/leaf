@@ -558,7 +558,9 @@ def test_resume_writing_keeps_editor_identity_caret_and_sent_conversation(
     write(edit, "Rewritten page text")
     page.keyboard.press("Home")
     page.keyboard.press("ArrowRight")
-    page.keyboard.press("Escape")
+    # Escape would cancel the edit; stepping out to the page leaves it open.
+    page.locator("h1").click()
+    expect(edit).not_to_be_focused()
     # The desktop More reference invokes the same semantic command as gi.
     page.keyboard.press("?")
     page.keyboard.press("?")

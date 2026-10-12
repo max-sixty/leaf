@@ -2361,6 +2361,56 @@ def _page_owned_deferred_source(page_dir):
     return authored
 
 
+def test_a_contracts_item_schema_decides_whether_a_record_has_deferred_content(
+    page_dir,
+):
+    """The item schema owns presence; delivery neither invents nor requires payloads."""
+    authored = _page_owned_deferred_source(page_dir)
+    with pytest.raises(data_model.DataError, match="'patch' is a required property"):
+        data_model.cmd_data_set(
+            page_dir,
+            "files",
+            {"files": [{"key": "metadata", "body": "mode 100644 → 100755"}]},
+        )
+    declarations = json.loads(authored.read_text())
+    contract = declarations["$data"]["contracts"]["local-files"]
+    contract["schema"]["properties"]["files"]["items"]["required"] = ["key", "body"]
+    authored.write_text(json.dumps(declarations))
+    activated = revisioning_model.activate_source(page_dir)
+    assert activated.error is None
+    value = {
+        "files": [
+            {"key": "metadata", "body": "mode 100644 → 100755"},
+            {"key": "text", "body": "changed", "patch": "source evidence"},
+        ]
+    }
+    data_model.cmd_data_set(page_dir, "files", value)
+    registry = registry_storage.require_registry(page_dir)
+    stored = data_model.read_data(page_dir, registry)
+    reading = stored["sources"]["files"]
+    browser = data_model.browser_data_from(stored, registry)
+    assert browser["sources"]["files"]["value"] == {
+        "files": [
+            value["files"][0],
+            {"key": "text", "body": "changed"},
+        ]
+    }
+    assert (
+        data_model.deferred_value(
+            reading, registry, source="files", revision=reading["revision"], key="text"
+        )["value"]
+        == "source evidence"
+    )
+    with pytest.raises(data_model.DataError, match="deferred"):
+        data_model.deferred_value(
+            reading,
+            registry,
+            source="files",
+            revision=reading["revision"],
+            key="metadata",
+        )
+
+
 @pytest.mark.parametrize("change", ["schema", "records", "resources"])
 def test_page_owned_data_contracts_can_change_after_publication(page_dir, change):
     """Current declarations can change; old documents retain their captured registry."""
@@ -2812,6 +2862,10 @@ def test_patterns_read_as_the_browser_reads_them(page_dir):
     letters = {"type": "string", "pattern": r"^\p{L}+$"}
     registry_schema.check_schema(letters)
     assert registry_schema.schema_error(letters, "héllo") is None
+    # So does a value a schema declares a regular expression.
+    regex = {"type": "string", "format": "regex"}
+    assert registry_schema.schema_error(regex, r"^\p{L}+$") is None
+    assert registry_schema.schema_error(regex, "(?P<id>a)") is not None
 
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-options"]["properties"]["id"]["pattern"] = "^(?P<id>[a-z]+)$"
@@ -5176,6 +5230,24 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
         data=json.dumps({"kind": "undo", "undoes": reaction["id"]}).encode(),
     )
     assert status == 400 and "has been answered" in json.loads(body)["error"]
+    # A Leaf older than the parent rule could have admitted that reply to the
+    # withdrawn mark; the log it left still reads, the reply standing on nothing.
+    logged = events_model.read_events(page_dir)
+    with (page_dir / schema_model.EVENTS_FILE).open("a") as log:
+        log.write(
+            json.dumps(
+                {
+                    **nod,
+                    "id": "older-leaf-reply",
+                    "parent": nod["id"],
+                    "seq": logged[-1]["seq"] + 1,
+                }
+            )
+            + "\n"
+        )
+    assert fetch(f"{server}/api/state")[0] == 200
+    read = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
+    assert read.exit_code == 0, read.output
 
 
 def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(

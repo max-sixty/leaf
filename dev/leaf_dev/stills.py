@@ -31,18 +31,22 @@ change `base-crop.png` and `head-crop.png` cropped to the union of its regions (
 whole, when the reading names none), ready to hand off as an `lf-shot` pair, and
 `diff.png` outlining the head's own regions, a change in red and a move in blue. The
 crops cover both stills' regions.
+
+Capture and comparison failures are reported per state, with tracebacks in its
+directory; the remaining states still run. Only complete pairs enter the
+comparison. Arm construction, browser setup failures, and interrupts end the command.
 """
 
 import re
 import tempfile
+import traceback
 from collections.abc import Callable
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
 import click
-from leaf.render_checks import PageNotReady
 from PIL import Image, ImageDraw
-from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Page, expect
 
 from leaf_dev import ROOT
@@ -107,17 +111,23 @@ def drawing_comment(page: Page) -> None:
 def drawing_photo_comment(page: Page) -> None:
     """Drawing and photo removal together in the same draft attachment shelf."""
     drawing_comment(page)
-    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
-    page.evaluate("""async () => {
-      const response = await fetch('/media/051bee487bfb5d13.png');
-      const image = await response.blob();
-      await navigator.clipboard.write([new ClipboardItem({'image/png': image})]);
-    }""")
     field = page.locator(".lf-fab-input")
     field.focus()
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
-        page.keyboard.press("ControlOrMeta+v")
-    expect(page.get_by_role("button", name="Remove pasted image 1")).to_be_visible()
+        # This state exercises the paste handler and shelf; keep its payload local
+        # to the tab so captures cannot overwrite or race the machine's clipboard.
+        field.evaluate("""async field => {
+          const response = await fetch('/media/051bee487bfb5d13.png');
+          const image = await response.blob();
+          const transfer = new DataTransfer();
+          transfer.items.add(new File([image], 'pasted.png', {type: 'image/png'}));
+          field.dispatchEvent(new ClipboardEvent('paste', {
+            bubbles: true, cancelable: true, clipboardData: transfer,
+          }));
+        }""")
+    expect(
+        page.get_by_role("button", name="Remove attached image 1", exact=True)
+    ).to_be_visible()
     settle(page)
 
 
@@ -653,7 +663,7 @@ def diff_line_composer(page: Page) -> None:
 
 
 def code_source_by_touch(page: Page) -> None:
-    """Code stood on by touch, its Copy offered on the banner rather than over its words."""
+    """Code stood on by touch, its corner Copy shown by the tap."""
     code_note(page)
     page.locator("lf-code pre").first.tap(position={"x": 60, "y": 20})
 
@@ -1403,9 +1413,13 @@ def capture(browser, address: str, state: State, path: Path) -> dict | None:
         return {key: value * scale for key, value in clip.items()} if clip else None
 
 
-def differences(browser, names: list[str], out: Path) -> dict[str, dict]:
-    """`lf-shot`'s reading of each named state's two stills, from the module that
-    owns it, served beside them to a blank page."""
+@contextmanager
+def differences(browser, out: Path):
+    """One comparison tab, yielding `lf-shot`'s reading of a named state's pair.
+
+    Reuse the browser module for the catalogue; each comparison is a separate call
+    so a state's unreadable image or failed crop leaves the other pairs available.
+    """
 
     def serve(route) -> None:
         path = route.request.url.removeprefix(ORIGIN)
@@ -1423,10 +1437,13 @@ def differences(browser, names: list[str], out: Path) -> dict[str, dict]:
         context.route(f"{ORIGIN}/**", serve)
         page = context.new_page()
         page.goto(f"{ORIGIN}/")
-        return {
-            name: page.evaluate(
-                """async (name) => {
-                  const { compareImages } = await import("/image-difference.js");
+        compare_images = page.evaluate_handle(
+            "async () => (await import('/image-difference.js')).compareImages"
+        )
+
+        def compare(name: str) -> dict:
+            return compare_images.evaluate(
+                """async (compareImages, name) => {
                   const load = async (arm) => {
                     const image = new Image();
                     image.src = `/${name}/${arm}.png`;
@@ -1437,8 +1454,8 @@ def differences(browser, names: list[str], out: Path) -> dict[str, dict]:
                 }""",
                 name,
             )
-            for name in names
-        }
+
+        yield compare
     finally:
         context.close()
 
@@ -1492,8 +1509,18 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
     each state that changed into a before/after pair under .tmp/stills/."""
     states = [state for state in STATES if not names or state.name in names]
     out = run_directory(OUT)
-    failed: dict[str, str] = {}
-    crop_regions: dict[str, list[dict]] = {}
+    failed: dict[str, list[str]] = {}
+    read: dict[str, dict] = {}
+
+    def failure(state: State, phase: str, error: Exception) -> None:
+        message = (
+            error.message.strip().rsplit("\n", 1)[-1].split("; ")[0]
+            if isinstance(error, click.ClickException)
+            else str(error).split("\n", 1)[0]
+        ) or type(error).__name__
+        failed.setdefault(state.name, []).append(f"on {phase}: {message}")
+        (out / state.name / f"{phase}-error.txt").write_text(traceback.format_exc())
+
     with tempfile.TemporaryDirectory(prefix="leaf-stills-") as built:
         scratch = Path(built)
         arms, commits = build_pair(base_ref, scratch)
@@ -1505,16 +1532,17 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
                 copy_committed(
                     ("examples", "leaf-assets.json"), source_roots[arm], commit
                 )
-        with chrome() as browser:
+        with chrome() as browser, differences(browser, out) as compare:
             for state in states:
+                folder = out / state.name
+                folder.mkdir()
+                crop_regions = []
                 for arm, arm_dir in arms.items():
                     # Every state starts from its authored fixture. A prior Send or
                     # Resolve must not become the next state's initial event log.
                     # The base refuses a source written in vocabulary only the head
                     # declares; that state has no base still, and the head's still
                     # stands alone in its folder.
-                    folder = out / state.name
-                    folder.mkdir(exist_ok=True)
                     try:
                         with serving_source(
                             arm_dir,
@@ -1525,26 +1553,27 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
                                 browser, address, state, folder / f"{arm}.png"
                             )
                             if region:
-                                crop_regions.setdefault(state.name, []).append(region)
-                    except click.ClickException as error:
-                        failed[state.name] = (
-                            f"on {arm}: {error.message.strip().splitlines()[-1].split('; ')[0]}"
+                                crop_regions.append(region)
+                    except Exception as error:  # noqa: BLE001 - isolate each capture
+                        failure(state, arm, error)
+                if state.name in failed:
+                    continue
+                try:
+                    difference = compare(state.name)
+                    if difference["changed"]:
+                        crop(
+                            folder, difference["regions"], framing=crop_regions or None
                         )
-                    except (PlaywrightError, PageNotReady) as error:
-                        failed[state.name] = f"on {arm}: {str(error).splitlines()[0]}"
-            read = differences(
-                browser,
-                [state.name for state in states if state.name not in failed],
-                out,
-            )
+                    read[state.name] = difference
+                except Exception as error:  # noqa: BLE001 - isolate each comparison
+                    failure(state, "comparison", error)
     click.echo(f"base {commits['base'][:10]} vs head {commits['head'][:10]}")
     unchanged = 0
     for state in states:
         folder = out / state.name
         if state.name in failed:
-            click.echo(f"  failed  {state.name} {failed[state.name]}")
+            click.echo(f"  failed  {state.name} {'; '.join(failed[state.name])}")
         elif (difference := read[state.name])["changed"]:
-            crop(folder, difference["regions"], framing=crop_regions.get(state.name))
             click.echo(
                 f"  changed {state.name}: {difference['changed']} px -> {folder}"
             )

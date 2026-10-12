@@ -169,7 +169,7 @@ export {
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
 export { announce, notice } from "./notifications.js";
-export { alignText, alignedNodes } from "./text-alignment.js";
+export { alignText } from "./text-alignment.js";
 export { inChrome, says, wrote } from "./passages.js";
 export {
   ago,
@@ -204,7 +204,7 @@ export {
 export { PAGE_INTERFACE, PRESENTATION, afterPresentation } from "./presentation.js";
 export { quietWord } from "./declared-words.js";
 export { projectData } from "./application.js";
-export { copyCodeBlock } from "./code-copy.js";
+export { copyBlock } from "./code-copy.js";
 export { retainUserIntent } from "./user-intent.js";
 // Whether a press is the plain one a control claims: the primary button, no modifier.
 export { plainPress } from "./pointer.js";
@@ -218,7 +218,7 @@ export {
   syntax,
   tokenLines,
 } from "./syntax.js";
-export { bodyText, dataBody, failSoft, once } from "./widget-upgrade.js";
+export { bodyText, dataBody, failSoft, once, reportFailure } from "./widget-upgrade.js";
 export { saidAt, reportSequence, watchHistory, watchReports } from "./reports.js";
 export {
   HIDDEN,

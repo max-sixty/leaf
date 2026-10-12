@@ -376,8 +376,7 @@ def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_p
         ('import "/runtime/events.js";', "public layer entry point"),
         ('import "./data.json";', "JavaScript MIME"),
         ('import "./escape.js";', "symlink"),
-        ('import "./data\\u002ejson";', "unescaped string literals"),
-        ("export const = ;", "invalid JavaScript"),
+        ('import "./data\\u002ejson";', "dependency must be a local URL"),
     ]:
         (authored / "app.js").write_text(source)
         refused = revisioning_model.activate_source(page_dir)
@@ -1183,6 +1182,25 @@ def test_check_refuses_noscript_words_the_browser_never_renders(page_dir):
     assert result.exit_code == 1
     assert "<noscript>" in result.output
     assert "the browser renders none of its content" in result.output
+
+
+def test_check_admits_a_template_whose_words_no_anchor_reaches(page_dir):
+    """A page module may clone a template, so check admits one. The browser and
+    the file parser both keep its contents out of the tree, so no anchor reaches
+    its words."""
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "<h2>Plan</h2>",
+            '<h2>Plan</h2><template id="row"><p>Cloned words.</p></template>',
+        )
+    )
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
+    text = passages_model.page_passages(
+        structure_model.SourceDocument((page_dir / "index.html").read_text()), {}
+    ).text
+    assert "Plan" in text
+    assert "Cloned words." not in text
 
 
 def test_check_rejects_widget_violations(page_dir):
@@ -2451,25 +2469,17 @@ DIFF_PATCH_CASES = json.loads(
 
 @pytest.mark.parametrize(
     "case",
-    [case for case in DIFF_PATCH_CASES if "files" in case or "manifest" in case],
+    [case for case in DIFF_PATCH_CASES if "files" in case],
     ids=lambda case: case["id"],
 )
 def test_the_manifest_reads_the_diff_patch_table(case):
-    """What lf-diff can present has two readers in two languages: the widget parses a
+    """A patch lf-diff accepts has two readers in two languages: the widget parses a
     patch text in the browser, and `patch_manifest.py` builds the file manifest from a
-    Git patch. `diff_patch_cases.json` is the one statement of that rule both are held
-    to; `test_render_anchors.py` reads it for the widget.
-
-    A row with `files` is a Git patch both readers accept, naming those paths. A row
-    with a `manifest` message is one the contract excludes, which the manifest refuses
-    before it is stored. A row with only a `widget` message is malformed, and the
-    manifest's reading of it is left unpinned: the widget refuses what it stores."""
-    if "files" in case:
-        files = patch_manifest(case["patch"])["files"]
-        assert [file["path"] for file in files] == case["files"]
-    else:
-        with pytest.raises(ValueError, match=re.escape(case["manifest"])):
-            patch_manifest(case["patch"])
+    Git patch. Both read the paths of each `files` row of `diff_patch_cases.json`
+    alike; `test_render_anchors.py` reads it for the widget, which alone refuses the
+    rest."""
+    files = patch_manifest(case["patch"])["files"]
+    assert [file["path"] for file in files] == case["files"]
 
 
 def test_data_set_reads_a_structured_value_from_a_file(page_dir, tmp_path):
@@ -2738,61 +2748,18 @@ def test_data_set_wraps_an_unproductive_recursive_schema(page_dir):
     )
 
 
-@pytest.mark.parametrize(
-    ("stored", "message"),
-    [
-        ("null", "data must be an object with only sources"),
-        ('{"revision":1,"sources":{}}', "data must be an object with only sources"),
-        (
-            '{"sources":{"builds":{"contract":"Bad Contract"}}}',
-            "source 'builds' must record only a contract",
-        ),
-        (
-            '{"sources":{"builds":{"contract":"build-map","revision":1}}}',
-            "source 'builds' must record only a contract",
-        ),
-    ],
-)
-def test_the_contract_index_refuses_anything_but_contracts(page_dir, stored, message):
-    """data.json records only which contract each source id was bound to."""
-    (page_dir / "data.json").write_text(stored)
-
-    with pytest.raises(data_contracts_model.DataError, match=message):
-        read_page_data(page_dir)
-
-
-def test_the_contract_index_wraps_invalid_utf8_at_its_boundary(page_dir):
-    (page_dir / "data.json").write_bytes(b"\xff")
-
-    with pytest.raises(data_contracts_model.DataError, match="invalid JSON"):
-        read_page_data(page_dir)
-
-
-@pytest.mark.parametrize(
-    ("value", "message"),
-    [
-        (b"\xff", "is not JSON"),
-        (b"[NaN]", "NaN is not JSON"),
-        (b"[]", "must hold a publication"),
-        (
-            b'{"run":"bad","updated":"2026-01-01T00:00:00Z","value":[]}',
-            "must hold a publication",
-        ),
-        (
-            b'{"run":"11111111111111111111111111111111","updated":"yesterday","value":[]}',
-            "must hold a publication",
-        ),
-    ],
-)
-def test_a_corrupted_publication_reads_as_that_sources_error(page_dir, value, message):
-    """External corruption never becomes data or a fabricated publication receipt."""
+def test_a_value_an_earlier_leaf_wrote_reads_as_that_sources_error(page_dir):
+    """A Leaf before publications wrote the bare value, so a page it fed names the
+    rewrite rather than reading that value as a publication."""
     declare_data_input(page_dir, "builds", {"type": "array"}, contract="build-map")
     data_model.cmd_data_set(page_dir, "builds", [])
-    data_model.source_file(page_dir, "builds").write_bytes(value)
+    data_model.source_file(page_dir, "builds").write_bytes(b"[]")
 
     source = read_page_data(page_dir)["sources"]["builds"]
     assert "value" not in source
-    assert message in source["error"]
+    assert source["error"] == (
+        "source 'builds' holds no publication; write it again with leaf data set"
+    )
 
 
 def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir):

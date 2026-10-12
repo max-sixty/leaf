@@ -7,18 +7,20 @@
 # whose options name actions ("Explore and build it", "Leave it").
 # The captures are cited only as paths, as the source's subagent findings cited them:
 # listing them as page media, or naming `leaf page media`, made base embed them 3/3.
-# Across 9 base and 12 candidate runs at 35c660aee and 3fe3eb0af, base passed 0/9
-# and never put a picture of today in the ask; the shape-shown-inside-the-ask rule
-# in authoring-questions.md passed about half. Its misses put the figure just before
-# the lf-ask or skipped one defect. The wording guardrail failed in 2 of 18
-# candidate runs, each on a flow diagram of the agent's recovery path.
+# Tool-capable authoring now registers real files and grades the saved page;
+# drawings no longer substitute for an unavailable capture.
+# At 35c660aee base passed 0/6 (draws-the-change 1/6, shows-today 0/3); the
+# shape-shown-inside-the-ask rule in authoring-questions.md passed 3/3, drawing the
+# change 6/6. The wording guardrail held 12/12.
 description: proposals-show-what-they-change
 metadata:
-  purpose: 'Asks: a proposal to change something visible shows it as it is today in a capture and
-    draws the change, while a wording proposal stays text.'
+  purpose:
+    "Asks: a proposal to change something visible shows it as it is today in a capture
+    and draws the change, while a wording proposal stays text."
+  authoring: true
   tags:
-  - asks
-  - drawing
+    - asks
+    - drawing
 vars:
   prompt: |
     The user asked: "Let's plan out: (1) what code fixes to make to Leaf from the eval
@@ -53,8 +55,8 @@ vars:
     pairwise judge as the quality score.
 
     Leaf. Three subagents checked every judge claim about Leaf's pages against the
-    screenshots and source, citing captures under the run directory
-    `.tmp/eval/20261012-002020-gxftdld6/screenshots/`. Real defects, each with its cause
+    screenshots and source, citing captures under
+    `evals/proposals-show-what-they-change/captures/`. Real defects, each with its cause
     and proposed fix:
     1. Configuration: each alert's threshold and action controls sit in the playground's
        right rail, apart from that alert's evidence in the stage. HTML put threshold
@@ -90,34 +92,36 @@ vars:
     Judge claims that were wrong: "Sam Okafor not visible" (the screenshots show only
     the first ticket); "23 services shown only as a graphic" (the table says 23).
 
-    The page directory is not reachable from here, so reply with the complete `<main>`
-    element's HTML rather than writing a file.
+    Write the plan as a Leaf page.
 assert:
-- type: llm-rubric
-  metric: shows-today
-  value: |
-    Find the asks deciding the configuration controls (defect 1), the queue's progress
-    (defect 2) and the options track (defect 4). Pass only if each of the three shows
-    the defect as it looks today in a picture inside that `lf-ask`: the capture the
-    notes cite for it as an `<img>` or `lf-shot` (cropped or marked counts), or, where
-    the answer says
-    the capture can't be embedded from here, a drawing of today's state (an inline
-    `<svg>`, an `lf-diagram`, or an HTML mockup laid out like the interface). Fail if any of the three describes today's state only
-    in words, a table row, a cited file path, or a link to the report page, or shows
-    it only outside the `lf-ask`.
-- type: llm-rubric
-  metric: draws-the-change
-  value: |
-    Find the asks deciding the configuration controls (defect 1) and the queue's
-    progress (defect 2). Pass only if each shows what accepting the proposal would look
-    like in a drawing (an inline `<svg>`, an `lf-diagram`, an `lf-sample`, or an HTML
-    mockup laid out like the interface) inside
-    that `lf-ask`: in the accepting `lf-option`, or in a figure that shows today beside
-    the change. Fail if either proposal's change is described only in words, or drawn
-    only outside the `lf-ask`.
-- type: llm-rubric
-  metric: wording-stays-text
-  value: |
-    Find the ask deciding the `leaf thread reply` refusal. Pass if it carries no image,
-    screenshot or drawing; showing the refusal's text, before or after, as text or code
-    is fine. Fail if it holds an `<img>`, `<svg>`, `lf-shot` or `lf-diagram`.
+  - type: agent-rubric
+    metric: shows-today
+    transform: "JSON.stringify({html: output, captures: context.metadata.capture_evidence})"
+    value: |
+      The output contains authored HTML and a map of original inputs and page media.
+      `captures.exact_inputs` lists verified original matches for each page media URL.
+      Treat those as the supplied captures without rechecking their identical pixels.
+      For other page media, open the cited originals and compare the images the HTML
+      uses: cropped or marked captures must still show the cited defect.
+      Find the asks deciding the configuration controls (defect 1), the queue's progress
+      (defect 2) and the options track (defect 4). Pass only if each of the three shows
+      the defect as it looks today in a picture, inside that `lf-ask`: the capture the
+      notes cite for it as an `<img>` or `lf-shot` (cropped or marked counts). A drawing
+      alone does not show the captured state. Fail if any of the three describes today's state only
+      in words, a table row, a cited file path, or a link to the report page.
+  - type: llm-rubric
+    metric: draws-the-change
+    value: |
+      Find the asks deciding the configuration controls (defect 1) and the queue's
+      progress (defect 2). Pass only if each shows what accepting the proposal would look
+      like in a drawing (an inline `<svg>`, an `lf-diagram`, an `lf-sample`, or an HTML
+      mockup laid out like the interface) inside
+      that `lf-ask`: in the accepting `lf-option`, or in a figure that shows today beside
+      the change. Fail if either proposal's change is described only in words, or drawn
+      only outside the `lf-ask`.
+  - type: llm-rubric
+    metric: wording-stays-text
+    value: |
+      Find the ask deciding the `leaf thread reply` refusal. Pass if it carries no image,
+      screenshot or drawing; showing the refusal's text, before or after, as text or code
+      is fine. Fail if it holds an `<img>`, `<svg>`, `lf-shot` or `lf-diagram`.

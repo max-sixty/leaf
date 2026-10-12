@@ -500,6 +500,10 @@ def test_input_too_large_for_the_turn_goes_as_a_pointer_its_reader_confirms(
     reason = continued(answer)
     assert len(reason) < hook_transport_model.HOOK_CONTEXT_LIMIT
     [delivery_id] = re.findall(r"`leaf delivery read (\w+)`", reason)
+    assert answer[hook_transport_model.DELIVERY_FIELD] == {
+        "id": delivery_id,
+        "inline": False,
+    }
     assert files_model.read_json(claimed / "cursor.json") is None
     assert all(e["kind"] != "pickup" for e in events_model.read_events(claimed))
 
@@ -517,6 +521,42 @@ def test_input_too_large_for_the_turn_goes_as_a_pointer_its_reader_confirms(
     assert files_model.read_json(claimed / "cursor.json") == {
         "seq": last_deliverable_seq(claimed)
     }
+
+
+def test_a_hooks_delivery_field_is_independent_of_its_prose(monkeypatch):
+    """A hook's output names the delivery it hands over, inline or by pointer, in a
+    field of its own, which Leaf's hooks module and an eval's reading of a trace
+    read. Rewording the context the model reads changes neither the field nor that
+    reading."""
+    from leaf_dev.arms import hook_delivered
+
+    harness = harness_model.ClaudeCodeHarness("s1", "Claude")
+    delivery = {"id": "d1", "batches": []}
+
+    def outputs() -> list[dict]:
+        return [
+            hook_transport_model.render(harness, "Stop", delivery, [], confirm=confirm)
+            for confirm in (lambda: True, lambda: False)
+        ]
+
+    def contexts(answers: list[dict]) -> list[str]:
+        return [answer["hookSpecificOutput"]["additionalContext"] for answer in answers]
+
+    field = hook_transport_model.DELIVERY_FIELD
+    before = outputs()
+    monkeypatch.setattr(hook_transport_model, "INLINE_OPENING", "Reworded.")
+    monkeypatch.setattr(hook_transport_model, "POINTED_OPENING", "Reworded:")
+    after = outputs()
+    assert all(a != b for a, b in zip(contexts(after), contexts(before), strict=True))
+    assert [answer[field] for answer in after] == [
+        {"id": "d1", "inline": True},
+        {"id": "d1", "inline": False},
+    ]
+    assert [answer[field] for answer in before] == [answer[field] for answer in after]
+    assert all(
+        hook_delivered({"subtype": "hook_response", "output": json.dumps(answer)})
+        for answer in after
+    )
 
 
 def test_hook_drops_a_page_transferred_after_ownership_discovery(claimed, monkeypatch):
@@ -995,20 +1035,20 @@ def test_a_prompt_offers_no_new_input_from_a_page_its_leaf_cannot_write(
     )
     vendored_at_another_protocol(claimed)
 
-    def prompt() -> str:
+    def prompt() -> dict:
         hooks_model.cmd_hook(
             "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
         )
         out = capsys.readouterr().out
-        return json.loads(out)["hookSpecificOutput"]["additionalContext"] if out else ""
+        return json.loads(out) if out else {}
 
     refused = prompt()
-    assert "page protocol" in refused
-    assert not hook_transport_model.hands_delivery(refused)
+    assert "page protocol" in refused["hookSpecificOutput"]["additionalContext"]
+    assert hook_transport_model.DELIVERY_FIELD not in refused
     assert events_model.read_cursor(claimed) < comment["seq"]
 
     cleanup_model.write_json(stamp, json.loads(vendored))
-    assert hook_transport_model.hands_delivery(prompt())
+    assert hook_transport_model.DELIVERY_FIELD in prompt()
     assert events_model.read_cursor(claimed) >= comment["seq"]
 
 

@@ -269,17 +269,8 @@ export async function loadIcon() {
   const response = await fetch(runtimeResource("/icon.svg"));
   if (!response.ok) throw new Error(`icon.svg answered ${response.status}`);
   const doc = new DOMParser().parseFromString(await response.text(), "image/svg+xml");
-  // Two failures, and the same symptom: no element to paint. A parse error is reported
-  // as a document rather than thrown, so a mark that isn't SVG at all reaches the class
-  // check and fails it — sending whoever overrode the file to look for a class that is
-  // sitting right there in it.
-  const broken = doc.querySelector("parsererror");
-  if (broken)
-    throw new Error(
-      // Collapsed, because the browser's report is laid out as a page and reads as
-      // several lines of it; what matters is the line and column it names.
-      `icon.svg is not SVG — ${broken.textContent.replace(/\s+/g, " ").trim()}`,
-    );
+  // A package's replacement that is not SVG at all parses to an error document, which
+  // has no lf-tone element either.
   if (!doc.querySelector(".lf-tone"))
     throw new Error(
       "icon.svg carries no lf-tone element, which is where the page's " +
@@ -317,9 +308,9 @@ let saidActionableWork;
 // to the disclosure (chrome.css). Its box is reserved for the count it usually reaches,
 // as the Threads control is for "Threads: 999", and only grows, so a count changing
 // moves none of its words. Both are read from the application's publication rather
-// than the state answer: a reply the user sends leaves their count and joins the
-// agent's in the turn it is sent. A press on either opens the Questions panel, which
-// lists both.
+// than the state answer: a reply the user sends joins the agent's count in the turn
+// it is sent, and leaves the user's once the server has read it. A press on either
+// opens the Questions panel, which lists both.
 const QUEUE_WORDS = Object.freeze({
   ask: ["ask", "asks"],
   approval: ["approval", "approvals"],

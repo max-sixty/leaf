@@ -1962,7 +1962,8 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
         contained_document = contained.locator("html")
         storage = contained_document.evaluate(
             """async () => {
-                const {LIVE_ROOT, PAGE_SCOPE, tabStore, draftStore, userStore} =
+                const {LIVE_ROOT} = await window.__lfRuntimeImport('/runtime/context.js');
+                const {PAGE_SCOPE, tabStore, draftStore, userStore} =
                     await window.__lfRuntimeImport('/runtime/storage.js');
                 for (const [name, store] of Object.entries({tabStore, draftStore, userStore})) {
                     if (!store.set('isolation-test', name) || store.get('isolation-test') !== name)

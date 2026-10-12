@@ -116,7 +116,7 @@ def test_detached_capture_remains_detached_when_an_identical_copy_survives(page_
     )
     revised = original.replace(repeated * 2 + unique, repeated + unique)
     (page_dir / "index.html").write_text(revised)
-    publish(page_dir, version=2)
+    publish(page_dir)
     threads = build_threads(events_model.read_events(page_dir), {})
     assert threads[detached["id"]]["anchor"] == anchor
     assert threads[exact["id"]]["anchor"] == exact["anchor"]

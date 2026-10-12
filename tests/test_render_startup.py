@@ -1369,7 +1369,7 @@ def test_reading_regions_read_posture_from_the_stylesheet_and_announce_a_shift(
     page = open_page(browser, serve(SHORT_SUGGESTION))
     readings = page.evaluate(
         """async () => {
-          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const leaf = await window.__lfRuntimeImport('/runtime/reading-regions.js');
           const frames = () => new Promise(resolve =>
             requestAnimationFrame(() => requestAnimationFrame(resolve)));
           const main = document.querySelector('main');
@@ -5738,10 +5738,9 @@ customElements.define(TAG, class extends HTMLElement {
     )
     thread_model.post_reply(
         serve.page_dir,
-        "question",
+        {"to": "question", "for": "question"},
         "Frozen feed.",
         '<lf-object-feed id="thread-feed" source="shared"></lf-object-feed>',
-        for_event="question",
     )
     data_model.cmd_data_set(serve.page_dir, "shared", ["same bytes"])
     page = open_page(browser, url)

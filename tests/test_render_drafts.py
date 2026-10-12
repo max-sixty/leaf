@@ -6251,7 +6251,8 @@ def test_document_edit_enter_adds_a_line_and_modified_enter_saves_exact_source(
     assert not [
         e for e in events_model.read_events(serve.page_dir) if e.get("action") == "edit"
     ]
-    editor.press("ControlOrMeta+Enter")
+    with sending(page, "the exact source edit"):
+        editor.press("ControlOrMeta+Enter")
     expect(editor).to_have_count(0)
     expect(draft.locator(".lf-draft-body > p")).to_have_count(2)
     expect(draft.locator(".lf-draft-body strong")).to_have_text("paragraph")

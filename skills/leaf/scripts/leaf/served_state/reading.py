@@ -10,6 +10,7 @@ builds that form; nothing else spells it.
 import hashlib
 from pathlib import Path
 
+from ..file_bindings import binding_stamps
 from ..files import STAGED, entry_stamps, file_stamp
 from ..schema import (
     DATA_DIR,
@@ -55,7 +56,9 @@ def page_reading(page_dir: Path) -> str:
     the answer has to be cheap enough to ask many times a second. Activation keys on
     the same stamps (`source_readings`), so a file source validation reads that could
     change without moving it would leave a save unactivated; `media/` is stamped
-    without descending because its filenames are content-addressed.
+    without descending because its filenames are content-addressed. Files a page
+    binds for editing live outside it, so each is stamped through its grant
+    (`binding_stamps`), which the state answer also carries.
 
     A stamp taken while a file is being written in place is not a state that file was
     ever at: the kernel puts the new modification time on the inode before the write
@@ -67,6 +70,7 @@ def page_reading(page_dir: Path) -> str:
     """
     stamps = _page_stamps(page_dir)
     stamps.append(("", file_stamp(claim_path(page_dir))))
+    stamps.append(("$files", binding_stamps(page_dir)))
     claim = page_claim(page_dir)
     if claim:
         # Turn openings/closings and SessionEnd are shared session publications,

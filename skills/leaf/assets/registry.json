@@ -13,7 +13,7 @@
     "additionalProperties": false,
     "x-content": "members",
     "x-inline": true,
-    "x-upgrade": "A module at widgets/<tag>.js default-exports the HTMLElement constructor enhancing this element. Leaf imports and registers that constructor in the widget’s publication vocabulary where its markup uses the tag. Modules do not self-register. `page init` refuses a declaration with no module, and the render gate verifies the page’s widgets upgrade. Required.",
+    "x-upgrade": true,
     "x-awaits": {"value": "decide", "answered": {"decide": {}}, "all": "accept"},
     "x-withdrawn-as": "reject",
     "x-word": "module",
@@ -37,7 +37,7 @@
     "x-owners": ["lf-suggestion"],
     "x-content": "markup",
     "x-inline": true,
-    "x-upgrade": "A module at widgets/<tag>.js default-exports the HTMLElement constructor enhancing this element. Leaf imports and registers that constructor in the widget’s publication vocabulary where its markup uses the tag. Modules do not self-register. `page init` refuses a declaration with no module, and the render gate verifies the page’s widgets upgrade. Required.",
+    "x-upgrade": false,
     "x-retired-when": "accept"
   },
   "lf-new": {
@@ -51,7 +51,7 @@
     "x-owners": ["lf-suggestion"],
     "x-content": "markup",
     "x-inline": true,
-    "x-upgrade": "A module at widgets/<tag>.js default-exports the HTMLElement constructor enhancing this element. Leaf imports and registers that constructor in the widget’s publication vocabulary where its markup uses the tag. Modules do not self-register. `page init` refuses a declaration with no module, and the render gate verifies the page’s widgets upgrade. Required.",
+    "x-upgrade": false,
     "x-retired-when": "reject"
   },
   "$languages": {

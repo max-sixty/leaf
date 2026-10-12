@@ -1,6 +1,6 @@
 /* This module owns registry loading, pre-upgrade passage fences, dynamic widget
  * imports, and initial presentation. */
-import { registryFor, adoptRegistry, registry, tagsDeclaring } from "./registry.js";
+import { registryFor, adoptRegistry, registry } from "./registry.js";
 import { publicationVocabulary } from "./widget-vocabularies.js";
 import { vocabularyFor, bindVocabulary } from "./widget-contexts.js";
 import { paintDeclaredWords, watchExternalLinks } from "./declared-words.js";
@@ -68,15 +68,14 @@ const within = (scope, selector) => [
 
 export function rememberPassageParts(scope = document, source = ["page", null]) {
   scope = initialSource(scope);
-  for (const tag of tagsDeclaring(
-    (entry) => entry["x-upgrade"] && !entry["x-verbatim"],
-  ))
-    for (const root of within(scope, tag)) {
-      const live = initialOrigin(root);
-      if (rememberedPassageRoots.has(live)) continue;
-      rememberedPassageRoots.add(live);
-      fencePassageParts(live, [...root.children].map(initialOrigin));
-    }
+  for (const root of within(scope, "*")) {
+    const declaration = registryFor(root)[root.localName];
+    if (!declaration?.["x-upgrade"] || declaration["x-verbatim"]) continue;
+    const live = initialOrigin(root);
+    if (rememberedPassageRoots.has(live)) continue;
+    rememberedPassageRoots.add(live);
+    fencePassageParts(live, [...root.children].map(initialOrigin));
+  }
   for (const [ownerIndex, root] of preservingOwners(scope).entries()) {
     const live = initialOrigin(root);
     if (rememberedPassageRoots.has(live)) continue;

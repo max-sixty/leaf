@@ -3,12 +3,14 @@
    A widget family formats answerWords(value, element); prose uses its typed text or token. */
 import { vocabularyFor } from "../widget-contexts.js";
 import { widgetElement } from "../widget-descriptors.js";
-import { closestAcross, elementById } from "../passages.js";
-import { tagsDeclaring } from "../registry.js";
+import { elementById } from "../passages.js";
+import { registryFor } from "../registry.js";
+import { upFrom } from "../shadow.js";
 
 export function ownedQuestionControl(source, commandSource) {
-  const selector = tagsDeclaring((entry) => entry["x-awaits"]).join(",");
-  return !selector || closestAcross(commandSource, selector) === source;
+  for (let at = commandSource; at; at = upFrom(at))
+    if (registryFor(at)[at.localName]?.["x-awaits"]) return at === source;
+  return true;
 }
 
 export function questionWords(question) {

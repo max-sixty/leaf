@@ -19,7 +19,7 @@ from threading import Lock
 
 from .data import source_file
 from .page_memory import PageMemory, memory_of
-from .revision_artifact import Disposable, RevisionArtifact, write_artifact
+from .revision_artifact import Disposable, write_artifact
 from .revisioning import activate_source
 from .sample_content import initial_sample_history, page_sample_history
 from .schema import DATA_DIR, DATA_FILE

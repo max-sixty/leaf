@@ -192,6 +192,32 @@ test("a widget fenced after a reading was taken is in the next one", () => {
   assert.equal(past(pageText()), "", "the fence ends the paragraph's neighbourhood");
 });
 
+test("a publication's opaque widget cannot fence another publication's prose", async () => {
+  const { bindVocabulary, rememberVocabulary } =
+    await import("/runtime/widget-contexts.js");
+  const { rememberPassageParts } = await import("/runtime/widget-loader.js");
+  const tag = "lf-publication-passage";
+  const publications = [
+    { revision: 9501, declarations: { [tag]: { "x-upgrade": true } } },
+    {
+      revision: 9502,
+      declarations: { [tag]: { "x-upgrade": true, "x-verbatim": true } },
+    },
+    { revision: 9503, declarations: { [tag]: { "x-upgrade": false } } },
+  ];
+  for (const context of publications) rememberVocabulary(context);
+  for (const context of publications) {
+    document.body.innerHTML = `<main><p>Alpha</p><${tag}><p>Beta</p></${tag}></main>`;
+    const root = document.querySelector("main");
+    bindVocabulary(root, context);
+    const past = () => neighbourhood(pageText(), "Alpha".length, 8, false);
+    assert.match(past(), /Beta/);
+    rememberPassageParts(root);
+    if (context.revision === 9501) assert.equal(past(), "");
+    else assert.match(past(), /Beta/);
+  }
+});
+
 test("a declared shadow tree's words are read, and its changes are seen", () => {
   Object.assign(registry, {
     "lf-staged": { "x-shadow": true },

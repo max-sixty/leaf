@@ -177,7 +177,9 @@ function settlements() {
   for (const [id, { state }] of effective.widgets) {
     const descriptor = shown.descriptors.get(id);
     const tag = descriptor?.tag;
-    const declarations = descriptor && (knownVocabulary(descriptor.document.revision)?.declarations ?? registry);
+    const declarations =
+      descriptor &&
+      (knownVocabulary(descriptor.document.revision)?.declarations ?? registry);
     const decision = declarations?.$decisions?.[tag];
     const outcome = decision && state[decision.verb]?.detail?.outcome;
     const retires = outcome ? decision.retires[outcome] : null;

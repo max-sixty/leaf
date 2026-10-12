@@ -416,9 +416,7 @@ export default class extends HTMLElement {
     clearTimeout(this.#copyTimer);
     this.#copy.dataset.copyState = feedback;
     announce(
-      feedback === "success"
-        ? "Instruction copied"
-        : "Could not copy the instruction",
+      feedback === "success" ? "Instruction copied" : "Could not copy the instruction",
     );
     this.#copyTimer = setTimeout(() => {
       this.#copy.dataset.copyState = "rest";

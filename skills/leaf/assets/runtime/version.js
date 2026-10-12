@@ -423,7 +423,10 @@ const diffBlockSel = (root = document) =>
   [
     TEXT_BLOCK,
     "aside",
-    ...tagsDeclaring((e) => e["x-owners"] && (e["x-content"] ?? "markup") === "markup", root),
+    ...tagsDeclaring(
+      (e) => e["x-owners"] && (e["x-content"] ?? "markup") === "markup",
+      root,
+    ),
     // Preserving widgets contribute their own prose. The leaf-blocks-only rule
     // below avoids counting nested blocks twice and keeps base and live readings
     // symmetric: a draft's authored <pre> and rendered body key the same words.
@@ -956,7 +959,8 @@ async function authoredDocument(url) {
   if (doc.querySelectorAll("body > main").length !== 1)
     throw new Error(`${url} has no single authored main`);
   const revision = Number(doc.body.dataset.lfVocabulary);
-  const probe = doc.querySelector("script[data-lf-vocabulary-root]").dataset.lfVocabularyRoot;
+  const probe = doc.querySelector("script[data-lf-vocabulary-root]").dataset
+    .lfVocabularyRoot;
   const root = new URL(".", new URL(probe, document.baseURI)).href.replace(/\/$/, "");
   bindVocabulary(doc, await requireVocabulary(revision, root));
   // First-paint delivery wrappers have no place in the authored revision.
@@ -1280,7 +1284,8 @@ export function createVersionController({
     marker.content = String(revision.revision);
   }
 
-  const upgraded = (element) => Boolean(registryFor(element)[element.localName]?.["x-upgrade"]);
+  const upgraded = (element) =>
+    Boolean(registryFor(element)[element.localName]?.["x-upgrade"]);
 
   // Every declared widget in one revision's authored page, named the way its capture
   // named it: by id where the author gave one, and otherwise by tag and place among the

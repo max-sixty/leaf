@@ -242,9 +242,7 @@ export default class extends HTMLElement {
     keeps(this, "data-inspection-scale", this.#scale);
     keeps(this, "data-inspection-scope", scope);
     render(
-      html`<summary ${offered("lf-vr-inspection-summary")}>
-          Inspect comparison
-        </summary>
+      html`<summary ${offered("lf-vr-inspection-summary")}>Inspect comparison</summary>
         <div ${offered("lf-vr-inspector")}>
           ${this.#choices("scope", "Scope", SCOPE, scope, !focusAvailable)}
           ${this.#choices("mode", "View", INSPECTION, this.#mode)}
@@ -699,9 +697,7 @@ export default class extends HTMLElement {
       <header class="lf-vr-case-head">
         <div class="lf-vr-case-heading">
           <p class="lf-vr-case-position" data-lf-gen="1" data-lf-said>${heading}</p>
-          <h3 class="lf-vr-case-title" data-lf-gen="1" data-lf-said>
-            ${record.title}
-          </h3>
+          <h3 class="lf-vr-case-title" data-lf-gen="1" data-lf-said>${record.title}</h3>
         </div>
       </header>
       <div class="lf-vr-toolbar-slot">${selected ? this.#inspector : ""}</div>
@@ -709,16 +705,16 @@ export default class extends HTMLElement {
       <dl class="lf-vr-claim">
         <dt class="lf-vr-action-term" data-lf-gen="1" data-lf-said>Action</dt>
         <dd class="lf-vr-action" data-lf-gen="1" data-lf-said>${record.action}</dd>
-        <dt class="lf-vr-result-term" data-lf-gen="1" data-lf-said>
-          Observed result
-        </dt>
+        <dt class="lf-vr-result-term" data-lf-gen="1" data-lf-said>Observed result</dt>
         <dd class="lf-vr-result" data-lf-gen="1" data-lf-said>${record.result}</dd>
       </dl>
       <div class="lf-vr-review" role="group" aria-label="Case review">
         <div class="lf-vr-dispositions">
           ${Object.entries(DISPOSITION).map(
             ([value, text]) =>
-              html`<button type="button" ${offered(`lf-btn lf-vr-disposition lf-vr-${value}`)}
+              html`<button
+                type="button"
+                ${offered(`lf-btn lf-vr-disposition lf-vr-${value}`)}
                 data-disposition=${value}
                 aria-pressed=${String(disposition === value)}
                 ?disabled=${!available}
@@ -728,7 +724,9 @@ export default class extends HTMLElement {
               </button>`,
           )}
         </div>
-        <button type="button" ${offered("lf-btn lf-vr-next-remaining")}>Next unreviewed</button>
+        <button type="button" ${offered("lf-btn lf-vr-next-remaining")}>
+          Next unreviewed
+        </button>
         <p class="lf-vr-review-status" data-lf-gen="1" data-lf-said>
           ${
             remaining === 0
@@ -828,14 +826,15 @@ export default class extends HTMLElement {
                   (record, index) =>
                     html`<wa-option ${offered("")} value=${record.id}
                       >${`${index + 1} of ${cases.length} · ${record.title} · ${
-                        DISPOSITION[
-                          this.#reviewUnits[record.id]?.detail.disposition
-                        ] ?? CLASSIFICATION[record.classification]
+                        DISPOSITION[this.#reviewUnits[record.id]?.detail.disposition] ??
+                        CLASSIFICATION[record.classification]
                       }`}</wa-option
                     >`,
                 )}
               </wa-select>
-              <button type="button" ${offered("lf-btn lf-vr-previous")}>Previous</button>
+              <button type="button" ${offered("lf-btn lf-vr-previous")}>
+                Previous
+              </button>
               <button type="button" ${offered("lf-btn lf-vr-next")}>Next</button>
             </nav>
           </header>

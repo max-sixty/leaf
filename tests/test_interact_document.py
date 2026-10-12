@@ -81,6 +81,7 @@ from leaf.registry.storage import read_page_registry, require_registry
 from leaf.render_gate import readings as render_gate_readings
 from leaf.served_state.context import read_page
 from leaf.served_state.page import read_served_page
+from leaf.served_state.service import LivePage
 from leaf.validation import composition as validation_model
 from leaf.validation.source import check_source
 from leaf.validation.source_history import predecessor_reading
@@ -301,12 +302,9 @@ def test_a_sample_child_stages_its_revision_without_fsync(page_dir, monkeypatch)
     assert synced, "a page's own revision is made durable"
 
     synced.clear()
-    artifact = artifact_model.read_artifact(page_dir, parent.revision)
-    document = artifact_model.read_revision(page_dir, parent.revision).document
+    inputs = LivePage(page_dir).sample_inputs(parent.revision)
     samples = samples_model.Samples()
-    identity = samples.create(
-        page_dir, artifact, document, [], {"sources": {}}, "practice", None
-    )
+    identity = samples.create(page_dir, inputs, "practice", None)
     try:
         child = samples.pages[identity].directory
         assert files_model.latest_revision(child) == 1
@@ -3777,7 +3775,6 @@ diff --git a/app.py b/app.py
 def test_the_diff_script_refuses_evidence_the_widget_cannot_render(patch_text, message):
     with pytest.raises(ValueError, match=re.escape(message)):
         patch_manifest(patch_text)
-
 
 
 DIFF_PATCH_CASES = json.loads(

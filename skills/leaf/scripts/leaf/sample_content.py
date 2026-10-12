@@ -19,6 +19,7 @@ from .event_contracts import admitted_event, command_error
 from .event_log import EventRefused
 from .event_meaning import AdmissionReadings
 from .page_view import InitialPageView
+from .passages import enclosing_ids
 from .projection import generated_children, retirement_outcomes, rewritten_bodies
 from .registry.kernel import kernel_event_kinds
 from .registry.schema import aware_instant, json_value
@@ -65,7 +66,7 @@ def _reserved_thread_ids(
     names = thread_names(events)
     structure = thread_structure(events)
     memberships = thread_memberships(
-        events, names, thread_widgets(structure, names), parent.within
+        events, names, thread_widgets(structure, names), enclosing_ids(parent)
     )
     messages = widget_messages(structure)
     reserved = {}

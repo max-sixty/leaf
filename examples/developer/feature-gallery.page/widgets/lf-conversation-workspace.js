@@ -264,9 +264,7 @@ export default class extends HTMLElement {
   }
   paintObligations() {
     const questions = readQuestions();
-    const answered = questions.all.filter(
-      (question) => question.status === "answered",
-    );
+    const answered = questions.all.filter((question) => question.status === "answered");
     // Counts cover every ask; this summary lists completed widget choices.
     const labels = questions.all
       .filter(

@@ -2,7 +2,12 @@
  * Pages own their task and worker vocabulary through $work.widgets; this reader
  * owns progress, assignments, report age and stopped-work meaning independently
  * of how a dashboard composes those facts. */
-import { declarationFor, elementsDeclaring, layerFact, registryFor } from "./registry.js";
+import {
+  declarationFor,
+  elementsDeclaring,
+  layerFact,
+  registryFor,
+} from "./registry.js";
 import { readQuestions } from "./questions/model.js";
 import { quietSince } from "./presence.js";
 import { quoted } from "./widget-descriptors.js";

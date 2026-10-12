@@ -19,7 +19,6 @@ from leaf.events import build_threads
 from leaf.files import (
     latest_revision,
     require_revision,
-    revision_path,
 )
 from leaf.harness import message_identity
 from leaf.leases import contract_writer
@@ -601,8 +600,8 @@ def _compose_and_append(
     title: str | None,
 ) -> dict:
     """Check the reply's content against the page, compose its event and append it
-    at `obligation`, publishing saved page edits first where `validate_source` or a
-    detach reads them."""
+    at `obligation`, publishing the complete saved publication first for source
+    validation, detach, or a markup-bearing reply."""
     page_dir, events = page.page_dir, page.events
     to, thread_id, responds, in_hand = obligation
     opening = _messages(events).get(thread_id)
@@ -618,9 +617,7 @@ def _compose_and_append(
             "it as one line saying what you are doing"
         )
     if detach and moving:
-        raise Refused(
-            "--detach cannot be combined with --quote, --section, or --part"
-        )
+        raise Refused("--detach cannot be combined with --quote, --section, or --part")
     relocating = moving or detach
     if relocating and opening is None:
         raise Refused(
@@ -695,9 +692,7 @@ def _compose_and_append(
                 rec["tag"]
                 for rec in fragment.lf_elements
                 if local_question_entry(registry.get(rec["tag"]) or {})
-                and asking(
-                    rec["attrs"], registry[rec["tag"]]["x-awaits"].get("when")
-                )
+                and asking(rec["attrs"], registry[rec["tag"]]["x-awaits"].get("when"))
                 and not quoted_in(rec, registry)
             }
         )

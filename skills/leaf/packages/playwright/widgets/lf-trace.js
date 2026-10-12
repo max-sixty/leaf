@@ -539,9 +539,7 @@ export default class extends HTMLElement {
   #pageLabel(id) {
     const index = this.#trace.pages.findIndex((page) => page.id === id);
     const page = this.#trace.pages[index];
-    const stream = this.#trace.streams.findIndex(
-      (stream) => stream.id === page.stream,
-    );
+    const stream = this.#trace.streams.findIndex((stream) => stream.id === page.stream);
     return `Page ${index + 1}${this.#trace.streams.length > 1 ? ` · Stream ${stream + 1}` : ""}`;
   }
   #phaseId(action, phase) {
@@ -552,9 +550,7 @@ export default class extends HTMLElement {
   }
   #includes(stream, pageId) {
     const page = this.#trace?.pages.find((page) => page.id === this.#scope);
-    return page
-      ? stream === page.stream && pageId === page.id
-      : stream === this.#scope;
+    return page ? stream === page.stream && pageId === page.id : stream === this.#scope;
   }
   #actions() {
     return (
@@ -1357,8 +1353,7 @@ export default class extends HTMLElement {
     if (this.#pendingPicture?.image.id !== image.id) this.#cancelPicture();
     const point = this.#point();
     const preview =
-      image.timestamp > point.timestamp &&
-      !point.action?.phases[point.phase]?.imageId;
+      image.timestamp > point.timestamp && !point.action?.phases[point.phase]?.imageId;
     if (this.#pictureId === image.id) {
       this.#hidePlayback();
       this.#picturePreview = preview;
@@ -1461,10 +1456,7 @@ export default class extends HTMLElement {
             // Before the browser claims pan-y, even a page swipe can produce
             // horizontal movement. Playback leaves touch movement to the page;
             // a tap pauses for inspection and enables image dragging.
-            if (
-              event.detail.originalEvent?.pointerType === "touch" &&
-              this.#playing
-            ) {
+            if (event.detail.originalEvent?.pointerType === "touch" && this.#playing) {
               event.preventDefault();
               return;
             }
@@ -1722,17 +1714,12 @@ export default class extends HTMLElement {
       ? String(this.#time(this.#bounds().end, this.#stream()).length)
       : "";
     if (
-      this.#positionLabel.value.style.getPropertyValue(
-        "--lf-trace-position-chars",
-      ) !== longest
+      this.#positionLabel.value.style.getPropertyValue("--lf-trace-position-chars") !==
+      longest
     )
-      this.#positionLabel.value.style.setProperty(
-        "--lf-trace-position-chars",
-        longest,
-      );
+      this.#positionLabel.value.style.setProperty("--lf-trace-position-chars", longest);
     const selectedMoments = this.#moments.filter(
-      (moment) =>
-        this.#selected && this.#destination(moment.target) === this.#selected,
+      (moment) => this.#selected && this.#destination(moment.target) === this.#selected,
     );
     const selectedMoment =
       selectedMoments.find((moment) => moment.index === this.#chosenBookmark) ??
@@ -1932,10 +1919,7 @@ export default class extends HTMLElement {
                 </div>
                 <div class="lf-trace-position-row">
                   <span class="lf-trace-position" ${ref(this.#positionLabel)}></span
-                  ><span
-                    class="lf-trace-selection"
-                    ${ref(this.#selectionLabel)}
-                  ></span>
+                  ><span class="lf-trace-selection" ${ref(this.#selectionLabel)}></span>
                 </div>
                 <div
                   class="lf-trace-zoom-controls"
@@ -2164,9 +2148,7 @@ export default class extends HTMLElement {
               run: () => this.#panPicture(0, 40),
             },
           ]);
-        canvas.addEventListener("pointerdown", () =>
-          focusDestination(canvas, "press"),
-        );
+        canvas.addEventListener("pointerdown", () => focusDestination(canvas, "press"));
         canvas.append(img, status);
         figure.append(canvas);
         this.#images.set(image.id, { figure, canvas, img, status });

@@ -124,7 +124,8 @@ export const ownName = (element) =>
   addressableName(element) || captionOf(element) || accessibleName(element);
 const saysItself = (element) =>
   element.matches(TEXT_BLOCK) ||
-  (registryFor(element)[element.localName]?.["x-word"] === "module" && element.lfSays?.()) ||
+  (registryFor(element)[element.localName]?.["x-word"] === "module" &&
+    element.lfSays?.()) ||
   [...element.childNodes].some(
     (node) => node.nodeType === Node.TEXT_NODE && node.data.trim(),
   );
@@ -141,7 +142,8 @@ export function addressableLabel(element) {
   // A registered widget has a word of its own, which says more than its members' words
   // run together. Plain markup has none worth saying (a `div`), so its words, or the
   // name of the picture it holds, are the last resort.
-  if (isElementName(element.localName) && registryFor(element)[element.localName]) return "";
+  if (isElementName(element.localName) && registryFor(element)[element.localName])
+    return "";
   return excerptWords(
     addressableSays(element) ||
       element.querySelector("[aria-label]")?.getAttribute("aria-label"),

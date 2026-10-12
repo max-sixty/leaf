@@ -1,7 +1,7 @@
 /* This module owns declared shadow roots, the shadow.css rules they render under, and
  * the shared highlight rules. */
 import { vocabularyFor } from "./widget-contexts.js";
-import { tagsDeclaring } from "./registry.js";
+import { registryFor, tagsDeclaring } from "./registry.js";
 import { shadowHost, upFrom, renderedParent } from "./shadow-tree.js";
 export { shadowHost, upFrom, renderedParent };
 
@@ -21,6 +21,7 @@ export const shadowRootsIn = (root) =>
       ...(root.nodeType === Node.ELEMENT_NODE && root.matches(tag) ? [root] : []),
       ...root.querySelectorAll(tag),
     ])
+    .filter((host) => registryFor(host)[host.localName]?.["x-shadow"])
     .map((host) => host.shadowRoot)
     .filter(Boolean);
 export const pageShadowRoots = () => shadowRootsIn(document);

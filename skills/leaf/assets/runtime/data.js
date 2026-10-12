@@ -6,7 +6,7 @@
    contract, revision, run, updated, value, origin}`, or `null` while the bound source has no
    readable value. Subscriptions pause while their owner is absent, and a return
    delivers by the rule every returning paint follows (`readingPaint` in
-   `arrivals.js`). Contract, publication, or validity changes redeliver; overlapping
+   `presence.js`). Contract, publication, or validity changes redeliver; overlapping
    reads await the same in-flight rendering before stamping the version presented. Its
    synchronous time readings refresh independently of data delivery. The returned
    cleanup's `refresh()` repaints the last delivered reading through the same clock
@@ -24,7 +24,8 @@ import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
 import { registry } from "./registry.js";
 import { reportPageError, requestJson } from "./layer-client.js";
-import { readingPaint, watchOwner } from "./arrivals.js";
+import { watchOwner } from "./arrivals.js";
+import { readingPaint } from "./presence.js";
 
 export function acceptData(candidate, taken) {
   return applicationState.acceptData(candidate, taken);

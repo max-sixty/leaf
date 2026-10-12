@@ -277,7 +277,6 @@
           "div",
           `notification-demo-feed notification-demo-${format.replace(" ", "-")}`,
         );
-        feed.setAttribute("aria-label", `${name} candidate`);
         figure.append(caption, feed);
         return { figure, feed, metric: caption.lastElementChild };
       }

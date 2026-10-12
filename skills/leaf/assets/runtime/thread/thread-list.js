@@ -61,18 +61,13 @@ import { inPageOrder, inRecentOrder, pageOutline, threadSection } from "./placem
 import { threadSearchReading } from "./narrowing.js";
 import { threadReading } from "./thread-card.js";
 
-// The panel's thread cards, hidden ones included, which the queue walk finds a thread
-// among; with the panel shut, the open ones in the page's order, which t/T walk there,
-// whichever order the panel was left in. A folding card is renamed out of this list in
-// the frame its thread settles. The open panel's own walk is its list's (`walkRows`).
+// A folding card is renamed out of the list's cards in the frame its thread settles.
 export function createThreadListController({ panel, threadsBox, narrowingView }) {
-  const openThreads = () => {
-    const panelOpen = threadsBox.checkVisibility();
-    const threads = [...threadsBox.querySelectorAll(":scope > .lf-thread")].filter(
-      (thread) => panelOpen || thread.dataset.resolved !== "true",
+  const threadCards = () => [...threadsBox.querySelectorAll(":scope > .lf-thread")];
+  const openThreadsInPageOrder = () =>
+    threadsBox.inPageOrder(
+      threadCards().filter((thread) => thread.dataset.resolved !== "true"),
     );
-    return panelOpen ? threads : threadsBox.inPageOrder(threads);
-  };
 
   const emptyText =
     "No threads yet. Select any text on the page to comment on it, or comment on the whole page from the banner.";
@@ -420,7 +415,8 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
   }
 
   return {
-    openThreads,
+    threadCards,
+    openThreadsInPageOrder,
     renderThreads,
     renderThreadListUnavailable,
     restoreThreadList,

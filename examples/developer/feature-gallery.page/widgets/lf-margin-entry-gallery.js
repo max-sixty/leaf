@@ -6,6 +6,7 @@ import {
   initialRender,
   once,
   presentContributionEntry,
+  presentContributionReceipts,
   registerContribution,
   relabel,
   whileConnected,
@@ -28,20 +29,21 @@ function wireSample({ sample, key, control, disclosure }) {
         state: sample.state ?? "idle",
         count: sample.count ?? 1,
         disabled: !sample.interactive,
-        workflowReceipt: sample.workflowStage
-          ? {
-              id: key,
-              subject: { kind: "widget", id: key },
-              stage: sample.workflowStage,
-              detail: "",
-            }
-          : null,
         relation: disclosure ? { kind: "element", id: disclosure.id, expanded } : null,
       }),
-      {
-        selected: sample.selected ?? false,
-        awaitsUser: sample.awaitsUser ?? false,
-      },
+      { selected: sample.selected ?? false },
+    );
+    presentContributionReceipts(
+      control,
+      sample.workflowStage
+        ? {
+            id: key,
+            subject: { kind: "widget", id: key },
+            stage: sample.workflowStage,
+            detail: "",
+          }
+        : null,
+      sample.awaitsUser ?? false,
     );
   };
   paint();

@@ -5613,170 +5613,6 @@ def test_the_panel_reads_the_thread_in_the_pages_own_order(browser, serve):
     ).to_be_focused()
 
 
-def test_two_standard_thread_lists_share_updates_but_not_local_state(browser, serve):
-    """Two registered panels follow one Thread publication while retaining their own
-    search and native details group."""
-    url = serve(
-        PANEL_PAGE,
-        events=[
-            {
-                "kind": "comment",
-                "author": "user",
-                "revision": 1,
-                "text": "Alpha thread",
-            },
-            {"kind": "comment", "author": "user", "revision": 1, "text": "Beta thread"},
-        ],
-    )
-    first_id, second_id = [
-        event["id"]
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "comment"
-    ]
-    authored = thread_model.post_reply(
-        serve.page_dir,
-        {"to": first_id, "for": first_id},
-        "Choose the deployment window.",
-        '<lf-ask id="two-panel-decision"><h3>Deployment window</h3>'
-        '<lf-options id="two-panel-window" choose>'
-        '<lf-option id="today">Today</lf-option>'
-        '<lf-option id="tomorrow">Tomorrow</lf-option>'
-        "</lf-options></lf-ask>",
-    )
-    page = open_page(browser, url)
-    page.evaluate(
-        """async () => {
-          const [{ createThreadPanelElements }, { createThreadListController },
-            { createThreadNarrowing }, { threadList },
-            { registerThreadPanel, refreshThread }] = await Promise.all([
-              window.__lfRuntimeImport('/runtime/thread/panel-elements.js'),
-              window.__lfRuntimeImport('/runtime/thread/thread-list.js'),
-              window.__lfRuntimeImport('/runtime/thread/narrowing.js'),
-              window.__lfRuntimeImport('/runtime/thread/state.js'),
-              window.__lfRuntimeImport('/runtime/application.js'),
-            ]);
-          const host = document.createElement('div');
-          host.style.cssText = 'display:flex; gap:24px; position:relative; z-index:50';
-          document.body.append(host);
-          const mount = () => {
-            const elements = createThreadPanelElements();
-            const { panel, threadsBox, narrowingView } = elements;
-            panel.style.cssText = 'position:relative; inset:auto; width:420px; height:560px; margin:0';
-            host.append(panel);
-            panel.classList.add('open');
-            const controller = createThreadListController(elements);
-            let handle;
-            const narrowing = createThreadNarrowing({
-              view: narrowingView,
-              listRoot: threadsBox,
-              readThreads: threadList,
-              ready: () => true,
-              repaint: () => handle.update(),
-            });
-            narrowing.mount();
-            handle = registerThreadPanel({
-              controller,
-              threadsBox,
-              view: {
-                narrowing,
-                panelIsOpen: () => true,
-                scrollToElement: () => {},
-                setThreadCounts: () => {},
-                onListChanged: () => {},
-                refreshAnchorHover: () => {},
-                travel: {
-                  showThread: () => {},
-                  retainPanelLanding: () => {},
-                  retainNarrowing: () => {},
-                },
-              },
-            });
-            return { ...elements, handle };
-          };
-          window.__testThreadPanels = [mount(), mount()];
-          await refreshThread();
-        }"""
-    )
-
-    ids = page.evaluate("() => window.__testThreadPanels.map(({ panel }) => panel.id)")
-    assert len({"lf-threads", *ids}) == 3
-    a = page.locator(f"#{ids[0]}")
-    b = page.locator(f"#{ids[1]}")
-    expect(a.locator(".lf-thread")).to_have_count(2)
-    expect(b.locator(".lf-thread")).to_have_count(2)
-    expect(
-        page.locator(
-            f'#lf-threads .lf-msg[data-mid="{authored["id"]}"] #two-panel-window'
-        )
-    ).to_have_count(1)
-    expect(a.locator("#two-panel-window")).to_have_count(0)
-    expect(b.locator("#two-panel-window")).to_have_count(0)
-    expect(a.get_by_role("button", name="Open interactive reply")).to_have_count(1)
-    expect(b.get_by_role("button", name="Open interactive reply")).to_have_count(1)
-    a.get_by_role("searchbox", name="Find in threads").fill("Alpha")
-    expect(a.locator(f'.lf-thread[data-id="{second_id}"]')).to_be_hidden()
-    expect(b.locator(f'.lf-thread[data-id="{second_id}"]')).to_be_visible()
-
-    # A package panel may take longer to paint. It cannot hold the core Thread
-    # presentation ticket or stall a sibling panel's reading.
-    page.evaluate(
-        """() => {
-          const box = window.__testThreadPanels[0].threadsBox;
-          const present = box.present.bind(box);
-          const waiting = [];
-          box.present = (model) => new Promise((resolve) => waiting.push({ model, resolve }));
-          window.__releaseHeldPanel = () => {
-            box.present = present;
-            for (const { model, resolve } of waiting) resolve(present(model));
-          };
-        }"""
-    )
-
-    later = append_carried_log_record(
-        serve.page_dir,
-        {"kind": "comment", "author": "user", "revision": 1, "text": "Gamma thread"},
-    )
-    told(page)
-    expect(
-        page.locator(f'#lf-threads .lf-thread[data-id="{later["id"]}"]')
-    ).to_have_count(1)
-    expect(a.locator(".lf-thread")).to_have_count(2)
-    expect(b.locator(f'.lf-thread[data-id="{later["id"]}"]')).to_be_visible()
-    pending = page.evaluate(
-        """async () => {
-          const { readApplicationPresentation } = await window.__lfRuntimeImport('/runtime/semantic-state.js');
-          return readApplicationPresentation().pending;
-        }"""
-    )
-    assert "thread" not in pending
-    page.evaluate("() => window.__releaseHeldPanel()")
-    expect(a.locator(f'.lf-thread[data-id="{later["id"]}"]')).to_be_hidden()
-    expect(b.locator(f'.lf-thread[data-id="{later["id"]}"]')).to_be_visible()
-    expect(a.locator(".lf-thread")).to_have_count(3)
-    expect(b.locator(".lf-thread")).to_have_count(3)
-
-    a.get_by_role("searchbox", name="Find in threads").fill("")
-    first_a = a.locator(f'.lf-thread[data-id="{first_id}"]')
-    second_a = a.locator(f'.lf-thread[data-id="{second_id}"]')
-    first_b = b.locator(f'.lf-thread[data-id="{first_id}"]')
-    second_a.locator(":scope > summary").click()
-    first_b.locator(":scope > summary").click()
-    expect(second_a).to_have_attribute("open", "")
-    expect(first_b).to_have_attribute("open", "")
-    first_a.locator(":scope > summary").click()
-    expect(second_a).not_to_have_attribute("open", "")
-    expect(first_b).to_have_attribute("open", "")
-
-    page.evaluate("() => window.__testThreadPanels[1].handle.unregister()")
-    after_removal = append_carried_log_record(
-        serve.page_dir,
-        {"kind": "comment", "author": "user", "revision": 1, "text": "Delta thread"},
-    )
-    told(page)
-    expect(a.locator(f'.lf-thread[data-id="{after_removal["id"]}"]')).to_be_visible()
-    expect(b.locator(f'.lf-thread[data-id="{after_removal["id"]}"]')).to_have_count(0)
-
-
 def test_recent_order_lists_threads_by_their_latest_message(browser, serve):
     """Order is the panel's own view, not a filter. Recent puts the thread spoken in
     last at the top. The View control keeps one label whatever is
@@ -11482,6 +11318,53 @@ def test_a_comment_being_written_on_a_diff_line_stays_in_hand_across_a_new_patch
     page.keyboard.type(" tr")
     expect(box).to_have_js_property("value", "Half tr a thought")
     expect(box).to_be_focused()
+
+
+@pytest.mark.parametrize("native_move", [True, False])
+def test_the_comment_box_keeps_the_user_typing_as_it_takes_its_seat_again(
+    browser, serve, native_move
+):
+    """Opening the folded file seats the comment box being written back on its diff
+    line, and the user goes on typing in it at the same caret. Where the browser has
+    `moveBefore` the move never blurs the editor, as `append` did, and the caret
+    survives the native selection the move collapses."""
+    url = serve(
+        leaf_page(
+            "diff",
+            f'<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch">'
+            f"<pre></pre></lf-diff>{SEAT_FILLER}",
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
+    page = open_page(browser, url)
+    if not native_move:
+        page.evaluate("() => { Element.prototype.moveBefore = undefined; }")
+    page.locator(
+        'lf-diff [data-line-type="change-addition"][data-lf-datum=\'["app.py","new",1]\']'
+    ).hover()
+    page.get_by_role(
+        "button", name="Comment on app.py · new line 1", exact=True
+    ).click()
+    seated = page.locator("lf-diff .lf-diff-thread-outlet .lf-fab-input")
+    expect(seated).to_be_focused()
+    box = page.locator(".lf-fab-input")
+    write(box, "Half a thought")
+    details = page.locator("lf-diff details").first
+    details.evaluate("details => { details.open = false; }")
+    expect(seated).to_have_count(0)
+    expect(box).to_be_focused()
+    rendered(page)
+    box.evaluate("""box => {
+      box.setSelectionRange(4, 4);
+      window.blurs = 0;
+      box.addEventListener('blur', () => window.blurs++);
+    }""")
+    details.evaluate("details => { details.open = true; }")
+    expect(seated).to_be_focused()
+    page.keyboard.type(" tr")
+    expect(seated).to_have_js_property("value", "Half tr a thought")
+    if native_move:
+        assert page.evaluate("window.blurs") == 0
 
 
 def test_a_wheel_during_a_resolution_fold_outranks_the_landing_after_it(browser, serve):

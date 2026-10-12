@@ -1739,6 +1739,8 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
     stale = sample("update stale")
     fallback = sample("working · fallback")
     expect(resting).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
+    expect(resting).not_to_have_attribute("data-lf-turn", re.compile(".+"))
+    expect(sample("on you")).to_have_attribute("data-lf-turn", "user")
     expect(picked_up).to_have_attribute("data-lf-agent-workflow", "picked_up")
     expect(picked_up).to_have_css(
         "border-top-color",
@@ -2927,6 +2929,43 @@ def test_the_page_map_dialog_walks_its_rows_from_the_search(browser, serve):
     expect(thread).to_contain_text("Map note 12")
     page.keyboard.press("c")
     expect(thread.locator("leaf-text")).to_be_focused()
+
+
+def test_tab_wraps_inside_the_page_map(browser, serve):
+    """The Page Map is modal, so Tab holds the user inside it: past its last stop the
+    browser would carry them out to its own interface, and the map takes them back to
+    its first stop instead, as Shift+Tab from the first takes them to the last."""
+    page = open_page(browser, serve(PAGE_MAP_PAGE, events=PAGE_MAP_EVENTS))
+    resized(page, 1440, 600)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    dialog = page.get_by_role("dialog", name="Page Map", exact=True)
+    search = dialog.get_by_role(
+        "searchbox", name="Find an action, status, or location in Page Map"
+    )
+    expect(search).to_be_focused()
+
+    def stays_inside():
+        assert dialog.evaluate("dialog => dialog.matches(':focus-within')"), (
+            "Tab left the Page Map"
+        )
+
+    page.keyboard.press("Shift+Tab")
+    stays_inside()
+    last = page.evaluate_handle("() => document.activeElement")
+    page.keyboard.press("Tab")
+    expect(search).to_be_focused()
+    walked = []
+    for _ in range(40):
+        page.keyboard.press("Tab")
+        stays_inside()
+        walked.append(page.evaluate("() => document.activeElement.className"))
+        if page.evaluate("last => document.activeElement === last", last):
+            break
+    else:
+        raise AssertionError(f"Tab never reached the map's last stop: {walked}")
+    page.keyboard.press("Tab")
+    expect(search).to_be_focused()
 
 
 def test_the_chrome_names_an_ask_by_its_question(browser, serve):
@@ -4241,6 +4280,129 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     workflow = working_thread.locator(".lf-msg-sending", has_text="Working")
     expect(workflow).to_have_text("Working")
     expect(workflow).to_have_attribute("title", f"Working · {detail}")
+
+
+@pytest.mark.parametrize("annotations", ["margin", "page"])
+def test_each_seat_agrees_with_the_page_map_on_a_controls_receipt(
+    browser, serve, annotations
+):
+    """A package control's receipt reads the same wherever its target's controls sit.
+
+    The target's agent work rides on its primary control, and every other control shows
+    the receipt its contribution gave it. The contrast is a control that gives up the
+    primary seat: it goes back to its own receipt, and the new primary takes the work,
+    in the margin or a page's own annotation view as in the Page Map.
+    """
+    source = ASK_PAGE
+    if annotations == "page":
+        source = source.replace("<body>", '<body data-annotations="page">')
+    page = open_page(
+        browser,
+        live_url(
+            serve(
+                source,
+                events=[
+                    {**COMMENT_ON_ASK, "id": "1" * 32},
+                    {
+                        **COMMENT_ON_ASK,
+                        "id": "2" * 32,
+                        "text": "Check the return visit too.",
+                    },
+                ],
+            )
+        ),
+    )
+    resized(page, 1440, 900)
+    roots = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    record_claim(serve.page_dir)
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        delivery_model.record_pickup(transaction, roots)
+    claimed = CliRunner().invoke(
+        cli_model.cli,
+        ["task", "start", str(serve.page_dir), roots[0]["id"], "Checking the visit."],
+    )
+    assert claimed.exit_code == 0, claimed.output
+    told(page)
+    if annotations == "margin":
+        seat = page.locator('[data-lf-margin-for="bracket"]')
+        expect(seat.locator(":scope > .lf-margin-marker")).to_have_attribute(
+            "data-lf-agent-workflow", "working"
+        )
+    else:
+        seat = page.locator("#receipt-view")
+        page.evaluate("""async () => {
+          const {consumeAnnotations} =
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const box = document.createElement('aside');
+          box.id = 'receipt-view';
+          document.querySelector('#bracket').after(box);
+          consumeAnnotations(box, (entries, view) => {
+            box.replaceChildren();
+            for (const entry of entries) {
+              const row = document.createElement('div');
+              row.dataset.lfGen = '1';
+              box.append(row);
+              row.append(...view.controls(entry));
+              view.place(entry, row);
+            }
+          });
+        }""")
+    page.evaluate("""async () => {
+      const {contributionEntry, registerContribution} =
+        await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
+      const ownReceipt = runtime.workflows.find(item => item.stage === 'picked_up');
+      let approving = false;
+      const contribution = registerContribution({
+        key: 'receipt-probe', target: document.querySelector('#bracket'),
+        read: () => ({entries: [
+          ...(approving ? [contributionEntry({key: 'approve', icon: 'check',
+            label: 'Approve', rank: 'complete'})] : []),
+          contributionEntry({key: 'edit', icon: 'edit', label: 'Edit',
+            workflowReceipt: ownReceipt}),
+        ]}), activate: () => {}
+      });
+      window.offerApproval = () => {
+        approving = true;
+        contribution.update({immediate: true});
+      };
+    }""")
+
+    def receipts():
+        seated = {
+            key: seat.locator(f'[data-lf-margin-entry-key="{key}"]').get_attribute(
+                "data-lf-agent-workflow"
+            )
+            for key in ("approve", "edit")
+            if seat.locator(f'[data-lf-margin-entry-key="{key}"]').count()
+        }
+        page.keyboard.press("g")
+        page.keyboard.press("Shift+m")
+        dialog = page.locator(".lf-page-map-dialog")
+        expect(dialog).to_be_visible()
+        rows = dialog.locator("[data-lf-map-margin-entry]")
+        mapped = {
+            key: rows.filter(has_text=label).get_attribute("data-lf-agent-workflow")
+            for key, label in (("approve", "Approve"), ("edit", "Edit"))
+            if rows.filter(has_text=label).count()
+        }
+        page.keyboard.press("Escape")
+        expect(dialog).to_be_hidden()
+        return seated, mapped
+
+    carrying = {"edit": "working"}
+    expect(seat.locator('[data-lf-margin-entry-key="edit"]')).to_have_attribute(
+        "data-lf-agent-workflow", "working"
+    )
+    assert receipts() == (carrying, carrying)
+    page.evaluate("window.offerApproval()")
+    expect(seat.locator('[data-lf-margin-entry-key="approve"]')).to_have_count(1)
+    displaced = {"approve": "working", "edit": "picked_up"}
+    assert receipts() == (displaced, displaced)
 
 
 def _margin_entry_paint(control):
@@ -7741,6 +7903,39 @@ def test_a_card_walked_off_the_unfolded_cluster_lands_on_the_page(browser, serve
     expect(options).to_be_hidden()
     expect(more).to_be_focused()
     expect(preview).to_be_hidden()
+
+
+def test_going_to_a_side_surface_folds_the_cluster_the_user_left(browser, serve):
+    """Unfolded options stay open while a layer over the page holds the user, since
+    that layer hands them back to the cluster as it closes. A side surface standing
+    beside the page is somewhere else they went, so going to Questions folds the
+    options, though Questions stands in the same native dialog as the chrome's layers."""
+    page = open_page(browser, serve(ACTION_PAGE, events=[COMMENT_ON_SUGGESTION]))
+    resized(page, 1440, 900)
+    item = page.locator('[data-lf-margin-for="sug-refill"]')
+    item.locator(":scope > .lf-margin-more").click()
+    expect(item).to_have_attribute("data-lf-options-open", "")
+    option = item.locator(".lf-margin-options .lf-margin-entry:visible").first
+    option.focus()
+
+    # The first ? expands the shortcut bar where the user stands; the second opens the
+    # reference over the page.
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    reference = page.locator(".lf-command-reference")
+    expect(reference).to_be_visible()
+    expect(item).to_have_attribute("data-lf-options-open", "")
+    page.keyboard.press("Escape")
+    expect(reference).to_be_hidden()
+    expect(option).to_be_focused()
+
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+q")
+    expect(page.locator("#lf-queue")).to_be_visible()
+    assert page.locator("#lf-queue").evaluate(
+        "panel => panel.matches(':focus-within') || panel === document.activeElement"
+    )
+    expect(item).not_to_have_attribute("data-lf-options-open", "")
 
 
 @pytest.mark.parametrize("second", ["note", "marker"])

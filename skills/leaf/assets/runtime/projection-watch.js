@@ -6,7 +6,7 @@
    call. Those are the reading's inputs. Its subscriptions pause when `owner` leaves; a
    return reads again only when an input changed while it was away, or when the
    departure cut short a paint whose returned promise had not settled (`readingPaint`
-   in `arrivals.js`, the rule data subscriptions follow too), so a failed reading is
+   in `presence.js`, the rule data subscriptions follow too), so a failed reading is
    not reported twice. A clock reading made inside `read` repaints it when the
    displayed value changes. An optional synchronous proof predicate withholds every
    paint, including clock paints; a withheld reading stays owed, and completion wakes
@@ -19,7 +19,8 @@
 import { readApplication, watchSemantic, watchPresentation } from "./semantic-state.js";
 import { projectionDeferred, watchProjectionDeferral } from "./projection/state.js";
 import { PRESENTATION } from "./presentation.js";
-import { readingPaint, watchOwner } from "./arrivals.js";
+import { watchOwner } from "./arrivals.js";
+import { readingPaint } from "./presence.js";
 
 // PRESENTATION replaces a provisional startup reading, so an owner away when the page
 // announced it owes its reading again.

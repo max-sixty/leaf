@@ -102,7 +102,7 @@
    scale, and `fit` is handed lengths in that space, as CSS sizes the surface in it. */
 
 import { scrollAxes } from "../element-frame.js";
-import { drawn } from "../focus.js";
+import { visibleTargetParts } from "../visible-target-parts.js";
 import {
   shellRight,
   shownWindow,
@@ -154,7 +154,7 @@ export function commentAttachment({
   // withhold until it returns; an explicit Resume can request the window posture above
   // without changing that target. A drawn target may have a zero-area box, as an SVG
   // line does, and still supplies the geometry fallback below.
-  if (!drawn(target)) return null;
+  if (!visibleTargetParts(target).length) return null;
   const margin = marginSpot(target, point);
   const external = margin?.attachment && margin.attachment !== target;
   const attachment = external ? margin.attachment : target;

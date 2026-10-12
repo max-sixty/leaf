@@ -4859,7 +4859,6 @@ def test_page_map_opens_a_thread_anchored_to_a_drawn_zero_area_svg_line(browser,
     }
     page = open_page(browser, serve(source, events=[comment]))
     page.set_default_timeout(10_000)
-    expect.set_options(timeout=10_000)
     page.wait_for_function(
         "() => window.__lfRuntimeImport('/runtime/annotation-overlay/margin-layout.js')"
         ".then(({layoutMarginRows}) => (layoutMarginRows(), true))",
@@ -4872,21 +4871,22 @@ def test_page_map_opens_a_thread_anchored_to_a_drawn_zero_area_svg_line(browser,
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
+    expect(dialog).to_be_visible(timeout=10_000)
     dialog.get_by_role(
         "button", name="Open thread: Check this line.", exact=True
-    ).click()
+    ).click(timeout=10_000)
     rendered(page)
 
     preview = page.locator(".lf-margin-preview")
-    expect(preview).to_be_visible()
+    expect(preview).to_be_visible(timeout=10_000)
     thread_id = next(
         event["id"]
         for event in events_model.read_events(serve.page_dir)
         if event.get("text") == comment["text"]
     )
     thread = preview.locator(f'.lf-page-thread[data-thread="{thread_id}"]')
-    expect(thread).to_be_focused()
-    expect(thread).to_contain_text("Check this line.")
+    expect(thread).to_be_focused(timeout=10_000)
+    expect(thread).to_contain_text("Check this line.", timeout=10_000)
 
 
 # The right edge of the column's words, inside `main`'s padding. A thread card beside
@@ -9218,11 +9218,12 @@ def test_a_pin_on_a_contents_target_stands_at_its_last_part(browser, serve):
         layout="sidebar",
     )
     page = open_page(browser, serve(source, events=[_comment_on("pair")]))
+    page.set_default_timeout(10_000)
     resized(page, 1440, 900)
     margins_laid_out(page)
     row = page.locator('.lf-margin-cluster[data-lf-margin-for="pair"]')
-    expect(row).to_have_attribute("data-lf-place", "pin")
-    expect(row).to_be_visible()
+    expect(row).to_have_attribute("data-lf-place", "pin", timeout=10_000)
+    expect(row).to_be_visible(timeout=10_000)
     row_box = row.bounding_box()
     second = page.locator("#pair > p").nth(1).bounding_box()
     assert second["x"] < row_box["x"], (row_box, second)
@@ -9230,6 +9231,12 @@ def test_a_pin_on_a_contents_target_stands_at_its_last_part(browser, serve):
         row_box,
         second,
     )
+    marker = row.get_by_role("button", name=re.compile(r"^Thread,"))
+    marker.click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible(timeout=10_000)
+    thread = preview.locator(".lf-margin-thread .lf-page-thread")
+    expect(thread).to_be_focused(timeout=10_000)
 
 
 def test_a_workspace_page_keeps_no_rail(browser, serve):

@@ -367,6 +367,10 @@ html[data-lf-floating-chrome] .lf-chrome {
     box-sizing: border-box;
     scrollbar-width: thin;
   }
+  .lf-fp-view:is(:focus, [data-lf-focus]) {
+    outline: none;
+    box-shadow: none;
+  }
   .lf-fp-view[data-leaving] {
     pointer-events: none;
     position: absolute;

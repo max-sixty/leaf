@@ -157,6 +157,9 @@ html[data-lf-floating-chrome] .lf-chrome {
     box-sizing: border-box; scrollbar-width: thin; }
   /* The view leaving fades where it stood, out of the stage's height, so the card
      tweens once, to the view arriving. */
+  /* A view a pointer opened holds focus so keys act there, and wears no ring: nothing
+     in it was chosen yet. */
+  .lf-fp-view:is(:focus, [data-lf-focus]) { outline: none; box-shadow: none; }
   .lf-fp-view[data-leaving] { pointer-events: none; position: absolute;
     inset-inline: 0; bottom: 0; }
   .lf-fp-view:is([data-view="threads"], [data-view="questions"]) {

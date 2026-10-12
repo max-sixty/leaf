@@ -54,11 +54,10 @@ import { hostIn, renderedParent } from "../shadow.js";
 import { repaint } from "../repaint.js";
 import { keeps } from "../keeps.js";
 
-// The scopes still owed a first paint. A declaration joins here and `reflectShortcuts`
+// The scopes still owed a first paint. A declaration joins here and `reflectFirstScopes`
 // takes it out again, so one reading is owed per declaration whether that reading stands
-// or refuses it. Transient by construction: `keys` schedules the frame that drains the set
-// in the same breath as it adds to it, and a `paintKeys` landing before that frame reads
-// the connected ones on its own way through.
+// or refuses it. Transient by construction: `attachScope` schedules the frame that drains
+// the set in the same breath as it adds to it.
 const unpainted = new Set();
 
 // Native button activation belongs to the same row as its keyed invocation. Resolve

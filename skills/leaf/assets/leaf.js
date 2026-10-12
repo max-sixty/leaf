@@ -920,7 +920,7 @@ if (!offlineInteractive) {
   document.body.append(chromeRoot);
   // Exports retain image inspection, but no page controls. Their other standing is
   // what a widget's own box shows, such as an options group's addition field.
-  mountRepaint({ paintInputs: inputs.paintInputs, reflectKeys });
+  mountRepaint({ paintInputs: inputs.paintInputs, reflectFirstScopes, reflectKeys });
 }
 
 // Widget commands belong to interactive documents, including offline exports.

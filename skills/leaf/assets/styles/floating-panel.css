@@ -76,6 +76,10 @@ html[data-lf-floating-chrome] .lf-chrome {
   .lf-fp-chip:hover { color: var(--ink); }
   .lf-fp-num { color: var(--ink); font-variant-numeric: tabular-nums; margin-left: 3px; }
   .lf-fp-news { color: var(--accent); }
+  /* A count's room stands whether or not it has anything to say. */
+  .lf-fp-questions { min-width: calc(11.5ch + 18px); }
+  .lf-fp-news { min-width: calc(6ch + 18px); }
+  :is(.lf-fp-chip, .lf-fp-held)[data-none] { visibility: hidden; }
 
   /* Folded to the leaf: the row is the mark and what waits, nothing else. */
   .lf-floating-panel[data-rest="mark"]:not([data-open]) {
@@ -128,8 +132,7 @@ html[data-lf-floating-chrome] .lf-chrome {
      tweens once, to the view arriving. */
   .lf-fp-view[data-leaving] { pointer-events: none; position: absolute;
     inset-inline: 0; bottom: 0; }
-  .lf-fp-view:is([data-view="threads"], [data-view="thread"]) {
-    height: var(--lf-fp-view-height); }
+  .lf-fp-view[data-view="threads"] { height: var(--lf-fp-view-height); }
   .lf-fp-view[data-view="threads"] { padding-top: 0; }
   .lf-fp-view hr { border: 0; border-top: 1px solid var(--rule); margin: 6px 10px; }
   .lf-fp-item, .lf-fp-thread {
@@ -159,17 +162,32 @@ html[data-lf-floating-chrome] .lf-chrome {
   .lf-fp-message { margin-bottom: 18px; user-select: text; -webkit-user-select: text; }
   .lf-fp-message header { color: var(--muted); font-size: var(--t-6); margin-bottom: 4px; }
   .lf-fp-body { line-height: 1.6; overflow-wrap: anywhere; }
+  /* News that arrived while the reader was in the thread waits here, at one size,
+     until they ask for it. */
+  .lf-fp-held { position: sticky; bottom: 0; display: block; width: 100%;
+    min-height: 34px; margin-top: 4px; border-radius: 0; color: var(--accent);
+    font-size: var(--t-6); background: var(--lf-fp-surface);
+    border-top: 1px solid var(--rule); }
+  .lf-fp-held:hover { background: var(--lf-fp-surface); text-decoration: underline; }
+  .lf-fp-aside { color: var(--muted); margin: 0; }
+  .lf-fp-aside button { color: var(--accent); min-height: 28px; padding-inline: 6px; }
+  .lf-fp-message[data-author="user"] header { color: var(--muted); }
   .lf-fp-body > :first-child { margin-top: 0; }
   .lf-fp-body > :last-child { margin-bottom: 0; }
 
   /* The status in full, on hover or focus of the leaf, while nothing is open. */
-  .lf-fp-peek { position: absolute; bottom: calc(100% + 8px); left: 0; max-width: 100%;
+  /* Anchored to the leaf, which stays where it is however the box above it grows. */
+  .lf-fp-leaf { anchor-name: --lf-fp-leaf; }
+  .lf-fp-peek { position: fixed; position-anchor: --lf-fp-leaf;
+    bottom: calc(anchor(top) + 14px); left: anchor(left);
+    max-width: calc(var(--lf-fp-width) - 2 * var(--lf-fp-inset));
     box-sizing: border-box; padding: 7px 12px; border-radius: 9px;
     background: var(--lf-fp-surface); box-shadow: 0 0 0 0.5px var(--lf-fp-ring),
       0 8px 20px -8px rgb(20 18 12 / 0.18);
     color: var(--muted); font-size: var(--t-6); pointer-events: none;
-    opacity: 0; translate: 0 4px; transition: opacity 120ms, translate 120ms; }
-  .lf-fp-peek[data-shown] { opacity: 1; translate: 0 0; }
+    display: none; transition: opacity 120ms, translate 120ms; }
+  .lf-fp-peek[data-shown] { display: block; opacity: 1; translate: 0 0;
+    @starting-style { opacity: 0; translate: 0 4px; } }
 
   @media screen and (width <= 480px) {
     .lf-fp-desk { display: none; }

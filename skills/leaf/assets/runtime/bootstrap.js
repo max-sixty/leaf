@@ -7,10 +7,11 @@
   // not going to produce a different one. `t` is the host key a handover link carries;
   // the server has already answered it with the cookie every later request rides on,
   // so what stays in the address bar is a link the user can copy, share, or screen
-  // without handing out every page on the machine. All three leave before the user
-  // sees them.
+  // without handing out every page on the machine. `lf-chrome` chooses the chrome
+  // once, which prepaint.js has already stored. All four leave before the user sees
+  // them.
   const recovered = arrived.searchParams.has("_leaf-recovered");
-  const marks = ["_leaf-revision", "_leaf-recovered", "t"];
+  const marks = ["_leaf-revision", "_leaf-recovered", "t", "lf-chrome"];
   if (marks.some((mark) => arrived.searchParams.has(mark))) {
     for (const mark of marks) arrived.searchParams.delete(mark);
     history.replaceState(history.state, "", arrived);

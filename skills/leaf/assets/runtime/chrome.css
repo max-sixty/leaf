@@ -178,6 +178,15 @@ html[data-lf-floating-chrome] .lf-chrome {
   .lf-fp-news {
     color: var(--accent);
   }
+  .lf-fp-questions {
+    min-width: calc(11.5ch + 18px);
+  }
+  .lf-fp-news {
+    min-width: calc(6ch + 18px);
+  }
+  :is(.lf-fp-chip, .lf-fp-held)[data-none] {
+    visibility: hidden;
+  }
   .lf-floating-panel[data-rest=mark]:not([data-open]) {
     width: auto;
     left: auto;
@@ -301,7 +310,7 @@ html[data-lf-floating-chrome] .lf-chrome {
     inset-inline: 0;
     bottom: 0;
   }
-  .lf-fp-view:is([data-view=threads], [data-view=thread]) {
+  .lf-fp-view[data-view=threads] {
     height: var(--lf-fp-view-height);
   }
   .lf-fp-view[data-view=threads] {
@@ -414,17 +423,50 @@ html[data-lf-floating-chrome] .lf-chrome {
     line-height: 1.6;
     overflow-wrap: anywhere;
   }
+  .lf-fp-held {
+    position: sticky;
+    bottom: 0;
+    display: block;
+    width: 100%;
+    min-height: 34px;
+    margin-top: 4px;
+    border-radius: 0;
+    color: var(--accent);
+    font-size: var(--t-6);
+    background: var(--lf-fp-surface);
+    border-top: 1px solid var(--rule);
+  }
+  .lf-fp-held:hover {
+    background: var(--lf-fp-surface);
+    text-decoration: underline;
+  }
+  .lf-fp-aside {
+    color: var(--muted);
+    margin: 0;
+  }
+  .lf-fp-aside button {
+    color: var(--accent);
+    min-height: 28px;
+    padding-inline: 6px;
+  }
+  .lf-fp-message[data-author=user] header {
+    color: var(--muted);
+  }
   .lf-fp-body > :first-child {
     margin-top: 0;
   }
   .lf-fp-body > :last-child {
     margin-bottom: 0;
   }
+  .lf-fp-leaf {
+    anchor-name: --lf-fp-leaf;
+  }
   .lf-fp-peek {
-    position: absolute;
-    bottom: calc(100% + 8px);
-    left: 0;
-    max-width: 100%;
+    position: fixed;
+    position-anchor: --lf-fp-leaf;
+    bottom: calc(anchor(top) + 14px);
+    left: anchor(left);
+    max-width: calc(var(--lf-fp-width) - 2 * var(--lf-fp-inset));
     box-sizing: border-box;
     padding: 7px 12px;
     border-radius: 9px;
@@ -433,13 +475,17 @@ html[data-lf-floating-chrome] .lf-chrome {
     color: var(--muted);
     font-size: var(--t-6);
     pointer-events: none;
-    opacity: 0;
-    translate: 0 4px;
+    display: none;
     transition: opacity 120ms, translate 120ms;
   }
   .lf-fp-peek[data-shown] {
+    display: block;
     opacity: 1;
     translate: 0 0;
+    @starting-style {
+      opacity: 0;
+      translate: 0 4px;
+    }
   }
   @media screen and (width <= 480px) {
     .lf-fp-desk {

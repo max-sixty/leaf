@@ -209,10 +209,14 @@
   // the panel shows (`minimal` or `moderate`) and its form at rest (`row`, the comment
   // field and its counts, or `mark`, the leaf alone). One preference for every page on
   // the origin, read here because the classic bars' room is reserved before the
-  // first paint (theme.css). `?lf-chrome=floating` or `?lf-chrome=classic` sets it and
-  // leaves the address. A sample child takes its parent's choice, or its element's,
-  // in its settings (sample.js), since its store is its own.
-  const chromeKeys = { mode: "lf-chrome", display: "lf-chrome-display", rest: "lf-chrome-rest" };
+  // first paint (theme.css). `?lf-chrome=floating` or `?lf-chrome=classic` sets it. A
+  // sample child takes its parent's choice, or its element's, in its settings
+  // (sample.js), since its store is its own.
+  const chromeKeys = {
+    mode: "lf-chrome",
+    display: "lf-chrome-display",
+    rest: "lf-chrome-rest",
+  };
   const chromeValues = {
     mode: ["classic", "floating"],
     display: ["minimal", "moderate"],
@@ -221,28 +225,24 @@
   const chrome = {};
   const paintChrome = () => {
     const floating = chrome.mode === "floating";
-    root.toggleAttribute("data-lf-floating-chrome", floating);
-    if (floating) {
-      root.dataset.lfChromeDisplay = chrome.display;
-      root.dataset.lfChromeRest = chrome.rest;
-    } else {
-      delete root.dataset.lfChromeDisplay;
-      delete root.dataset.lfChromeRest;
-    }
+    const write = (name, value) => {
+      if (root.getAttribute(name) !== value)
+        if (value === null) root.removeAttribute(name);
+        else root.setAttribute(name, value);
+    };
+    write("data-lf-floating-chrome", floating ? "" : null);
+    write("data-lf-chrome-display", floating ? chrome.display : null);
+    write("data-lf-chrome-rest", floating ? chrome.rest : null);
   };
   for (const [name, key] of Object.entries(chromeKeys)) {
     const value = userStore.get(key);
     chrome[name] = chromeValues[name].includes(value) ? value : chromeValues[name][0];
   }
-  const asked = new URL(location.href);
-  const askedMode = asked.searchParams.get("lf-chrome");
-  if (askedMode !== null) {
-    if (chromeValues.mode.includes(askedMode)) {
-      chrome.mode = askedMode;
-      userStore.set(chromeKeys.mode, askedMode);
-    }
-    asked.searchParams.delete("lf-chrome");
-    history.replaceState(history.state, "", asked);
+  // The bootstrap takes the parameter out of the address with its other marks.
+  const askedMode = new URL(location.href).searchParams.get("lf-chrome");
+  if (chromeValues.mode.includes(askedMode)) {
+    chrome.mode = askedMode;
+    userStore.set(chromeKeys.mode, askedMode);
   }
   paintChrome();
   root.lfChrome = {

@@ -327,7 +327,7 @@ const designMode = createDesignMode({
     refreshAim: () => pageGeometry.refreshAim(),
     pageShifted: () => pageGeometry.pageShifted(),
   },
-  syncGeneral: () => pageComment.sync(),
+  syncGeneral: () => generalComment.sync(),
   composer: {
     showFab: (...args) => responseSurface.showFab(...args),
     openComposer: (...args) => responseSurface.openComposer(...args),
@@ -599,8 +599,13 @@ const floatingPanel =
     ? createFloatingPanel({
         wireInput: inputs.wireInput,
         threadActions: app.threadActions,
+        read: app.read,
+        openThread: app.threadDestinations.openPageThread,
       })
     : null;
+// The page's general comment box: the card under the banner's control, or the floating
+// panel's field.
+const generalComment = floatingPanel?.pageComment ?? pageComment;
 const passageSelection = createPassageSelection({
   restore: anchorTravel.restoreSelection,
 });
@@ -631,7 +636,7 @@ responseSurface = createResponseSurface({
   drawModeActive: () => drawing.drawModeActive(),
   refreshThread: app.refreshThread,
   dismissThreadView: () => app.overlay?.inlineThreadView.dismiss(),
-  pageComment,
+  pageComment: generalComment,
   responseHome: overlaySelected ? chromeRoot : panelFoot,
   revealResponseHome: overlaySelected
     ? null
@@ -870,8 +875,8 @@ if (!offlineInteractive) {
   // resolve updateComplete until connection, and keyboard registration needs that input.
   narrowing.mount();
   await panelKeys.mount();
-  pageComment.mount(chromeForeground);
-  floatingPanel?.mount(chromeForeground);
+  if (floatingPanel) floatingPanel.mount(chromeForeground);
+  else pageComment.mount(chromeForeground);
   responseSurface.mount();
   holdToRead();
   reactions.mount();

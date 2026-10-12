@@ -400,12 +400,14 @@ def test_pr_review_observed_age_refreshes_without_a_data_change(browser, serve):
     expect(observed).to_have_text("Observed 3h ago")
 
 
-@pytest.mark.parametrize("reconnect", [False, True])
-def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve, reconnect):
-    """A delayed paint leaves with its owner, while a same-batch move retains it."""
+def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
+    """A delayed paint leaves with its owner, while a same-batch move retains it: one
+    brief is taken out of the page and another moved within it while the Markdown
+    module they wait on is held."""
     authored = leaf_page(
         "pull request disconnect",
-        '<lf-pr-brief id="reviewed-pr" source="pr-1842"></lf-pr-brief>',
+        '<lf-pr-brief id="reviewed-pr" source="pr-1842"></lf-pr-brief>'
+        '<lf-pr-brief id="moved-pr" source="pr-1842"></lf-pr-brief>',
     )
     url = serve(
         authored,
@@ -439,15 +441,17 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve, recon
             page.goto(url, wait_until="load")
         page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
         assert held, "the positive control did not hold the lazy Markdown import"
-        page.locator("#reviewed-pr").evaluate(
-            """(element, reconnect) => {
+        page.evaluate(
+            """() => {
+              const element = document.getElementById('reviewed-pr');
               window.detachedPr = element;
               window.detachedPrMarkup = element.innerHTML;
-              const parent = element.parentElement;
               element.remove();
-              if (reconnect) parent.append(element);
-            }""",
-            reconnect,
+              const moved = document.getElementById('moved-pr');
+              const parent = moved.parentElement;
+              moved.remove();
+              parent.append(moved);
+            }"""
         )
         held.pop(0).continue_()
         page.evaluate(
@@ -457,14 +461,12 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve, recon
             }"""
         )
         wait_until_ready(page)
-        if reconnect:
-            expect(page.locator(".pr-brief h3")).to_have_text(
-                "Keep delayed rendering safe"
-            )
-        else:
-            assert page.evaluate(
-                "() => window.detachedPr.innerHTML === window.detachedPrMarkup"
-            )
+        expect(page.locator("#moved-pr .pr-brief h3")).to_have_text(
+            "Keep delayed rendering safe"
+        )
+        assert page.evaluate(
+            "() => window.detachedPr.innerHTML === window.detachedPrMarkup"
+        )
     finally:
         while held:
             held.pop(0).continue_()
@@ -9168,10 +9170,9 @@ def test_atlas_send_and_pause_is_one_thread_fold(browser, serve):
     ] == ["comment", "resolve", "undo"]
 
 
-@pytest.mark.parametrize("replacement", ["rebuilt", "removed"])
-def test_datum_travel_resolves_the_destination_after_reveal(
-    browser, serve, replacement
-):
+def test_datum_travel_resolves_the_destination_after_reveal(browser, serve):
+    """A reveal may rebuild the destination row, and travel lands on the rebuilt one;
+    a later reveal that removes it says the row is not there."""
     url = serve(
         leaf_page(
             "reveal replaces projection",
@@ -9198,13 +9199,13 @@ def test_datum_travel_resolves_the_destination_after_reveal(
     # Repeat that lifecycle on every reveal so a second reveal after resolution
     # cannot hide a stale-node scroll behind the first successful re-query.
     page.locator("#patch").evaluate(
-        """(source, replacement) => {
+        """source => {
           let revealed = false;
           source.addEventListener('lf-reveal', () => {
             const row = source.shadowRoot.querySelector(
               `[data-lf-datum='["app.py","new",2]']`);
             if (!row) return;
-            if (replacement === 'removed' || revealed) {
+            if (revealed) {
               row.remove();
             } else {
               // Marked, so the rebuild is a different row and not the same one
@@ -9215,21 +9216,17 @@ def test_datum_travel_resolves_the_destination_after_reveal(
               revealed = true;
             }
           });
-        }""",
-        replacement,
+        }"""
     )
     page.locator("#calls .lf-call-location").last.click()
-    if replacement == "rebuilt":
-        expect(page.locator(".lf-live")).to_have_text(
-            "Opened app.py:2 in the exact patch"
-        )
-        expect(
-            page.locator('lf-diff [data-lf-datum=\'["app.py","new",2]\']')
-        ).to_be_in_viewport()
-    else:
-        expect(page.locator(".lf-live")).to_have_text(
-            "app.py:2 is not present in the exact patch"
-        )
+    expect(page.locator(".lf-live")).to_have_text("Opened app.py:2 in the exact patch")
+    expect(
+        page.locator('lf-diff [data-lf-datum=\'["app.py","new",2]\'][data-rebuilt]')
+    ).to_be_in_viewport()
+    page.locator("#calls .lf-call-location").last.click()
+    expect(page.locator(".lf-live")).to_have_text(
+        "app.py:2 is not present in the exact patch"
+    )
 
 
 def test_the_activity_feed_words_a_pick_in_the_document_it_was_made_in(browser, serve):

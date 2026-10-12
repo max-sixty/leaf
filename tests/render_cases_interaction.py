@@ -1329,15 +1329,14 @@ THREAD_ASKS = [
 ]
 
 # A widget the shipped packages no longer have: one the user owes an answer on that
-# also seats a thread of its own. Those two facts together are what produce the
-# layer's one split between the user's list and the unanswered decisions — a thread
-# standing in the seat while the agent has the next word takes the widget off the list
-# without answering it (`seat_with_agent`, `seatWithAgent`). `lf-options` supplied the
-# pair until 292de9c made the user's cell an add form and dropped `x-thread-seat`, and
-# both halves of the split are still implemented, still described, and reachable by any
-# package that declares both. So the guard is declared here rather than borrowed from
-# whichever shipped entry happens to carry it: the reading under test is the layer's, and
-# the tag it runs on is the layer's business rather than the test's.
+# also seats a thread of its own. A thread anchored on any ask splits the user's list
+# from the unanswered decisions while the agent has the next word, taking the ask off
+# the list without answering it (`questions.sections_with_agent`); a seat is where a
+# user most often starts one. `lf-options` supplied the pair until 292de9c made the
+# user's cell an add form and dropped `x-thread-seat`, so the pair is declared here
+# rather than borrowed from whichever shipped entry happens to carry it: the reading
+# under test is the layer's, and the tag it runs on is the layer's business rather than
+# the test's.
 SEATED_ASK_TAG = "lf-verdict"
 SEATED_ASK_ENTRY = {
     "description": (

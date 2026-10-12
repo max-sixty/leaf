@@ -2402,8 +2402,14 @@ def _page_owned_deferred_source(page_dir):
 def test_a_contracts_item_schema_decides_whether_a_record_has_deferred_content(
     page_dir,
 ):
-    """A metadata-only record has no absent body invented by the delivery mechanism."""
+    """The item schema owns presence; delivery neither invents nor requires payloads."""
     authored = _page_owned_deferred_source(page_dir)
+    with pytest.raises(data_model.DataError, match="'patch' is a required property"):
+        data_model.cmd_data_set(
+            page_dir,
+            "files",
+            {"files": [{"key": "metadata", "body": "mode 100644 → 100755"}]},
+        )
     declarations = json.loads(authored.read_text())
     contract = declarations["$data"]["contracts"]["local-files"]
     contract["schema"]["properties"]["files"]["items"]["required"] = ["key", "body"]

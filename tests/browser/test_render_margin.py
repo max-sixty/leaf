@@ -10922,8 +10922,8 @@ def test_external_seat_keeps_original_target_visibility(browser, serve):
 def test_a_pin_keeps_native_presses_inside_painted_walls_reachable(browser, serve):
     """No clear seat leaves native controls reachable and the thread in Page Map.
 
-    Adjacent painted cards leave no clear seat beside the second card. Its
-    A pin at its bounded home previously covered Action inside a tinted header.
+    Adjacent painted cards leave no clear seat beside the second card. A pin at
+    its bounded home previously covered Action inside a tinted header.
     """
     cards = "".join(
         f'<section id="card{i}" style="border:1px solid var(--rule);'
@@ -10933,9 +10933,7 @@ def test_a_pin_keeps_native_presses_inside_painted_walls_reachable(browser, serv
         "onclick=\"this.textContent='Opened'\">Action</button></div></section>"
         for i in range(12)
     )
-    url = serve(
-        leaf_page("Pin controls", "<h1>Pin controls</h1>" + cards, layout="wide")
-    )
+    url = serve(leaf_page("Pin controls", "<h1>Pin controls</h1>" + cards, layout=None))
     append_carried_log_record(
         serve.page_dir,
         {
@@ -10968,15 +10966,26 @@ def test_a_pin_keeps_native_presses_inside_painted_walls_reachable(browser, serv
         action = page.locator(identity)
         action.tap()
         expect(action).to_have_text("Opened")
+    context.close()
 
 
 @pytest.mark.watch_shifts
-def test_held_external_seat_stays_when_local_room_appears(browser, serve):
+@pytest.mark.parametrize("nested", [False, True])
+def test_held_external_seat_stays_when_local_room_appears(browser, serve, nested):
     body = (
         '<h1>Held external seat</h1><div id="pane" data-bound="start" style="height:180px;overflow:auto"><pre id="target" style="margin:0;font-size:20px;line-height:20px;overflow:hidden">'
         + "\n".join(["W" * 100] * 30)
         + "</pre></div>"
     )
+    if nested:
+        body = (
+            body.replace(
+                '<div id="pane"',
+                '<div id="outer" data-bound="start" style="height:260px;overflow:auto">'
+                '<div id="pane"',
+            )
+            + '<div id="outer-footer" style="height:80px;background:var(--card)"></div></div>'
+        )
     events = [
         {
             "kind": "comment",
@@ -10999,12 +11008,15 @@ def test_held_external_seat_stays_when_local_room_appears(browser, serve):
     marker = row.get_by_role("button", name="Thread,", exact=False)
     marker.focus()
     before = row.bounding_box()
-    pane = page.locator("#pane").bounding_box()
+    pane = page.locator("#outer" if nested else "#pane").bounding_box()
     assert (
         before["y"] + before["height"] <= pane["y"]
         or before["y"] >= pane["y"] + pane["height"]
     )
-    page.locator("#target").evaluate('target=>target.style.height="100px"')
+    if nested:
+        page.locator("#outer-footer").evaluate('footer=>footer.style.height="0px"')
+    else:
+        page.locator("#target").evaluate('target=>target.style.height="100px"')
     margins_laid_out(page)
     expect(marker).to_be_focused()
     assert row.bounding_box() == before

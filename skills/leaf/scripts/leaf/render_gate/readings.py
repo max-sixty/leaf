@@ -21,9 +21,10 @@ from leaf.projection import (
     rewritten_bodies,
 )
 from leaf.registry.contract import is_element_name, retirement_slots
-from leaf.registry.schema import json_value
 from leaf.render_checks import evaluate_probe, one_frame, rendered
 from leaf.structure import SourceDocument
+
+from .findings import Finding, element_at
 
 # A probe's arguments cross as JSON, so a node only CDP can name is handed to the
 # `issueNode` probe as the receiver of a call made on the node itself.
@@ -92,28 +93,26 @@ class DevtoolsIssues:
             )
         return answer["result"]
 
-    def findings(self) -> list[str]:
+    def findings(self) -> list[Finding]:
         """Each issue about something the page owns, where it is and what it names.
 
-        Details differ by issue type, so every scalar is written out except the
-        protocol's handles, which name nothing a reader can find in the source; the
-        first node handle is located instead."""
+        Details differ by issue type, so every scalar is kept except the protocol's
+        handles, which name nothing a reader can find in the source; the first node
+        handle is located instead."""
         found = []
         for issue in self._raised:
             fields = list(_issue_fields(issue["details"]))
             nodes = [v for k, v in fields if k == "nodeId" or k.endswith("NodeId")]
-            facts = [
-                f"{k}={json_value(v)}"
-                for k, v in fields
-                if not k.endswith("Id") and v != ""
-            ]
+            details = [[k, v] for k, v in fields if not k.endswith("Id") and v != ""]
             node = self._node(nodes[0]) if nodes else None
             if node is not None and not node["owned"]:
                 continue
             found.append(
-                f"DevTools issue {issue['code']}"
-                + (f" at {node['at']}" if node else "")
-                + (f" ({', '.join(facts)})" if facts else "")
+                Finding(
+                    "devtools-issue",
+                    node["at"] if node else "",
+                    {"issue": issue["code"], "details": details},
+                )
             )
         return list(dict.fromkeys(found))
 
@@ -121,9 +120,8 @@ class DevtoolsIssues:
 @dataclass(frozen=True, slots=True)
 class _SchemeContext:
     page: object
-    scheme: str
+    light: bool
     errors: list
-    resize_notices: list
     registry: dict
     registry_for_revision: Callable[[int], dict]
     declarations: dict
@@ -182,7 +180,7 @@ def _expected_verbatim(
     return expected
 
 
-def _verbatim_findings(context: _SchemeContext) -> list[str]:
+def _verbatim_findings(context: _SchemeContext) -> list[Finding]:
     shown = evaluate_probe(context.page, "shownVerbatim", context.declarations)
     if not shown:
         return []
@@ -200,56 +198,73 @@ def _verbatim_findings(context: _SchemeContext) -> list[str]:
         key = tuple(provenance) if provenance is not None else None
         if reading["compositional"] == expected.get(key):
             continue
-        owner = f"<{reading['tag']}"
-        if reading["id"]:
-            owner += f" id={reading['id']!r}"
-        owner += ">"
-        if provenance is None:
-            where = " without pre-upgrade source provenance"
-        elif provenance[0] == "page":
-            where = f" at page occurrence {provenance[2] + 1}"
-        else:
-            where = (
-                f" at {provenance[0]} {provenance[1]} occurrence {provenance[2] + 1}"
-            )
         findings.append(
-            f"{owner}{where} declares x-verbatim but shows "
-            f"{reading['says'][:80]!r} with owned structure "
-            f"{json_value(reading['compositional'])} where the file reads "
-            f"{json_value(expected.get(key, []))}"
+            Finding(
+                "verbatim",
+                element_at(reading["tag"], reading["id"]),
+                {
+                    "provenance": provenance,
+                    "says": reading["says"],
+                    "shown": reading["compositional"],
+                    "expected": expected.get(key, []),
+                },
+            )
         )
     return findings
 
 
-def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
+def _retired_holders(context: _SchemeContext) -> list[dict]:
+    """Each settlement holder on the page with the outcome the file's reading gives it
+    and the slots that outcome retires, for `retiredSlots` to hold the page to.
+
+    The expected outcomes are the file's, scoped to each holder's own relation:
+    `retirement_outcomes` folds any verb that retires somewhere in the vocabulary, so a
+    verb of that name on a family it settles nothing of decides nothing here — the
+    browser's write reads the per-holder relation, and a comparison against anything
+    wider would fail a page both sides are right about."""
+    slots = retirement_slots(context.registry)
+    if not slots:
+        return []
+    reading = page_reading(
+        SourceReading(SourceDocument(context.markup), context.registry),
+        context.state["events"],
+        context.here,
+    )
+    outcomes = retirement_outcomes(reading.projection.actions)
+    holders = []
+    for h in retirement_holders(reading.document, context.registry):
+        declared = slots[h["tag"]]
+        outcome = outcomes.get(h["id"])
+        if outcome not in declared:
+            outcome = None
+        holders.append(
+            {
+                "tag": h["tag"],
+                "id": h["id"],
+                "outcome": outcome,
+                "slots": sorted(declared.get(outcome, ())),
+            }
+        )
+    return holders
+
+
+def _scheme_findings(context: _SchemeContext) -> list[Finding]:
+    """Every finding read from one settled scheme, without the scheme it was read in."""
     page = context.page
-    scheme = context.scheme
-    registry = context.registry
     declarations = context.declarations
-    state = context.state
-    markup = context.markup
-    here = context.here
     replayed = context.replayed
-    errors = context.errors
-    resize_notices = context.resize_notices
-    unsettled = context.unsettled
     invalid_paints = evaluate_probe(page, "invalidPaints")
     missing_upgrades = evaluate_probe(page, "missingUpgrades", declarations)
     tiny = evaluate_probe(page, "tinyBoxes", declarations)
     unmarkable = evaluate_probe(page, "unmarkableElements")
     column = evaluate_probe(page, "columnGeometry")
-    overflow = column["overflow"]
-    misplaced = column["misplaced"]
     scrollbars = evaluate_probe(page, "scrollbarClearance")
     reachability = evaluate_probe(page, "reachabilityReading")
-    clipped = reachability["clipped"]
-    unreachable = reachability["unreachable"]
-    covered = reachability["covered"]
     # Shadow roots the registry doesn't declare: the passage walk, the
     # capture and the id lookups cross exactly the declared ones, so an
     # undeclared root's words silently anchor quotes astray. Generated controls
     # are UI rather than page words, so their implementation roots are exempt.
-    undeclared_shadow = evaluate_probe(page, "undeclaredShadowRoots", registry)
+    undeclared_shadow = evaluate_probe(page, "undeclaredShadowRoots", context.registry)
     # x-verbatim promises the words this scheme renders. Source provenance was
     # captured before upgrade, so anonymous page and frozen-message owners have the
     # same coordinate as the file reading without acquiring authored ids. Its file
@@ -261,7 +276,8 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     missing_threads = []
     undeclared_attrs = []
     retired = []
-    if scheme == "light":
+    relative = []
+    if context.light:
         # x-thread-seat promises one page view per matching instance. A widget in
         # thread chrome already has the thread's reply surface and threadBox
         # deliberately returns none there. Everywhere else, ask the merged registry
@@ -279,139 +295,54 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
             undeclared_attrs = evaluate_probe(page, "undeclaredAttrs", declarations)
             # Behind it too: the settlement mark is replay's own write, so a
             # reading taken earlier asks after paint the page has not been
-            # asked to make yet. The expected outcomes are the file's, scoped
-            # to each holder's own relation: `retirement_outcomes` folds any verb that
-            # retires somewhere in the vocabulary, so a verb of that name on
-            # a family it settles nothing of decides nothing here — the
-            # browser's write reads the per-holder relation, and a comparison
-            # against anything wider would fail a page both sides are right
-            # about.
-            if slots := retirement_slots(registry):
-                reading = page_reading(
-                    SourceReading(SourceDocument(markup), registry),
-                    state["events"],
-                    here,
-                )
-                outcomes = retirement_outcomes(reading.projection.actions)
-                holders = []
-                for h in retirement_holders(reading.document, registry):
-                    declared = slots[h["tag"]]
-                    outcome = outcomes.get(h["id"])
-                    if outcome not in declared:
-                        outcome = None
-                    holders.append(
-                        {
-                            "tag": h["tag"],
-                            "id": h["id"],
-                            "outcome": outcome,
-                            "slots": sorted(declared.get(outcome, ())),
-                        }
-                    )
-                if holders:
-                    retired = evaluate_probe(page, "retiredSlots", holders)
-    # Last: render the complete state again to prove idempotence.
-    # The caught-up wait ensures they observe the same settled projection as the
-    # preceding read-only probes.
-    relative = []
-    if scheme == "light" and replayed:
-        relative = evaluate_probe(page, "relativeReplays")
+            # asked to make yet.
+            if holders := _retired_holders(context):
+                retired = evaluate_probe(page, "retiredSlots", holders)
+            # Last: render the complete state again to prove idempotence.
+            # The caught-up wait ensures they observe the same settled projection as
+            # the preceding read-only probes.
+            relative = evaluate_probe(page, "relativeReplays")
     # The replay above can resize what an observer watches. Chrome
     # delivers that notice in the next rendering turn, so closing on the write
     # would call an attempt complete before its last error channel had spoken.
     one_frame(page)
-    found = [f"[{scheme}] console: {e}" for e in errors]
-    for paint in invalid_paints:
-        owner = f"<{paint['tag']}" + (f" id={paint['id']!r}>" if paint["id"] else ">")
-        part = f" for data-id={paint['part']!r}" if paint["part"] else ""
-        found.append(
-            f"[{scheme}] {owner} renders {paint['property']}={paint['value']!r} "
-            f"on <{paint['element']}>{part}, but that value does not resolve to valid "
-            f"{paint['property']}"
-        )
+    found = [*context.errors, *map(Finding.read, invalid_paints)]
     if missing_upgrades:
-        found.append(
-            f"[{scheme}] upgraded widgets did not define their elements: "
-            + ", ".join(f"<{tag}>" for tag in missing_upgrades)
-        )
+        found.append(Finding("missing-upgrades", values={"tags": missing_upgrades}))
     if tiny:
-        found.append(
-            f"[{scheme}] widgets rendered with no usable size: {json_value(tiny)}"
-        )
-    found += [
-        f"[{scheme}] <{u['tag']} id={u['id']!r}> shows {u['w']}x{u['h']}px of words"
-        " and offers no box to mark: it draws none of its own and no element inside"
-        " it draws one either, so a comment anchored here would outline nothing and"
-        " the Question walk would travel to the top of the page. Put the words in an"
-        " element that takes a box"
-        for u in unmarkable
-    ]
-    found += [f"[{scheme}] {text}" for _key, text in _overflow(overflow, misplaced)]
-    found += [f"[{scheme}] {text}" for _key, text in _scrollbars(scrollbars)]
-    found += [
-        f"[{scheme}] the control .{c['ctrl'].split()[0]}"
-        + (f" (#{c['id']})" if c["id"] else "")
-        + f" is drawn {c['lost']}px outside the {c['by']} that clips it, where"
-        " nothing can scroll to reach it — the page offers a press it does not show"
-        for c in clipped
-    ]
-    found += [f"[{scheme}] {w}" for w in unreachable]
-    found += [f"[{scheme}] {c}" for c in covered]
+        found.append(Finding("tiny-boxes", values={"boxes": tiny}))
+    found += map(Finding.read, unmarkable)
+    found += _overflow(column["overflow"], column["misplaced"]).values()
+    found += _scrollbars(scrollbars).values()
+    for kind in ("clipped", "unreachable", "covered"):
+        found += map(Finding.read, reachability[kind])
     if undeclared_shadow:
-        found.append(
-            f"[{scheme}] shadow roots the registry doesn't declare "
-            f"(an undeclared root's words anchor quotes astray; declare "
-            f"x-shadow): {', '.join(undeclared_shadow)}"
-        )
-    found += [f"[{scheme}] {issue}" for issue in context.devtools.findings()]
-    found += [f"[{scheme}] {d}" for d in dishonest_verbatim]
-    found += [f"[{scheme}] {s}" for s in silent]
-    for c in missing_threads:
-        found.append(
-            f"[{scheme}] <{c['tag']} id={c['id']!r}> declares x-thread-seat but "
-            f"rendered {c['hosts']} matching hosts; its module must place exactly "
-            "one threadBox"
-        )
-    for u in {(x["tag"], x["attr"]): x for x in undeclared_attrs}.values():
-        found.append(
-            f"[{scheme}] <{u['tag']} id={u['id']!r}> carries {u['attr']!r}, which "
-            "its element declaration does not name — declare it as a verb's record "
-            "form (x-state) if a version is meant to carry it, or write the state "
-            "on the chrome the module built"
-        )
-    found += [f"[{scheme}] {r}" for r in retired]
-    found += [f"[{scheme}] {u}" for u in unsettled]
-    found += [f"[{scheme}] {r}" for r in relative]
-    notices = [f"[{scheme}] console: {e}" for e in resize_notices]
-    return found, notices
+        found.append(Finding("undeclared-shadow", values={"hosts": undeclared_shadow}))
+    found += context.devtools.findings()
+    found += dishonest_verbatim
+    found += map(Finding.read, silent)
+    found += map(Finding.read, missing_threads)
+    # One mistake is on every instance, so one finding per tag and attribute.
+    found += {(u["tag"], u["attr"]): Finding.read(u) for u in undeclared_attrs}.values()
+    found += map(Finding.read, retired)
+    found += context.unsettled
+    found += map(Finding.read, relative)
+    return found
 
 
-def _scrollbars(boxes: list) -> list[tuple[tuple[str, str], str]]:
+def _scrollbars(boxes: list) -> dict[tuple[str, str], Finding]:
     """Overlay track collisions, keyed like other width-dependent geometry."""
-    return [
-        (
-            (box["place"], "scrollbar"),
-            (
-                f"{box['at']} leaves {box['clear']}px below its {box['content']}"
-                f" for a {box['required']:g}px horizontal overlay scrollbar; avoid the"
-                " horizontal overflow or reserve room below the content so reaching for"
-                " the bar does not cover it"
-            ),
-        )
-        for box in boxes
-    ]
+    return {(box["place"], box["code"]): Finding.read(box) for box in boxes}
 
 
-def _overflow(overflow: int, misplaced: list) -> list[tuple[tuple[str, str], str]]:
+def _overflow(overflow: int, misplaced: list) -> dict[tuple[str, str], Finding]:
     """The sideways readings at one width, each keyed by its element's place and kind."""
-    found = []
+    found = {}
     if overflow > 0:
-        found.append(
-            (
-                ("<root scrollport>", "scroll"),
-                f"the page scrolls sideways by {overflow}px",
-            )
+        found["<root scrollport>", "page-scrolls"] = Finding(
+            "page-scrolls", values={"past": overflow}
         )
-    return found + [((m["place"], m["kind"]), m["text"]) for m in misplaced]
+    return found | {(m["place"], m["code"]): Finding.read(m) for m in misplaced}
 
 
 # The widths the sweep takes a loaded page through: a version holds at every width from
@@ -458,35 +389,30 @@ def sweep(page, viewports, open_tags) -> list[tuple[int, dict]]:
     return readings
 
 
-def _span(widths) -> str:
-    low, high = min(widths), max(widths)
-    return f"{low}px" if low == high else f"{low}–{high}px"
+def _swept(readings, faults) -> list[Finding]:
+    """Each unbroken run of sweep steps a fault stands across, widest first, as the
+    finding it reads at the narrowest of them with the widths the run spans.
 
-
-def _swept(readings, faults) -> list[tuple[list[int], object]]:
-    """Each unbroken run of sweep steps a fault stands across, widest first, with
-    its widths and what the fault reads at the narrowest of them.
-
-    `faults` names each fault in one width's reading as (key, reading), keyed by the
-    element's place (locate.js) rather than its name, which two elements can share. A
-    fault that clears at some width and returns at a narrower one is two runs, each
-    reported on its own. A window that narrows leaves less room for what the page
+    `faults` names each finding in one width's reading by a key, the element's place
+    (locate.js) rather than its name, which two elements can share, and the finding's
+    code. A fault that clears at some width and returns at a narrower one is two runs,
+    each reported on its own. A window that narrows leaves less room for what the page
     holds, so a run's narrowest width is where its fault usually stands at its
     worst."""
     runs = []
     latest = {}
     for step, (width, reading) in enumerate(readings):
-        for key, fault in faults(reading):
+        for key, finding in faults(reading).items():
             last = latest.get(key)
             if last is not None and last[0] == step - 1:
                 run = last[1]
                 run[0].append(width)
-                run[1] = fault
+                run[1] = finding
             else:
-                run = [[width], fault]
+                run = [[width], finding]
                 runs.append(run)
             latest[key] = (step, run)
-    return [(widths, fault) for widths, fault in runs]
+    return [finding.but(widths=(min(widths), max(widths))) for widths, finding in runs]
 
 
 def arrangement_changes(readings) -> list[tuple[int, str, str]]:
@@ -535,7 +461,7 @@ def margin_changes(page, readings, height: int) -> list[int]:
     return changes
 
 
-def swept_overflow(readings, viewports) -> list[str]:
+def swept_overflow(readings, viewports) -> list[Finding]:
     """Sideways overflow and scrollbar collisions the fixed viewports miss, with
     the widths each run spans and what it reads at the narrowest.
 
@@ -543,15 +469,15 @@ def swept_overflow(readings, viewports) -> list[str]:
     reading already reports it in both schemes."""
     fixed = {viewport["width"] for viewport in viewports}
     return [
-        f"at {_span(widths)} wide, {text}"
-        for widths, text in _swept(
+        finding
+        for finding in _swept(
             readings,
             lambda reading: (
                 _overflow(reading["overflow"], reading["misplaced"])
-                + _scrollbars(reading["scrollbars"])
+                | _scrollbars(reading["scrollbars"])
             ),
         )
-        if not fixed & set(widths)
+        if not any(finding.widths[0] <= width <= finding.widths[1] for width in fixed)
     ]
 
 
@@ -561,7 +487,7 @@ def swept_overflow(readings, viewports) -> list[str]:
 # the author's call, so none of it refuses a version.
 
 
-def squeezed_table_advice(readings) -> list[str]:
+def squeezed_table_advice(readings) -> list[Finding]:
     """Advice naming each table that scrolls sideways with a cell wrapped.
 
     The sweep is the reading's only home, and it takes in the fixed viewports' widths.
@@ -569,43 +495,50 @@ def squeezed_table_advice(readings) -> list[str]:
     stays in reach: what costs the reader is prose wrapped a word a line beside a
     scroller, and the remedy (a column fewer, shorter words, an identifier in `<code>`)
     is a choice of composition only the author can make."""
-    return [
-        f"at {_span(widths)} wide, {text}"
-        for widths, text in _swept(
-            readings,
-            lambda reading: (
-                ((table["place"], "squeezed"), table["text"])
-                for table in reading["squeezed"]
-            ),
-        )
-    ]
+    return _swept(
+        readings,
+        lambda reading: {
+            (table["place"], table["code"]): Finding.read(table, severity="advice")
+            for table in reading["squeezed"]
+        },
+    )
 
 
-def shrunk_label_advice(readings) -> list[str]:
+def shrunk_label_advice(readings) -> list[Finding]:
     """Advice naming each drawing whose fit to its box draws labels too small to read.
 
     Advice rather than a failure because the remedy is a choice of composition — larger
     labels, fewer of them, a narrower drawing, more room — that only the author can make,
     and a page that makes none of them still says everything it says."""
-    drawings = _swept(
-        readings,
-        lambda reading: (
-            (d["place"], (d, reading["labels"]["threshold_px"]))
+
+    def drawings(width, reading):
+        threshold = reading["labels"]["threshold_px"]
+        return {
+            (d["place"], "shrunk-labels"): Finding(
+                "shrunk-labels",
+                d["at"],
+                {
+                    "place": d["place"],
+                    "threshold": threshold,
+                    "labels": d["labels"],
+                    "width": width,
+                    "words": d["words"],
+                    "drawn": d["drawn"],
+                    "set": d["set"],
+                },
+                severity="advice",
+            )
             for d in reading["labels"]["drawings"]
-        ),
+        }
+
+    # The reading names no width, so each step's findings carry their own.
+    return _swept(
+        [(width, (width, reading)) for width, reading in readings],
+        lambda stepped: drawings(*stepped),
     )
-    return [
-        f"at {_span(widths)} wide {d['at']} draws labels below {threshold}px, "
-        f"{d['labels']} at {min(widths)}px, the smallest ({d['words']!r}) at "
-        f"{d['drawn']:g}px from the {d['set']:g}px it was set at: the drawing is "
-        "scaled to fit its box and its labels with it, so set them larger in the "
-        "viewBox's units, draw the viewBox nearer the width it is shown at, or give it "
-        "more room (authoring-evidence.md, Interactive and visual evidence)"
-        for widths, (d, threshold) in drawings
-    ]
 
 
-def unreserved_height_advice(page, declarations: dict) -> list[str]:
+def unreserved_height_advice(page, declarations: dict) -> list[Finding]:
     """Advice naming each widget whose module drew it at a height its first paint did
     not reserve (x-height), with the data-height that would have.
 
@@ -615,12 +548,6 @@ def unreserved_height_advice(page, declarations: dict) -> list[str]:
     rather than a failure: the page reads the same once the drawing lands, and only
     the moment it lands moves what follows it."""
     return [
-        f"<{w['tag']} id={w['id']!r}> draws {w['drawn']}px tall where its first paint "
-        + (
-            "reserves no height"
-            if w["reserved"] is None
-            else f"reserves {w['reserved']}px"
-        )
-        + f', so what follows it moves when it is drawn: state data-height="{w["drawn"]}"'
-        for w in evaluate_probe(page, "unreservedHeights", declarations)
+        Finding.read(reading, severity="advice")
+        for reading in evaluate_probe(page, "unreservedHeights", declarations)
     ]

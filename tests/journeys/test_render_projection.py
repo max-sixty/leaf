@@ -67,6 +67,7 @@ from render_harness import (
     expect_banner_control_offered,
     holding,
     leaf_page,
+    names,
     open_page,
     opened_tab,
     page_comment,
@@ -1039,7 +1040,7 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
             release.set()
 
     assert asked.is_set(), "nothing ever asked for the stalled file, so nothing stalled"
-    assert failures and all("the server stopped answering" in f for f in failures), (
+    assert failures and all(f.code == "server-stopped" for f in failures), (
         f"a wedged server has to come back as a failure, and this came back as {failures}"
     )
 
@@ -1215,21 +1216,17 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(
         (key, action) for widget, _tag, key, action in standing if widget == "ab-pick"
     } == {("choose", "choose"), ("answer", "answer"), ("add", "add")}
     failures = render_gate_model.render_version(browser, url).failures
-    assert [f for f in failures if "is relative" in f] == [
-        (
-            "[light] <lf-tally id=tally-fitted> renderState is relative — rendering "
-            "the same complete state changed tally-fitted, body text. Render the "
-            "supplied values without stepping from the DOM."
-        ),
-        (
-            "[light] <lf-tally id=tally-seen> renderState is relative — rendering "
-            "the same complete state changed body text. Render the "
-            "supplied values without stepping from the DOM."
-        ),
+    assert [
+        (f.scheme, f.at, f.values["changed"])
+        for f in failures
+        if f.code == "relative-render"
+    ] == [
+        ("light", "<lf-tally id=tally-fitted>", ["tally-fitted", "body text"]),
+        ("light", "<lf-tally id=tally-seen>", ["body text"]),
     ], failures
     # The relative widget's appended caption is its own fault in other readings too;
     # the standing vocabulary beside it leaves the gate nothing to say.
-    assert all("lf-tally" in f for f in failures), failures
+    assert all(names(f, "lf-tally") for f in failures), failures
 
 
 def test_a_widget_standing_out_of_place_is_a_page_the_gate_reports(
@@ -1248,7 +1245,7 @@ def test_a_widget_standing_out_of_place_is_a_page_the_gate_reports(
     page = open_page(browser, url)
     covered = render_checks_model.evaluate_probe(page, "coveredWords")
 
-    assert covered and all("drift-note" in f for f in covered), covered
+    assert covered and all(names(f, "drift-note") for f in covered), covered
 
 
 def test_the_render_gate_reads_a_page_that_has_finished_arriving(
@@ -1610,13 +1607,16 @@ export default class extends HTMLElement {
     )
     failures = render_gate_model.render_version(browser, live_url(url)).failures
     assert any(
-        "<lf-trial id='th-cache'> settled `shelve` and its <lf-proposed> still shows"
-        in failure
+        failure.code == "retired-slot"
+        and failure.at == "<lf-trial id=th-cache>"
+        and (failure.values["outcome"], failure.values["slot"])
+        == ("shelve", "lf-proposed")
         for failure in failures
     ), failures
     assert any(
-        "<lf-trial id='th-spare'> wears data-lf-state=\"shelve\" where the log "
-        "records no decision" in failure
+        failure.code == "settlement-mark"
+        and failure.at == "<lf-trial id=th-spare>"
+        and (failure.values["mark"], failure.values["outcome"]) == ("shelve", None)
         for failure in failures
     ), failures
 

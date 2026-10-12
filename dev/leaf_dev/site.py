@@ -269,11 +269,6 @@ def prepared_leaf(out: Path) -> Callable:
     install = install_tree(out)
     shutil.rmtree(install, ignore_errors=True)
     prepare(install)
-    shutil.copytree(
-        ROOT / "worker" / "leaf_website",
-        install / "worker" / "leaf_website",
-        ignore=shutil.ignore_patterns("__pycache__"),
-    )
     return partial(leaf, [str(install / "bin" / "leaf")], environment())
 
 

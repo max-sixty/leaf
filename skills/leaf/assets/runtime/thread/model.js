@@ -26,7 +26,7 @@ import { PENDING } from "./identity.js";
 /** @param {{token?: string}} message */
 export const isReaction = (message) => Boolean(message.token);
 /** @param {Pick<Message, "addressable">} message */
-export const isAddressable = (message) => message.addressable !== false;
+const isAddressable = (message) => message.addressable !== false;
 
 /** @param {Thread} thread @param {boolean} ready */
 const threadOffers = (thread, ready) => ({

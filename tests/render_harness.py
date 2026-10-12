@@ -1394,15 +1394,24 @@ def watched(page, *, java_script_enabled=True):
     page.lf_java_script_enabled = java_script_enabled
 
     def console_message(message):
-        problem = render_gate_model.console_problem(message)
-        if problem:
-            errors.append(problem)
+        if (problem := render_gate_model.console_finding(message)) is not None:
+            errors.append(str(problem))
+
+    def window_error(error):
+        # `navigate` takes the ResizeObserver notices of a navigation it is making;
+        # any other notice, like every other error, reaches the fixture.
+        problem = render_gate_model.window_finding(error)
+        notices = getattr(page, "lf_resize_notices", None)
+        if problem.code == "resize-loop" and notices is not None:
+            notices.append(str(problem))
+        else:
+            errors.append(str(problem))
 
     page.on("console", console_message)
     render_gate_model.collect_page_exceptions(page, errors)
     if not java_script_enabled:
         return errors
-    render_checks_model.install_window_errors(page)
+    render_checks_model.install_window_errors(page, window_error)
     page.add_init_script(path=WRITE_WATCH_SOURCE)
     # One init script keeps cause tracking installed before its words subscriber;
     # Playwright does not promise an order between separately registered scripts.
@@ -1458,6 +1467,18 @@ def restarting(page):
     del page.lf_errors[mark:]
 
 
+def names(finding, *words):
+    """Whether a render-gate finding names an element whose name holds one of
+    `words`: the element it is about, or another it names in its values, such as the
+    box that clips it. A probe's record (a dict) answers the same way."""
+    if isinstance(finding, dict):
+        at, values = finding.get("at", ""), finding
+    else:
+        at, values = finding.at, finding.values
+    named = [at, *(value for value in values.values() if isinstance(value, str))]
+    return any(word in name for name in named for word in words)
+
+
 def take_browser_errors(page):
     """Return and consume problems a test intentionally caused on one page."""
     errors = page.lf_errors[:]
@@ -1492,7 +1513,7 @@ def reported_browser_errors(page, *expected):
 def _names(fragment, line):
     """Whether an expected fragment names a browser problem's first line. An HTTP
     status names the entry a failed response is recorded as, `"<status> <url>"`
-    (`render_gate.scheme.console_error`), by its start: elsewhere in a line, a port
+    (`render_gate.findings`, `failed-load`), by its start: elsewhere in a line, a port
     or a stack's address can hold the same digits."""
     if fragment.isdigit():
         return line.startswith(f"{fragment} ")
@@ -1529,30 +1550,30 @@ def navigate(page, url, *, wait_until="load", upgraded=True):
     errors = page.lf_errors
 
     def complete_navigation():
-        start = len(errors)
-        page.goto(
-            url, wait_until=wait_until, timeout=render_checks_model.HANDOVER_DEADLINE_MS
-        )
-        if upgraded:
-            wait_until_ready(page)
-        else:
-            page.wait_for_function(
-                "() => document.querySelector('.lf-banner') !== null",
+        # A test that adjudicates the page's notices itself keeps its own list.
+        outside = getattr(page, "lf_resize_notices", None)
+        notices = page.lf_resize_notices = []
+        try:
+            page.goto(
+                url,
+                wait_until=wait_until,
                 timeout=render_checks_model.HANDOVER_DEADLINE_MS,
             )
-        # Let the rendering turn that earned the readiness stamp finish. A loop
-        # notice is delivered by that turn, rather than by the DOM write alone.
-        one_frame(page)
-        fresh = errors[start:]
-        del errors[start:]
-        notices = [
-            error for error in fresh if render_gate_model.resize_observer_error(error)
-        ]
-        errors.extend(
-            error
-            for error in fresh
-            if not render_gate_model.resize_observer_error(error)
-        )
+            if upgraded:
+                wait_until_ready(page)
+            else:
+                page.wait_for_function(
+                    "() => document.querySelector('.lf-banner') !== null",
+                    timeout=render_checks_model.HANDOVER_DEADLINE_MS,
+                )
+            # Let the rendering turn that earned the readiness stamp finish. A loop
+            # notice is delivered by that turn, rather than by the DOM write alone.
+            one_frame(page)
+        except BaseException:
+            errors.extend(notices)
+            raise
+        finally:
+            page.lf_resize_notices = outside
         return notices
 
     notices = complete_navigation()

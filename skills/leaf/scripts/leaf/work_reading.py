@@ -89,11 +89,7 @@ class WorkReading:
 
     @cached_property
     def widget_questions(self) -> dict:
-        return thread_question_readings(
-            self.events,
-            {identity for identity, held in self.threads.items() if held["resolved"]},
-            reading=self.thread,
-        )
+        return thread_question_readings(self.events, self.threads, reading=self.thread)
 
     @cached_property
     def thread_questions(self) -> dict:

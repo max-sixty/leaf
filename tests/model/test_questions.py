@@ -157,12 +157,12 @@ def test_pinned_document_uses_unrequested_intermediate_history_for_registration(
         assert (question["id"], question["status"]) == ("widget:choice", "withdrawn")
 
 
-def test_a_pinned_view_reads_its_frozen_threads_under_its_own_registry():
-    """A revision captured its thread widgets under its own registry, so a view
-    pinned to it classifies their decisions there. A decision whose operation that
-    registry defines otherwise is none in that view: the ask it answers stays open
-    and the thread the user's, while the active view reads it answered and the
-    thread waiting on the agent to pick it up."""
+@pytest.mark.parametrize("captured_revision", [1, 2])
+def test_frozen_thread_questions_keep_their_captured_vocabulary_in_every_view(
+    captured_revision,
+):
+    """Old and new messages retain their admitted decisions, asks and attention
+    when another page vocabulary displays them."""
 
     def registry(attr):
         layer = deepcopy(model.model_layer())
@@ -191,22 +191,24 @@ def test_a_pinned_view_reads_its_frozen_threads_under_its_own_registry():
     earlier, later = registry("value"), registry("chosen")
     document = model.leaf_page("Value", '<p id="p">Notes.</p>')
     events = model.served_reading(
-        document,
+        {1: document, 2: document},
         [
             {
                 "kind": "comment",
+                "revision": captured_revision,
                 "author": "agent",
                 "text": "Ship it?",
                 "markup": '<lf-value-question id="typed" active></lf-value-question>',
             },
             {
                 "kind": "action",
+                "revision": captured_revision,
                 "widget": "typed",
                 "action": "set",
                 "detail": {"value": True},
             },
         ],
-        registry=later,
+        registry={1: earlier, 2: later}[captured_revision],
     )["events"]
     parsed = SourceDocument(document)
     state, _ = browser_state(
@@ -225,23 +227,19 @@ def test_a_pinned_view_reads_its_frozen_threads_under_its_own_registry():
         [ask] = view["thread"]["asks"]["all"]
         return (
             [entry["event"]["id"] for entry in view["thread"]["projection"]["entries"]],
-            (ask["id"], ask["status"]),
+            (ask["id"], ask["status"], ask["next_actor"], ask["answer"]["value"]),
             thread["attention"],
             [item["id"] for item in view["queues"]["questions"]],
         )
 
-    assert read(2) == (
-        [events[1]["id"]],
-        ("widget:typed", "answered"),
-        {"kind": "waiting", "reason": "workflow", "workflow": events[1]["id"]},
-        [],
-    )
-    assert read(1) == (
-        [],
-        ("widget:typed", "open"),
-        {"kind": "needs_user", "reason": "ask", "workflow": None},
-        ["widget:typed"],
-    )
+    assert events[0]["revision"] == events[1]["revision"] == captured_revision
+    for revision in (1, 2):
+        assert read(revision) == (
+            [events[1]["id"]],
+            ("widget:typed", "answered", None, True),
+            {"kind": "waiting", "reason": "workflow", "workflow": events[1]["id"]},
+            [],
+        )
 
 
 @pytest.mark.parametrize("value", [False, 0])
@@ -324,6 +322,107 @@ def test_display_only_widget_does_not_suppress_a_prose_question():
     assert [
         question["source"]["kind"] for question in served_thread(state)["asks"]["all"]
     ] == ["reply"]
+
+
+def lists(state) -> tuple[list, list, list]:
+    """Questions and Tasks as served, and the open asks whose next move is the
+    agent's."""
+    queues = state["views"]["1"]["queues"]
+    asks = [*questions(state)["all"], *state["views"]["1"]["thread"]["asks"]["all"]]
+    return (
+        sorted(item["id"] for item in queues["questions"]),
+        sorted(item["id"] for item in queues["tasks"]),
+        sorted(
+            ask["id"]
+            for ask in asks
+            if ask["status"] == "open" and ask["next_actor"] == "agent"
+        ),
+    )
+
+
+FRAMED = model.leaf_page(
+    "Questions",
+    '<p id="intro">Context.</p><lf-ask id="frame"><h2 id="head">Two routes</h2>'
+    + OPTIONS.format(attrs="choose")
+    + OPTIONS.format(attrs="choose").replace('id="', 'id="y-')
+    + OPTIONS.format(attrs="").replace('id="', 'id="shown-')
+    + "</lf-ask>",
+)
+
+
+@pytest.mark.parametrize(
+    ("anchor", "held"),
+    [
+        ({"section": "a", "quote": "A"}, ["widget:choice"]),
+        ({"section": "head", "quote": "Two"}, ["widget:choice", "widget:y-choice"]),
+        ({"section": "shown-a", "quote": "A"}, ["widget:choice", "widget:y-choice"]),
+        ({"section": "intro", "quote": "Context"}, []),
+    ],
+    ids=["option", "frame", "display-only", "elsewhere"],
+)
+def test_a_comment_on_an_ask_is_the_agents_turn_until_the_agent_replies(anchor, held):
+    """The user's comment about an open ask hands it to the agent without answering
+    it: the ask leaves Questions while the comment's answer stands on Tasks, and comes
+    back once the agent replies. A comment on one ask leaves its framed sibling with
+    the user, one on the frame's heading or on a widget there that asks nothing is
+    about both, and one elsewhere about none."""
+    comment = {
+        "kind": "comment",
+        "id": "c1",
+        "author": "user",
+        "text": "What does this mean?",
+        "anchor": anchor,
+    }
+    asks = ["widget:choice", "widget:y-choice"]
+    owed = sorted(set(asks) - set(held))
+    assert lists(model.reading(FRAMED, [comment])) == (owed, ["c1"], held)
+    reply = {
+        "kind": "reply",
+        "author": "agent",
+        "parent": "c1",
+        "responds": "c1",
+        "text": "It means the first route.",
+    }
+    assert lists(model.reading(FRAMED, [comment, reply])) == (asks, [], [])
+
+
+def test_a_reply_after_a_thread_ask_is_the_agents_turn_until_the_agent_replies():
+    """A widget an agent sent into a thread is the agent's turn once the user writes
+    after it, and the user's again once the agent answers. A user turn the agent
+    still owes from before the widget leaves the widget with the user."""
+    asked = {
+        "kind": "reply",
+        "id": "ask",
+        "author": "agent",
+        "parent": "t",
+        "text": "Which route?",
+        "markup": OPTIONS.format(attrs="choose").replace('id="', 'id="t-'),
+    }
+    opened = {"kind": "comment", "id": "t", "author": "user", "text": "Help me pick."}
+    later = {"kind": "reply", "id": "r", "author": "user", "parent": "t", "text": "C?"}
+    answered = {
+        "kind": "reply",
+        "author": "agent",
+        "parent": "t",
+        "responds": "r",
+        "text": "No C, sorry.",
+    }
+    document = page("")
+    assert lists(model.reading(document, [opened, asked])) == (
+        ["widget:t-choice"],
+        ["t"],
+        [],
+    )
+    assert lists(model.reading(document, [opened, asked, later])) == (
+        [],
+        ["r"],
+        ["widget:t-choice"],
+    )
+    assert lists(model.reading(document, [opened, asked, later, answered])) == (
+        ["widget:t-choice"],
+        [],
+        [],
+    )
 
 
 def conditional_registry():

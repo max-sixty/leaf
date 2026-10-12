@@ -3,8 +3,10 @@
 `data.json` records the contract each source id was last set under;
 `data/<source>.json` holds one publication: its opaque `run` receipt, `updated`
 instant, and complete `value`. `leaf data set` validates the value and atomically
-writes all three together. Every reader validates the publication and value, so an
-external corruption reaches users as that source's error rather than as data.
+writes all three together, and is the only writer: a reader trusts the files' shape
+and judges only the value, against the contract the source is bound to now, which a
+later document may have replaced. A file an earlier Leaf wrote before publications
+reads as that source's error, naming the rewrite.
 
 A source's revision identifies its encoded value; its run identifies the write,
 including a rerun with the same value. Both survive copying the page directory.
@@ -23,9 +25,9 @@ import click
 
 from .data_contracts import DataError, payload_error, working_data_bindings
 from .files import replace_files
-from .registry.schema import aware_instant, json_value
+from .registry.schema import json_value
 from .registry.storage import read_page_registry
-from .schema import DATA_CONTRACT_NAME, DATA_DIR, DATA_FILE, DATA_SOURCE_NAME
+from .schema import DATA_DIR, DATA_FILE, DATA_SOURCE_NAME
 from .service import PageTransaction
 from .state import json_bytes, now_iso
 
@@ -40,28 +42,11 @@ def source_file(page_dir: Path, source: str) -> Path:
 
 def read_contracts(page_dir: Path) -> dict[str, str]:
     """Source id → the contract `data.json` records for it."""
-    path = page_dir / DATA_FILE
     try:
-        stored = json.loads(path.read_text(encoding="utf-8"))
+        stored = json.loads((page_dir / DATA_FILE).read_text(encoding="utf-8"))
     except FileNotFoundError:
         return {}
-    except (UnicodeDecodeError, ValueError) as error:
-        raise DataError(f"{path}: invalid JSON ({error})") from error
-    sources = stored.get("sources") if isinstance(stored, dict) else None
-    if not isinstance(sources, dict) or set(stored) != {"sources"}:
-        raise DataError(f"{path}: data must be an object with only sources")
-    contracts = {}
-    for source, entry in sources.items():
-        if (
-            re.fullmatch(DATA_SOURCE_NAME, source) is None
-            or not isinstance(entry, dict)
-            or set(entry) != {"contract"}
-            or not isinstance(entry["contract"], str)
-            or re.fullmatch(DATA_CONTRACT_NAME, entry["contract"]) is None
-        ):
-            raise DataError(f"{path}: source {source!r} must record only a contract")
-        contracts[source] = entry["contract"]
-    return contracts
+    return {source: entry["contract"] for source, entry in stored["sources"].items()}
 
 
 # (source, contract declaration, revision) → validation error. Every state reading
@@ -86,11 +71,6 @@ def _value_error(source: str, contract: str, value, revision: str, registry: dic
     return error
 
 
-def _refuse_constant(name: str):
-    """Python's reader accepts NaN and Infinity; JSON, and the browser, do not."""
-    raise ValueError(f"{name} is not JSON")
-
-
 def read_source(page_dir: Path, source: str, contract: str, registry: dict) -> dict:
     """One source as readers receive it: its contract, and, once a value file
     exists, that file's revision, run receipt, `updated` instant, and `value` or
@@ -101,21 +81,16 @@ def read_source(page_dir: Path, source: str, contract: str, registry: dict) -> d
     except FileNotFoundError:
         return {"contract": contract}
     reading = {"contract": contract}
-    try:
-        publication = json.loads(data, parse_constant=_refuse_constant)
-    except (UnicodeDecodeError, ValueError) as error:
-        return {**reading, "error": f"source {source!r} is not JSON: {error}"}
-    if (
-        not isinstance(publication, dict)
-        or set(publication) != {"run", "updated", "value"}
-        or not isinstance(publication["run"], str)
-        or re.fullmatch(r"[0-9a-f]{32}", publication["run"]) is None
-        or not isinstance(publication["updated"], str)
-        or aware_instant(publication["updated"]) is None
-    ):
+    publication = json.loads(data)
+    # A Leaf before publications wrote the bare value here.
+    if not isinstance(publication, dict) or set(publication) != {
+        "run",
+        "updated",
+        "value",
+    }:
         return {
             **reading,
-            "error": f"source {source!r} must hold a publication with a run receipt, updated instant, and value; write it with leaf data set",
+            "error": f"source {source!r} holds no publication; write it again with leaf data set",
         }
     value = publication["value"]
     reading.update(
@@ -246,12 +221,17 @@ def deferred_value(
     if spec is None:
         raise DataError(f"data source {source!r} defers no record field")
     # `read_source` judged the value by its contract (`payload_error`): every record
-    # is an object with a unique key and the deferred field.
+    # is an object with a unique key. Its item schema decides which fields it carries.
     item = next(
         (item for item in value[spec["items"]] if item[spec["key"]] == key), None
     )
     if item is None:
         raise DataError(f"unknown record key {key!r} in data source {source!r}")
+    if spec["deferred"] not in item:
+        raise DataError(
+            f"record {key!r} in data source {source!r} has no deferred field "
+            f"{spec['deferred']!r}"
+        )
     return {
         "source": source,
         "contract": reading["contract"],

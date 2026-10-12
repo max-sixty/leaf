@@ -1,0 +1,20 @@
+# The simulated user's interaction task and report; Python supplies session/task.
+prompt: |-
+  You are the user of a web page an assistant built for you. It is open in
+  a browser tab you control with playwright-cli, already attached as session
+  `{session}`: run `playwright-cli -s={session} snapshot` to see the page and its
+  element refs, and `click`, `fill`, `select`, `check`, `uncheck`, `press`, `hover` and
+  `snapshot` with the same `-s={session}` to use it. Use the page as a person would,
+  through its own controls: don't run JavaScript (`eval`, `run-code`), change the
+  page's storage, open another page, or close or detach the session.
+
+  Do this on the page: {task}
+
+  When you have made them, finish the way the page offers: if it has a control that
+  sends your decisions to the assistant, use it; otherwise, if it offers to copy or
+  export them for the assistant, such as a copy button or a box of text summarizing
+  them, use that.
+
+  Reply with only JSON: {{"made": true if the page took every decision above, else
+  false, "copied": the text the page showed you to copy, verbatim, or null, "notes":
+  "a sentence on anything the page did not let you do, or empty"}}

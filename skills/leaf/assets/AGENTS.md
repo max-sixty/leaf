@@ -51,8 +51,8 @@ representative desktop viewport.
   when their CSS loads before first paint: adding, removing or moving one keeps every
   block's position, wrapping and size. No rule pads, indents, widens or reflows a block
   to clear a pin, since reserved room would make the page's geometry depend on which
-  markers exist and where. Resting pins never cover words or native controls: placement uses clear space
-  or withholds the pin, while Page Map retains its thread and actions. The rail sits right of `main` wherever the window
+  markers exist and where. Resting pins use clear space or are withheld, while Page Map
+  retains their threads and actions. The rail sits right of `main` wherever the window
   has room, and seating it there never moves, narrows or indents the column
   (`content-layout.js`). `data-rail` on `body` withholds or reserves it: `"right"` makes
   the shell give up the rail's width, so the page's layout gets narrower

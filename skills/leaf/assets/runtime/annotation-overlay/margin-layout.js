@@ -799,8 +799,8 @@ function standFolded(row, fold, on) {
 // Prepares every pin's target and clearance reading, then supplies its posture solver
 // to the shared seating order. Each pin avoids the final rows and held labels already
 // placed, and writes its final seat into the entry's rect. A pin with no local clear
-// seat tries containing
-// boundaries from nearest to furthest; this changes only its mechanical attachment,
+// seat tries containing boundaries from nearest to furthest; this changes only its
+// mechanical attachment,
 // never its semantic target. The walk crosses the shadow hosts holding the target,
 // so their words and controls bound its seat just as the document's do.
 //
@@ -891,7 +891,7 @@ function pinSeating(standing, { bands, shell, pinInset }) {
       rect: homeAt(wide),
       held: retained?.attachment === target ? holding : null,
       came: entry.came,
-      parts: holding && retained?.attachment !== target ? [] : parts,
+      parts,
       cover,
       walls,
       neighbours,
@@ -993,12 +993,25 @@ function pinSeating(standing, { bands, shell, pinInset }) {
         ],
         { reach: REACH, gap: GAP, targets: pins },
       ).get(entry);
-    let answer = atSite(pin);
-    let attachment = entry.read.target;
+    const previous = seats.get(entry.read.row);
+    // Retain the chosen attachment before trying newly available nearer seats. Its
+    // target geometry still belongs to the complete population used for affinity;
+    // suppressing those parts to skip local seating would erase it for other pins.
+    const outside =
+      entry.holding && previous?.attachment !== entry.read.target
+        ? [...outsideSites.get(entry)()]
+        : null;
+    const preferred = outside?.find((site) => site.attachment === previous.attachment);
+    let answer = preferred ? atSite(preferred) : null;
+    let attachment = preferred?.attachment ?? entry.read.target;
+    if (!answer?.rect) {
+      answer = atSite(pin);
+      attachment = entry.read.target;
+    }
     if (!answer.rect) {
       // Read outside a boundary only when local seating is exhausted. Ordinary clear
       // pins never traverse their page's outer cover or its enclosing regions.
-      for (const site of outsideSites.get(entry)()) {
+      for (const site of outside ?? outsideSites.get(entry)()) {
         const next = atSite(site);
         if (!next.rect) continue;
         answer = next;

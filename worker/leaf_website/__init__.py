@@ -109,7 +109,7 @@ if TYPE_CHECKING:
 PORT = 8080
 # The model every hosted task runs on, and the one its threads are titled with.
 HOSTED_MODEL = "gpt-5.6-luna"
-WEBSITE_AGENT = "The agent"
+WEBSITE_AGENT = "Agent"
 WEBSITE_AGENT_SESSION = "leaf-website-agent"
 
 

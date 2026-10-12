@@ -1336,10 +1336,25 @@ page-wide.
 widget family's `answerWords` ("Declared widget state"). It may return empty words and owns
 no answer state. Display words are not canonical answer data.
 
+`asksIn(region, asks = readQuestions().all)` selects the asks a region of the page holds:
+each widget ask, not withdrawn, whose source element is `region` or stands under it. It is
+the rule a side-list `lf-tabs` row and `lf-tally` read, so a page module that marks or
+counts asks per card, section or item reads the same set: filter what it returns by
+`status` for answered and open, or pass `readQuestions().user` for the asks waiting on the
+user.
+
 `questionActions.open(id)` resolves the current ask and follows its arrival, including to
 earlier prose prompts and completed asks, and resolves to `false` when that ask is
-unavailable. Answering uses the source's declared command; asks expose no separate answer
-API.
+unavailable. `questionActions.next({within, dir})` steps to the next ask waiting on the
+user inside the element `within`, or the previous with `dir: -1`, as `q` steps through
+Questions: from the one the user stands on, else from their place in document order,
+coming round at either end. From outside the region it counts from the ask the user last
+went to when that ask is in the region, so Tab from an ask to a control above it and
+Enter steps on; otherwise from the first of the region's asks in sight, the next if it
+waits and the one after if it is answered; and with none in sight it enters at the
+region's edge. It resolves to whether it arrived. A control that calls it keeps focus where the user stands on a press
+(`mousedown` default prevented), so a second press steps on. Answering uses the source's
+declared command; asks expose no separate answer API.
 
 `readQueues()` and `watchQueues(owner, callback)` supply the immutable
 `{phase, questions, tasks, done}` that the Questions panel and `q` navigation use. Ask rows

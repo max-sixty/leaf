@@ -24,9 +24,9 @@
 # psutil is a compiled extension, so every install fetches a platform wheel for it
 # rather than pure Python. It is a runtime dependency because every page claim
 # reads the process tree above it (`machine.py`).
-# ada-url binds Ada, the WHATWG URL parser Node uses, to check the `uri` format
-# (`registry/schema.py`), so a URL `data set` accepts is one the page's `new URL`
-# accepts too. It is a compiled extension as well.
+# pywhatwgurl checks the `uri` format with a WHATWG URL parser
+# (`registry/schema.py`). It is pure Python, so URL validation needs no native
+# build toolchain on older Linux systems.
 # regress is an ECMAScript regular-expression engine; schema `pattern`s are read
 # with it (`registry/schema.py`) so they mean what they mean to the browser rather
 # than Python's `re`, whose `$` also matches before a final newline.
@@ -48,7 +48,6 @@ name = "leaf"
 version = "0"
 requires-python = ">=3.12"
 dependencies = [
-  "ada-url>=4",
   "anyio>=4.10",
   "click>=8",
   "jmespath>=1",
@@ -59,6 +58,7 @@ dependencies = [
   "packaging>=22",
   "playwright>=1.63",
   "psutil>=6",
+  "pywhatwgurl>=0.1.2",
   "regress>=2026.9",
   "starlette>=0.48",
   "tinycss2>=1.4",

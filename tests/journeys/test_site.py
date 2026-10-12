@@ -1143,7 +1143,7 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
         state = page.evaluate("() => fetch('api/state').then(r => r.json())")
         assert state["publication"] == {
             "kind": "product",
-            "agent": "The agent",
+            "agent": "Agent",
             "install_url": "/#install",
         }
         if name == "how-it-works.html":
@@ -1444,7 +1444,7 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
             f"Showing v{newest}"
         )
         expect(page.locator(".lf-status-text")).to_have_text(
-            "This is an example on the Leaf website. The agent replies and "
+            "This is an example on the Leaf website. Agent replies and "
             "revises this private copy. Other examples Install Leaf"
         )
         if source == FEATURE_GALLERY:
@@ -1561,7 +1561,7 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
     page_dir, url = served_example("triage-board")
     page = open_page(browser, url)
     expect(page.locator(".lf-banner .lf-status-text")).to_have_text(
-        "This is an example on the Leaf website. The agent replies and revises "
+        "This is an example on the Leaf website. Agent replies and revises "
         "this private copy. Other examples Install Leaf"
     )
     assert page.locator(".lf-banner .lf-status-text a").evaluate_all(
@@ -1574,7 +1574,7 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
     state = page.evaluate("() => fetch('api/state').then(r => r.json())")
     assert state["publication"] == {
         "kind": "example",
-        "agent": "The agent",
+        "agent": "Agent",
         "install_url": "/#install",
     }
     assert state["browser"]["todos"] == []

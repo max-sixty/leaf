@@ -3695,7 +3695,7 @@ def test_a_finished_website_turn_does_not_overwrite_an_agent_reply(page_dir):
         page_dir,
         {"to": comment["id"], "for": comment["id"]},
         "Done.",
-        identity={"agent": "The agent", "session": "leaf-website-agent"},
+        identity={"agent": "Agent", "session": "leaf-website-agent"},
     )
     with website_server.PageTransaction(page_dir) as page:
         page.set_status("waiting", "Finishing")
@@ -4124,7 +4124,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         state = json.loads(raw_state)
         assert state["publication"] == {
             "kind": "example",
-            "agent": "The agent",
+            "agent": "Agent",
             "install_url": "/#install",
         }
         assert headers["Leaf-Layer"] == state["layer"]["generation"]
@@ -4196,7 +4196,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
                 {"Leaf-Layer": state["layer"]["generation"]},
             )
         assert forged.value.code == 400
-        monkeypatch.setenv("LEAF_AGENT", "The agent")
+        monkeypatch.setenv("LEAF_AGENT", "Agent")
         monkeypatch.setenv("LEAF_SESSION_ID", "leaf-website-agent")
         monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
         appended, _ = post(
@@ -4208,7 +4208,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         assert reply == {
             "kind": "reply",
             "author": "agent",
-            "agent": "The agent",
+            "agent": "Agent",
             "session": "leaf-website-agent",
             "parent": comment["id"],
             "responds": comment["id"],
@@ -4407,7 +4407,7 @@ def test_a_product_route_uses_the_same_real_page_server(
         state = json.loads(get(f"{root}{page_root}/api/state")[0])
         assert state["publication"] == {
             "kind": "product",
-            "agent": "The agent",
+            "agent": "Agent",
             "install_url": "/#install",
         }
         posted = {
@@ -4522,7 +4522,7 @@ def test_the_preview_generator_uses_the_live_website_route(page_dir, tmp_path):
 
     assert state["publication"] == {
         "kind": "example",
-        "agent": "The agent",
+        "agent": "Agent",
         "install_url": "/#install",
     }
 
@@ -5050,7 +5050,7 @@ def test_a_title_written_after_the_reply_is_still_timed(tmp_path):
                     title_event(
                         comment["id"],
                         "Release recorded",
-                        {"agent": "The agent", "session": "journey-title"},
+                        {"agent": "Agent", "session": "journey-title"},
                     ),
                 )
             paused.append(seconds)

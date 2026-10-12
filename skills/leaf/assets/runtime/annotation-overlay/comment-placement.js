@@ -73,6 +73,10 @@
    frame's side and inline start where the boundary still matches, and returns its
    block offsets for the card to hold. The attachment is then the card's current one:
    scrolling retains it, while a boundary or target-width change chooses afresh.
+   A surface the user carries by its grip (surface-grip.js) adopts its own dropped frame
+   the same way, marked `moved`. A moved surface carries its inline offset on every
+   side, the left included, and its attachment limit stretches to take in the spot it
+   was dropped at, so it stands there and still leaves with what it is about.
 
    Which edge a growing surface holds is this module's for both surfaces, so neither
    can drift from the other. A surface whose content grows by turns holds the edge the
@@ -324,7 +328,8 @@ export const cardMeasure = () => rootLength("--thread-card");
    `hold` supplied to `options` names only a block edge, relative to the passage's
    line when quoted, else the initial side's clearance edge. Without an explicit
    edge, the landed seat holds its growing surface by its foot above and top elsewhere,
-   so an editor needs no transcript reading to keep its attachment while typing.
+   so an editor needs no transcript reading to keep its attachment while typing; before
+   that landing, an adopted frame's offsets are the ones held.
 
    `fit({ side, width, height, scale })` sizes the surface for the room its side gives, in its
    positioning space. Its declared minimum is limited only by the boundary, never by
@@ -341,6 +346,8 @@ export function commentPlacement() {
   let carriedInline = null;
   let initialHold = null;
   let quoted = false;
+  // Whether the user carried the surface to where it stands (surface-grip.js).
+  let moved = false;
   // The edge held at the last landing and the reading it answered (`holding`), and the
   // reading the placement in flight answers, which its landing records.
   let held = null;
@@ -352,6 +359,7 @@ export function commentPlacement() {
     pending = null;
     carriedInline = null;
     initialHold = null;
+    moved = false;
     held = null;
     reading = null;
   };
@@ -369,7 +377,7 @@ export function commentPlacement() {
     },
     // Mechanical handoff between the editor's transparent frame and its sent card.
     capture() {
-      return { side, boundary: input?.slice(1, 5) ?? null };
+      return { side, boundary: input?.slice(1, 5) ?? null, moved };
     },
     adopt(frame) {
       forget();
@@ -443,8 +451,8 @@ export function commentPlacement() {
       if (adopted) {
         // A draft can have lost its visible attachment before Send. Its card still
         // starts at that frame, then follows the card's attachment from this choice.
-        ({ side } = frame.placement);
-        if (side !== "left")
+        ({ side, moved } = frame.placement);
+        if (side !== "left" || moved)
           carriedInline = frame.box.left - (column ?? clear?.left ?? boundary.left);
         const top = frame.box.top - line(clear, row);
         initialHold = { top, foot: top + frame.box.height };
@@ -556,16 +564,22 @@ export function commentPlacement() {
         },
       };
       const measure = (state) => state.middlewareData.scaled;
+      const spot = held ?? initialHold;
       const heldEdge = hold
         ? hold()
-        : held && (side === "top" ? { foot: held.foot } : { top: held.top });
+        : spot && (side === "top" ? { foot: spot.foot } : { top: spot.top });
       // It also names the block edge it keeps still, which floating.js stands the
       // surface by, so growth moves the other edge in the layout that grows it.
       const holding = (heldEdge || carriedInline !== null) && {
         name: "hold",
         fn(state) {
           const edge = !across && heldEdge;
-          const data = { edge: heldEdge && ("foot" in heldEdge ? "bottom" : "top") };
+          // A carried inline offset holds the surface by its left edge, whichever side
+          // it stands on, so a field growing as it is typed in grows away from it.
+          const data = {
+            edge: heldEdge && ("foot" in heldEdge ? "bottom" : "top"),
+            inline: carriedInline !== null ? "left" : null,
+          };
           const { line, attachmentInline, scale } = measure(state);
           const position = {};
           if (carriedInline !== null)
@@ -575,7 +589,10 @@ export function commentPlacement() {
               "foot" in edge
                 ? line + edge.foot / scale.y - state.rects.floating.height
                 : line + edge.top / scale.y;
-          return { ...position, data };
+          // Where the rule stands it before the boundary shifts it in, which a carried
+          // surface's attachment limit takes in.
+          const spot = { x: state.x, y: state.y, ...position };
+          return { ...position, data: { ...data, spot } };
         },
       };
       const size = ui.size({
@@ -675,6 +692,17 @@ export function commentPlacement() {
                       measure(state).last,
                     ),
                   };
+              // A surface the user carried counts the spot they put it at as attached
+              // too, so it stands there and still leaves with what it is about.
+              if (moved)
+                for (const axis of ["x", "y"]) {
+                  const own = state.middlewareData.hold.spot[axis];
+                  limited[axis] = clamp(
+                    state[axis],
+                    Math.min(limited[axis], own),
+                    Math.max(limited[axis], own),
+                  );
+                }
               heldIn = Math.abs(limited.y - state.y) < 0.5;
               return limited;
             },

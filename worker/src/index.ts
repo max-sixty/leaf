@@ -143,7 +143,7 @@ export class LeafWebsiteSession extends Container<Env> {
     super(ctx, env);
     this.pages = new PageStore(ctx.storage);
     this.envVars = {
-      LEAF_AGENT: "The agent",
+      LEAF_AGENT: "Agent",
       OPENAI_API_KEY: CODEX_PROXY_CREDENTIAL,
       CODEX_CA_CERTIFICATE: CLOUDFLARE_CONTAINER_CA,
       LEAF_PAGE_STORE_URL: "https://leaf-state.internal",

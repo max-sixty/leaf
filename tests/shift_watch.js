@@ -42,7 +42,7 @@
 // expressions, ambiguous names and rules that disagree receive no inferred ownership.
 //
 // Each trusted gesture owns its counted rendering until declared completion. A widget
-// preparation it began (`observeWidgetPreparations`) works on in a promise the loop
+// preparation it began (`observePreparations`) works on in a promise the loop
 // cannot see; the gesture owns that preparation's landing, as a rendering from the
 // task that settles it until the loop settles again, and nothing while it waits. It
 // began one only when its declaration carries that input's exact callback source.
@@ -1204,6 +1204,7 @@
     const owner = preparing.get(preparation);
     if (!owner) return;
     preparing.delete(preparation);
+    if (phase === "cancel") return;
     const rendering = {
       start: nativePerformance.now(),
       first: true,

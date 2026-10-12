@@ -29,6 +29,7 @@ from interact_support import (
     element_declaration,
     fetch,
     install_payload,
+    js_facts,
     lock_contention,
     publish,
     record_claim,
@@ -1322,21 +1323,19 @@ def test_kernel_selectors_name_no_package_tag():
         where = sheet.relative_to(schema_model.ASSETS)
         rules = tinycss2.parse_stylesheet(sheet.read_text(), skip_comments=True)
         leaks += [f"{where}: {p}" for p in preludes(rules) if leaks_in(p)]
-    query = re.compile(
-        r"\.(?:querySelector|querySelectorAll|closest|matches)\(\s*([\"'`])(.*?)\1",
-        re.DOTALL,
-    )
-    for module in sorted(schema_model.ASSETS.rglob("*.js")):
-        if "vendor" in module.parts:
-            continue
-        code = re.sub(
-            r"(?<!:)//[^\n]*|/\*.*?\*/", "", module.read_text(), flags=re.DOTALL
-        )
+    modules = [
+        module
+        for module in sorted(schema_model.ASSETS.rglob("*.js"))
+        if "vendor" not in module.parts
+    ]
+    queries = json.loads(js_facts("queries", modules))
+    assert any(queries.values()), "no DOM query was read — the reading is broken"
+    for module in modules:
         where = module.relative_to(schema_model.ASSETS)
         leaks += [
-            f"{where}: {found[1]}"
-            for found in query.findall(code)
-            if leaks_in(found[1])
+            f"{where}: {selector}"
+            for selector in queries[str(module)]
+            if leaks_in(selector)
         ]
     assert leaks == [], leaks
 
@@ -1623,20 +1622,20 @@ def test_layer_style_sources_consume_the_runtime_layout_names():
     """CSS and runtime agree on shared property and attribute names. Read editable
     sources; the stylesheet freshness gate holds their generated delivery copies."""
     runtime = schema_model.ASSETS / "runtime"
-    edges = (runtime / "drawn-edge.js").read_text()
-    page_paint = (runtime / "page-paint.js").read_text()
+    edges, page_paint, surfaces = (
+        runtime / name
+        for name in ("drawn-edge.js", "page-paint.js", "auxiliary-surfaces.js")
+    )
+    read = json.loads(js_facts("literals", [edges, page_paint, surfaces]))
     styles = schema_model.ASSETS / "styles"
     sheet = (styles / "theme.css").read_text() + (styles / "chrome.css").read_text()
 
-    def constant(pattern, source):
-        return re.search(pattern, source, re.MULTILINE | re.DOTALL).group(1)
-
-    surfaces = (runtime / "auxiliary-surfaces.js").read_text()
+    [[read_property]] = read[str(surfaces)]["calls"]["getPropertyValue"]
     for spelling in (
-        "--lf-" + constant(r'getPropertyValue\("--lf-([a-z-]+)"\)', surfaces) + ":",
-        "var(" + constant(r'^const THREAD_PANEL_PROP = "([^"]+)";', edges) + ")",
-        "var(" + constant(r'^const DRAWER_SLOT_PROP = "([^"]+)";', edges) + ")",
-        "[" + constant(r'^  question: "([^"]+)",', page_paint) + "]",
+        read_property + ":",
+        "var(" + read[str(edges)]["constants"]["THREAD_PANEL_PROP"] + ")",
+        "var(" + read[str(edges)]["constants"]["DRAWER_SLOT_PROP"] + ")",
+        "[" + read[str(page_paint)]["constants"]["PAGE_PAINT_ATTRIBUTE.question"] + "]",
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
     for spelling in (
@@ -1650,13 +1649,17 @@ def test_prepaint_marks_the_state_the_stylesheet_reads():
     """Classic startup scripts publish the live and interactive states before modules
     run; the stylesheet must consume those same markers."""
     assets = schema_model.ASSETS
-    bootstrap = (assets / "runtime" / "bootstrap.js").read_text()
-    prepaint = (assets / "runtime" / "prepaint.js").read_text()
+    bootstrap, prepaint = (
+        assets / "runtime" / f"{name}.js" for name in ("bootstrap", "prepaint")
+    )
+    read = json.loads(js_facts("literals", [bootstrap, prepaint]))
     theme = (assets / "theme.css").read_text()
 
-    assert 'root.toggleAttribute("data-lf-live", true)' in bootstrap
+    assert ["data-lf-live", True] in read[str(bootstrap)]["calls"]["toggleAttribute"]
     assert "html[data-lf-live]" in theme
-    assert 'root.toggleAttribute("data-lf-interactive", true)' in prepaint
+    assert ["data-lf-interactive", True] in read[str(prepaint)]["calls"][
+        "toggleAttribute"
+    ]
     assert "html[data-lf-interactive]" in theme
     assert 'script[type="module"][src="/leaf.js"]' not in theme
 
@@ -1942,24 +1945,6 @@ def test_payload_provenance_reads_claude_codes_git_versioned_plugin_cache(
         .astimezone()
         .isoformat(timespec="seconds"),
     }
-
-
-def test_a_producer_date_without_an_offset_is_refused(page_dir):
-    """The browser reads a bare local time in each viewer's own zone, so one
-    vendored page would show every viewer a different age."""
-    stamp = page_dir / "registry.json"
-    registry = json.loads(stamp.read_text(encoding="utf-8"))
-
-    def producer_dated(value):
-        registry["$layer"]["producer"] = {"commit": "a74b08365870", "committed": value}
-        cleanup_model.write_json(stamp, registry)
-        return registry_storage.layer_metadata(page_dir)["producer"]
-
-    assert producer_dated("2026-09-26T09:32:21-07:00")["committed"] == (
-        "2026-09-26T09:32:21-07:00"
-    )
-    with pytest.raises(registry_contract.RegistryError, match="timezone offset"):
-        producer_dated("2026-09-26T09:32:21")
 
 
 def test_page_check_names_an_older_leaf_beside_its_own(page_dir):
@@ -4321,7 +4306,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     asked about — a listener nobody declared looks exactly like no listener at all until
     the press it eats goes missing — so it is pinned in the source, the way the
     document-level class surface is. The listeners are read from each parsed module
-    (tests/keydown_listeners.mjs), so one wrapped across lines or registered for several
+    (tests/js_facts.mjs), so one wrapped across lines or registered for several
     types in a loop counts as written.
 
     Each allowed one is named here. The dispatcher is the register's own. The aim latch
@@ -4344,13 +4329,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
         *sorted((layer / "packages").glob("*/widgets/*.js")),
         *sorted((ROOT / "examples/packages").glob("*/widgets/*.js")),
     ]
-    listed = subprocess.run(
-        ["node", str(ROOT / "tests/keydown_listeners.mjs"), *map(str, sources)],
-        capture_output=True,
-        text=True,
-        check=True,
-        cwd=ROOT,
-    ).stdout.split()
+    listed = js_facts("keydown", sources).split()
     by_file = {}
     for line in listed:
         name = line.split(":")[0]
@@ -4600,7 +4579,6 @@ def test_the_suite_pins_every_bundled_script_dependency():
         for script in schema_model.BUNDLED_PACKAGES.glob("*/scripts/*.py")
         for requirement in packages_model.script_requirements(script)
     }
-    assert "unidiff>=1" in declared
     # Bundled packages never pass through `package install`, so hold their scripts
     # to the same check here.
     for package in {

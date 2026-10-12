@@ -436,6 +436,18 @@ def pytest_configure(config):
         )
 
 
+def js_facts(command: str, files) -> str:
+    """What `tests/js_facts.mjs` reads with `command` out of the parsed modules `files`:
+    JSON for every command but `keydown`, whose lines are returned as printed."""
+    return subprocess.run(
+        ["node", str(ROOT / "tests" / "js_facts.mjs"), command, *map(str, files)],
+        capture_output=True,
+        text=True,
+        check=True,
+        cwd=ROOT,
+    ).stdout
+
+
 def shipped_payload():
     """Tracked and unignored candidate files a completed change would ship."""
     listed = subprocess.run(

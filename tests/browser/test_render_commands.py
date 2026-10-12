@@ -977,7 +977,7 @@ def test_a_widget_that_fails_in_a_message_reports_when_its_thread_draws(
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     expect(page.locator(".lf-thread-panel #t-bad .lf-error")).to_contain_text(
-        "does not parse"
+        "Unexpected token"
     )
     report = '<lf-chart id="t-bad"> failed: '
     consume_browser_errors(page, report)

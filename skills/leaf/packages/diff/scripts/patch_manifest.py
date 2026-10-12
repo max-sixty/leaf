@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --script --quiet
 # /// script
 # requires-python = ">=3.12"
-# dependencies = ["unidiff>=1"]
+# dependencies = []
 # ///
 """Build the `unified-diff` contract's file manifest from a Git patch.
 
@@ -12,13 +12,13 @@ Reads a UTF-8 patch on stdin and writes the manifest JSON on stdout, ready for
 
 The manifest is the form of the contract whose `patch` fields `/api/state` defers
 (`records.deferred`), so a large review sends each file's patch only when its
-disclosure opens. An entry the contract excludes, a copy or a file with no textual
-hunks other than a path-only rename, is refused here, with the reason on stderr and
-exit status 1, rather than stored.
+disclosure opens.
 
-The input is a patch as `git diff` writes it. unidiff reads its hunks and paths, and a
-malformed patch is not diagnosed here. `tests/diff_patch_cases.json` holds this and the
-widget to one table of cases.
+This only splits the patch into files and reads each one's paths and counts; it
+judges nothing. `lf-diff` alone judges what it can present, so an entry it refuses,
+such as a binary or copy diff or a malformed hunk, is stored and refused when its
+file opens, where the widget's failure reaches the agent. `tests/diff_patch_cases.json`
+holds both readers to the paths of the patches lf-diff accepts.
 """
 
 import codecs
@@ -26,52 +26,42 @@ import json
 import re
 import sys
 
-from unidiff import PatchSet, UnidiffParseError
-
-
-class PatchError(ValueError):
-    """An entry the `unified-diff` contract excludes."""
-
-
 _PATH_ONLY_RENAME = re.compile(
     r"diff --git .+\nsimilarity index 100%\nrename from .+\nrename to .+\n*"
 )
+_MOVE = re.compile(r"^(rename|copy) from (.+)\n\1 to (.+)$", re.MULTILINE)
 
 
-def _git_path(token: str) -> str | None:
-    """The path one ---/+++ side names, with Git's C-style quoting decoded and its
-    `a/` or `b/` marker removed, or None for /dev/null."""
-    if token == "/dev/null":
-        return None
+def _git_path(token: str) -> str:
+    """One path as Git writes it, with its C-style quoting decoded."""
     if token.startswith('"'):
-        token = codecs.escape_decode(token[1:-1].encode())[0].decode()
-    return token[2:]
+        return codecs.escape_decode(token[1:-1].encode())[0].decode()
+    return token
 
 
 def _manifest_file(section: str) -> dict:
     """One manifest entry for one `diff --git` section of the captured patch."""
-    if re.search(r"^copy (?:from|to) ", section, re.MULTILINE):
-        raise PatchError(
-            "unsupported copy diff; omit copy metadata and provide textual @@ "
-            "hunks for an edited destination"
-        )
-    (patched,) = PatchSet.from_string(section)
-    previous = _git_path(patched.source_file)
-    path = _git_path(patched.target_file) or previous
-    # Only Git's exact path-only rename omits textual hunks; a binary rename is
-    # hunkless too, and listing it as a rename would hide its content change.
-    path_only = _PATH_ONLY_RENAME.fullmatch(section) is not None
-    if not patched and not path_only:
-        raise PatchError(
-            f"unsupported hunkless diff for {path}; describe binary, mode-only "
-            "and empty added or deleted files in prose"
-        )
+    header, _, rest = section.partition("\n")
+    # A rename or copy names both paths on lines of their own. Otherwise Git's header
+    # names one path twice, `a/<path> b/<path>`, so its first half is the path behind
+    # its marker, whatever spaces or " b/" the path holds. A path without the marker
+    # stays whole, for lf-diff to refuse under its own name.
+    if moved := _MOVE.search(rest):
+        previous, path = map(_git_path, moved.group(2, 3))
+    else:
+        both = header.removeprefix("diff --git ")
+        previous = None
+        path = _git_path(both[: (len(both) - 1) // 2]).removeprefix("a/")
+    lines = rest.partition("\n@@")[2].split("\n")
+    renamed = moved is not None and moved.group(1) == "rename"
     return {
         "path": path,
-        **({"previousPath": previous} if patched.is_rename else {}),
-        "kind": "rename" if path_only else "patch",
-        "additions": patched.added,
-        "deletions": patched.removed,
+        **({"previousPath": previous} if renamed else {}),
+        # A binary rename is hunkless too, and listing it as a rename would hide its
+        # content change.
+        "kind": "rename" if _PATH_ONLY_RENAME.fullmatch(section) else "patch",
+        "additions": sum(line.startswith("+") for line in lines),
+        "deletions": sum(line.startswith("-") for line in lines),
         "patch": section,
     }
 
@@ -80,8 +70,7 @@ def patch_manifest(source: str) -> dict:
     """One captured Git patch as the `unified-diff` contract's file manifest.
 
     Each entry carries the file's paths, its change counts, and the verbatim section
-    of the captured text that `lf-diff` renders once its disclosure opens, which is
-    why the source is split here rather than rebuilt from unidiff's reading."""
+    of the captured text that `lf-diff` renders once its disclosure opens."""
     return {
         "files": [
             _manifest_file(section)
@@ -96,7 +85,7 @@ def main() -> int:
     sys.stdout.reconfigure(encoding="utf-8")
     try:
         manifest = patch_manifest(sys.stdin.read())
-    except (PatchError, UnidiffParseError, UnicodeDecodeError) as error:
+    except UnicodeDecodeError as error:
         print(f"patch_manifest: {error}", file=sys.stderr)
         return 1
     json.dump(manifest, sys.stdout, ensure_ascii=False)

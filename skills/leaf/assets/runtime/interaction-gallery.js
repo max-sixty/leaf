@@ -2,8 +2,10 @@
  * sample runs in an opaque sandbox: scenarios, illustrative pointer,
  * and production transitions belong to its child document. The gallery exchanges
  * cloneable configuration, commands and state notices over the sample bridge. It
- * never reads a child DOM or calls functions across browsing contexts. Sample
- * AbortError means cancellation, including departure before nodes disconnect. */
+ * never reads a child DOM or calls functions across browsing contexts. Each child
+ * document starts unconfigured, so the gallery configures every one the sample
+ * presents: the first, and each that a reload brings. A command its document
+ * departed under needs no answer, since the next document starts from rest. */
 
 import { afterScript } from "./rendering.js";
 import { onMotionPreferenceChange, reducedMotion } from "./motion.js";
@@ -29,8 +31,11 @@ const TOGGLE_WORDS = {
 
 const VIEWPORT_SIZES = ["1", "2", "4"];
 
+const departedOrCancelled = ({ name }) =>
+  name === "AbortError" || name === "SampleDepartedError";
+
 class Demo {
-  constructor(panel, changed) {
+  constructor(panel, changed, configured) {
     this.panel = panel;
     this.figure = panel.querySelector("[data-interaction-demo]");
     this.frameElement = this.figure.querySelector("[data-interaction-frame]");
@@ -39,33 +44,61 @@ class Demo {
         `interaction gallery page is missing for ${this.figure.dataset.interactionDemo}`,
       );
     this.changed = changed;
+    this.configured = configured;
     this.loadState = "loading";
     this.state = "idle";
     this.pausedByView = false;
   }
 
-  async load() {
+  load() {
     const template = this.figure.querySelector(":scope > template[data-sample]");
     this.sample = mountSample(this.frameElement, {
       template: template?.id,
       passive: true,
     });
-    this.stopNotices = this.sample.on("gallery.state", ({ state, pausedByView }) => {
-      this.pausedByView = pausedByView;
-      this.setState(state);
-    });
-    await this.sample.ready;
-    await this.sample.call("gallery.configure", {
-      name: this.figure.dataset.interactionDemo,
-      target: this.figure.dataset.interactionTarget,
-      threadId: this.figure.dataset.interactionThreadId,
-      keypress: this.figure.dataset.interactionKeypress,
-      viewport: Number(
-        this.figure.closest("[data-interaction-gallery]").dataset.interactionViewport,
-      ),
-    });
-    this.frameElement.toggleAttribute("data-interaction-ready", true);
-    this.loadState = "ready";
+    const stops = [
+      this.sample.on("gallery.state", ({ state, pausedByView }) => {
+        this.pausedByView = pausedByView;
+        this.setState(state);
+      }),
+      this.sample.on("departed", () => this.markLoading()),
+      this.sample.on("loading", () => void this.configure()),
+    ];
+    this.stopNotices = () => stops.forEach((stop) => stop());
+    return this.configure();
+  }
+
+  markLoading() {
+    this.frameElement.toggleAttribute("data-interaction-ready", false);
+    this.loadState = "loading";
+    this.setState("idle");
+  }
+
+  async configure() {
+    this.markLoading();
+    try {
+      await this.sample.ready;
+      await this.sample.call("gallery.configure", {
+        name: this.figure.dataset.interactionDemo,
+        target: this.figure.dataset.interactionTarget,
+        threadId: this.figure.dataset.interactionThreadId,
+        keypress: this.figure.dataset.interactionKeypress,
+        viewport: Number(
+          this.figure.closest("[data-interaction-gallery]").dataset.interactionViewport,
+        ),
+      });
+      this.frameElement.toggleAttribute("data-interaction-ready", true);
+      this.loadState = "ready";
+    } catch (error) {
+      // Destruction is the gallery's own, and a departed document's successor
+      // announces itself with `loading`, which configures it.
+      if (!departedOrCancelled(error)) {
+        reportPageError(error, "interaction demo failed to load");
+        this.loadState = "error";
+        this.setState("error");
+      }
+    }
+    this.configured();
   }
 
   setState(state) {
@@ -75,7 +108,7 @@ class Demo {
 
   command(method, detail) {
     return this.sample.call(`gallery.${method}`, detail).catch((error) => {
-      if (error.name === "AbortError") return;
+      if (departedOrCancelled(error)) return;
       reportPageError(error, `interaction demo ${method} failed`);
       this.setState("error");
     });
@@ -141,15 +174,21 @@ export function installInteractionGallery() {
   const demos = new Map(
     panels.map((panel) => [
       panel,
-      new Demo(panel, (demo) => {
-        paintControls();
-        // Commands and view crossings can arrive in either order. Reconcile the
-        // acknowledged playback state against the current view. A motion preference
-        // blocks autoplay; the user's explicit Play still runs under reduced motion.
-        if (demo !== active) return;
-        if (demo.state === "playing" && !onScreen) demo.pause(true);
-        else if (demo.pausedByView) maybePlay();
-      }),
+      new Demo(
+        panel,
+        (demo) => {
+          paintControls();
+          // Commands and view crossings can arrive in either order. Reconcile the
+          // acknowledged playback state against the current view. A motion preference
+          // blocks autoplay; the user's explicit Play still runs under reduced motion.
+          if (demo !== active) return;
+          if (demo.state === "playing" && !onScreen) demo.pause(true);
+          else if (demo.pausedByView) maybePlay();
+        },
+        () => {
+          if (gallery === installedGallery) syncActive();
+        },
+      ),
     ]),
   );
 
@@ -323,19 +362,7 @@ export function installInteractionGallery() {
     // A contained document lays itself out in this page's process when it arrives, and
     // it arrives after the page has presented. The page carries that as its own
     // unfinished arrival, so nothing outside it has to know the gallery is here.
-    void deferredArrival(
-      demo
-        .load()
-        .catch((error) => {
-          if (error.name === "AbortError") return;
-          reportPageError(error, "interaction demo failed to load");
-          demo.loadState = "error";
-          demo.setState("error");
-        })
-        .finally(() => {
-          if (gallery === installedGallery) syncActive();
-        }),
-    );
+    void deferredArrival(demo.load());
   }
   syncActive();
 }

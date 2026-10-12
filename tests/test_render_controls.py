@@ -3051,6 +3051,33 @@ def test_departing_gallery_cancels_pending_samples_without_reporting_failure(
     ]
 
 
+def test_gallery_reconfigures_a_sample_document_that_reloads(browser, serve):
+    """A reloaded sample starts unconfigured, during the gallery's load or after it."""
+    page = browser.new_page(reduced_motion="reduce")  # Play waits for the press.
+    held = []
+
+    def hold_first_state(route):
+        if held:
+            route.continue_()
+        else:
+            held.append(route)
+
+    page.route("**/api/samples/*/api/state*", hold_first_state)
+    page.goto(serve(INTERACTION_PLAYBACK_PAGE))
+    holding(page, held, 1, "the first sample document's state read")
+    toggle = page.get_by_role("button", name="Play Accept a suggestion animation")
+    status = page.locator(".lf-interaction-status")
+    child = page.locator("[data-interaction-frame]").element_handle().content_frame()
+    for moment in ("while loading", "after loading"):
+        with child.expect_navigation(wait_until="domcontentloaded"):
+            child.evaluate("location.reload()")
+        if moment == "while loading":
+            held[0].abort()
+        expect(toggle, moment).to_be_enabled()
+        toggle.click()
+        expect(status, moment).to_have_text(re.compile("Playing|Complete"))
+
+
 SIGNOFF_STABILITY_PAGE = LONG_PAGE.replace(
     "<title>long</title>",
     '<title>long</title><meta name="lf-review" content="sign-off">',

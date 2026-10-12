@@ -231,8 +231,9 @@ customElements.define(
       else this.#scheduleFit();
     }
 
+    // Cancellation is this widget's own, and the departed notice draws a departure.
     #failure(error) {
-      if (error.name === "AbortError") return;
+      if (error.name === "AbortError" || error.name === "SampleDepartedError") return;
       keepsText(this.#status, error.message);
       keeps(this.#reset, "aria-disabled", null);
     }

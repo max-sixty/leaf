@@ -24,11 +24,19 @@ path works, the review is done. Reserve findings for architectural seams,
 cross-runtime invariants, public surface traps, regressions on the claimed path,
 or a central claim or test that is false. Omit bounded edge cases, exhaustive
 same-pattern cleanup, minor simplification, and prose or test polish unless they
-expose one of those problems.
+expose one of those problems. In shipped text (the references, `--help`, UI strings,
+`SKILL.md`, and the agent instructions in the `AGENTS.md` files and
+`/developing-leaf`), three prose defects are public surface traps, not polish: mechanism written
+for a reader other than the one the text addresses, a second copy of a rule another
+text owns, and a coined term used without its definition.
 
 A diff that settles its symptom without reaching the underlying issue is an
 architectural seam, not polish: name the issue, and withhold approval unless the
 change meets the deferral condition in **Fix the underlying issue**.
+
+Hold any fix for a red test to **Reading a red suite**: one that gives up the
+intent of the change that broke the test, or moves the interface beyond it,
+without the issue that section requires is a regression on the claimed path.
 
 ## Review test selection
 
@@ -45,23 +53,39 @@ profiles from CI.
 
 ## Reading a red suite
 
-Preserve intended behavior when repairing a red suite. Decide whether the failure
-calls for changing the test or the behavior: an existing assertion is evidence,
-not authority. Read the originating pull request's description, discussion and
-diff alongside the current contract; an intentional behavior change can leave
-an old test stale. Apply `tests/AGENTS.md`, **A failure is evidence about the test too**.
+When a change turns a test red, merged or still in a pull request, the change and
+the behavior the test protects disagree. Choose the repair by what it keeps of each:
+
+- **The change's intent**: what its author meant it to do, read from the pull
+  request's description, discussion and diff. Undoing part of it reverses a
+  decision someone made.
+- **The interface**: what users see and do, and what callers rely on, such as a
+  gesture's effect, a layout, a command or a file format. The change may move
+  it where it meant to; a repair that moves it further makes a product decision
+  nobody asked for.
+
+An existing assertion is evidence about both, not authority: a change that
+deliberately moved the interface leaves the old test stale (`tests/AGENTS.md`,
+**A failure is evidence about the test too**). Prefer a repair that keeps both:
+update the test whose expectation the change replaced, or fix the code so the
+change's intent holds without moving the interface further. Where no repair
+keeps both, revert the change, or the part of it at fault, rather than ship a
+behavior neither side chose.
 
 When the test itself is wrong, validate the intended behavior with corrected or
 replacement checks. Justify removing a test that protects no user behavior
 rather than claiming the removed test passed.
 
-If the evidence leaves that choice uncertain, make and validate the best-supported
-fix, then open an issue asking the original contributor to judge whether to keep
-or revise it. Address the issue to that contributor, link the originating and
-repair pull requests, and explain the evidence, the choice and what remains
-uncertain. Mark the issue as awaiting that contributor's judgment and leave it
-open until they settle it; subsequent Tend runs must not decide on their behalf.
-Proceed under **Fix every failure in a red run** rather than waiting for that judgment.
+A repair that reverts the change, gives up any of its intent, or moves the
+interface beyond it needs an issue, so the change can return deliberately; so
+does a repair chosen where the evidence left the choice uncertain. Address the
+issue to the change's author; when a bot wrote it, to the person who requested
+or merged it, or to the repository's maintainer where no person did. Link the
+originating and repair pull requests, and say what the change intended, what
+conflicted, what the repair gave up and what remains uncertain. Mark the issue as awaiting that person's judgment and leave it open
+until they settle it; subsequent Tend runs must not decide on their behalf. The
+repair's description names each behavior it moved. Proceed under **Fix every
+failure in a red run** rather than waiting for that judgment.
 
 Read the failing test's record in main's earlier runs that ran it before choosing a
 fix (a `nightly` test runs only in the daily scheduled run, `gh run list -w ci -e

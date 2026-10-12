@@ -1719,12 +1719,8 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
         expect(host.locator("lf-shot img").first).to_have_js_property(
             "naturalWidth", 780
         )
-        assert (
-            host.locator("lf-shot").evaluate(
-                "shot => shot.captureGeometry.images[0].width"
-            )
-            == 780
-        )
+        rendered(page)
+        shown = host.locator("lf-shot").bounding_box()
 
         stale_svg = (
             '<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="746"/>'
@@ -1734,12 +1730,8 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
         page.wait_for_function(
             "() => window.oldVisualReviewImages.every(image => image.naturalWidth === 1800)"
         )
-        assert (
-            host.locator("lf-shot").evaluate(
-                "shot => shot.captureGeometry.images[0].width"
-            )
-            == 780
-        )
+        rendered(page)
+        assert host.locator("lf-shot").bounding_box() == shown
     finally:
         while held:
             held.pop(0).abort()

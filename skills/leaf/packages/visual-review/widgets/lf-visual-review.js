@@ -325,7 +325,8 @@ customElements.define(
       });
     }
 
-    #paintInspector() {
+    // A source, review state or selection change renders the cases, then the inspection.
+    #paintReview() {
       if (this.#render()) this.#paintInspection();
     }
 
@@ -485,7 +486,7 @@ customElements.define(
           );
           if (!this.#caseEntries.has(this.#selected))
             this.#selected = fallback?.id ?? this.#run.cases[0].id;
-          this.#paintInspector();
+          this.#paintReview();
           this.#project();
           this.#threadSurface?.update();
           this.#scheduleEvidenceLayout();
@@ -497,8 +498,10 @@ customElements.define(
         });
       } catch (error) {
         // Semantic and mechanical paints cannot revive evidence from a rejected source.
-        // Only another successful source commit may replace this failure view.
+        // Only another successful source commit may replace this failure view, and
+        // it rebuilds the cases the failure view discarded.
         this.#sourceReady = false;
+        this.#caseEntries.clear();
         failSoft(this, error);
       } finally {
         resume();
@@ -593,7 +596,7 @@ customElements.define(
         : null;
       if (id !== this.#selected) this.#scope = "focus";
       this.#selected = id;
-      this.#paintInspector();
+      this.#paintReview();
       const selected = this.#caseEntries.get(id);
       this.#threadSurface?.update();
       layoutChanged(this);
@@ -907,7 +910,7 @@ customElements.define(
 
     renderState(state) {
       this.#reviewUnits = state?.review?.units ?? {};
-      this.#paintInspector();
+      this.#paintReview();
       return true;
     }
   },

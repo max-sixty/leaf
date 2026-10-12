@@ -7,7 +7,8 @@ idle before pickup:
   output: |
     Error: 1 event nobody has picked up, so the page cannot idle yet. Leaf's hook puts them in your context at your next turn.
 
-the watch wakes the session: null
+the watch wakes the session: >-
+  <page> has new input; Leaf's prompt hook puts it in your context with this notification
 
 delivered at prompt:
   instruction: >-

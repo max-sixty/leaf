@@ -2337,7 +2337,7 @@ def test_a_table_granted_room_stands_on_the_prose_axis(
     assert root_overflow(page) == 0
 
 
-@pytest.mark.parametrize("holder", ["flow", "list-item"])
+@pytest.mark.parametrize("holder", ["flow", "list-item", "quotation"])
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
 def test_a_scrolling_breakout_table_keeps_its_caption_in_its_scrollport(
     browser, serve, direction, holder
@@ -2345,9 +2345,9 @@ def test_a_scrolling_breakout_table_keeps_its_caption_in_its_scrollport(
     """A table granted room sizes its box to its columns, so it is no longer the
     container its caption reads its width from; the caption is held to the box instead.
     On a phone, where the room is the column and an eight-column table scrolls, a long
-    caption stays inside the scrollport at either end of the scroll, in the page's flow
-    and in a list item, which is narrower than the column the bound measures from and so
-    keeps the table its own container."""
+    caption stays inside the scrollport at either end of the scroll: in the page's flow,
+    in a list item, which its list indents from the column the bound measures from and
+    so keeps the table its own container, and in a quotation, whose frame holds it."""
     cells = "".join(f"<td>measured value {i}</td>" for i in range(8))
     caption = "Services in the migration, by stage, with their owners and windows"
     table = (
@@ -2356,6 +2356,8 @@ def test_a_scrolling_breakout_table_keeps_its_caption_in_its_scrollport(
     )
     if holder == "list-item":
         table = f"<ol><li>An item holding the table.{table}</li></ol>"
+    elif holder == "quotation":
+        table = f"<blockquote><p>A quotation holding the table.</p>{table}</blockquote>"
     body = "<h1>Tables</h1><p>A paragraph at the measure.</p>" + table
     source = leaf_page("Caption", body).replace(
         '<html lang="en">', f'<html lang="en" dir="{direction}">', 1

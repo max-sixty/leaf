@@ -141,10 +141,10 @@
 :where(:root, .lf-thread-transcript) table:where([data-lf-space], [data-lf-space] *) { --lf-fills-frame: 1; }
 /* A table granted room of its own (`data-width`) fills only a drawn frame: elsewhere it
    keeps its columns' natural width within that room rather than spreading the room
-   between them, and layouts.css sizes its box to them. A list item or a description
-   is narrower than the column that placement measures from, so a table in one fills
-   its room as before. */
-:where(:root, .lf-thread-transcript) table:where([data-lf-space]:not([data-lf-space="column"])):where(:not(:is(li, dd) table)) {
+   between them, and layouts.css sizes its box to them. A list item, which its
+   list's padding indents from the column that placement measures from, draws no frame
+   to hold it, so a table in one fills its room as before (layouts.css). */
+:where(:root, .lf-thread-transcript) table:where([data-lf-space]:not([data-lf-space="column"])):where(:not(li table)) {
   --lf-fills-frame: 0; }
 @container style(--lf-block-frame: 1) {
   :where(:root, .lf-thread-transcript) table { --lf-fills-frame: 1; }

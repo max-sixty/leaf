@@ -1449,6 +1449,11 @@ def test_a_large_diff_filters_and_navigates_lazy_files(browser, serve):
     # A source refresh rebuilds file shells; lazy rows inherit its new revision.
     refreshed = json.loads(json.dumps(manifest))
     refreshed["files"][0]["additions"] = 2
+    refreshed["files"][0]["patch"] = (
+        refreshed["files"][0]["patch"]
+        .replace("@@ -1 +1 @@", "@@ -1 +1,2 @@")
+        .replace('+return "new"', '+return "new"\n+return "newer"')
+    )
     data_model.cmd_data_set(serve.page_dir, "review-patch", refreshed)
     refreshed_revision = source_revision(serve.page_dir, "review-patch")
     told(page)

@@ -42,12 +42,16 @@
   // fallback the themes give a page without the runtime, such as a tab set's stacked
   // panels or a diagram's source in the column. An uncaught error in code that did
   // load, before the page presents, is a fault too, but the page may still present
-  // with everything it has, so its widgets keep their boxes. Each fault is said once
-  // more as `lf-startup-fault`, which a served page's bootstrap answers by waiting for
-  // a server that can start the page (bootstrap.js); an export has no server to wait
-  // for.
+  // with everything it has, so its widgets keep their boxes. The first fault names the
+  // page and is said once more as `lf-startup-fault`, which a served page's bootstrap
+  // answers by waiting for a server that can start the page (bootstrap.js); an export
+  // has no server to wait for. A later fault only takes the mark off where it is
+  // incomplete. The first is the earliest evidence and a later one is often its
+  // consequence, as a page that cannot read its own words throws the same refusal from
+  // every repaint; the bootstrap's report keeps the first as well.
   const fault = (reason, incomplete, error = null) => {
     if (incomplete) root.toggleAttribute("data-lf-interactive", false);
+    if (root.hasAttribute("data-lf-startup-error")) return;
     root.dataset.lfStartupError = reason;
     // The attribute is the short display reason; this record retains the actual
     // exception before modules load, including for an opaque sample's private port.

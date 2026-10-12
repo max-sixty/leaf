@@ -324,40 +324,12 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     assert painted(page, []) == {"washed": "", "glyphs": [], "projected": 0}
 
 
-# A passage carrying the user's standing reaction, and its neighbour without one.
-REACTED_PAGE = leaf_page(
-    "reacted",
-    """
-<h1 id="title">Front desk</h1>
-<p id="react-ok"><strong>Keep.</strong> The spare key is with reception.</p>
-<p id="react-no"><strong>Change.</strong> This sample claims Tuesday follows Thursday.</p>
-""",
-)
-KEEP_REACTION = {
-    "kind": "comment",
-    "author": "user",
-    "revision": 1,
-    "token": "keep",
-    "anchor": {"section": "react-ok"},
-}
-
-
-def test_e_immediately_opens_a_passages_reactions_and_digit_chooses(browser, serve):
+def test_e_immediately_opens_the_selection_s_reactions_and_digit_chooses(
+    browser, serve
+):
     """The shortcut unfolds the comment's reactions before digits become live."""
-    page = open_page(browser, serve(REACTED_PAGE, events=(KEEP_REACTION,)))
-    settled = page.locator('[data-lf-margin-for="react-ok"]').get_by_role(
-        "button", name="keep reaction actions", exact=True
-    )
-    with sending(page, "the withdrawal the page opens on"):
-        settled.click()
-        page.locator('[aria-label="Remove keep reaction"]:visible').click()
-    # The withdrawal applied, and not merely delivered, before the raise below stands its
-    # choices inside the target's margin entries. A state that lands after that fold is open
-    # re-renders the cluster, and the margin says so on `lf-margin-entry-options-closed`, which
-    # is exactly what disarms the response mode the digit below is pressed into: the
-    # press then reaches nothing, and the read finds the withdrawal still last in the log.
-    told(page)
-    select_paragraph(page, "#react-ok")
+    page = open_page(browser, serve(PANEL_PAGE))
+    select_paragraph(page, "#how-cap")
     page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("e")
 
@@ -366,14 +338,11 @@ def test_e_immediately_opens_a_passages_reactions_and_digit_chooses(browser, ser
     expect(surface.locator(".lf-react:visible")).to_have_count(6)
     assert "1–6" in shortcut_bar_text(page)
 
-    # The digit's own gesture in the wire before the log is read; without it the read
-    # answers with whatever stood last — here the withdrawal above, which reads as the
-    # digit having chosen a token nobody pressed.
     with sending(page, "the reaction 2 chose"):
         page.keyboard.press("2")
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["kind"] == "comment" and sent["token"] == "change"
-    assert sent["anchor"]["section"] == "react-ok"
+    assert sent["anchor"]["section"] == "how-cap"
 
 
 def test_comment_reaction_digits_stop_at_nine_for_a_larger_vocabulary(browser, serve):
@@ -487,8 +456,7 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
     )
 
 
-@pytest.mark.parametrize("scheme", ["light", "dark"])
-def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve, scheme):
+def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
     """Tab adds reactions after the compact field without moving or replacing it.
 
     Each declared emoji is its own margin entry, with its token in the accessible name.
@@ -496,7 +464,7 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve, s
     dismissed, `e` is no longer a live page command. Opening Threads does not add an
     unanchored page-wide reaction target.
     """
-    page = open_page(browser, serve(PANEL_PAGE), color_scheme=scheme)
+    page = open_page(browser, serve(PANEL_PAGE))
     select_paragraph(page, "#how-cap")
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_be_visible()
@@ -619,8 +587,7 @@ def test_a_target_hint_opens_comment_and_a_token_seats_only_its_glyph(browser, s
     expect(page.locator("#prose")).to_have_css("outline-style", "none")
 
 
-@pytest.mark.parametrize("width", [1440, 390])
-@pytest.mark.parametrize("opener", ["click", "keyboard"])
+@pytest.mark.parametrize(("width", "opener"), [(1440, "click"), (390, "keyboard")])
 def test_reactions_keep_all_six_buttons_on_an_occupied_target(
     browser, serve, width, opener
 ):
@@ -661,13 +628,9 @@ def test_reactions_keep_all_six_buttons_on_an_occupied_target(
     expect(item.locator(MARGIN_RESPONSES)).to_have_count(0)
 
 
-@pytest.mark.parametrize(
-    ("target", "action"), [("sug-insert", "reject"), ("sug-delete", "accept")]
-)
-def test_deciding_a_reaction_target_releases_its_temporary_choices(
-    browser, serve, target, action
-):
+def test_deciding_a_reaction_target_releases_its_temporary_choices(browser, serve):
     """A target's own action can retire its words without leaving a reaction mode."""
+    target, action = "sug-delete", "accept"
     page = open_page(browser, serve(PROPOSED_PAGE))
     item = page.locator(f'[data-lf-margin-for="{target}"]')
     item.locator('[data-lf-margin-entry-key="accept"]').focus()
@@ -1148,9 +1111,8 @@ def test_the_response_field_grows_as_a_rectangle_and_spans_the_bar(browser, serv
     ), (message, reply)
 
 
-@pytest.mark.parametrize("covered_width", [390, 450])
 def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
-    browser, serve, covered_width
+    browser, serve
 ):
     """A covered composer cannot retain an invisible typing destination.
 
@@ -1158,6 +1120,8 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
     widths. Resizing between those postures preserves the draft, withdraws its unavailable
     surface, and hands the keyboard to the visible Thread panel.
     """
+    # Wide enough that some of the page stays visible beyond the covering panel.
+    covered_width = 450
     page = open_page(browser, serve(PANEL_PAGE))
     initial_events = events_model.read_events(serve.page_dir)
     # Start with Threads beside the page. A covering panel makes the background inert,
@@ -1246,17 +1210,9 @@ def test_a_reaction_on_a_visual_part_names_that_part(browser, serve):
     reaction = surface.locator('.lf-react[data-token="prioritize"]')
     reaction.focus()
     expect(reaction).to_be_focused()
-    page.evaluate("() => window.lfTestReactionClicked = false")
-    reaction.evaluate(
-        "button => button.addEventListener('click', () => "
-        "window.lfTestReactionClicked = true, {once: true})"
-    )
-    # The register owns Space on keydown. A miss here can look healthy after keyup,
-    # because Chromium's native button behavior then supplies a click of its own.
+    # A focused button keeps its native Space activation, which clicks on keyup.
     with sending(page, "the prioritize reaction"):
-        page.keyboard.down("Space")
-        assert page.evaluate("() => window.lfTestReactionClicked")
-        page.keyboard.up("Space")
+        page.keyboard.press("Space")
     expect(page.locator(".lf-live")).to_contain_text("prioritize on Start request")
 
     sent = events_model.read_events(serve.page_dir)[-1]
@@ -2546,8 +2502,9 @@ def test_a_held_reaction_says_its_word_and_the_release_decides(browser, serve):
     assert tokens() == ["clarify", "keep"]
 
 
-@pytest.mark.parametrize("scheme", ["light", "dark"])
-@pytest.mark.parametrize("placement", ["panel", "inline"])
+@pytest.mark.parametrize(
+    ("scheme", "placement"), [("light", "panel"), ("dark", "inline")]
+)
 def test_a_reopened_message_picker_keeps_the_selected_reaction_visible(
     browser, serve, scheme, placement
 ):

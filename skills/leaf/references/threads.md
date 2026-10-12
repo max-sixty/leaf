@@ -46,7 +46,9 @@ Use `--markup` for an HTML fragment after the message's text: a native table, a
 bounded log, or a small question using `lf-ask` and `lf-options`. Native HTML needs
 no widget wrapper. Its ids must not appear in any version or earlier message.
 Markup passes the shared structure, vocabulary, media, and id checks; it cannot
-declare document settings or add a stylesheet for the whole page.
+declare document settings or add a stylesheet for the whole page. An `lf-sample`
+template in markup gives the user a live practice page in the thread
+(`page-authoring.md`, "Live samples").
 
 ```bash
 leaf response reply <answer.ref> --done --text "The deploy passed." --markup '<details><summary>Deploy log</summary><pre>Ready&#10;Done</pre></details>'

@@ -1287,8 +1287,44 @@ def test_a_returning_controller_widget_draws_again_only_a_changed_reading(
     assert page.evaluate(leave_and_return) == {"drawn": 0, "failed": 1, "pending": []}
     errors = take_browser_errors(page)
     assert [error.splitlines()[0] for error in errors] == [
-        "leaf: Presentation failed: <lf-local> renderState threw: deliberate render failure"
+        (
+            "leaf: paint failed for lf-local#page-local: <lf-local> renderState threw: "
+            "deliberate render failure"
+        )
     ]
+
+
+def test_a_subscriber_added_after_the_first_render_fails_by_the_paint_rule(
+    browser, serve
+):
+    """A subscriber that joins a drawn reading draws through the widget's paint, so
+    its failure is reported once, as that paint's, and the widget shows its fail-soft
+    box."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Late subscriber",
+                '<h1>Late subscriber</h1><lf-local id="page-local" choice="idle">'
+                "</lf-local>",
+            ),
+            page_files={
+                "registry.json": json.dumps(PAGE_DECLARATION),
+                "widgets/lf-local.js": PAGE_WIDGET,
+            },
+        ),
+    )
+    expect(page.locator("#page-local")).to_have_attribute("data-page-widget", "ready")
+    page.evaluate(
+        "document.querySelector('#page-local').controller.subscribe(() => {"
+        " throw new Error('late subscriber failure'); }); true"
+    )
+    expect(page.locator("#page-local .lf-error")).to_have_text(
+        "<lf-local> failed: late subscriber failure"
+    )
+    reported_browser_errors(
+        page, "leaf: paint failed for lf-local#page-local: late subscriber failure"
+    )
 
 
 @pytest.mark.parametrize("lifetime", ["light", "shadow-child", "shadow-host"])
@@ -1566,7 +1602,10 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
     assert page.evaluate("window.__failedLocalRenders") == 1
     errors = take_browser_errors(page)
     assert [error.splitlines()[0] for error in errors] == [
-        "leaf: Presentation failed: <lf-local> renderState threw: deliberate render failure"
+        (
+            "leaf: paint failed for lf-local#page-local: <lf-local> renderState threw: "
+            "deliberate render failure"
+        )
     ]
     assert "Caused by: Error: deliberate render failure" in errors[0]
 
@@ -2907,10 +2946,9 @@ def test_frozen_question_reveals_its_exact_message_in_a_selective_primary(
 @pytest.mark.parametrize(
     ("primary", "travel", "source_top", "cross_boundary"),
     [
-        (True, True, 0, False),
         (True, True, 200, False),
         (True, False, 200, False),
-        (False, True, 1000, False),
+        # A contextual card's travel, slowed until it crosses into the viewport.
         (False, True, 1000, True),
     ],
 )
@@ -3587,8 +3625,9 @@ def test_primary_reading_holds_remote_changes_before_package_layout(
     rendered(page)
 
 
-def test_primary_navigation_cancels_while_waiting_for_presentation(browser, serve):
-    """Superseding a navigation completes its promise even when a renderer is blocked."""
+def test_cancelled_primary_travel_adds_no_return_checkpoint(browser, serve):
+    """A newer Tab keeps its focus and history while a primary layout completes, and
+    superseding a navigation completes its promise even when a renderer is blocked."""
     page = open_page(browser, package_workspace(serve))
     assert page.evaluate("""async () => {
       const {createThreadDestinations} = await window.__lfRuntimeImport('/runtime/thread/destination.js');
@@ -3611,11 +3650,6 @@ def test_primary_navigation_cancels_while_waiting_for_presentation(browser, serv
       unregister();
       return result === null;
     }""")
-
-
-def test_cancelled_primary_travel_adds_no_return_checkpoint(browser, serve):
-    """A newer Tab keeps its focus and history while a primary layout completes."""
-    page = open_page(browser, package_workspace(serve))
     entries = page.evaluate("history.length")
     page.evaluate("""async () => {
       const api = await window.__lfRuntimeImport('/runtime/widget-api.js');

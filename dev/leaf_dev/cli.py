@@ -22,6 +22,7 @@ COMMANDS = {
     "journey-chart": "journey",
     "flake": "flake",
     "eval": "eval",
+    "eval-pairs": "eval_pairs",
     "eval-ui-review": "review_detection_eval",
     "keydocs": "keydocs",
     "preview": "preview",

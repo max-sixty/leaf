@@ -491,6 +491,67 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
     assert fetch(children[0] + "/api/state", token=None)[0] == 200
 
 
+def test_a_message_sample_starts_from_its_message_markup(server, page_dir):
+    """A template in a message's frozen markup allocates like a page's, addressed by
+    its message: a fixture script in that markup seeds one child, and a selection of
+    the page's threads seeds another."""
+    publish(page_dir)
+    for identity, text in (("aabb0011", "Asking thread"), ("aabb0022", "Other thread")):
+        append_carried_log_record(
+            page_dir,
+            {
+                "kind": "comment",
+                "id": identity,
+                "author": "user",
+                "revision": 1,
+                "text": text,
+            },
+        )
+    history = json.dumps([{"kind": "comment", "text": "Fixture question"}])
+    markup = (
+        f'<script id="reply-fixture" type="application/json">{history}</script>'
+        '<lf-sample id="fixture-sample"><template id="fixture-practice" data-sample'
+        ' data-sample-events="reply-fixture"><h1>From the fixture</h1></template>'
+        '</lf-sample><lf-sample id="thread-sample"><template id="thread-practice"'
+        ' data-sample data-sample-threads="aabb0022"><h1>From the thread</h1>'
+        "</template></lf-sample>"
+    )
+    replied = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "response",
+            "reply",
+            "--done",
+            response_reference(page_dir, "aabb0011"),
+            "--text",
+            "Try it:",
+            "--markup",
+            markup,
+        ],
+    )
+    assert replied.exit_code == 0, replied.output
+    message = event_model.read_events(page_dir)[-1]["id"]
+
+    def allocate(body):
+        status, raw = fetch(f"{server}/api/samples", data=json.dumps(body).encode())
+        return status, json.loads(raw)
+
+    for template, heading, texts in (
+        ("fixture-practice", b"From the fixture", ["Fixture question"]),
+        ("thread-practice", b"From the thread", ["Other thread"]),
+    ):
+        status, body = allocate({"template": template, "message": message})
+        assert status == 200, body
+        child = server + body["url"]
+        assert heading in fetch(child)[1]
+        state = json.loads(fetch(child + "api/state")[1])
+        assert [event["text"] for event in state["events"]] == texts
+    status, body = allocate({"template": "fixture-practice"})
+    assert status == 400 and "unknown sample template" in body["error"]
+    status, body = allocate({"template": "fixture-practice", "message": "aabb0011"})
+    assert status == 400 and "carries markup" in body["error"]
+
+
 def test_sample_template_lookup_stays_within_the_requesting_page(server, page_dir):
     templates = """<template id="outer" data-sample><h1>Outer page</h1>
       <template id="practice" data-sample><h1>Nested practice</h1></template>
@@ -5370,14 +5431,17 @@ def test_server_bind_failure_preserves_the_real_socket_error(page_dir, monkeypat
 def test_the_os_excludes_overlapping_leaf_listeners_across_processes(
     page_dir, spawn, first_bind, second_bind
 ):
-    """A different bind must not route one Leaf URL to another live page."""
+    """A different bind must not route one Leaf URL to another live page.
+
+    The contender binds the first server's port as a restart does, with whatever
+    address reuse its kernel allows a restart, and still finds the port in use.
+    """
     if "::" in (first_bind, second_bind) and not socket.has_dualstack_ipv6():
         pytest.skip("the kernel has no dual-stack listener")
     first = hosting_model.LeafHTTPServer(
         (first_bind, 0), http_model.page_endpoint(page_dir, TOKEN)
     )
     try:
-        assert first.socket.getsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR) == 0
         contender = spawn_probe(
             spawn,
             page_dir,
@@ -5409,9 +5473,7 @@ else:
 def test_a_fixed_url_waits_for_its_port_to_become_available(page_dir, monkeypatch):
     """Both preview lifetimes use native port availability, without changing URLs.
 
-    A held listener arranges EADDRINUSE without depending on a platform's TCP
-    cooldown duration. The real keepalive shutdown/restart is also exercised
-    manually against macOS, where it takes about 30 seconds.
+    A held listener arranges EADDRINUSE, which address reuse never passes.
     """
     refused = threading.Event()
     native_bind = socket.socket.bind
@@ -5442,11 +5504,35 @@ def test_a_fixed_url_waits_for_its_port_to_become_available(page_dir, monkeypatc
             occupied.close()
         with restarting.result(timeout=STATED_TIMEOUT) as server:
             assert server.url == f"http://127.0.0.1:{port}/?t={TOKEN}"
-            assert (
-                server.httpd.socket.getsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR)
-                == 0
-            )
             assert fetch(f"{server.origin}/api/state")[0] == 200
+
+
+@pytest.mark.parametrize("bind", ["127.0.0.1", "::"])
+def test_a_restart_takes_its_address_back_from_the_connections_it_closed(
+    page_dir, monkeypatch, bind
+):
+    """A restarted server binds its recorded address at once, under an open tab.
+
+    A stopping server closes the tab's keep-alive connection, and the side that
+    closes first holds the connection's address for TCP's TIME_WAIT: up to a minute,
+    during which a restart that waited for it left the tab offline.
+    """
+    if bind == "::" and not socket.has_dualstack_ipv6():
+        pytest.skip("the kernel has no dual-stack listener")
+    if bind == "::" and not hosting_model.REUSE_EXCLUDES_LISTENERS:
+        pytest.skip("a BSD kernel binds a wildcard strictly, so it waits out TIME_WAIT")
+    monkeypatch.setattr(hosting_model, "PORT_WAIT_SECONDS", 0)
+    endpoint = http_model.page_endpoint(page_dir, TOKEN)
+    httpd = hosting_model.LeafHTTPServer((bind, 0), endpoint)
+    port = httpd.server_address[1]
+    tab = http.client.HTTPConnection("127.0.0.1", port, timeout=STATED_TIMEOUT)
+    try:
+        with running_http_server(httpd):
+            tab.request("GET", f"/api/state?t={TOKEN}")
+            assert tab.getresponse().read()
+    finally:
+        tab.close()
+    hosting_model.LeafHTTPServer((bind, port), endpoint).server_close()
 
 
 def test_the_stated_host_wildcard_accepts_an_ipv4_user(page_dir):

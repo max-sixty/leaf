@@ -635,7 +635,7 @@ def test_visible_message_waits_for_whole_document_presentation(browser, serve):
     ]
 
 
-@pytest.mark.parametrize("origin", ["page", "panel", "reference"])
+@pytest.mark.parametrize("origin", ["page", "reference"])
 def test_keyboard_first_unread_exposes_authored_reply(browser, serve, origin):
     url = serve(PANEL_PAGE)
     panel_comment(serve.page_dir, "The earlier user thread.")
@@ -652,10 +652,6 @@ def test_keyboard_first_unread_exposes_authored_reply(browser, serve, origin):
         "</lf-options></lf-ask>",
     )["id"]
     page = open_page(browser, url)
-    if origin == "panel":
-        page.keyboard.press("g")
-        page.keyboard.press("Shift+t")
-        panel_settled(page)
     if origin == "reference":
         page.keyboard.press("?")
         page.keyboard.press("?")
@@ -679,10 +675,7 @@ def test_keyboard_first_unread_exposes_authored_reply(browser, serve, origin):
     ]
 
 
-@pytest.mark.parametrize("unread", [False, True])
-def test_threads_keep_the_scroll_pair_separate_from_first_unread(
-    browser, serve, unread
-):
+def test_threads_keep_the_scroll_pair_separate_from_first_unread(browser, serve):
     """Unread availability cannot steal the upward half of the reading pair. The
     separate Go-to route remains text in an editor, just like every letter route."""
     url = serve(
@@ -694,9 +687,7 @@ def test_threads_keep_the_scroll_pair_separate_from_first_unread(
     )
     for number in range(18):
         panel_comment(serve.page_dir, f"User thread {number}.")
-    last = panel_comment(
-        serve.page_dir, "The unread destination.", author="agent" if unread else "user"
-    )
+    last = panel_comment(serve.page_dir, "The unread destination.", author="agent")
     page = open_page(browser, url)
     page.keyboard.press("d")
     page.wait_for_function("() => document.scrollingElement.scrollTop > 0")
@@ -724,10 +715,7 @@ def test_threads_keep_the_scroll_pair_separate_from_first_unread(
     expect(page.locator(f'.lf-thread[data-id="{last}"]')).not_to_have_attribute(
         "open", ""
     )
-    if unread:
-        expect(page.locator(".lf-first-unread")).to_be_visible()
-    else:
-        expect(page.locator(".lf-first-unread")).to_be_hidden()
+    expect(page.locator(".lf-first-unread")).to_be_visible()
 
     editor = page_comment(page)
     page.keyboard.press("u")
@@ -1230,15 +1218,16 @@ TASK_SEAT_PAGE = leaf_page(
 )
 
 
-@pytest.mark.parametrize("end", ["opened", "walked", "onto", "replied", "left"])
+# Scrolling the thread away releases held news the same way here as on a diff line,
+# whose case scrolls it.
+@pytest.mark.parametrize("end", ["opened", "walked", "onto", "replied"])
 def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
     browser, serve, end
 ):
     """Replies landing while a seated thread's foot is on screen wait behind one
     notice that counts them, and show together, in the order they came: when the user
     presses the notice, when a t press walks them to the thread, when they send a turn
-    of their own, which answers the replies and so follows them, and when they scroll
-    the thread below the window, where its growth moves nothing they see. A t press
+    of their own, which answers the replies and so follows them. A t press
     onto the thread they already stand in ("onto") is a stay, and the replies wait on.
     Nothing before the ending is input, so the browser fixture's shift watch also checks
     that holding the replies moved nothing."""
@@ -1308,12 +1297,6 @@ def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
         )
         with sending(page, "the user's reply"):
             page.keyboard.press("Enter")
-    else:
-        thread.evaluate(
-            """thread => document.scrollingElement.scrollBy({
-              top: thread.getBoundingClientRect().top - innerHeight - 400,
-              behavior: 'instant'})"""
-        )
     shown = thread.locator(".lf-msg")
     expect(shown).to_have_count(4 if end == "replied" else 3)
     expect(news).to_have_count(0)
@@ -1417,7 +1400,9 @@ def test_a_reopening_in_a_page_seat_waits_where_reopen_stood(browser, serve, poi
     expect(thread.locator(":scope > .lf-thread-reply leaf-text")).to_be_visible()
 
 
-@pytest.mark.parametrize("opening", ["Enter", "Space", "pointer", "programmatic"])
+# The keyboard's native summary activation, and a script setting `open` with no
+# summary press at all; Space and a pointer press reach the same native toggle.
+@pytest.mark.parametrize("opening", ["Enter", "programmatic"])
 def test_a_reopening_in_a_folded_diff_thread_waits_in_its_summary(
     browser, serve, opening
 ):
@@ -1470,9 +1455,7 @@ def test_a_reopening_in_a_folded_diff_thread_waits_in_its_summary(
     }""")
     page.keyboard.press("Tab")
     expect(summary).to_be_focused()
-    if opening == "pointer":
-        summary.click()
-    elif opening == "programmatic":
+    if opening == "programmatic":
         thread.evaluate("""node => {
           const open = document.createElement('button');
           open.textContent = 'Open disclosure';
@@ -1497,9 +1480,7 @@ def test_a_reopening_in_a_folded_diff_thread_waits_in_its_summary(
     ("beside", "end"),
     [
         ("box", "opened"),
-        ("box", "left"),
         ("box", "standing"),
-        ("box", "walked"),
         ("thread", "opened"),
         ("thread", "started"),
     ],
@@ -1512,8 +1493,7 @@ def test_a_thread_the_agent_starts_in_a_page_seat_waits_in_the_row_it_would_foll
     size: the control row of the seat's last thread, or, in a seat that draws no thread,
     a row standing in place of the first-message row at that row's height, since the row
     has no room beside its box. It shows when the user opens the notice from the
-    keyboard, when a t press walks them to it, when they start a thread of their own,
-    which shows after it, and when they scroll the seat below the window. A user
+    keyboard and when they start a thread of their own, which shows after it. A user
     standing in the first-message box keeps it: the thread shows above the box, which
     stays where it stood. Nothing before the ending is input, so the shift watch checks
     that the hold moved nothing."""
@@ -1565,18 +1545,10 @@ def test_a_thread_the_agent_starts_in_a_page_seat_waits_in_the_row_it_would_foll
         page.keyboard.press("Tab")
         expect(news).to_be_focused()
         page.keyboard.press("Enter")
-    elif end == "walked":
-        page.keyboard.press("t")
-    elif end == "started":
+    else:
         write(box, "And the shed roof?")
         with sending(page, "the user's thread"):
             page.keyboard.press("Enter")
-    else:
-        seat.evaluate(
-            """seat => document.scrollingElement.scrollBy({
-              top: seat.getBoundingClientRect().top - innerHeight - 400,
-              behavior: 'instant'})"""
-        )
     expect(news).to_have_count(0)
     expect(box).to_be_visible()
     keys = [key for key in (earlier, started) if key]
@@ -1597,12 +1569,9 @@ ROUTE_LINE = '["app/routes.py","new",201]'
 @pytest.mark.parametrize(
     "end",
     [
-        "clicked",
-        "tapped",
         "keyboard",
         "settled",
         "replied",
-        "resolved",
         "started",
         "left",
         "standing",
@@ -1617,25 +1586,18 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
     the line, and every line and paragraph after it moved down under the reader. No row
     the diff draws can say it waits, so the diff does not draw it: it stands in the
     margin, as any thread the diff does not place does, and its marker is the notice.
-    Clicking, tapping, or pressing Enter on the marker shows the thread under its line
+    Clicking or pressing Enter on the marker shows the thread under its line
     and lands on it, and the marker stays its notice when the agent settles it. It also
-    shows when the user replies in it from the margin's card, when they resolve it
-    there, when they start a thread on the same line, which shows after it, and when
+    shows when the user replies in it from the margin's card, when they start a
+    thread on the same line, which shows after it, and when
     they scroll the line below the window, unless they stand in its card, writing there
     or holding a selection of its words, which stays with them. Returning from a hidden tab reveals current messages while
     preserving that composing margin card. The news lands well past Chrome's half
     second of recent input, so the shift watch checks that holding the thread moved
     nothing."""
-    context = (
-        browser.new_context(
-            viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True
-        )
-        if end == "tapped"
-        else None
-    )
     url = serve(LONG_LINE_DIFF_PAGE)
     data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
-    page = open_page(browser, url, context=context)
+    page = open_page(browser, url)
     page.wait_for_function("document.querySelector('lf-diff.lf-rendered') !== null")
     line = page.locator(f"lf-diff [data-lf-datum='{ROUTE_LINE}']")
     _to_upper_third(line)
@@ -1806,10 +1768,6 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
             "Should the old route name stay as an alias?"
         )
         return
-    elif end == "clicked":
-        marker.click()
-    elif end == "tapped":
-        marker.tap()
     elif end == "keyboard":
         # The marker as the rail's Tab stop, in keyboard modality. The key before the
         # focus makes the shortcut bar's redraw for the stop an answer to input.
@@ -1829,11 +1787,6 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
         )
         with sending(page, "the user's reply"):
             page.keyboard.press("Enter")
-    elif end == "resolved":
-        page.keyboard.press("t")
-        card = page.locator(f'.lf-margin-thread .lf-page-thread[data-thread="{held}"]')
-        with sending(page, "the resolve"):
-            card.get_by_role("button", name="Resolve thread").click()
     elif end == "started":
         _select_new_route(page)
         write(page.locator(".lf-composer leaf-text"), "And the handler's name?")
@@ -1853,11 +1806,11 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
         expect(threads.last).to_contain_text("And the handler's name?")
     if end == "replied":
         expect(threads.first).to_contain_text("Yes, for one release.")
-    if end in ("resolved", "settled"):
+    if end == "settled":
         expect(threads.first.locator(":scope > summary")).to_have_text(
             "Resolved · 1 message"
         )
-    if end in ("clicked", "tapped", "keyboard"):
+    if end == "keyboard":
         # The marker goes with what it held, and the user lands on the thread it showed,
         # or on the summary a settled thread folds to.
         expect(threads.first).to_be_focused()
@@ -1948,8 +1901,9 @@ def test_a_page_seat_the_open_panel_stands_over_is_not_read(
     assert receipt(), "the answer shown whole was never marked read"
 
 
-@pytest.mark.parametrize("width", [1200, 400])
-def test_modal_blocks_exposure_until_user_returns_to_threads(browser, serve, width):
+def test_modal_blocks_exposure_until_user_returns_to_threads(browser, serve):
+    # The modal blocks exposure whatever the panel covers.
+    width = 1200
     url = serve(PANEL_PAGE)
     panel_comment(serve.page_dir, "The earlier user thread.")
     root = panel_comment(

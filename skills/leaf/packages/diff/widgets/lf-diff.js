@@ -47,7 +47,7 @@ import {
   paintKeys,
   projectData,
   projectedDatum,
-  placeThreads,
+  threadSurface,
   readingPaint,
   releaseOutlets,
   reserve,
@@ -858,13 +858,6 @@ customElements.define(
           });
       whileConnected(this, (signal) => {
         this.addEventListener("lf-reveal", this.revealPassage, { signal });
-        this.threadSurface = placeThreads(this, (targets, { onCommit }) => {
-          this.beginThreadSurface();
-          const outlets = targets.map((target) => this.threadOutletFor(target));
-          this.layoutThreadOutlets();
-          onCommit(() => this.retireThreadOutlets());
-          return outlets;
-        });
         // A page diff's file header pins at `--lf-top`, the top of the page's box that
         // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,
         // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
@@ -879,15 +872,14 @@ customElements.define(
         }
         return () => {
           this.rendering = (this.rendering ?? 0) + 1;
-          this.threadSurface.unregister();
-          this.threadSurface = null;
-          // Unregistering took core's views out of every outlet, so all of them go.
-          if (this.threadOutlets) {
-            for (const record of this.threadOutlets.values()) record.active = false;
+          // Leaf retires this surface on the same departure, taking core's views out of
+          // every outlet, so all of them go.
+          if (this.threadSeats) {
+            for (const record of this.threadSeats.values()) record.active = false;
             this.retireThreadOutlets();
           }
           this.threadSizeTargets = null;
-          this.threadOutlets = null;
+          this.threadSeats = null;
           this.threadPairs = null;
         };
       });
@@ -1060,14 +1052,24 @@ customElements.define(
       );
     }
 
+    // x-thread-surface: Leaf asks for one outlet, or null, per target it hands over, and
+    // the outlets this placement no longer uses come down once it commits.
+    threadOutlets(targets, { onCommit }) {
+      this.beginThreadSurface();
+      const outlets = targets.map((target) => this.threadOutletFor(target));
+      this.layoutThreadOutlets();
+      onCommit(() => this.retireThreadOutlets());
+      return outlets;
+    }
+
     // One outlet per datum, kept beside its datum's drawn node for as long as the thread
     // surface returns it. One the surface stops returning still holds the composer or
     // a thread view core placed there, until that placement commits; only then does it
     // come down, so the user's editor never leaves the document with it.
     beginThreadSurface() {
-      this.threadOutlets ??= new Map();
+      this.threadSeats ??= new Map();
       this.threadPairs ??= new Map();
-      for (const record of this.threadOutlets.values()) record.active = false;
+      for (const record of this.threadSeats.values()) record.active = false;
       for (const [content, pair] of this.threadPairs)
         if (!content.isConnected || !pair.gutter.isConnected)
           this.threadPairs.delete(content);
@@ -1112,7 +1114,7 @@ customElements.define(
         return null;
 
       const row = placement.datumElement;
-      let record = this.threadOutlets.get(anchor.datum);
+      let record = this.threadSeats.get(anchor.datum);
       if (!record) {
         const outlet = document.createElement("section");
         outlet.className = `lf-diff-thread-outlet lf-ui${
@@ -1132,7 +1134,7 @@ customElements.define(
           gutterRow.setAttribute("aria-hidden", "true");
         }
         record = { gutterRow, outlet, pair: null, row: null };
-        this.threadOutlets.set(anchor.datum, record);
+        this.threadSeats.set(anchor.datum, record);
       }
       // A datum drawn anew takes its outlet along, which keeps whoever stands in it.
       if (record.row !== row) {
@@ -1151,11 +1153,11 @@ customElements.define(
 
     // Take down the outlets the committed placement no longer uses.
     retireThreadOutlets() {
-      for (const [key, record] of this.threadOutlets) {
+      for (const [key, record] of this.threadSeats) {
         if (record.active) continue;
         record.outlet.remove();
         record.gutterRow?.remove();
-        this.threadOutlets.delete(key);
+        this.threadSeats.delete(key);
       }
       this.layoutThreadOutlets();
     }
@@ -1165,7 +1167,7 @@ customElements.define(
     // render alone, so the outlets it kept take theirs again here.
     layoutThreadOutlets() {
       const counts = new Map();
-      for (const { outlet, pair } of this.threadOutlets?.values() ?? [])
+      for (const { outlet, pair } of this.threadSeats?.values() ?? [])
         if (pair && outlet.parentNode === pair.content)
           counts.set(pair, (counts.get(pair) ?? 0) + 1);
       const targets = new Set();
@@ -1241,7 +1243,7 @@ customElements.define(
       }
       const restore =
         rendered &&
-        replaceFileContent(entry, rendered, this.threadPairs, this.threadOutlets);
+        replaceFileContent(entry, rendered, this.threadPairs, this.threadSeats);
       entry.renderKey = renderKey;
       entry.loaded = true;
       entry.details.querySelector("pre")?.toggleAttribute("hidden", false);
@@ -1288,7 +1290,7 @@ customElements.define(
       entry.disclosureNode = entry.details;
       if (!entry.details) return;
       entry.disclose ??= () => {
-        this.threadSurface?.update();
+        threadSurface(this).update();
         if (!entry.details.open || !this.fileEntries?.includes(entry)) return;
         entry.failed = false;
         this.present(this.loadEntry(entry));
@@ -1309,7 +1311,7 @@ customElements.define(
       const label = entry.record.path || "file";
       entry.fileComment = commentButton(
         label,
-        () => this.threadSurface?.open(entry.node, { origin: entry.fileComment }),
+        () => threadSurface(this).open(entry.node),
         "lf-diff-file-comment",
       );
       entry.node
@@ -1324,7 +1326,7 @@ customElements.define(
         if (line.comment?.parentElement === gutterRow) continue;
         line.comment = commentButton(
           lineLabel(line),
-          () => this.threadSurface?.open(line.node, { origin: line.comment }),
+          () => threadSurface(this).open(line.node),
           "lf-diff-line-comment",
         );
         // Thousands of lines must not become thousands of Tab stops. The page-level
@@ -1351,7 +1353,7 @@ customElements.define(
       }
       this.refreshDiffTools();
       layoutChanged(this);
-      this.threadSurface?.update();
+      threadSurface(this).update();
     }
 
     clearFilter() {

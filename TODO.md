@@ -87,13 +87,15 @@ has tried; settle that before building it.
   session's `todo_end`. Test competing continuations and keep the delayed result
   from closing the newer work ([comparison proposal](notes/comparisons.md#concrete-follow-up-proposals-2026-10-04-revised-2026-10-05)).
 
-- **Compare Leaf authoring with plain HTML (#19).** The
-  [agent-usability baseline](notes/agent-usability-evals.md#second-slice-2026-09-27)
-  now covers the live loop, a mixed batch, an elided thread, an unfamiliar package and a
-  shared data source, and calls for no new interface. Compare authoring and a feedback
-  cycle with plain HTML before improving Leaf's authoring instructions;
-  **#20** then [teaches the compositions that prove useful](notes/workspace-followups.md#item-20),
-  including how authors discover diagram comparison suggestions.
+- **#20 — Act on the plain HTML comparison.** The
+  [comparison](notes/agent-usability-evals.md#authoring-against-plain-html-2026-10-12)
+  found Leaf authors write much less CSS and script but spend 2–3 times the cost,
+  over more turns with the skill and references in context. Judges preferred
+  plain HTML's configurations, which put each alert's controls beside its evidence,
+  and Leaf's documents, which put decisions on the page.
+  [Teach the compositions that prove useful](notes/workspace-followups.md#item-20),
+  starting with per-item controls for configuration and progress through a queue,
+  and say where an owed input's `<answer.ref>` comes from.
 - **Keep agent activity intelligible throughout a task.** Run the
   [status evaluations](notes/user-feedback-responsiveness.md) for delivery,
   multi-step work, and delegation. Show the plan as well as the current step;
@@ -247,13 +249,12 @@ and its chrome coordinate.
   them to revise the results: turn a report into a report with live status while
   keeping its comments. They hold if revisions happen by ordinary composition. Include
   a cold agent asked for "a dashboard", the likeliest trigger for over-tiling. Run it
-  with the agent-usability baseline (#19), by extending the document, dashboard and
+  with the agent-usability baseline, by extending the document, dashboard and
   queue tasks in `evals/`. For a workspace, also measure what a screenshot of the
   document cannot show: each pane's contents through its own scroll, how much of each
   pane is empty, and whether a reader reaches every pane by key. The arrangement
   judge sees only the first screen of a pane that scrolls and is told not to infer
-  interaction, so no case yet measures whether a workspace works as a screen. The
-  plain-HTML control (`--condition html`) has never run.
+  interaction, so no case yet measures whether a workspace works as a screen.
 - **Layout values that wait for a task:** a selection-and-detail component whose phone
   form shows one side at a time; canvas regions, whose reading position is
   two-dimensional; slides as a presentation of `lf-tabs`.

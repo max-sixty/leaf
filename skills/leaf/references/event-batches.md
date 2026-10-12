@@ -44,7 +44,8 @@ Some harnesses deliver it inline; others deliver a pointer that `leaf delivery r
 parts: their `text` values together contain the complete envelope, and `next` names
 the next read. Your harness contract names the transport.
 
-Each event keeps its stored fields and order, and adds these:
+Each event keeps its stored fields and order, less the browser's retry key
+`attempt`, and adds these:
 
 - `subject` is the stable page, thread, or widget the event changes.
 - `says`, when present, maps each element a widget gesture names (the ids in its

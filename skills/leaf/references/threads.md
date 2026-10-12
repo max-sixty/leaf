@@ -19,8 +19,8 @@ opening comment's `id`, in the record `leaf thread open` prints. `leaf page stat
 <page> <id>`, `leaf thread reply`, `edit` and `resolve` all take the id of any
 message in the thread.
 
-A user's comment on words that occur more than once on the page keeps its quote but
-not which occurrence it meant. It carries `anchor.detached: true`, its transcript
+A user's comment on repeated words whose surrounding text cannot tell the
+occurrences apart keeps its quote but not which occurrence it meant. It carries `anchor.detached: true`, its transcript
 says **passage not identified**, and the panel's **Not located** filter lists it. A
 thread a revision detached instead has a null current anchor and its prior anchor in
 `detached_from` ("Preserve revised anchors").

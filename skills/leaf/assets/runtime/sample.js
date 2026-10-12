@@ -30,11 +30,11 @@
  * and pointer lock, but not the same origin: the child's origin is opaque, so neither
  * document reaches the other's DOM, storage or runtime, and the child's requests to
  * other servers follow opaque-origin CORS. Native focus and reveal calls an authored
- * script makes keep their browser behavior; Leaf's own placements wait for the child
- * to hold focus (focus.js, `canPlaceFocus`) and reveal only within its document.
- * Child-capability responses carry `Referrer-Policy: no-referrer` (http.py,
+ * script makes keep their browser behavior; Leaf's own placements are skipped unless
+ * the child holds focus (focus.js, `canPlaceFocus`), and its reveals stay within its
+ * document. Child-capability responses carry `Referrer-Policy: no-referrer` (http.py,
  * `_sample_headers`). A failed allocation or admission retires the allocation before
- * `ready` rejects, and lf-sample shows the failure in its status beside Reset. */
+ * `ready` rejects. */
 import { requestJson } from "./layer-client.js";
 import { pageUrl, runtime } from "./context.js";
 import { dressFor, registerSampleDress } from "./dress.js";

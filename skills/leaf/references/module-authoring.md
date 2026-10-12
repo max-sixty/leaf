@@ -93,8 +93,8 @@ with `shadowStage`.
 
 ### First paint
 
-Upgrade adds behavior and moves nothing, so a widget's box at first paint is the box
-it keeps once the page presents. `leaf package check --render` names a widget that
+Upgrade should add behavior and move nothing: a widget's box at first paint is the
+box it keeps once the page presents. `leaf package check --render` names a widget that
 moves as `keeps-first-box` ([packages.md, "Seeing it"](packages.md#seeing-it)).
 
 - Size the widget in the package theme under `html[data-lf-interactive]`, as its

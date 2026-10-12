@@ -642,9 +642,11 @@ template applies only to the child, and the surrounding page's styles and script
 not reach it; neither page can read the other's DOM, browser storage, or runtime
 functions. Scripts, embedded frames, forms, popups, and downloads work in the child,
 and native resource loaders and module-relative URLs reach its own captured assets. A
-page module can await the element's `ready` promise for the child's first
-presentation, and `await sample.reset()` to replace the child with a fresh copy of its
-initial state; a reload inside the child reconnects the same child. The bubbling
+page module can await the element's `ready` promise for the current child's
+presentation; Reset and a reload inside the child each replace that promise. `await
+sample.reset()` replaces the child with a fresh copy of its initial state, and a
+reload inside the child reconnects the same child. When the child cannot be loaded,
+`ready` rejects and the sample shows the error with Reset available. The bubbling
 `lf-sample-ready` event carries `detail.sample` after each presentation, including
 Reset and a reload, so host controls can reapply a selected view without inspecting
 the Reset button. While the child shows a document that is not its Leaf page, such

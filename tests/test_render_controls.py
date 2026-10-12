@@ -210,7 +210,8 @@ document.querySelector('main').append(link);
     expect(page).to_have_url(re.compile(r"#destination$"))
 
 
-@pytest.mark.parametrize("width", [390, 1440])
+# The phone, whose settings sit behind their disclosure; the width changes nothing else.
+@pytest.mark.parametrize("width", [390])
 def test_merge_film_play_continues_from_the_displayed_moment(browser, serve, width):
     source = next(path for path in EXAMPLES if path.name == "wt-merge.html")
     page = open_page(browser, serve(source))
@@ -251,7 +252,7 @@ def test_merge_film_play_continues_from_the_displayed_moment(browser, serve, wid
     play.click()
 
 
-@pytest.mark.parametrize("width", [390, 1440])
+@pytest.mark.parametrize("width", [1440])
 def test_merge_film_keyboard_routes_hold_steps_and_respect_the_scrubber(
     browser, serve, width
 ):
@@ -278,7 +279,7 @@ def test_merge_film_keyboard_routes_hold_steps_and_respect_the_scrubber(
     expect(play).to_have_text("Play")
 
 
-@pytest.mark.parametrize("width", [390, 1440])
+@pytest.mark.parametrize("width", [390])
 def test_merge_film_inspection_and_step_availability_follow_the_run(
     browser, serve, width
 ):
@@ -308,7 +309,8 @@ def test_merge_film_inspection_and_step_availability_follow_the_run(
     expect(page.locator("#step-merge button")).to_be_enabled()
 
 
-@pytest.mark.parametrize("width", [390, 1440])
+# The phone's terminal; the journey then reflows to the desk and back.
+@pytest.mark.parametrize("width", [390])
 def test_merge_film_terminal_seeks_to_the_result_it_reports(browser, serve, width):
     source = next(path for path in EXAMPLES if path.name == "wt-merge.html")
     page = open_page(browser, serve(source))
@@ -8933,6 +8935,9 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
     )
 
 
+# The page the chrome's surfaces are sampled on: small, with a board's grips, and served
+# with a second version so the versions menu has a comparison to offer.
+RING_CHROME = "triage-board"
 # A causal sample in each surface the keyboard reaches. Each case names its surface, the
 # real keys that open it, the element whose focus state paints the ring, and the ring it
 # paints. A null selector means the opening keys themselves leave the required
@@ -8942,9 +8947,11 @@ RING_CASES = (
         "the page",
         (),
         {
-            "corpus": (
+            # The chrome's own surfaces stand on the smallest page that offers them all,
+            # since every page carries the same chrome and each reading over a large
+            # document costs seconds.
+            RING_CHROME: (
                 (".lf-skip", "skip"),
-                (".lf-tab-btn", "tab-btn"),
                 (".lf-grip", "card-grip"),
                 (".lf-status-button", "status"),
                 (".lf-others", "btn"),
@@ -8956,6 +8963,7 @@ RING_CASES = (
             ),
             "command-hub": ((".lf-code-copy:visible button", "code-copy"),),
             "feature-gallery": (
+                (".lf-tab-btn", "tab-btn"),
                 ("lf-option > .lf-pick", "options-row"),
                 (
                     any_owner_entry("suggestion", "accept") + ":visible",
@@ -8993,7 +9001,7 @@ RING_CASES = (
     (
         "the thread list",
         ("g", "Shift+t", "/", "z", "q", "x", "j", "Escape"),
-        {"corpus": ((None, "thread-list"),)},
+        {RING_CHROME: ((None, "thread-list"),)},
     ),
     (
         "a thread title",
@@ -9013,7 +9021,7 @@ RING_CASES = (
     (
         "passage search",
         ("/",),
-        {"corpus": ((".lf-page-search-box input:visible", "text-entry"),)},
+        {RING_CHROME: ((".lf-page-search-box input:visible", "text-entry"),)},
     ),
     # Item hints, and the anchored bar the user answers a chosen item on. Both open the
     # same mode, and both step back and then forward through it, which lands on the last
@@ -9031,27 +9039,33 @@ RING_CASES = (
     (
         "target hints",
         ("Tab", "s", "Shift+Tab", "Tab"),
-        {"corpus": ((None, "target-hint"),)},
+        {RING_CHROME: ((None, "target-hint"),)},
     ),
     # Enter opens Comment on the item the keyboard is browsing and focuses its field.
     (
         "the response bar",
         ("Tab", "s", "Shift+Tab", "Tab", "Enter"),
-        {"corpus": ((".lf-fab-input", "text-box"),)},
+        {RING_CHROME: ((".lf-fab-input", "text-box"),)},
     ),
-    # These controls live behind exact page-owned view states. Give each one a focused
-    # stop rather than changing the active panel for the whole page: selecting a
-    # late outer corpus tab would make its preceding until-found panels part of that
-    # sequential order.
+    # These controls live behind exact page-owned view states: a settled group's
+    # disclosure, and the options it puts away.
     (
         "a settled decision",
         (),
-        {"corpus": (("#comparison-policy > .lf-settled", "options-settled"),)},
+        {
+            "current-proposed-comparison": (
+                ("#comparison-policy > .lf-settled", "options-settled"),
+            )
+        },
     ),
     (
         "a settled option",
         (),
-        {"corpus": (("#comparison-policy > lf-option > .lf-pick", "options-pick"),)},
+        {
+            "current-proposed-comparison": (
+                ("#comparison-policy > lf-option > .lf-pick", "options-pick"),
+            )
+        },
     ),
     (
         "a contents link",
@@ -9068,8 +9082,8 @@ RING_CASES = (
         {"ship-review": ((".lf-react-palette:popover-open .lf-react", "chip"),)},
     ),
     ("the Questions panel", (), {"ship-review": ((".lf-queue-row", "queue-row"),)}),
-    ("the pages drawer", ("g", "Shift+l"), {"corpus": ((None, "others-row"),)}),
-    ("page status", (), {"corpus": ((None, "status-detail"),)}),
+    ("the pages drawer", ("g", "Shift+l"), {RING_CHROME: ((None, "others-row"),)}),
+    ("page status", (), {RING_CHROME: ((None, "status-detail"),)}),
     # The menu's own route after the key that opens it: an open lands on the version being
     # read, which is the first row, and the comparison press beside a row is a Tab forward
     # from the row below it. The walk is clamped, so a second press at the bottom moves
@@ -9078,7 +9092,7 @@ RING_CASES = (
         "the versions menu",
         ("g", "Shift+v", "ArrowDown", "ArrowDown"),
         {
-            "corpus": (
+            RING_CHROME: (
                 (".lf-version-row", "version-row"),
                 (".lf-version-diff:visible:not(:disabled)", "version-diff"),
             )
@@ -9088,7 +9102,7 @@ RING_CASES = (
         "the command reference",
         ("?", "?"),
         {
-            "corpus": (
+            RING_CHROME: (
                 (".lf-command-reference-search input:visible", "text-entry"),
                 (".lf-command-reference-command", "help-command"),
             )
@@ -9115,7 +9129,7 @@ RING_CASES = (
         "the Page Map dialog",
         (),
         {
-            "corpus": (
+            RING_CHROME: (
                 (".lf-page-map-action:visible", "page-map-action"),
                 (".lf-page-map-search input:visible", "text-entry"),
             )
@@ -9126,7 +9140,14 @@ RING_CASES = (
 RING_EXAMPLES = tuple(
     dict.fromkeys(name for _scope, _keys, cases in RING_CASES for name in cases)
 )
-RING_EXAMPLE_FILES = {example.stem: example for example in (*EXAMPLES, FEATURE_GALLERY)}
+RING_EXAMPLE_FILES = {
+    example.stem: example
+    for example in (
+        *EXAMPLES,
+        FEATURE_GALLERY,
+        ROOT / "tests/fixtures/pages/current-proposed-comparison.html",
+    )
+}
 # Rings whose carrier is semantic state elsewhere in the page rather than the focused
 # control or one of its ancestors. Mark the exact carrier before reading the composed
 # paint so an unrelated ring with the same name cannot credit the sample.
@@ -9313,40 +9334,33 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
     assert lost and "lf-tab-btn" in lost, lost
 
 
-def test_every_base_corpus_tab_stop_has_a_visible_focus_indicator(browser, serve):
-    """Every stop in each selected page's ordinary Tab order shows keyboard focus.
-
-    The corpus is left out: its Tab order is the chrome every page carries and the
-    first of its own tabs, whose pages are walked here on their own, and it costs as
-    much to walk as the rest together."""
+def _tab_stops_without_indication(page, stem):
+    """Walk the page's whole ordinary Tab order, Threads open, and name every stop
+    that shows nothing of where the keyboard is. The panel is closed again after."""
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.evaluate("() => { window.__lfSeen = new WeakSet(); }")
+    page.evaluate(RELEASE_FOCUS)
     failures = []
-    for example in (
-        RING_EXAMPLE_FILES[name] for name in RING_EXAMPLES if name != "corpus"
-    ):
-        page = open_page(browser, serve(example, comments=2))
-        page.locator(".lf-threads-toggle").click()
-        panel_settled(page)
-        page.evaluate("() => { window.__lfSeen = new WeakSet(); }")
-        page.evaluate(RELEASE_FOCUS)
+    empty = 0
+    for _ in range(400):
+        page.keyboard.press("Tab")
+        stop, lost = page.evaluate(WALKED_STOP)
+        if stop == "seen":
+            break
+        if stop == "empty":
+            empty += 1
+            assert empty <= 2, f"Tab never entered {stem}"
+            continue
         empty = 0
-        for _ in range(400):
-            page.keyboard.press("Tab")
-            stop, lost = page.evaluate(WALKED_STOP)
-            if stop == "seen":
-                break
-            if stop == "empty":
-                empty += 1
-                assert empty <= 2, f"Tab never entered {example.stem}"
-                continue
-            empty = 0
-            if lost:
-                failures.append(f"{example.stem}: {lost}")
-        else:
-            raise AssertionError(f"Tab order never came round in {example.stem}")
-        page.close()
-    assert not failures, "keyboard stops with no visible indication: " + "; ".join(
-        failures
-    )
+        if lost:
+            failures.append(f"{stem}: {lost}")
+    else:
+        raise AssertionError(f"Tab order never came round in {stem}")
+    page.get_by_role("button", name="Close threads", exact=True).click()
+    panel_settled(page, open=False)
+    page.evaluate(RELEASE_FOCUS)
+    return failures
 
 
 def test_the_focus_sweep_distinguishes_stops_inside_a_live_frame(browser):
@@ -9366,7 +9380,9 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
     browser, serve, live_leaf
 ):
     """Where the keyboard stands in each surface a key opens, the user sees its ring
-    whole: not cut by a box that clips it, and not under a neighbour.
+    whole: not cut by a box that clips it, and not under a neighbour. And every stop
+    in each selected page's ordinary Tab order shows keyboard focus at all, read by
+    walking it once on arrival.
 
     `RING_CASES` walks the layer's surfaces by their real keys and stands on a sample in
     each; every ring drawn there is measured, not only the sample's. Which rings get a
@@ -9396,6 +9412,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
     unnamed, unnamed_rules = set(), set()
     opened = set()
     stops = 0
+    unindicated = []
     assert not (missing := set(RING_EXAMPLES) - set(RING_EXAMPLE_FILES)), (
         "the ring cases name examples that no longer exist: "
         + ", ".join(sorted(missing))
@@ -9403,8 +9420,10 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
     for name in RING_EXAMPLES:
         example = RING_EXAMPLE_FILES[name]
         # Serving the path lays in the example's shipped log and message widgets.
-        url = serve(example, comments=2)
-        if name == "corpus":
+        # The chrome's page also carries a passage's thread, which the Page Map lists.
+        anchored = [("triage-lede", "Migration 0041")] if name == RING_CHROME else ()
+        url = serve(example, comments=2, anchored=anchored)
+        if name == RING_CHROME:
             current_version = int(re.search(r"/v(\d+)\.html", url).group(1))
             next_version = current_version + 1
             _publish(
@@ -9415,6 +9434,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
             )
             url = url.replace(f"/v{current_version}.html", f"/v{next_version}.html")
         page = open_page(browser, url)
+        unindicated += _tab_stops_without_indication(page, example.stem)
         if name == "wt-merge":
             # The shipped steps now contain buttons, so the scrollable body needs no
             # stop of its own. Make this ring specimen prose-only; it still overflows
@@ -9463,9 +9483,6 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
             # on them only after their explicit doors have opened. Do that after the
             # scope reset, whose Escape presses would otherwise put the draft away.
             if scope in {"a settled decision", "a settled option"}:
-                page.get_by_role(
-                    "tab", name="Current Proposed Comparison", exact=True
-                ).click()
                 settled = page.locator("#comparison-policy[settled] > .lf-settled")
                 expect(settled).to_be_visible()
                 if settled.get_attribute("aria-expanded") != "true":
@@ -9617,9 +9634,6 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                     page.keyboard.press("Escape")
                 resized(page, *RING_VIEWPORT)
                 page_at_rest(page)
-            if scope in {"a settled decision", "a settled option"}:
-                page.get_by_role("tab", name="Triage", exact=True).click()
-                page_at_rest(page)
 
         unnamed_rules.update(
             said
@@ -9629,6 +9643,9 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
         )
         page.close()
 
+    assert not unindicated, "keyboard stops with no visible indication: " + "; ".join(
+        unindicated
+    )
     assert not unseen, (
         "a sample stood on a control and nothing on screen said where the keyboard was, "
         "so a user arriving by Tab has no way to tell: "

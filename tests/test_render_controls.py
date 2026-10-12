@@ -1421,10 +1421,10 @@ RADIO_DIALOG_PAGE = leaf_page(
 
 
 def test_tab_leaves_a_radio_group_ending_a_modal_for_its_first_stop(browser, serve):
-    """A radio group is one Tab stop, so Tab from any of its members leaves the group.
-    Where the group ends a modal, the browser would carry the user out to its own
-    interface; the modal takes them round to its first stop instead, whether a member
-    is checked or not."""
+    """A radio group is one Tab stop, its checked member or else its first, so Tab from
+    any of its members leaves the group. Where the group ends a modal, the browser would
+    carry the user out to its own interface; the modal takes them round to its first
+    stop instead."""
     page = open_page(browser, serve(RADIO_DIALOG_PAGE))
     page.evaluate("() => document.getElementById('pick').showModal()")
     first = page.locator("#pick-first")
@@ -1452,15 +1452,19 @@ def test_tab_leaves_a_radio_group_ending_a_modal_for_its_first_stop(browser, ser
     page.keyboard.press("Tab")
     expect(page.locator("#disabled-first")).to_be_focused()
 
-    # A group split by another stop is left from its last member as from any other.
+    # A group split by another stop is still one stop, its first member: Tab passes
+    # over the second, and leaves from it where script put the user there.
     page.evaluate("() => document.getElementById('pick-disabled').close()")
     page.evaluate("() => document.getElementById('pick-split').showModal()")
+    middle = page.locator("#split-middle")
+    middle.focus()
+    page.keyboard.press("Tab")
+    expect(page.locator("input[value=a]")).to_be_focused()
     page.locator("input[value=b]").focus()
     page.keyboard.press("Tab")
     expect(page.locator("input[value=a]")).to_be_focused()
 
     # Checked, the split group is its checked member alone, at either end.
-    middle = page.locator("#split-middle")
     page.locator("input[value=a]").check()
     middle.focus()
     page.keyboard.press("Tab")

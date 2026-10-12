@@ -67,7 +67,8 @@ import {
   focusDestination,
   handBack,
   canPlaceFocus,
-  leavesStops,
+  nextStop,
+  tabStanding,
   tabStops,
 } from "../focus.js";
 import { renderedParent, renderedUnder } from "../shadow.js";
@@ -328,12 +329,10 @@ function enter(stop, backward) {
   if (entry) entry(backward);
   else focusDestination(stop, "step");
 }
-// Moves the user from stop `at` of `loop`, one stop on, round from one end to the other,
-// or, past an end of a frame's document, on past its frame in the page around it.
-function step(loop, stops, at, backward) {
-  const next = at + (backward ? -1 : 1);
-  if (next >= 0 && next < stops.length) enter(stops[next], backward);
-  else if (loop.outer) loop.outer.leave(backward);
+// Takes the user out past an end of `loop`'s stops: round to its other end, or, past an
+// end of a frame's document, on past its frame in the page around it.
+function leave(loop, stops, backward) {
+  if (loop.outer) loop.outer.leave(backward);
   else if (stops.length) enter(backward ? stops.at(-1) : stops[0], backward);
   else focusDestination(loop.region, "step");
 }
@@ -359,9 +358,10 @@ export function inLoop(frame) {
 export function movePast(frame, backward) {
   const loop = currentLoop();
   if (!loop) return;
-  const stops = tabStops(loop.region);
-  const at = stops.indexOf(frame);
-  step(loop, stops, at >= 0 ? at : backward ? stops.length : -1, backward);
+  const standing = tabStanding(loop.region, frame);
+  const next = standing && standing.held ? nextStop(standing, backward) : null;
+  if (next) enter(next, backward);
+  else leave(loop, standing?.stops ?? tabStops(loop.region), backward);
 }
 
 // Where Tab would leave the loop around the user, the loop moves them instead: round to
@@ -378,8 +378,9 @@ addEventListener("keydown", (event) => {
   const backward = event.shiftKey;
   const loop = currentLoop();
   if (!loop) return;
-  const stops = tabStops(loop.region);
-  if (stops.length && !leavesStops(stops, deepFocus(), backward)) return;
+  const standing = tabStanding(loop.region, deepFocus());
+  const stops = standing?.stops ?? tabStops(loop.region);
+  if (stops.length && (!standing || nextStop(standing, backward))) return;
   event.preventDefault();
-  step(loop, stops, stops.length && backward ? 0 : stops.length - 1, backward);
+  leave(loop, stops, backward);
 });

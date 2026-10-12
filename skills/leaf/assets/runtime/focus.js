@@ -93,41 +93,43 @@ const takesStop = (node) =>
   !node.matches(":disabled") &&
   !node.inert &&
   node.checkVisibility({ visibilityProperty: true });
-// A radio group with a checked member that takes a stop is that one stop: Tab passes
-// over its other members from any direction.
-const passedRadio = (node) =>
-  groupedRadio(node) &&
-  !node.checked &&
-  radioGroup(node).some((radio) => radio.checked && takesStop(radio));
-// The stops Tab may stand at inside `root` right now, in document order: the candidates
-// above, and the embedded documents and players Tab also enters, that take a stop,
-// through open shadow trees as rendered. A group with no checked member lists every
-// member, though Tab leaves it from any of them (`leavesStops`). Positive `tabindex`
-// ordering is not modelled. The modal Tab loop reads this (layer-stack.js).
-export const tabStops = (root) =>
-  [...renderedElements(root)].filter(
-    (node) => node.matches(SEQUENTIAL) && takesStop(node) && !passedRadio(node),
-  );
-
-// The index of the stop in `stops` the user at `node` stands at, or -1: the innermost
-// stop holding them, so a control in a component's shadow tree stands at the stop its
-// host declares.
-function standingAt(stops, node) {
-  const holds = (stop) => {
-    for (let at = node; at; at = upFrom(at)) if (at === stop) return true;
-    return false;
-  };
-  return stops.findLastIndex(holds);
+// A radio group is one stop, whichever way Tab moves: its checked member where that
+// member takes a stop, and otherwise its first member that does. Tab passes over the
+// rest, as Chromium does.
+function passedRadio(node) {
+  if (!groupedRadio(node)) return false;
+  const group = radioGroup(node).filter(takesStop);
+  return (group.find((radio) => radio.checked) ?? group[0]) !== node;
 }
-// Whether Tab from `node`, or Shift+Tab, leaves `stops`: past the stop it stands at, only
-// members of that stop's own unchecked radio group remain, and the browser passes over
-// those.
-export function leavesStops(stops, node, backward) {
-  const at = standingAt(stops, node);
-  if (at < 0) return false;
-  const beyond = backward ? stops.slice(0, at) : stops.slice(at + 1);
-  const group = groupedRadio(stops[at]) ? radioGroup(stops[at]) : [];
-  return beyond.every((stop) => group.includes(stop));
+const isStop = (node) =>
+  node.matches(SEQUENTIAL) && takesStop(node) && !passedRadio(node);
+// The stops Tab walks inside `root` right now, in the order it walks them: the candidates
+// above, and the embedded documents and players Tab also enters, that take a stop,
+// through open shadow trees as rendered. Positive `tabindex` ordering is not modelled.
+// The modal Tab loop reads this (layer-stack.js).
+export const tabStops = (root) => [...renderedElements(root)].filter(isStop);
+// Where the user at `node` stands among the stops inside `root`, or null where `node`
+// is not inside it: `at` is the stop holding them, the innermost, so a control in a
+// component's shadow tree stands at the stop its host declares, or, where no stop
+// holds them, the number of stops before them, so Tab goes on from their place.
+export function tabStanding(root, node) {
+  const stops = [];
+  let before = -1;
+  for (const element of renderedElements(root)) {
+    if (element === node) before = stops.length;
+    if (isStop(element)) stops.push(element);
+  }
+  if (before < 0) return null;
+  for (let at = node; at && at !== root; at = upFrom(at)) {
+    const held = stops.indexOf(at);
+    if (held >= 0) return { stops, at: held, held: true };
+  }
+  return { stops, at: before, held: false };
+}
+// The stop Tab moves to from that standing, or null where it leaves the stops.
+export function nextStop({ stops, at, held }, backward) {
+  const next = backward ? at - 1 : held ? at + 1 : at;
+  return stops[next] ?? null;
 }
 
 // Put the user on an element, saying what moved them there. Every focus the runtime and

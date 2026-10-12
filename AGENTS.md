@@ -165,8 +165,8 @@ product decisions its module embodies and the alternatives they rejected; a chan
 that reverses one rewrites that record and says so in its commit. A workflow for one
 kind of task goes in `/developing-leaf`.
 
-Describe a set in prose by what its members share, such as "an entry named after a
-key in `vendor.py`'s `BUILDS`", so a new member needs no edit. Where the prose must
+Describe a set in prose by what its members share, such as "a directory under
+`build/` named after a row of `vendor.mjs`'s `bundles`", so a new member needs no edit. Where the prose must
 list them, a test holds the list to the machine's copy (`tests/AGENTS.md`, "Put
 each assertion at the boundary that owns it").
 
@@ -345,9 +345,9 @@ selection, `uv run pytest tests`, and `pnpm run test:runtime` run at landing
 `worker/src/` and `build/browser/`, and the JavaScript lock every committed bundle is built from have gates the suite and
 pre-commit do not reach. Both landing paths run all of them: a pull request in its
 `test` job, and `wt merge` in the pre-merge blocks of `.config/wt.toml`.
-`package.json` owns their shared Node gate list in `check` and their earlier
-bundle rebuild in `check:bundles`. `wt hook pre-merge` runs that local gate without landing, on a committed
-tree, since the bundle check fails on any uncommitted change. The website's delivery
+`package.json` owns their shared Node gate list in `check`, which compares every
+committed bundle with a rebuild. `wt hook pre-merge` runs that local gate without
+landing. The website's delivery
 checks — the site build, the Worker's dry-run deploy, and
 `leaf-dev verify-site website-worker` — run on a pull request and in `publish-site` before it
 deploys, not in `wt merge`.

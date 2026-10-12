@@ -356,7 +356,7 @@ def cmd_open(page_dir: Path, subject: str, title: str, owner: str) -> dict:
                     "`leaf response reply <answer.ref>`, or `leaf thread reply "
                     "<page> <thread>` when no answer is owed"
                 )
-            return append_admitted(
+            record, _ = append_admitted(
                 page,
                 {
                     "kind": "task",
@@ -367,6 +367,7 @@ def cmd_open(page_dir: Path, subject: str, title: str, owner: str) -> dict:
                     "title": title,
                 },
             )
+            return record
 
     return write(page_dir)
 
@@ -400,7 +401,7 @@ def take_in_hand(page, item: str, text: str, identity: dict) -> dict:
     turn = (
         claim.get("turn") if claim and claim["id"] == identity.get("session") else None
     )
-    record = append_admitted(
+    record, _ = append_admitted(
         page,
         {
             "kind": "start",
@@ -448,9 +449,10 @@ def put_down(page) -> dict | None:
 
     if not item_starts(page.events):
         return None
-    return append_admitted(
+    record, _ = append_admitted(
         page, {"kind": "put_down", "author": "agent", **message_identity()}
     )
+    return record
 
 
 def cmd_end(page_dir: Path, task: str, outcome: str, detail: str | None) -> dict:
@@ -464,7 +466,7 @@ def cmd_end(page_dir: Path, task: str, outcome: str, detail: str | None) -> dict
     @contract_writer
     def write(page_dir: Path) -> dict:
         with PageTransaction(page_dir) as page:
-            return append_admitted(
+            record, _ = append_admitted(
                 page,
                 {
                     "kind": "task_end",
@@ -475,5 +477,6 @@ def cmd_end(page_dir: Path, task: str, outcome: str, detail: str | None) -> dict
                     **({"detail": detail} if detail is not None else {}),
                 },
             )
+            return record
 
     return write(page_dir)

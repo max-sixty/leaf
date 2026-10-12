@@ -53,15 +53,9 @@ importers:
       '@earendil-works/pi-ai':
         specifier: 1.0.4
         version: 1.0.4(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.32.0(zod@4.6.5))(@smithy/hash-node@4.5.2)(@smithy/signature-v4@5.7.4)(undici@7.29.1)(ws@8.21.3)(zod@4.6.5)
-      '@floating-ui/core':
-        specifier: 1.8.0
-        version: 1.8.0
       '@floating-ui/dom':
         specifier: 1.8.0
         version: 1.8.0
-      '@floating-ui/utils':
-        specifier: 0.2.12
-        version: 0.2.12
       '@happy-dom/global-registrator':
         specifier: 20.14.5
         version: 20.14.5
@@ -101,9 +95,6 @@ importers:
       amaro:
         specifier: 1.2.1
         version: 1.2.1
-      crelt:
-        specifier: 1.0.7
-        version: 1.0.7
       d3:
         specifier: 7.9.0
         version: 7.9.0
@@ -152,9 +143,6 @@ importers:
       sortablejs:
         specifier: 1.15.7
         version: 1.15.7
-      style-mod:
-        specifier: 4.1.4
-        version: 4.1.4
       typescript:
         specifier: 7.0.2
         version: 7.0.2
@@ -167,9 +155,6 @@ importers:
       vitest:
         specifier: 5.0.0
         version: 5.0.0(@opentelemetry/api@1.9.1)(@types/node@26.4.1)(happy-dom@20.14.5)(vite@8.2.2(@types/node@26.4.1)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
-      w3c-keyname:
-        specifier: 2.2.8
-        version: 2.2.8
       wrangler:
         specifier: 4.149.0
         version: 4.149.0(@cloudflare/workers-types@5.20261009.1)(@types/node@26.4.1)

@@ -477,7 +477,7 @@ languages a page can highlight, has one home, so the two runtimes cannot disagre
 about it. Either one language owns it and the other receives it as data, as the
 browser receives the server's folds in `/api/state`, or the registry declares it,
 Python reads it there, and the browser's copy is generated from it, as
-`build/vendor.py` writes `runtime/syntax-languages.js` from `$languages`. A parity
+`build/registry.mjs` writes `runtime/syntax-languages.js` from `$languages`. A parity
 fixture or a test that scans one language's source for the other's names keeps two
 copies in step instead, so in review a new one is a flag that asks why the fact is
 not generated.

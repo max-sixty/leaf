@@ -1105,10 +1105,6 @@ export default [
     rules: { "no-undef": "error" },
   },
   {
-    files: ["build/pierre/build.mjs"],
-    languageOptions: { globals: { process: "readonly" } },
-  },
-  {
     // Python executes these test expressions and modules inside the browser. Their
     // source is linted here rather than hidden inside Python string literals.
     files: ["tests/browser/**/*.js"],

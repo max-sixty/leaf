@@ -2757,6 +2757,18 @@ def test_a_sidebar_pages_track_stays_in_view_only_beside_the_body(browser, serve
             (900,),
             False,
         ),
+        (
+            (
+                "#body { flex: 0 0 400px } #track { flex: 0 0 420px;"
+                " margin-inline-start: auto; margin-block-start: -100px }"
+            ),
+            block,
+            "",
+            "",
+            (900,),
+            False,
+        ),
+        ("#body { margin-block-start: 200px }", block, "", "", (900,), True),
     )
     for css, track, lead, after, widths, sticks in cases:
         source = leaf_page(

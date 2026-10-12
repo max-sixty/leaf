@@ -632,36 +632,51 @@
   // block it holds in view only there. Flex wrapping places it, from the window's width,
   // the shares the page gives the track and the body, and the minimum the body's content
   // declares, and no query reads that. A track stands beside the body when one of
-  // `main`'s own boxes shares its line, level with it and wholly to one side of it.
-  // Another track does not count; a box on another line, such as the header, the footer
-  // or a stacked body, is above or below it, or spans it. Sticking moves only the block
-  // inside the track, so the track's own box is where the flex line put it. Every box is
-  // read before any track is written.
+  // `main`'s own boxes shares its line and stands wholly to one side of it. Another track
+  // does not count; a box on another line, such as the header, the footer or a stacked
+  // body, is above or below it, or spans it. A flex line holds its items' margin boxes,
+  // whatever margins a page gives them, so two boxes share a line where their margin
+  // boxes are level. Sticking moves only the block inside the track, so the track's own
+  // box is where the flex line put it. Every box is read before any track is written.
   const BESIDE = "data-lf-beside";
+  const lineBox = (element, style) => {
+    const { left, right, top, bottom, width } = element.getBoundingClientRect();
+    return {
+      left,
+      right,
+      width,
+      top: top - parseFloat(style.marginTop),
+      bottom: bottom + parseFloat(style.marginBottom),
+    };
+  };
   const stand = () => {
     const main = document.querySelector("body > main");
     if (!main) return false;
+    const children = [...main.children].map((child) => [
+      child,
+      getComputedStyle(child),
+    ]);
+    const isTrack = ([, style]) =>
+      style.getPropertyValue("--lf-resident").trim() === "track";
+    if (!children.some(isTrack)) return false;
     const tracks = [];
     const own = [];
-    for (const child of main.children) {
-      if (getComputedStyle(child).getPropertyValue("--lf-resident").trim() === "track")
-        tracks.push(child);
-      else if (child.checkVisibility()) own.push(child.getBoundingClientRect());
+    for (const [child, style] of children) {
+      const line = child.checkVisibility() ? lineBox(child, style) : null;
+      if (isTrack([child, style])) tracks.push([child, line]);
+      else if (line) own.push(line);
     }
-    const readings = tracks.map((track) => {
-      if (!track.checkVisibility()) return [track, false];
-      const { left, right, top, bottom } = track.getBoundingClientRect();
-      return [
-        track,
+    const readings = tracks.map(([track, line]) => [
+      track,
+      line !== null &&
         own.some(
           (box) =>
             box.width > 0 &&
-            box.top < bottom - 0.5 &&
-            box.bottom > top + 0.5 &&
-            (box.right <= left + 0.5 || box.left >= right - 0.5),
+            box.top < line.bottom - 0.5 &&
+            box.bottom > line.top + 0.5 &&
+            (box.right <= line.left + 0.5 || box.left >= line.right - 0.5),
         ),
-      ];
-    });
+    ]);
     let changed = false;
     for (const [track, beside] of readings) {
       if (track.hasAttribute(BESIDE) === beside) continue;

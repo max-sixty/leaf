@@ -99,7 +99,10 @@ and receive semantic state through `widgetController`, without a reactive copy o
 that state.
 
 Templates own generated containers or bounded ranges, rather than authored
-children. Key rows with `repeat` to retain their nodes across reorders.
+children. `repeat` keys template rows, retaining a row's nodes across reorders but
+recreating a row that moves to another `repeat`, so place nodes the module itself
+retains with `setChildren`, and lists that trade nodes the user may stand in with
+`setChildLists`, which moves each straight from the list it leaves.
 
 Every placement of a retained node, by `render`, `repeat`, `setChildren` or
 `move`, keeps the user standing in it. Within one composed root it uses native
@@ -947,7 +950,9 @@ redeliver unchanged data to keep a timestamp current.
 `revision`. An unchanged source keeps that origin when another source changes.
 
 The renderer owns its nodes and their placement. Use `setChildren(parent, nodes)`
-for retained native nodes: it moves only what is out of place. For an individual
+for retained native nodes: it moves only what is out of place. Where nodes move
+between parents, place every list at once with `setChildLists([[parent, nodes], …])`,
+outer parents first. For an individual
 placement use `move(parent, node, before)`, with `null` to append;
 `repeat(records, keyOf, template)` retains keyed template rows. Each keeps native state
 as **Template rendering** describes. Leave
@@ -1110,7 +1115,8 @@ this.threads = mountThreadViews(this, (collection, surfaces) => {
 });
 ```
 
-The widget owns outlet creation and layout. Leaf requires every outlet to remain
+The widget owns outlet creation and layout, and Leaf owns the outlet's children.
+Leaf requires every outlet to remain
 inside its owner, and a consumer may render each Thread only once per callback.
 The handle's `update()` requests a new render after a local layout change.
 

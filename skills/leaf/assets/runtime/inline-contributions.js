@@ -4,7 +4,7 @@
    page selects. The shared control owner retains each native entry when its dynamic
    target moves between a page annotation and a Thread. This owner only seats those
    controls beside the currently connected target, after conversation commits. */
-import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
+import { setChildren } from "./dom-children.js";
 import { contributionEntries } from "./contributions.js";
 import {
   activateContributionControl,
@@ -40,7 +40,7 @@ export function createInlineContributions({ targetPath }) {
       if (!grouped.has(target)) {
         for (const offered of offers)
           clearContributionControls(offered, "inline", new Set());
-        render(nothing, host);
+        host.replaceChildren();
         host.remove();
         hosts.delete(target);
       }
@@ -82,14 +82,7 @@ export function createInlineContributions({ targetPath }) {
       const nodes = [...controls("before"), ...controls("after")];
       for (const node of nodes) node.removeAttribute("data-lf-margin-entry-primary");
       const restoreFocus = holdFocus(host);
-      render(
-        html`${repeat(
-          nodes,
-          (node) => node,
-          (node) => node,
-        )}`,
-        host,
-      );
+      setChildren(host, nodes);
       restoreFocus?.();
       if (target.nextSibling !== host) {
         const keepFocus = holdFocus(host);

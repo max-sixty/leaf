@@ -9534,6 +9534,11 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
             )
             url = url.replace(f"/v{current_version}.html", f"/v{next_version}.html")
         page = open_page(browser, url)
+        if name == "command-hub":
+            # Code copy is offered only while its source is on screen. Reach the
+            # source before sampling the copy button's focus ring.
+            page.locator("#ledger-fixture pre").scroll_into_view_if_needed()
+            rendered(page)
         if name == "wt-merge":
             # The shipped steps now contain buttons, so the scrollable body needs no
             # stop of its own. Make this ring specimen prose-only; it still overflows

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createSemanticApplication } from "./application.ts";
 import { createPresentationCoordinator } from "./presentation.ts";
-import { stateDefinition } from "../../skills/leaf/assets/runtime/registry-contract.js";
+import { projectionOrigins } from "../../skills/leaf/assets/runtime/projection/model.js";
 import {
   servedGestureSequence,
   servedReading,
@@ -10,6 +10,32 @@ import {
   servedWorkflow,
 } from "../../tests/served.mjs";
 
+// An operation definition as composition stamps one into `$states`. The browser only
+// compares definitions, so a fixture's need only differ where the operations do.
+const definition = (tag, spec) => ({
+  origin: tag,
+  unit: spec.unit,
+  record: spec.record ?? null,
+  creates: spec.creates ?? null,
+  detail: spec.detail ?? null,
+});
+// A registry with `$states` stamped from its declarations, each verb's writer as stated.
+const stamped = (registry) => ({
+  ...registry,
+  $states: Object.fromEntries(
+    Object.entries(registry)
+      .filter(([tag]) => !tag.startsWith("$"))
+      .map(([tag, entry]) => [
+        tag,
+        Object.fromEntries(
+          Object.entries(entry["x-state"] ?? {}).map(([verb, verbSpec]) => [
+            verb,
+            { writer: verbSpec.writer, definition: definition(tag, verbSpec) },
+          ]),
+        ),
+      ]),
+  ),
+});
 const spec = {
   unit: "widget",
   detail: {
@@ -96,9 +122,7 @@ const state = (taken, events = []) => ({
                 ...event,
                 meaning: {
                   ...event.meaning,
-                  state:
-                    event.meaning?.state ??
-                    stateDefinition("lf-choice", descriptor.declaration, spec),
+                  state: event.meaning?.state ?? definition("lf-choice", spec),
                 },
               },
               coordinate: [event.widget, event.widget, event.action],
@@ -135,10 +159,12 @@ const capture = (extraDescriptors = [], extraAuthored = []) => {
   app.identify(1);
   app.captureDocument({
     ...app.read().document,
-    registry: Object.fromEntries([
-      ["lf-choice", { "x-state": { decide: { ...spec, writer: "user" } } }],
-      ...extraDescriptors.map(([, captured]) => [captured.tag, captured.declaration]),
-    ]),
+    registry: stamped(
+      Object.fromEntries([
+        ["lf-choice", { "x-state": { decide: { ...spec, writer: "user" } } }],
+        ...extraDescriptors.map(([, captured]) => [captured.tag, captured.declaration]),
+      ]),
+    ),
     authored: new Map([
       [
         "choice",
@@ -794,6 +820,24 @@ test("filtered widget state is selected inside the publisher", () => {
   assert.equal(outcomeOf(app.selectWidgets(null).get("choice").state), "accept");
 });
 
+test("a served decision on a verb the shown registry lacks is left out", () => {
+  // A pinned revision captures its thread widgets under its own registry, while the
+  // server classifies thread decisions under the active revision's, which may declare
+  // a verb the pinned one does not. Its widgets hold no state to fold that decision into.
+  const app = setup();
+  const later = { ...action("later"), action: "pick", id: "e1", seq: 1 };
+  const reading = state(2, [later]);
+  Object.assign(reading.browser.views[1].document.projection.entries[0], {
+    coordinate: ["choice", "choice", "pick"],
+    spec: { unit: "widget", record: { kind: "value", attr: "pick" } },
+  });
+  assert.equal(app.adopt(reading), true);
+  assert.equal(decision(app), null);
+  // What paints a projection's provenance reads each entry against its authored state.
+  const { document, effective } = app.read();
+  assert.doesNotThrow(() => projectionOrigins(document.authored, effective.projection));
+});
+
 test("admitted edits, a raced undo refusal, and revisions share one sequence", () => {
   const sequence = servedGestureSequence();
   for (const refusalFirst of [false, true]) {
@@ -804,7 +848,7 @@ test("admitted edits, a raced undo refusal, and revisions share one sequence", (
     const document = (revision) => ({
       ...app.read().document,
       revision,
-      registry: { "lf-draft": declaration },
+      registry: { "lf-draft": declaration, $states: { "lf-draft": sequence.stamped } },
       authored: new Map([
         [
           "draft-ops",
@@ -1417,7 +1461,7 @@ test("an unsettled report supplies desired widget state", () => {
     seq: 1,
   };
   report.meaning = {
-    state: stateDefinition(source.tag, source.declaration, valueSpec),
+    state: definition(source.tag, valueSpec),
   };
   accepted.events = [report];
   accepted.browser.basis.through_seq = 1;
@@ -1599,12 +1643,16 @@ test("a revision preserves pending delivery while replacing incompatible specula
   app.enqueue({ kind: "undo", undoes: pending.localId, attempt: "undo-old" }, "now");
   const document = structuredClone(app.read().document);
   document.revision = 2;
-  const revisedSpec = { ...spec, record: { kind: "value", attr: "status" } };
+  const revisedSpec = {
+    ...spec,
+    writer: "user",
+    record: { kind: "value", attr: "status" },
+  };
   const declaration = {
     properties: { status: { type: "integer" } },
     "x-state": { decide: revisedSpec },
   };
-  document.registry["lf-choice"] = declaration;
+  document.registry = stamped({ ...document.registry, "lf-choice": declaration });
   document.descriptors.set("choice", {
     ...descriptor,
     declaration,
@@ -1629,6 +1677,43 @@ test("a revision preserves pending delivery while replacing incompatible specula
   assert.equal(app.read().unresolved.length, 3);
 });
 
+test("a pending undo keeps withdrawing its target once the log admits it under a revision", () => {
+  const app = setup();
+  const pending = app.enqueue(action("decided"), "now");
+  app.enqueue(
+    { kind: "undo", undoes: pending.localId, attempt: "undo-decided" },
+    "now",
+  );
+  assert.equal(decision(app), null);
+  // Revision 2 broadens the domain: the server keeps the admitted decision, while the
+  // definition this tab recorded no longer equals the shown one.
+  const broadened = {
+    ...spec,
+    writer: "user",
+    detail: {
+      ...spec.detail,
+      properties: { outcome: { enum: ["accept", "reject", "defer"] } },
+    },
+  };
+  const document = structuredClone(app.read().document);
+  document.revision = 2;
+  document.registry = stamped({
+    ...document.registry,
+    "lf-choice": { "x-state": { decide: broadened } },
+  });
+  document.descriptors.set("choice", {
+    ...descriptor,
+    declaration: document.registry["lf-choice"],
+    document: { kind: "page", revision: 2 },
+  });
+  const reading = state(2, [{ ...action("decided"), id: "e1", seq: 1 }]);
+  reading.active.revision = 2;
+  reading.browser.views[2] = reading.browser.views[1];
+  reading.browser.views[2].basis.revision = 2;
+  assert.equal(app.adopt(reading, document), true);
+  assert.equal(decision(app), null);
+});
+
 test("a revision changing a verb's writer retains delivery without drawing the old user gesture", () => {
   const app = setup();
   app.enqueue(action("old-user"), "now");
@@ -1637,7 +1722,7 @@ test("a revision changing a verb's writer retains delivery without drawing the o
   document.revision = 2;
   const agentSpec = { ...spec, writer: "agent" };
   const declaration = { "x-state": { decide: agentSpec } };
-  document.registry["lf-choice"] = declaration;
+  document.registry = stamped({ ...document.registry, "lf-choice": declaration });
   document.descriptors.set("choice", {
     ...descriptor,
     declaration,
@@ -1686,7 +1771,11 @@ test("Question contains the local typed answer while completion waits for admiss
 });
 
 test("empty completed answer and wrapper changes preserve Question identity", () => {
-  const choose = { unit: "widget", record: { kind: "attribute", attr: "chosen" } };
+  const choose = {
+    unit: "widget",
+    writer: "user",
+    record: { kind: "attribute", attr: "chosen" },
+  };
   const declared = {
     ...descriptor,
     declaration: {
@@ -1736,8 +1825,8 @@ test("pending undo removes completed empty Question values and refusal restores 
     [{ kind: "attribute", attr: "chosen" }, []],
     [{ kind: "body" }, ""],
   ]) {
-    const choose = { unit: "widget", record };
-    const answer = { unit: "widget" };
+    const choose = { unit: "widget", writer: "user", record };
+    const answer = { unit: "widget", writer: "user" };
     const declared = {
       ...descriptor,
       declaration: {
@@ -1774,11 +1863,7 @@ test("pending undo removes completed empty Question values and refusal restores 
     const reading = state(2, [accepted]);
     const entry = reading.browser.views[1].document.projection.entries[0];
     entry.spec = answer;
-    entry.event.meaning.state = stateDefinition(
-      declared.tag,
-      declared.declaration,
-      answer,
-    );
+    entry.event.meaning.state = definition(declared.tag, answer);
     const question = {
       ...wireQuestion("choice", "lf-choice"),
       status: "answered",
@@ -1817,7 +1902,7 @@ test("pending undo withdraws a decision an earlier Leaf recorded with another fi
     seq: 1,
     meaning: {
       state: {
-        ...stateDefinition("lf-choice", descriptor.declaration, spec),
+        ...definition("lf-choice", spec),
         update: false,
       },
     },

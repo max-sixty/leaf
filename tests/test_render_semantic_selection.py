@@ -801,28 +801,6 @@ def test_s_opens_the_same_comment_field_on_a_declared_visual_part(browser, serve
     assert page.evaluate("() => getSelection().toString()") == ""
 
 
-def test_selection_hints_do_not_name_page_content_behind_a_covering_panel(
-    browser, serve
-):
-    """A covering panel removes the inert document from page-target picker."""
-    page = open_page(browser, serve(TARGETS_PAGE))
-    resized(page, 400, 900)
-    page.keyboard.press("s")
-    expect(page.locator(".lf-target-picker-hint")).not_to_have_count(0)
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-target-picker-hint")).to_have_count(0)
-
-    page.locator(".lf-threads-toggle").click()
-    expect(page.locator(".lf-thread-panel")).to_be_visible()
-    assert page.locator(".lf-thread-panel").evaluate(
-        "surface => surface.closest('dialog').matches(':modal')"
-    )
-    page.keyboard.press("s")
-    assert page.locator(".lf-target-picker-hint").count() == 0, (
-        "page target picker crossed the covering auxiliary surface boundary"
-    )
-
-
 def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     """Slash is ordinary whole-page find. It narrows by the words the user knows,
     highlights one exact occurrence, and Enter hands that range to the same comment
@@ -1242,7 +1220,11 @@ def test_a_scroll_with_no_scrollend_still_refreshes_the_target_map(browser, serv
 
     A hidden target is dropped from the paint either way; the codes are what say whether
     the map was read again, because a fresh reading gives the survivors the head of the
-    alphabet."""
+    alphabet.
+
+    Before that, a letter the map does not hold is reported and costs the user nothing
+    else: resetting instead would throw away the letters they had already typed right.
+    And after it, a covering panel removes the inert document from the picker."""
     page = open_page(browser, serve(TARGETS_PAGE))
     codes = """() => [...document.querySelectorAll('.lf-target-picker-hint')]
       .map(chip => chip.dataset.lfHintCode)"""
@@ -1250,6 +1232,13 @@ def test_a_scroll_with_no_scrollend_still_refreshes_the_target_map(browser, serv
     hints = page.locator(".lf-target-picker-hint")
     expect(hints).to_have_count(3)
     assert page.evaluate(codes) == ["a", "s", "d"]
+
+    page.keyboard.press("q")
+    expect(page.locator(".lf-live")).to_have_text(
+        "No hint q. The current hints are unchanged."
+    )
+    expect(hints).to_have_count(3)
+    expect(page.locator(".lf-fab-input")).to_be_hidden()
 
     page.evaluate(
         """() => {
@@ -1261,6 +1250,23 @@ def test_a_scroll_with_no_scrollend_still_refreshes_the_target_map(browser, serv
     expect(hints).to_have_count(2)
     expect(hints.nth(1)).to_have_attribute("data-lf-hint-code", "s")
     assert page.evaluate(codes) == ["a", "s"]
+
+    page.keyboard.press("Escape")
+    expect(hints).to_have_count(0)
+    resized(page, 400, 900)
+    page.keyboard.press("s")
+    expect(hints).not_to_have_count(0)
+    page.keyboard.press("Escape")
+    expect(hints).to_have_count(0)
+    page.locator(".lf-threads-toggle").click()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
+    assert page.locator(".lf-thread-panel").evaluate(
+        "surface => surface.closest('dialog').matches(':modal')"
+    )
+    page.keyboard.press("s")
+    assert hints.count() == 0, (
+        "page target picker crossed the covering auxiliary surface boundary"
+    )
 
 
 def test_an_open_search_mark_follows_the_page_it_marks(browser, serve):
@@ -1332,23 +1338,6 @@ def test_a_nested_target_hint_follows_when_the_nesting_changes(browser, serve):
         arg=chip_left,
     )
     assert page.evaluate(step) == indented
-
-
-def test_a_letter_naming_no_target_leaves_the_hints_standing(browser, serve):
-    """A letter the map does not hold is reported and costs the user nothing else.
-    Resetting instead would throw away the letters they had already typed right."""
-    page = open_page(browser, serve(TARGETS_PAGE))
-    page.keyboard.press("s")
-    hints = page.locator(".lf-target-picker-hint")
-    expect(hints).to_have_count(3)
-
-    page.keyboard.press("q")
-
-    expect(page.locator(".lf-live")).to_have_text(
-        "No hint q. The current hints are unchanged."
-    )
-    expect(hints).to_have_count(3)
-    expect(page.locator(".lf-fab-input")).to_be_hidden()
 
 
 def test_the_key_line_moves_a_hint_rather_than_dropping_its_target(browser, serve):

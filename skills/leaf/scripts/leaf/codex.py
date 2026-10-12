@@ -18,11 +18,88 @@ the `codex queue` command, or a tool or Stop hook — so preparing, accepting, o
 and abandoning one live here rather than beside either client. The immutable
 payload itself belongs to `delivery`; what this module keeps is which task holds it and how far it has got.
 
+Each delivery has one globally addressed immutable envelope and one mutable record.
+The adapter and Codex's tool and Stop hooks capture into the same records under the
+session's delivery lock. Capture skips events already in any live record, an offer no
+transport has accepted yet included, and input collected after a record freezes
+belongs to a later delivery. The record's variant says how far it has got: capture
+(`collecting`), a frozen pointer (`offering`), an offer reserved to a hook's turn
+(`hook`), an uncertain provider start (`starting`), durable queue acceptance
+(`queued`), proven context entry (`opened`), or abandonment (`abandoned`). A frozen
+record keeps only the event identities its page receipts need. Recovery repeats an
+outcome's idempotent page effects before it removes each pending receipt, since the
+cursor alone cannot prove the exact pickup evidence was written. An outcome with no
+pending receipts moves under `history/`, including one a crash left in the live
+directory, and `leaf delivery read <id>` still resolves its envelope. Reinitializing a
+page path cannot revive a completed receipt, and a page whose events no longer match
+retires its old batch.
+
+A hook offer and the idle transport share each record. While a proven tool hook can
+reach the running claimant turn, the hook freezes a plain-reply pointer and records
+its offer's exact turn; Stop uses the same path, including for a resumed turn that
+runs no tool, and no hook repeats a pointer or takes an offer another transport owns.
+Reading the pointer in the task reserves acceptance before any page receipt. That
+exact reservation proves receipt eligibility even where no earlier tool hook proved
+delivery between steps, and the queue respects it while its turn stays eligible. An
+unread hook offer passes to the idle transport once Stop or Interrupt closes the turn,
+or once the activity reading stops believing the turn. Without an App Server
+observer, the idle transport is Codex's durable same-task queue, which receives the
+bounded id-only `leaf-delivery` pointer; a failed or uncertain queue call retries the
+same frozen pointer while the session owns a page, and the queue command never calls
+`turn/start`. With an observer, Leaf keeps the frozen delivery offering until the task
+is idle and then starts it directly. A tool-hook delivery during work owes a plain
+reply; an idle App Server delivery binds the turn's final message.
+
+A session that loses its final page leaves its collecting or offering record in place
+but inactive until the same session claims a page again. Acceptance has crossed the
+external-effect boundary, so an accepted record's remaining page receipts are
+reconciled before the adapter checks ownership and retires. If every website startup
+retry fails, its deterministic fallback settles the triggering event and removes the
+unaccepted record, while the immutable payload stays at its permanent path for a turn
+whose acceptance may have raced the failed response.
+
 Starting a delivery's App Server turn is shared as well: `start_app_server_delivery`
-reserves the reply seat, sends `turn/start`, and says whether a failed start may have
-left a turn running. Which delivery is offered, when, and what an uncertain start
-means for the turn it may have made are each client's own policy: the adapter's offer
-loop and the website's turn follower each keep theirs.
+makes the delivery's reply reservation (`delivery`), sends `turn/start`, and says
+whether a failed start may have left a turn running. Which delivery is offered, when,
+and what an uncertain start means for the turn it may have made are each client's own
+policy: the adapter's offer loop and the website's turn follower each keep theirs. The start returns the lifecycle
+publication it admitted, and both clients' folds retain its generation and provider ID
+through construction, activity and cleanup: a fold projects live activity only under
+the exact current publication with its matching turn open, under page→session locks,
+and cleans up under the matching publication after closure. A resumed new generation replaces an older live
+fold instead of borrowing it.
+
+A client that owns its task, as the website's host does, delivers the same immutable
+envelope with `turn/start` when the task is idle. The request carries the delivery id
+as its client message id, and App Server answers with the turn it made, so the starter
+knows its turn before reading a notification. The structured delivery also stays in
+the transcript, which is how a client that did not start a turn recovers the same
+binding: one resuming a task after the fact, or reading the turn a queued pointer
+opened. Once App Server accepts the turn, the host opens the claim turn under App
+Server's turn id, records the delivery against it, advances the page cursor, holds the
+task's wait lease for the container harness's lifetime, and keeps the initiating
+connection for activity. The pickup, the claim turn and streamed activity all name
+that one id, which Codex's own hooks name too, and a retry reads the durable pickup
+instead of starting the event again. Its subscription spans the active turn, the
+delivery turn's opening and that turn's terminal notification, recording both `opened`
+and the exact close, and a host that owns a starting connection closes only that turn
+on its terminal notification. A host owns the provider task and interrupts its turn
+when its initiating stream fails; the adapter observes a user-owned task and
+reconnects without interrupting it.
+
+An App Server client presents at most one thread reply in each turn's chronological
+delivery slice, with an exact response reference and `writer: "turn"`; once the turn's
+reply reservation holds it, its workflow keeps that reply operation and records that
+the turn writes it.
+The completed final-answer item finishes that exact response: the hook lets the
+provider turn close, and the client commits the provider text through the canonical
+reply writer when the terminal notification arrives. An explicit addressed reply
+commits at once through the same writer, so its validation refusals reach the agent
+while it can still correct them, and a provider final yields to a successful reply
+already recorded at its exact input. The reservation fences competing provider finals
+and failure receipts; it stores no authored content and survives a lost connection
+until commit or terminal release. `../../references/harness-codex-app-server.md`,
+"Replies", is the agent's side of this contract.
 
 Codex's hooks import this module between steps and before Stop for a task holding
 a page (`offer_hook_delivery`), so `thread`, which brings the page model and its validators,
@@ -139,11 +216,6 @@ def app_server_socket_path(endpoint: str) -> Path | None:
         "--app-server needs a local loopback ws:// endpoint or an absolute "
         "unix:/// socket"
     )
-
-
-def check_app_server_endpoint(endpoint: str) -> None:
-    """Keep the experimental unauthenticated transport on this machine."""
-    app_server_socket_path(endpoint)
 
 
 def app_server_connect(endpoint: str):
@@ -331,23 +403,23 @@ def app_server_turn_start_params(thread_id: str, payload: dict) -> dict:
 
 
 def start_app_server_delivery(send, thread_id: str, payload: dict) -> dict:
-    """Start one delivery's turn on an idle thread with its reply seat reserved.
+    """Start one delivery's turn on an idle thread with its reply reserved.
 
     `send(method, params)` is the client's request on its own connection, under
     its own request ids. The task thread id is the Leaf session id. Immediately
     before the request, this boundary captures its epoch; the returned identity
     is adopted only against that epoch or its own synchronous provider prompt.
-    A newer different prompt leaves the start uncertain and its seat reserved.
+    A newer different prompt leaves the start uncertain and its reply reserved.
     Return the admitted lifecycle publication, whose turn names the provider ID;
     every follower retains this authority instead of rereading it after other work.
 
-    The seat is reserved before `turn/start` goes out, so no other writer answers
-    the delivery its turn is about to answer. What happens to the seat when
-    the start fails depends on what the failure says. A definitive refusal
-    (`AppServerRequestRejected`) means no turn exists, so the seat goes back before
-    this raises. A successful answer missing the turn identity is uncertain too.
-    A request that went out with no answer
-    raises `AppServerDeliveryUncertain` with the seat still reserved: a turn carrying
+    The reply is reserved before `turn/start` goes out, so no other writer answers
+    the delivery its turn is about to answer. What happens to the reply reservation
+    when the start fails depends on what the failure says. A definitive refusal
+    (`AppServerRequestRejected`) means no turn exists, so the reservation is
+    released before this raises. A successful answer missing the turn identity is
+    uncertain too. A request that went out with no answer
+    raises `AppServerDeliveryUncertain` with the reply still reserved: a turn carrying
     this delivery may be running, and until something sees it, no other writer may
     answer for the delivery. Each client decides what an uncertain start means for
     the turn it may have made.
@@ -373,9 +445,9 @@ def start_app_server_delivery(send, thread_id: str, payload: dict) -> dict:
         if reply_target is not None:
             release_delivery_reply(thread_id, payload["id"], reply_target)
         raise
-    # An interrupt mid-request leaves the same uncertainty and keeps the seat too, but
-    # it passes through unwrapped so it ends the process rather than reading as a
-    # start to retry.
+    # An interrupt mid-request leaves the same uncertainty and keeps the reply
+    # reservation too, but it passes through unwrapped so it ends the process
+    # rather than reading as a start to retry.
     except Exception as error:
         raise AppServerDeliveryUncertain(
             f"the Codex App Server turn was not acknowledged: {error}"
@@ -980,10 +1052,10 @@ class AppServerReplyStream:
         A completed answer retains its delivered response address even when that
         update was settled during the turn. The reply reopens the thread.
 
-        A commit appends the reply, then clears its binding and draft in a
-        separate transaction. Every other way out releases the binding, including
-        when recording the draft's last state fails. An abandoned binding would
-        block the harness from recording that no answer is coming.
+        A commit appends the reply, then clears its reply reservation and draft in a
+        separate transaction. Every other way out releases the reservation,
+        including when recording the draft's last state fails. An abandoned
+        reservation would block the harness from recording that no answer is coming.
         """
         from .thread import release_delivery_reply
 
@@ -1037,7 +1109,7 @@ class AppServerReplyStream:
                 claimed_session=self.session_id,
             )
             with PageTransaction(page_dir) as page:
-                page.clear_delivery_reply_binding(
+                page.clear_delivery_reply_reservation(
                     self.session_id,
                     self.target["responds"],
                     self.attempt,
@@ -1112,10 +1184,10 @@ class TurnFold:
 
     Every client that watches a turn does this same work with what the turn says.
     Each notification folds into the turn's activity and final-answer readings,
-    and the activity reaches every page the task claims. The reply streams into
-    the seat of the delivery the turn carries, when that delivery owes a `turn`
-    answer. The completion commits the answer, or gives the seat back, and then
-    closes the turn on the page.
+    and the activity reaches every page the task claims. When the delivery the turn
+    carries owes a `turn` answer, the reply streams under that delivery's reply
+    reservation, and the completion commits the answer or releases the reservation
+    before it closes the turn on the page.
 
     The fold observes the session lifecycle under the provider turn id, which
     Codex's hooks name too. Its producer passes the publication it admitted;
@@ -1172,7 +1244,8 @@ class TurnFold:
         self.open_reply()
 
     def open_reply(self) -> None:
-        """Bind the seat this turn's final answer commits into."""
+        """Open the draft this turn's final answer commits from, under its delivery's
+        reply reservation."""
         if self.reply_target is not None:
             self.reply_stream = AppServerReplyStream(
                 self.session_id,
@@ -1268,7 +1341,8 @@ class TurnFold:
             self.close(terminal, reply_error)
 
     def settle_reply(self, terminal: dict) -> BaseException | None:
-        """Commit the turn's final answer, or give up the seat held for one."""
+        """Commit the turn's final answer, or release the reply reservation held
+        for one."""
         if self.reply_stream is not None:
             return self.reply_stream.finish(
                 terminal.get("status") or "failed",
@@ -1320,9 +1394,9 @@ class CarriedTurn(TurnFold):
 
     Every way the read can stop other than the completion composes a terminal of
     its own in `ended`, so a turn ends exactly once however it ended. What each
-    client adds is what Leaf calls the turn — the page turn it opens and the seat
-    its answer commits into — which it opens in `begin`, and any account beyond
-    the fold's that it owes in `close`.
+    client adds is what Leaf calls the turn — the page turn it opens and the reply
+    reservation its answer commits under — which it opens in `begin`, and any
+    account beyond the fold's that it owes in `close`.
     """
 
     silence: float | None = None
@@ -2147,8 +2221,8 @@ def finish_abandoned_batch(path: Path, batch_index: int, batch: dict) -> None:
 
     page_dir = Path(batch["page"])
     session_id = batch["session"]
-    # Seat release is part of this resumable receipt, not just its initiator.
-    # A crash immediately after the durable abandonment cannot strand a seat.
+    # Releasing the reply reservation is part of this resumable receipt, not just
+    # its initiator, so a crash right after the durable abandonment cannot strand it.
     target = delivery_stream_reply_target(session_id, path.stem)
     if target is not None:
         release_delivery_reply(session_id, path.stem, target)

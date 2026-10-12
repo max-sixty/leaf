@@ -32,7 +32,8 @@
    its content offset, which a user's scroll does not change, so a wheel, a key, or a
    deliberate landing during the hold is never fought. A scroll-limit clamp the browser
    applied because content shrank is identified by the falling limit and the scroller
-   standing exactly on it, and is not paid for twice.
+   standing exactly on it, and is not paid for twice. A correction keeps the reader's
+   place rather than choosing one (scrolling.js, `placeKept`).
 
    A mutation that spans tasks takes its hold with `take` and ends it with `finish`, which
    corrects once, then follows frame by frame while `following()` says the mutation is
@@ -58,7 +59,7 @@
    the readers outside a hold that take focus as that place. */
 import { cancelRender, nextFrame, nextRender } from "./rendering.js";
 import { headerInset, seenRect, stuckBox, visibleBand } from "./geometry.js";
-import { scrollLimit } from "./scrolling.js";
+import { placeKept, scrollLimit } from "./scrolling.js";
 import { pointerAt } from "./pointer.js";
 import { recentPlaceInput, focused } from "./focus.js";
 
@@ -180,7 +181,10 @@ export function placeKeeper(
       held: hold.at,
       withinTask: !hold.spans,
     });
-    if (delta) scroller.scrollTop += delta;
+    if (delta) {
+      scroller.scrollTop += delta;
+      placeKept(scroller);
+    }
     // Every candidate observed this reflow too; refresh their baselines after the
     // correction, or a later hand-off pays again for movement the first one absorbed.
     for (const candidate of hold.references) {

@@ -226,14 +226,6 @@ def moved_at(cdp, node):
     return name
 
 
-# The host case of the same failure: the declarations are on the element that stages the
-# tree, so both passes find it — it is in the document — and write into a light DOM the
-# shadow root hides. The markup then holds every word the entry promised and the user
-# gets none of them, which is why the gate reads the rendered page rather than the markup.
-SHADOW_HOST_PAGE = CUSTOM_WIDGET_PAGE.replace(
-    '<lf-callout id="custom-note">',
-    '<lf-callout id="custom-note" label="Escalated" urgent>',
-)
 # Every cell one unbreakable token, so no amount of wrapping gets this table
 # inside the column and the third of the theme's three cases is the one on trial.
 WIDE_TABLE_PAGE = leaf_page(
@@ -1453,23 +1445,6 @@ def shown_frames(page):
         .map(f => f.dataset.lfState)""")
 
 
-# A painted fact whose spoken copy is on the page and drawn nowhere. It is written into
-# the markup because the gate reads the rendered page and cannot tell who suppressed
-# the word. `state` is x-paints, so the runtime writes a
-# .lf-quiet span beside each of these; the style takes the box off both. One stands in
-# the open and one behind a disclosure the user has not opened.
-PAINTED_IN_SILENCE_PAGE = leaf_page(
-    "silence",
-    """
-<h1 id="h">Transport</h1>
-<div id="open-group"><lf-reading id="p-seen" label="Feed stopped" state="failure">The feeder stopped.</lf-reading></div>
-<details id="folded">
-  <summary>Weighed in March</summary>
-  <div id="folded-group"><lf-reading id="p-folded" label="Feed stopped" state="failure">The feeder stopped.</lf-reading></div>
-</details>
-""",
-    head="<style>.lf-quiet { display: none }</style>",
-)
 # A module making the mistake the scaffold's own header warns about: words injected
 # into the widget wearing the chrome face, with nothing said about whose they are.
 # It has to be a module, because a page may not author `.lf-ui` — `reserved_marker_errors`

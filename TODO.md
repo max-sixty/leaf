@@ -20,7 +20,8 @@
 
 Priority runs from **Now** to **Next** to **Etc**. Themes group related work within
 each priority; bullets are outcomes, not implementation plans. Linked notes hold the
-evidence and detailed briefs. Numbered items keep the ids shared with `notes/`.
+evidence and detailed briefs. A `#N` id names one item across this file and `notes/`;
+a new item takes a number neither uses.
 Completed work and rejected ideas live in git history or the relevant research note.
 An item marked **Unconfirmed** rests on a reading nobody has run or a design nobody
 has tried; settle that before building it.
@@ -86,13 +87,15 @@ has tried; settle that before building it.
   session's `todo_end`. Test competing continuations and keep the delayed result
   from closing the newer work ([comparison proposal](notes/comparisons.md#concrete-follow-up-proposals-2026-10-04-revised-2026-10-05)).
 
-- **Compare Leaf authoring with plain HTML (#19).** The
-  [agent-usability baseline](notes/agent-usability-evals.md#second-slice-2026-09-27)
-  now covers the live loop, a mixed batch, an elided thread, an unfamiliar package and a
-  shared data source, and calls for no new interface. Compare authoring and a feedback
-  cycle with plain HTML before improving Leaf's authoring instructions;
-  **#20** then [teaches the compositions that prove useful](notes/workspace-followups.md#item-20),
-  including how authors discover diagram comparison suggestions.
+- **#20 — Act on the plain HTML comparison.** The
+  [comparison](notes/agent-usability-evals.md#authoring-against-plain-html-2026-10-12)
+  found Leaf authors write much less CSS and script but spend 2–3 times the cost,
+  over more turns with the skill and references in context. Judges preferred
+  plain HTML's configurations, which put each alert's controls beside its evidence,
+  and Leaf's documents, which put decisions on the page.
+  [Teach the compositions that prove useful](notes/workspace-followups.md#item-20),
+  starting with per-item controls for configuration and progress through a queue,
+  and say where an owed input's `<answer.ref>` comes from.
 - **Keep agent activity intelligible throughout a task.** Run the
   [status evaluations](notes/user-feedback-responsiveness.md) for delivery,
   multi-step work, and delegation. Show the plan as well as the current step;
@@ -119,14 +122,6 @@ has tried; settle that before building it.
   establish overall page acceptance. Author delegation traces and independent
   judge cost are separate evidence.
 
-### Prose
-
-- **[Rewrite Leaf's prose for its readers](notes/prose-review.md).** The maintainer
-  rewrite is written and awaits independent review and landing. Agent instructions are
-  the next phase, scored with `evals/`. Site structure, UI vocabulary and example
-  selection wait on the five decisions in the note. Judge each rewrite by reader
-  usefulness and preserved behavior; word counts describe the cut, not its quality.
-
 ## Next
 
 ### User continuity and mobile access
@@ -135,6 +130,12 @@ has tried; settle that before building it.
   in Slack, Discord and Telegram, so an accidental press loses a long rewrite. Offer a
   way back, such as `g D` restoring the last discarded rewrite into its editor (the
   user's suggestion, 2026-10-06).
+- **Decide how far back `z` reaches.** `z` takes back the user's newest gesture
+  however old, so on a page left for weeks it can reopen a thread resolved then,
+  below the fold, and nothing puts back what an undo took. The
+  [undo-reach playground](notes/undo-reach/README.md) compares limits on that reach
+  with additions such as redo and a panel of the user's changes, and waits on the
+  user's pick.
 - **Decide when a page merits a separate phone composition.** Many pages are
   ephemeral and authored for a user reading on a large screen, so a bespoke phone
   animation may not repay its cost. Decide how the agent weighs the user's viewing
@@ -192,7 +193,7 @@ and its chrome coordinate.
   current reading.
 - **Fit `rust-sort`'s stage pane.** At 720px it runs 100px past its region, which
   `page-authoring.md` asks an author to trim or split
-  ([plan](notes/chrome-and-covers.md)).
+  ([why a workspace doesn't scroll](notes/chrome-and-covers.md#decided-a-workspace-is-a-screen)).
 - **Decide whether the desktop bottom bar goes.** Its key hints would move behind `?`
   and its status into the banner; the bar is how a desktop user learns the keys
   without asking, which is the trade to weigh ([plan](notes/chrome-and-covers.md)).
@@ -248,13 +249,12 @@ and its chrome coordinate.
   them to revise the results: turn a report into a report with live status while
   keeping its comments. They hold if revisions happen by ordinary composition. Include
   a cold agent asked for "a dashboard", the likeliest trigger for over-tiling. Run it
-  with the agent-usability baseline (#19), by extending the document, dashboard and
+  with the agent-usability baseline, by extending the document, dashboard and
   queue tasks in `evals/`. For a workspace, also measure what a screenshot of the
   document cannot show: each pane's contents through its own scroll, how much of each
   pane is empty, and whether a reader reaches every pane by key. The arrangement
   judge sees only the first screen of a pane that scrolls and is told not to infer
-  interaction, so no case yet measures whether a workspace works as a screen. The
-  plain-HTML control (`--condition html`) has never run.
+  interaction, so no case yet measures whether a workspace works as a screen.
 - **Layout values that wait for a task:** a selection-and-detail component whose phone
   form shows one side at a time; canvas regions, whose reading position is
   two-dimensional; slides as a presentation of `lf-tabs`.
@@ -373,15 +373,6 @@ on 2026-10-07.
 
 ### Development velocity
 
-- **Make test tiering much simpler.** Cost tiers went in as a stopgap to cut the
-  suite's cost quickly: a test's tier is the later of its `main`/`nightly` marks and
-  the tier its measured CI cost names in `tests/cost_tiers.json` (307 KB), with a
-  `landing` pin, a `leaf-dev cost-tiers` refresh, and a junit property to feed it
-  (`dev/leaf_dev/cost_tiers.py`). That is three encodings of one decision, and a
-  test's tier is invisible where the test is written. Find one encoding a reader can
-  see beside the test, likely by making browser tests cheap enough that fewer need
-  moving, and by decoupling shift watching from tier marks
-  (`render_harness.watches_shifts`), which is what kept these tiers out of source.
 - **Check what handing over on chosen tests costs.** Since 2026-10-04 a handover runs
   the tests the agent picks for its change, and the broad selection runs only at
   landing (`tests/AGENTS.md`, "Run what the change needs"). Before that, 25 of the
@@ -456,7 +447,10 @@ Revisit these when their stated trigger becomes real; they are not an active que
   `AGENTS.md` rather than treating it as a web domain. Establish how that context
   reaches Markdown before inferring a destination from the filename alone.
 
-- **Assess whether automatic measurement freshness is useful (#7 in the simplification audit).**
+- **Decide the site's structure before release.** Choose how much of the status
+  derivation the site explains, and whether to reorganize its pages by reader
+  ([proposal](notes/site-structure.md)). Trigger: preparing a release.
+- **Assess whether automatic measurement freshness is useful.**
   Keep the current `lf-num` source/write-time reminder for now. Look for cases where
   its warnings lead an author to update a stale claim, and weigh that benefit against
   the source binding, timestamp and special markup authors maintain. Consider
@@ -522,6 +516,15 @@ Revisit these when their stated trigger becomes real; they are not an active que
   user steps through notices one by one to catch up.
 - **#23 — Workspace persistence:** use repeated real tasks to decide whether
   users return and how much customization Leaf should own.
+- **Let a user add, remove and edit table rows.** A creating action carries only the
+  new child's id and words, not a record of several fields. The
+  [datastore review](notes/datastore-review.md) lists what a row feature must
+  support; test that list on a real table task before extending the protocol.
+  Trigger: a page whose table the user needs to edit.
+- **#16 — Named widget interfaces:** let a typed reference name the interface its
+  target implements rather than a role in its package's role table, such as
+  `$work.widgets` ([proposal](notes/named-widget-interfaces.md)). Trigger: a second
+  package implements the command `goal` or `readings` interface.
 - **Visual review beside Leaf:** coordinate a real browser target through the harness
   when review work needs it; expand inspection only when focused workspaces fail a
   real task.
@@ -576,7 +579,7 @@ Revisit these when their stated trigger becomes real; they are not an active que
   pasted text, and selection), and retention/deletion for page-local files and
   hosted Workers Logs. Page-local traces currently record raw input for this
   single-user stage; the public site keeps interaction metadata only.
-- **#6 — Codex supervision:** separate hosted and local turn supervision only
+- **#26 — Codex supervision:** separate hosted and local turn supervision only
   if hosted delivery becomes a product priority; the App Server protocol is
   already shared.
 - **Make a leaf.page dispatch survive its container.** The Worker acknowledges an
@@ -585,7 +588,7 @@ Revisit these when their stated trigger becomes real; they are not an active que
   container's Durable Object, and nothing recovers a dispatch whose container
   disappears or outlives the `waitUntil` window. Trigger: a hosted answer lost that
   way.
-- **#7 — Runtime fold tests:** add focused Node tests as rules change; extend
+- **#27 — Runtime fold tests:** add focused Node tests as rules change; extend
   `tests/runtime/dom.mjs` only when a test needs another module.
 - **Claude Code tool observation:** consider a cheap hook for sessions holding
   pages if status evaluations show that agent declarations are insufficient.

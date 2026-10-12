@@ -19,8 +19,8 @@ MESSAGE_KINDS = {"comment", "reply"}
 # The kinds a widget owns, admitted against the page's registry before they append.
 WIDGET_KINDS = {"action", "report"}
 # The operations that settle an update the agent owes, as `workflows` and
-# `activity` address them and `$events.answering` explains them. Reply writer custody
-# is separate: a provider turn may own its opening and final messages.
+# `activity` address them and `$events.answering` explains them. Which writer posts a
+# reply is separate: a reply reservation (`delivery`) gives it to a provider turn.
 ANSWER_KINDS = ("reply", "markup")
 ANSWER_ASK_INSTRUCTION = (
     "Each update takes the answer named for it. Read current obligations with "
@@ -280,11 +280,6 @@ MEASURED_SCHEMA = {
     "additionalProperties": False,
 }
 
-_ATTRIBUTE_LIST = {
-    "type": "array",
-    "items": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-    "minItems": 1,
-}
 _ATTRIBUTE_NAME = {"type": "string", "pattern": f"^{HTML_NAME}$"}
 EXTENSION_SCHEMA = {
     "type": "object",
@@ -311,10 +306,6 @@ EXTENSION_SCHEMA = {
         "x-reading-role": {"enum": ["pane"]},
         "x-resident": {"enum": ["map"]},
         "x-measured": MEASURED_SCHEMA,
-        # Attributes the theme renders as paint alone — a status marker's tint or an
-        # event's kind. The runtime speaks each as a clipped word (renderQuiet), the
-        # value or, where a flag carries no value, the attribute's own name.
-        "x-paints": _ATTRIBUTE_LIST,
         "x-patch": {"enum": ["members"]},
         "x-owners": {
             "type": "array",
@@ -433,6 +424,114 @@ EXTENSION_SCHEMA = {
     },
     "additionalProperties": False,
 }
+_NONEMPTY = {"type": "string", "minLength": 1}
+_UNIQUE_NAMES = {"type": "array", "items": {"type": "string"}, "uniqueItems": True}
+# A delivered event's handling or answering instructions: what every batch carries.
+_CLAUSES = {
+    "type": "array",
+    "minItems": 1,
+    "items": {
+        "type": "object",
+        "properties": {"text": {"type": "string", "pattern": r"\S"}, "when": {}},
+        "required": ["text"],
+        "additionalProperties": False,
+    },
+}
+# The shape of the shared layer facts a complete vocabulary carries, each read
+# directly by its consumers: a string `$tones.names` would answer the tone check's
+# membership test by substring, and a token without a `glyph` paints nothing. What
+# names another fact, or needs more than a shape (a clause's `when` and a contract's
+# `schema` are JSON Schemas, `resources` are JMESPath), `registry.layer` checks.
+LAYER_FACTS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "$events": {
+            "type": "object",
+            "properties": {
+                "kinds": {"type": "object"},
+                "handling": {"type": "object", "additionalProperties": _CLAUSES},
+                "answering": {
+                    "type": "object",
+                    "propertyNames": {"enum": list(ANSWER_KINDS)},
+                    "additionalProperties": _CLAUSES,
+                },
+            },
+            "required": ["kinds", "handling", "answering"],
+        },
+        "$languages": {
+            "type": "object",
+            "properties": {
+                "names": _UNIQUE_NAMES,
+                "paths": {"type": "object", "additionalProperties": {"type": "string"}},
+            },
+            "required": ["names", "paths"],
+        },
+        "$tones": {
+            "type": "object",
+            "properties": {"names": _UNIQUE_NAMES},
+            "required": ["names"],
+        },
+        "$data": {
+            "type": "object",
+            "properties": {
+                "description": _NONEMPTY,
+                "contracts": {
+                    "type": "object",
+                    "propertyNames": {"pattern": f"^(?:{DATA_CONTRACT_NAME})$"},
+                    "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                            "description": _NONEMPTY,
+                            "schema": {"type": "object"},
+                            "instructions": INSTRUCTIONS_SCHEMA,
+                            # Null reads as absent (`data.deferred_records`).
+                            "records": {
+                                "type": ["object", "null"],
+                                "properties": {
+                                    "items": _NONEMPTY,
+                                    "key": _NONEMPTY,
+                                    "deferred": _NONEMPTY,
+                                },
+                                "required": ["items", "key"],
+                                "additionalProperties": False,
+                            },
+                            "resources": {"type": "array", "items": _NONEMPTY},
+                        },
+                        "required": ["description", "schema"],
+                        "additionalProperties": False,
+                    },
+                },
+            },
+            "required": ["description", "contracts"],
+            "additionalProperties": False,
+        },
+        "$reactions": {
+            "type": "object",
+            "properties": {
+                "tokens": {
+                    "type": "object",
+                    "propertyNames": {"pattern": f"^(?:{HTML_NAME})$"},
+                    "additionalProperties": {
+                        "type": "object",
+                        # A glyph is a mark: at most four code points.
+                        "properties": {
+                            "glyph": {
+                                "type": "string",
+                                "pattern": r"\S",
+                                "maxLength": 4,
+                            },
+                            "settles": {"type": "boolean"},
+                        },
+                        "required": ["glyph"],
+                        "additionalProperties": False,
+                    },
+                }
+            },
+            "required": ["tokens"],
+        },
+    },
+    "required": ["$events", "$languages", "$tones", "$data", "$reactions"],
+}
 # The keys whose value names attributes of the widget's own schema, in whichever shape
 # each carries the names: a list, a mapping keyed by them, or one name. One rule for all
 # of them, because the failure is one — the attribute is absent, so the pass reading the
@@ -445,7 +544,6 @@ EXTENSION_SCHEMA = {
 ATTRIBUTE_KEYS = (
     "x-language",
     "x-name",
-    "x-paints",
     "x-refers",
     "x-says",
     "x-tone",

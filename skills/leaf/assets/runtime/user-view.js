@@ -5,7 +5,7 @@
    its viewport has room. A document id is deliberately not stored: duplicated tabs
    must never share a lease. */
 import { darkPreference, shownScheme } from "./color-scheme.js";
-import { offlineInteractive, passiveSample, pageUrl, runtime } from "./context.js";
+import { offlineInteractive, pageUrl, runtime } from "./context.js";
 import { layoutWindow, seenRect, shownWindow, watchRoom } from "./geometry.js";
 import { randomId } from "./ids.js";
 import { sessionIsActive } from "./layer-client.js";
@@ -20,7 +20,7 @@ const QUIET_MS = 300;
 const rectangle = ({ x, y, width, height }) => ({ x, y, width, height });
 
 export function observeUserView() {
-  if (offlineInteractive || passiveSample) return;
+  if (offlineInteractive) return;
   const session = randomId();
   let sequence = 0;
   let pending = null;

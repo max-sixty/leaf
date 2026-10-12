@@ -3,10 +3,11 @@ import test from "node:test";
 import {
   patchRetains,
   patchTree,
-  replaceChildren,
+  setChildLists,
   setChildren,
 } from "/runtime/dom-children.js";
 import { under } from "/runtime/shadow.js";
+import { shadowStage } from "/runtime/shadow-stage.js";
 import { failSoftUnreported } from "/runtime/widget-upgrade.js";
 import { createRef, html, ref, render } from "/vendor/browser-runtime.js";
 
@@ -30,40 +31,25 @@ test("failure replacement releases directives and supports native and template r
   assert.equal(host.textContent, "Final template");
 });
 
-test("destructive replacement releases bounded templates and permits a fresh render", () => {
-  const container = document.createElement("div");
-  const retained = document.createElement("section");
-  const before = document.createComment("render boundary");
-  const reference = createRef();
-  const retainedReference = createRef();
-  const paintRetained = (text) =>
-    render(html`<p ${ref(retainedReference)}>${text}</p>`, retained);
-  paintRetained("Retained template");
-  container.append(retained, before);
-  const paint = (text) =>
-    render(html`<p ${ref(reference)}>${text}</p>`, container, {
-      renderBefore: before,
-    });
-  paint("Before replacement");
-  assert.equal(reference.value.textContent, "Before replacement");
-  replaceChildren(container, retained, before);
-  assert.equal(reference.value, undefined);
-  assert.ok(retainedReference.value === retained.querySelector("p"));
-  paintRetained("Updated retained template");
-  paint("After replacement");
-  assert.equal(container.textContent, "Updated retained templateAfter replacement");
-  assert.ok(reference.value === container.lastElementChild);
-});
-
-test("failure content moved into a shadow stage does not prevent the next failure", () => {
+test("a staged widget shows each failure in its stage and its next stage replaces it", () => {
   const host = document.createElement("test-widget");
-  const root = host.attachShadow({ mode: "open" });
-  failSoftUnreported(host, new Error("first failure"));
-  root.replaceChildren(...host.childNodes);
-  failSoftUnreported(host, new Error("second failure"));
-  root.replaceChildren(...host.childNodes);
-  assert.equal(root.querySelectorAll(".lf-error").length, 1);
-  assert.equal(root.textContent, "<test-widget> failed: second failure");
+  document.body.append(host);
+  const view = document.createElement("p");
+  view.textContent = "Good reading";
+  shadowStage(host, [view]);
+  for (const message of ["first failure", "second failure"]) {
+    failSoftUnreported(host, new Error(message));
+    const errors = host.shadowRoot.querySelectorAll(".lf-error");
+    assert.deepEqual(
+      [...errors].map((box) => box.textContent),
+      [`<test-widget> failed: ${message}`],
+    );
+    assert.equal(view.isConnected, false);
+    shadowStage(host, [view]);
+    assert.equal(host.shadowRoot.querySelector(".lf-error"), null);
+    assert.equal(view.isConnected, true);
+  }
+  host.remove();
 });
 
 function patch(beforeMarkup, afterMarkup = beforeMarkup) {
@@ -199,6 +185,44 @@ test("child reordering works without moveBefore and accepts new nodes", () => {
     const c = document.createElement("input");
     setChildren(parent, [c, a, b]);
     assert.deepEqual([...parent.children], [c, a, b]);
+  } finally {
+    Element.prototype.moveBefore = nativeMove;
+  }
+});
+
+// happy-dom has no moveBefore, the browser's move that keeps a node's native state, so
+// this one records each node it moves. A node removed first, by a list it left before
+// the list it joins placed it, arrives from a detached tree and cannot take it.
+test("a node changing lists moves straight across, keeping its native state", () => {
+  const nativeMove = Element.prototype.moveBefore;
+  const kept = [];
+  Element.prototype.moveBefore = function (node, before) {
+    kept.push(node);
+    return this.insertBefore(node, before);
+  };
+  try {
+    const row = document.createElement("div");
+    const menu = document.createElement("div");
+    // The field's old group leaves the lists as the field moves to the menu.
+    const group = document.createElement("section");
+    const field = document.createElement("input");
+    const other = document.createElement("input");
+    group.append(field);
+    row.append(group, other);
+    document.body.replaceChildren(row, menu);
+    setChildLists([
+      [row, [other]],
+      [menu, [field]],
+    ]);
+    assert.deepEqual([...row.childNodes], [other]);
+    assert.deepEqual([...menu.childNodes], [field]);
+    assert.deepEqual(kept, [field]);
+    setChildLists([
+      [row, [field, other]],
+      [menu, []],
+    ]);
+    assert.deepEqual([...row.childNodes], [field, other]);
+    assert.deepEqual(kept, [field, field]);
   } finally {
     Element.prototype.moveBefore = nativeMove;
   }

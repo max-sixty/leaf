@@ -85,12 +85,8 @@ export function createDataProjection({ invalidateDom }) {
   }
 
   function projectData(root, datums, { snapshot } = {}) {
-    if (!(root instanceof Element))
-      throw new TypeError("projectData root must be an element");
     if (!root.id)
       throw new TypeError("projectData root needs an id to name its projection");
-    if (!datums?.[Symbol.iterator])
-      throw new TypeError("projectData datums must be iterable");
     const declaredInputs = registry[root.localName]?.["x-data"] ?? {};
     if (
       snapshot === undefined &&
@@ -99,14 +95,6 @@ export function createDataProjection({ invalidateDom }) {
       throw new Error(
         `projectData(${root.id}) must receive the snapshot that supplied its records`,
       );
-    if (
-      snapshot != null &&
-      (typeof snapshot.source !== "string" ||
-        !snapshot.source ||
-        typeof snapshot.revision !== "string" ||
-        !snapshot.revision)
-    )
-      throw new TypeError("projectData snapshot needs a source and revision");
 
     const stampBasis = (node) => {
       keeps(node, "data-lf-source", snapshot?.source ?? null);
@@ -117,7 +105,6 @@ export function createDataProjection({ invalidateDom }) {
     const keys = new Set();
     const identities = new Set();
     const nodes = new Set();
-    let index = 0;
     for (const {
       node,
       key,
@@ -125,17 +112,18 @@ export function createDataProjection({ invalidateDom }) {
       identity,
       origin = snapshot?.origin ?? null,
     } of datums) {
+      // A key and an identity become a comment's anchor, and nothing past this point
+      // reads them again, so one that is not a word (an object stringifies to the same
+      // "[object Object]" as the next) would let a comment follow an unrelated datum.
       if (typeof key !== "string" || !key)
-        throw new TypeError(
-          `projectData(${root.id}) key ${index} must be a non-empty string`,
-        );
+        throw new TypeError(`projectData(${root.id}) keys must be non-empty strings`);
       if (keys.has(key))
         throw new Error(`projectData(${root.id}) received duplicate key ${key}`);
       keys.add(key);
       if (identity !== undefined) {
         if (typeof identity !== "string" || !identity)
           throw new TypeError(
-            `projectData(${root.id}) identity ${index} must be a non-empty string`,
+            `projectData(${root.id}) identity for ${key} must be a non-empty string`,
           );
         if (identities.has(identity))
           throw new Error(
@@ -143,8 +131,6 @@ export function createDataProjection({ invalidateDom }) {
           );
         identities.add(identity);
       }
-      if (!(node instanceof Element))
-        throw new TypeError(`projectData(${root.id}) datum ${key} needs an element`);
       if (node === root || nodes.has(node))
         throw new Error(`projectData(${root.id}) reused the node for key ${key}`);
       if (!under(node, root))
@@ -152,10 +138,6 @@ export function createDataProjection({ invalidateDom }) {
       nodes.add(node);
       const priorLabel = node.dataset.lfDatumLabel;
       if (label !== undefined) {
-        if (typeof label !== "string" || !label.trim())
-          throw new TypeError(
-            `projectData(${root.id}) label ${index} must be a non-empty string`,
-          );
         keeps(node, "data-lf-datum-label", label);
         if (
           !node.hasAttribute("aria-label") &&
@@ -175,12 +157,7 @@ export function createDataProjection({ invalidateDom }) {
       keeps(node, "data-lf-identity", identity ?? null);
       // The emitter knows which input it transformed. Keep that construction fact,
       // never recover a source path by interpreting its opaque key or displayed words.
-      if (origin !== null && (typeof origin !== "object" || Array.isArray(origin)))
-        throw new TypeError(
-          `projectData(${root.id}) origin ${index} must be an object`,
-        );
       keeps(node, "data-lf-origin", origin === null ? null : JSON.stringify(origin));
-      index++;
     }
 
     for (const node of projected)

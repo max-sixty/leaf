@@ -19,14 +19,11 @@ opening comment's `id`, in the record `leaf thread open` prints. `leaf page stat
 <page> <id>`, `leaf thread reply`, `edit` and `resolve` all take the id of any
 message in the thread.
 
-A browser selection can identify actual words mechanically without distinguishing
-which repeated passage they came from. Such a comment retains its quote and carries
-`anchor.detached: true`: the selected occurrence was not identified at capture, so
-later uniqueness cannot establish that it survived. Its transcript says **passage
-not identified**, and the panel's **Not located** filter includes it. The user can
-still write, recover, and send that comment. This capture fact differs from a thread
-explicitly detached by a revision, which has a null current anchor and records its
-prior coordinate in `detached_from`.
+A user's comment on repeated words whose surrounding text cannot tell the
+occurrences apart keeps its quote but not which occurrence it meant. It carries `anchor.detached: true`, its transcript
+says **passage not identified**, and the panel's **Not located** filter lists it. A
+thread a revision detached instead has a null current anchor and its prior anchor in
+`detached_from` ("Preserve revised anchors").
 
 Title a thread with `--title` on the command that first handles it: the `open` that
 starts it, or, for an untitled thread the user opened, the reply that answers it,
@@ -49,16 +46,17 @@ Use `--markup` for an HTML fragment after the message's text: a native table, a
 bounded log, or a small question using `lf-ask` and `lf-options`. Native HTML needs
 no widget wrapper. Its ids must not appear in any version or earlier message.
 Markup passes the shared structure, vocabulary, media, and id checks; it cannot
-declare document settings or add a stylesheet for the whole page.
+declare document settings or add a stylesheet for the whole page. An `lf-sample`
+template in markup gives the user a live practice page in the thread
+(`page-authoring.md`, "Live samples").
 
 ```bash
 leaf response reply <answer.ref> --done --text "The deploy passed." --markup '<details><summary>Deploy log</summary><pre>Ready&#10;Done</pre></details>'
 ```
 
-Thread markup is frozen in the log and has no revision
-boundary: every immutable historical document shows the same markup. It must therefore
-validate against every pinned revision's captured registry, not only the active
-registry. Use only widget vocabulary shared by those registries. If no shared widget
+Thread markup is frozen in the log and shows in every version of the page, so it
+must validate against the registry each pinned revision captured, not only the active
+one. Use only widget vocabulary those registries share. If no shared widget
 fits, ask in prose with `--text` and `--ask`, or use a page widget
 when the question and its answer belong in the final record. Markup is checked as it
 is posted but not drawn, so a data widget, such as a chart, whose body does not draw
@@ -91,41 +89,29 @@ the page's More controls to attach a selected part of the page to an anchored
 comment. A capture preserves the selected visual state as image evidence; its anchor
 names the nearby page content. A delivered message that carries an image says how
 to read it. To send one, run `leaf page media <page> <file>` and
-write the `path` it prints as an ordinary Markdown image in the message's text. The door
-refuses a `/media/…` link or image the page directory cannot answer, in text as in
-markup, because the log is append-only and a broken image posted to it stays broken;
-a path mentioned in a sentence stays prose.
+write the `path` it prints as an ordinary Markdown image in the message's text. Leaf
+refuses a message whose `/media/…` link or image, in text or markup, names a file the
+page directory cannot serve, since a broken image posted to the log stays broken.
 
 Every delivered answer carries an exact `ref`, qualified by the delivery and its
 page batch. Copy that complete value into `leaf response reply <answer.ref>`;
-no page path or message id is needed. The writer keeps the captured thread
-destination, including inputs on widgets frozen in an earlier thread message,
-and rechecks the exact input against current state. A response captured before a
-newer user correction cannot settle that correction. A replaced log or a page
-claimed by another session refuses the write.
+no page path or message id is needed. A reply on a reference delivered before the
+user's newer correction does not answer that correction. The command refuses when
+the page's log was replaced or another session has claimed the page.
 
 The same command supports `--markup`, `--title`, `--quote`, `--section`, `--part`,
-`--detach`, and `--ephemeral`, and an answer declares what it leaves (below). A saved source edit is validated and
-activated in the reply transaction, so the edit and its answer cross one command
-boundary. Repeating an ordinary reply's reference returns its previous record
-without appending another message. Use `--attempt` to name retries of a progress
-update. `--failure <code>` posts a failure receipt when no answer is coming; it
-settles the input without reopening a closed thread.
+`--detach`, and `--ephemeral`, and an answer declares what it leaves (below). Save a
+source edit before replying: the reply validates the saved `index.html` and makes it
+live along with the answer. Repeating an ordinary reply's reference returns its
+previous record without appending another message. Use `--attempt` to name retries of
+a progress update. `--failure <code>` posts a failure receipt when no answer is
+coming; it settles the input without reopening a closed thread.
 
-The delivery's `writer` records the automatic reply route at capture. With
-`writer: "turn"`, Leaf streams the provider's opening and commits its completed
-final text unless an explicit reply has already answered the input. Use the same
-response command for an explicit answer, including markup, an ask, a promised
-to-do, a title or relocation: it validates saved edits and commits immediately. Its author, retry
-identity and content remain in the log even if the provider later fails or
-reconnects. The provider's final yields to that successful answer. A failure
-receipt is refused while an active provider reservation still promises an answer.
-Forward the response reference to a command hub worker as that
-package’s coordinator instructions direct; the worker speaks under its own
-session while the page’s captured logical owner remains the last claimant.
-That authorization survives the owner’s release or process restart; another
-session’s claim supersedes it even after that successor releases or ends.
-Retry keys deduplicate author writes; they never grant provider custody.
+A delivery whose answer has `writer: "turn"` is answered by your turn's own text,
+as the selected harness contract's "Replies" describes; this command still answers it
+explicitly when the answer needs markup, an ask, a promised to-do, a title or a moved
+anchor. To have a command hub worker answer, forward it the `answer.ref` as that
+package's coordinator instructions direct.
 
 ## Preserve revised anchors
 
@@ -206,19 +192,12 @@ takes that update in hand, as `leaf task start` does, with the progress text as 
 **Working** line beside the thread and in the banner, so it is one line.
 [Conversation loop](conversation-loop.md#when-to-write), "When to write", makes
 the first one your first command after a delivery. A proactive progress message
-names a thread with no response due. Progress messages stay visible until the
-next non-ephemeral agent reply in that thread, then fold behind “Show N progress
-messages” beside that reply’s timestamp. The original messages remain available
-to expand and edit.
-Intervening user messages remain visible; separate runs of progress messages fold
-separately. One progress message can fold on its own. An explicit summary can cover
-them instead.
+names a thread with no response due. When your next ordinary reply in the thread
+arrives, the progress messages before it fold behind a disclosure beside it, where
+the user can still expand them.
 
 A progress message is progress text, so it cannot carry `--ask`, `--todo`,
-markup, failure or an anchor move. Put questions and results in ordinary replies. The shared
-disclosure appears in the panel and contextual thread surfaces. A completing reply
-held behind a new-reply notice keeps its progress visible until the reply is shown;
-originals already being read or focused stay expanded.
+markup, failure or an anchor move. Put questions and results in ordinary replies.
 
 A widget whose registry entry declares `x-awaits` already poses an ask
 and keeps its thread "On you" while that ask awaits the user. Leaf refuses
@@ -233,9 +212,7 @@ leaf thread edit <page> <comment-or-reply-id> --text "Corrected wording."
 The page labels the message `edited`. Leaf keeps the original and every revision
 in the append-only event log. Only text is revised; any HTML markup stays frozen.
 A committed reply or `leaf thread` write prints the records it appended, one JSON
-line each, as `leaf page events` prints them. A first `--title` travels in the same
-message record; an explicit `leaf thread edit <page> <thread-id> --title` is a separate naming gesture.
-A refusal lists the ids it knows.
+line each, as `leaf page events` prints them. A refusal lists the ids it knows.
 
 The user can rewrite their own messages the same way. Their rewrite is a turn rather
 than a correction: it arrives as an `edit` event, with the message's new `text` and

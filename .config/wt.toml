@@ -1,6 +1,6 @@
 # For a direct local landing, `wt merge` runs these checks after rebasing, so the tree
 # they check is the one that becomes main. They are the gates a pull request's combined
-# `lint` job runs on the code. The website's delivery checks — the site build, the
+# `test` job runs on the code. The website's delivery checks — the site build, the
 # Worker's dry-run deploy, and the Chrome pass over the bundled release — stay with
 # `publish-site`, which runs them before it deploys: together they take minutes and a
 # Docker daemon, and here they would run beside a suite that is sensitive to load.
@@ -18,8 +18,8 @@
 checks = "uv run pre-commit run -a"
 setup = "uv run --frozen leaf-dev setup"
 
-# Broad discovery keeps the local gate quick, adding only the `main` and `nightly` tests
-# the branch edits, as a pull request's gate does. CI runs the rest after main moves.
+# Broad discovery keeps the local gate quick, adding only the `tests/browser` and
+# `tests/journeys` tests the branch edits, as a pull request's gate does. CI runs the rest after main moves.
 # The Node checks include the bundles, which build from the installed lock, so a
 # rebuild reproduces the tracked bytes and any difference is a lock nobody rebuilt from.
 [[pre-merge]]

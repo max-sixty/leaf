@@ -119,13 +119,16 @@ GENERIC_VISUAL_LAYER = {
 
 def visual_widgets(
     *,
+    tag="lf-test-visual",
     staged=False,
     opening_fill="#dbeafe",
     repair_fill_on_reveal=False,
     outside_surface_for=None,
 ):
-    """Serve one visual implementation with each case's declared state and faults."""
+    """Serve one visual implementation with each case's declared state and faults,
+    defined as `tag` so several cases can stand on one page."""
     configuration = {
+        "tag": tag,
         "staged": staged,
         "openingFill": opening_fill,
         "repairFillOnReveal": repair_fill_on_reveal,
@@ -133,7 +136,7 @@ def visual_widgets(
     }
     return {
         "visual-fixture.js": browser_source("widgets/visual-fixture.js"),
-        "lf-test-visual.js": (
+        f"{tag}.js": (
             "import { defineVisualFixture } from './visual-fixture.js';\n"
             f"defineVisualFixture({json.dumps(configuration)});\n"
         ),

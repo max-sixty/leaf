@@ -43,7 +43,9 @@
    new reply. So is an answer folding the progress before it into Previous updates
    where that progress is the run at the thread's end, as the agent's acknowledgement
    is, unless the user stands on a message the fold puts away, by focus or by a
-   selection reaching into it (`standsOn`, focus.js). Changes to other existing
+   selection reaching into it (`standsOn`, focus.js). A run on screen stays open where
+   it stood, its group's border drawn around it (components/surfaces.css), so the fold
+   moves none of its words; a run off screen folds away. Changes to other existing
    messages, reactions, folds and settlement use the same hold as a seat in page flow,
    and a notice calls a changed message an edit.
    A closed card holds nothing, since its title row draws at one size whatever it says.
@@ -98,10 +100,18 @@
    them back had to opt out of.
 
    `HeldReading` is the same rule for a widget's region whose rows only the log or the
-   clock decides, such as a command's lists of stopped goals and live workers: a reading
-   that would change its size waits, the region standing as it was, while its growth
-   would be seen, and a control of fixed size the widget already draws says so and
-   shows it. */
+   clock decides, such as a command's lists of stopped goals and live workers. The first
+   ready reading draws whole. After that, a reading that would change the region's size
+   waits, the region standing as it was, while its growth would be seen, and a control
+   of fixed size the widget already draws says so and shows it.
+
+   No first paint can size such a region, so a widget keeps its rows closed until the
+   reader opens them through that control, as the Atlas plan's Stopped work disclosure
+   does (`examples/command-hub.page/widgets/lf-atlas-plan.js`). The conversation
+   workspace (`examples/corpus.page/widgets/lf-conversation-workspace.js`) is a known
+   exception: it draws its lists at first paint, with "Lists current" as the control.
+   A fixed-height box that scrolls the rows is no answer: a scroller shows no edge until
+   it is scrolled, so nothing tells the reader a row is cut off. */
 import { growthAfterIsSeen, growthIsSeen, whenNone } from "../geometry.js";
 import { offer } from "../widget-elements.js";
 import { keeps, keepsText, layoutPx } from "../keeps.js";
@@ -115,6 +125,7 @@ import { closestAcross } from "../passages.js";
 import { readApplication } from "../semantic-state.js";
 import { onStanding, focused, standingNodes } from "../focus.js";
 import { readingIsContinuous } from "../reading-continuity.js";
+import { watchOwner } from "../arrivals.js";
 
 // Whether this page's ledger holds a gesture of the user's on `thread`, of any kind, the
 // refusal that takes one back included until the reading it restores is drawn: the
@@ -643,14 +654,16 @@ export class HeldNews {
 }
 
 /** One region's reading, held while drawing it would move what the reader sees.
- *  `region()` gives the nodes the reading draws, and `changed()` draws the widget again.
+ *  `owner` is the widget, `region()` gives the nodes the reading draws, and `changed()`
+ *  draws the widget again.
  *  A reading is a value equal to the one drawn last exactly when it draws at the same
  *  size, such as the keys of its rows. `hold(reading)` returns the reading to draw:
  *  `reading` where it is the first, where it equals the one drawn last, or where growth
  *  anywhere in the region would move nothing the user sees (geometry.js,
  *  `growthIsSeen`), since a row may change anywhere in it; otherwise the reading drawn
  *  last. What it holds shows when the user opens it (`release` or `show`), or once
- *  that growth would move nothing seen. Current
+ *  that growth would move nothing seen. The wait lasts while `owner` stands: a departure
+ *  ends it and a return takes it up again, since a return draws nothing again. Current
  *  activation availability is not a retained presentation: callers refresh it
  *  from its current owner even while the reading holds. */
 export class HeldReading {
@@ -660,9 +673,20 @@ export class HeldReading {
   #released = false;
   #watch = null;
 
-  constructor(region, changed) {
+  constructor(owner, region, changed) {
     this.#region = region;
     this.#changed = changed;
+    // A held watch keeps its nodes while the owner is away, with no stop to call.
+    watchOwner(owner, {
+      connect: () => {
+        if (this.#watch && !this.#watch.stop)
+          this.#watch.stop = whenNone(this.#watch.nodes, growthIsSeen, this.show);
+      },
+      disconnect: () => {
+        this.#watch?.stop?.();
+        if (this.#watch) this.#watch.stop = null;
+      },
+    });
   }
 
   hold(reading) {
@@ -708,12 +732,8 @@ export class HeldReading {
   };
 
   #stop() {
-    this.#watch?.stop();
+    this.#watch?.stop?.();
     this.#watch = null;
-  }
-
-  dispose() {
-    this.#stop();
   }
 }
 

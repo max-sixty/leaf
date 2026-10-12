@@ -1,7 +1,7 @@
 """Shared fixtures, and the address the suite starts a leaf process at."""
 
+import ast
 import contextlib
-import functools
 import inspect
 import os
 import re
@@ -22,7 +22,7 @@ from leaf import layer as layer_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf.render_gate import browser as browser_model
-from leaf_dev import LEAF_COMMAND, cost_tiers
+from leaf_dev import LEAF_COMMAND
 from leaf_dev.browser import LINUX_FONTCONFIG, require_linux_fonts
 from leaf_dev.page_fixtures import package_selection_args
 from playwright.sync_api import sync_playwright
@@ -270,7 +270,7 @@ def pytest_addoption(parser):
     parser.addoption(
         "--changed-since",
         metavar="REF",
-        help="Also run the `main` and `nightly` tests whose own lines changed since REF",
+        help="Also run the `browser` and `journeys` tests whose own source changed since REF",
     )
 
 
@@ -285,46 +285,31 @@ def pytest_runtest_call(item):
     return result
 
 
-# A test's tier says when CI runs it; `cost_tiers.TIERS` names those after the first.
-# A test in the first, None, runs in every selection: a pull request, `wt merge`, and
-# broad discovery. A `main` test can land without running and runs on each push to
-# main (`--run-main`); a `nightly` one runs only in the daily schedule and a manual
-# dispatch (`--run-nightly`), which run every tier.
-
-
-def tier(item):
-    """The latest tier a test is marked with, or None for an unmarked test. A test
-    with both marks, such as a `nightly` test in a `main` module, is in the later."""
-    return cost_tiers.later(
-        *(t for t in cost_tiers.TIERS if item.get_closest_marker(t))
-    )
+# A test's directory under `tests/` is its tier, which says when CI runs it. The
+# first tier, None, runs in every selection: a pull request, `wt merge`, and broad
+# discovery. A `main` test can land without running and runs on each push to main
+# (`--run-main`); a `nightly` one runs only in the daily schedule and a manual
+# dispatch (`--run-nightly`), which run every tier. `leaf_dev.suite_profile.BUDGETS`
+# holds what a test in each directory may cost.
+TESTS = Path(__file__).parent
+TIERS = {
+    "model": None,
+    "process": None,
+    "smoke": None,
+    "browser": "main",
+    "journeys": "nightly",
+}
 
 
 def run_tier(item):
-    """The tier CI runs a test in: the later of its marked tier and the tier its
-    measured cost puts it in (`leaf_dev.cost_tiers`), or every run for a test marked
-    `landing`, whatever either says."""
-    if item.get_closest_marker("landing"):
-        return None
-    return cost_tiers.later(
-        tier(item), _recorded_tiers().get(cost_tiers.recorded_id(item))
-    )
-
-
-@functools.cache
-def _recorded_tiers():
-    return cost_tiers.recorded()
-
-
-@pytest.hookimpl(wrapper=True)
-def pytest_runtest_makereport(item, call):
-    """Each test's junit report carries the id `leaf-dev cost-tiers` records it by."""
-    report = yield
-    if call.when == "teardown":
-        report.user_properties.append(
-            (cost_tiers.PROPERTY, cost_tiers.recorded_id(item))
+    """The tier of the directory a test module lives in. A module anywhere else is a
+    usage error, so a new file cannot fall outside every tier."""
+    directory = item.path.relative_to(TESTS).parts[0]
+    if directory not in TIERS:
+        raise pytest.UsageError(
+            f"{item.path}: a test module lives in tests/<tier>/, one of {', '.join(TIERS)}"
         )
-    return report
+    return TIERS[directory]
 
 
 def pytest_collection_modifyitems(config, items):
@@ -332,7 +317,7 @@ def pytest_collection_modifyitems(config, items):
     flags reach; explicit selections run what they name.
 
     A change that moves a browser behaviour usually edits the test that holds it, so both
-    landing gates add the tests of either later tier whose own lines the change
+    landing gates add the tests of either later tier whose own source the change
     touches (`--changed-since`): those run before it lands, and CI's `test` job runs
     the rest of each tier when that tier's event comes.
 
@@ -346,52 +331,79 @@ def pytest_collection_modifyitems(config, items):
         config.getoption("keyword")
         or config.getoption("markexpr")
         or config.getoption("lf")
-        or any(Path(arg.split("::", 1)[0]).is_file() for arg in config.args)
+        or any(_names_tests(Path(arg.split("::", 1)[0])) for arg in config.args)
     )
+    # Every collected test names its tier, whatever runs it, so a module outside
+    # every tier directory is refused by each selection.
+    tiers = [run_tier(item) for item in items]
     if config.getoption("--run-nightly") or selected:
         return
     reached = {"main"} if config.getoption("--run-main") else set()
-    changed = {}
+    changed = None
     if since := config.getoption("--changed-since"):
-        changed = _changed_test_lines(config.rootpath, since)
+        changed = _base_sources(config.rootpath, since)
     kept, skipped = [], []
-    for item in items:
-        tiered = run_tier(item)
+    for item, tiered in zip(items, tiers):
         runs = tiered is None or tiered in reached or _touches(item, changed)
         (kept if runs else skipped).append(item)
     items[:] = kept
     config.hook.pytest_deselected(items=skipped)
 
 
-def _changed_test_lines(root, since):
-    """The lines under `tests/` that `since...HEAD` adds or edits, by file. A deletion
-    counts as the lines on either side of it, so deleting a test's decorators or its
-    last lines both touch the test."""
-    diff = subprocess.run(
-        ["git", "diff", "--unified=0", f"{since}...HEAD", "--", "tests"],
-        cwd=root,
-        capture_output=True,
-        text=True,
-        check=False,
+def _names_tests(path):
+    """Whether an argument names tests inside `tests/`, a tier directory or a file in
+    one, rather than the whole suite."""
+    path = path.resolve()
+    return path.exists() and path.is_relative_to(TESTS) and path != TESTS
+
+
+def _base_sources(root, since):
+    """Each test function's source, decorators included, where `since` and HEAD part,
+    keyed by its module's name and its own. A test that moved to another tier directory
+    keeps its key, so a move that leaves its source alone is no edit of it."""
+
+    def git(*args, stdin=None):
+        run = subprocess.run(
+            ["git", *args], cwd=root, input=stdin, capture_output=True, check=False
+        )
+        if run.returncode:
+            raise pytest.UsageError(
+                f"--changed-since {since}: {run.stderr.decode().strip()}"
+            )
+        return run.stdout
+
+    base = git("merge-base", since, "HEAD").decode().strip()
+    paths = [
+        path
+        for path in git("ls-tree", "-r", "--name-only", base, "--", "tests")
+        .decode()
+        .split()
+        if re.fullmatch(r"tests/(\w+/)?test_\w+\.py", path)
+    ]
+    batch = git(
+        "cat-file", "--batch", stdin="".join(f"{base}:{p}\n" for p in paths).encode()
     )
-    if diff.returncode:
-        raise pytest.UsageError(f"--changed-since {since}: {diff.stderr.strip()}")
-    changed, lines = {}, None
-    for line in diff.stdout.splitlines():
-        if line.startswith("+++ "):
-            lines = changed.setdefault(root / line.removeprefix("+++ b/"), set())
-        elif hunk := re.match(r"@@ -\S+ \+(\d+)(?:,(\d+))? @@", line):
-            start, count = int(hunk[1]), int(hunk[2] or 1)
-            lines.update(range(start, start + count) if count else (start, start + 1))
-    return changed
+    sources = {}
+    for path in paths:
+        header, _, batch = batch.partition(b"\n")
+        size = int(header.split()[2])
+        text, batch = batch[:size].decode(), batch[size + 1 :]
+        lines = text.splitlines(keepends=True)
+        for node in ast.parse(text).body:
+            if isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
+                first = min([node.lineno, *(d.lineno for d in node.decorator_list)])
+                sources[Path(path).stem, node.name] = "".join(
+                    lines[first - 1 : node.end_lineno]
+                )
+    return sources
 
 
-def _touches(item, changed):
+def _touches(item, base):
     """Whether a change edits the test's own function, decorators included."""
-    if item.path not in changed:
+    if base is None:
         return False
-    source, first = inspect.getsourcelines(item.function)
-    return not changed[item.path].isdisjoint(range(first, first + len(source)))
+    source = "".join(inspect.getsourcelines(item.function)[0])
+    return base.get((item.path.stem, item.function.__name__)) != source
 
 
 # A harness session states its identity in the environment, under names of its own

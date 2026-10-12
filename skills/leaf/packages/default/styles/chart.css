@@ -12,7 +12,10 @@
   :scope:is(lf-chart):not(.lf-rendered) > pre{ visibility: hidden; }
 }
 /* Plot's own style sheets are defaults in lf-base. These adapter rules supply
- * the page face and paper; an author's Plot style options remain inline. */
-:scope:is(lf-chart) .lf-chart-drawing svg { display: block; font: inherit; }
+ * the page face and paper; an author's Plot style options remain inline. A drawing
+ * keeps the height it was drawn at until its redraw for a new width lands a frame
+ * later: Plot's sheet scales the height with the width, which would move everything
+ * below the chart for that frame, under whatever measured the page then. */
+:scope:is(lf-chart) .lf-chart-drawing svg { display: block; font: inherit; height: attr(height px, auto); }
 :scope:is(lf-chart) .lf-chart-drawing svg[role="img"] { --plot-background: var(--paper); }
 :scope:is(lf-chart) .lf-chart-drawing [class*="-swatches"] { font-family: inherit; }

@@ -1,13 +1,13 @@
 name: ci
 
 # Every event runs the runtime, browser-framework and bundle gates; the Python suite's
-# selection follows the test tiers, set by a test's marks and its measured cost
-# (`tests/conftest.py`, `run_tier`):
-# - a pull request runs the first tier, plus the `main` and `nightly` tests it edits,
-#   and the website gate;
-# - a push to main runs the first tier and `main`;
-# - the daily schedule and a manual dispatch run every test, and their junit report is
-#   what `leaf-dev cost-tiers` measures the tiers from.
+# selection follows the test tiers, the directories under `tests/`
+# (`tests/conftest.py`, `TIERS`):
+# - a pull request runs `model`, `process` and `smoke`, plus the `browser` and
+#   `journeys` tests it edits, and the website gate;
+# - a push to main adds `browser`;
+# - the daily schedule and a manual dispatch run every test, and their summary lists
+#   the tests over their directory's budget.
 # Relevant pushes to main run the website gate in publish-site before deploy.
 on:
   push:
@@ -18,17 +18,16 @@ on:
   workflow_dispatch:
 
 # Only a pull request cancels its own earlier run. A push to main keeps its run: a red
-# branch is judged against the base SHA's result, a cancellation reaches tend-ci-fix as
-# something to fix, and the next merge must not end a suite partway through. Nothing
-# outside a pull request shares a workflow group; the test job owns each event's queue.
+# branch is judged against the base SHA's result, and the next merge must not end a
+# suite partway through. tend-ci-fix answers a failed run on main and never a
+# cancelled one, so a cancellation goes unreported. Nothing outside a pull request
+# shares a workflow group; the test job owns each event's queue.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:
-    # Keep branch protection's required check name; it now covers the full gate.
-    name: lint
     concurrency:
       # One push suite at a time: it holds a runner for over an hour, and GitHub's
       # concurrency pool is per-account, shared with the other repos here. A running

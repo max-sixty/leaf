@@ -461,8 +461,13 @@ presentation and the keyboard controller replays them in order once the page
 presents, while any other key or a pointer press drops the held run. Durable
 controls wait for `data-lf-presented` (`../references/module-authoring.md`, "Startup and presentation"). An async
 producer joins settlement before `data-lf-upgraded`, or stays off the
-presentation path through `afterPresentation`, which declares the deferred
-arrival so `pageReadiness` still answers for it. `presentPage` owns the one
+presentation path through `afterPresentation`, which waits for presentation before
+starting it, or `deferredArrival`, which counts work already running. Both declare
+the deferred arrival, so `pageReadiness` still answers for it and startup lands the
+fragment again once it has. Work stays on the presentation path when the page reads
+it or when its landing would move what the reader sees (`growthIsSeen`), as a live
+sample's child does only where its frame's resize would be seen (`lf-sample.js`).
+`presentPage` owns the one
 transition to stateful interaction; its synchronous `PRESENTATION` signal lets
 box-derived apparatus replace provisional geometry before the presented state
 paints. A reader outside the page waits on `pageReadiness`, through

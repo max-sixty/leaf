@@ -87,9 +87,16 @@ Package styles need no arrival guard. A package opens a dialog or popover only a
 stamp or in response to a user gesture; Leaf does not defer top-layer UI during startup.
 A widget that keeps part of its own upgrade off the presentation path — a heavy renderer
 it earns the right to load only once the user has the page — runs that work through
-`afterPresentation(() => …)`, which is both the wait and the declaration. The page then
-answers for it: until every such arrival lands, the page reads as still arriving, so a
-user outside it waits on the page rather than on a widget it would have to know about.
+`afterPresentation(() => …)`, which is both the wait and the declaration. Work that
+should start at once but that presentation need not wait for, such as a slow load
+whose result the page does not read and whose landing moves nothing the reader sees,
+goes through `deferredArrival(promise)` instead: it counts the running promise without
+waiting. `growthIsSeen(element)` answers whether a change of the element's size now
+would move what the user sees; where it would, register the work with
+`controller.present(promise)` instead, so it lands before the page presents. The page
+answers for deferred work either way: until every such arrival lands, the page reads
+as still arriving, so a user outside it waits on the page rather than on a widget it
+would have to know about.
 A declared `x-shadow` widget gets the same transition protection when it builds its root
 with `shadowStage`.
 
@@ -180,7 +187,8 @@ A behavior module follows these rules:
 - Use `offer()` and `relabel()` for injected UI. Reserve its space in
   `measure`. After a view swap, call `layoutChanged` and await its promise before
   restoring scroll. A registry-declared widget registers asynchronous visible
-  preparation through `controller.present(promise)`.
+  preparation through `controller.present(promise)`, or keeps it off the
+  presentation path as "Startup and presentation" describes.
   In Lit templates, use `<button ${offered("lf-btn")}>` for the same generated
   control anatomy. `offered` owns the element's class and chrome markers; native
   button type defaults to `button`. A native input's `type` binding precedes

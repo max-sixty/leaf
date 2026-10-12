@@ -8,14 +8,19 @@
  * into a native modal dialog, keeping its document, gestures, and drafts alive. The
  * sample retains its embedded allocation while the dialog fills the viewport; Return
  * to page and the child's final Escape restore the Full view button. Each child announces
- * lf-sample-ready with its sample element, on first mount, Reset and reload. Reset stays focusable
+ * lf-sample-ready with its sample element, on first mount, Reset and reload. Each child
+ * starts loading as its sample mounts, but the containing page presents before it
+ * unless the frame's resize on arrival would move what the reader sees; until every
+ * sample lands the page reads as still arriving. Reset stays focusable
  * while loading but accepts no new press, preserving the parent's keyboard position.
  * Ordinary children remain static
  * quotation. A disconnect releases the child; moving the retained element within a
  * document does not reset its work. */
 import {
   aborted,
+  deferredArrival,
   frameFor,
+  growthIsSeen,
   whileConnected,
   keeps,
   keepsText,
@@ -131,7 +136,20 @@ customElements.define(
       // document that departs before presenting holds it until the next document,
       // which a reload brings, or Reset: the parent cannot tell a reload from an
       // external destination.
-      widgetController(this).present(this.#track(ready).catch(() => {}));
+      const shown = this.#track(ready).catch(() => {});
+      // The child's startup is another document's, and nothing in this page reads
+      // it, so the page waits for it only where its arrival would move what the
+      // reader sees: a block frame resizes to its child once that presents. A window
+      // keeps its height, and a frame below the window or scrolled past grows where
+      // the reader isn't looking, so the page presents and takes keys without them
+      // while they load; the page still reads as arriving until they land.
+      if (
+        !this.hasAttribute("window") &&
+        !this.#view.matches(":modal") &&
+        growthIsSeen(this.#frame)
+      )
+        widgetController(this).present(shown);
+      else deferredArrival(shown);
     }
 
     // Removal closes a modal Full view at once, so the view returns to its embedded

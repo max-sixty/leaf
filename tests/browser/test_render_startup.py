@@ -1618,6 +1618,46 @@ def test_a_broken_optional_page_interface_does_not_withhold_presentation(
     assert len(errors) == 1, errors
 
 
+@pytest.mark.parametrize("on_screen", [True, False], ids=["on-screen", "below"])
+def test_a_sample_holds_presentation_only_where_its_arrival_would_be_seen(
+    browser, serve, on_screen
+):
+    """A block sample whose growth the reader would see presents with the page; one
+    below the window starts loading at once but the page presents and takes keys
+    without it. Either way the page reads as arrived only once the sample has."""
+    spacer = "" if on_screen else '<div style="height: 300vh"></div>'
+    source = leaf_page(
+        "Sample presentation",
+        f"<h1>Containing page</h1>{spacer}"
+        '<lf-sample id="practice"><template id="practice-source" data-sample>'
+        "<p>Practice</p></template></lf-sample>",
+    )
+    held = []
+    sample_document = re.compile(r"/api/samples/[^/]+/$")
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    page.route(sample_document, lambda route: held.append(route))
+    page.goto(serve(source), wait_until="commit")
+    holding(page, held, 1, "the sample's document")
+    page.evaluate("""() => {
+        window.presentedAtSampleReady = document.querySelector('#practice').ready.then(
+            () => document.body.hasAttribute('data-lf-presented'));
+    }""")
+    if not on_screen:
+        expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+        assert (
+            page.evaluate(
+                "document.querySelector('script[data-lf-entry]').lfReadiness(null)"
+            )
+            == "arrived"
+        )
+    page.unroute(sample_document)
+    for route in held:
+        route.continue_()
+    wait_until_ready(page)
+    assert page.evaluate("presentedAtSampleReady") is not on_screen
+
+
 def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     browser, serve
 ):

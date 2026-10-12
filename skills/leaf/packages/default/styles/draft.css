@@ -26,11 +26,11 @@
       grid-template-rows: minmax(min-content, auto) minmax(max(32px, var(--aim-floor)), auto);
       gap: 8px;
     }
-    /* Copy's corner is reserved before upgrade, as the footer is, so words, and the
-       caret while editing, never run under it and wrap where they first painted: the
-       control's size and inset, and a 6px gap, less the box's own padding and border. */
-    :scope:is(lf-draft):not(:where([data-lf-exhibit], [data-lf-exhibit] *))
-      > :not(.lf-draft-footer, .lf-code-copy) {
+    /* At rest Copy floats over the corner as a code block's does, taking no room. The
+       editor keeps it in view while typing, so the editor alone gives up its corner and
+       the caret never runs under it: the control's size and inset, and a 6px gap, less
+       the box's own padding and border. */
+    :scope:is(lf-draft) > .lf-draft-edit {
       margin-right: calc(var(--lf-code-copy-size) + var(--lf-code-copy-inset) + 6px - 14px - 1px);
     }
   }

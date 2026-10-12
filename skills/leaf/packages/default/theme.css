@@ -2903,7 +2903,7 @@
       grid-template-rows: minmax(min-content, auto) minmax(max(32px, var(--aim-floor)), auto);
       gap: 8px;
     }
-    :scope:is(lf-draft):not(:where([data-lf-exhibit], [data-lf-exhibit] *)) > :not(.lf-draft-footer, .lf-code-copy) {
+    :scope:is(lf-draft) > .lf-draft-edit {
       margin-right: calc(var(--lf-code-copy-size) + var(--lf-code-copy-inset) + 6px - 14px - 1px);
     }
   }

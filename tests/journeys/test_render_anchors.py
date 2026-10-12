@@ -535,6 +535,20 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
 
     touch_pre = touch.locator("#plain")
     frame = touch_pre.bounding_box()
+    # The tap that reveals the control does not also press it, though its click is
+    # aimed once the control shows.
+    touch.evaluate("navigator.clipboard.writeText('cleared')")
+    corner = touch_control.bounding_box()
+    touch.touchscreen.tap(
+        corner["x"] + corner["width"] / 2, corner["y"] + corner["height"] / 2
+    )
+    expect(touch_control).to_have_css("opacity", "1")
+    rendered(touch)
+    expect(touch_button).to_have_accessible_name("Copy code")
+    assert touch.evaluate("navigator.clipboard.readText()") == "cleared"
+    touch.locator("#title").tap()
+    expect(touch_control).to_have_css("opacity", "0")
+
     touch_pre.tap(position={"x": 20, "y": 20})
     expect(touch_pre).to_be_focused()
     expect(touch_pre).to_have_attribute("tabindex", "0")

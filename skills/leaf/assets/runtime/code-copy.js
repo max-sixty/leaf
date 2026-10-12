@@ -39,6 +39,14 @@ const wired = new WeakMap();
 // The key this module projects its Copy scope under, beside the block's other owners.
 const COPY_SCOPE = Symbol("code copy");
 
+// A tap on a hidden control's corner stands the user on the block, which reveals the
+// control before the tap's click is aimed, so the click lands on it. Only a press that
+// began on the shown control copies; Enter's click carries no press (`detail` 0).
+let pressedPath = [];
+addEventListener("pointerdown", (event) => (pressedPath = event.composedPath()), {
+  capture: true,
+});
+
 // Focus can reveal and scroll a source before the observer's next task. Its keyboard
 // route must see the control in that same gesture, widgets included.
 onStanding((node) => {
@@ -57,7 +65,16 @@ function prepareCodeBlock(pre, source, noun) {
     copy.successLabel = `${noun[0].toUpperCase()}${noun.slice(1)} copied`;
     copy.errorLabel = `Unable to copy ${noun}`;
     copy.tooltip = "none";
-    copy.addEventListener("click", () => (copy.value = source()), { capture: true });
+    copy.addEventListener(
+      "click",
+      (event) => {
+        if (event.detail && !pressedPath.includes(copy)) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        } else copy.value = source();
+      },
+      { capture: true },
+    );
     // Web Awesome announces the result; Leaf puts the same words in its status line.
     copy.addEventListener("wa-copy", () =>
       notice(copy.successLabel, { announce: false }),

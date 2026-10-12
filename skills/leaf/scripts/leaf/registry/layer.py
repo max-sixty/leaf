@@ -199,7 +199,7 @@ def validate_layer_declarations(registry: dict, path) -> None:
                     f"{path}: $data contract {contract!r} resource expression "
                     f"{expression!r} is invalid: {error}"
                 ) from error
-        records = declaration.get("records", {})
+        records = declaration.get("records") or {}
         if len(set(records.values())) != len(records):
             raise RegistryError(
                 f"{path}: $data contract {contract!r} records must name distinct "

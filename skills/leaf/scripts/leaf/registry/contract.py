@@ -238,13 +238,18 @@ def detail_schema(entry: dict, spec: dict) -> dict:
     """
     record = spec.get("record")
     if record is None:
-        if spec["unit"] == "widget":
-            return spec["detail"]
+        detail, unit = spec["detail"], spec["unit"]
+        if unit == "widget":
+            return detail
+        # Into the unit's own declaration rather than an `allOf` around the detail,
+        # which would move the base a `#/properties/…` reference inside it resolves on.
+        declared = detail["properties"][unit]
         return {
-            "allOf": [
-                spec["detail"],
-                {"properties": {spec["unit"]: {"minLength": 1}}},
-            ]
+            **detail,
+            "properties": {
+                **detail["properties"],
+                unit: {**declared, "minLength": max(declared.get("minLength", 0), 1)},
+            },
         }
     kind = record["kind"]
     if kind == "value":

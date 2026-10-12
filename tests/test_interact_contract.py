@@ -2019,6 +2019,49 @@ def test_the_registry_door_validates_data_contracts(page_dir, contracts, message
     assert "$data" in result.output and message in result.output
 
 
+def test_layer_facts_read_names_whole_and_an_absent_records_as_null():
+    """The layer facts' schema holds names as the hand checks before it did: a
+    trailing newline is no part of a token or contract name, and an optional
+    `records: null` a same-protocol Leaf vendored still reads as absent."""
+    kernel = json.loads((schema_model.ASSETS / "registry.json").read_text())
+
+    def facts_error(**changes):
+        registry = deepcopy(kernel)
+        for fact, value in changes.items():
+            registry[f"${fact}"] = {**registry[f"${fact}"], **value}
+        return registry_layer.layer_facts_error(registry)
+
+    assert facts_error() is None
+    absent = {"description": "Build facts.", "schema": {}, "records": None}
+    assert facts_error(data={"contracts": {"builds": absent}}) is None
+    named = {"description": "Build facts.", "schema": {}}
+    assert "does not match" in facts_error(data={"contracts": {"builds\n": named}})
+    assert "does not match" in facts_error(
+        reactions={"tokens": {"keep\n": {"glyph": "+"}}}
+    )
+
+
+def test_a_custom_units_identity_rule_keeps_the_details_reference_base():
+    """A custom verb's unit is held nonempty inside its own declaration, so a
+    `#/properties/...` reference in the declared detail still resolves there."""
+    spec = {
+        "unit": "item",
+        "detail": {
+            "type": "object",
+            "properties": {
+                "item": {"type": "string"},
+                "also": {"$ref": "#/properties/item"},
+            },
+            "required": ["item"],
+            "additionalProperties": False,
+        },
+    }
+    schema = registry_contract.detail_schema({}, spec)
+    assert registry_schema.schema_error(schema, {"item": "a", "also": "b"}) is None
+    assert "non-empty" in registry_schema.schema_error(schema, {"item": ""})
+    assert spec["detail"]["properties"]["item"] == {"type": "string"}
+
+
 @pytest.mark.parametrize(
     "schema",
     [

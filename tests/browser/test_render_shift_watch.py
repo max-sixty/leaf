@@ -1229,16 +1229,16 @@ def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(browser, ser
 
 
 @pytest.mark.parametrize(
-    "declare_preparation", [False, True], ids=["no preparation", "retired preparation"]
+    "retired_at", ["no preparation", "click", "resolve-remove", "remove-resolve"]
 )
 def test_a_retired_widget_preparation_cannot_credit_a_passive_landing(
-    browser, serve, declare_preparation
+    browser, serve, retired_at
 ):
     """A removed renderer's late completion cannot credit unrelated page movement.
 
-    Both pages receive the same click and later promise completion. Only one declares
-    preparation before removing its widget, so the other controls for ordinary input
-    credit expiring. The declared observation must retire with its renderer.
+    The no-preparation control proves ordinary input credit expires. A declaration
+    retires with its owner even when its promise reaction precedes delivery of the
+    removal's mutation record.
     """
     page = open_page(
         browser,
@@ -1252,7 +1252,7 @@ def test_a_retired_widget_preparation_cannot_credit_a_passive_landing(
         ),
     )
     page.evaluate(
-        """async declare => {
+        """async retiredAt => {
           const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const widget = document.querySelector('#choice');
           const gate = Promise.withResolvers();
@@ -1260,7 +1260,7 @@ def test_a_retired_widget_preparation_cannot_credit_a_passive_landing(
           const terminal = Promise.withResolvers();
           window.terminal = terminal.promise;
           document.querySelector('#press').addEventListener('click', () => {
-            if (declare) {
+            if (retiredAt !== "no preparation") {
               let identity;
               const stop = document.querySelector('script[data-lf-entry]').lfObserveWidgetPreparations((phase, preparation) => {
                 if (phase === 'begin') identity ??= preparation;
@@ -1268,20 +1268,26 @@ def test_a_retired_widget_preparation_cannot_credit_a_passive_landing(
               });
               widgetController(widget).present(gate.promise);
             } else terminal.resolve();
-            widget.remove();
+            if (["no preparation", "click"].includes(retiredAt)) widget.remove();
           }, {once: true});
         }""",
-        declare_preparation,
+        retired_at,
     )
     page.locator("#press").click()
-    rendered(page)
+    rendered(page, facts=("updatesSettled",))
     judge_watches()
     assert page.lf_errors == []
-    page.evaluate("""async () => {
-      window.release();
-      await window.terminal;
-      document.querySelector('#control').style.marginTop = '40px';
-    }""")
+    page.evaluate(
+        """async retiredAt => {
+          const widget = document.querySelector('#choice');
+          if (retiredAt === 'remove-resolve') widget.remove();
+          window.release();
+          if (retiredAt === 'resolve-remove') widget.remove();
+          await window.terminal;
+          document.querySelector('#control').style.marginTop = '40px';
+        }""",
+        retired_at,
+    )
     rendered(page)
     judge_watches()
     consume_browser_errors(page, "button#control moved without input")

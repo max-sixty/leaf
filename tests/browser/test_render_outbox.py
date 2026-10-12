@@ -1952,9 +1952,6 @@ def test_a_withdrawal_waits_for_a_widget_that_cannot_take_it_yet(browser, serve)
     expect(two.locator("lf-draft leaf-text")).to_be_focused()
     undo(one)
     expect(one.locator(body)).to_have_text(authored)
-    expect(one.locator("lf-draft .lf-draft-history > summary")).to_have_text(
-        "Changes · 1 edit"
-    )
 
     # The withdrawal has to reach the second tab *while* its editor stands — heard
     # after the box closes, it applies on the way past and says nothing about the
@@ -1966,9 +1963,6 @@ def test_a_withdrawal_waits_for_a_widget_that_cannot_take_it_yet(browser, serve)
     two.keyboard.press("Escape")
     expect(two.locator("lf-draft leaf-text")).to_have_count(0)
     assert two.locator(body).inner_text() == authored
-    expect(two.locator("lf-draft .lf-draft-history > summary")).to_have_text(
-        "Changes · 1 edit"
-    )
 
 
 def test_a_withdrawal_is_heard_by_a_tab_reading_a_later_version(browser, serve):

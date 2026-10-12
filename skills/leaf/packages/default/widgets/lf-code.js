@@ -27,7 +27,7 @@
  * so a driver can offer one key to several excerpts of the same file. */
 import {
   bodyText,
-  copyCodeBlock,
+  copyBlock,
   once,
   failSoft,
   layoutChanged,
@@ -168,7 +168,7 @@ export default class extends HTMLElement {
       pre.append(...notes.filter((note) => !pre.contains(note)));
       this.replaceChildren(pre);
       this.classList.add("lf-rendered");
-      this.append(copyCodeBlock(pre, () => source));
+      this.append(copyBlock(pre, () => source, "code"));
       layoutChanged(this);
     } catch (err) {
       failSoft(this, err, source);

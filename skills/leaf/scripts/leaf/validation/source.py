@@ -1,4 +1,4 @@
-"""Static checks for the mutable source document."""
+"""Static checks for mutable source, including whether this Leaf can activate it."""
 
 from pathlib import Path
 from typing import NamedTuple
@@ -11,6 +11,7 @@ from leaf.data_contracts import (
     working_data_document_readings,
 )
 from leaf.files import list_revisions
+from leaf.layer import incompatible_layer
 from leaf.passages import SourceReading
 from leaf.registry.contract import RegistryError
 from leaf.registry.schema import json_value
@@ -189,7 +190,14 @@ def sample_errors(
     log of `parent`. Each child is checked as a page against its initial history,
     and then the samples it declares in turn."""
     errors = []
-    pending = [(parent, page_sample_history(parent, events, list_revisions(page_dir)), holder, "")]
+    pending = [
+        (
+            parent,
+            page_sample_history(parent, events, list_revisions(page_dir)),
+            holder,
+            "",
+        )
+    ]
     for document, document_history, declaring, prefix in pending:
         for sample in declaring.samples:
             name = prefix + f"sample {sample['attrs'].get('id', '<unnamed>')!r}: "
@@ -272,7 +280,7 @@ def _source_advice(
 
 
 def check_source(page_dir: Path, events: list) -> SourceCheck:
-    """Validate current source declarations and derive automatic anchor moves."""
+    """Validate current source under this Leaf's protocol and derive anchor moves."""
     data, source_error = _source_bytes(page_dir)
     if source_error:
         return SourceCheck(EMPTY_READING, None, [source_error], [])
@@ -287,6 +295,8 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
         registry = None
         errors.append(str(error))
     reading = SourceReading(document, registry)
+    if registry is not None and (refusal := incompatible_layer(page_dir, registry)):
+        return SourceCheck(reading, registry, [refusal], [])
     stored_data = read_data(page_dir, registry)
     contracts = read_contracts(page_dir)
     readings = (

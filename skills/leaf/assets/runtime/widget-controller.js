@@ -128,7 +128,8 @@ function createWidgetController(owner) {
     // A failed child reports immediately, but its siblings can still commit DOM.
     // Superseded batches can also still report failure into this connected owner.
     const settled = () => {
-      pendingPreparations.get(promise)?.();
+      // A promise reaction can precede the observer delivering its owner's departure.
+      pendingPreparations.get(promise)?.(owner.isConnected ? "settle" : "cancel");
       pendingPreparations.delete(promise);
     };
     Promise.resolve(promise).then(settled, settled);

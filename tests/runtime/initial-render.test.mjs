@@ -6,7 +6,7 @@ import { initialRender, initialOrigin } from "/runtime/initial-render.js";
 import { unmarkedCopy } from "/runtime/initial-render.js";
 import { tabStore } from "/runtime/storage.js";
 import { bindVocabulary } from "/runtime/widget-contexts.js";
-import { addressableLabel } from "/runtime/anchor-resolution.js";
+import { addressableLabel } from "/runtime/addressable-names.js";
 import { adoptRegistry, registry, stateSpecs } from "/runtime/registry.js";
 import {
   rememberAuthoredParents,

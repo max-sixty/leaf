@@ -10,6 +10,7 @@ export {
   nothing,
   render,
   classMap,
+  createRef,
   guard,
   keyed,
   live,

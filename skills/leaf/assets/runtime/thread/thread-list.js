@@ -73,18 +73,15 @@ export function retainedThreadListProof(reason) {
   return reason.proof;
 }
 
-// The open threads, in the order t/T walk either surface. The panel's children are the
-// canonical list: folding a settled thread renames it out of this list in that frame.
-// With the panel shut the walk is the page's, whichever order the panel was left in.
+// The panel's thread cards, hidden ones included, which the queue walk finds a thread
+// among; with the panel shut, the open ones in the page's order, which t/T walk there,
+// whichever order the panel was left in. A folding card is renamed out of this list in
+// the frame its thread settles. The open panel's own walk is its list's (`walkRows`).
 export function createThreadListController({ panel, threadsBox, narrowingView }) {
-  const openThreads = ({
-    visibleOnly = true,
-    panelOpen = threadsBox.checkVisibility(),
-  } = {}) => {
+  const openThreads = () => {
+    const panelOpen = threadsBox.checkVisibility();
     const threads = [...threadsBox.querySelectorAll(":scope > .lf-thread")].filter(
-      (thread) =>
-        (!visibleOnly || !thread.hidden) &&
-        (panelOpen || thread.dataset.resolved !== "true"),
+      (thread) => panelOpen || thread.dataset.resolved !== "true",
     );
     return panelOpen ? threads : threadsBox.inPageOrder(threads);
   };
@@ -300,7 +297,6 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
       {
         card: {
           ...commands.card,
-          openThreads,
           listRoot: threadsBox,
           repaintThread: commands.repaintThread,
         },

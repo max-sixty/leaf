@@ -115,6 +115,7 @@ import { closestAcross } from "../passages.js";
 import { readApplication } from "../semantic-state.js";
 import { onStanding, focused, standingNodes } from "../focus.js";
 import { readingIsContinuous } from "../reading-continuity.js";
+import { watchOwner } from "../arrivals.js";
 
 // Whether this page's ledger holds a gesture of the user's on `thread`, of any kind, the
 // refusal that takes one back included until the reading it restores is drawn: the
@@ -643,14 +644,16 @@ export class HeldNews {
 }
 
 /** One region's reading, held while drawing it would move what the reader sees.
- *  `region()` gives the nodes the reading draws, and `changed()` draws the widget again.
+ *  `owner` is the widget, `region()` gives the nodes the reading draws, and `changed()`
+ *  draws the widget again.
  *  A reading is a value equal to the one drawn last exactly when it draws at the same
  *  size, such as the keys of its rows. `hold(reading)` returns the reading to draw:
  *  `reading` where it is the first, where it equals the one drawn last, or where growth
  *  anywhere in the region would move nothing the user sees (geometry.js,
  *  `growthIsSeen`), since a row may change anywhere in it; otherwise the reading drawn
  *  last. What it holds shows when the user opens it (`release` or `show`), or once
- *  that growth would move nothing seen. Current
+ *  that growth would move nothing seen. The wait lasts while `owner` stands: a departure
+ *  ends it and a return takes it up again, since a return draws nothing again. Current
  *  activation availability is not a retained presentation: callers refresh it
  *  from its current owner even while the reading holds. */
 export class HeldReading {
@@ -660,9 +663,20 @@ export class HeldReading {
   #released = false;
   #watch = null;
 
-  constructor(region, changed) {
+  constructor(owner, region, changed) {
     this.#region = region;
     this.#changed = changed;
+    // A held watch keeps its nodes while the owner is away, with no stop to call.
+    watchOwner(owner, {
+      connect: () => {
+        if (this.#watch && !this.#watch.stop)
+          this.#watch.stop = whenNone(this.#watch.nodes, growthIsSeen, this.show);
+      },
+      disconnect: () => {
+        this.#watch?.stop?.();
+        if (this.#watch) this.#watch.stop = null;
+      },
+    });
   }
 
   hold(reading) {
@@ -708,12 +722,8 @@ export class HeldReading {
   };
 
   #stop() {
-    this.#watch?.stop();
+    this.#watch?.stop?.();
     this.#watch = null;
-  }
-
-  dispose() {
-    this.#stop();
   }
 }
 

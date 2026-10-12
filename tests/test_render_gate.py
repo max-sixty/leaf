@@ -1305,54 +1305,6 @@ def test_an_async_reading_probe_is_refused_instead_of_awaited(browser, serve):
     ), f"an async reading has to name itself, and this came back as {failures}"
 
 
-def test_the_gate_reports_a_devtools_issue_the_page_owns(browser, serve):
-    """A lazy image that holds no room is reported only in DevTools' Issues panel.
-
-    The page owns an image it authors in a form-associated control's light DOM, and
-    a frame it embeds, whose issue is placed at the frame. The same image in the
-    control's shadow tree is the control's implementation, even inside a frame,
-    so the page is not refused for it."""
-    src = SHOT_SRC["before"]
-    control = f"""<script type="module">
-customElements.define("field-host", class extends HTMLElement {{
-  static formAssociated = true;
-  constructor() {{
-    super();
-    this.attachShadow({{ mode: "open" }}).innerHTML =
-      '<slot></slot><img src="{src}" alt="" loading="lazy">';
-  }}
-}});
-</script></head>"""
-    shadow_frame = escape(
-        "<head>" + control + "<body><field-host></field-host></body>", quote=True
-    )
-    source = LONG_PAGE.replace("</head>", control).replace(
-        '<h1 id="t">Long</h1>',
-        f"""<h1 id="t">Long</h1>
-<img id="unsized" src="{src}" alt="A panel" loading="lazy">
-<img id="sized" src="{src}" alt="A panel" loading="lazy" width="600" height="300">
-<field-host id="host"><img id="authored" src="{src}" alt="" loading="lazy"></field-host>
-<iframe id="frame" title="A frame" srcdoc='<img src="{src}" alt="" loading="lazy">'>
-</iframe>
-<iframe id="shadow-frame" title="A control’s shadow tree" srcdoc="{shadow_frame}"></iframe>""",
-    )
-
-    failures = render_gate_model.render_version(
-        browser, serve(source, media={src: SHOTS["before"]})
-    ).failures
-
-    # Delivery serves media under the revision, so the issue names that URL.
-    assert sorted(
-        re.sub(r'url="[^"]*(/media/[^"]+)"', r'url="\1"', failure)
-        for failure in failures
-        if "DevTools issue" in failure
-    ) == sorted(
-        f'[{scheme}] DevTools issue LazyLoadImageIssue at {where} (url="{src}")'
-        for scheme in ("light", "dark")
-        for where in ("<img id=unsized>", "<img id=authored>", "<iframe id=frame>")
-    )
-
-
 def test_a_devtools_issue_inside_nested_cross_origin_frames_is_unplaced(browser):
     """A same-origin inner frame cannot lend access through its outer boundary."""
     context = browser.new_context()
@@ -2463,7 +2415,7 @@ def test_the_render_gate_holds_project_widgets_to_their_declarations(
     browser, serve, tmp_path, monkeypatch, declared_reading_package
 ):
     """Bug-backs for the module contracts the gate enforces, one project widget each,
-    on one page.
+    on one page, beside the DevTools issues the page owns.
 
     `lf-callout` declares x-verbatim while its module renders other words in the
     body's stead (quotes would strand on words the screen no longer shows), and
@@ -2543,24 +2495,61 @@ def test_the_render_gate_holds_project_widgets_to_their_declarations(
             + body
             + "});\n"
         )
-    source = CUSTOM_WIDGET_PAGE.replace(
-        "</main>",
-        '<lf-dusk id="dusk-note"><strong>Heads up</strong> Read in both schemes.'
-        "</lf-dusk>\n"
-        '<lf-stager id="staged-note"><strong>Heads up</strong> Staged.</lf-stager>\n'
-        '<lf-veil id="veiled-note" label="Escalated" urgent>'
-        "<strong>Heads up</strong> Clipped words.</lf-veil>\n</main>",
+    # A lazy image that holds no room is reported only in DevTools' Issues panel. The
+    # page owns an image it authors in a form-associated control's light DOM, and a
+    # frame it embeds, whose issue is placed at the frame. The same image in the
+    # control's shadow tree is the control's implementation, even inside a frame, so
+    # the page is not refused for it.
+    src = SHOT_SRC["before"]
+    control = f"""<script type="module">
+customElements.define("field-host", class extends HTMLElement {{
+  static formAssociated = true;
+  constructor() {{
+    super();
+    this.attachShadow({{ mode: "open" }}).innerHTML =
+      '<slot></slot><img src="{src}" alt="" loading="lazy">';
+  }}
+}});
+</script></head>"""
+    shadow_frame = escape(
+        "<head>" + control + "<body><field-host></field-host></body>", quote=True
+    )
+    source = (
+        CUSTOM_WIDGET_PAGE.replace("</head>", control)
+        .replace(
+            '<h1 id="title">Project vocabulary</h1>',
+            f"""<h1 id="title">Project vocabulary</h1>
+<img id="unsized" src="{src}" alt="A panel" loading="lazy">
+<img id="sized" src="{src}" alt="A panel" loading="lazy" width="600" height="300">
+<field-host id="host"><img id="authored" src="{src}" alt="" loading="lazy"></field-host>
+<iframe id="frame" title="A frame" srcdoc='<img src="{src}" alt="" loading="lazy">'>
+</iframe>
+<iframe id="shadow-frame" title="A control’s shadow tree" srcdoc="{shadow_frame}"></iframe>""",
+        )
+        .replace(
+            "</main>",
+            '<lf-dusk id="dusk-note"><strong>Heads up</strong> Read in both schemes.'
+            "</lf-dusk>\n"
+            '<lf-stager id="staged-note"><strong>Heads up</strong> Staged.</lf-stager>\n'
+            '<lf-veil id="veiled-note" label="Escalated" urgent>'
+            "<strong>Heads up</strong> Clipped words.</lf-veil>\n</main>",
+        )
     )
 
     failures = render_gate_model.render_version(
-        browser, serve(source, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+        browser,
+        serve(
+            source,
+            packages=(*EXAMPLE_PACKAGES, "./.leaf"),
+            media={src: SHOTS["before"]},
+        ),
     ).failures
 
     def reported(*parts):
         return [f for f in failures if all(part in f for part in parts)]
 
     assert reported("x-verbatim", "custom-note"), failures
-    assert reported("shadow roots the registry doesn't declare"), failures
+    assert reported("shadow roots the registry doesn't declare", "<div>"), failures
     dusk = reported("x-verbatim", "dusk-note")
     assert len(dusk) == 1, failures
     assert dusk[0].startswith("[dark]"), dusk
@@ -2568,6 +2557,16 @@ def test_the_render_gate_holds_project_widgets_to_their_declarations(
     assert reported('paints state="failure" and says nothing'), failures
     assert reported('never says "Escalated"'), failures
     assert reported('paints urgent="" and says nothing'), failures
+    # Delivery serves media under the revision, so the issue names that URL.
+    assert sorted(
+        re.sub(r'url="[^"]*(/media/[^"]+)"', r'url="\1"', failure)
+        for failure in failures
+        if "DevTools issue" in failure
+    ) == sorted(
+        f'[{scheme}] DevTools issue LazyLoadImageIssue at {where} (url="{src}")'
+        for scheme in ("light", "dark")
+        for where in ("<img id=unsized>", "<img id=authored>", "<iframe id=frame>")
+    )
 
 
 def test_the_render_gate_checks_custom_controls_at_their_form_boundary(browser, serve):

@@ -232,7 +232,7 @@ def test_settled_requires_context_entry_even_with_a_reply_and_closed_turn(
         page.take_claim(
             EmbeddedHarness(session=session, agent="Reader", pid=os.getpid())
         )
-        comment = append_admitted(
+        comment, _ = append_admitted(
             page,
             {
                 "kind": "comment",

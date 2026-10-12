@@ -4178,9 +4178,9 @@ def test_revisions_change_decision_words_labels_and_defaults_without_retracting(
 def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir):
     """An action admitted by an earlier Leaf keeps standing, and keeps its Question
     answered, under a Leaf that records the same operation's definition with other
-    fields. Before #2329 the definition carried `update`, the flag that became
-    `report`; matching every recorded field dropped each decision on a page that
-    Leaf version had served."""
+    fields. Before #2329 the definition carried `update`, the verb flag now
+    named `text`; matching every recorded field dropped each decision on a page
+    that Leaf version had served."""
     source = page_dir / "index.html"
     source.write_text(
         PAGE.replace(
@@ -4207,7 +4207,7 @@ def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir)
         event = json.loads(line)
         if event["id"] == picked["id"]:
             recorded = event["meaning"]["state"]
-            recorded["update"] = recorded.pop("report", False)
+            recorded["update"] = False
         earlier.append(json.dumps(event))
     log.write_text("\n".join(earlier) + "\n")
 

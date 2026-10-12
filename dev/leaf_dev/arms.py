@@ -13,13 +13,17 @@ the user's `~/.claude/CLAUDE.md`). The home carries only the login. A trace is t
 child's normalized tool/turn evidence; it counts when its harness turn completed
 (`completed`). CC raw stdout and Codex notifications are retained too.
 A `LiveChild` keeps its session open across turns, so a driver can post
-user moves to a served page (`PageClient`) as a tab would.
+user moves to a served page (`PageClient`) as a tab would; a `LiveSession` is how
+every live driver holds one: it records the stream, sends chat messages, and tells
+when the session has gone quiet. On macOS a Claude Code child runs under
+`private_tmp`, so concurrent children share no file in `/tmp`.
 """
 
 import base64
 import http.cookiejar
 import json
 import os
+import queue
 import re
 import shutil
 import signal
@@ -74,12 +78,14 @@ PAYLOAD = (
 HARNESSES = (ClaudeCodeHarness.name, CodexHarness.name)
 
 # The models evals run, pinned so runs on different days compare: each harness's
-# agents, the judge behind `llm-rubric` assertions, and the screenshot judge.
+# agents, the judge behind `llm-rubric` assertions, the screenshot judge, and the
+# agent that plays the user in a page's browser.
 MODELS = {
     ClaudeCodeHarness.name: "claude-opus-5-5",
     CodexHarness.name: "gpt-6.1-sol",
     "judge": "claude-sonnet-5-5",
     "screenshots": "gpt-6.1-sol",
+    "user": "claude-sonnet-5-5",
 }
 
 
@@ -144,7 +150,7 @@ def serving(arm: Path, state: Path, page: Path):
         start_new_session=True,
     )
     try:
-        yield re.search(r"https?://[^\s\"]+", server.stdout.readline())[0]
+        yield json.loads(server.stdout.readline())["url"]
     finally:
         # A loaded host can take longer than this to wind a server down; its page is
         # scratch, so a server still running then is killed rather than failing the run.
@@ -401,21 +407,65 @@ def scratch():
         yield work
 
 
+def private_tmp(*owned: Path) -> str:
+    """The macOS sandbox profile a Claude Code child runs under, so that two
+    children never share a file under `/tmp`.
+
+    Its `TMPDIR` is already its own (`claude_child`), but authoring agents also
+    write fixed names there, such as `/tmp/chk.py`, which a concurrent sample would
+    overwrite. Writes to `/tmp` are refused except under `owned`, the child's own
+    directories, wherever they are, and the names Claude Code and Leaf give their
+    own machine-local files there: Claude Code's per-user directory and each
+    shell's cwd file and socket, and Leaf's per-user package locks and each App
+    Server's socket directory. The sandbox resolves `/tmp` to `/private/tmp`, so
+    the rules name that."""
+    uid = os.getuid()
+    names = (
+        rf"claude-{uid}(/|$)|claude-[0-9a-f]+-cwd$|cc-socks(/|$)"
+        rf"|leaf-package-locks-{uid}(/|$)|leaf-codex-[^/]+(/|$)"
+    )
+    return "\n".join(
+        [
+            "(version 1)",
+            "(allow default)",
+            '(deny file-write* (subpath "/private/tmp"))',
+            f'(allow file-write* (regex #"^/private/tmp/({names})"))',
+            *(
+                f"(allow file-write* (subpath {json.dumps(str(path.resolve()))}))"
+                for path in owned
+            ),
+            "",
+        ]
+    )
+
+
 def claude_child(
-    cwd: Path, *args: str, dirs: Iterable[Path] = (), env: dict | None = None
+    cwd: Path,
+    *args: str,
+    dirs: Iterable[Path] = (),
+    env: dict | None = None,
+    model: str = MODELS[ClaudeCodeHarness.name],
+    sandbox: bool = True,
 ) -> dict:
     """The `subprocess` arguments for one isolated `claude -p` child in `cwd`.
 
     `args` follow `-p`, so a prompt goes first. `dirs` are what the child may read
-    beyond `cwd`, and `env` adds to `environment()`. Output is verbose stream-json."""
+    beyond `cwd`, and `env` adds to `environment()`. Output is verbose stream-json.
+    On macOS the child runs under `private_tmp`, owning `cwd`, its home and
+    `dirs`, unless `sandbox` is False, as a child that drives the harness's own
+    browser is."""
+    dirs = list(dirs)
     (cwd / "tmp").mkdir(exist_ok=True)
     home = claude_home(cwd.with_name(f"{cwd.name}-home"))
     command = [
-        "claude", "-p", *args, "--model", MODELS[ClaudeCodeHarness.name],
+        "claude", "-p", *args, "--model", model,
         "--strict-mcp-config", "--permission-mode", "bypassPermissions",
         "--output-format", "stream-json",
         "--verbose", *(arg for d in dirs for arg in ("--add-dir", str(d))),
     ]  # fmt: skip
+    if sandbox and shutil.which("sandbox-exec"):
+        profile = private_tmp(cwd, home, *dirs)
+        command = ["sandbox-exec", "-p", profile, *command]
     child_env = claude_environment(home, TMPDIR=str(cwd / "tmp"), **(env or {}))
     return {"args": command, "cwd": cwd, "env": child_env}
 
@@ -434,13 +484,17 @@ def run_agent(
     dirs: Iterable[Path] = (),
     env: dict | None = None,
     harness: str = ClaudeCodeHarness.name,
+    limit: float = TURN_LIMIT,
+    **options: str | bool,
 ) -> list[dict]:
     """Run an isolated harness turn, optionally resuming its preceding session.
 
     `out` is normalized evidence; `err` is stderr. Codex's complete App Server
     notifications live beside `err` with a `.codex.jsonl` suffix. Both harnesses
-    have the same TURN_LIMIT; a timeout retains their partial native evidence and
-    marks `out.with_suffix(".timed-out")` without fabricating completion.
+    have the same `limit`, TURN_LIMIT unless the caller bounds its turn more
+    tightly; a timeout retains their partial native evidence and
+    marks `out.with_suffix(".timed-out")` without fabricating completion. `options`
+    passes a Claude Code child's `model` and `sandbox` (`claude_child`).
     """
     if harness == CodexHarness.name:
         with (
@@ -450,7 +504,7 @@ def run_agent(
                 *args[1:],
                 harness=harness,
                 stderr=err,
-                limit=TURN_LIMIT,
+                limit=limit,
                 timed_out=out.with_suffix(".timed-out"),
                 dirs=dirs,
                 env=env,
@@ -467,12 +521,12 @@ def run_agent(
     with out.open("w") as stdout, err.open("w") as stderr:
         try:
             subprocess.run(
-                **claude_child(cwd, *args, dirs=dirs, env=env),
+                **claude_child(cwd, *args, dirs=dirs, env=env, **options),
                 stdin=subprocess.DEVNULL,
                 stdout=stdout,
                 stderr=stderr,
                 check=True,
-                timeout=TURN_LIMIT,
+                timeout=limit,
             )
         except subprocess.TimeoutExpired:
             out.with_suffix(".timed-out").touch()
@@ -537,16 +591,17 @@ class ClaudeSession:
             raise
         self.deadline.start()
         try:
-            message = {
-                "type": "user",
-                "message": {"role": "user", "content": self.prompt},
-            }
-            self.proc.stdin.write(json.dumps(message) + "\n")
-            self.proc.stdin.flush()
+            self.send(self.prompt)
         except BaseException:
             self.__exit__()
             raise
         return self
+
+    def send(self, text: str) -> None:
+        """Send the user's next chat message; a turn still running takes it next."""
+        message = {"type": "user", "message": {"role": "user", "content": text}}
+        self.proc.stdin.write(json.dumps(message) + "\n")
+        self.proc.stdin.flush()
 
     def records(self):
         """The native stream; malformed output and unexpected exits raise."""
@@ -616,6 +671,191 @@ def child_class(harness: str) -> type:
 def now() -> str:
     """The time a live driver stamps on each record as `received_at`."""
     return datetime.now().astimezone().isoformat()
+
+
+# What a `LiveSession`'s reader hands over once its child's records end.
+_ENDED = object()
+# How long a `LiveSession` leaving its context lets a closed child's records end.
+CLOSING = 30
+
+
+class LiveSession:
+    """A `LiveChild` as a driver plays its user, the one mechanism every live eval
+    driver shares.
+
+    The child's native records go to the file `stream`, each written before the
+    driver sees it, with the driver's own records (`note`) between them where it
+    makes them. A thread reads the child in lockstep with the driver: it reads the
+    next record only once the driver asks for it, so whatever the driver does on a
+    record happens before anything the child does after it. Reading with `idle`
+    yields None each time that long passes without a record, so a driver can tell
+    a quiet session from one still working (`settle`).
+
+    `watch` names the arm, its state home and the page the session serves. Once
+    the page is served the session records `eval_served` with its keyed URL, which
+    `url` holds, and at each turn's end `eval_status` with the page's status, from
+    the time the page exists."""
+
+    def __init__(
+        self, child, stream: Path, watch: tuple[Path, Path, Path] | None = None
+    ) -> None:
+        self.child, self.path, self.watch = child, stream, watch
+        self.url: str | None = None
+        self.handed = queue.Queue()
+        self.taken = threading.Event()
+        self.stopping = False
+        # The turns ended so far, whether one is running, and when the last record
+        # arrived.
+        self.answered, self.running, self.heard = 0, False, time.monotonic()
+
+    def __enter__(self) -> Self:
+        self.stream = self.path.open("w")
+        try:
+            self.child = self.child.__enter__()
+        except BaseException:
+            self.stream.close()
+            raise
+        self.reader = threading.Thread(target=self._read, daemon=True)
+        self.reader.start()
+        return self
+
+    def _read(self) -> None:
+        try:
+            for record in self.child.records():
+                self.handed.put(record)
+                self.taken.wait()
+                self.taken.clear()
+                if self.stopping:
+                    return
+        # The driver's thread raises what the child's records raised.
+        except BaseException as error:  # noqa: BLE001
+            self.handed.put(error)
+            return
+        self.handed.put(_ENDED)
+
+    def note(self, record: dict) -> None:
+        """Write one of the driver's own records into the stream."""
+        self.stream.write(json.dumps(record) + "\n")
+        self.stream.flush()
+
+    def records(self, idle: float | None = None, before=None):
+        """The child's native records, each written to the stream first, until it
+        ends. `before`, given each record, runs before it is written, so what it
+        notes precedes the record. With `idle`, None stands for each `idle`
+        seconds without a record."""
+        while True:
+            try:
+                item = self.handed.get(timeout=idle)
+            except queue.Empty:
+                yield None
+                continue
+            if item is _ENDED:
+                return
+            if isinstance(item, BaseException):
+                raise item
+            try:
+                if before is not None:
+                    before(item)
+                self.note(item)
+                self._observe(item)
+                self.heard = time.monotonic()
+                if item.get("type") == "result":
+                    self.answered, self.running = self.answered + 1, False
+                elif item.get("type") in ("assistant", "user"):
+                    self.running = True
+                yield item
+            finally:
+                self.taken.set()
+
+    def _observe(self, record: dict) -> None:
+        # An agent authoring the page has not made it yet.
+        if self.watch is None or not (self.watch[2] / "events.jsonl").exists():
+            return
+        if not self.url and record.get("type") in ("user", "result"):
+            server = read_page_state(*self.watch)["server"]
+            if server:
+                self.url = server["url"]
+                self.note(
+                    {"type": "eval_served", "url": self.url, "received_at": now()}
+                )
+        if record.get("type") == "result":
+            state = read_page_state(*self.watch)
+            self.note(
+                {
+                    "type": "eval_status",
+                    "status": state.get("status"),
+                    "listening": state["listening"],
+                    "received_at": now(),
+                }
+            )
+
+    def send(self, text: str) -> None:
+        """Send the user's next chat message, recording it as `eval_send`."""
+        self.note({"type": "eval_send", "text": text, "received_at": now()})
+        self.child.send(text)
+
+    def settle(self, since: int, *, grace: float, wake: float, before=None) -> bool:
+        """Read until the session has answered and gone quiet: more than `since`
+        turns have ended (`answered`), none is running, and `grace` seconds have
+        passed without a record. A turn runs from its first message to its result,
+        however long a tool call inside it takes. Return False when, before that
+        answer, `wake` seconds pass with no turn running and no record, as when
+        nothing reached the session."""
+        self.heard = time.monotonic()
+        for record in self.records(idle=1, before=before):
+            if record is not None:
+                continue
+            quiet = time.monotonic() - self.heard
+            if self.answered <= since and not self.running and quiet >= wake:
+                return False
+            if self.answered > since and not self.running and quiet >= grace:
+                return True
+        return self.answered > since
+
+    def during(self, action, before=None):
+        """Run `action` while the session's records keep being read, so the child
+        never waits on its output, and return what it returns."""
+        done: queue.Queue = queue.Queue()
+
+        def run():
+            try:
+                done.put((True, action()))
+            # Raised again in the driver's thread.
+            except BaseException as error:  # noqa: BLE001
+                done.put((False, error))
+
+        worker = threading.Thread(target=run, daemon=True)
+        worker.start()
+        try:
+            for _ in self.records(idle=0.5, before=before):
+                if not worker.is_alive():
+                    break
+        finally:
+            # The action owns a browser and children of its own, which end with it
+            # even when the session's records fail first.
+            worker.join()
+        succeeded, value = done.get()
+        if not succeeded:
+            raise value
+        return value
+
+    def close(self) -> None:
+        """End the session; its remaining records still reach `records`."""
+        self.child.close()
+
+    def __exit__(self, *exc) -> None:
+        self.stopping = True
+        self.taken.set()
+        try:
+            self.child.close()
+            # A closed Claude Code child's output ends at once. A Codex child's
+            # records wait out a running turn, which only leaving its context, and
+            # so its socket, interrupts.
+            self.reader.join(timeout=CLOSING)
+            self.child.__exit__(*exc)
+            self.reader.join()
+        finally:
+            self.stream.close()
 
 
 # A served page's keyed URL, as `leaf server start` prints it.

@@ -1,7 +1,7 @@
 /* This module owns the target picker and whole-page text search. Its transient hints,
  * search marks, and status are synchronous Lit projections over native controller state. */
 import { anchoringIsReady } from "../anchor-resolution.js";
-import { bindings, bindingEnabled } from "../keyboard/bindings.js";
+import { bindings, bindingEnabled, cycledRow } from "../keyboard/bindings.js";
 import { el, LAYOUT, reserve, searchField } from "../widget-elements.js";
 import { coarsePointer } from "../pointer.js";
 import { html, nothing, render } from "../../vendor/browser-runtime.js";
@@ -416,11 +416,12 @@ export function createTargetPicker({
   function moveMatch(direction) {
     refreshMatches();
     if (!matches.length) return presentSearchStatus();
-    active = (active + direction + matches.length) % matches.length;
+    const { row, wrapped } = cycledRow(matches, matches[active], direction);
+    active = matches.indexOf(row);
     presentSearchStatus();
     showMatch();
     const query = pageSearchInput.value.trim();
-    beginWalk("page-search", "Match", () => matchWalkPosition(query));
+    beginWalk("page-search", "Match", () => matchWalkPosition(query), wrapped);
     announce(
       `Match ${active + 1} of ${matches.length}: ${matchDescription(matches[active])}.`,
     );
@@ -477,12 +478,13 @@ export function createTargetPicker({
       return repaint();
     }
     const from = Math.min(repeatedSearch.index, matches.length - 1);
-    active = (from + direction + matches.length) % matches.length;
+    const { row, wrapped } = cycledRow(matches, matches[from], direction);
+    active = matches.indexOf(row);
     repeatedSearch.index = active;
     showMatch();
     selectMatch(matches[active]);
     const query = repeatedSearch.query;
-    beginWalk("page-search", "Match", () => matchWalkPosition(query));
+    beginWalk("page-search", "Match", () => matchWalkPosition(query), wrapped);
     announce(
       `Match ${active + 1} of ${matches.length}: ${matchDescription(matches[active])}.`,
     );
@@ -594,6 +596,7 @@ export function createTargetPicker({
     id: "page.search.open",
     // A finger can select words it can see, but not find them elsewhere on a long page.
     touch: "Search page",
+    menu: "navigate",
     keys: ["/"],
     description: "Search all the text on the page",
     title: "search page",
@@ -780,6 +783,7 @@ export function createTargetPicker({
         : "Choose an element by pressing it or browsing targets with Tab and Enter, then comment",
     title: "select element",
     touch: "Select element",
+    menu: "annotate",
     // Once the field is open, its typing scope owns character keys. This gate also keeps
     // the route off the short line while a target is in hand.
     lineWhen: () => !Boolean(fabAnchorAt()),

@@ -38,6 +38,7 @@ export function mountAnnotationControls() {
     description: "Hide or show the annotations drawn over the page",
     title: () => (hidden ? "show annotations" : "hide annotations"),
     touch: () => (hidden ? "Show annotations" : "Hide annotations"),
+    menu: "annotate",
     when: () => watchers.size > 0,
     run: () => {
       setAnnotationsHidden(!hidden);

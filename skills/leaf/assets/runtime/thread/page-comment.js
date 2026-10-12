@@ -116,6 +116,7 @@ export function createPageComment({
     control,
     rank: BANNER_CONTROL_RANK.pageComment,
     seat: { desk: "row", phone: "menu" },
+    row: { label: "Comment on the page", group: "page" },
   });
 
   function open() {
@@ -154,6 +155,7 @@ export function createPageComment({
       accessibleName: hint,
       sends: "send",
       sendBtn: send,
+      mediaBelow: true,
       save: (text) => saveDraft("general", text),
       send: (_text, raw, owns) => {
         let flight = null;

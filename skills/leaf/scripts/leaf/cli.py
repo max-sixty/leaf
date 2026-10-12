@@ -880,7 +880,8 @@ def status(dir: str, state: str, detail: str) -> None:
     print(json.dumps(written, ensure_ascii=False))
     if state == "waiting" and owed:
         click.echo(
-            f"{unanswered(owed)}; the page reads waiting once each has one", err=True
+            f"{unanswered(owed, page_dir)}; the page reads waiting once each has one",
+            err=True,
         )
 
 

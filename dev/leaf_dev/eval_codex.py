@@ -185,7 +185,7 @@ class CodexChild:
 
         self.cwd, self.prompt = cwd, prompt
         self.stderr, self.timed_out = stderr, timed_out
-        self.queue, self.closing = deque(), False
+        self.queue, self.outbox, self.closing = deque(), deque(), False
         self.final, self.now, self.model = "", now, MODELS["codex"]
         self.usage = None
         self.usage_baseline = None
@@ -194,10 +194,15 @@ class CodexChild:
         options = {}
         values = iter(args)
         for name in values:
-            if name not in {"--tools", "--plugin-dir", "--resume"}:
+            if name not in {"--tools", "--plugin-dir", "--resume", "--json-schema"}:
                 raise ValueError(f"unsupported Codex eval option: {name}")
             options[name] = next(values)
         self.options = options
+        # Claude Code's `--json-schema`, which App Server takes as the turn's
+        # `outputSchema`; the result then carries the answer as `structured_output`,
+        # as Claude Code's does.
+        schema = options.get("--json-schema")
+        self.schema = json.loads(schema) if schema else None
         home = cwd.with_name(f"{cwd.name}-home")
         home.mkdir(mode=0o700, exist_ok=True)
         config_home = home / ".codex"
@@ -251,6 +256,8 @@ class CodexChild:
                         "input_tokens": self.usage["inputTokens"],
                         "output_tokens": self.usage["outputTokens"],
                     }
+                if self.schema is not None and not record["is_error"]:
+                    record["structured_output"] = json.loads(self.final)
             self.queue.append({**record, "harness": "codex", "received_at": self.now()})
 
     def __enter__(self):
@@ -273,7 +280,7 @@ class CodexChild:
             self.task.thread = self.task.request(
                 "thread/resume" if session else "thread/start", params
             )["thread"]["id"]
-            self.task.say(self.prompt)
+            self.task.say(self.prompt, self.schema)
             self.deadline.start()
             return self
         except BaseException:
@@ -283,6 +290,8 @@ class CodexChild:
 
     def records(self):
         while True:
+            while self.outbox:
+                self.task.say(self.outbox.popleft())
             while self.queue:
                 yield self.queue.popleft()
             if self.closing and not self.task.running:
@@ -293,6 +302,11 @@ class CodexChild:
                 if self.closing:
                     return
                 raise
+
+    def send(self, text):
+        """Send the user's next chat message as a turn of the same thread. The
+        thread reading `records` owns the socket, so it starts the turn."""
+        self.outbox.append(text)
 
     def close(self):
         self.closing = True

@@ -225,7 +225,7 @@ def remedies(
         if plan.owed:
             reasons.append(
                 (
-                    f"{plan.page}: {unanswered(plan.owed, 'acknowledged')}{restart(plan.owed)}.",
+                    f"{plan.page}: {unanswered(plan.owed, plan.page, 'acknowledged')}{restart(plan.owed)}.",
                     ANSWER_ASK_INSTRUCTION,
                 )
             )

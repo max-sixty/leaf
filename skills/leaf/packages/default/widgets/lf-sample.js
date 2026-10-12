@@ -91,6 +91,8 @@ customElements.define(
       const ready = mountSample(this.#frame, {
         template: this.#template.id,
         window: this.hasAttribute("window") || isNativeLayer(this.#view),
+        // The child reads with the chrome its element names, else with the reader's own.
+        chrome: this.getAttribute("chrome") ?? document.documentElement.lfChrome?.mode,
       }).then(
         async (host) => {
           this.#mounting = false;

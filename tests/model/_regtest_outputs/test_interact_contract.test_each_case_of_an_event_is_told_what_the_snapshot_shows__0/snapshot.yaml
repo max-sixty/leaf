@@ -853,7 +853,8 @@ pick on the page:
         It answers the page's ask, so the page shows it as waiting on you until
         the markup records it. Name the work it selects or unblocks with `leaf task
         start <page> <event-id> "<the work, in a line>"` before starting it, then
-        do it, write it in, and stamp a version.
+        do it, write it in, and stamp a version. An option the user added needs
+        no writing in: the page keeps it where the user put it.
 
 option the user added:
   event:
@@ -870,8 +871,8 @@ option the user added:
         without an edit.
     - when: {"allOf": [{"required": ["action"], "properties": {"action": {"const": "add"}}}, {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["scope"], "properties": {"scope": {"const": "thread"}}}}}}]}
       text: >-
-        When you write it into the markup, the added option becomes an ordinary
-        lf-option in the group, keeping the id and words the event gives.
+        Every later version keeps the added option in its group where the user put
+        it, after the authored options, so leave it out of the markup.
     - when: {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["scope"], "properties": {"scope": {"const": "thread"}}}}}}
       text: >-
         If you need clarification, ask in a thread on the picked option. To override
@@ -931,7 +932,8 @@ decided suggestion:
         It answers the page's ask, so the page shows it as waiting on you until
         the markup records it. Name the work it selects or unblocks with `leaf task
         start <page> <event-id> "<the work, in a line>"` before starting it, then
-        do it, write it in, and stamp a version.
+        do it, write it in, and stamp a version. An option the user added needs
+        no writing in: the page keeps it where the user put it.
 
 pick inside a thread:
   event:

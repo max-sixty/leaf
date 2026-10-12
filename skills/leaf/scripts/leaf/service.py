@@ -181,6 +181,15 @@ def claim_names_session(claim: dict | None, session_id: str) -> bool:
     return record is not None and record["ended"] is None
 
 
+def may_receive(claim: dict | None, session_id: str | None) -> bool:
+    """Whether `session_id` may take receipt of the page's input under `claim`
+    (`delivery.receive_batch`): the claim names it, or, for a reader with no
+    session, no session holds the page."""
+    if session_id is None:
+        return not claim_is_active(claim)
+    return claim_names_session(claim, session_id)
+
+
 def claimant_matches(claim: dict | None, harness: Harness | None) -> bool:
     """Whether the record names this harness, or neither names a claimant.
 

@@ -5,8 +5,8 @@ Stop:
     hookEventName: Stop
     additionalContext: |-
       Leaf needs attention:
-      - <first-page>: 1 acknowledged user update with no answer (`leaf response reply <answer.ref>` for c1).
-      - <second-page>: 1 acknowledged user update with no answer (`leaf response reply <answer.ref>` for c2).
+      - <first-page>: 1 acknowledged user update with no answer (`leaf response reply <delivery>:0:c1`).
+      - <second-page>: 1 acknowledged user update with no answer (`leaf response reply <delivery>:0:c2`).
 
       Each update takes the answer named for it. Read current obligations with `leaf page state <page>` and thread history with `leaf page state <page> <id>`.
       Read these unanswered updates and their exact answer references:

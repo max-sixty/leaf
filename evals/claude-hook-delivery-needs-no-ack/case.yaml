@@ -1,5 +1,5 @@
 # Added when Claude Code's and Pi's hooks began confirming the inline envelope they
-# hand over, so the move reads Picked up as the hook runs instead of after the
+# hand over, so the update reads Picked up as the hook runs instead of after the
 # model's first call. Replaces a case that pinned the model's own `leaf delivery ack`
 # of the same envelope, a command this change removed. On Codex (3 runs per arm at
 # b9d22d31e) both arms ran no acknowledgement, so it has only guarded there: the
@@ -7,9 +7,11 @@
 # Opus 5.5's safeguards refused every Claude Code run while the prompt asked for each
 # tool call with its full JSON input. Asking for the commands instead, both arms
 # passed 3 of 3 against b9d22d31e, so it has only guarded on Claude Code too.
+# Reworded by #2329 (updates to progress messages); at 3fe3eb0af it passed 1/1 on
+# Claude Code.
 description: claude-hook-delivery-needs-no-ack
 metadata:
-  purpose: "A Claude hook delivery arrives confirmed: run no acknowledgement command, and name the move's work first."
+  purpose: "A Claude hook delivery arrives confirmed: run no acknowledgement command, and name the update's work first."
   tags: [wait-loop]
 vars:
   prompt: |

@@ -262,7 +262,11 @@ export function visibleBand(scroller, item = null) {
 // below it, a reply row pinned at the foot of a long thread. It rides along with every
 // scroll, so being in view says nothing about where in its holder the user is. Whatever
 // a stuck box holds rides with it, a control in a scroller of its own included, such as
-// a reply row's attachment shelf, so every sticky box around `node` is asked.
+// a reply row's attachment shelf, so every sticky box around `node` is asked, up to
+// `within` where it is given: a reader asking where in one scroller the user is asks only
+// of the boxes that scroller carries, and a sticky box around the scroller, such as a
+// sidebar's block that sticks beside the page and scrolls what it holds, rides with none
+// of that scroller's scrolls.
 //
 // A box standing on its foot line in its own place counts as stuck too: a reply row at
 // the very end of its thread. Anything growing before it, a turn arriving or its own
@@ -275,8 +279,8 @@ export function visibleBand(scroller, item = null) {
 //
 // Which band a sticky box covers is a different question, answered from its stated
 // height whether it is stuck or not (`headerInset`, `footerInset`).
-export function stuckBox(node) {
-  for (let el = node; el?.nodeType === 1; el = renderedParent(el))
+export function stuckBox(node, within = null) {
+  for (let el = node; el?.nodeType === 1 && el !== within; el = renderedParent(el))
     if (getComputedStyle(el).position === "sticky" && sticks(el)) return el;
   return null;
 }

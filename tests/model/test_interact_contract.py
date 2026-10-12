@@ -37,7 +37,7 @@ from interact_support import (
     _report_without_overruled,
     _report_without_upgrade,
     _tasks_version,
-    _user_verb_report,
+    _user_verb_text,
     append_carried_log_record,
     append_command,
     assert_revendor_serializes_writer,
@@ -2740,8 +2740,8 @@ def test_a_work_seat_declaration_is_checked_whole(page_dir, mutate, message):
         (_report_without_overruled, "not the boolean `overruled`"),
         # Reports replay through renderState, so the widget must upgrade.
         (_report_without_upgrade, "declares x-state"),
-        # Only an agent verb declares `report` text.
-        (_user_verb_report, "registry extensions are invalid"),
+        # Only an agent verb declares `text`.
+        (_user_verb_text, "registry extensions are invalid"),
         # The user answers their own Ask; the agent's news never does.
         (_agent_verb_answers, "which are not x-state verbs the user writes"),
         (_body_record_with_prose, "x-content must be data"),
@@ -3082,15 +3082,15 @@ def test_scalar_record_admission_inherits_the_destination_schema(page_dir):
 
 
 @pytest.mark.parametrize(
-    "mutation", ["detail", "record-value", "record-rank", "report-field"]
+    "mutation", ["detail", "record-value", "record-rank", "text-field"]
 )
 def test_recorded_declarations_cannot_override_the_fixed_payload(page_dir, mutation):
     registry = json.loads((page_dir / "registry.json").read_text())
     spec = registry["lf-board"]["x-state"]["move"]
     if mutation == "detail":
         spec["detail"] = {"type": "object", "additionalProperties": False}
-    elif mutation == "report-field":
-        registry["lf-test-worker"]["x-state"]["state"]["report"] = "doing"
+    elif mutation == "text-field":
+        registry["lf-test-worker"]["x-state"]["state"]["text"] = "doing"
     else:
         spec["record"][mutation.removeprefix("record-")] = "custom"
     (page_dir / "registry.json").write_text(json.dumps(registry))
@@ -3116,7 +3116,7 @@ def test_value_records_use_the_string_type_html_attributes_carry(page_dir):
 
 
 def test_report_text_is_required_only_when_declared(page_dir):
-    """The report flag fixes nonempty text; reports without it carry just their value."""
+    """`text: true` requires non-empty text; reports without it carry just their value."""
     registry = json.loads((page_dir / "registry.json").read_text())
     page = ModelPage(
         '<lf-test-worker id="agent" state="working">Agent</lf-test-worker>',
@@ -3148,7 +3148,7 @@ def test_report_text_is_required_only_when_declared(page_dir):
             page, [], {**command, "kind": "action", "author": "user", "detail": detail}
         )
 
-    del registry["lf-test-worker"]["x-state"]["state"]["report"]
+    del registry["lf-test-worker"]["x-state"]["state"]["text"]
     page = ModelPage(
         '<lf-test-worker id="agent" state="working">Agent</lf-test-worker>',
         registry=registry,
@@ -4816,6 +4816,25 @@ def test_date_time_format_is_an_absolute_rfc3339_instant(value, valid):
     schema = {"type": "string", "format": "date-time"}
 
     assert registry_schema.json_validator(schema).is_valid(value) is valid
+
+
+def test_uri_format_checks_absolute_urls_with_browser_syntax():
+    validator = registry_schema.json_validator({"type": "string", "format": "uri"})
+
+    for value in (
+        "https://example.org/path?q=1#section",
+        "https:example.org",
+        "https://Bücher.example/",
+        "mailto:reader@example.org",
+    ):
+        assert validator.is_valid(value), value
+    for value in (
+        "relative/path",
+        "http://a.test:99999/",
+        "http://256.0.0.1/",
+        "http://exa%mple.org/",
+    ):
+        assert not validator.is_valid(value), value
 
 
 def test_shared_package_declarations_compose_by_member():

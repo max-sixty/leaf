@@ -131,6 +131,7 @@ export function createUndo({ post, stateApplying, unaccountedGesture }) {
     description: () => undoSentence(undoable),
     title: "undo",
     touch: "Undo",
+    menu: "page",
     // Dead while the page holds a gesture no log read accounts for, this one's own send
     // included. The line drops the chip for as long as that is true rather than
     // promising a press that would undo the wrong thing.

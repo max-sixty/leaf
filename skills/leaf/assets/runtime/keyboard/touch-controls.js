@@ -57,6 +57,18 @@ function place(press, seat) {
     rank: seat === "menu" ? BANNER_CONTROL_RANK.commands : BANNER_CONTROL_RANK.steps,
     seat,
     present: false,
+    // A page command says which of a menu's groups it belongs with (`menu`).
+    row: {
+      label: () => word(controls.get(press.id).press.words),
+      group: press.row.menu ?? "page",
+      // The same activation as the control's own: a command that acts on where the
+      // reader stood gets that place back before it runs.
+      press: (held) => {
+        const { press: current } = controls.get(press.id);
+        if (current.row.retainStanding && held) restoreBannerStanding(held);
+        if (live(current.row)) invokePress(current);
+      },
+    },
   });
   controls.set(press.id, { press, button });
   // The row names the native press in the control's own words; the semantic press still

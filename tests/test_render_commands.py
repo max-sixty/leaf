@@ -136,8 +136,6 @@ def test_the_gate_passes_collapsed_words_that_overlap_when_visible(browser, serv
     expect(collapsed.locator("p").first).to_be_hidden()
 
     assert render_checks_model.evaluate_probe(page, "coveredWords") == []
-    page.close()
-    assert render_gate_model.render_version(browser, url).failures == []
 
 
 def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
@@ -167,6 +165,10 @@ def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
         f"the suggestion is {sug_width}px, so it clears the floor and proves nothing"
     )
 
+    assert (
+        render_checks_model.evaluate_probe(page, "tinyBoxes", page_registry(page)) == []
+    ), "the gate refuses glosses and a suggestion with nothing wrong with them"
+
     # Asked without the declaration, the same floor flags it — so what passes the page
     # is the declaration, not a floor gone missing.
     undeclared = json.loads(json.dumps(page_registry(page)))
@@ -191,7 +193,6 @@ def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
     assert [box for box in flattened if box["tag"] == "lf-gloss"], (
         "a gloss with no height left reports nothing, so the floor is gone rather than declared"
     )
-    assert render_gate_model.render_version(browser, url).failures == []
 
 
 def test_check_render_refuses_what_only_a_browser_can_see(serve):

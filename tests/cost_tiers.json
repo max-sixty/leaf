@@ -2959,7 +2959,6 @@
   "test_a_page_comment_sent_beside_open_threads_lands_in_view[size0]": "main",
   "test_a_page_comment_sent_beside_open_threads_lands_in_view[size1]": "main",
   "test_a_pages_own_element_rules_leave_the_layers_controls_alone": "main",
-  "test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers": "main",
   "test_a_panel_reply_keeps_its_first_line_when_the_draft_shrinks[backspace]": "main",
   "test_a_panel_reply_keeps_its_first_line_when_the_draft_shrinks[replace]": "main",
   "test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message": "nightly",

@@ -243,11 +243,12 @@ def detail_schema(entry: dict, spec: dict) -> dict:
             return detail
         # Into the unit's own declaration rather than an `allOf` around the detail,
         # which would move the base a `#/properties/…` reference inside it resolves on.
-        declared = detail["properties"][unit]
+        properties = detail.get("properties", {})
+        declared = properties.get(unit, {})
         return {
             **detail,
             "properties": {
-                **detail["properties"],
+                **properties,
                 unit: {**declared, "minLength": max(declared.get("minLength", 0), 1)},
             },
         }

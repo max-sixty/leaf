@@ -220,3 +220,32 @@ def test_invalid_transport_is_refused_and_a_torn_line_is_skipped(tmp_path):
     )
     assert result.exit_code == 0, result.output
     assert [json.loads(line) for line in result.output.splitlines()] == [valid] * 2
+
+
+def test_a_split_record_that_joins_into_no_entry_is_marked_not_read(tmp_path):
+    """Ingress checks each part's coordinates and that its `json` is a string, not
+    what the parts join into, so a group that joins into no entry is marked and
+    every other row still reads."""
+    broken = client_records(
+        "tab",
+        "/",
+        [
+            {
+                "type": "interaction_part",
+                "sequence": 1,
+                "partOf": 1,
+                "part": 0,
+                "parts": 1,
+                "originalType": "input",
+                "json": "{not json",
+            },
+            {"type": "keydown", "sequence": 2},
+        ],
+    )
+    append_interactions(tmp_path, broken)
+    records = read_interactions(tmp_path, session="tab")
+    assert [(row["type"], row["sequence"]) for row in records] == [
+        ("interaction_unreadable", 1),
+        ("keydown", 2),
+    ]
+    assert records[0]["originalType"] == "input"

@@ -1100,7 +1100,7 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
         )
 
     refused = progress("Checking the camera.\n\nThen the clock.")
-    assert refused.exit_code != 0 and "one line" in refused.output
+    assert refused.exit_code != 0 and "reply event is invalid" in refused.output
 
     posted = progress("Checking the camera.")
     assert posted.exit_code == 0, posted.output

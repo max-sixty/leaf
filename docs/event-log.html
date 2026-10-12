@@ -363,7 +363,7 @@ flowchart TD
      "record": null,
      "creates": {"child": "lf-option", "words": "text"},
      "detail": {"type": "object",
-       "properties": {"option": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+       "properties": {"option": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$", "minLength": 1},
          "text": {"type": "string", "minLength": 1}},
        "required": ["option", "text"],
        "additionalProperties": false}},
@@ -381,7 +381,9 @@ flowchart TD
      "record": {"kind": "attribute", "attr": "chosen"},
      "creates": null,
      "detail": {"type": "object",
-       "properties": {"value": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}},
+       "properties": {"value": {"type": "array",
+           "items": {"type": "string", "minLength": 1},
+           "uniqueItems": true}},
        "required": ["value"],
        "additionalProperties": false}},
    "answer": null},
@@ -398,7 +400,9 @@ flowchart TD
      "record": {"kind": "attribute", "attr": "chosen"},
      "creates": null,
      "detail": {"type": "object",
-       "properties": {"value": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}},
+       "properties": {"value": {"type": "array",
+           "items": {"type": "string", "minLength": 1},
+           "uniqueItems": true}},
        "required": ["value"],
        "additionalProperties": false}},
    "answer": null},
@@ -430,12 +434,12 @@ flowchart TD
             >Leaf generates the eight-hex <code>id</code>; <code>seq</code> is the
             record's line in the log.</lf-note
           >
-          <lf-note at="35"
+          <lf-note at="37"
             >This pick makes the Question's answered condition hold, so it completes the
             Question. <code>null</code> means it closes no thread; a group with a
             <code>resolves</code> attribute would name one here.</lf-note
           >
-          <lf-note at="55"
+          <lf-note at="59"
             >An undo names the gesture to withdraw. Leaf excludes that gesture when
             deriving state, and both records stay in the log.</lf-note
           >

@@ -948,8 +948,9 @@ def test_a_thread_question_remains_distinct_from_explicit_user_work(page_dir):
     refused = leaf(
         "task", "open", page_dir, comment["id"], "Is it enough?", "--on", "user"
     )
+    # A task's subject is never a thread; the thread asks with `--question`.
     assert refused.exit_code != 0
-    assert "--question" in refused.output
+    assert "task event is invalid" in refused.output
 
     status, answer = done(page_dir, "reply:" + question["id"])
     assert status == 400, answer

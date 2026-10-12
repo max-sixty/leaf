@@ -97,7 +97,8 @@ other page files and the external state listed below.
   sequences, target paths, node identities, and split-record coordinates), while
   observation types and other payload fields remain open. The reader trusts what
   admission wrote: it skips a line a crash tore, keeps the first copy of a retried
-  row, and reassembles split records. Rows without a timestamp remain visible
+  row, and reassembles split records, marking a group whose parts join into no
+  entry as `interaction_unreadable`. Rows without a timestamp remain visible
   under time filters as `unknown-time`.
 
 - `user-views.json` — replaceable per-document browser

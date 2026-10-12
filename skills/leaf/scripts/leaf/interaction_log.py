@@ -8,7 +8,8 @@ leaving event-log transactions and their durability rules untouched.
 Both writers validate at write time: `client_records` the browser's transport
 fields, and the server its own request rows. The reader trusts them, so it only
 skips a line a crash tore, drops a retried row's copies, marks sequence gaps and
-missing parts, and reassembles split records.
+missing parts, and reassembles split records, marking a group whose parts do not
+join into an entry (ingress checks each part, not what they join into).
 
 TODO(privacy): Define retention, export, and deletion before pages are shared
 with other users. Client traces can contain draft text and entered values;
@@ -221,9 +222,25 @@ def read_interactions(
                         "parts": first["parts"],
                     }
                 )
-            else:
+                continue
+            # Ingress checks each part, not the record they join into, so a group
+            # that does not join into an entry is marked rather than read.
+            try:
                 restored = json.loads("".join(row["json"] for row in group))
-                records.append({**restored, **provenance, "source": "client"})
+                validate_client_entry(restored)
+            except (TypeError, ValueError) as error:
+                records.append(
+                    {
+                        **provenance,
+                        "source": "reader",
+                        "type": "interaction_unreadable",
+                        "sequence": first["partOf"],
+                        "originalType": first["originalType"],
+                        "error": str(error),
+                    }
+                )
+                continue
+            records.append({**restored, **provenance, "source": "client"})
     selected = [
         row
         for row in records

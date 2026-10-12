@@ -40,7 +40,7 @@ import {
   keySequenceModel,
   keySequenceTemplate,
   progressStates,
-} from "../keyboard/presentation.js";
+} from "../keyboard/key-sequence.js";
 import { announce } from "../notifications.js";
 import { keepsHidden } from "../keeps.js";
 import { beginWalk, walkPosition } from "../walk-position.js";

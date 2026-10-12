@@ -119,6 +119,7 @@ const forbiddenClosures = Object.fromEntries([
     "projection/presentation.js",
   ].map((root) => [root, applicationOwners]),
   ...[
+    "addressable-names.js",
     "anchor-resolution.js",
     "anchor-controls.js",
     "anchor-paint.js",

@@ -16,6 +16,7 @@ COMMANDS = {
     "catalog": "site",
     "compare": "compare",
     "corpus": "corpus",
+    "cost-tiers": "cost_tiers",
     "fetch-assets": "leaf_assets",
     "journey": "journey",
     "journey-chart": "journey",

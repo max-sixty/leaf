@@ -12,7 +12,7 @@ import {
   materializeContributionControls,
 } from "./contribution-controls.js";
 import { compareContributions, spokenSubject } from "./contribution-model.js";
-import { addressableWord } from "./anchor-resolution.js";
+import { addressableWord } from "./addressable-names.js";
 import { inChrome } from "./passages.js";
 import { holdFocus } from "./focus.js";
 import { el } from "./widget-elements.js";

@@ -1,6 +1,7 @@
 """Shared fixtures, and the address the suite starts a leaf process at."""
 
 import contextlib
+import functools
 import inspect
 import os
 import re
@@ -21,7 +22,7 @@ from leaf import layer as layer_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf.render_gate import browser as browser_model
-from leaf_dev import LEAF_COMMAND
+from leaf_dev import LEAF_COMMAND, cost_tiers
 from leaf_dev.browser import LINUX_FONTCONFIG, require_linux_fonts
 from leaf_dev.page_fixtures import package_selection_args
 from playwright.sync_api import sync_playwright
@@ -269,7 +270,7 @@ def pytest_addoption(parser):
     parser.addoption(
         "--changed-since",
         metavar="REF",
-        help="Also run the marked tests whose own lines changed since REF",
+        help="Also run the `main` and `nightly` tests whose own lines changed since REF",
     )
 
 
@@ -284,27 +285,54 @@ def pytest_runtest_call(item):
     return result
 
 
-# The marked tiers, in the order CI reaches them. An unmarked test runs in every
-# selection: a pull request, `wt merge`, and broad discovery. A `main` test can land
-# without running and runs on each push to main (`--run-main`); a `nightly` one runs
-# only in the daily schedule and a manual dispatch (`--run-nightly`), which run every
-# tier. A test with both marks, such as a `nightly` test in a `main` module, is in the
-# later tier.
-TIERS = ("main", "nightly")
+# A test's tier says when CI runs it; `cost_tiers.TIERS` names those after the first.
+# A test in the first, None, runs in every selection: a pull request, `wt merge`, and
+# broad discovery. A `main` test can land without running and runs on each push to
+# main (`--run-main`); a `nightly` one runs only in the daily schedule and a manual
+# dispatch (`--run-nightly`), which run every tier.
 
 
 def tier(item):
-    """The latest tier a test is marked with, or None for an unmarked test."""
-    marks = [name for name in TIERS if item.get_closest_marker(name)]
-    return marks[-1] if marks else None
+    """The latest tier a test is marked with, or None for an unmarked test. A test
+    with both marks, such as a `nightly` test in a `main` module, is in the later."""
+    return cost_tiers.later(
+        *(t for t in cost_tiers.TIERS if item.get_closest_marker(t))
+    )
+
+
+def run_tier(item):
+    """The tier CI runs a test in: the later of its marked tier and the tier its
+    measured cost puts it in (`leaf_dev.cost_tiers`), or every run for a test marked
+    `landing`, whatever either says."""
+    if item.get_closest_marker("landing"):
+        return None
+    return cost_tiers.later(
+        tier(item), _recorded_tiers().get(cost_tiers.recorded_id(item))
+    )
+
+
+@functools.cache
+def _recorded_tiers():
+    return cost_tiers.recorded()
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_makereport(item, call):
+    """Each test's junit report carries the id `leaf-dev cost-tiers` records it by."""
+    report = yield
+    if call.when == "teardown":
+        report.user_properties.append(
+            (cost_tiers.PROPERTY, cost_tiers.recorded_id(item))
+        )
+    return report
 
 
 def pytest_collection_modifyitems(config, items):
-    """Broad discovery runs the unmarked tests and the tiers its flags reach (`TIERS`);
-    explicit selections run what they name.
+    """Broad discovery runs the tests whose `run_tier` is the first and the tiers its
+    flags reach; explicit selections run what they name.
 
     A change that moves a browser behaviour usually edits the test that holds it, so both
-    landing gates add the marked tests, of either tier, whose own lines the change
+    landing gates add the tests of either later tier whose own lines the change
     touches (`--changed-since`): those run before it lands, and CI's `test` job runs
     the rest of each tier when that tier's event comes.
 
@@ -328,8 +356,8 @@ def pytest_collection_modifyitems(config, items):
         changed = _changed_test_lines(config.rootpath, since)
     kept, skipped = [], []
     for item in items:
-        marked = tier(item)
-        runs = marked is None or marked in reached or _touches(item, changed)
+        tiered = run_tier(item)
+        runs = tiered is None or tiered in reached or _touches(item, changed)
         (kept if runs else skipped).append(item)
     items[:] = kept
     config.hook.pytest_deselected(items=skipped)

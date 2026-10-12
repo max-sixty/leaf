@@ -25,7 +25,7 @@
    introduces no ownership cycle through the shortcut bar. */
 import { bindingEnabled, spell } from "./bindings.js";
 import { html, render } from "../../vendor/browser-runtime.js";
-import { keySequenceModel, keySequenceTemplate } from "./presentation.js";
+import { keySequenceModel, keySequenceTemplate } from "./key-sequence.js";
 import { clamp, overlaps, overlapsAcross } from "../rect.js";
 import { chipSeats } from "./chip-seats.js";
 import { layoutWindow } from "../geometry.js";

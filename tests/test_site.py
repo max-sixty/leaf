@@ -45,6 +45,7 @@ from leaf_dev import site as site_build
 from leaf_dev.example_data import catalog_sources, data_operations, example_versions
 from leaf_dev.leaf_assets import pinned_assets, raw_prefix, specification
 from leaf_dev.page_fixtures import source_packages
+from model_folds import leaf_page
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_layout import banner_control
@@ -107,6 +108,72 @@ def sample_allocation(page, url, template):
 
     page.route("**/api/samples", allocated)
     return allocation
+
+
+GALLERY_THREAD = "2be2443f0bb6cc49fc86b52f340e6073"
+
+
+def serve_interaction_gallery(serve):
+    """Serve the feature gallery's interaction runner and only what it reads.
+
+    The runner's subject is its own section, so the rest of the gallery, a thousand
+    elements and nine other live samples, is load these tests pay for nothing. The
+    section is read from the gallery's source, so the replays are the gallery's own,
+    and it stands in a page view behind another one, as it does there: a view
+    selected or scrolled to is the crossing the runner plays from. The first view
+    holds the paragraph the Send-a-comment and Threads replays import their thread
+    from, with that thread seeded on it. The stage's size and scale, which every
+    replay's geometry rests on, are the gallery's own rules, so they come along: each
+    top-level rule of its style sheet that names an interaction class.
+    """
+    source = FEATURE_GALLERY.read_text(encoding="utf-8")
+    section = re.search(
+        r'<section\s+class="interaction-gallery".*?</section>', source, re.DOTALL
+    )
+    assert section is not None, "the feature gallery lost its interaction section"
+    sheet = re.search(r"<style>(.*?)</style>", source, re.DOTALL)[1]
+    rules = "".join(
+        rule for rule in re.split(r"(?<=\n      \}\n)", sheet) if "interaction" in rule
+    )
+    assert ".interaction-frame[data-interaction-ready]" in rules, rules
+    html = leaf_page(
+        "Interaction gallery",
+        head=f"<style>{rules}</style>",
+        body=f"""
+<h1>Interaction gallery</h1>
+<lf-tabs id="bg-gallery-tabs">
+  <lf-tab id="bg-view-threads" label="Threads">
+    <p id="bg-thread-text">The sample agenda has room for one more topic.</p>
+  </lf-tab>
+  <lf-tab id="bg-view-interactions" label="Interactions">{section[0]}</lf-tab>
+</lf-tabs>
+""",
+    )
+    return serve(
+        html,
+        events=[
+            {
+                "kind": "comment",
+                "author": "agent",
+                "agent": "Codex",
+                "revision": 1,
+                "text": f"{GALLERY_THREAD_TEXT} and left the rest of the fictional "
+                "agenda unchanged. React to this reply or answer with a note.",
+                "anchor": {
+                    "section": "bg-thread-text",
+                    "quote": "The sample agenda has room for one more topic.",
+                },
+                "id": GALLERY_THREAD,
+            },
+            {
+                "kind": "thread_title",
+                "author": "agent",
+                "agent": "Codex",
+                "thread": GALLERY_THREAD,
+                "title": "Workshop room photo",
+            },
+        ],
+    )
 
 
 def pages_under(directory):
@@ -1365,7 +1432,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
     dispatching its input gesture, so a developer can inspect the transition without
     the demonstration becoming durable page state.
     """
-    url = serve(FEATURE_GALLERY)
+    url = serve_interaction_gallery(serve)
     page_dir = serve.page_dir
     # Let every child present before starting the timed sequence. Otherwise the
     # first replay can finish while open_page still waits for another sample.
@@ -1602,7 +1669,7 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
         ),
     )
     page = open_page(
-        browser, f"{serve(FEATURE_GALLERY)}#bg-interactions", context=context
+        browser, f"{serve_interaction_gallery(serve)}#bg-interactions", context=context
     )
     # The user's own standing intent, written the way a user writes it. It has to
     # survive out here for the frames' silence about it to say anything.
@@ -1689,7 +1756,7 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
 
 
 def test_reduced_motion_leaves_gallery_play_explicit(serve, browser):
-    url = serve(FEATURE_GALLERY)
+    url = serve_interaction_gallery(serve)
     context = browser.new_context(
         reduced_motion="reduce", viewport={"width": 1280, "height": 900}
     )
@@ -1734,7 +1801,7 @@ def test_the_interaction_gallery_reads_where_it_is_now(serve, browser):
     the rest of the page's life. The arrival scroll crosses the gallery out of view and
     back on its own, which is how a loaded machine hands both crossings over together.
     """
-    url = serve(FEATURE_GALLERY)
+    url = serve_interaction_gallery(serve)
     page = open_page(browser, url, init_script=COALESCED_VIEW_RECORDS)
     gallery = page.locator("#bg-interactions")
     status = gallery.locator("[data-interaction-status]")
@@ -1748,7 +1815,7 @@ def test_the_interaction_gallery_reads_where_it_is_now(serve, browser):
 
 def test_interaction_gallery_contains_page_chrome(serve, browser):
     """A replay changes its zoomed-out Leaf document, not the gallery around it."""
-    url = serve(FEATURE_GALLERY)
+    url = serve_interaction_gallery(serve)
     context = browser.new_context(
         reduced_motion="reduce", viewport={"width": 1280, "height": 900}
     )
@@ -1848,7 +1915,7 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
 
 def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
     """A remembered chrome demo cannot replay before its inner Leaf page is ready."""
-    url = serve(FEATURE_GALLERY)
+    url = serve_interaction_gallery(serve)
     context = browser.new_context(reduced_motion="reduce")
     page = open_page(browser, f"{url}#bg-interactions", context=context)
     gallery = page.locator("#bg-interactions")
@@ -1913,7 +1980,7 @@ def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
 
 def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser):
     """A healthy contained page may present after an arbitrarily slow state read."""
-    url = serve(FEATURE_GALLERY)
+    url = serve_interaction_gallery(serve)
     context = browser.new_context(reduced_motion="reduce")
     page = context.new_page()
     held = []
@@ -1962,7 +2029,8 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
         contained_document = contained.locator("html")
         storage = contained_document.evaluate(
             """async () => {
-                const {LIVE_ROOT, PAGE_SCOPE, tabStore, draftStore, userStore} =
+                const {LIVE_ROOT} = await window.__lfRuntimeImport('/runtime/context.js');
+                const {PAGE_SCOPE, tabStore, draftStore, userStore} =
                     await window.__lfRuntimeImport('/runtime/storage.js');
                 for (const [name, store] of Object.entries({tabStore, draftStore, userStore})) {
                     if (!store.set('isolation-test', name) || store.get('isolation-test') !== name)
@@ -2059,7 +2127,7 @@ def test_a_sample_keeps_ephemeral_storage_and_presents_uploaded_media(serve, bro
 
 def test_a_contained_page_retries_a_failed_first_state_read(serve, browser):
     """A sample retries startup state without retaining a live page feed."""
-    url = serve(FEATURE_GALLERY)
+    url = serve_interaction_gallery(serve)
     context = browser.new_context(reduced_motion="reduce")
     page = context.new_page()
     failed = []
@@ -2114,7 +2182,7 @@ def test_a_contained_page_retries_a_failed_first_state_read(serve, browser):
 @pytest.mark.parametrize("document_status", [200, 503])
 def test_gallery_reports_sample_document_without_leaf(serve, browser, document_status):
     """A failed contained page is reported without blocking the other demos."""
-    url = serve(FEATURE_GALLERY)
+    url = serve_interaction_gallery(serve)
     context = browser.new_context(reduced_motion="reduce")
     page = context.new_page()
 

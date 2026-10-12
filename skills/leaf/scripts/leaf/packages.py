@@ -433,32 +433,41 @@ def cmd_package_check(
 ) -> int:
     """Check the package, and with `render` its widgets' worked examples in the
     host's browser. With `as_json`, print one object in `page check --json`'s shape:
-    `status`, the exit status; `findings`, each widget quality finding as a record;
-    and `browser`, what the browser gate ran in or why none could, null without
-    `render`. A package that fails its check raises, as it does without `as_json`."""
-    package, _, _ = check_package(package, require_exists=True)
+    `status`, the exit status; `findings`, each finding as a record, the package
+    check's refusal (`package`) or the widget quality findings; and `browser`, what
+    the browser gate ran in or why none could, null where none was asked for or the
+    package check refused."""
+    from .render_gate.findings import Finding
+
+    def reported(status, findings=(), browser=None):
+        print(
+            json.dumps(
+                {
+                    "status": status,
+                    "findings": [finding.json() for finding in findings],
+                    "browser": browser,
+                },
+                ensure_ascii=False,
+            )
+        )
+        return status
+
+    try:
+        package, _, _ = check_package(package, require_exists=True)
+    except Refused as error:
+        if not as_json:
+            raise
+        return reported(1, [Finding("package", values={"text": str(error)})])
     if not as_json:
         print(f"checked {package}", flush=True)
     if not render:
-        if as_json:
-            print(json.dumps({"status": 0, "findings": [], "browser": None}))
-        return 0
+        return reported(0) if as_json else 0
     from .render_gate.command import print_widget_quality, widget_quality
 
     check = widget_quality(package)
     if not as_json:
         return print_widget_quality(check)
-    print(
-        json.dumps(
-            {
-                "status": check.status,
-                "findings": [finding.json() for finding in check.findings],
-                "browser": check.json(),
-            },
-            ensure_ascii=False,
-        )
-    )
-    return check.status
+    return reported(check.status, check.findings, check.json())
 
 
 def cmd_package_install(source: Path) -> Path:

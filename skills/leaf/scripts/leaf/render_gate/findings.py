@@ -401,8 +401,9 @@ _TEXT = {
         f"Browser request returned HTTP {v['status']} ({v['kind']}) in {v['frame']}:"
         f" {v['url']}"
     ),
-    # The markup checks.
+    # The markup checks, and the package check's refusal.
     "markup": lambda at, v: v["text"],
+    "package": lambda at, v: v["text"],
     "leaf-version": lambda at, v: (
         f"Leaf {v['vendored']} vendored this page; this is Leaf {v['running']}. If the"
         f" page misbehaves, `leaf page init {v['page']}` re-vendors it."

@@ -3280,6 +3280,15 @@ def test_package_check_requires_a_non_empty_widget_description(tmp_path, monkeyp
 
     assert result.exit_code != 0
     assert "<lf-toned-note> must carry a non-empty description" in result.output
+    # With --json the refusal is the result's one finding.
+    result = runner.invoke(cli_model.cli, ["package", "check", ".leaf", "--json"])
+    assert result.exit_code == 1
+    report = json.loads(result.stdout)
+    assert (report["status"], report["browser"]) == (1, None)
+    [refusal] = report["findings"]
+    assert (refusal["code"], refusal["severity"]) == ("package", "error")
+    said = refusal["values"]["text"]
+    assert "<lf-toned-note> must carry a non-empty description" in said
 
 
 def test_package_check_refuses_a_registry_example_that_violates_its_schema(

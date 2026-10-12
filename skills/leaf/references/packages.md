@@ -720,7 +720,8 @@ examples were not drawn. Examples share a
 page where their ids allow, so one example may point at an element another declares,
 and a blank image stands in for any media an example names. `--json` prints the
 result as one object in the shape `page check --json` prints, each finding a record
-with its `code`, the element it names as `at`, and the measured `values`. The checks:
+with its `code`, the element it names as `at`, and the measured `values`; a package
+the check refuses is reported as its one `package` finding. The checks:
 
 - `example`: no worked example shows the tag, so no other check reads it.
 - `keeps-first-box`: the widget's box once the page presents differs from its box at

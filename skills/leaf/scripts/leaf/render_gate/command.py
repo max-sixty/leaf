@@ -285,16 +285,17 @@ def widget_quality(package: Path) -> WidgetQuality:
     widgets in the host's browser."""
     from .widget_quality import UnreadablePage, own_tags, widget_findings
 
+    def read(browser):
+        try:
+            return widget_findings(browser, package)
+        except UnreadablePage as error:
+            return [Finding("unreadable-examples", values={"error": str(error)})]
+
     widgets = len(own_tags(package))
     try:
-        findings, browser_name = run_in_browser(
-            lambda browser: widget_findings(browser, package)
-        )
+        findings, browser_name = run_in_browser(read)
     except NoBrowser as error:
         return WidgetQuality(widgets, unavailable=str(error))
-    except UnreadablePage as error:
-        unreadable = Finding("unreadable-examples", values={"error": str(error)})
-        return WidgetQuality(widgets, findings=(unreadable,))
     return WidgetQuality(widgets, browser_name, findings=tuple(findings))
 
 

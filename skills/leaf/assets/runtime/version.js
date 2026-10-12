@@ -104,7 +104,7 @@ import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { focusedInView } from "./user-place.js";
 import { patchTree, patchRetains } from "./dom-children.js";
 import { move } from "./dom-move.js";
-import { labelOf, PRESS } from "./keyboard/bindings.js";
+import { labelOf, PRESS, savedReadingReady } from "./keyboard/bindings.js";
 import { commandShortcut } from "./keyboard/control-keys.js";
 import { keys, paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
 import { repaint } from "./repaint.js";
@@ -1114,6 +1114,7 @@ export function createVersionController({
   // menu's own row (`version.close`), which closes it and returns the user to More.
   const VERSIONS = {
     title: "In the versions menu",
+    ready: savedReadingReady,
     root: () => versionMenu,
     when: versionsOffered,
     at: versionMenuIsOpen,
@@ -1199,6 +1200,7 @@ export function createVersionController({
   // pressing it does.
   const PICKER = {
     id: "version.open",
+    ready: savedReadingReady,
     keys: ["Shift+v"],
     description: "The versions, and what each one changed",
     title: "versions",
@@ -2475,7 +2477,7 @@ export function createVersionController({
         },
         NEWEST,
       ],
-      versionsToWalk,
+      { when: versionsToWalk, ready: savedReadingReady },
     );
     renderVersions(null);
   }

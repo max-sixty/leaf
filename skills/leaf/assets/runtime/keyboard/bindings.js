@@ -8,6 +8,10 @@
    and letter case do not make distinct presses in the dispatcher.
 
    A row has these meanings:
+   - `ready` says when the command's input has arrived, overriding its scope's
+     reading. Commands otherwise use the shown document immediately. Saved-reading
+     consumers declare their input; Decision commands always await saved state.
+     A false reading keeps a startup key queued; `when` describes ordinary availability.
 
    - `id` is its stable dotted identity. Words and keys may change without changing the
      route the command reference and the other projections use.
@@ -106,6 +110,7 @@
    command reference. Call `paintKeys` when a state change moves row liveness so this projection
    and the visible surfaces change together. */
 import { coarsePointer } from "../pointer.js";
+import { readApplication } from "../semantic-state.js";
 
 // Which platform's spelling, and which modifier is the sequence's. Up here rather than beside
 // the text inputs because the spelling table below is the first thing that needs it.
@@ -244,17 +249,21 @@ export const bindings = (row) => declaredBindings(row).filter(bindingEnabled);
 export const commandEntries = (
   row,
   active = bindings(row),
-  { includeUnavailable = false } = {},
+  { includeUnavailable = false, includePending = false } = {},
 ) => {
   const routes = commandRoutes(row);
   if (!routes.length)
-    return includeUnavailable || commandAvailable(row)
+    return includeUnavailable ||
+      (includePending && !commandReady(row)) ||
+      commandAvailable(row)
       ? [{ id: row.id, binding: active[0], route: null }]
       : [];
   return routes
     .filter(
       (route) =>
-        (includeUnavailable || commandAvailable(row, route)) &&
+        (includeUnavailable ||
+          (includePending && !commandReady(row, route)) ||
+          commandAvailable(row, route)) &&
         (active.includes(route.binding) ||
           contextBindings(route).some((binding) => active.includes(binding))),
     )
@@ -321,7 +330,34 @@ function controlAvailable(control) {
   return !disabled && !ariaDisabled;
 }
 export const declaredCommandAvailable = (row, route = null) =>
-  (!row.when || row.when()) && (!route?.when || route.when());
+  commandReady(row, route) &&
+  (!row.when || row.when()) &&
+  (!route?.when || route.when());
+// Unlike `when`, readiness says a command's input has not arrived yet. A queued
+// startup key keeps its place until that input can be read rather than disappearing
+// as an ordinary unavailable command would.
+const scopeReadiness = new WeakMap();
+export const savedReadingReady = () => readApplication().phase === "ready";
+// A scope supplies a shared input contract without replacing its rows or their identity.
+export function declareCommandReadiness(rows, ready) {
+  if (ready !== undefined && typeof ready !== "function")
+    throw new TypeError("leaf: scope readiness must be a function");
+  if (ready) for (const row of rows) scopeReadiness.set(row, ready);
+}
+export const commandReady = (row, route = null) => {
+  const saved = savedReadingReady();
+  if ((row.decision || route?.decision) && !saved) return false;
+  const reference = routedCommand(route);
+  if (reference) {
+    const entry = referencedCommandEntry(reference, { includeUnavailable: true });
+    if (entry && !commandReady(reference.row, entry.route)) return false;
+  }
+  const ready = route?.ready ?? row.ready ?? scopeReadiness.get(row);
+  return ready ? ready() : true;
+};
+// A pending scope keeps its declarations until its capability input can be read.
+export const scopeAvailable = (scope) =>
+  !commandReady(scope) || !scope.when || scope.when();
 export const commandAvailable = (row, route = null) => {
   const control = route?.control ?? row.control;
   const reference = routedCommand(route);
@@ -331,15 +367,15 @@ export const commandAvailable = (row, route = null) => {
     (!reference || referencedCommandEntry(reference) !== null)
   );
 };
-export function referencedCommandEntry(reference) {
+export function referencedCommandEntry(reference, options) {
   if (
     !reference.source.isConnected ||
     !reference.scope.rows.includes(reference.row) ||
-    (reference.scope.when && !reference.scope.when())
+    !scopeAvailable(reference.scope)
   )
     return null;
   return (
-    commandEntries(reference.row, allBindings(reference.row)).find(
+    commandEntries(reference.row, allBindings(reference.row), options).find(
       ({ id, binding }) =>
         id === reference.id && (binding ?? null) === reference.binding,
     ) ?? null
@@ -438,8 +474,12 @@ export const validateRows = (rows, where = "a scope") => {
 // A scope may reuse a key across mutually exclusive states, but never in the scene the
 // user is in. Resolve liveness before any surface projects the rows, and refuse an
 // ambiguous scene instead of letting declaration order choose a meaning silently.
-export function activeRows(rows, where = "a scope") {
-  const active = rows.filter((row) => live(row) && bindings(row).length > 0);
+export function activeRows(rows, where = "a scope", options = {}) {
+  const available = (row) =>
+    bindings(row).filter(
+      (binding) => commandEntries(row, [binding], options).length > 0,
+    );
+  const active = rows.filter((row) => available(row).length > 0);
   return validateActive(active, where, (row) => availableBindings(row, bindings(row)));
 }
 
@@ -583,7 +623,8 @@ export function answers(binding, ev) {
 // canonical key spelling at registration. Computed titles and live conflicts are
 // validated when read, under the owner's current state. A title is mandatory;
 // bar wording defaults to it and additional reference detail is optional.
-export function checked(rows, where) {
+export function checked(rows, where, ready) {
+  declareCommandReadiness(rows, ready);
   const ids = new Map();
   const named = (command) => {
     if (typeof command.id !== "string" || !COMMAND_ID.test(command.id))
@@ -608,6 +649,8 @@ export function checked(rows, where) {
       typeof command.description !== "function"
     )
       throw new Error(`leaf: ${command.id} has invalid command description`);
+    if (command.ready !== undefined && typeof command.ready !== "function")
+      throw new TypeError(`leaf: ${command.id} readiness must be a function`);
     if (command.decision !== undefined && typeof command.decision !== "boolean")
       throw new Error(
         `leaf: ${command.id} has invalid Decision role; expected a boolean`,

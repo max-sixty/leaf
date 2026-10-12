@@ -58,6 +58,7 @@ import {
   commandEntries,
   commandPresentations,
   commandRoutes,
+  commandReady,
   lineOf,
   titleOf,
   spell,
@@ -91,7 +92,7 @@ import {
 import { repaint } from "../repaint.js";
 import { walkPosition } from "../walk-position.js";
 import { declareBottomBar } from "../geometry.js";
-import { pagePresented } from "../page-paint.js";
+import { pageUpgraded } from "../page-paint.js";
 import { closeLayer, focusDestination } from "../focus.js";
 import {
   BANNER_CONTROL_RANK,
@@ -241,6 +242,7 @@ const effectiveRow = (row, declared, active) => {
   const route = routes.length === 1 ? routes[0] : null;
   const projected = {
     ...row,
+    ready: () => commandReady(row),
     keys: active,
     routes,
     // A custom group label cannot describe a binding removed by a nearer scope. A route
@@ -268,7 +270,10 @@ function lineRows(scopes) {
     // outer scopes are read. Keep all unshadowed rows in the batch so activeRows still
     // rejects two live meanings inside this reachable scope.
     const reachable = scope.rows.flatMap((row) => {
-      if (row.line === false || (!scope.sequence && word(row.lineWhen) === false))
+      if (
+        row.line === false ||
+        (!scope.sequence && commandReady(row) && word(row.lineWhen) === false)
+      )
         return [];
       const bound = bindings(row);
       const active = bound.filter((binding) =>
@@ -280,10 +285,14 @@ function lineRows(scopes) {
       );
       return active.length ? [effectiveRow(row, bound, active)] : [];
     });
-    for (const row of activeRows(reachable, scope.title ?? "the page's keys")) {
+    for (const row of activeRows(reachable, scope.title ?? "the page's keys", {
+      includePending: true,
+    })) {
       if (!lineOf(row)) continue;
       const active = bindings(row).filter(
-        (binding) => commandEntries(row, [binding]).length,
+        (binding) =>
+          !named.has(binding) &&
+          commandEntries(row, [binding], { includePending: true }).length,
       );
       if (!active.length) continue;
       const source = sourceRow(row);
@@ -368,11 +377,9 @@ export function collapseShortcutBar({ silent = false } = {}) {
   if (!silent) announce("Shortcut bar collapsed.");
 }
 export function renderShortcutBar(goToStatus) {
-  // The line says what the page's keys do, and until the page presents none of them does
-  // anything: the bootstrap holds every press for the presented page (controller.js). A
-  // line drawn from the commands live before then named a different pair, and More moved
-  // when presentation replaced it, so the band stands empty until its first true reading.
-  if (!pagePresented()) return;
+  // The document's line starts at upgrade and retains pending declarations, whose
+  // printed keys queue until their canonical input arrives.
+  if (!pageUpgraded()) return;
   // One walk, read twice: `at` and `when` are the page's own state and a second walk would
   // ask every one of them again for the same frame.
   const scopes = stack();
@@ -441,7 +448,7 @@ export function renderShortcutBar(goToStatus) {
       sequenceControl: Boolean(row.sequenceControl),
       sequence: keySequenceModel(steps, states),
       said: lineOf(row),
-      commandIds: commandPresentations(row, active)
+      commandIds: commandPresentations(row, active, { includePending: true })
         .map(({ id }) => id)
         .join(" "),
       wayOut: row === wayOut,

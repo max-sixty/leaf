@@ -3947,38 +3947,24 @@ flowchart LR
           </section>
 
           <section id="browser-startup">
-            <h2>Startup phases</h2>
+            <h2>Loading the runtime</h2>
             <p id="browser-startup-lede">
-              A page arrives in three phases, and each makes more of it usable.
+              The <a href="#loading">Loading tab</a> describes when reading, commenting,
+              and saved-state controls become available.
             </p>
-            <ol class="steps" id="browser-startup-phases">
-              <li id="browser-startup-receipt">
-                <strong>Document receipt.</strong> The browser paints the authored HTML
-                as it arrives. Two small scripts run before the first paint. One tells
-                the theme to give each component the box its module will draw it in. The
-                other reserves room for the banner and bottom bar, holds keys the user
-                presses early, and shows a startup failure if the runtime cannot load.
-                Loading the runtime later therefore moves nothing. Prose, links and
-                scrolling work from here.
-              </li>
-              <li id="browser-startup-upgrade">
-                <strong>Component upgrade.</strong> The runtime sends its first state
-                read, restores the user's arrangement of Leaf's controls, loads the
-                registry, and records each component's authored state from the HTML
-                before any module changes it. It then imports the modules for the
-                component tags the page uses, and no others.
-              </li>
-              <li id="browser-startup-presentation">
-                <strong>Authoritative presentation.</strong> The runtime applies the
-                first state answer, so recorded choices, threads, asks and agent
-                activity appear, and marks the page presented. Only then do components
-                accept updates, and the held keys run in order, since a key such as
-                <kbd>t</kbd>, which walks the threads, needs the threads that answer
-                brings. If no answer arrives within ten seconds, the page presents its
-                authored state with the offline banner and applies the answer when it
-                lands.
-              </li>
-            </ol>
+            <p id="browser-startup-receipt">
+              Two small scripts run before the first paint. One tells the theme to give
+              each component the box its module will draw it in. The other reserves room
+              for the banner and bottom bar, holds keys the user presses early, and
+              shows a startup failure if the runtime cannot load. Loading the runtime
+              later therefore moves nothing.
+            </p>
+            <p id="browser-startup-upgrade">
+              The runtime sends its first state read, restores the user's arrangement of
+              Leaf's controls, loads the registry, and records each component's authored
+              state from the HTML before any module changes it. It then imports the
+              modules for the component tags the page uses, and no others.
+            </p>
           </section>
         </lf-tab>
 
@@ -4054,6 +4040,64 @@ flowchart LR
                 Phone behavior is tested in browser emulation, not on a real device.
               </li>
             </ul>
+          </section>
+        </lf-tab>
+        <lf-tab id="loading" label="Loading">
+          <section id="loading-stages">
+            <h2>Page loading</h2>
+            <p id="loading-lede">
+              The document, browser interface, saved state, and agent become available
+              separately. The browser loads the JavaScript and requests saved state in
+              parallel. Reading and new comments can begin before that state arrives.
+            </p>
+            <table id="loading-stage-table">
+              <thead>
+                <tr>
+                  <th>Stage</th>
+                  <th>Available on the page</th>
+                  <th>Banner</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr id="loading-document">
+                  <td>HTML and styles arrive</td>
+                  <td>Text, links, and scrolling.</td>
+                  <td>The banner appears when the JavaScript starts.</td>
+                </tr>
+                <tr id="loading-javascript">
+                  <td>JavaScript initializes the interface</td>
+                  <td>Leaf components and comment controls are being prepared.</td>
+                  <td>Loading…</td>
+                </tr>
+                <tr id="loading-comments">
+                  <td>Comment controls are ready; saved state is still loading</td>
+                  <td>
+                    New comments and drawings appear immediately. They remain Sending
+                    until the server accepts them. Choices that change saved state wait
+                    for the server's current reading.
+                  </td>
+                  <td>Loading saved state…</td>
+                </tr>
+                <tr id="loading-state">
+                  <td>Saved state arrives</td>
+                  <td>
+                    Saved threads and choices join the page, preserving new comments and
+                    comment drafts. Saved choices become available for changes.
+                  </td>
+                  <td>
+                    The page’s normal status; each comment shows its delivery status.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p id="loading-order">
+              Commands that need saved history wait for that history; document controls
+              and new comments work as soon as the interface is ready. If no state
+              answer arrives within ten seconds of interface readiness, the banner shows
+              Offline while the request continues. A later answer joins the page
+              normally. The interface and saved state can be ready before the agent
+              starts.
+            </p>
           </section>
         </lf-tab>
       </lf-tabs>

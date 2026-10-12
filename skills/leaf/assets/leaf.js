@@ -17,12 +17,13 @@ import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
 import { upgradeWidgets } from "./runtime/widget-loader.js";
 import {
   markPagePresented,
+  markPageUpgraded,
   whenArrived,
   pageReadiness,
   settlePageInterface,
   PRESENTATION,
 } from "./runtime/presentation.js";
-import { PAGE_PAINT_ATTRIBUTE, pagePresented } from "./runtime/page-paint.js";
+import { pagePresented } from "./runtime/page-paint.js";
 import { nextFrame, renderingState } from "./runtime/rendering.js";
 import { observeQueuedWork } from "./runtime/queued-work.js";
 import { mountApplication } from "./runtime/application.js";
@@ -225,7 +226,6 @@ const narrowing = createThreadNarrowing({
   view: narrowingView,
   listRoot: threadsBox,
   readThreads: threadList,
-  ready: () => runtime.statePhase === "ready",
   repaint: () => app.presentThread(),
 });
 const paintVersionApproval = () => paintApproval(approvalBlockingQuestions());
@@ -950,28 +950,12 @@ const { landArrival, savedView } = offlineInteractive
 const savedComposer = offlineInteractive ? null : responseSurface.pendingComposer();
 
 async function presentPage() {
-  if (pagePresented() || startupFailed) return;
+  // Saved state gates state-dependent interaction, not the commenting interface.
+  if (applicationState.read().phase === "waiting" || pagePresented() || startupFailed)
+    return;
   await whenApplicationPresented();
+  if (applicationState.read().phase === "waiting") return;
   if (pagePresented()) return;
-  setAnchoringReady(true);
-  try {
-    const draftOpened =
-      !offlineInteractive &&
-      recoverComposer() &&
-      responseSurface.openDraft(savedComposer);
-    await app.presentThread();
-    // Anchoring changes where thread chrome is painted. That final paint is part
-    // of initial presentation too: opening interaction before it commits can expose a
-    // malformed page that the unanchored provisional pass could not yet inspect.
-    await whenApplicationPresented();
-    if (draftOpened) {
-      await responseSurface.fabPositioned();
-      paintKeys();
-    }
-  } catch (error) {
-    setAnchoringReady(false);
-    throw error;
-  }
   if (startupFailed) return;
   markPagePresented();
   // Optional author context begins after the presented frame. It neither imports
@@ -985,7 +969,6 @@ async function presentPage() {
       }, 0),
     );
   void whenArrived().then(landFragment);
-  anchorControls.publishVisualActions();
   if (offlineInteractive) {
     landFragment();
     document.dispatchEvent(new Event(PRESENTATION));
@@ -1035,7 +1018,26 @@ async function startPage() {
   }
   await settlePageInterface();
   landFragment();
-  document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.upgraded, "1");
+  // Comments name the shown document, not the private history still loading. Its
+  // widgets and words are now settled; prepare the anchor-dependent chrome before
+  // opening keyboard capture, so malformed coordinates never become controls.
+  setAnchoringReady(true);
+  try {
+    const draftOpened =
+      !offlineInteractive &&
+      recoverComposer() &&
+      responseSurface.openDraft(savedComposer);
+    await app.presentThread();
+    await whenApplicationPresented();
+    if (draftOpened) await responseSurface.fabPositioned();
+  } catch (error) {
+    setAnchoringReady(false);
+    throw error;
+  }
+  markPageUpgraded();
+  anchorControls.publishVisualActions();
+  responseSurface.updateFab();
+  paintKeys();
   app.startFeed(presentPage, initialStateRead);
 }
 

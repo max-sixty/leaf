@@ -348,20 +348,17 @@ class ThreadListView extends RetainedFace {
     const wanted = new Set(
       model.rows.filter((row) => row.kind === "thread").map((row) => row.key),
     );
-    // Unknown counts describe unavailable placeholders, not removed identities.
-    // Candidate fallback is only paint; the complete committed reading retires
-    // departed choices and adopts the choice its narrowing left visible.
-    if (model.count !== null) {
-      const present = new Set(this.#rows.map((row) => row.key));
-      this.#selection = this.#selection.filter((key) => present.has(key));
-      this.#dismissed = new Set(
-        this.#rows
-          .filter((row) => row.kind === "withdrawn" && this.#dismissed.has(row.key))
-          .map((row) => row.key),
-      );
-      const chosen = this.#expandedRow();
-      if (chosen) this.#select(chosen.key);
-    }
+    // This committed list contains every known thread even while its saved
+    // inventory count is unknown. Retire a refused local choice by identity.
+    const present = new Set(this.#rows.map((row) => row.key));
+    this.#selection = this.#selection.filter((key) => present.has(key));
+    this.#dismissed = new Set(
+      this.#rows
+        .filter((row) => row.kind === "withdrawn" && this.#dismissed.has(row.key))
+        .map((row) => row.key),
+    );
+    const chosen = this.#expandedRow();
+    if (chosen) this.#select(chosen.key);
     for (const [key, view] of this.#views) {
       if (wanted.has(key)) view.commit();
       else {

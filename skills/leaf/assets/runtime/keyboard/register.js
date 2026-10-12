@@ -19,6 +19,7 @@ import {
   answersTouch,
   bindings,
   checked,
+  declareCommandReadiness,
   touchPresses as pressesOf,
   titleOf,
   descriptionOf,
@@ -151,6 +152,8 @@ const place = (where, name) => {
  * active. The returned function removes that instance's declaration. */
 export function pageScope(name, declaration) {
   place(STACK, name);
+  if (declaration.ready !== undefined)
+    declareCommandReadiness(declaration.rows, declaration.ready);
   const declarations = scopes.get(name) ?? [];
   declarations.push(declaration);
   scopes.set(name, declarations);

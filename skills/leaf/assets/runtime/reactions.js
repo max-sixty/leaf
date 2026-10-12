@@ -52,7 +52,7 @@ import { elementById } from "./passages.js";
 import { addressableWord } from "./addressable-names.js";
 import { anchoringIsReady, visualPartLabel } from "./anchor-resolution.js";
 import { announce, notice } from "./notifications.js";
-import { claimsEsc, saying } from "./keyboard/scopes.js";
+import { claimsEsc, keys, saying } from "./keyboard/scopes.js";
 import {
   handBack,
   focusDestination,
@@ -70,7 +70,7 @@ import {
   pageCommand,
   pageScope,
 } from "./keyboard/register.js";
-import { PRESS, rowArrows } from "./keyboard/bindings.js";
+import { PRESS, rowArrows, savedReadingReady } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { anchorLabel } from "./thread/messages.js";
 import { reactionsAt, tokenChoices } from "./thread/model.js";
@@ -98,7 +98,16 @@ function reactionChip({ name, glyph, label }, pressed) {
   chip.title = label;
   chip.setAttribute("aria-label", label);
   responseAction(chip, { glyph, label: name, collapse: true });
-  chip.onclick = () => pressed(name);
+  keys(chip, "On a reaction", [
+    {
+      id: `reaction.${name}`,
+      ready: savedReadingReady,
+      keys: [],
+      control: chip,
+      title: label,
+      run: () => pressed(name),
+    },
+  ]);
   return chip;
 }
 
@@ -476,6 +485,7 @@ export function createReactionController({
 
   const REACT = {
     title: "With reactions open",
+    ready: savedReadingReady,
     escape: "inner",
     // Opening the modal reference dismisses this transient mode. Its section still reads
     // the liveness captured at that boundary rather than listing every conditional choice.
@@ -579,6 +589,7 @@ export function createReactionController({
   // accepted for now (composing/selection.js, TODO.md).
   pageCommand({
     id: "reaction.open",
+    ready: savedReadingReady,
     touch: false,
     keys: ["e"],
     description: () =>

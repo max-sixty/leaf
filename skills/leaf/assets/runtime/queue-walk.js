@@ -43,6 +43,7 @@
 */
 import { cycledRow } from "./keyboard/bindings.js";
 import { pageCommand, pageScope } from "./keyboard/register.js";
+import { savedReadingReady } from "./keyboard/bindings.js";
 import { documentFocused, paintKeys } from "./keyboard/scopes.js";
 import { coarsePointer } from "./pointer.js";
 import { questionHolding, placeOf, walkOrigin } from "./standing-target.js";
@@ -333,6 +334,7 @@ export function createQueueWalk({
 
   pageCommand({
     id: "queue.walk",
+    ready: savedReadingReady,
     touch: false,
     keys: ["q", "Shift+q"],
     routes: [
@@ -364,6 +366,7 @@ export function createQueueWalk({
   // banner's row under a finger. Its row in the Questions panel carries the same Done.
   pageScope("task", {
     title: "On a to-do waiting on you",
+    ready: savedReadingReady,
     at: () => Boolean(doneTask()),
     rows: [
       {

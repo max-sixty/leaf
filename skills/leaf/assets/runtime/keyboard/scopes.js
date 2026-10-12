@@ -12,6 +12,8 @@
    the same register as `commands(el, title, rows)` in `connectedCallback`. A module
    loaded on a page with no instance must contribute no scope or reference section. Runtime
    scopes live in `SCOPES`; `merge` is the only function that gathers scope sections.
+   A scope may declare `ready` for incomplete inputs shared by its rows; a row or
+   route may override that reading, while Decision commands still await saved state.
    Normal element and page command declarations share native button activation. A
    sequence's `control` is a travel destination and arrival seat, not an activation
    declaration; native editing scopes may likewise name only the input's key route.
@@ -256,6 +258,7 @@ function localContext(source, scope) {
       contextual: true,
       el: source,
       when: scope.when,
+      ready: scope.ready,
       get rows() {
         return contextRows([{ source, scope }]);
       },
@@ -446,8 +449,8 @@ export function merge(sections, { title, when, at, liveInCommandReference, rows 
  *
  * `where` is the element focus must be inside, `title` names the scope in the command reference dialog
  * (null for one the reference has no room to name), `rows` are its bindings, and the
- * optional configuration carries `when` (whether the page has this scope at all) and
- * `escape: "inner"` when this scope owns a cancellation step ahead of every step the
+ * optional configuration carries `when` (whether the page has this scope at all),
+ * `ready` (whether its shared input is complete), and `escape: "inner"` when this scope owns a cancellation step ahead of every step the
  * ladder offers. A function in the fourth position is shorthand for `{when: function}`.
  * A link, button or other native control inside `where` keeps its own activation
  * press (`nativeActivationAt`).
@@ -519,7 +522,7 @@ function detachScope(element, scope) {
 // Both element-bound keys and a reusable command capability declare the same scope.
 // Attachment decides when its scene is validated, not what a declaration may contain.
 function declaredScope(title, rows, options) {
-  const { when, escape } =
+  const { when, escape, ready } =
     typeof options === "function" ? { when: options } : (options ?? {});
   if (escape !== undefined && escape !== "inner")
     throw new TypeError(
@@ -527,9 +530,10 @@ function declaredScope(title, rows, options) {
     );
   return {
     title,
-    rows: checked(rows, title ?? "a scope"),
+    rows: checked(rows, title ?? "a scope", ready),
     when,
     escape,
+    ready,
   };
 }
 

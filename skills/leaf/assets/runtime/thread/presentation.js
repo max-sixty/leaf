@@ -81,7 +81,7 @@ export function createThreadPresentation({
       if (phase === "ready") await paintCurrent(current);
       else {
         paintCurrent.stop();
-        await startRender(current, phase);
+        await startRender(current);
       }
       return value;
     },
@@ -94,28 +94,30 @@ export function createThreadPresentation({
   // margin draws the Question rows beside them. The claim registers that obligation inside
   // the publication that seals membership; the pass paints it.
   //
-  // Every epoch the page has read the log for, that is. Before it has, each one draws
-  // the same line about waiting, and repainting the margin and the anchors to say it
-  // again is work done ahead of the first paint the user is waiting on. A user who
-  // opens the panel in that window asks for the reading directly, and gets it.
+  // Empty startup epochs need no repeated thread paint. Once a local thread is
+  // drawn, its removal still owes a paint, including refusal of the last send.
+  let waitingEmpty = true;
   applicationState
-    .select((snapshot) =>
-      snapshot.phase === "waiting" ? null : snapshot.semanticEpoch,
-    )
-    .subscribe((value) => {
-      if (value !== null) void present();
+    .select((snapshot) => snapshot.semanticEpoch)
+    .subscribe(() => {
+      const snapshot = readApplication();
+      const empty =
+        snapshot.phase === "waiting" && !snapshot.effective.thread.all.length;
+      if (empty && waitingEmpty) return;
+      waitingEmpty = empty;
+      void present();
     });
 
   let surfaceGeneration = 0;
   let cancelCurrentRender = () => {};
-  const startRender = (presenting, phase = "ready") => {
+  const startRender = (presenting) => {
     cancelCurrentRender();
     const { promise: cancelled, resolve } = Promise.withResolvers();
     cancelCurrentRender = resolve;
-    return renderReading(phase, cancelled, presenting);
+    return renderReading(cancelled, presenting);
   };
 
-  async function renderReading(phase, cancelled, presenting) {
+  async function renderReading(cancelled, presenting) {
     const generation = ++surfaceGeneration;
     read.begin();
     const current = () => generation === surfaceGeneration && presenting();
@@ -127,9 +129,8 @@ export function createThreadPresentation({
     const livePanels = [...panels];
     let surfaces = null;
     try {
-      const { all } = threadState();
+      const { all: threads } = threadState();
       const collection = readThreads();
-      const threads = phase === "ready" ? all : [];
       const listed = collection.threads;
       const continueReplies = holdReplyCompositions(threads, continueThread);
       renderHolds(threads);
@@ -155,14 +156,7 @@ export function createThreadPresentation({
         if (!current()) return;
         prepared = Promise.all(
           livePanels.map(({ controller, view }) =>
-            phase === "ready"
-              ? controller.renderThreads(collection, view)
-              : controller.renderThreadListUnavailable(
-                  phase === "offline"
-                    ? "Current threads are unavailable while the server is offline."
-                    : "Loading current threads…",
-                  view,
-                ),
+            controller.renderThreads(collection, view),
           ),
         );
         void prepared.catch(() => {});

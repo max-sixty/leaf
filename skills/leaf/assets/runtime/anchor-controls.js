@@ -37,7 +37,7 @@ import {
 import { registerContribution } from "./contributions.js";
 import { commandScope } from "./keyboard/scopes.js";
 import { elementById, inChrome, pageQueryAll } from "./passages.js";
-import { pagePresented } from "./page-paint.js";
+import { pageUpgraded } from "./page-paint.js";
 import { registry } from "./registry.js";
 import { shadowHost, upFrom } from "./shadow.js";
 import { targetElement, targetParts, targetSegments } from "./resolved-target.js";
@@ -207,7 +207,7 @@ export function createAnchorControls({
 
   function prepareVisualActions() {
     pendingVisualActions = visualActionPlan();
-    if (pagePresented()) publishVisualActions();
+    if (pageUpgraded()) publishVisualActions();
   }
 
   // Each target contributes its complete standing reaction reading. Only the selected

@@ -10,13 +10,18 @@ elements, register structured state with its playground, and derive the output.
 
 The playground draws its own regions: the preview is a stage, and the controls and the
 instruction to the agent stand in a rail beside it, on the same `2fr 1fr` tracks as a
-sidebar page's body and aside, wherever it has 43.5rem; narrower, they stack. A preview
-that needs width, such as two candidates side by side, takes the room beside the column:
-give the `lf-playground` `data-width="available"`, so it widens while the question and
-premise in its `lf-ask` keep the prose's width. On a workspace page (`<main
-class="layout-workspace density-working">`) whose body is that `lf-ask`, the stage also
-grows to the window's height. Draw candidates directly on the stage without separate
-cards.
+sidebar page's body and aside, wherever it has 43.5rem; narrower, they stack. Give the
+`lf-playground` `data-width="available"` wherever it stands, so it takes the room it is
+given while the question and premise in its `lf-ask` keep the prose's width.
+
+Where the playground is the page's subject, make the page a workspace (`<main
+class="layout-workspace density-working">`). Its `lf-ask` is the body, or the only
+block of the first page tab when the page also carries reading that supports the
+playground, which goes in the later tabs (`references/page-authoring.md`, "Composing a
+page"). There the playground takes the window's width, and the stage the height its
+heading and premise leave. Where the playground is one exhibit in a document, it stands
+in the document's column and breaks out beside it. Draw candidates directly on the stage
+without separate cards.
 
 The preview is the surface the user operates. An A/B comparison keeps both candidates
 mounted there with the same configuration and starting content. Candidates that stand

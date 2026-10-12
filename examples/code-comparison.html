@@ -246,59 +246,56 @@
     </script>
   </head>
   <body>
-    <main class="layout-column">
-      <p class="eyebrow">code reader design</p>
-      <h1>Choose a code reader treatment</h1>
-      <p class="lede">
-        Compare a scrolling code reader with a wrapping one. Adjust their spacing and
-        shared width, then choose the treatment to keep.
-      </p>
-      <lf-ask id="code-comparison-ask">
-        <h2>Which code-reader treatment should the agent keep?</h2>
-        <lf-playground
-          id="code-comparison-playground"
-          submit-label="Apply treatment"
-          data-width="available"
-        >
-          <lf-playground-control
-            name="width"
-            label="Comparison viewport"
-            kind="range"
-            value="420"
-            min="280"
-            max="520"
-            step="20"
-            unit="px"
-          ></lf-playground-control>
-          <lf-playground-control
-            name="chosen"
-            label="Treatment"
-            kind="choice"
-            value="A"
-          >
-            <lf-playground-choice value="A" label="A"></lf-playground-choice>
-            <lf-playground-choice value="B" label="B"></lf-playground-choice>
-          </lf-playground-control>
-          <lf-playground-preset label="A at 420px">
-            <lf-playground-setting for="width" value="420"></lf-playground-setting>
-            <lf-playground-setting for="chosen" value="A"></lf-playground-setting>
-          </lf-playground-preset>
-          <lf-playground-preset label="B at 320px">
-            <lf-playground-setting for="width" value="320"></lf-playground-setting>
-            <lf-playground-setting for="chosen" value="B"></lf-playground-setting>
-          </lf-playground-preset>
-          <lf-playground-preview id="code-comparison-preview">
-            <code-reader-comparison id="code-reader-comparison">
-              <div class="code-comparison-grid">
-                <section
-                  class="code-candidate"
-                  data-candidate="A"
-                  id="compact-code-candidate"
-                >
-                  <h3 class="code-candidate-title">A · compact · scroll</h3>
-                  <p class="code-measurement" aria-live="polite">Measuring…</p>
-                  <lf-code id="compact-built-code" language="javascript" hi="2-4">
-                    <pre>
+    <main class="layout-workspace density-working" id="code-comparison-workspace">
+      <header><h1>Choose a code reader treatment</h1></header>
+      <lf-tabs id="code-comparison-views">
+        <lf-tab id="code-comparison-choose" label="Compare">
+          <lf-ask id="code-comparison-ask">
+            <h2>Which code-reader treatment should the agent keep?</h2>
+            <lf-playground
+              id="code-comparison-playground"
+              submit-label="Apply treatment"
+              data-width="available"
+            >
+              <lf-playground-control
+                name="width"
+                label="Comparison viewport"
+                kind="range"
+                value="420"
+                min="280"
+                max="520"
+                step="20"
+                unit="px"
+              ></lf-playground-control>
+              <lf-playground-control
+                name="chosen"
+                label="Treatment"
+                kind="choice"
+                value="A"
+              >
+                <lf-playground-choice value="A" label="A"></lf-playground-choice>
+                <lf-playground-choice value="B" label="B"></lf-playground-choice>
+              </lf-playground-control>
+              <lf-playground-preset label="A at 420px">
+                <lf-playground-setting for="width" value="420"></lf-playground-setting>
+                <lf-playground-setting for="chosen" value="A"></lf-playground-setting>
+              </lf-playground-preset>
+              <lf-playground-preset label="B at 320px">
+                <lf-playground-setting for="width" value="320"></lf-playground-setting>
+                <lf-playground-setting for="chosen" value="B"></lf-playground-setting>
+              </lf-playground-preset>
+              <lf-playground-preview id="code-comparison-preview">
+                <code-reader-comparison id="code-reader-comparison">
+                  <div class="code-comparison-grid">
+                    <section
+                      class="code-candidate"
+                      data-candidate="A"
+                      id="compact-code-candidate"
+                    >
+                      <h3 class="code-candidate-title">A · compact · scroll</h3>
+                      <p class="code-measurement" aria-live="polite">Measuring…</p>
+                      <lf-code id="compact-built-code" language="javascript" hi="2-4">
+                        <pre>
 export function releaseLabel(service, checks) {
   const detail = `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;
   const state = checks.failed > 0 ? "blocked" : checks.pending > 0 ? "rolling" : "ready";
@@ -310,17 +307,17 @@ export function releaseLabels(releases) {
     .filter((release) => release.checks.total > 0)
     .map((release) => releaseLabel(release.service, release.checks));
 }</pre>
-                  </lf-code>
-                </section>
-                <section
-                  class="code-candidate"
-                  data-candidate="B"
-                  id="wrapped-code-candidate"
-                >
-                  <h3 class="code-candidate-title">B · comfortable · wrap</h3>
-                  <p class="code-measurement" aria-live="polite">Measuring…</p>
-                  <lf-code id="wrapped-built-code" language="javascript" hi="2-4">
-                    <pre>
+                      </lf-code>
+                    </section>
+                    <section
+                      class="code-candidate"
+                      data-candidate="B"
+                      id="wrapped-code-candidate"
+                    >
+                      <h3 class="code-candidate-title">B · comfortable · wrap</h3>
+                      <p class="code-measurement" aria-live="polite">Measuring…</p>
+                      <lf-code id="wrapped-built-code" language="javascript" hi="2-4">
+                        <pre>
 export function releaseLabel(service, checks) {
   const detail = `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;
   const state = checks.failed > 0 ? "blocked" : checks.pending > 0 ? "rolling" : "ready";
@@ -332,41 +329,45 @@ export function releaseLabels(releases) {
     .filter((release) => release.checks.total > 0)
     .map((release) => releaseLabel(release.service, release.checks));
 }</pre>
-                  </lf-code>
-                </section>
-              </div>
-            </code-reader-comparison>
-          </lf-playground-preview>
-          <lf-playground-output id="code-comparison-instruction">
-            Update the built Leaf code reader and show the focused browser measurement
-            test.
-          </lf-playground-output>
-        </lf-playground>
-      </lf-ask>
-      <section id="code-reader-feedback">
-        <h2>Point at the reader element you want changed</h2>
-        <p id="code-reader-feedback-guide">
-          Turn on Design mode with <kbd>l</kbd> or the More menu, then press the heading
-          or code reader below. For a keyboard choice, press <kbd>s</kbd>, browse
-          targets with <kbd>Tab</kbd>, and choose with <kbd>Enter</kbd>. Your comment
-          stays beside that element as its treatment changes. Describe a shared change
-          in the comment when both readers should inherit it.
-        </p>
-        <section
-          id="target-reader-artifact"
-          class="code-candidate"
-          data-width="available"
-        >
-          <h3 id="target-reader-heading" class="reader-treatment-title">
-            Reader sample
-          </h3>
-          <lf-code id="target-built-code" language="javascript" hi="2">
-            <pre>
+                      </lf-code>
+                    </section>
+                  </div>
+                </code-reader-comparison>
+              </lf-playground-preview>
+              <lf-playground-output id="code-comparison-instruction">
+                Update the built Leaf code reader and show the focused browser
+                measurement test.
+              </lf-playground-output>
+            </lf-playground>
+          </lf-ask>
+        </lf-tab>
+        <lf-tab id="code-comparison-comment" label="Comment on the reader">
+          <section id="code-reader-feedback">
+            <h2>Point at the reader element you want changed</h2>
+            <p id="code-reader-feedback-guide">
+              Turn on Design mode with <kbd>l</kbd> or the More menu, then press the
+              heading or code reader below. For a keyboard choice, press <kbd>s</kbd>,
+              browse targets with <kbd>Tab</kbd>, and choose with <kbd>Enter</kbd>. Your
+              comment stays beside that element as its treatment changes. Describe a
+              shared change in the comment when both readers should inherit it.
+            </p>
+            <section
+              id="target-reader-artifact"
+              class="code-candidate"
+              data-width="available"
+            >
+              <h3 id="target-reader-heading" class="reader-treatment-title">
+                Reader sample
+              </h3>
+              <lf-code id="target-built-code" language="javascript" hi="2">
+                <pre>
 export const summarize = checks =>
   `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;</pre>
-          </lf-code>
-        </section>
-      </section>
+              </lf-code>
+            </section>
+          </section>
+        </lf-tab>
+      </lf-tabs>
     </main>
   </body>
 </html>

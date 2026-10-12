@@ -987,8 +987,9 @@ on `@container style(--lf-full-height: 1)`, which asks the widget's parent; it f
 it shows to the height, so the reader moves through the workspace rather than scrolling
 it, declares `--lf-holds-height: 1` on each part it scrolls within that height, and sets
 `--lf-full-height: inherit` on each box that passes the height on to its parts, as a
-playground does down to its panes. A widget deeper in the body, in a section or a tab, is
-not told, and takes its content's height.
+playground does down to its panes. An Ask passes it to its answer, and page tabs to a tab
+that is one block. A widget deeper in the body, in a section or in a tab of several
+blocks, is not told, and takes its content's height.
 
 A module that composes regions out of boxes it generates, such as a playground's controls
 beside its preview, gives those boxes the pane rules by marking them

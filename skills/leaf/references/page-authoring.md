@@ -100,9 +100,9 @@ stands alone, since whoever reads it there has none of the page around it.
 
 ## Composing a page
 
-Most pages use a reading column, `<main class="layout-column">`. Text stays within
-the column's measure; wider blocks extend beside it without moving the prose.
-Without a Layout class, `main`'s blocks fill the window's width. A diagram or board
+Most pages are read top to bottom and use a reading column,
+`<main class="layout-column">`. Text stays within the column's measure; wider blocks
+extend beside it without moving the prose. Without a Layout class, `main`'s blocks fill the window's width. A diagram or board
 declares its preferred width in the registry; `data-width` makes the same request
 for other blocks, such as a wide table ("Bounds and widths", below). Compose the page
 from these:
@@ -118,10 +118,16 @@ from these:
 - **Controls beside evidence** is a playground, which declares how its controls
   operate its preview.
 - **A screen the reader moves through rather than scrolls**, like a mail client or a
-  dashboard, such as a queue worked one item at a time or a run's log beside the chart
-  it explains, is a workspace (below). A document read top to bottom beside a panel
-  kept in view, such as a postmortem beside its timeline, is instead a `layout-sidebar`
-  page whose `aside` sticks ("A sidebar page", below).
+  dashboard, such as a queue worked one item at a time, a run's log beside the chart
+  it explains, or a playground that is the page's subject, is a workspace (below): the
+  surface fills the window and starts at the title's left edge. Broken out of a column,
+  the same surface would stand below the column's opening prose, and its left edge would
+  not align with the title or the prose, which suits a figure the document cites but not
+  the page's main item.
+  Reading that supports the surface, such as the review behind a design the reader
+  tunes, goes in page tabs after the surface's own. A document read top to bottom
+  beside a panel kept in view, such as a postmortem beside its timeline, is instead a
+  `layout-sidebar` page whose `aside` sticks ("A sidebar page", below).
 - **Several views of one artifact** are one `lf-tabs` set: page tabs for
   project-scale views that share one history, Threads panel, ask inventory, and
   revision sequence, and a tabbed section for local alternatives within the

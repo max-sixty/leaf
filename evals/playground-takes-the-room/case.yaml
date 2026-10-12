@@ -1,14 +1,16 @@
 # Added when an Ask came to keep the prose's width on a wide page as in a column, as
 # playground-ask-takes-the-room: the Ask framing a playground had to be granted the
 # page's room for its stage (Claude Code: base 0/3 and 0/2, candidate 3/3 and 2/2,
-# across two wordings). Since layout-wide was retired the room goes on the playground
-# itself, so the Ask's question and premise keep the prose's width; the prompt leaves
-# the page's Layout to the agent. On this wording, Claude Code: base 0/2 (both granted
-# the lf-ask on a layout-wide page), candidate 2/2 (layout-column, the room on the
-# lf-playground).
+# across two wordings). Since layout-wide was retired the room went on the playground
+# itself, a breakout from a column page. Since a page whose subject is a playground
+# became a workspace (session e8a66e47's design review, where the breakout's edges
+# matched nothing above it), the page itself is the room: the Ask is the workspace's body.
+# On that wording, Claude Code: base (c20bf406f) 4/6 across two runs, candidate 6/6;
+# the base often follows notification-playground, so this case protects more than it
+# distinguishes.
 description: playground-takes-the-room
 metadata:
-  purpose: 'Playground: a playground whose candidates stand side by side takes data-width="available" itself.'
+  purpose: 'Playground: a page whose subject is a playground is a workspace whose body is the playground''s Ask.'
   tags:
   - playground
   - layout
@@ -27,8 +29,9 @@ assert:
 - type: llm-rubric
   metric: playground-takes-the-room
   value: |
-    Pass only if the `lf-playground` itself carries `data-width="available"`, so
-    its side-by-side candidates take the page's room while the Ask's question and
-    premise keep the prose's width. Fail if the room goes to the `lf-ask` or the
-    whole page (such as a wide Layout on `main`) instead of the playground, or if
-    the playground takes no extra room.
+    Pass only if `main` is a `layout-workspace` whose body, the element between its
+    `header` and any `footer`, is the `lf-ask` holding the `lf-playground`, and the
+    `lf-playground` carries `data-width="available"`, so the playground takes the
+    window rather than breaking out beside a column. Fail if `main` is a
+    `layout-column` or `layout-sidebar` page, or if the playground stands in a section
+    or other wrapper inside the body.

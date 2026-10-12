@@ -1,0 +1,31 @@
+# Guardrail for surface-page-takes-the-window: a playground that is one exhibit in a
+# document keeps the document's column, and the page is not turned into a workspace.
+# Claude Code: base (c20bf406f) 6/6, candidate 6/6.
+description: exhibit-playground-stays-in-the-column
+metadata:
+  purpose: 'Arranging a page: a document read top to bottom that cites one small playground stays a column page, the playground breaking out in its section.'
+  tags:
+  - layout
+  - playground
+vars:
+  prompt: |
+    Write a Leaf page reviewing last week's checkout outage for the payments team, who
+    will read it top to bottom before Friday's review. It has seven sections: Summary,
+    Timeline, Impact, Root cause, What went well, What went badly, and Actions. Write
+    each section's paragraphs as placeholders of a few sentences. In Root cause, the
+    retries that amplified the outage are the point: include a playground where the
+    reader tunes the retry policy's base delay, multiplier and maximum attempts, sees
+    the resulting retry schedule against the 30-second outage window, and submits the
+    policy to adopt.
+
+    Read references/page-authoring.md and packages/playground/instructions/author.md
+    inside the leaf skill's base directory. The page directory is not reachable from
+    here, so reply with the complete `index.html`, rather than writing a file.
+assert:
+- type: llm-rubric
+  metric: judgment
+  value: |
+    Read the HTML. Pass only if `main` is a `layout-column` page whose seven sections
+    are read in order in the page's own scroll, and the playground, in its `lf-ask`,
+    stands within the Root cause section. Fail if `main` is a `layout-workspace`, or if
+    the page is split into tabs that separate the playground from the sections.

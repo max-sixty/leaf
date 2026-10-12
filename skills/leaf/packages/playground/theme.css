@@ -265,13 +265,15 @@
   display: none;
 }
 
-/* The stage: one well the preview's artifacts stand on. A stage the rail beside it holds
- * taller than the artifacts sets them in its middle rather than leaving its lower half
- * bare, and one they overflow starts them at its top. */
+/* The stage: one well the preview's artifacts stand on, read from its top like a page.
+ * A stage taller than its artifacts, held by the rail beside it or by a workspace's
+ * height, leaves the room below them. Setting them in its middle left a bare band above
+ * the artifact the reader came for, as tall as half the spare room, and moved the
+ * artifact whenever the rail's height changed. */
 :scope:is(lf-playground-preview) {
   --lf-block-frame: 1;
   display: grid;
-  align-content: safe center;
+  align-content: start;
   min-width: 0;
   min-height: 18rem;
   padding: var(--sp-4);

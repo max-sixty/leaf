@@ -797,6 +797,10 @@ def visual_review_menu(page: Page) -> None:
 
 def code_reader_feedback(page: Page) -> None:
     """The built reader and the place where its author receives design feedback."""
+    tab = page.get_by_role("tab", name="Comment on the reader")
+    if tab.count():
+        tab.click()
+        settle(page)
     page.locator(
         "#code-reader-feedback, #code-targeting-ask"
     ).scroll_into_view_if_needed()

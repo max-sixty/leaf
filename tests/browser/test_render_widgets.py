@@ -1857,11 +1857,12 @@ def test_a_package_pane_is_held_where_an_lf_pane_is(browser, serve):
         page.unroute_all(behavior="wait")
 
 
-def test_an_ask_with_more_than_one_answer_part_keeps_each_parts_height(browser, serve):
-    """An Ask passes the height on only when it is a heading and one answer, which then
-    takes what is left. With context between the heading and the options there is no one
-    box to give it to, so nothing is drawn over the options and none is squeezed. The
-    control is a heading and a playground, whose answer the workspace holds."""
+def test_an_ask_gives_its_answer_what_its_context_leaves(browser, serve):
+    """An Ask as the workspace's body gives its last part, the answer, what its heading
+    and context leave, and never less than the answer's own height: below a context
+    taller than the window the options keep theirs, nothing is drawn over them, and the
+    body scrolls. A playground below a premise fits itself to what is left, its controls
+    scrolling within the window."""
     page = open_page(browser, serve(THREE_PART_ASK_PAGE))
     resized(page, 1280, 720)
     geometry = page.evaluate(
@@ -1876,10 +1877,15 @@ def test_an_ask_with_more_than_one_answer_part_keeps_each_parts_height(browser, 
     assert end["clear"], end
     page.close()
 
-    two_part = PLAYGROUND_PAGE.replace("<h1>Card playground</h1>\n", "").replace(
-        '<main class="layout-column">', '<main class="layout-workspace">'
+    with_premise = (
+        PLAYGROUND_PAGE.replace("<h1>Card playground</h1>\n", "")
+        .replace(
+            "<h2>How should the card look?</h2>",
+            "<h2>How should the card look?</h2>\n  <p>The card leads the release page.</p>",
+        )
+        .replace('<main class="layout-column">', '<main class="layout-workspace">')
     )
-    page = open_page(browser, serve(two_part))
+    page = open_page(browser, serve(with_premise))
     resized(page, 1280, 720)
     expect(page.locator("#card-playground-ask")).to_have_css("display", "flex")
     pane_posture(page, page.locator(".lf-playground-controls-region"), "bounded")
@@ -4907,6 +4913,7 @@ def test_built_code_reader_design_comment_keeps_its_identity_after_revision(
     source_path = Path(__file__).parents[2] / "examples" / "code-comparison.html"
     source = source_path.read_text(encoding="utf-8")
     page = open_page(browser, live_url(serve(source_path)))
+    page.get_by_role("tab", name="Comment on the reader").click()
     page.locator("#target-reader-heading").scroll_into_view_if_needed()
     page.keyboard.press("l")
     page.locator("#target-reader-heading").click()

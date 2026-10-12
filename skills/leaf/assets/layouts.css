@@ -9,7 +9,8 @@
  * for a child of a box that says so: the workspace's `main` says it of its body, and a
  * widget that fills the height it was given says it again for its own parts
  * (`--lf-full-height: inherit`), as a playground does for its panes. A widget deeper in
- * the body, in a section or a tab, is not told, and takes its content's height. */
+ * the body, in a section or in a page tab of several blocks, is not told, and takes its
+ * content's height. */
 @property --lf-full-height {
   syntax: "*";
   inherits: false;

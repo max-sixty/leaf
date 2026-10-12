@@ -29,7 +29,8 @@ side by side under the figure, as many as its width holds, so the question, the 
 and the options share the window. A playground or another surface in
 an `lf-ask` that uses every column it gets takes `data-width="available"` itself, so the
 question and its premise keep the prose's width (`page-authoring.md`, "Bounds and
-widths").
+widths"). A page whose subject is that surface is a workspace instead
+(`page-authoring.md`, "Composing a page").
 
 Write related, independently answerable asks in page order. A widget can carry its
 own question and context, or an `lf-ask` can frame them around it. They remain visible

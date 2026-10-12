@@ -21,18 +21,20 @@
   --lf-options-across: 1;
 }
 /* An Ask told it has a definite height to fill (`--lf-full-height`, layouts.css), as a
- * full-height workspace's body is, that is a heading and one answer gives the answer
- * what the heading leaves and tells it so, so a widget composing its own regions there,
- * such as a playground, fills the window. With context between the two there is no one
- * box to give the height to, so every part keeps its own. */
+ * full-height workspace's body is, gives its answer, the last of its children, what its
+ * heading and context leave, and tells it so, so a widget composing its own regions
+ * there, such as a playground, fills the window below a premise as well as straight
+ * under the heading. The context keeps its own height, and the answer keeps at least
+ * its own: a list of options takes its content's height below a long premise, and the
+ * body scrolls, where a playground, which fits its parts to any height it is given,
+ * says it may shrink (playground/theme.css). */
 @container style(--lf-full-height: 1) {
   :scope:is(lf-ask) { display: flex; flex-direction: column; }
-  :scope:is(lf-ask):has(> :nth-child(2 of :not(script, style, template)):nth-last-child(1 of :not(script, style, template))) {
+  :scope:is(lf-ask):has(> :nth-last-child(1 of :not(script, style, template)):not(:nth-child(1 of :not(script, style, template)))) {
     --lf-full-height: inherit;
   }
-  :scope:is(lf-ask) > :nth-child(2 of :not(script, style, template)):nth-last-child(1 of :not(script, style, template)) {
+  :scope:is(lf-ask) > :nth-last-child(1 of :not(script, style, template)):not(:nth-child(1 of :not(script, style, template))) {
     flex: 1 1 0;
-    min-block-size: 0;
-    margin-block-end: 0;
+    margin-block: 0;
   }
 }

@@ -132,7 +132,7 @@ def retirement_holders(parser: SourceDocument, registry: dict) -> list:
                 "retires": {outcome: set() for outcome in declared[rec["tag"]]},
                 "withdrawn_as": registry[rec["tag"]].get("x-withdrawn-as"),
             }
-    for wid, rec in parser.within.items():
+    for wid, rec in parser.holders.items():
         pair = enclosing_slot(rec, registry) if rec else None
         if pair is None:
             continue

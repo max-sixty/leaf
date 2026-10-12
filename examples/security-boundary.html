@@ -86,7 +86,8 @@ flowchart LR
           </li>
           <li>
             <strong>One supervisor owns the lifetime.</strong> Setup and the agent run
-            in the same outer SRT process boundary, then every descendant is reaped.
+            inside the same outer process boundary of Anthropic Sandbox Runtime (SRT),
+            then every descendant is reaped.
           </li>
           <li>
             <strong>Authority enters through named proxies.</strong> Real credentials
@@ -115,8 +116,8 @@ flowchart LR
           </h2>
           <table id="security-object-register">
             <caption>
-              The objects are named by owner and lifecycle, not by where they happen to
-              sit.
+              Each object by owner and lifecycle, with what the agent and the runner may
+              do with it.
             </caption>
             <thead>
               <tr>
@@ -182,11 +183,11 @@ flowchart LR
             trusted consumer uses those paths. B1 owns trusted initial code/config
             provisioning, B2 owns contained execution, B3 owns credential grants and
             network brokerage, and B4 owns results exported to trusted runner consumers.
-            These are responsibilities, not four physically disjoint pipes: dependencies
-            and model responses travel through B3, and subscription authority is
-            deliberately staged in <code>Hₐ</code>. Persistent auto-memory remains
-            untrusted data for a future agent. Any other host service or Unix socket is
-            a new B3 gateway; none is admitted initially.
+            B1–B4 name responsibilities, and one physical path can serve more than one:
+            dependencies and model responses both travel through B3, and subscription
+            authority is deliberately staged in <code>Hₐ</code>. Persistent auto-memory
+            remains untrusted data for a future agent. Any other host service or Unix
+            socket is a new B3 gateway; none is admitted initially.
           </p>
           <aside class="callout" id="security-trust-assumptions">
             The trusted computing base is GitHub’s ephemeral runner VM, the runner
@@ -394,8 +395,8 @@ stateDiagram-v2
             suspect unless it implements one of these contracts.
           </p>
           <p id="security-bottleneck-consequence">
-            GitHub’s POST chain is not a fifth security mechanism. It is simply a
-            consumer that remains on the runner side of B1. With
+            GitHub’s POST steps run on the runner side of B1, so they need no boundary
+            of their own. With
             <code>Wᵣ</code> unchanged, Tend can delete the generated “restore local
             setup actions” step rather than expanding it into a larger list of things to
             repair.
@@ -459,10 +460,10 @@ stateDiagram-v2
             irrelevant.
           </p>
           <aside class="callout" id="security-srt-contract-gaps">
-            SRT is the primitive, not the policy. Its current Linux dependency check
-            reports a missing seccomp helper only as a warning and then runs with Unix
-            sockets unrestricted. Tend must promote every warning to a launch failure
-            and separately prove that the helper actually applies. SRT also adds
+            Tend has to tighten SRT’s defaults itself. SRT’s current Linux dependency
+            check reports a missing seccomp helper only as a warning and then runs with
+            Unix sockets unrestricted. Tend must promote every warning to a launch
+            failure and separately prove that the helper actually applies. SRT also adds
             writable scratch/debug paths, now classified as <code>Tₐ</code>, and its
             mandatory Git protections still deny <code>.git/hooks</code> when
             <code>allowGitConfig</code> permits <code>.git/config</code>. Tend should
@@ -528,8 +529,8 @@ stateDiagram-v2
             its socket hands work to <code>nixbld</code> processes outside Tend’s
             supervised tree. The initial cutover denies it and migrates that consumer to
             a daemonless/single-user installation inside the agent boundary. If that
-            proves impossible, a constrained Nix broker is a new design decision, not a
-            PATH fix.
+            proves impossible, a constrained Nix broker needs its own design decision; a
+            PATH change cannot provide it.
           </p>
         </section>
 
@@ -730,7 +731,7 @@ stateDiagram-v2
                 <th scope="row">Shared checkout plus more denies/restores</th>
                 <td>
                   Every new runner consumer creates another persistence path to discover
-                  and repair. The security property is a list, not an invariant.
+                  and repair.
                 </td>
               </tr>
               <tr>
@@ -763,17 +764,18 @@ stateDiagram-v2
         </section>
 
         <section id="security-review">
-          <h2 id="security-review-heading">Astra review</h2>
+          <h2 id="security-review-heading">Adversarial review</h2>
           <p id="security-review-status">
             <strong
               >Approved and landed: no P0/P1/P2 design or implementation findings
               remain.</strong
             >
-            Astra completed two full adversarial passes plus a final verification. The
-            first pass found ten contract gaps; the second found SRT-default assumptions
-            and one partially initialized-launch transition. The proposal above
-            incorporates them. The final pass reviewed the implementation, tests, and
-            hosted probe evidence.
+            Astra, an OpenAI model (<code>gpt-6-astra</code>), reviewed the design in
+            two full adversarial passes plus a final verification. The first pass found
+            ten contract gaps; the second found SRT-default assumptions and one
+            partially initialized-launch transition. The proposal above incorporates
+            them. The final pass reviewed the implementation, tests, and hosted probe
+            evidence.
           </p>
           <ol id="security-review-findings">
             <li>

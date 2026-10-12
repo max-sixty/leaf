@@ -10,10 +10,11 @@ import "/vendor/webawesome.esm.js";
 
 import {
   commands,
+  createWidgetElement,
+  commandsOn,
   countAreas,
   describeDifference,
   compoundReadingRegionId,
-  createWidgetElement,
   placeThreads,
   placeKeeper,
   failSoft,
@@ -104,16 +105,15 @@ export default class extends HTMLElement {
   #controller = widgetController(this);
   #presentGenerated = (promise) => this.#controller.present(promise);
   #caseEntries = new Map();
-  #choiceRefs = new Map();
   #casesBody = null;
   #commands = null;
   #evidenceHost = null;
   #stopEvidence = null;
   #inspector = null;
   #mode = "compare";
+  #observedCase;
   #scheduleEvidenceLayout = frameFor(this, () => this.#paintEvidenceLayout());
   #opacity = 50;
-  #queueHost = null;
   #reviewUnits = {};
   #run = null;
   #sourceReady = true;
@@ -156,13 +156,25 @@ export default class extends HTMLElement {
       host: this.#evidenceHost,
       body: this.#casesBody,
     });
+    this.#observedCase = undefined;
+    this.#observeSelected();
+  }
+
+  // The pair's allocation reads the pane, the selected case's stage and what stands
+  // above it there. Hidden cases measure nothing, so only the selected one is observed.
+  #observeSelected() {
+    const article = this.#caseEntries.get(this.#selected)?.article ?? null;
+    if (!this.#sizes || article === this.#observedCase) return;
+    this.#observedCase = article;
     this.#sizes.disconnect();
-    this.#sizes.observe(this);
-    this.#sizes.observe(this.#casesBody);
-    for (const stage of this.querySelectorAll(
-      ".lf-vr-shot-host, .lf-vr-case-head, .lf-vr-toolbar-slot",
-    ))
-      this.#sizes.observe(stage);
+    for (const node of [
+      this,
+      this.#casesBody,
+      ...(article?.querySelectorAll(
+        ":scope > :is(.lf-vr-case-head, .lf-vr-toolbar-slot, .lf-vr-shot-host)",
+      ) ?? []),
+    ])
+      this.#sizes.observe(node);
   }
 
   // The review composes the layer's pane grammar rather than choosing a posture: a
@@ -202,43 +214,37 @@ export default class extends HTMLElement {
             ${offered("lf-vr-inspector-choice", true)}
             value=${value}
             appearance="button"
-            ${this.#choiceRef(kind, value, text)}
+            ${commandsOn("On visual evidence", [
+              {
+                id: `visual.${kind}.${value}`,
+                keys: PRESS,
+                title: text.toLowerCase(),
+                run: () => focused().click(),
+              },
+            ])}
             >${text}</wa-radio
           >`,
       )}
     </wa-radio-group>`;
   }
 
-  #choiceRef(kind, value, text) {
-    const key = `${kind}/${value}`;
-    if (!this.#choiceRefs.has(key))
-      this.#choiceRefs.set(key, (radio) => {
-        if (!radio || radio.dataset[kind] === value) return;
-        radio.dataset[kind] = value;
-        commands(radio, "On visual evidence", [
-          {
-            id: `visual.${kind}.${value}`,
-            keys: PRESS,
-            title: text.toLowerCase(),
-            run: () => radio.click(),
-          },
-        ]);
-      });
-    return ref(this.#choiceRefs.get(key));
+  // Whether the selected case can show its focus crop.
+  #focusAvailable() {
+    const entry = this.#caseEntries.get(this.#selected);
+    return Boolean(entry?.record.focus && entry.shot?.supportsCrop);
   }
 
   #renderInspector() {
-    const entry = this.#caseEntries.get(this.#selected);
-    const focusAvailable = Boolean(
-      entry?.record.focus && entry.shotHost?.querySelector("lf-shot")?.supportsCrop,
-    );
+    const focusAvailable = this.#focusAvailable();
     const scope = focusAvailable ? this.#scope : "full";
     const active = this.#mode === "overlay";
     keeps(this, "data-inspection-mode", this.#mode);
     keeps(this, "data-inspection-scale", this.#scale);
     keeps(this, "data-inspection-scope", scope);
     render(
-      html`<summary ${offered("lf-vr-inspection-summary")}>Inspect comparison</summary>
+      html`<summary ${offered("lf-vr-inspection-summary")}>
+          Inspect comparison
+        </summary>
         <div ${offered("lf-vr-inspector")}>
           ${this.#choices("scope", "Scope", SCOPE, scope, !focusAvailable)}
           ${this.#choices("mode", "View", INSPECTION, this.#mode)}
@@ -268,42 +274,45 @@ export default class extends HTMLElement {
 
   #setScope(scope) {
     if (!(scope in SCOPE)) return;
-    if (
-      scope === "focus" &&
-      (!this.#caseEntries.get(this.#selected)?.shotHost.querySelector("lf-shot")
-        ?.supportsCrop ||
-        !this.#caseEntries.get(this.#selected)?.record.focus)
-    ) {
+    if (scope === "focus" && !this.#focusAvailable()) {
       this.#renderInspector();
       return;
     }
     if (scope === this.#scope) return;
     this.#scope = scope;
-    this.#paintInspector();
+    this.#paintInspection();
     notice(`${SCOPE[scope]} evidence`);
   }
 
   #setMode(mode) {
     if (!(mode in INSPECTION) || mode === this.#mode) return;
     this.#mode = mode;
-    this.#paintInspector();
+    this.#paintInspection();
     notice(`${INSPECTION[mode]} view`);
   }
 
   #setScale(scale) {
     if (!(scale in SCALE) || scale === this.#scale) return;
     this.#scale = scale;
-    this.#paintInspector();
+    this.#paintInspection();
     notice(`${SCALE[scale]} evidence`);
   }
 
   #setOpacity(opacity) {
     if (!Number.isFinite(opacity)) return;
     this.#opacity = Math.max(0, Math.min(100, opacity));
-    this.#paintInspector();
+    this.#renderInspector();
+    this.#inspectShots();
   }
 
-  #inspectShot(shot, record, allocation = {}) {
+  // Every pair takes the current choices, so a case shows them when selected and on
+  // paper. The selected pair's allocation follows in `#paintEvidenceLayout`.
+  #inspectShots() {
+    for (const { shot, record } of this.#caseEntries.values())
+      if (shot) this.#inspectShot(shot, record);
+  }
+
+  #inspectShot(shot, record) {
     shot.inspect({
       mode: this.#mode,
       pixelRatio: record.capture.deviceScaleFactor,
@@ -312,16 +321,18 @@ export default class extends HTMLElement {
       crop: this.#scope === "focus",
       opacity: this.#opacity / 100,
       labels: { before: "Base", after: "Candidate" },
-      ...allocation,
     });
   }
 
-  #paintInspector() {
-    if (!this.#render()) return;
-    for (const entry of this.#caseEntries.values()) {
-      const shot = entry.shotHost.querySelector("lf-shot");
-      if (shot) this.#inspectShot(shot, entry.record);
-    }
+  // A source, review state or selection change renders the cases, then the inspection.
+  #paintReview() {
+    if (this.#render()) this.#paintInspection();
+  }
+
+  // An inspection choice repaints the inspector and the pairs; the cases stand.
+  #paintInspection() {
+    this.#renderInspector();
+    this.#inspectShots();
     this.#paintEvidenceLayout();
     layoutChanged(this);
     paintKeys();
@@ -329,10 +340,10 @@ export default class extends HTMLElement {
 
   #paintEvidenceLayout() {
     const entry = this.#caseEntries.get(this.#selected);
-    const shot = entry?.shotHost.querySelector("lf-shot");
+    const shot = entry?.shot;
+    const stage = shot?.parentElement;
     const geometry = shot?.captureGeometry;
-    if (!entry?.record || geometry?.images.length !== 2 || !entry.shotHost.clientWidth)
-      return;
+    if (geometry?.images.length !== 2 || !stage.clientWidth) return;
 
     const { capture } = entry.record;
     const ratio = capture.deviceScaleFactor;
@@ -344,7 +355,7 @@ export default class extends HTMLElement {
     );
     const focus = entry.record.focus;
     const activeFocus =
-      focus && shot.supportsCrop && this.#scope === "focus" ? focus : null;
+      this.#focusAvailable() && this.#scope === "focus" ? focus : null;
     // Focus coordinates name captured CSS pixels, so the decoded capture and the
     // rendered source must share one width authority. The recorded viewport remains
     // provenance; using it here could silently shift a valid focus when they differ.
@@ -358,13 +369,13 @@ export default class extends HTMLElement {
     // stage's top down, and Fit contains the pair in it. Elsewhere the page scrolls
     // the review, and it is the window the chrome leaves.
     const bounded = readingPosture(this.#evidenceHost) === "bounded";
-    const stageWidth = entry.shotHost.clientWidth;
+    const stageWidth = stage.clientWidth;
     const stageHeight = bounded
       ? this.#casesBody.clientHeight -
-        (entry.shotHost.getBoundingClientRect().top -
+        (stage.getBoundingClientRect().top -
           this.#casesBody.getBoundingClientRect().top +
           this.#casesBody.scrollTop) -
-        (entry.shotHost.offsetHeight - entry.shotHost.clientHeight)
+        (stage.offsetHeight - stage.clientHeight)
       : shownWindow({ viewport: "layout" }).height;
 
     const { gap, labelHeight } = geometry;
@@ -411,10 +422,7 @@ export default class extends HTMLElement {
       bounded && containScale >= READABLE_SCALE ? containScale : widthScale;
     const scale = this.#scale === "actual" ? 1 : Math.min(1, fitScale);
     keeps(this, "data-compare-layout", compareLayout);
-    this.#inspectShot(shot, entry.record, {
-      layout: compareLayout,
-      scale,
-    });
+    shot.inspect({ layout: compareLayout, scale });
   }
 
   #registerCommands() {
@@ -422,7 +430,7 @@ export default class extends HTMLElement {
     this.#commands = commands(this, "In a visual review", [
       {
         id: "visual.next-case",
-        control: () => this.#queueHost.querySelector(".lf-vr-next"),
+        control: () => this.querySelector(".lf-vr-next"),
         keys: ["ArrowDown"],
         title: "next case",
         when: () => this.#caseEntries.size > 1,
@@ -441,7 +449,7 @@ export default class extends HTMLElement {
       },
       {
         id: "visual.previous-case",
-        control: () => this.#queueHost.querySelector(".lf-vr-previous"),
+        control: () => this.querySelector(".lf-vr-previous"),
         keys: ["ArrowUp"],
         title: "previous case",
         when: () => this.#caseEntries.size > 1,
@@ -477,7 +485,7 @@ export default class extends HTMLElement {
         );
         if (!this.#caseEntries.has(this.#selected))
           this.#selected = fallback?.id ?? this.#run.cases[0].id;
-        this.#paintInspector();
+        this.#paintReview();
         this.#project();
         this.#threadSurface?.update();
         this.#scheduleEvidenceLayout();
@@ -489,8 +497,10 @@ export default class extends HTMLElement {
       });
     } catch (error) {
       // Semantic and mechanical paints cannot revive evidence from a rejected source.
-      // Only another successful source commit may replace this failure view.
+      // Only another successful source commit may replace this failure view, and
+      // it rebuilds the cases the failure view discarded.
       this.#sourceReady = false;
+      this.#caseEntries.clear();
       failSoft(this, error);
     } finally {
       resume();
@@ -508,28 +518,20 @@ export default class extends HTMLElement {
 
   #reconcileCases(cases) {
     const wanted = new Set(cases.map(({ id }) => id));
-    for (const [id, entry] of this.#caseEntries) {
-      if (wanted.has(id)) continue;
-      for (const node of [
-        entry.shotHost,
-        ...entry.article.querySelectorAll(".lf-vr-case-head, .lf-vr-toolbar-slot"),
-      ])
-        this.#sizes?.unobserve(node);
-      this.#caseEntries.delete(id);
-    }
+    for (const id of this.#caseEntries.keys())
+      if (!wanted.has(id)) this.#caseEntries.delete(id);
     for (const record of cases) {
       let entry = this.#caseEntries.get(record.id);
       if (!entry) {
-        entry = { record, difference: undefined, attempt: 0 };
+        entry = { record, difference: undefined, attempt: 0, shot: null };
+        entry.place = (article) => (entry.article = article ?? null);
         entry.prepare = (shot) => {
+          entry.shot = shot ?? null;
           if (!shot) return;
           this.#inspectShot(shot, entry.record);
           shot.difference.then(
             (reading) => {
-              if (
-                this.#caseEntries.get(record.id) !== entry ||
-                entry.shotHost?.querySelector("lf-shot") !== shot
-              )
+              if (this.#caseEntries.get(record.id) !== entry || entry.shot !== shot)
                 return;
               entry.difference = reading;
               this.#render();
@@ -538,10 +540,7 @@ export default class extends HTMLElement {
           );
         };
         this.#caseEntries.set(record.id, entry);
-      } else if (
-        !entry.shotHost.querySelector("lf-shot")?.captureGeometry.images.length
-      )
-        entry.attempt += 1;
+      } else if (!entry.shot?.captureGeometry.images.length) entry.attempt += 1;
       const before = scopedMediaUrl(record.before);
       const after = scopedMediaUrl(record.after);
       const shotKey = `${before}\n${after}\n${entry.attempt}`;
@@ -549,8 +548,6 @@ export default class extends HTMLElement {
       if (replaceShot) entry.difference = undefined;
       Object.assign(entry, { record, shotKey });
       if (replaceShot) {
-        // Generated widgets use their owner's publication, just as authored arrivals
-        // do. Lit retains this node by its evidence key; it does not choose its registry.
         const shot = createWidgetElement(this, "lf-shot", LFShot);
         shot.id = `lf-${this.id}-${record.id}-comparison`;
         shot.setAttribute("before", before);
@@ -558,7 +555,6 @@ export default class extends HTMLElement {
         shot.setAttribute("outlines", "");
         shot._lfPresentGenerated = this.#presentGenerated;
         shot.addEventListener("captureload", this.#scheduleEvidenceLayout);
-        entry.shot = shot;
         entry.prepare(shot);
       }
       keeps(entry.shot, "alt", `${record.title}. ${record.result}`);
@@ -611,7 +607,7 @@ export default class extends HTMLElement {
       : null;
     if (id !== this.#selected) this.#scope = "focus";
     this.#selected = id;
-    this.#paintInspector();
+    this.#paintReview();
     const selected = this.#caseEntries.get(id);
     this.#threadSurface?.update();
     layoutChanged(this);
@@ -677,14 +673,12 @@ export default class extends HTMLElement {
     if (accepted) notice(`${DISPOSITION[disposition]} — sent`);
   }
 
-  #caseView(record, index, total) {
-    const units = this.#reviewUnits;
-    const disposition = units[record.id]?.detail.disposition ?? null;
-    const remaining = this.#remaining().length;
+  #caseView(record, index, total, remaining) {
+    const disposition = this.#disposition(record.id);
     const selected = record.id === this.#selected;
     const available = this.#controller.read().actions.review?.available ?? false;
     const [heading, analysis] = this.#position(record, index, total);
-    const { shotKey, shot } = this.#caseEntries.get(record.id);
+    const { shotKey, shot, place } = this.#caseEntries.get(record.id);
     const link = (cls, label, href) =>
       html`<a
         ${offered(`lf-btn ${cls}`)}
@@ -700,11 +694,14 @@ export default class extends HTMLElement {
       data-disposition=${disposition ?? ""}
       aria-label=${`Visual review case ${index + 1} of ${total}`}
       ?hidden=${!selected}
+      ${ref(place)}
     >
       <header class="lf-vr-case-head">
         <div class="lf-vr-case-heading">
           <p class="lf-vr-case-position" data-lf-gen="1" data-lf-said>${heading}</p>
-          <h3 class="lf-vr-case-title" data-lf-gen="1" data-lf-said>${record.title}</h3>
+          <h3 class="lf-vr-case-title" data-lf-gen="1" data-lf-said>
+            ${record.title}
+          </h3>
         </div>
       </header>
       <div class="lf-vr-toolbar-slot">${selected ? this.#inspector : ""}</div>
@@ -712,16 +709,16 @@ export default class extends HTMLElement {
       <dl class="lf-vr-claim">
         <dt class="lf-vr-action-term" data-lf-gen="1" data-lf-said>Action</dt>
         <dd class="lf-vr-action" data-lf-gen="1" data-lf-said>${record.action}</dd>
-        <dt class="lf-vr-result-term" data-lf-gen="1" data-lf-said>Observed result</dt>
+        <dt class="lf-vr-result-term" data-lf-gen="1" data-lf-said>
+          Observed result
+        </dt>
         <dd class="lf-vr-result" data-lf-gen="1" data-lf-said>${record.result}</dd>
       </dl>
       <div class="lf-vr-review" role="group" aria-label="Case review">
         <div class="lf-vr-dispositions">
           ${Object.entries(DISPOSITION).map(
             ([value, text]) =>
-              html`<button
-                type="button"
-                ${offered(`lf-btn lf-vr-disposition lf-vr-${value}`)}
+              html`<button type="button" ${offered(`lf-btn lf-vr-disposition lf-vr-${value}`)}
                 data-disposition=${value}
                 aria-pressed=${String(disposition === value)}
                 ?disabled=${!available}
@@ -731,9 +728,7 @@ export default class extends HTMLElement {
               </button>`,
           )}
         </div>
-        <button type="button" ${offered("lf-btn lf-vr-next-remaining")}>
-          Next unreviewed
-        </button>
+        <button type="button" ${offered("lf-btn lf-vr-next-remaining")}>Next unreviewed</button>
         <p class="lf-vr-review-status" data-lf-gen="1" data-lf-said>
           ${
             remaining === 0
@@ -798,7 +793,8 @@ export default class extends HTMLElement {
     if (!this.#inspector || !this.#sourceReady) return false;
     const run = this.#run;
     const cases = run?.cases ?? [];
-    const reviewed = cases.length - this.#remaining().length;
+    const remaining = this.#remaining().length;
+    const reviewed = cases.length - remaining;
     render(
       html`<header class="lf-vr-head">
           <h2 class="lf-vr-title" data-lf-gen="1" data-lf-said>
@@ -832,15 +828,14 @@ export default class extends HTMLElement {
                   (record, index) =>
                     html`<wa-option ${offered("")} value=${record.id}
                       >${`${index + 1} of ${cases.length} · ${record.title} · ${
-                        DISPOSITION[this.#reviewUnits[record.id]?.detail.disposition] ??
-                        CLASSIFICATION[record.classification]
+                        DISPOSITION[
+                          this.#reviewUnits[record.id]?.detail.disposition
+                        ] ?? CLASSIFICATION[record.classification]
                       }`}</wa-option
                     >`,
                 )}
               </wa-select>
-              <button type="button" ${offered("lf-btn lf-vr-previous")}>
-                Previous
-              </button>
+              <button type="button" ${offered("lf-btn lf-vr-previous")}>Previous</button>
               <button type="button" ${offered("lf-btn lf-vr-next")}>Next</button>
             </nav>
           </header>
@@ -850,7 +845,8 @@ export default class extends HTMLElement {
                 ? repeat(
                     cases,
                     (record) => record.id,
-                    (record, index) => this.#caseView(record, index, cases.length),
+                    (record, index) =>
+                      this.#caseView(record, index, cases.length, remaining),
                   )
                 : html`<p class="lf-vr-empty" data-lf-gen="1" data-lf-said>
                     Waiting for visual-run data.
@@ -860,25 +856,11 @@ export default class extends HTMLElement {
         </section>`,
       this,
     );
-    const articles = [...this.querySelectorAll(".lf-vr-cases > .lf-vr-case")];
     const bodyChanged = this.#casesBody !== this.querySelector(".lf-vr-cases");
     this.#evidenceHost = this.querySelector(".lf-vr-evidence-region");
     this.#casesBody = this.querySelector(".lf-vr-cases");
-    this.#queueHost = this.querySelector(".lf-vr-queue-region");
-    for (const [index, article] of articles.entries()) {
-      const entry = this.#caseEntries.get(cases[index].id);
-      if (entry.article !== article) {
-        entry.article = article;
-        entry.shotHost = article.querySelector(".lf-vr-shot-host");
-        for (const node of [
-          entry.shotHost,
-          ...article.querySelectorAll(".lf-vr-case-head, .lf-vr-toolbar-slot"),
-        ])
-          this.#sizes?.observe(node);
-      }
-    }
     if (bodyChanged && this.#sizes) this.#bindEvidence();
-    this.#renderInspector();
+    else this.#observeSelected();
     return true;
   }
 
@@ -920,7 +902,7 @@ export default class extends HTMLElement {
 
   renderState(state) {
     this.#reviewUnits = state?.review?.units ?? {};
-    this.#paintInspector();
+    this.#paintReview();
     return true;
   }
 }

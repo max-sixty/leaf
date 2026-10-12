@@ -1638,6 +1638,9 @@ def test_visual_review_controls_keep_keyboard_navigation_local(browser, serve):
     page.keyboard.press("Shift+ArrowRight")
     expect(widget.locator(".lf-vr-opacity-value")).to_have_text("60%")
     expect(selector).to_have_js_property("value", initial)
+    widget.get_by_role("radio", name="Compare").focus()
+    page.keyboard.press("Enter")
+    expect(widget).to_have_attribute("data-inspection-mode", "compare")
     selector.click()
     page.keyboard.press("2")
     expect(widget.get_by_role("option", name="2 of 3", exact=False)).to_be_focused()
@@ -1752,30 +1755,23 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
         )
         assert len(held) == 2
 
-        host = page.locator("#visual-run .lf-vr-shot-host")
-        host.evaluate(
-            """async node => {
-              const {createWidgetElement} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-              const current = node.querySelector('lf-shot');
-              const replacement = createWidgetElement(node, 'lf-shot', current.constructor);
-              replacement.id = current.id;
-              replacement._lfPresentGenerated = current._lfPresentGenerated;
-              replacement.setAttribute('before', '/media/3cf0e3efe80c6b01.png');
-              replacement.setAttribute('after', '/media/4f465a0582ab00fe.png');
-              replacement.setAttribute('alt', 'Replacement evidence');
-              node.replaceChildren(replacement);
-            }"""
+        data_model.cmd_data_set(
+            serve.page_dir,
+            "docs-run",
+            run(
+                "/media/3cf0e3efe80c6b01.png",
+                "/media/4f465a0582ab00fe.png",
+                viewport_width=900,
+            ),
         )
+        told(page)
+        host = page.locator("#visual-run .lf-vr-shot-host")
         expect(host.locator("lf-shot img")).to_have_count(2)
         expect(host.locator("lf-shot img").first).to_have_js_property(
             "naturalWidth", 780
         )
-        assert (
-            host.locator("lf-shot").evaluate(
-                "shot => shot.captureGeometry.images[0].width"
-            )
-            == 780
-        )
+        rendered(page, facts=("updatesSettled",))
+        shown = host.locator("lf-shot").bounding_box()
 
         stale_svg = (
             '<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="746"/>'
@@ -1785,12 +1781,8 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
         page.wait_for_function(
             "() => window.oldVisualReviewImages.every(image => image.naturalWidth === 1800)"
         )
-        assert (
-            host.locator("lf-shot").evaluate(
-                "shot => shot.captureGeometry.images[0].width"
-            )
-            == 780
-        )
+        rendered(page)
+        assert host.locator("lf-shot").bounding_box() == shown
     finally:
         while held:
             held.pop(0).abort()

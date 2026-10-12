@@ -719,50 +719,13 @@ and a blank image stands in for any media an example names. The checks:
 
 - `example`: no worked example shows the tag, so no other check reads it.
 - `keeps-first-box`: the widget's box once the page presents differs from its box at
-  first paint. Upgrade should add behavior and move nothing, so size the widget in
-  the package theme, under `html[data-lf-interactive]`, which Leaf sets before first
-  paint wherever its runtime will run, in a served page or an export, as its module
-  will draw it. Where the module draws a structure of its own whose shape the log does
-  not change, such as a row of count tiles, declare that structure as `x-prepaint`
-  rather than summing its line heights in the theme: delivery writes it into each
-  occurrence for the first paint, the browser sizes and wraps it as it will the
-  drawing, and the module removes it (`:scope > [data-lf-prepaint]`) in the same step
-  that draws its replacement. Where the structure depends on the instance's authored
-  members or remembered tab values, declare `x-initial` instead: the rooted path of a
-  captured classic JavaScript bundle. It registers one synchronous producer with
-  `document.documentElement.lfInitial.register(tag, render)`. Delivery inlines each
-  bundle used by the document once. It holds each outer host in an inert template
-  until its source is complete, then inserts and draws it in one synchronous turn,
-  nested hosts deepest-first. Prose before that host can paint while its source is
-  still arriving; the widget first appears with its complete real structure and values.
-  The parser opens that template only while scripts run; a scripts-disabled reading
-  keeps the single original authored host, with no generated drawing or copied fallback.
-  `render(host, {tabStore, offer, offerElement, keeps})` builds the drawing and returns
-  the node references and mechanical state its behavior module needs. It may move
-  authored nodes within its host; Leaf retains their original source and node routes
-  for semantic intake, anchoring fences, and version comparison. Its `keeps` is the
-  helper surface's attribute door, for a later pass over nodes already drawn. The producer does
-  no asynchronous or network work and consumes no log-derived state. The module
-  calls `initialRender(host)` from the helper surface:
-  that call adopts the existing drawing, or produces it for a later revision or
-  thread arrival. Leaf loads its captured initial bundle once per publication before
-  the behavior module, so each widget adopts its own publication’s drawing. Add behavior to those nodes without rebuilding
-  their structure.
-  The theme styles their actual initial layout; neither the producer nor the module
-  reserves an estimated height. `x-initial` requires `x-upgrade: true` and cannot
-  accompany `x-prepaint`. Build its classic bundle during development and commit it;
-  installation, serving, and export run the captured bundle without a compiler.
-  Where the markup cannot say how tall the drawing will
-  be, declare `x-height`, add the class `lf-rendered` once the drawing is in, and
-  draw at the stated height where the drawing can take any; `page check --render`
-  advises a page's author the height to state for one that cannot. Where the widget
-  shows one of its members at a time, declare `x-views`, open on `openingView`'s
-  member, and show only the member marked `data-lf-opening` until the module upgrades
-  the element, as `lf-tabs` does. A widget holding
-  others is named only for the change left once the changed widgets inside it are put
-  back to their first sizes. An inline widget's old lines are more than a size, so a
-  widget holding a changed inline one is named beside it. A widget the page hides once
-  presented, such as an inactive tab, is left to the widget that hid it.
+  first paint. Size the widget for first paint as
+  [module-authoring.md, "First paint"](module-authoring.md#first-paint) describes. A
+  widget holding others is named only for the change left once the changed widgets
+  inside it are put back to their first sizes. An inline widget's old lines are more
+  than a size, so a widget holding a changed inline one is named beside it. A widget
+  the page hides once presented, such as an inactive tab, is left to the widget that
+  hid it.
 - `grows-with-content`: a box in the widget holds its own height and scrolls inside
   it. In ordinary flow a widget grows with what it holds, and a long one is read in
   the page's scroll (`page-authoring.md`, "Bounds and widths"). The check names a box

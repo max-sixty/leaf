@@ -20,7 +20,7 @@ from pathlib import Path
 
 from .data import read_contracts
 from .files import list_revisions
-from .passages import SourceReading
+from .passages import SourceReading, enclosing_ids
 from .registry.storage import page_vocabulary
 from .revision_artifact import active_enclosing, read_revision
 from .structure import SourceDocument
@@ -143,7 +143,7 @@ class InitialPageView:
 
     @property
     def within(self) -> dict:
-        return self._document.within
+        return enclosing_ids(self._document)
 
     @property
     def contracts(self) -> dict:

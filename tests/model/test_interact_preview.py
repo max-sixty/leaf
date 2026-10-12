@@ -101,7 +101,7 @@ def test_a_preview_source_uses_its_checkout_layer_and_media(tmp_path):
 def test_product_previews_prepare_the_authored_layer_and_media(
     tmp_path, monkeypatch, name
 ):
-    """A product preview includes its site furniture and authored images."""
+    """A product preview includes its site furniture, composed parts, and images."""
     source = ROOT / "docs" / f"{name}.html"
     page = tmp_path / "preview"
     monkeypatch.chdir(ROOT)
@@ -111,9 +111,11 @@ def test_product_previews_prepare_the_authored_layer_and_media(
         assert result.exit_code == 0, result.output
 
     prepare_page(page, read_fixture(source), run_leaf, final_status=None)
+    served = SourceDocument((page / "index.html").read_text())
+    assert served.tree.select("nav.sitenav a[aria-current=page]")
     assert all(
         (page / reference.removeprefix("/")).is_file()
-        for reference in SourceDocument(source.read_text()).media_refs
+        for reference in served.media_refs
     )
     registry = json.loads((page / "registry.json").read_text())
     assert "nav.sitenav" in registry

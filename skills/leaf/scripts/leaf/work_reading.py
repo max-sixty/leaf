@@ -37,15 +37,19 @@ class WorkReading:
     def supposing(self, gestures: list[dict]) -> "WorkReading":
         """This reading with `gestures` appended to its log, for asking what they would
         leave in the threads they stand in. They carry no markup and name no task, so
-        the frozen thread document and the task log are this reading's own, and the
-        page document is too: what they could change there, a page Ask seated in a
-        thread they reopen, stands in no thread's reading."""
+        the frozen thread document is this reading's own, and so is the task log
+        unless one takes a message back, which changes what the log has withdrawn.
+        The page document is this reading's own too: what they could change there, a
+        page Ask seated in a thread they reopen, stands in no thread's reading."""
+        events = [*self.events, *gestures]
         return WorkReading(
-            [*self.events, *gestures],
+            events,
             self.registry,
             self.page,
             thread=self.thread,
-            log=self.log,
+            log=self.log
+            if not any(gesture.get("undoes") for gesture in gestures)
+            else TaskReading(events),
             document=self.document,
         )
 

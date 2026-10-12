@@ -162,9 +162,11 @@ const pendingSeat = (message) =>
 // since a reply answers what a rewrite would and more, and a reaction that settles
 // the question the user owes (`react`), which answers less; a reaction beside a
 // rewrite, which answers the question the rewrite leaves, has no reading of its own
-// and takes the rewrite's until the log answers. A gesture the thread offers no
-// reading of, a settlement undoing another still pending or a reaction on another
-// turn, leaves it as served.
+// and takes the rewrite's until the log answers. Taking back the newest settling
+// reaction the log holds reopens what it answered (`unreact`, which names it). A
+// gesture the thread offers no reading of, a settlement undoing another still
+// pending, a reaction on another turn or taking back an older one, leaves it as
+// served.
 /** @param {{id: string}} turn @returns {import("../../../../../build/browser/domain.ts").Attention} */
 const sending = (turn) => ({
   kind: "waiting",
@@ -184,6 +186,7 @@ const openedAfter = () => {
     resolve: { attention: null, owed: [] },
     unresolve: null,
     react: null,
+    unreact: null,
   };
 };
 
@@ -216,9 +219,9 @@ export function foldThreads(threads, gestures, settles = () => false) {
   const opened = [];
   // Each thread's pending gestures, as far as its reading goes: the last turn, whether
   // a reply was among them, and which came last, a turn or a settlement.
-  /** @type {Map<Thread, {turn: {id: string} | null, replied: boolean, reacted: boolean, last?: string}>} */
+  /** @type {Map<Thread, {turn: {id: string} | null, replied: boolean, reacted: boolean, unreacted?: boolean, last?: string}>} */
   const effects = new Map();
-  /** @param {Thread} thread @param {{turn?: {id: string}, replied?: boolean, reacted?: boolean, last?: string}} change */
+  /** @param {Thread} thread @param {{turn?: {id: string}, replied?: boolean, reacted?: boolean, unreacted?: boolean, last?: string}} change */
   const note = (thread, change) =>
     effects.set(thread, {
       ...(effects.get(thread) ?? { turn: null, replied: false, reacted: false }),
@@ -306,9 +309,14 @@ export function foldThreads(threads, gestures, settles = () => false) {
       // the state it drew before that.
       thread.settling = gesture.kind;
       note(thread, { last: gesture.kind });
+    } else if (gesture.kind === "undo") {
+      const thread = copies.find(
+        ({ after }) => after.unreact?.undoes === gesture.undoes,
+      );
+      if (thread) note(thread, { unreacted: true });
     }
   }
-  for (const [thread, { turn, replied, reacted, last }] of effects) {
+  for (const [thread, { turn, replied, reacted, unreacted, last }] of effects) {
     const after =
       last === "resolve"
         ? thread.after.resolve
@@ -316,7 +324,9 @@ export function foldThreads(threads, gestures, settles = () => false) {
           ? thread.after[replied ? "reply" : "edit"]
           : reacted
             ? thread.after.react
-            : thread.after.unresolve;
+            : unreacted
+              ? thread.after.unreact
+              : thread.after.unresolve;
     if (!after) continue;
     thread.attention =
       turn &&

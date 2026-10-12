@@ -107,17 +107,18 @@ def _readings(
 
 # The gestures a user makes on a thread whose effect on its attention and asks
 # only the log can read, each supposed on the threads where it is possible.
-_SUPPOSED = ("reply", "edit", "resolve", "unresolve", "react")
+_SUPPOSED = ("reply", "edit", "resolve", "unresolve", "react", "unreact")
 
 
 def _supposed(
-    kind: str, thread: dict, seq: int, prompt: str | None, settling: str | None
+    kind: str, thread: dict, seq: int, prompt: str | None, settling: tuple[str, ...]
 ) -> dict | None:
     """The user's `kind` gesture on `thread`, as the log would hold it, or None where
     the thread offers none: a rewrite needs words of the user's to rewrite, a
-    settlement goes the way the thread does not stand, and `react`, a reaction with
-    the `settling` token on the agent turn whose question the user owes (`prompt`),
-    needs both."""
+    settlement goes the way the thread does not stand, `react`, a reaction with a
+    `settling` token on the agent turn whose ask the user owes (`prompt`), needs
+    both, and `unreact`, taking back the newest such reaction the log holds, needs
+    one."""
     gesture = {
         "id": f"supposed-{kind}:{thread['id']}",
         "kind": kind,
@@ -140,11 +141,24 @@ def _supposed(
         )
         return mine and {**gesture, "message": mine["id"], "text": "…"}
     if kind == "react":
+        token = settling[0] if settling else None
         return (
             prompt
-            and settling
-            and {**gesture, "kind": "reply", "parent": prompt, "token": settling}
+            and token
+            and {**gesture, "kind": "reply", "parent": prompt, "token": token}
         )
+    if kind == "unreact":
+        reaction = next(
+            (
+                message
+                for message in reversed(thread["msgs"])
+                if message["author"] == "user"
+                and is_reaction(message)
+                and message["token"] in settling
+            ),
+            None,
+        )
+        return reaction and {**gesture, "kind": "undo", "undoes": reaction["id"]}
     if (kind == "resolve") == bool(thread["resolved"]):
         return None
     return {**gesture, "parent": thread["root"]["id"]}
@@ -159,7 +173,9 @@ def _apply_thread_attention(work: WorkState, threads: list[dict], todos: list[di
     to a thread input, a reopening brings back what its resolution suppressed, such
     as a failed pick or an ask, and a reaction whose token settles (`$reactions`)
     answers the question the turn it marks asks, which `react` supposes on the turn
-    whose question the user owes. Rather than restate those rules, each `after`
+    whose ask the user owes, and taking such a reaction back reopens what it
+    answered, which `unreact` supposes of the newest the thread holds, naming it as
+    `undoes`. Rather than restate those rules, each `after`
     reading is the log's own: the same reading of the work, folded with that gesture
     supposed on every thread where it is possible (threads are independent, so one
     fold serves them all), and the same `_thread_attention`. `after[kind]` is
@@ -182,9 +198,7 @@ def _apply_thread_attention(work: WorkState, threads: list[dict], todos: list[di
     base = durable.events[-1]["seq"] if durable.events else 0
     held = durable.threads
     tokens = durable.registry.get("$reactions", {}).get("tokens", {})
-    settling = next(
-        (name for name, token in tokens.items() if token.get("settles")), None
-    )
+    settling = tuple(name for name, token in tokens.items() if token.get("settles"))
     prompts = {
         identity: reading.prompt["message"] if reading.prompt else None
         for identity, reading in durable.thread_questions.items()
@@ -215,7 +229,11 @@ def _apply_thread_attention(work: WorkState, threads: list[dict], todos: list[di
             attention, owed = after[thread["id"]]
             if attention is not None and attention["workflow"] == gesture["id"]:
                 attention = {**attention, "workflow": None}
-            thread["after"][kind] = {"attention": attention, "owed": owed}
+            thread["after"][kind] = {
+                "attention": attention,
+                "owed": owed,
+                **({"undoes": gesture["undoes"]} if kind == "unreact" else {}),
+            }
 
 
 def browser_state(

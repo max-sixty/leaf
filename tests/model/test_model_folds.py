@@ -576,12 +576,13 @@ def test_after_is_what_each_gesture_leaves_the_thread_as_the_log_reads_it():
     the asks in it, as the log will read them once it lands, and only the log
     knows what a gesture leaves standing: a reply answers prose and leaves a widget ask, a
     rewrite answers nothing, a reopening brings back what the resolution suppressed,
-    a `keep` reaction settles the question it marks, and nothing the user says
+    a `keep` reaction settles the question it marks and taking it back reopens that
+    question, and nothing the user says
     recovers a pick whose answer failed. Each served
     `after[kind]` is checked against the reading of the log with that gesture
     appended: its attention, the waiting one's workflow aside, and the asks the
     user owes in the thread. Each ask it owes is one the served lists already carry,
-    on Questions or held, so the browser places it rather than building it."""
+    on Questions, held or done, so the browser places it rather than building it."""
     asked = {"kind": "comment", "text": "Chart the year."}
     prose = {
         "kind": "reply",
@@ -624,6 +625,11 @@ def test_after_is_what_each_gesture_leaves_the_thread_as_the_log_reads_it():
         "resolved over an Ask": (asked, ask, resolve),
         "failed answer to a pick": (asked, ask, pick, failed),
         "resolved after a failed pick": (asked, ask, pick, failed, resolve),
+        "prose settled by a reaction": (
+            asked,
+            prose,
+            {"kind": "reply", "parent": "e2", "token": "keep"},
+        ),
         # The agent at work on the comment: the thread waits on that work, which
         # outranks a send beside it, as the log will say.
         "at work on the comment": (
@@ -646,6 +652,8 @@ def test_after_is_what_each_gesture_leaves_the_thread_as_the_log_reads_it():
         "unresolve": {"kind": "unresolve", "parent": "e1"},
         # A reaction whose token settles the question the user owes.
         "react": {"kind": "reply", "token": "keep"},
+        # Taking back the newest such reaction the thread holds.
+        "unreact": {"kind": "undo"},
     }
 
     def owed(state):
@@ -659,7 +667,9 @@ def test_after_is_what_each_gesture_leaves_the_thread_as_the_log_reads_it():
         served = model.reading(HUB, events)
         thread = model.threads(served)["e1"]
         lists = served["views"]["1"]["queues"]
-        carried = {item["id"] for item in lists["questions"] + lists["held"]}
+        carried = {
+            item["id"] for side in ("questions", "held", "done") for item in lists[side]
+        }
         for kind, gesture in gestures.items():
             after = thread["after"][kind]
             assert after is None or set(after["owed"]) <= carried, (name, kind)
@@ -674,13 +684,29 @@ def test_after_is_what_each_gesture_leaves_the_thread_as_the_log_reads_it():
                     assert after is None, (name, kind)
                     continue
                 gesture = {**gesture, "parent": thread["user_prompt"]["message"]}
+            named = {}
+            if kind == "unreact":
+                reaction = next(
+                    (
+                        message
+                        for message in reversed(thread["msgs"])
+                        if message["author"] == "user"
+                        and message.get("token") == "keep"
+                    ),
+                    None,
+                )
+                if reaction is None:
+                    assert after is None, (name, kind)
+                    continue
+                named = {"undoes": reaction["id"]}
+                gesture = {**gesture, **named}
             state = model.reading(HUB, (*events, gesture))
             attention = model.threads(state)["e1"]["attention"]
             # A wait on the gesture itself names no workflow: the browser draws its
             # own send there. A wait on any other names it as the log does.
             if attention is not None and attention["workflow"] == f"e{len(events) + 1}":
                 attention = {**attention, "workflow": None}
-            assert after == {"attention": attention, "owed": owed(state)}, (
+            assert after == {"attention": attention, "owed": owed(state), **named}, (
                 name,
                 kind,
             )

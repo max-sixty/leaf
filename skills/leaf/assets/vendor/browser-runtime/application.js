@@ -520,7 +520,9 @@ function normalizedQuestions(
 
 /* While a gesture of this tab's is pending in a thread, the user owes the asks in it
  * that the server read that gesture leaving them (`Thread.owed`, from `after`), and no
- * others; every other ask stands as admitted. */
+ * others; every other ask stands as admitted. An ask the user owes is open, so one
+ * the gesture reopens, as taking back the reaction that answered it does, stands
+ * unanswered again. */
 function questionAttention(questions               , threads                               )                {
   const owing = new Map(threads.flatMap((thread) =>
     thread.owed ? [[thread.id, new Set(thread.owed)]         ] : []));
@@ -529,18 +531,23 @@ function questionAttention(questions               , threads                    
   const all = questions.all.map((question)                 => {
     const owed = pending(question);
     if (!owed) return question;
-    const next_actor = owed.has(question.id)
-      ? "user"
-      : question.next_actor === "user" ? null : question.next_actor;
-    return next_actor === question.next_actor ? question : { ...question, next_actor };
+    if (owed.has(question.id))
+      return question.next_actor === "user"
+        ? question
+        : { ...question, status: "open", answer: null, next_actor: "user" };
+    return question.next_actor === "user" ? { ...question, next_actor: null } : question;
   });
-  const byId = new Map(all.map((question) => [question.id, question]));
-  const admitted = new Set(questions.user.map((question) => question.id));
+  const admitted = (kind                       ) =>
+    new Set(questions[kind].map((question) => question.id));
+  const user = admitted("user");
+  const unanswered = admitted("unanswered");
   return {
     all,
     user: all.filter((question) =>
-      pending(question) ? question.next_actor === "user" : admitted.has(question.id)),
-    unanswered: questions.unanswered.map((question) => byId.get(question.id) ),
+      pending(question) ? question.next_actor === "user" : user.has(question.id)),
+    unanswered: all.filter((question) =>
+      unanswered.has(question.id) ||
+      (pending(question)?.has(question.id) ?? false)),
   };
 }
 

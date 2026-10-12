@@ -1381,7 +1381,10 @@ test("a reply reopening a thread over an Ask puts the Ask back on the user at on
     }),
   ];
   app.adopt(accepted);
-  assert.deepEqual(app.read().effective.asks.user.map(({ id }) => id), [later.id]);
+  assert.deepEqual(
+    app.read().effective.asks.user.map(({ id }) => id),
+    [later.id],
+  );
   assert.deepEqual(
     app.read().effective.queues.questions.map(({ id }) => id),
     [later.id],
@@ -1410,6 +1413,82 @@ test("a reply reopening a thread over an Ask puts the Ask back on the user at on
       ["ask", later.id],
     ],
   );
+});
+
+test("taking back a reaction that answered a question puts it back on the user at once", () => {
+  // A settling reaction answered the agent's question, so the server lists the ask as
+  // done. Taking the reaction back reopens it, as the server read it doing; the thread
+  // and Questions both say so in the undo's own turn.
+  const question = {
+    kind: "comment",
+    id: "question",
+    author: "agent",
+    text: "Keep this chart?",
+    ts: "now",
+  };
+  const kept = {
+    kind: "reply",
+    id: "kept",
+    parent: question.id,
+    author: "user",
+    token: "keep",
+    ts: "now",
+  };
+  const app = setup();
+  const accepted = state(2, [kept]);
+  const answered = {
+    id: `reply:${question.id}`,
+    source: { kind: "reply", id: question.id },
+    thread: question.id,
+    message: question.id,
+    prompt: { text: question.text, target: question.id },
+    answer: { value: { token: "keep" }, event: kept },
+    status: "answered",
+    next_actor: null,
+  };
+  accepted.browser.thread.asks = { all: [answered], user: [], unanswered: [] };
+  accepted.browser.views[1].queues = {
+    ...askQueues([]),
+    done: [
+      {
+        ...servedAskItem(answered, { subject: { kind: "thread", id: question.id } }),
+        state: "done",
+        ended: null,
+        detail: null,
+      },
+    ],
+  };
+  const reopened = {
+    attention: { kind: "needs_user", reason: "ask", workflow: null },
+    owed: [answered.id],
+  };
+  accepted.browser.thread.threads = [
+    servedThread([question, kept], {
+      after: {
+        reply: null,
+        edit: null,
+        resolve: null,
+        unresolve: null,
+        react: null,
+        unreact: { ...reopened, undoes: kept.id },
+      },
+    }),
+  ];
+  app.adopt(accepted);
+  assert.deepEqual(app.read().effective.queues.questions, []);
+
+  app.enqueue({ kind: "undo", undoes: kept.id, attempt: "take-back" }, "now");
+  const { thread, asks, queues } = app.read().effective;
+  assert.deepEqual(thread.all[0].attention, reopened.attention);
+  assert.deepEqual(
+    asks.user.map(({ id, status }) => [id, status]),
+    [[answered.id, "open"]],
+  );
+  assert.deepEqual(
+    queues.questions.map(({ kind, id }) => [kind, id]),
+    [["ask", answered.id]],
+  );
+  assert.deepEqual(queues.done, []);
 });
 
 test("a pending resend replaces accepted recovery until refusal", () => {

@@ -358,6 +358,26 @@ test("a pending gesture leaves its thread as the server read that gesture leavin
   assert.deepEqual(fold(prose, resolve, keep), closed);
   const undo = { id: "pending:undo", kind: "undo", author: "user", undoes: keep.id };
   assert.deepEqual(fold(prose, keep, undo), { attention: owed, owed: undefined });
+  // Taking back a reaction the log holds that settled the question reopens it, as the
+  // server read it doing of that reaction; taking back another leaves it as served.
+  const kept = { ...keep, id: "kept", parent: "question" };
+  const answered = {
+    msgs: [asked, question, kept],
+    attention: settled.attention,
+    after: {
+      ...prose.after,
+      react: null,
+      unreact: { attention: owed, owed: ["reply:question"], undoes: kept.id },
+    },
+  };
+  assert.deepEqual(fold(answered, { ...undo, undoes: kept.id }), {
+    attention: owed,
+    owed: ["reply:question"],
+  });
+  assert.deepEqual(fold(answered, { ...undo, undoes: "older" }), {
+    attention: settled.attention,
+    owed: undefined,
+  });
   // Settlement goes the way the last gesture takes it: a resolve closes the thread, a
   // turn after it reopens it, and a reopen undoing a resolve still pending leaves the
   // thread as served.

@@ -383,13 +383,6 @@ function advance(
 
 
 
-
-
-
-
-
-
-
 /** A server view with its basis, the transport identity, left off. */
 
 
@@ -966,14 +959,18 @@ export function createSemanticApplication({
           return null;
       }
     };
-    // Every thread whose history a gesture changes, as `thread_memberships` will file
-    // it once the log has it (the browser state's `thread_memberships`): the thread it
-    // stands in; for an action, the thread it would close (the view's `closes`) unless
-    // its outcome withdraws the request, and every thread the logged action it replaces
-    // at its coordinate did; for an undo, every thread the gesture it takes back did,
-    // this tab's own entry or, once logged, the log's.
+    // Every thread a gesture concerns. Once a reading logs it, that is the log's own
+    // filing (the browser state's `thread_memberships`): every thread whose history it
+    // changes, the one an answer closes and the one an earlier answer it replaces or
+    // takes back had closed among them. Until then it is only what the page draws from
+    // the gesture itself: the thread it stands in, or, for an undo, the threads of the
+    // gesture it takes back, this tab's own entry or the log's. A thread an answer
+    // closes changes in the reading that logs the answer, and the gesture concerns it
+    // from that reading on.
     const logged = state?.browser.thread_memberships ?? {};
     const threadsOfEntry = (entry             )           => {
+      const filed = entry.admitted ? logged[entry.admitted.id] : undefined;
+      if (filed) return filed;
       const { event } = entry;
       if (event.kind === "undo") {
         const target = unresolved.find(
@@ -981,22 +978,8 @@ export function createSemanticApplication({
         );
         return target ? threadsOfEntry(target) : (logged[event.undoes] ?? []);
       }
-      const threads = [threadOfEntry(entry)];
-      if (event.kind === "action") {
-        const closing = view?.closes[event.widget];
-        if (
-          closing?.verbs.includes(event.action) &&
-          event.detail["outcome"] !== closing.withdrawn_as
-        )
-          threads.push(closing.thread);
-        const coordinate =
-          entry.projection?.kind === "undo" ? null : entry.projection?.coordinate;
-        const replaced = [...admitted.entries]
-          .filter((each) => each.coordinate === coordinate && each.e.kind === "action")
-          .at(-1);
-        if (replaced) threads.push(...(logged[replaced.e.id] ?? []));
-      }
-      return [...new Set(threads.filter((id)               => Boolean(id)))];
+      const thread = threadOfEntry(entry);
+      return thread ? [thread] : [];
     };
     // A refused send or move is the user's to retry from the thread it stood in.
     const recovery = new Map                ();

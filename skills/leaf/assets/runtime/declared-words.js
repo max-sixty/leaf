@@ -272,10 +272,8 @@ export function paintDeclaredWords(root) {
 // joined shape, the reserved strips, the hover wash — stands down inside one. The
 // declaration is the tag's and the question is the occurrence's, which is the shape
 // quoted() has too: whether this element sits inside an exhibit. So the mark goes on the
-// exhibit and the rules exclude what stands under it. That is the descendant half of the
-// question — quoted() answers for the element itself as well — and it is the half these
-// rules need while the tag they key on, lf-options, is not itself an exhibit. A layer
-// that declared one to be would have to say so in its own rules. Ten of those rules spelled lf-sample before: a bundled
+// exhibit and the rules exclude what stands under it, strictly within, as quoted()
+// does: the exhibit itself is no mention. Ten of those rules spelled lf-sample before: a bundled
 // tag, saying nothing about a project's own exhibit. quoted() still asks the registry
 // rather than this paint, which is the arrangement and not an oversight — the
 // declaration is the one representation, and the mark is how a stylesheet, which cannot

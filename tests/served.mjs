@@ -37,6 +37,17 @@ export function servedReading(name) {
   return structuredClone(RECORDS.readings[name]);
 }
 
+// A Question as a work queue lists it, holding `question`; `changes` set where it
+// stands, for a test whose served reading states its Questions by hand.
+export const servedQuestionItem = (question, changes) =>
+  served("question_item", {
+    id: question.id,
+    thread: question.thread,
+    title: question.prompt.text,
+    question,
+    ...changes,
+  });
+
 // The same admitted undo/refusal/revision sequence used by the Python fold test.
 export const servedGestureSequence = () => structuredClone(RECORDS.gestures);
 

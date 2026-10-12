@@ -995,19 +995,16 @@ def write_artifact(
 def read_artifact(page_dir: Path, revision: int) -> RevisionArtifact:
     """Read exact captured inputs, never substituting a mutable page file.
 
-    The page keeps the last few bundle descriptors (`_Artifacts`), until any file they
-    were read from changes."""
+    The page keeps the last few bundle descriptors (`_Artifacts`) by path alone. A
+    revision's name carries its manifest's digest and its marker appears only after
+    its bundle is complete (`write_artifact`), so one path names one bundle for good,
+    and a server answering a page's few hundred resource requests reads none of its
+    files again."""
     path = revision_path(page_dir, revision).absolute()
-    bundle = path.with_suffix("")
-    stamps = (
-        file_stamp(path),
-        file_stamp(bundle),
-        file_stamp(bundle / "manifest.json"),
-    )
     held = memo(page_dir, _Artifacts)
-    if (artifact := held.get(path, stamps)) is None:
-        artifact = _materialize(path, bundle)
-        held.hold(path, stamps, artifact)
+    if (artifact := held.get(path)) is None:
+        artifact = _materialize(path, path.with_suffix(""))
+        held.hold(path, artifact)
     return artifact
 
 
@@ -1022,21 +1019,20 @@ class _Artifacts:
     LIMIT = 4
 
     def __init__(self) -> None:
-        self.held: dict[Path, tuple[tuple, RevisionArtifact]] = {}
+        self.held: dict[Path, RevisionArtifact] = {}
         self.lock = threading.Lock()
 
-    def get(self, path: Path, stamps: tuple) -> RevisionArtifact | None:
+    def get(self, path: Path) -> RevisionArtifact | None:
         with self.lock:
-            held = self.held.pop(path, None)
-            if held is None or held[0] != stamps or None in stamps:
-                return None
-            self.held[path] = held
-            return held[1]
+            artifact = self.held.pop(path, None)
+            if artifact is not None:
+                self.held[path] = artifact
+            return artifact
 
-    def hold(self, path: Path, stamps: tuple, artifact: RevisionArtifact) -> None:
+    def hold(self, path: Path, artifact: RevisionArtifact) -> None:
         with self.lock:
             self.held.pop(path, None)
-            self.held[path] = (stamps, artifact)
+            self.held[path] = artifact
             while len(self.held) > self.LIMIT:
                 self.held.pop(next(iter(self.held)))
 

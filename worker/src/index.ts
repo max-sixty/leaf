@@ -26,15 +26,14 @@
  * whose only page words are a bounded startup or fault `reason`.
  */
 
-import {
-  Container,
-  getContainer,
-  type OutboundHandlerContext,
-} from "@cloudflare/containers";
+import { Container, getContainer } from "@cloudflare/containers";
 export { ContainerProxy } from "@cloudflare/containers";
 import { type DurableObject } from "cloudflare:workers";
 import * as z from "zod/mini";
 
+import { agentLog, dispatchAgentTask, prewarmContainer } from "./agent";
+import { projectInteractionBatch, sampleInteractionReference } from "./interactions";
+import { proxyModelRequest } from "./model-proxy";
 import {
   activeCookie,
   activeFromCookie,
@@ -50,6 +49,7 @@ import {
   releaseAssetRoute,
   sessionCookie,
   sessionFromCookie,
+  sessionReference,
   type PageRoute,
   type SiteManifest,
 } from "./routing";
@@ -63,15 +63,6 @@ export interface Env {
   OPENAI_API_KEY: string;
 }
 
-interface AgentTaskParams {
-  containerId: string;
-  reference: string;
-  route: string;
-  eventId: string;
-  sourceId: string;
-}
-
-const settledAgentResultSchema = z.object({ status: z.literal("settled") });
 const siteRelease = z.string().check(z.regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/));
 const startupTime = z.nullable(
   z.number().check(z.int(), z.nonnegative(), z.maximum(300_000)),
@@ -116,196 +107,9 @@ const pageFaultSchema = z.object({
 const MAX_PAGE_FAULT_BYTES = 64 * 1024;
 // The startup report's `reason` bound, for the same kind of words.
 const PAGE_FAULT_REASON_CHARS = 300;
-const interactionEntrySchema = z.record(z.string(), z.unknown()).check(
-  z.refine(
-    (entry) =>
-      typeof entry.ts === "string" &&
-      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(entry.ts) &&
-      typeof entry.sequence === "number" &&
-      Number.isSafeInteger(entry.sequence) &&
-      entry.sequence > 0 &&
-      typeof entry.type === "string" &&
-      /^[a-z][a-z0-9_-]{0,99}$/.test(entry.type),
-  ),
-);
-const interactionBatchSchema = z.strictObject({
-  session: z.string().check(z.regex(/^[0-9a-f]{32}$/)),
-  entries: z.array(interactionEntrySchema).check(z.minLength(1), z.maxLength(100)),
-});
 // Workers Logs captures at most 256 KiB across the whole invocation. Leave room for
 // request metadata so an accepted batch can be read back without truncation.
 const MAX_INTERACTION_BYTES = 128 * 1024;
-const SAFE_KEYS = new Set([
-  "Alt", "Backspace", "Control", "Delete", "End", "Enter", "Escape", "Home",
-  "Meta", "PageDown", "PageUp", "Shift", "Tab", "ArrowDown", "ArrowLeft",
-  "ArrowRight", "ArrowUp",
-]);
-const MODIFIERS = new Set(["Alt", "Control", "Meta", "Shift"]);
-
-function safeLocator(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  // Client locators may embed authored ids and names. Keep only tag and structural
-  // position; those identify page controls without copying arbitrary attribute text.
-  const tag = /^([a-z][a-z0-9-]*)/.exec(value)?.[1];
-  if (!tag) return null;
-  const position = /:nth-of-type\(([1-9][0-9]{0,3})\)$/.exec(value)?.[1];
-  return position ? `${tag}:nth-of-type(${position})` : tag;
-}
-
-function finiteNumber(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function safeNodeId(value: unknown): number | null {
-  return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : null;
-}
-
-function coordinatePair(value: unknown): number[] | null {
-  if (!Array.isArray(value) || value.length !== 2) return null;
-  const pair = value.map(finiteNumber);
-  return pair.every((number) => number !== null) ? pair as number[] : null;
-}
-
-function httpStatus(value: unknown): number | null {
-  return typeof value === "number" && Number.isInteger(value) && value >= 100 && value <= 599
-    ? value : null;
-}
-
-function sampleInteractionReference(page: unknown): string | null {
-  if (typeof page !== "string" || page.length > 4096 ||
-      !/^(?:\/api\/samples\/[a-f0-9]{32}(?:~[a-f0-9]{64})?)+$/.test(page)) return null;
-  return sessionReference(page.split("/").at(-1)!.split("~")[0]);
-}
-
-function projectSampleEntry(entry: Record<string, unknown>): Record<string, unknown> {
-  const projected: Record<string, unknown> = {};
-  for (const field of ["phase", "reason", "operation"] as const)
-    if (typeof entry[field] === "string" && /^[a-z][a-z0-9_-]{0,63}$/.test(entry[field]))
-      projected[field] = entry[field];
-  for (const field of ["host", "revision"] as const) {
-    const value = safeNodeId(entry[field]);
-    if (value !== null) projected[field] = value;
-  }
-  if (typeof entry.allocation === "number" && Number.isSafeInteger(entry.allocation) && entry.allocation >= 0)
-    projected.allocation = entry.allocation;
-  const elapsed = finiteNumber(entry.elapsed);
-  if (elapsed !== null && elapsed >= 0) projected.elapsed = elapsed;
-  // A sample's canonical page identity contains its native-request credential.
-  // Use the same support-handle projection as cookies; never log the credential,
-  // its routing suffix, or arbitrary authored template ids.
-  const sample = sampleInteractionReference(entry.sample);
-  if (sample !== null) projected.sampleReference = sample;
-  else if (entry.sample === null) projected.sampleReference = null;
-  if (typeof entry.document === "string" &&
-      /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(entry.document))
-    projected.documentReference = sessionReference(entry.document.replaceAll("-", ""));
-  else if (entry.document === null) projected.documentReference = null;
-  if (typeof entry.leafDocument === "string" && /^[1-9][0-9]{0,15}$/.test(entry.leafDocument)) {
-    const revision = safeNodeId(Number(entry.leafDocument));
-    if (revision !== null) projected.leafDocument = revision;
-  } else if (entry.leafDocument === null) projected.leafDocument = null;
-  if (typeof entry.reloading === "boolean") projected.reloading = entry.reloading;
-  if (entry.error && typeof entry.error === "object" && !Array.isArray(entry.error)) {
-    const value = entry.error as Record<string, unknown>;
-    const error: Record<string, unknown> = {};
-    if (typeof value.name === "string" && /^[A-Z][A-Za-z0-9]{0,63}$/.test(value.name))
-      error.name = value.name;
-    const status = httpStatus(value.status);
-    if (status !== null) error.status = status;
-    if (Object.keys(error).length) projected.error = error;
-  }
-  return projected;
-}
-
-function projectInteractionEntry(entry: Record<string, unknown>): Record<string, unknown> {
-  const projected: Record<string, unknown> = {
-    ts: entry.ts,
-    sequence: entry.sequence,
-    type: entry.type,
-  };
-  if (typeof entry.trusted === "boolean") projected.trusted = entry.trusted;
-  if (Array.isArray(entry.target)) {
-    projected.target = entry.target.slice(0, 8).map(safeLocator).filter(Boolean);
-  }
-  if (Array.isArray(entry.nodes))
-    projected.nodes = entry.nodes.slice(0, 8).map(safeNodeId).filter((value) => value !== null);
-  const control = safeLocator(entry.control);
-  if (control) projected.control = control;
-  const controlNode = safeNodeId(entry.controlNode);
-  if (controlNode !== null) projected.controlNode = controlNode;
-  if (typeof entry.id === "string" && /^[A-Za-z][A-Za-z0-9_.:-]{0,127}$/.test(entry.id))
-    projected.id = entry.id;
-  if (typeof entry.binding === "string" &&
-      /^(?:(?:Mod|Alt|Shift|Control|Meta)\+){0,3}(?:[A-Za-z0-9]|Enter|Escape|Tab|Backspace|Delete|Arrow(?:Up|Down|Left|Right)|Home|End|PageUp|PageDown|Space|[?\/.,])$/.test(entry.binding))
-    projected.binding = entry.binding;
-  if (typeof entry.originalType === "string" && /^[a-z][a-z0-9_-]{0,99}$/.test(entry.originalType))
-    projected.originalType = entry.originalType;
-  if (typeof entry.kind === "string" && /^[a-z][a-z0-9_-]{0,63}$/.test(entry.kind))
-    projected.kind = entry.kind;
-  const status = httpStatus(entry.status);
-  if (status !== null) projected.status = status;
-  if (SAFE_KEYS.has(entry.key as string)) projected.key = entry.key;
-  if (typeof entry.repeat === "boolean") projected.repeat = entry.repeat;
-  if (Array.isArray(entry.modifiers)) {
-    projected.modifiers = entry.modifiers.filter((value) => MODIFIERS.has(value)).slice(0, 4);
-  }
-  if (entry.pointer && typeof entry.pointer === "object" && !Array.isArray(entry.pointer)) {
-    const input = entry.pointer as Record<string, unknown>;
-    const pointer: Record<string, unknown> = {};
-    for (const field of ["id", "button", "buttons", "x", "y"]) {
-      const value = finiteNumber(input[field]);
-      if (value !== null) pointer[field] = value;
-    }
-    if (["mouse", "pen", "touch"].includes(input.type as string)) pointer.type = input.type;
-    if (Object.keys(pointer).length) projected.pointer = pointer;
-  }
-  for (const field of ["scroll", "viewport"] as const) {
-    const pair = coordinatePair(entry[field]);
-    if (pair) projected[field] = pair;
-  }
-  if (Array.isArray(entry.delta) && entry.delta.length === 3) {
-    const delta = entry.delta.map(finiteNumber);
-    if (delta.every((number) => number !== null)) projected.delta = delta;
-  }
-  if (typeof entry.checked === "boolean") projected.checked = entry.checked;
-  if (typeof entry.open === "boolean") projected.open = entry.open;
-  if (["visible", "hidden"].includes(entry.visibility as string))
-    projected.visibility = entry.visibility;
-  if (entry.fullscreen === null) projected.fullscreen = null;
-  else if (entry.fullscreen && typeof entry.fullscreen === "object" && !Array.isArray(entry.fullscreen)) {
-    const value = entry.fullscreen as Record<string, unknown>;
-    const target = safeLocator(value.target);
-    const node = safeNodeId(value.node);
-    if (target && node !== null) projected.fullscreen = { target, node };
-  }
-  for (const field of ["partOf", "part", "parts", "durationMs", "responseStatus", "transferSize"] as const) {
-    const value = finiteNumber(entry[field]);
-    if (value !== null) projected[field] = value;
-  }
-  if (entry.type === "sample") Object.assign(projected, projectSampleEntry(entry));
-  return projected;
-}
-const agentResultSchemas = {
-  start: z.discriminatedUnion("status", [
-    settledAgentResultSchema,
-    z.object({
-      status: z.literal("started"),
-      thread: z.string().check(z.minLength(1)),
-    }),
-  ]),
-  fail: z.discriminatedUnion("status", [
-    settledAgentResultSchema,
-    z.object({
-      status: z.literal("appended"),
-      event: z.string().check(z.minLength(1)),
-    }),
-  ]),
-};
-
-type AgentResult = z.infer<
-  (typeof agentResultSchemas)[keyof typeof agentResultSchemas]
->;
-
 const CODEX_PROXY_CREDENTIAL = "leaf-outbound-proxy";
 const CLOUDFLARE_CONTAINER_CA = "/etc/cloudflare/certs/cloudflare-containers-ca.crt";
 interface LeafEvent {
@@ -319,14 +123,6 @@ interface LeafEvent {
 interface AcceptedEvent {
   event: LeafEvent;
   needsReply: boolean;
-}
-
-interface ModelRequestFields {
-  containerId: string;
-  modelRequestId: string;
-  requestKind?: string;
-  threadId?: string;
-  turnId?: string;
 }
 
 interface LeafStateAnswer {
@@ -354,231 +150,12 @@ export class LeafWebsiteSession extends Container<Env> {
   }
 }
 
-function metadataString(
-  metadata: Record<string, unknown>,
-  key: string,
-): string | undefined {
-  const value = metadata[key];
-  return typeof value === "string" && value.length > 0 && value.length <= 128
-    ? value
-    : undefined;
-}
-
-function modelRequestFields(
-  request: Request,
-  context: OutboundHandlerContext,
-): ModelRequestFields {
-  let metadata: Record<string, unknown> = {};
-  const encoded = request.headers.get("x-codex-turn-metadata");
-  if (encoded !== null) {
-    try {
-      const parsed: unknown = JSON.parse(encoded);
-      if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
-        metadata = parsed as Record<string, unknown>;
-      }
-    } catch {
-      // Invalid optional diagnostics must not block the model request.
-    }
-  }
-  return {
-    containerId: context.containerId,
-    modelRequestId: crypto.randomUUID(),
-    requestKind: metadataString(metadata, "request_kind"),
-    threadId: metadataString(metadata, "thread_id"),
-    turnId: metadataString(metadata, "turn_id"),
-  };
-}
-
-// Every leaf-agent record. Callers project the fields they log, and never spread an
-// AgentTaskParams, whose sourceId is the client's IP.
-function leafAgentLog(event: string, fields: Record<string, unknown>): void {
-  console.log({ component: "leaf-agent", event, ...fields });
-}
-
-function errorName(error: unknown): string {
-  return error instanceof Error ? error.name : "unknown";
-}
-
-function modelLog(
-  event: string,
-  request: ModelRequestFields,
-  fields: Record<string, unknown> = {},
-): void {
-  leafAgentLog(event, { ...request, ...fields });
-}
-
-function observeModelBody(
-  body: ReadableStream<Uint8Array>,
-  request: ModelRequestFields,
-  started: number,
-  status: number,
-  upstreamRequestId: string | null,
-): ReadableStream<Uint8Array> {
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let bytes = 0;
-  let firstByte = true;
-  let firstOutput = true;
-
-  const observeFrames = (text: string): void => {
-    buffer += text;
-    const frames = buffer.replaceAll("\r\n", "\n").split("\n\n");
-    buffer = frames.pop() ?? "";
-    for (const frame of frames) {
-      const data = frame
-        .split("\n")
-        .filter((line) => line.startsWith("data:"))
-        .map((line) => line.slice(5).trimStart())
-        .join("\n");
-      if (!data || data === "[DONE]") continue;
-      let event: unknown;
-      try {
-        event = JSON.parse(data);
-      } catch {
-        continue;
-      }
-      if (typeof event !== "object" || event === null || Array.isArray(event)) {
-        continue;
-      }
-      const record = event as Record<string, unknown>;
-      const eventType = metadataString(record, "type");
-      if (
-        firstOutput &&
-        eventType !== undefined &&
-        !["response.created", "response.in_progress", "response.queued"].includes(
-          eventType,
-        )
-      ) {
-        const item = record.item;
-        const outputType =
-          typeof item === "object" && item !== null && !Array.isArray(item)
-            ? metadataString(item as Record<string, unknown>, "type")
-            : undefined;
-        modelLog("model_response_first_output", request, {
-          durationMs: Date.now() - started,
-          responseEvent: eventType,
-          outputType,
-          upstreamRequestId,
-        });
-        firstOutput = false;
-      }
-    }
-  };
-
-  return body.pipeThrough(
-    new TransformStream<Uint8Array, Uint8Array>({
-      transform(chunk, controller) {
-        bytes += chunk.byteLength;
-        if (firstByte) {
-          modelLog("model_response_first_byte", request, {
-            durationMs: Date.now() - started,
-            status,
-            upstreamRequestId,
-          });
-          firstByte = false;
-        }
-        if (firstOutput) {
-          observeFrames(decoder.decode(chunk, { stream: true }));
-        }
-        controller.enqueue(chunk);
-      },
-      flush() {
-        if (firstOutput) {
-          observeFrames(decoder.decode() + "\n\n");
-        }
-        modelLog("model_response_completed", request, {
-          durationMs: Date.now() - started,
-          status,
-          bytes,
-          upstreamRequestId,
-        });
-      },
-    }),
-  );
-}
-
 // Assignment invokes Container's inherited setter, which registers the handler for
 // ContainerProxy. A static class field would shadow that setter.
-LeafWebsiteSession.outboundByHost = {
-  "api.openai.com": async (request: Request, env: Env, ctx: OutboundHandlerContext) => {
-    const url = new URL(request.url);
-    if (
-      request.method === "GET" &&
-      url.pathname === "/v1/responses" &&
-      request.headers.get("upgrade")?.toLowerCase() === "websocket"
-    ) {
-      // Codex treats 426 as an immediate instruction to use its canonical HTTP
-      // transport. A generic denial is retried with exponential backoff before the
-      // same fallback, delaying every first turn while also bypassing the per-request
-      // model timing records below.
-      modelLog("model_transport_http_fallback", modelRequestFields(request, ctx));
-      return new Response("use the Responses HTTP transport", { status: 426 });
-    }
-    if (request.method !== "POST" || url.pathname !== "/v1/responses") {
-      return new Response("blocked website agent request", { status: 403 });
-    }
-    if (!env.OPENAI_API_KEY) {
-      return new Response("website agent credential is not configured", {
-        status: 503,
-      });
-    }
-    const capacity = await env.SOURCE_AGENT_RATE_LIMITER.limit({
-      key: `model:${ctx.containerId}`,
-    });
-    if (!capacity.success) {
-      return new Response("website agent model limit reached", { status: 429 });
-    }
-    const started = Date.now();
-    const modelRequest = modelRequestFields(request, ctx);
-    modelLog("model_request_started", modelRequest);
-    const headers = new Headers(request.headers);
-    headers.set("Authorization", `Bearer ${env.OPENAI_API_KEY}`);
-    let response: Response;
-    try {
-      response = await fetch(new Request(request, { headers }));
-    } catch (error) {
-      modelLog("model_request_failed", modelRequest, {
-        durationMs: Date.now() - started,
-        error: errorName(error),
-      });
-      throw error;
-    }
-    const upstreamRequestId = response.headers.get("x-request-id");
-    modelLog("model_response_headers", modelRequest, {
-      durationMs: Date.now() - started,
-      status: response.status,
-      upstreamRequestId,
-    });
-    if (response.body === null) {
-      modelLog("model_response_completed", modelRequest, {
-        durationMs: Date.now() - started,
-        status: response.status,
-        bytes: 0,
-        upstreamRequestId,
-      });
-      return response;
-    }
-    return new Response(
-      observeModelBody(
-        response.body,
-        modelRequest,
-        started,
-        response.status,
-        upstreamRequestId,
-      ),
-      response,
-    );
-  },
-};
+LeafWebsiteSession.outboundByHost = { "api.openai.com": proxyModelRequest };
 
 function randomSessionId(): string {
   return newSessionId(crypto.getRandomValues(new Uint8Array(16)));
-}
-
-// A support handle, not a credential: project a random identity into a short numeric
-// space without disclosing it. No server door accepts this handle as identity.
-function sessionReference(sessionId: string): string {
-  return (BigInt(`0x${sessionId}`) % 1_000_000_000_000n).toString().padStart(12, "0");
 }
 
 // Website sessions are explicitly ephemeral. A deployment starts a fresh container
@@ -586,19 +163,6 @@ function sessionReference(sessionId: string): string {
 // state that the website does not promise to persist.
 function containerId(sessionId: string, release: string): string {
   return `${release}:${sessionId}`;
-}
-
-function agentLog(
-  event: string,
-  params: Pick<AgentTaskParams, "reference" | "route" | "eventId">,
-  fields: Record<string, unknown> = {},
-): void {
-  leafAgentLog(event, {
-    reference: params.reference,
-    route: params.route,
-    eventId: params.eventId,
-    ...fields,
-  });
 }
 
 function browserIdentity(request: Request): {
@@ -768,8 +332,8 @@ async function recordInteractions(
   } catch {
     return new Response("invalid interaction batch", { status: 400 });
   }
-  const parsed = interactionBatchSchema.safeParse(value);
-  if (!parsed.success)
+  const batch = projectInteractionBatch(value);
+  if (batch === null)
     return new Response("invalid interaction batch", { status: 400 });
   console.log({
     component: "leaf-interaction",
@@ -777,167 +341,9 @@ async function recordInteractions(
     ...identity,
     route: route.root,
     release,
-    session: parsed.data.session,
-    entries: parsed.data.entries.map(projectInteractionEntry),
+    ...batch,
   });
   return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
-}
-
-async function measuredAgentOperation<T>(
-  event: string,
-  params: AgentTaskParams,
-  operation: () => Promise<T>,
-): Promise<T> {
-  const started = Date.now();
-  agentLog(`${event}_started`, params);
-  try {
-    const result = await operation();
-    agentLog(`${event}_completed`, params, { durationMs: Date.now() - started });
-    return result;
-  } catch (error) {
-    agentLog(`${event}_failed`, params, {
-      durationMs: Date.now() - started,
-      error: errorName(error),
-    });
-    throw error;
-  }
-}
-
-function agentRequest(
-  params: AgentTaskParams,
-  action: "start" | "fail",
-  body: object,
-): Request {
-  const root = params.route === "/" ? "" : params.route;
-  return new Request(`http://container${root}/_leaf/agent/${action}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-}
-
-async function askContainer(
-  env: Env,
-  params: AgentTaskParams,
-  action: "start" | "fail",
-  body: object,
-): Promise<AgentResult> {
-  const response = await getContainer(env.PAGES, params.containerId).fetch(
-    agentRequest(params, action, body),
-  );
-  const raw = await response.text();
-  if (!response.ok) {
-    throw new Error(`website agent ${action} failed (${response.status}): ${raw}`);
-  }
-  let value: unknown;
-  try {
-    value = JSON.parse(raw);
-  } catch {
-    throw new Error(`invalid website agent ${action} response`);
-  }
-  const result = agentResultSchemas[action].safeParse(value);
-  if (!result.success) {
-    throw new Error(`invalid website agent ${action} response`);
-  }
-  return result.data;
-}
-
-async function runAgentTask(
-  env: Env,
-  params: AgentTaskParams,
-): Promise<AgentResult> {
-  const allowed = await measuredAgentOperation(
-    "capacity_reservation",
-    params,
-    async () =>
-      (
-        await env.SOURCE_AGENT_RATE_LIMITER.limit({
-          key: params.sourceId,
-        })
-      ).success,
-  );
-  if (allowed) {
-    return measuredAgentOperation("container_start", params, () =>
-      askContainer(env, params, "start", { event: params.eventId }),
-    );
-  }
-  // The words the user gets belong to the adapter, which declares them beside the
-  // code in `FAILURE_RECEIPTS`; naming the code here is the whole of what this knows.
-  return measuredAgentOperation("failure_receipt", params, () =>
-    askContainer(env, params, "fail", {
-      event: params.eventId,
-      failure: "rate_limited",
-    }),
-  );
-}
-
-async function dispatchAgentTask(
-  env: Env,
-  params: AgentTaskParams,
-): Promise<void> {
-  const started = Date.now();
-  agentLog("dispatch_started", params);
-  try {
-    const result = await runAgentTask(env, params);
-    agentLog("dispatch_completed", params, {
-      durationMs: Date.now() - started,
-      status: result.status,
-    });
-  } catch (error) {
-    agentLog("dispatch_failed", params, {
-      durationMs: Date.now() - started,
-      error: errorName(error),
-    });
-    try {
-      await measuredAgentOperation("failure_receipt", params, () =>
-        askContainer(env, params, "fail", {
-          event: params.eventId,
-          failure: "startup_failed",
-        }),
-      );
-    } catch (receiptError) {
-      agentLog("dispatch_abandoned", params, {
-        error: errorName(receiptError),
-      });
-    }
-  }
-}
-
-async function prewarmContainer(
-  env: Env,
-  id: string,
-  reference: string,
-  route: string,
-  sourceId: string,
-): Promise<void> {
-  const started = Date.now();
-  leafAgentLog("container_prewarm_started", { reference, route });
-  try {
-    const allowed = await env.SOURCE_AGENT_RATE_LIMITER.limit({
-      key: `prewarm:${sourceId}`,
-    });
-    if (!allowed.success) {
-      leafAgentLog("container_prewarm_denied", {
-        reference,
-        route,
-        durationMs: Date.now() - started,
-      });
-      return;
-    }
-    await getContainer(env.PAGES, id).start();
-    leafAgentLog("container_prewarm_completed", {
-      reference,
-      route,
-      durationMs: Date.now() - started,
-    });
-  } catch (error) {
-    leafAgentLog("container_prewarm_failed", {
-      reference,
-      route,
-      durationMs: Date.now() - started,
-      error: errorName(error),
-    });
-  }
 }
 
 async function acceptedEvent(

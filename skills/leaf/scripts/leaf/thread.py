@@ -253,7 +253,7 @@ def cmd_comment(
             event["markup"] = markup
         if title is not None:
             event["title"] = title
-        return append_admitted(page, event)
+        return append_admitted(page, event)[0]
 
 
 def is_answer(event: dict) -> bool:
@@ -319,6 +319,10 @@ def post_reply(
     """Post one complete threaded reply, optionally moving or detaching its anchor;
     the appended record, or the earlier reply a repeated `attempt` names, or none
     when `when_settled` leaves nothing to write.
+
+    A repeated ``attempt`` is matched more loosely than the append door's payload
+    identity: by kind, progress or answer, response address and declaration, so a
+    CLI retry whose text was reworded returns the first reply rather than refusing.
 
     ``for_event`` fences the write to the exact current obligation. Its response
     address may differ from ``to`` when a widget gesture belongs to a frozen
@@ -656,7 +660,7 @@ def post_reply(
 
             record = publish_checked_event(page, checked, event)
         else:
-            record = append_admitted(page, event)
+            record, _ = append_admitted(page, event)
         if in_hand is not None and page.status["state"] == "idle":
             page.set_status("waiting", "")
         return record
@@ -797,7 +801,7 @@ def name_untitled(page, thread: str, title: str, identity: dict) -> dict | None:
         is not None
     ):
         return None
-    return append_admitted(page, title_event(thread, title, identity))
+    return append_admitted(page, title_event(thread, title, identity))[0]
 
 
 @contract_writer
@@ -837,9 +841,9 @@ def cmd_edit(
                 "message": message,
                 "text": body,
             }
-            records.append(append_admitted(page, edit))
+            records.append(append_admitted(page, edit)[0])
         if named is not None:
-            records.append(append_admitted(page, named))
+            records.append(append_admitted(page, named)[0])
         return records
 
 
@@ -859,7 +863,7 @@ def cmd_summarize(
     body = read_text_arg(page_dir, text, allow_empty=text == "")
     with PageTransaction(page_dir) as page:
         require_registry(page_dir)
-        return append_admitted(
+        record, _ = append_admitted(
             page,
             {
                 "kind": "summary",
@@ -872,6 +876,7 @@ def cmd_summarize(
                 **({"label": label} if label is not None else {}),
             },
         )
+        return record
 
 
 @contract_writer
@@ -887,7 +892,7 @@ def cmd_resolve(page_dir: Path, to: str) -> dict:
             **message_identity(),
             "parent": to,
         }
-        return append_admitted(page, event)
+        return append_admitted(page, event)[0]
 
 
 @contract_writer
@@ -924,4 +929,4 @@ def cmd_report(
             "detail": detail,
             "revision": require_revision(page_dir),
         }
-        return append_admitted(page, event)
+        return append_admitted(page, event)[0]

@@ -6432,9 +6432,6 @@ def test_signoff_withdrawals_reports_and_errors_remain_deliverable(page_dir):
     source = PAGE.replace(
         "</head>", '<meta name="lf-review" content="sign-off"></head>'
     )
-    source = source.replace('<lf-ask id="plan-choice-decision">', "<div>").replace(
-        "</lf-ask>", "</div>"
-    )
     source = source.replace(
         "</section>",
         '<lf-test-tasks id="tasks"><lf-test-task id="task" status="active"><strong>Check</strong></lf-test-task></lf-test-tasks></section>',
@@ -7662,11 +7659,11 @@ def test_a_delivered_gesture_on_a_sent_widget_keeps_its_message_in_a_long_thread
 # A page whose suggestion answers c1, which is the one shipped shape where the
 # gesture that settles a thread is made on a widget standing outside it.
 SETTLING_PAGE = PAGE.replace(
-    '<lf-ask id="plan-choice-decision">',
+    '<div id="plan-choice-decision">',
     '<lf-suggestion id="sug-refill" resolves="c1">\n'
     "  <lf-old><p>The manual sightings log.</p></lf-old>\n"
     "  <lf-new><p>Switch the north feeder to thistle.</p></lf-new>\n"
-    '</lf-suggestion>\n<lf-ask id="plan-choice-decision">',
+    '</lf-suggestion>\n<div id="plan-choice-decision">',
 )
 SETTLING_DECISION = {
     "kind": "comment",

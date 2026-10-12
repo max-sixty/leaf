@@ -556,7 +556,7 @@ Revisit these when their stated trigger becomes real; they are not an active que
   if hosted delivery becomes a product priority; the App Server protocol is
   already shared.
 - **Make a leaf.page dispatch survive its container.** The Worker acknowledges an
-  accepted event and hands its Codex turn to `waitUntil` (`worker/src/index.ts`,
+  accepted event and hands its Codex turn to `waitUntil` (`worker/src/agent.ts`,
   `dispatchAgentTask`). Nothing records the event and turn identity in the
   container's Durable Object, and nothing recovers a dispatch whose container
   disappears or outlives the `waitUntil` window. Trigger: a hosted answer lost that

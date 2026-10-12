@@ -285,9 +285,11 @@ def test_unchanged_margin_passes_over_the_corpus_do_bounded_work_and_write_nothi
     page = open_still_corpus(browser, serve)
     resized(page, 1440, 900)
     margins_laid_out(page)
+    # The refresh count is read first, on the page as it presents: on CI's runner it
+    # read 73 layouts for five refreshes when it followed the other two passes.
+    _refreshes_force_layout_by_refresh_count(page)
     _refreshes_restate_no_margin_name(page, {".lf-margin-cluster": 15})
     _layout_passes_batch_without_refolding_controls(page)
-    _refreshes_force_layout_by_refresh_count(page)
 
 
 def _layout_passes_batch_without_refolding_controls(page):

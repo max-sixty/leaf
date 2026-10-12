@@ -1,13 +1,14 @@
 /* The chrome a widget injects, the words it labels, and the room it measures.
 
    A behavior module builds injected controls with `offer`, and uses `relabel` when a
-   control's label is also one of the page's words. It reserves a control's room from
-   inside `measure`: a widget upgrades wherever the runtime connects it, and a shut
-   panel is `display: none`, where every word measures zero and the reservation the press
-   needs is nothing at all. It calls `layoutChanged(el)` after view state rearranges
-   descendants without resizing its outer box — `ResizeObserver` already covers size
-   changes, and geometry consumers listen to this signal instead of watching every DOM
-   mutation.
+   control's label is also one of the page's words. A Lit template reaches the same
+   writers through element directives built by `elementDirective`. A behavior module
+   reserves a control's room from inside `measure`: a widget upgrades wherever the
+   runtime connects it, and a shut panel is `display: none`, where every word measures
+   zero and the reservation the press needs is nothing at all. It calls
+   `layoutChanged(el)` after view state rearranges descendants without resizing its
+   outer box — `ResizeObserver` already covers size changes, and geometry consumers
+   listen to this signal instead of watching every DOM mutation.
 
    A control is built so the browser does as much of it as it can. `offer` builds the
    corresponding native element, so activation, disabled state, focus, and
@@ -317,25 +318,32 @@ export function searchField(cls, { name, label, placeholder = label }) {
   return field;
 }
 
+// A template's element part handed to an imperative writer: `${name(...args)}` calls
+// `write(element, ...args)` on every render, so a template and retained DOM share one
+// writer for the attributes it owns while Lit keeps the element's content and bindings.
+export function elementDirective(name, write) {
+  return directive(
+    class extends Directive {
+      constructor(part) {
+        super(part);
+        if (part.type !== PartType.ELEMENT)
+          throw new TypeError(`${name} belongs in a template's element part`);
+      }
+      render() {
+        return nothing;
+      }
+      update(part, args) {
+        write(part.element, ...args);
+        return nothing;
+      }
+    },
+  );
+}
+
 // The template form of `offer`: `<button ${offered("lf-btn")}>`. It owns the
 // element's class and generated-control markers; attributes, values and handlers
 // remain ordinary Lit bindings. Both forms use the same chrome anatomy.
-export const offered = directive(
-  class extends Directive {
-    constructor(part) {
-      super(part);
-      if (part.type !== PartType.ELEMENT)
-        throw new TypeError("offered belongs in a template's element part");
-    }
-    render() {
-      return nothing;
-    }
-    update(part, [cls, pressable = false]) {
-      offerElement(part.element, cls, pressable);
-      return nothing;
-    }
-  },
-);
+export const offered = elementDirective("offered", offerElement);
 
 // Some page words also act as controls: a tab name, a chosen mark, or the title of a
 // settled decision. Chromium does not begin text selection inside a form control, so those
@@ -410,7 +418,9 @@ document.addEventListener(
 // quote. Some are the page speaking: a pick mark reading "chosen" is the only place
 // the page says which option it carries, and a tab's name is the panel's only name
 // once the strip exists. One element wears both over its life, so the kind is
-// restated on every write rather than settled at birth.
+// restated on every write rather than settled at birth. A template label's kind is
+// fixed by its template, so it writes the same markers as static attributes:
+// `data-lf-gen="1"`, with `data-lf-said` or `data-lf-echo` where they apply.
 //
 // This writes the page-speaking marker, data-lf-said. Anchoring takes it over the
 // `.lf-ui` box around it — that box is a look, the chrome face, and it was standing
@@ -441,7 +451,7 @@ document.addEventListener(
 // costs a printed page its words, and silently. Refusing throws where the widget
 // upgrades, which the console reports and the render gate reads back as a finding
 // — the loud direction, in front of whoever wrote the label.
-function markSaid(node, says) {
+export function relabel(node, label, { says } = {}) {
   if (typeof says !== "boolean" && says !== "echo")
     throw new TypeError(
       `Say whether this label is the page speaking: ` +
@@ -450,31 +460,8 @@ function markSaid(node, says) {
   keeps(node, "data-lf-gen", "1");
   node.toggleAttribute("data-lf-said", says === true);
   node.toggleAttribute("data-lf-echo", says === "echo");
-}
-
-export function relabel(node, label, { says } = {}) {
-  markSaid(node, says);
   keepsText(node, label);
 }
-
-// Template labels declare the same speech and print contract as `relabel`, while Lit
-// owns their content: `<span ${said("echo")}>${title}</span>`.
-export const said = directive(
-  class extends Directive {
-    constructor(part) {
-      super(part);
-      if (part.type !== PartType.ELEMENT)
-        throw new TypeError("said belongs in a template's element part");
-    }
-    render() {
-      return nothing;
-    }
-    update(part, [says]) {
-      markSaid(part.element, says);
-      return nothing;
-    }
-  },
-);
 
 // A changing label reserves its widest words in its actual computed face. The shared
 // button rule reads --lf-reserved-width as a preferred size; the containing layout may

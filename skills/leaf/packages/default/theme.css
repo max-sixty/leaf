@@ -897,8 +897,7 @@
 }
 @media screen {
   :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *) {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
     background: var(--card);
     border: 1px solid var(--border-2);
     border-radius: var(--r);
@@ -921,8 +920,9 @@
         content: "";
         display: block;
         position: relative;
-        flex: 1 1 100%;
+        grid-column: 1 / -1;
         height: var(--lf-missing-cells);
+        background: var(--card);
         box-shadow: var(--lf-cell-rule);
       }
     }
@@ -936,25 +936,16 @@
     --lf-joined: 1;
     & > * {
       margin-block: 0;
-      flex: 1 1 100%;
+    }
+    & > :not(lf-option) {
+      grid-column: 1 / -1;
     }
     & .lf-btn[data-lf-focus] {
       outline-offset: calc(-1 * var(--focus-ring-w));
     }
-    --lf-cell-rule: 0 -1px 0 var(--rule), -1px 0 0 var(--rule);
-    &:dir(rtl) {
-      --lf-cell-rule: 0 -1px 0 var(--rule), 1px 0 0 var(--rule);
-    }
+    --lf-cell-rule: 0 0 0 1px var(--rule);
     & > * {
       box-shadow: var(--lf-cell-rule);
-    }
-    &:has(> lf-option > strong) > lf-option {
-      @container style(--lf-options-across: 1) {
-        flex-basis: 14rem;
-        box-sizing: border-box;
-      }
-    }
-    & > lf-option {
       --fill: var(--card);
       background-color: var(--fill);
     }
@@ -971,18 +962,26 @@
       outline: none;
     }
   }
+  @container style(--lf-options-across: 1) {
+    :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *):has(> lf-option > strong) {
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+      max-inline-size: none;
+    }
+  }
   :is(:scope, :scope *)[data-lf-question]:has(lf-options[choose]:not(:where([data-lf-exhibit]) *) [data-lf-focus]) {
     --lf-question-ring: none;
   }
   :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *) > lf-option:has(> .lf-pick[data-lf-focus]) {
     outline: var(--focus-ring);
     --lf-focus-ring: options-row;
-    outline-offset: calc(-1 * var(--focus-ring-w) - 1px);
+    outline-offset: calc(-1 * var(--focus-ring-w));
+    z-index: 1;
   }
   :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > .lf-another:has(leaf-text[data-lf-focus]) {
     outline: var(--focus-ring);
     --lf-focus-ring: options-row;
-    outline-offset: calc(-1 * var(--focus-ring-w) - 1px);
+    outline-offset: calc(-1 * var(--focus-ring-w));
+    z-index: 1;
   }
   .lf-another {
     --lf-option-action-size: max(28px, var(--aim-floor));
@@ -2378,7 +2377,7 @@
 :scope:is(lf-ask) {
   display: block;
 }
-:scope:is(lf-ask):has(> :is(h1, h2, h3, h4, h5, h6):first-child ~ :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options:last-child) > lf-options {
+:scope:is(lf-ask):has(> :is(h1, h2, h3, h4, h5, h6):first-child ~ :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options:last-child) {
   --lf-options-across: 1;
 }
 @container style(--lf-full-height: 1) {

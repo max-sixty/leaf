@@ -23,12 +23,13 @@
  * at three options and at six, so adding one is editing a line rather than
  * re-laying the group.
  *
- * Laying cards across is still the context's to ask for, where the reading down
- * costs more than it gives: a Question that frames a figure needs its options in
- * the window with that figure, and a stack of cards under it runs past the window's
- * end (`--lf-options-across`, ask.css). That is not a third form but an arrangement
- * of the titled one, so the cards keep their anatomy and a bare-label list stays a
- * list.
+ * Laying cards across is the context's to ask for, where the reading down costs more
+ * than it gives: a Question that frames a figure needs its options in the window with
+ * that figure, and a stack of cards under it runs past the window's end
+ * (`--lf-options-across`, ask.css). There the costs above are accepted: a card left
+ * over on the last row, and a row as tall as its longest case. It is not a third form
+ * but an arrangement of the titled one, so the cards keep their anatomy and a
+ * bare-label list stays a list; a group the context does not ask reads down.
  *
  * The chip band is the one thing no form has to state, because inline-block in
  * front of the title is already both answers: a titled option's <strong> is
@@ -90,8 +91,9 @@
    the wrong state partially active. A rule stays general only when its effect is true
    in every form. */
 /* Whether a joined group lays its titled options across rather than one to a row. The
- * context declares it, as a Question framing a figure does (ask.css); it does not inherit,
- * so a group nested in one of those options keeps its own. */
+ * group's holder declares it on itself, as a Question framing a figure does (ask.css),
+ * and the group reads it from its parent; it does not inherit, so a group nested in one
+ * of those options keeps its own. */
 @property --lf-options-across { syntax: "<integer>"; inherits: false; initial-value: 0; }
 :scope:is(lf-options) { display: block; margin: 14px 0; --lf-joined: 0;
              --lf-option-font: var(--t-4)/1.6 var(--serif);
@@ -505,11 +507,7 @@
 @media screen {
 
   :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *) {
-    /* Each child takes a line of its own, except a titled option in a group laid across
-     * (`--lf-options-across`, below). Wrapping flex rather than a grid of columns, because
-     * a row of cards then always ends at the frame: a card left over on the last row
-     * takes the row's room rather than standing beside an empty cell. */
-    display: flex; flex-wrap: wrap; background: var(--card);
+    display: grid; background: var(--card);
     border: 1px solid var(--border-2); border-radius: var(--r);
     /* Clipped to its corners, not hidden: a hidden box is a scroll container, and the
      * box a sticky header in an option sticks in, so a diff's file header there would
@@ -534,8 +532,9 @@
      * that line against the frame. */
     &:where([data-lf-interactive] *):not(:where(.lf-chrome *)):not(:has(> .lf-another)),
     &:where([data-lf-interactive] *)[multiple]:not(:has(> lf-options-done)) {
-      &::after { content: ""; display: block; position: relative; flex: 1 1 100%;
-        height: var(--lf-missing-cells); box-shadow: var(--lf-cell-rule); }
+      &::after { content: ""; display: block; position: relative; grid-column: 1 / -1;
+        height: var(--lf-missing-cells); background: var(--card);
+        box-shadow: var(--lf-cell-rule); }
     }
     & > .lf-another { min-height: var(--lf-add-cell-height); }
     & > lf-options-done { min-height: var(--lf-done-cell-height); }
@@ -553,8 +552,10 @@
      * The user's own option and a thread question's Done press each had one for
      * standing alone, and each was written before the group stretched every child to
      * its width. Naming them one at a time is how the first two got reset here and the
-     * third did not. */
-    & > * { margin-block: 0; flex: 1 1 100%; }
+     * third did not. Every child but an option spans the group, however many columns
+     * the options stand in. */
+    & > * { margin-block: 0; }
+    & > :not(lf-option) { grid-column: 1 / -1; }
     /* A control packed into this group states its own inset (theme.css, --focus-ring).
      * The group clips to the frame it draws, so a ring drawn outside a cell's box is
      * drawn into the pixels the frame cuts away: the Done press sits flush on the
@@ -564,33 +565,27 @@
      * page, which is the gap's job on a box that stands alone. */
     & .lf-btn[data-lf-focus] { outline-offset: calc(-1 * var(--focus-ring-w)); }
     /* The hairline between neighbours: stated once over every child, so a child no rule
-     * here names arrives already separated. Each cell casts it onto the neighbour before
-     * it, above and at its start, as a shadow that takes no room: cells are positioned
-     * (`position: relative`), so each paints after the one it covers, and the group's
-     * clip takes what the first row and the first column cast past its frame. It is
-     * the only line in the group: a cell wears no border of its own, and the card's is
-     * withheld from a joined group rather than undone in it.
+     * here names arrives already separated. Each cell rings itself with it, a 1px shadow
+     * that takes no room, and paints its own ground. Every kind of cell is positioned by
+     * its own rule (an option, the user's cell, Done, the reserve above), so cells paint
+     * in order; a child that is no cell, such as a quiet word, keeps its own position and
+     * clip. A later neighbour's ground covers the ring an earlier cell cast on it, and
+     * its own ring draws the one line between them, while a ring cast into an empty grid
+     * cell stays as that cell's edge, and the group's clip takes what the outer cells
+     * cast past the frame. The hairline test reads each cell's position with its ring.
+     * It is the only line in the group: a cell
+     * wears no border of its own, and the card's is withheld from a joined group rather
+     * than undone in it.
      *
-     * A border on the upper of two cells drew it while every cell had a line of its
-     * own, but cards laid across stand beside each other as well, and a card cannot
-     * know whether it stands in the last row, where a line below it would double the
-     * frame. Casting onto the cell before needs neither fact. The line was once a
-     * shadow cast into a 1px gap between cells, which painted each interior line
-     * twice; cast onto a neighbour, each line is painted once and the cells butt. */
-    --lf-cell-rule: 0 -1px 0 var(--rule), -1px 0 0 var(--rule);
-    &:dir(rtl) { --lf-cell-rule: 0 -1px 0 var(--rule), 1px 0 0 var(--rule); }
-    & > * { box-shadow: var(--lf-cell-rule); }
-    /* A group laid across sets its titled options side by side, as many to a row as
-     * keep each card 14rem wide, and stacks them where fewer fit: three cards share the
-     * reading column. Bare-label rows stay a list: each is one line, so a list of them
-     * is not what pushes the options past the window. */
-    &:has(> lf-option > strong) > lf-option {
-      @container style(--lf-options-across: 1) { flex-basis: 14rem; box-sizing: border-box; }
-    }
-    /* A cell has no border of its own. Selection gets one quiet ground here; the mark's
-     * check is its compact second channel. The vertical status bar that used to sit
-     * beside both only repeated the same fact and made green read like focus. */
-    & > lf-option { --fill: var(--card); background-color: var(--fill); }
+     * A border on the upper of two cells drew it while every cell stood in one column,
+     * but cards laid across stand beside each other as well, and a card cannot know
+     * whether it stands in the last row, where a line below it would double the frame.
+     * The ring needs neither fact. The line was once a shadow cast into a 1px gap
+     * between cells, which painted each interior line twice; cast over a neighbour that
+     * paints after it, each line shows once and the cells butt. */
+    --lf-cell-rule: 0 0 0 1px var(--rule);
+    & > * { box-shadow: var(--lf-cell-rule);
+            --fill: var(--card); background-color: var(--fill); }
     /* The aim wash. The cell under the pointer and the cell under the keyboard are the
      * same fact to the user — this one is being weighed — so both wear one paint. It
      * deepens whatever the cell is filled with, rather than lifting it: a cell that
@@ -620,10 +615,9 @@
      *
      * Which is to say nothing is stated here at all, and that is the rule rather than an
      * omission twice over. The floor above is the whole of the inset, so the cell follows
-     * the column when the column moves. And an unpicked option paints no fill of its own
-     * either — `--fill` is `--card`, which is the group's own background showing through
-     * — so a cell that states none is already wearing it, and a copy of the token here
-     * would be a second place to change when the group's ground changes.
+     * the column when the column moves. And its ground is the one every cell paints
+     * (`--fill`, above), so a copy of the token here would be a second place to change
+     * when the group's ground changes.
      *
      * It wore the footer's own clothes instead: `--field`, and a 12px inset that outranked
      * that floor. Both said apparatus, of the one cell in the group that takes an answer
@@ -635,6 +629,21 @@
      * second border that disappears when the question is answered. */
     & > lf-option > .lf-pick[data-lf-focus] { outline: none; }
   }
+  /* A group laid across (`--lf-options-across` on its holder) sets its titled options
+   * side by side in columns at least 14rem wide, as many as its width holds, so three
+   * share the reading column, and stacks them where only one fits. Columns of one width
+   * keep every card the same anatomy, and a card left over on the last row stands beside
+   * empty cells rather than stretching across them into another form. The group takes
+   * its holder's width rather than the column's: the column bounds a line of text, and
+   * no card's line is wider than its column, so an Ask granted the wide measure for its
+   * figure lays its cards under all of it. Bare-label rows stay a list: each is one
+   * line, so a list of them is not what pushes the options past the window. */
+  @container style(--lf-options-across: 1) {
+    :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *):has(> lf-option > strong) {
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+      max-inline-size: none;
+    }
+  }
   /* The runtime's semantic location mark normally rings the whole Decision. Within an
    * options control that makes the permanent frame look like a second, stateful border.
    * Suppress that outer paint while focus is inside this control; focus is
@@ -645,12 +654,12 @@
   :is(:scope, :scope *)[data-lf-question]:has(
     lf-options[choose]:not(:where([data-lf-exhibit]) *) [data-lf-focus]
   ) { --lf-question-ring: none; }
-  /* A row's ring stands inside its cell by the hairline's width as well, since the next
-   * cell paints its line over this one's last row and column. */
+  /* A ringed row stands above its neighbours, so the line the next cell draws over its
+   * edge does not cut its ring. */
   :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *)
   > lf-option:has(> .lf-pick[data-lf-focus]) {
     outline: var(--focus-ring); --lf-focus-ring: options-row;
-    outline-offset: calc(-1 * var(--focus-ring-w) - 1px);
+    outline-offset: calc(-1 * var(--focus-ring-w)); z-index: 1;
   }
   /* The add field's own outline is off (below), so the row it sits in is the only thing
    * that can answer the keyboard for it — in every group that shows the field, not just
@@ -660,7 +669,7 @@
   :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *)
   > .lf-another:has(leaf-text[data-lf-focus]) {
     outline: var(--focus-ring); --lf-focus-ring: options-row;
-    outline-offset: calc(-1 * var(--focus-ring-w) - 1px);
+    outline-offset: calc(-1 * var(--focus-ring-w)); z-index: 1;
   }
   .lf-another { --lf-option-action-size: max(28px, var(--aim-floor));
                 --lf-option-add-seat-inset: var(--sp-1);

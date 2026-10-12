@@ -561,11 +561,14 @@ def test_ask_addresses_are_screen_only_apparatus(browser, serve):
     expect(badges.first).to_be_hidden()
 
 
-# Whether a cell casts the joined group's hairline: a visible 1px line above it, onto the
-# cell before. Read with its colour, since a transparent shadow draws no line at all.
+# Whether a cell draws the joined group's hairline: a visible 1px ring around it, painted
+# in order over the cell before it. Read with its colour, since a transparent shadow draws
+# no line at all, and with its position, since an unpositioned cell paints under the
+# neighbour it should draw over.
 CASTS_HAIRLINE = r"""el => {
-  const cast = /(rgba?\([^)]*\)) 0px -1px 0px/.exec(getComputedStyle(el).boxShadow);
-  return Boolean(cast) && !/rgba\([^)]*,\s*0\)/.test(cast[1]);
+  const s = getComputedStyle(el);
+  const cast = /(rgba?\([^)]*\)) 0px 0px 0px 1px/.exec(s.boxShadow);
+  return Boolean(cast) && !/rgba\([^)]*,\s*0\)/.test(cast[1]) && s.position !== 'static';
 }"""
 
 
@@ -1794,9 +1797,7 @@ def test_long_chip_labels_stay_inside_a_narrow_column(browser, serve):
         .replace("finch", label)
         .replace(
             "</head>",
-            # A cap rather than a width: a joined group sizes each option's width as a
-            # flex item, which a cap still bounds.
-            "<style>#intro, #p-keep, #owner-fact { max-width: 240px; }</style></head>",
+            "<style>#intro, #p-keep, #owner-fact { width: 240px; }</style></head>",
         )
     )
     page = open_page(browser, serve(source))

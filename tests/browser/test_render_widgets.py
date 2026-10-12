@@ -1619,61 +1619,83 @@ def test_root_tab_targets_remain_global(browser, serve):
     pane_posture(page, page.locator("#queue-pane"), "flow")
 
 
-ACROSS_ASK_PAGE = leaf_page(
-    "options laid across",
-    """
-  <h1>Retention</h1>
-  <lf-ask id="across">
+ACROSS_ASK = """
+  <lf-ask id="{id}"{width}>
     <h3>How long should logs be kept?</h3>
-    <figure id="across-evidence"><table id="across-figure">
+    <figure><table id="{id}-figure">
       <thead><tr><th>Store</th><th class="num">Daily GB</th></tr></thead>
       <tbody><tr><td>Hot</td><td class="num">40</td></tr>
         <tr><td>Warm</td><td class="num">120</td></tr></tbody>
     </table></figure>
-    <lf-ask id="nested">
-      <h4>Archive the warm tier too?</h4>
-      <p id="nested-premise">It holds the last quarter.</p>
-      <lf-options id="nested-choice" choose>
-        <lf-option id="nested-yes"><strong>Archive</strong> Move it to cold storage.</lf-option>
-        <lf-option id="nested-no"><strong>Keep</strong> Leave it warm.</lf-option>
-      </lf-options>
-    </lf-ask>
-    <lf-options id="across-choice" choose>
-      <lf-option id="keep-7"><strong>7 days</strong> The cheapest.</lf-option>
-      <lf-option id="keep-30"><strong>30 days</strong> Covers every incident review.</lf-option>
-      <lf-option id="keep-90"><strong>90 days</strong> Covers a quarter's audit.</lf-option>
+    <lf-options id="{id}-choice" choose>
+      <lf-option id="{id}-7"><strong>7 days</strong> The cheapest.
+        <lf-options id="{id}-nested" choose>
+          <lf-option id="{id}-hot"><strong>Hot only</strong> Drop warm at once.</lf-option>
+          <lf-option id="{id}-both"><strong>Both tiers</strong> Keep warm a week.</lf-option>
+        </lf-options>
+      </lf-option>
+      <lf-option id="{id}-30"><strong>30 days</strong> Covers every incident review.</lf-option>
+      <lf-option id="{id}-90"><strong>90 days</strong> Covers a quarter's audit.</lf-option>
     </lf-options>
   </lf-ask>
-""",
+"""
+ACROSS_ASK_PAGE = leaf_page(
+    "options laid across",
+    "<h1>Retention</h1>" + ACROSS_ASK.format(id="across", width=""),
 )
+ACROSS_WIDE_ASK_PAGE = leaf_page(
+    "options laid across a widened Ask",
+    "<div>" + ACROSS_ASK.format(id="wide", width=' data-width="wide"') + "</div>",
+    layout="sidebar",
+)
+ACROSS_GEOMETRY = """(id) => {
+  const box = (suffix) => document.getElementById(`${id}-${suffix}`).getBoundingClientRect();
+  const cards = ['7', '30', '90'].map(box);
+  return {
+    figureBottom: box('figure').bottom,
+    tops: cards.map((c) => Math.round(c.top)),
+    lefts: cards.map((c) => Math.round(c.left)),
+    widths: cards.map((c) => Math.round(c.width)),
+    nested: ['hot', 'both'].map((s) => Math.round(box(s).top)),
+    list: Math.round(box('choice').width),
+    ask: Math.round(document.getElementById(id).getBoundingClientRect().width),
+  };
+}"""
 
 
 def test_an_ask_framing_a_figure_lays_its_options_across(browser, serve):
     """An Ask whose heading, figure and one option list come in that order sets the
-    titled options side by side under the figure, as many as its width holds, so the
-    question, its figure and every option share a window, and stacks them where fewer
-    fit. The arrangement belongs to that Ask alone: an ordinary Ask held among its
-    evidence keeps its options one to a row."""
+    titled options side by side under the figure in columns of one width, as many as
+    its width holds, so the question, its figure and every option share a window. Where
+    fewer fit, a card left over on the last row keeps its column's width, and where only
+    one fits they stack. The arrangement belongs to that Ask's own list: a group nested
+    in one of its options keeps its options one to a row."""
     page = open_page(browser, serve(ACROSS_ASK_PAGE))
-    geometry = """() => {
-      const box = (id) => document.getElementById(id).getBoundingClientRect();
-      const tops = (ids) => ids.map((id) => Math.round(box(id).top));
-      return {
-        figureBottom: box('across-figure').bottom,
-        tops: tops(['keep-7', 'keep-30', 'keep-90']),
-        lefts: ['keep-7', 'keep-30', 'keep-90'].map((id) => Math.round(box(id).left)),
-        nested: tops(['nested-yes', 'nested-no']),
-      };
-    }"""
     resized(page, 1440, 900)
-    wide = page.evaluate(geometry)
+    wide = page.evaluate(ACROSS_GEOMETRY, "across")
     assert len(set(wide["tops"])) == 1, wide
     assert wide["tops"][0] >= wide["figureBottom"], wide
     assert wide["lefts"] == sorted(set(wide["lefts"])), wide
     assert wide["nested"][0] < wide["nested"][1], wide
+    resized(page, 700, 900)
+    middle = page.evaluate(ACROSS_GEOMETRY, "across")
+    assert middle["tops"][0] == middle["tops"][1] < middle["tops"][2], middle
+    assert max(middle["widths"]) - min(middle["widths"]) <= 1, middle
     resized(page, 390, 900)
-    narrow = page.evaluate(geometry)
+    narrow = page.evaluate(ACROSS_GEOMETRY, "across")
     assert narrow["tops"] == sorted(set(narrow["tops"])), narrow
+
+
+def test_options_laid_across_take_a_widened_asks_width(browser, serve):
+    """The column bounds a line of text, and no card's line is wider than its column, so
+    an Ask granted the wide measure for its figure lays its cards under all of it rather
+    than at the measure beside an empty strip."""
+    page = open_page(browser, serve(ACROSS_WIDE_ASK_PAGE))
+    resized(page, 1726, 900)
+    at = page.evaluate(ACROSS_GEOMETRY, "wide")
+    assert at["ask"] > 720, at
+    assert abs(at["list"] - at["ask"]) <= 1, at
+    assert len(set(at["tops"])) == 1, at
 
 
 def clear_of_the_bottom_chrome(page, selector):

@@ -511,7 +511,7 @@ def gallery_ask_figure(page: Page) -> None:
     every option either share the window or run past it."""
     page.get_by_role("tab", name="Page & layout", exact=True).click()
     settle(page)
-    page.locator(":is(#bg-ask-across, #bg-ask-track) lf-ask").evaluate(
+    page.locator("#bg-ask-across lf-ask").evaluate(
         "el => el.scrollIntoView({block: 'start'})"
     )
 

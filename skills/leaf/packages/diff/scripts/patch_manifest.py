@@ -11,8 +11,8 @@ Reads a UTF-8 patch on stdin and writes manifest JSON on stdout, ready for
     git diff main... | leaf package run diff patch_manifest.py | leaf data set PAGE SOURCE
 
 Each record describes the native operation, paths, modes and binary status and
-keeps its Git evidence in a deferred patch. Metadata-only evidence is read before
-its row appears; textual hunks load when their file opens. Compressed binary
+keeps its Git evidence in a deferred patch. Each file's evidence is read before
+its row appears; textual hunks render when their file opens. Compressed binary
 payloads are omitted: the Git binary marker records their presence.
 
 This reads metadata and counts without judging what the widget can present.

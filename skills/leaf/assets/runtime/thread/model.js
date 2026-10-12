@@ -162,9 +162,11 @@ const pendingSeat = (message) =>
 // pending gestures on one thread, the last decides, a turn reopening what a
 // settlement before it closed, and a reply's reading covers a rewrite beside it,
 // since a reply answers what a rewrite would and more, and a reaction that settles
-// the question the user owes (`react`), which answers less. A gesture the thread
-// offers no reading of, a settlement undoing another still pending or a reaction on
-// another turn, leaves it as served.
+// the question the user owes (`react`), which answers less; a reaction beside a
+// rewrite, which answers the question the rewrite leaves, has no reading of its own
+// and takes the rewrite's until the log answers. A gesture the thread offers no
+// reading of, a settlement undoing another still pending or a reaction on another
+// turn, leaves it as served.
 /** @param {{id: string}} turn @returns {import("../../../../../build/browser/domain.ts").Attention} */
 const sending = (turn) => ({
   kind: "waiting",
@@ -216,15 +218,22 @@ export function foldThreads(threads, gestures, settles = () => false) {
   const opened = [];
   // Each thread's pending gestures, as far as its reading goes: the last turn, whether
   // a reply was among them, and which came last, a turn or a settlement.
-  /** @type {Map<Thread, {turn: {id: string} | null, replied: boolean, reacted: boolean, last: string}>} */
+  /** @type {Map<Thread, {turn: {id: string} | null, replied: boolean, reacted: boolean, last?: string}>} */
   const effects = new Map();
-  /** @param {Thread} thread @param {{turn?: {id: string}, replied?: boolean, reacted?: boolean, last: string}} change */
+  /** @param {Thread} thread @param {{turn?: {id: string}, replied?: boolean, reacted?: boolean, last?: string}} change */
   const note = (thread, change) =>
     effects.set(thread, {
       ...(effects.get(thread) ?? { turn: null, replied: false, reacted: false }),
       ...change,
     });
   for (const gesture of gestures) {
+    // A gesture this tab takes back before the log has it, as a reaction pressed
+    // twice, stands nowhere.
+    if (
+      (gesture.kind === "comment" || gesture.kind === "reply") &&
+      withdrawn.has(gesture.id)
+    )
+      continue;
     if (gesture.kind === "comment") {
       const reaction = isReaction(gesture);
       /** @type {Thread} */
@@ -260,7 +269,9 @@ export function foldThreads(threads, gestures, settles = () => false) {
           gesture.parent === thread.user_prompt?.message &&
           settles(gesture.token ?? "")
         )
-          note(thread, { reacted: true, last: "react" });
+          // It answers less than a turn and closes nothing, so a pending turn or
+          // resolve still decides.
+          note(thread, { reacted: true });
         continue;
       }
       thread.resolved = null;

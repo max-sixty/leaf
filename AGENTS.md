@@ -249,10 +249,11 @@ sends it, before the log answers; a disabled control, spinner, or other delivery
 status is not that result. The page can draw what its own document settles, such as
 a widget's state or the words of a turn the user adds to a thread. Which Questions
 the document still holds, which of them the user owes, and whose turn a thread is
-depend on the whole log, so the browser takes that reading from the server: from
-the state it adopts and, while a gesture of its own is unresolved, from what the
-server read that gesture leaving (each thread's `after`); the browser never derives
-it. A refusal restores the authoritative state.
+depend on the whole log, so the browser reads them from the server's state and,
+while a thread gesture of its own is unresolved, from what the server read that
+gesture leaving (each thread's `after`). It adds only what it settles itself: a
+required-version approval, a thread it opened, and a refused send's recovery. A
+refusal restores the authoritative state.
 
 The active document has one immutable application publication. Only its publisher
 combines authored baselines, the complete admitted server reading, and the ordered

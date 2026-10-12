@@ -4,6 +4,7 @@ import { registry, tagsDeclaring } from "./registry.js";
 import {
   byRenderedOrder,
   composedParentNode,
+  nativeLayerKind,
   renderedOrder,
   renderedParent,
   renderedUnder,
@@ -60,7 +61,7 @@ export const pageShadowRoots = () => shadowRootsIn(document);
 export function excludedByInert(node) {
   for (let owner = node; owner; owner = renderedParent(owner)) {
     if (owner.inert) return true;
-    if (owner.nodeType === Node.ELEMENT_NODE && owner.matches(":modal")) break;
+    if (nativeLayerKind(owner) === "modal") break;
   }
   return false;
 }

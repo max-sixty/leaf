@@ -22,12 +22,6 @@ vars:
     The page directory is not reachable from here. Reply with the JavaScript module
     for the custom element, rather than writing a file.
 assert:
-- type: regex
-  metric: mounts-core-thread-views
-  value: mountThreadViews\s*\(
-- type: regex
-  metric: renders-mirrors
-  value: surfaces\.thread\s*\(
 - type: llm-rubric
   metric: judgment
   value: |

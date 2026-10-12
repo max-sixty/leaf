@@ -1229,6 +1229,132 @@ def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(browser, ser
 
 
 @pytest.mark.parametrize(
+    "retired_at", ["no preparation", "click", "resolve-remove", "remove-resolve"]
+)
+def test_a_retired_widget_preparation_cannot_credit_a_passive_landing(
+    browser, serve, retired_at
+):
+    """A removed renderer's late completion cannot credit unrelated page movement.
+
+    The no-preparation control proves ordinary input credit expires. A declaration
+    retires with its owner even when its promise reaction precedes delivery of the
+    removal's mutation record.
+    """
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Retired preparation",
+                '<button id="press">Press</button>'
+                '<lf-options id="choice"><lf-option id="a">A</lf-option></lf-options>'
+                '<button id="control" style="display:block">Control</button>',
+            )
+        ),
+    )
+    page.evaluate(
+        """async retiredAt => {
+          const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const widget = document.querySelector('#choice');
+          const gate = Promise.withResolvers();
+          window.release = gate.resolve;
+          const terminal = Promise.withResolvers();
+          window.terminal = terminal.promise;
+          document.querySelector('#press').addEventListener('click', () => {
+            if (retiredAt !== "no preparation") {
+              let identity;
+              const stop = document.querySelector('script[data-lf-entry]').lfObserveWidgetPreparations((phase, preparation) => {
+                if (phase === 'begin') identity ??= preparation;
+                else if (preparation === identity) { terminal.resolve(); stop(); }
+              });
+              widgetController(widget).present(gate.promise);
+            } else terminal.resolve();
+            if (["no preparation", "click"].includes(retiredAt)) widget.remove();
+          }, {once: true});
+        }""",
+        retired_at,
+    )
+    page.locator("#press").click()
+    rendered(page, facts=("updatesSettled",))
+    judge_watches()
+    assert page.lf_errors == []
+    page.evaluate(
+        """async retiredAt => {
+          const widget = document.querySelector('#choice');
+          if (retiredAt === 'remove-resolve') widget.remove();
+          window.release();
+          if (retiredAt === 'resolve-remove') widget.remove();
+          await window.terminal;
+          document.querySelector('#control').style.marginTop = '40px';
+        }""",
+        retired_at,
+    )
+    rendered(page)
+    judge_watches()
+    consume_browser_errors(page, "button#control moved without input")
+
+
+@pytest.mark.parametrize("first_outcome", ["rejected", "pending"])
+def test_each_capable_preparation_keeps_its_own_input_landing(
+    browser, serve, first_outcome
+):
+    """A sibling can land after another fails or before another completes.
+
+    Semantic presentation aggregates both promises, but each actual producer owns
+    its own mechanical landing. Neither an early aggregate rejection nor a pending
+    sibling may lose the successful producer's input attribution.
+    """
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Sibling preparation",
+                '<button id="press">Press</button>'
+                '<lf-options id="choice"><lf-option id="a">A</lf-option></lf-options>'
+                '<button id="control" style="display:block">Control</button>',
+            )
+        ),
+    )
+    page.evaluate("""async () => {
+      const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const widget = document.querySelector('#choice');
+      const first = Promise.withResolvers();
+      const second = Promise.withResolvers();
+      window.rejectFirst = first.reject;
+      window.releaseFirst = first.resolve;
+      window.releaseSecond = second.resolve;
+      document.querySelector('#press').addEventListener('click', () => {
+        widgetController(widget).present(first.promise);
+        widgetController(widget).present(second.promise.then(() => {
+          widget.style.height = '120px';
+        }));
+      }, {once: true});
+    }""")
+    page.locator("#press").click()
+    judge_watches()
+    assert page.lf_errors == []
+    if first_outcome == "rejected":
+        page.evaluate("rejectFirst(new Error('deliberate preparation failure'))")
+        page.wait_for_selector("#choice .lf-error")
+        judge_watches()
+        consume_browser_errors(page, "deliberate preparation failure")
+    assert not page.evaluate(
+        "document.querySelector('script[data-lf-entry]').lfRenderingState().preparationsSettled"
+    )
+    page.evaluate("releaseSecond()")
+    page.wait_for_function("document.querySelector('#choice').style.height === '120px'")
+    judge_watches()
+    assert page.lf_errors == []
+    if first_outcome == "pending":
+        assert not page.evaluate(
+            "document.querySelector('script[data-lf-entry]').lfRenderingState().preparationsSettled"
+        )
+        page.evaluate("releaseFirst()")
+    rendered(page)
+    judge_watches()
+    assert page.lf_errors == []
+
+
+@pytest.mark.parametrize(
     "input_at",
     ["outside", "same-widget", "same-disclosure-attr-node"],
 )

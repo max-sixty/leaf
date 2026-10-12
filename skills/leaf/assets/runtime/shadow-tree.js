@@ -1,5 +1,8 @@
 /* Composed ancestry without runtime dependencies. Focus and shadow rendering share
-   this walk, including slots and roots from another window. */
+   this walk, including slots and roots from another window, and with it the one reading
+   of whether a node is an open native layer or stands in one: keyboard/layer-stack.js
+   keeps the order layers opened in, and imports focus and inertness, which ask this
+   too. */
 // The host of `root` when it is a shadow root, else null: the one test of whether a climb
 // crosses to a host. It asks the root's kind, since other roots answer `host` too — a
 // document names its `<form name="host">` there, and a detached subtree's root is an
@@ -80,3 +83,23 @@ export const byRenderedOrder = (items, placeOfItem) => {
     ...placed.filter(({ place }) => !place),
   ].map(({ item }) => item);
 };
+
+// The kind of native layer the browser holds `node` as in the top layer: `"modal"` for a
+// dialog shown modally, `"popover"` for an open popover, a dialog opened with
+// `showPopover` included, which leaves the page behind it live; else null. A nonmodal open
+// dialog is part of the page it stands in. Read node kind rather than realm-specific
+// Element: a sample asks this of its frame.
+export const nativeLayerKind = (node) => {
+  if (node?.nodeType !== Node.ELEMENT_NODE || !node.isConnected) return null;
+  if (node.matches("dialog:modal")) return "modal";
+  return node.matches(":popover-open") ? "popover" : null;
+};
+// Whether `node` is itself a native layer, of either kind.
+export const isNativeLayer = (node) => nativeLayerKind(node) !== null;
+
+// The innermost native layer `node` stands in as rendered, itself included, or null: a
+// box slotted into a popover stands in it.
+export function nativeLayerHolding(node) {
+  for (let at = node; at; at = renderedParent(at)) if (isNativeLayer(at)) return at;
+  return null;
+}

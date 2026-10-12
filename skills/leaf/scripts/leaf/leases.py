@@ -120,14 +120,37 @@ def release_lease(lease) -> None:
     lease.close()
 
 
+# The terminating signal this process received, kept for `end_if_terminated`.
+_terminated: list[int] = []
+
+
 def release_on_termination() -> None:
     """Unwind process-owned resources when SIGTERM or SIGHUP ends a command.
 
     Kernel leases release even without unwinding, but a command may also own
     reply reservations and pending work that its `finally` blocks must retire.
-    SIGKILL still skips that application cleanup."""
+    SIGKILL still skips that application cleanup.
+
+    The handler raises the exit wherever the main thread is, since only a raise
+    ends a blocked lock or condition wait; a handler that returns resumes it.
+    Python discards a raise that lands in a weakref callback, `__del__` or a GC
+    callback, such as a page memory's finalizer joining its watcher threads, so
+    the handler also records the signal, and each loop that blocks under it calls
+    `end_if_terminated` before it waits."""
     for terminating in (signal.SIGTERM, signal.SIGHUP):
-        signal.signal(terminating, lambda signum, _frame: sys.exit(128 + signum))
+        signal.signal(terminating, _terminate)
+
+
+def _terminate(signum: int, _frame) -> None:
+    _terminated.append(signum)
+    sys.exit(128 + signum)
+
+
+def end_if_terminated() -> None:
+    """Exit as `release_on_termination`'s handler would have, if its raise was
+    lost."""
+    if _terminated:
+        sys.exit(128 + _terminated[0])
 
 
 @contextlib.contextmanager

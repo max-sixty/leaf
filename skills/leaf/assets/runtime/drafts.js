@@ -702,6 +702,7 @@ export function createWritingResume({ revealInThread, arriveEditor }) {
     description: "Resume writing",
     title: "Resume writing",
     touch: "Resume writing",
+    menu: "navigate",
     covering: true,
     when: () => writingPlace !== null,
     run: resume,

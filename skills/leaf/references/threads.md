@@ -163,7 +163,8 @@ An answer says what it leaves the thread with, one of three:
 - `--done`: it delivers what the message asked for, and nothing stays on either queue.
 - `--ask`: its prose asks the user something back. The reply is then an ask
   under `reply:<message-id>` in `page state`'s `asks` collection, until they
-  answer in the thread.
+  answer in the thread or you end it
+  ([Questions and Tasks](conversation-loop.md#questions-and-tasks)).
 - `--todo "<what you owe>"`: it promises work it doesn't deliver. The reply opens
   that to-do on its thread under the reply's own id, which stays on you until
   `leaf task end <page> <reply-id>` ([Long-running work](conversation-loop.md#long-running-work)).

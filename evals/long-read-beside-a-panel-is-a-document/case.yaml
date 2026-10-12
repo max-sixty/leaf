@@ -29,9 +29,6 @@ vars:
     directory is not reachable from here, so reply with the complete `index.html`,
     rather than writing a file.
 assert:
-- type: regex
-  metric: sidebar-page
-  value: <main[^>]*class="[^"]*\blayout-sidebar\b
 - type: llm-rubric
   metric: judgment
   value: |

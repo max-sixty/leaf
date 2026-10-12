@@ -15,7 +15,7 @@ import {
   nameAnchor,
   scrollsWith,
 } from "./css-anchors.js";
-import { nativeLayerHolding } from "./keyboard/layer-stack.js";
+import { nativeLayerHolding } from "./shadow-tree.js";
 import { nearObserver, nearWindow, paintClips, shownBox } from "./geometry.js";
 import { hasArea, intersect } from "./rect.js";
 import { move } from "./dom-move.js";

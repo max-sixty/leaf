@@ -2,11 +2,13 @@
 # button beside its captures in 2 of 3 runs and was reverted; main passed 3 of 3.
 description: visual-change-uses-captures
 metadata:
-  purpose: 'Draw the subject, guardrail: a visible change with before/after captures shows the captures
-    and draws nothing beside them.'
+  purpose:
+    "Draw the subject, guardrail: a visible change with before/after captures shows the
+    captures and draws nothing beside them."
+  authoring: true
   tags:
-  - draw
-  - guardrail
+    - draw
+    - guardrail
 vars:
   prompt: |
     You are writing a Leaf page for the user about a button fix. Your notes:
@@ -17,19 +19,22 @@ vars:
 
     Ask. Approve the new states, or keep the old ones.
 
-    Captures already registered as page media, same viewport and state:
-    - /media/save-before.png: the form with Save disabled and enabled, before (1200x700)
-    - /media/save-after.png: the same, after (1200x700)
+    Captures, same viewport and state:
+    - evals/visual-change-uses-captures/captures/before.png: the form with Save disabled and enabled, before (1200x700)
+    - evals/visual-change-uses-captures/captures/after.png: the same, after (1200x700)
 
-    Write the HTML for the finding and the Ask.
-    The page directory is not reachable from here, so reply with the HTML fragment
-    rather than writing a file.
+    Write the Leaf page with the finding and the Ask.
 assert:
-- type: regex
-  metric: pair-in-one-lf-shot
-  value: <lf-shot\b(?=[^>]*\bbefore=["'][^"']*save-before\.png)(?=[^>]*\bafter=["'][^"']*save-after\.png)
-  transform: output.toLowerCase()
-- type: not-regex
-  metric: draws-nothing
-  value: <svg\b|<lf-diagram\b
-  transform: output.toLowerCase()
+  - type: javascript
+    metric: pair-in-one-lf-shot
+    value: file://capture-pair.cjs:pair
+  - type: agent-rubric
+    metric: captures-in-order
+    transform: "JSON.stringify({html: output, captures: context.metadata.capture_evidence})"
+    value: file://capture-order.txt
+  - type: llm-rubric
+    metric: draws-nothing
+    value:
+      Pass only if the finding draws nothing beside its captures. Fail if the page adds an
+      inline SVG, an lf-diagram, or an HTML mockup of the button or form. Showing one capture
+      again on its own elsewhere is fine.

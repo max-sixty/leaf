@@ -613,6 +613,56 @@ export const standingReadsRule = {
   },
 };
 
+// Whether a node is an open native layer, or stands in one, is asked of shadow-tree.js
+// (`nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding`), and which are open of keyboard/layer-stack.js
+// (`nativeLayers`). A selector naming the open state answers it again, and the copies
+// drift: a `dialog[open]` read once counted the auxiliary envelope, a nonmodal dialog
+// that is always open, as a layer. A reader that also wants a nonmodal dialog asks the
+// dialog's own `open`. The rule reads the selector a `matches`, `closest` or
+// `querySelector(All)` call is given; the option names the owner.
+const OPEN_LAYER_SELECTOR = /:popover-open|:modal\b|dialog\[open\]/u;
+const SELECTOR_METHODS = new Set([
+  "matches",
+  "closest",
+  "querySelector",
+  "querySelectorAll",
+]);
+export const openLayersRule = {
+  meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
+  create(context) {
+    const file = path
+      .relative(standingRepoRoot, context.filename ?? context.getFilename())
+      .split(path.sep)
+      .join("/");
+    if ((context.options[0] ?? []).includes(file)) return {};
+    return {
+      CallExpression(node) {
+        const { callee } = node;
+        const [selector] = node.arguments;
+        if (
+          callee.type !== "MemberExpression" ||
+          callee.computed ||
+          !SELECTOR_METHODS.has(callee.property.name) ||
+          !selector
+        )
+          return;
+        const text =
+          selector.type === "Literal"
+            ? selector.value
+            : selector.type === "TemplateLiteral"
+              ? selector.quasis.map((quasi) => quasi.value.cooked).join("")
+              : null;
+        if (typeof text === "string" && OPEN_LAYER_SELECTOR.test(text))
+          context.report({
+            node,
+            message:
+              "Ask shadow-tree.js whether a node is an open layer or stands in one (nativeLayerKind, isNativeLayer, nativeLayerHolding) rather than selecting the open state.",
+          });
+      },
+    };
+  },
+};
+
 // A node that already stands somewhere moves through `move(parent, node, before)`
 // (runtime/dom-move.js), or `setChildren` beside it, which keeps the user's focus, caret
 // and native state in it; a plain insertion takes the node out first, which blurs it.
@@ -900,6 +950,7 @@ const architecturePlugin = {
     "standing-listeners": standingListenersRule,
     placements: placementsRule,
     "standing-reads": standingReadsRule,
+    "open-layers": openLayersRule,
     moves: movesRule,
     "layer-returns": layerReturnsRule,
     "root-state-ownership": {
@@ -1419,7 +1470,7 @@ export default [
         "error",
         {
           // The owner of every focus event.
-          "skills/leaf/assets/runtime/focus.js": ["focusin", "focusout"],
+          "skills/leaf/assets/runtime/focus.js": ["focus", "focusin", "focusout"],
           // Records the raw events of a session for the interaction log, the one
           // exception that is not one element's or one subtree's own question: it is a
           // recorder of events, and reads no standing from them.
@@ -1444,6 +1495,13 @@ export default [
           "skills/leaf/assets/runtime/composing/text-field.js",
           // The shared CodeMirror adapter places its own native editor.
           "skills/leaf/assets/runtime/editor-view.js",
+        ],
+      ],
+      "architecture/open-layers": [
+        "error",
+        [
+          // The owner.
+          "skills/leaf/assets/runtime/shadow-tree.js",
         ],
       ],
       "architecture/layer-returns": [

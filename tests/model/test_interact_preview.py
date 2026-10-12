@@ -35,7 +35,7 @@ from leaf import cli as cli_model
 from leaf import codex_adapter, leases, server, service, session
 from leaf.media import media_name
 from leaf.structure import SourceDocument
-from leaf_dev import page_fixtures, preview
+from leaf_dev import arms, page_fixtures, preview
 from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 
@@ -101,7 +101,7 @@ def test_a_preview_source_uses_its_checkout_layer_and_media(tmp_path):
 def test_product_previews_prepare_the_authored_layer_and_media(
     tmp_path, monkeypatch, name
 ):
-    """A product preview includes its site furniture and authored images."""
+    """A product preview includes its site furniture, composed parts, and images."""
     source = ROOT / "docs" / f"{name}.html"
     page = tmp_path / "preview"
     monkeypatch.chdir(ROOT)
@@ -111,9 +111,11 @@ def test_product_previews_prepare_the_authored_layer_and_media(
         assert result.exit_code == 0, result.output
 
     prepare_page(page, read_fixture(source), run_leaf, final_status=None)
+    served = SourceDocument((page / "index.html").read_text())
+    assert served.tree.select("nav.sitenav a[aria-current=page]")
     assert all(
         (page / reference.removeprefix("/")).is_file()
-        for reference in SourceDocument(source.read_text()).media_refs
+        for reference in served.media_refs
     )
     registry = json.loads((page / "registry.json").read_text())
     assert "nav.sitenav" in registry
@@ -122,6 +124,9 @@ def test_product_previews_prepare_the_authored_layer_and_media(
     ).read_text()
     watched = preview.watch_paths(source, ROOT, [], {})
     assert str(ROOT / "docs" / "layer.json") in watched.paths
+    # A composed part's owner is an input: a caption follows its example's edit.
+    if name == "examples":
+        assert str(ROOT / "examples" / "review-a-plan.html") in watched.paths
 
 
 @pytest.mark.parametrize("kind", ["image", "css", "inline", "stylesheet", "sample"])
@@ -893,3 +898,57 @@ def test_service_publication_failure_keeps_previous_preview_claim(
     finally:
         monkeypatch.undo()
         hosting.cmd_stop(page_dir)
+
+
+@pytest.mark.parametrize("beside_runtime", [False, True])
+def test_fixture_captures_use_the_selected_runtime_producer(
+    tmp_path, monkeypatch, beside_runtime
+):
+    """A producer belongs to the consuming arm, wherever the authored source lives."""
+    runtime = tmp_path / "runtime"
+    arms.extract_payload(runtime)
+    producer = runtime / "skills/leaf/packages/diff/scripts/patch_manifest.py"
+    producer.write_text(
+        "# /// script\n# dependencies = []\n# ///\n"
+        "import json, sys\n"
+        f"assert sys.prefix != {sys.prefix!r}, 'producer used authoring environment'\n"
+        "json.dump({'producer': 'selected arm', 'patch': sys.stdin.read()}, sys.stdout)\n"
+    )
+    host_state = tmp_path / "host-state"
+    foreign = tmp_path / "host-diff"
+    shutil.copytree(runtime / "skills/leaf/packages/diff", foreign)
+    (foreign / "scripts/patch_manifest.py").write_text(
+        "raise RuntimeError('host producer')"
+    )
+    override = host_state / "leaf/packages/names/diff"
+    override.parent.mkdir(parents=True)
+    override.symlink_to(foreign, target_is_directory=True)
+    monkeypatch.setenv("XDG_STATE_HOME", str(host_state))
+    consumer_env = arms.environment(XDG_STATE_HOME=str(tmp_path / "arm-state"))
+    sources = runtime / "examples" if beside_runtime else tmp_path / "shared-inputs"
+    sources.mkdir(parents=True)
+    source = sources / "comparison.html"
+    source.write_text("<!doctype html><title>Comparison</title>")
+    (sources / "layer.json").write_text('["diff"]')
+    patch = (
+        "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n@@ -1 +1 @@\n-old\n+new\n"
+    )
+    (sources / "change.patch").write_text(patch)
+    (sources / "notes.txt").write_text("first\nsecond\n")
+    source.with_suffix(".data.json").write_text(
+        json.dumps(
+            {
+                "$captures": {
+                    "patch": {"file": "change.patch", "format": "unified-diff"},
+                    "notes": {"file": "notes.txt", "lines": "2:2"},
+                },
+                "written": "Authored value",
+            }
+        )
+    )
+    fixture = read_fixture(source, runtime=runtime, env=consumer_env)
+    assert fixture.data == (
+        {"source": "patch", "value": {"producer": "selected arm", "patch": patch}},
+        {"source": "notes", "value": "second\n"},
+        {"source": "written", "value": "Authored value"},
+    )

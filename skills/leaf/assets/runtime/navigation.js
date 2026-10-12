@@ -338,7 +338,7 @@ export function createNavigation({
   threadDestinations,
 }) {
   const currentItem = () => {
-    const at = bannerStanding()?.focus ?? focused();
+    const at = bannerStanding()?.focus?.deref() ?? focused();
     // More's retained node is the same browser standing, read without moving focus
     // merely to paint whether its control is available.
     const question = heldQuestion(at);
@@ -369,6 +369,7 @@ export function createNavigation({
     description:
       "Align the current reading item at the top, keeping focus and selection",
     touch: "Align current item at top",
+    menu: "navigate",
     retainStanding: true,
     covering: true,
     when: () => Boolean(currentItem()),

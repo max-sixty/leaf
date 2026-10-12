@@ -64,7 +64,7 @@ export type LocalEdit = Extract<Command, { kind: "edit" }> & {
   pending: true;
 };
 /** A user's edit as a thread holds it, with the words it replaced. */
-export type Revision = (EventMap["edit"] | LocalEdit) & { was: string };
+type Revision = (EventMap["edit"] | LocalEdit) & { was: string };
 /** What the ledger hands `foldThreads`: each message or rewrite as the thread draws it,
  * each settlement, and each undo. */
 export type ThreadGesture =

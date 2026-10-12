@@ -77,8 +77,6 @@ class ThreadNarrowingView extends HTMLElement {
   }
 
   present(model) {
-    if (!Object.isFrozen(model))
-      throw new Error("Thread narrowing presentation models must be immutable");
     this.#model = model;
     render(this.#template(), this);
     this.#reserveCounts();

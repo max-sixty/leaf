@@ -2788,30 +2788,50 @@ def test_a_revision_inside_one_tab_keeps_the_tab_set_and_every_other_tab(
     expect(page.locator("#tp-notes")).to_be_visible()
 
 
-def test_a_revision_releases_the_served_markup_it_removes(browser, serve):
+@pytest.mark.parametrize("departure", ["focused", "link", "selection"])
+def test_a_revision_releases_the_served_markup_it_removes(browser, serve, departure):
     """Markup the page was served with leaves memory once a revision removes it. The
     served baseline's source copy routes each copied node to the live node it came
     from, so holding that copy past the revision that replaced it kept every served
     node alive for the rest of the session. A host painted before modules run is
-    included, since the first-paint coordinator copies it separately. So is a link the
-    reader focused in that section. Focus falls to the body as the revision removes
-    it, and the page keeps it as where the user stood until they act again; their
-    reading place, which names it while focus holds it, outlives the revision until
-    they next scroll, so it holds the node no longer than the document does."""
+    included, since the first-paint coordinator copies it separately. Neither the
+    dropped focus, before another input, nor a fragment trip's history checkpoint
+    may keep removed markup alive."""
     first = leaf_page(
         "Served",
         '<h1>Served</h1><section id="served"><h2>Served section</h2>'
         '<lf-activity id="served-feed"></lf-activity><p>Served words, and'
-        ' <a id="served-link" href="#nowhere">a link in them</a>.</p></section>',
+        ' <a id="served-link" href="#destination">a link in them</a>.</p>'
+        '<p id="served-selection">A passage with a saved caret.</p></section>'
+        '<div style="height:1600px"></div>'
+        '<h2 id="destination">Destination</h2>'
+        '<lf-ask id="question"><h2>A decision?</h2>'
+        '<lf-options id="answer" choose><lf-option id="yes">Yes</lf-option>'
+        "</lf-options></lf-ask>",
     )
     second = leaf_page("Revised", "<h1>Revised</h1><p>Revised words.</p>")
     page = open_page(browser, live_url(serve(first)))
     page.locator("#served-link").focus()
     page.keyboard.press("Shift")
+    entries = page.evaluate("history.length")
+    if departure == "link":
+        page.locator("#served-link").click()
+        expect(page.locator("#destination")).to_be_focused()
+    elif departure == "selection":
+        page.locator("#served-selection").click()
+        assert (
+            page.evaluate("getSelection().anchorNode.parentElement.id")
+            == "served-selection"
+        )
+        page.keyboard.press("q")
+        expect(page.locator("#question")).to_be_focused()
+    if departure != "focused":
+        assert page.evaluate("history.length") == entries + 1
+        scroll_settled(page)
     rendered(page)
     page.evaluate(
         """() => {
-          window.__held = ['served', 'served-feed'].map(
+          window.__held = ['served', 'served-feed', 'served-link', 'served-selection'].map(
             (id) => new WeakRef(document.getElementById(id)));
           // The control: a removed node nothing else holds, so a collection that
           // clears it has run.
@@ -2823,7 +2843,6 @@ def test_a_revision_releases_the_served_markup_it_removes(browser, serve):
     )
     stamp_page(serve.page_dir, second, "remove the served section")
     wait_for_revision(page, 2)
-    page.keyboard.press("Shift")
     rendered(page)
     cdp = page.context.new_cdp_session(page)
     try:

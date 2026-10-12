@@ -69,7 +69,7 @@ def run_session(
 ) -> None:
     """Drive delivery timing through the same feedback loop as larger examples."""
     run.mkdir(parents=True, exist_ok=True)
-    with scratch() as work:
+    with scratch(arm, state=run / "state") as work:
         (run / "work-dir").write_text(f"{work}\n")
         page, state = work / "page", run / "state"
         prepare(arm, state, page)

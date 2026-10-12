@@ -204,6 +204,72 @@
     },
   };
 
+  // Which chrome the user reads the page with: the banner and bottom bar (`classic`,
+  // the default) or the floating panel (`floating`, floating-panel.js), with how much
+  // the panel shows (`minimal` or `moderate`) and its form at rest (`row`, the comment
+  // field and its counts, or `mark`, the leaf alone). One preference for every page on
+  // the origin, read here because the classic bars' room is reserved before the
+  // first paint (theme.css). `?lf-chrome=floating` or `?lf-chrome=classic` sets it. A
+  // sample child takes its parent's choice, or its element's, in its settings
+  // (sample.js), since its store is its own.
+  const chromeKeys = {
+    mode: "lf-chrome",
+    display: "lf-chrome-display",
+    rest: "lf-chrome-rest",
+  };
+  const chromeValues = {
+    mode: ["classic", "floating"],
+    display: ["minimal", "moderate"],
+    rest: ["row", "mark"],
+  };
+  const chrome = {};
+  const paintChrome = () => {
+    const floating = chrome.mode === "floating";
+    const write = (name, value) => {
+      if (root.getAttribute(name) !== value)
+        if (value === null) root.removeAttribute(name);
+        else root.setAttribute(name, value);
+    };
+    write("data-lf-floating-chrome", floating ? "" : null);
+    write("data-lf-chrome-display", floating ? chrome.display : null);
+    write("data-lf-chrome-rest", floating ? chrome.rest : null);
+  };
+  for (const [name, key] of Object.entries(chromeKeys)) {
+    const value = userStore.get(key);
+    chrome[name] = chromeValues[name].includes(value) ? value : chromeValues[name][0];
+  }
+  // The bootstrap takes the parameter out of the address with its other marks.
+  const askedMode = new URL(location.href).searchParams.get("lf-chrome");
+  if (chromeValues.mode.includes(askedMode)) {
+    chrome.mode = askedMode;
+    userStore.set(chromeKeys.mode, askedMode);
+  }
+  paintChrome();
+  root.lfChrome = {
+    get mode() {
+      return chrome.mode;
+    },
+    get display() {
+      return chrome.display;
+    },
+    get rest() {
+      return chrome.rest;
+    },
+    // A sample's settings choose for it alone, so nothing is stored.
+    adopt(mode) {
+      if (!chromeValues.mode.includes(mode) || chrome.mode === mode) return;
+      chrome.mode = mode;
+      paintChrome();
+    },
+    set(name, value) {
+      if (!chromeValues[name]?.includes(value) || chrome[name] === value) return;
+      chrome[name] = value;
+      userStore.set(chromeKeys[name], value);
+      paintChrome();
+      document.dispatchEvent(new CustomEvent("lf-chrome-preference"));
+    },
+  };
+
   // A package's synchronous producer draws real instance markup before modules can
   // run. Delivery calls paint just after the parser closes each declared host; the
   // module calls it again to adopt those exact nodes, or to draw a later arrival.

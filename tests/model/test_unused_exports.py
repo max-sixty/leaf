@@ -12,19 +12,21 @@ A default export has no name of its own: its readers import the module, or a too
 loads it by path, as eslint loads `eslint.config.mjs` and Pi loads `hooks/pi.ts`.
 So it counts as read where another file names the module's file name.
 
-A name counts as read where another tracked file names it as a word: in code,
-in a Python string, in a page, or in a contract's prose. A JavaScript comment or a
-stylesheet reads nothing, since a module's comment about another's helper keeps
-no caller alive, except for a JSDoc type import (`import("…").Name`). A name that
-collides with another word can still hide an unused export. The comment reading is
-textual, so a `/*` inside a string can only make the check report a used export,
-never pass an unused one.
+What a module exports is read from its parse (`tests/js_facts.mjs`, `exports`), a
+TypeScript module's types and interfaces included. A name counts as read where another
+tracked file names it as a word: in code, in a Python string, in a page, or in a
+contract's prose. A JavaScript comment or a stylesheet reads nothing, since a module's
+comment about another's helper keeps no caller alive, except for a JSDoc type import
+(`import("…").Name`). A name that collides with another word can still hide an unused
+export. The comment reading is textual, so a `/*` inside a string can only make the
+check report a used export, never pass an unused one.
 """
 
+import json
 import re
 from pathlib import PurePosixPath
 
-from interact_support import PLUGIN_ROOT, shipped_payload
+from interact_support import PLUGIN_ROOT, js_facts, shipped_payload
 
 SOURCES = (".js", ".mjs", ".ts")
 # Not `//` after a colon, quote or backtick, which is a URL or a string.
@@ -37,29 +39,8 @@ VENDORED = re.compile(r"(^|/)vendor/")
 # it stands in for, which the bundled dependency reads and this tree never names
 # (`build/AGENTS.md`). Its own imports are still readers.
 STAND_INS = re.compile(r"^build/(?!browser/)[^/]+/")
-DECLARED = re.compile(
-    r"^export\s+(?:async\s+)?(?:function\*?|const|let|var|class|type|interface|enum)"
-    r"\s+([A-Za-z_$][\w$]*)",
-    re.MULTILINE,
-)
-LISTED = re.compile(r"^export\s+(?:type\s+)?\{([^}]*)\}", re.MULTILINE)
-# `export default …`, `export { x as default }` and `export { default } from …`, but not
-# `export { default as x } from …`, which is a named export.
-DEFAULT = re.compile(
-    r"^export\s+default\b|^export\s*\{[^}]*\b(?:as\s+default\b|default\s*[,}])",
-    re.MULTILINE,
-)
 # An escape is consumed whole, so `"\ndefine(…)"` in a Python string reads `define`.
 WORD = re.compile(r"\\[a-z]|([A-Za-z_$][\w$]*)")
-
-
-def exported_names(text):
-    names = set(DECLARED.findall(text))
-    for listed in LISTED.findall(text):
-        for item in listed.split(","):
-            if name := item.split(" as ")[-1].strip():
-                names.add(name)
-    return names - {"default"}
 
 
 def reading(relative, text):
@@ -81,14 +62,19 @@ def test_every_export_has_a_reader_in_another_file():
             texts[relative] = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
             continue
+    modules = [
+        relative
+        for relative in texts
+        if relative.endswith(SOURCES) and not STAND_INS.match(relative)
+    ]
+    parsed = json.loads(js_facts("exports", modules))
     exporters = {}
     defaults = []
-    for relative, text in texts.items():
-        if relative.endswith(SOURCES) and not STAND_INS.match(relative):
-            for name in exported_names(text):
-                exporters.setdefault(name, set()).add(relative)
-            if DEFAULT.search(text):
-                defaults.append(relative)
+    for relative in modules:
+        for name in parsed[relative]["names"]:
+            exporters.setdefault(name, set()).add(relative)
+        if parsed[relative]["default"]:
+            defaults.append(relative)
     assert exporters, "no exports read — an empty set guards nothing"
 
     readings = {relative: reading(relative, text) for relative, text in texts.items()}

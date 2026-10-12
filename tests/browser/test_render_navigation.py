@@ -8578,6 +8578,31 @@ def test_a_native_modal_escapes_inherited_inertness_for_its_commands(browser, se
     dialog.evaluate("dialog => dialog.close()")
 
 
+def test_a_dialog_shown_as_a_popover_stands_as_a_popover(browser, serve):
+    """A dialog opened with `showPopover` is a popover layer, and the page behind it stays live.
+
+    Chromium reports it `:popover-open` and not `:modal`. Read as modal, it would make the
+    dispatcher drop the page's key scopes behind it."""
+    page = open_page(browser, serve(LONG_PAGE))
+    kinds = page.evaluate("""() => {
+      const layers = document[Symbol.for('leaf.nativeLayers')];
+      const asPopover = document.createElement('dialog');
+      asPopover.popover = 'manual';
+      asPopover.textContent = 'A dialog shown as a popover';
+      const asModal = document.createElement('dialog');
+      asModal.textContent = 'A dialog shown modally';
+      document.querySelector('main').append(asPopover, asModal);
+      asPopover.showPopover();
+      const popover = layers().map((layer) => layer.kind);
+      asPopover.hidePopover();
+      asModal.showModal();
+      const modal = layers().map((layer) => layer.kind);
+      asModal.close();
+      return {popover, modal};
+    }""")
+    assert kinds == {"popover": ["popover"], "modal": ["modal"]}
+
+
 def test_the_key_line_says_what_a_press_will_do(browser, serve):
     """The shortcut bar and dispatcher read one return frame for each keyboard entry."""
     url = serve(NOTED_PAGE)
@@ -10625,6 +10650,9 @@ def test_an_ask_under_the_open_panel_is_shown_beside_it_or_by_clearing_it(
     evidence = (
         "<figure><p>The hedge shelters the feeders.</p></figure>" if side_track else ""
     )
+    options_style = (
+        "<style>#spot { width: 40%; margin-left: 60%; }</style>" if side_track else ""
+    )
     url = serve(
         leaf_page(
             "Under the panel",
@@ -10639,6 +10667,7 @@ def test_an_ask_under_the_open_panel_is_shown_beside_it_or_by_clearing_it(
 </lf-options></lf-ask>
 <section id="below">{filler}</section>
 """,
+            head=options_style,
         )
     )
     append_carried_log_record(

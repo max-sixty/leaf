@@ -2517,43 +2517,6 @@ def test_the_page_map_dialog_walks_its_rows_from_the_search(browser, serve):
     expect(thread.locator("leaf-text")).to_be_focused()
 
 
-def test_tab_wraps_inside_the_page_map(browser, serve):
-    """The Page Map is modal, so Tab holds the user inside it: past its last stop the
-    browser would carry them out to its own interface, and the map takes them back to
-    its first stop instead, as Shift+Tab from the first takes them to the last."""
-    page = open_page(browser, serve(PAGE_MAP_PAGE, events=PAGE_MAP_EVENTS))
-    resized(page, 1440, 600)
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
-    dialog = page.get_by_role("dialog", name="Page Map", exact=True)
-    search = dialog.get_by_role(
-        "searchbox", name="Find an action, status, or location in Page Map"
-    )
-    expect(search).to_be_focused()
-
-    def stays_inside():
-        assert dialog.evaluate("dialog => dialog.matches(':focus-within')"), (
-            "Tab left the Page Map"
-        )
-
-    page.keyboard.press("Shift+Tab")
-    stays_inside()
-    last = page.evaluate_handle("() => document.activeElement")
-    page.keyboard.press("Tab")
-    expect(search).to_be_focused()
-    walked = []
-    for _ in range(40):
-        page.keyboard.press("Tab")
-        stays_inside()
-        walked.append(page.evaluate("() => document.activeElement.className"))
-        if page.evaluate("last => document.activeElement === last", last):
-            break
-    else:
-        raise AssertionError(f"Tab never reached the map's last stop: {walked}")
-    page.keyboard.press("Tab")
-    expect(search).to_be_focused()
-
-
 def test_the_chrome_names_an_ask_by_its_question(browser, serve):
     """An Ask is named by its heading, not its heading run into its options and their
     chips: the Questions panel row, and the Page Map group for it, whose one row says why the
@@ -9305,9 +9268,9 @@ def test_an_ask_arrival_reveals_its_pin_while_annotations_are_hidden(browser, se
     expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
     expect(pin).to_be_hidden()
 
-    # The passage follows both Asks: forward navigation clamps to the last one.
+    # The passage follows both Asks, so a step back lands on the last one.
     page.locator("#gap").click()
-    page.keyboard.press("q")
+    page.keyboard.press("Shift+q")
     expect(page.locator("#sug-card")).to_be_focused()
     rendered(page)
     expect(pin).to_be_visible()

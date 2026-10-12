@@ -1111,7 +1111,9 @@ def test_no_focus_mark_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered
     page.keyboard.press("Shift+t")
     expect(page.locator(OPEN_TITLE)).to_be_focused()
     walked, faults = 0, []
-    for key in ("t",) * threads + ("Shift+t",) * threads:
+    # From the first title to the last and back, short of the press that would come
+    # round an end.
+    for key in ("t",) * (threads - 1) + ("Shift+t",) * (threads - 1):
         page.keyboard.press(key)
         rendered(page)
         walked += 1

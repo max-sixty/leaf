@@ -37,6 +37,7 @@ from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
 from leaf.schema import ELEMENT_ID
+from leaf.structure import SourceDocument
 from leaf_dev import preview as preview_model
 from playwright.sync_api import expect
 from render_harness import (
@@ -1207,7 +1208,7 @@ def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
     )
     page.goto(out.as_uri(), wait_until="load")
     source = (ROOT / "examples" / "pr-walkthrough.html").read_text(encoding="utf-8")
-    title = re.search(r"<h1>(.*?)</h1>", source, re.DOTALL).group(1).strip()
+    title = " ".join(SourceDocument(source).tree.select_one("h1").text.split())
     expect(page.get_by_role("heading", name=title)).to_be_visible()
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     assert page.evaluate("document.compatMode") == "CSS1Compat"

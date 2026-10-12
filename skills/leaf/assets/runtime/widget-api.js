@@ -70,6 +70,8 @@ export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
 // Making an element's children a list, moving only what is out of place.
 export { setChildLists, setChildren, setRenderedChildren } from "./dom-children.js";
 export { readQuestions, watchQuestions } from "./questions/model.js";
+// The asks a region of the page holds, by the rule every count and walk of them reads.
+export { asksIn } from "./questions/place.js";
 export { comparisonChanges, watchComparison } from "./version.js";
 export { questionWords } from "./questions/answer.js";
 export {
@@ -143,8 +145,9 @@ export {
   renderMarkdown,
 } from "./markdown.js";
 export { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
-// Where two images differ, gathered into regions (image-difference.js).
+// Where two images differ, gathered into regions or as pixels (image-difference.js).
 export {
+  compareImagePixels,
   compareImages,
   countAreas,
   describeDifference,

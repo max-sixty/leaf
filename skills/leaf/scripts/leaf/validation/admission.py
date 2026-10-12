@@ -74,7 +74,7 @@ def thread_obligation(events: list, responses: dict, message: str) -> dict | Non
     )
 
 
-def logged_id(events: list, value: str, responses: dict) -> str | None:
+def logged_id(page_dir: Path, events: list, value: str, responses: dict) -> str | None:
     """Say what the page's log holds a bare id as, and which writer takes it now.
 
     The CLI names several kinds of id with bare strings — an element id anchors a
@@ -119,11 +119,11 @@ def logged_id(events: list, value: str, responses: dict) -> str | None:
             )
         return (
             f"{held}, and its thread is owed a reply — "
-            f"{answer_command(owed)} answers it"
+            f"{answer_command(owed, page_dir)} answers it"
         )
     if owed is None:
         return f"{held}, and nothing is owed for it"
-    return f"{held} — {answer_command(owed)} answers it"
+    return f"{held} — {answer_command(owed, page_dir)} answers it"
 
 
 def version_ids(page_dir: Path) -> set:

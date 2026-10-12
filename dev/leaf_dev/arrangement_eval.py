@@ -10,10 +10,12 @@ Each phase records what the author spent and wrote: its trace's time and tokens,
 the CSS and script lines in the files it authored, and how many times it wrote and
 rendered the page, the measure of its repair iterations.
 
-The sample's output is what a judge needs: the user's request and each version's
-screenshots by width, written to `shots`, the one directory its judge may read.
-`rubrics` are the Promptfoo `agent-rubric` assertions the judge grades from it by
-opening the screenshots; the fixed checks cover execution and the render gate.
+The sample's output is what a judge needs: the user's request, the author's answer to
+the comment, and each version's screenshots by width, written to `shots`, the one
+directory its judge may read. `rubrics` are the Promptfoo `agent-rubric` assertions
+the judge grades from it, opening the screenshots and reading the answer; the fixed
+checks cover execution, the render gate and whether the comment's fact reached the
+page.
 For a task that asks for a decision, Leaf also seeds a choice after the common
 comparison, asks a fresh reader for its current state, and checks that a separate
 resumed revision preserves that choice. Readable records have no invented decision.
@@ -24,11 +26,12 @@ import re
 import shutil
 import tempfile
 from dataclasses import dataclass
-from html import unescape
 from pathlib import Path
 
+import turbohtml
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
+from leaf.passages import SourceReading
 from leaf.render_checks import rendered
 from leaf.structure import SourceDocument
 from leaf.thread import successful_replies
@@ -348,6 +351,15 @@ def author(run: Run, cwd: Path) -> None:
         snapshot(page, run.directory / "page-continuation")
 
 
+# The reader's answer, which the harness's structured output holds to this shape.
+SELECTED_OPTIONS = {
+    "type": "object",
+    "properties": {"options": {"type": "array", "items": {"type": "string"}}},
+    "required": ["options"],
+    "additionalProperties": False,
+}
+
+
 def seed_and_read_choice(run: Run) -> None:
     """Admit a real user choice, then read it without the author's conversation."""
     page = run.authored_page
@@ -392,12 +404,14 @@ def seed_and_read_choice(run: Run) -> None:
                 f"Read the Leaf skill at {run.payload}/skills/leaf/SKILL.md. "
                 f"The page at {page} has been reviewed by a user. Read its current "
                 f"state: which option ids are selected in {widget}? Don't edit "
-                'the page or serve it. Reply only with JSON: {"options":["id"]}.'
+                "the page or serve it."
             )
             (destination / "prompt.txt").write_text(prompt)
             trace = run_agent(
                 work,
                 prompt,
+                "--json-schema",
+                json.dumps(SELECTED_OPTIONS),
                 out=destination / "stream.jsonl",
                 err=destination / "err.txt",
                 dirs=[run.payload, page],
@@ -407,18 +421,13 @@ def seed_and_read_choice(run: Run) -> None:
                 },
                 harness=run.harness,
             )
-        raw = result(trace).get("result", "")
-        match = re.search(r"\{.*\}", raw, re.DOTALL)
-        try:
-            answer = json.loads(match[0]) if match else None
-        except json.JSONDecodeError:
-            answer = None
+        answer = result(trace).get("structured_output")
         record |= {
             "completed": completed(trace),
             "page_unchanged": source_before == (page / "index.html").read_bytes()
             and events_before == (page / "events.jsonl").read_bytes(),
             "answer": answer,
-            "correct": isinstance(answer, dict) and answer.get("options") == [chosen],
+            "correct": answer == {"options": [chosen]},
             "trace": trace_summary(trace),
         }
     (run.directory / "choice.json").write_text(json.dumps(record, indent=2))
@@ -508,15 +517,14 @@ def authored_lines(page: Path, condition: str) -> dict[str, int]:
         elif file.suffix in (".js", ".mjs"):
             counts["script_lines"] += lines(file.read_text())
         elif file.suffix == ".html":
-            html = file.read_text()
-            for tag, key in (("style", "css_lines"), ("script", "script_lines")):
-                counts[key] += sum(
-                    lines(body)
-                    for body in re.findall(
-                        rf"<{tag}\b[^>]*>(.*?)</{tag}>", html, re.DOTALL | re.IGNORECASE
-                    )
-                )
-            counts["style_attributes"] += len(re.findall(r"\sstyle=", html))
+            # The parsed tree, template contents included, so a live sample's code
+            # counts as the author's too.
+            tree = turbohtml.parse(file.read_text())
+            counts["css_lines"] += sum(lines(e.text) for e in tree.select("style"))
+            counts["script_lines"] += sum(
+                lines(e.text) for e in tree.select("script:not([src])")
+            )
+            counts["style_attributes"] += len(tree.select("[style]"))
     return counts
 
 
@@ -549,9 +557,12 @@ def tool_work(trace: list[dict], page: Path) -> dict[str, int]:
 
 
 def comment_applied(run: Run, page: Path) -> bool:
-    """Whether the authored files carry the fact only the comment supplied."""
+    """Whether the authored files carry the fact only the comment supplied: what an
+    HTML file says (`SourceReading`), any other file whole."""
     text = " ".join(
-        unescape(re.sub(r"<[^>]+>", " ", f.read_text()))
+        SourceReading(SourceDocument(f.read_text()), {}).passages.text
+        if f.suffix == ".html"
+        else f.read_text()
         for f in authored_files(page, run.condition)
     )
     return (
@@ -560,20 +571,21 @@ def comment_applied(run: Run, page: Path) -> bool:
     )
 
 
-def comment_answered(run: Run, reply: str) -> bool:
-    """Whether the answer tells the user the comment's fact is in: on the comment's
-    thread in Leaf, in the chat where it was asked in HTML."""
-    if run.condition == "leaf":
-        comment = posted_comment(run.authored_page)
-        answers = (
-            successful_replies(read_events(run.authored_page), comment["id"])
-            if comment
-            else []
-        )
-        reply = " ".join(
-            f"{answer.get('title', '')} {answer['text']}" for answer in answers
-        )
-    return re.search(CASES[run.subject].comment.applied, reply) is not None
+def comment_answer(run: Run, reply: str) -> str:
+    """What the author told the user about their comment, where it was asked: its
+    replies on the comment's thread in Leaf, its chat reply in HTML. The judge reads
+    it (`rubrics`, "comment-answered")."""
+    if run.condition == "html":
+        return reply
+    comment = posted_comment(run.authored_page)
+    answers = (
+        successful_replies(read_events(run.authored_page), comment["id"])
+        if comment
+        else []
+    )
+    return "\n\n".join(
+        f"{answer.get('title', '')}\n{answer['text']}".strip() for answer in answers
+    )
 
 
 def listing(captures: dict[str, list[str]]) -> list[str]:
@@ -585,9 +597,11 @@ def listing(captures: dict[str, list[str]]) -> list[str]:
     return lines
 
 
-def brief(subject: str, captures: dict[int, dict[str, list[str]]]) -> str:
-    """What the judge reads: the request, the later preference and comment, each
-    version's screenshots."""
+def brief(
+    subject: str, captures: dict[int, dict[str, list[str]]], answer: str = ""
+) -> str:
+    """What the judge reads: the request, the later preference and comment, the
+    author's `answer` to the comment, and each version's screenshots."""
     lines = [
         f"<request>\n{(TASKS / subject / 'request.md').read_text()}</request>",
         "",
@@ -597,6 +611,9 @@ def brief(subject: str, captures: dict[int, dict[str, list[str]]]) -> str:
         lines += [
             "",
             f'After version 2, the user commented: "On {comment.target}: {comment.text}"',
+            "",
+            "The author answered the comment:",
+            f"<answer>\n{answer or '(no answer)'}\n</answer>",
         ]
     for phase in phases(subject):
         lines += ["", f"Version {phase} screenshots:", *listing(captures[phase])]
@@ -637,6 +654,19 @@ def rubrics(scenario: str) -> list[dict]:
             + "Pass only if version 2 follows the standing width preference the "
             "output quotes.",
         },
+        *(
+            [
+                {
+                    "type": "agent-rubric",
+                    "metric": "comment-answered",
+                    "value": "Pass only if the author's answer to the user's comment, "
+                    "which the output quotes, tells the user that the change the "
+                    "comment asked for is made.",
+                }
+            ]
+            if CASES[scenario].comment
+            else []
+        ),
     ]
 
 
@@ -651,7 +681,7 @@ def expected_checks(case: str, *, condition="leaf") -> list[str]:
             for phase in phases(case)
             for check in ("completed", "page", "render", "captures")
         ),
-        *(["comment-applied", "comment-answered"] if CASES[case].comment else []),
+        *(["comment-applied"] if CASES[case].comment else []),
         *(
             [
                 "choice-seeded",
@@ -748,6 +778,7 @@ def execute_scenario(
                 reader_trace = choice["trace"]
                 costs.append(reader_trace["cost_usd"])
         captures = capture(run)
+        answer = ""
         for phase in phases(case):
             trace = session[str(phase)]
             checks[f"phase-{phase}-completed"] = trace["completed"]
@@ -771,7 +802,7 @@ def execute_scenario(
                 }
                 if phase == 3:
                     checks["comment-applied"] = comment_applied(run, page)
-                    checks["comment-answered"] = comment_answered(run, trace["reply"])
+                    answer = comment_answer(run, trace["reply"])
             diagnostics["phases"][phase] = row
         if run.condition == "leaf" and CASES[case].comment:
             comment = posted_comment(run.authored_page)
@@ -780,7 +811,7 @@ def execute_scenario(
         checks[f"phase-{phase}-completed"] for phase in phases(case)
     )
     return {
-        "output": brief(case, captures),
+        "output": brief(case, captures, answer),
         "metadata": {"checks": checks, "diagnostics": diagnostics},
         **({"cost": cost} if (cost := observed_sum(costs)) is not None else {}),
     }

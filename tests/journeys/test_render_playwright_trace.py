@@ -405,7 +405,8 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
         )
     ).not_to_have_attribute("data-lf-datum", captured)
     expect(posted).to_have_count(0)
-    user.keyboard.press("t")
+    # The drawing is the last thread before the timeline the user stands on.
+    user.keyboard.press("Shift+t")
     expect(widget.locator(f'[data-lf-datum="{captured}"]')).to_be_visible()
     expect(posted).to_have_count(1)
     user.keyboard.press("Escape")

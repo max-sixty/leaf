@@ -63,10 +63,12 @@
 import { afterScript, nextRender } from "./rendering.js";
 import { keeps } from "./keeps.js";
 import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
-import { renderedParent, upFrom } from "./shadow-tree.js";
+import { renderedParent } from "./shadow-tree.js";
 
-// The elements under `node` in the tree as rendered, in order: a host's shadow tree in
-// place of its children, and a slot's assigned elements, or its fallback, in its place.
+// The elements under `node` in the tree as rendered: a host's shadow tree in place of
+// its children, and a slot's assigned elements, or its fallback, in its place. A host
+// its author took out of the order (a negative `tabindex`) takes its whole tree out
+// with it, so Tab skips what it renders.
 function* renderedElements(node) {
   const children =
     node.localName === "slot"
@@ -74,67 +76,26 @@ function* renderedElements(node) {
       : (node.shadowRoot ?? node).children;
   for (const child of children) {
     yield child;
+    if (child.shadowRoot && parseInt(child.getAttribute("tabindex")) < 0) continue;
     yield* renderedElements(child);
   }
 }
 const SEQUENTIAL = `${TAB_STOP}, iframe, audio[controls], video[controls]`;
-// The radios that share `node`'s group, `node` included, in document order.
-const radioGroup = (node) =>
-  [...node.getRootNode().querySelectorAll("input[type=radio]")].filter(
-    (radio) => radio.name === node.name && radio.form === node.form,
-  );
-const groupedRadio = (node) => node.type === "radio" && Boolean(node.name);
-// Whether a control can take a sequential stop: in the order, enabled, and drawn. A host
-// that delegates its focus is no stop of its own, since Tab enters its tree, and a box
-// `visibility: hidden` keeps its place but no stop.
-const takesStop = (node) =>
-  node.tabIndex >= 0 &&
-  !node.shadowRoot?.delegatesFocus &&
-  !node.matches(":disabled") &&
-  !node.inert &&
-  node.checkVisibility({ visibilityProperty: true });
-// A radio group is one stop, whichever way Tab moves: its checked member where that
-// member takes a stop, and otherwise its first member that does. Tab passes over the
-// rest, as Chromium does. Only members inside `root` count, since a modal makes the
-// rest of the page inert though their own `inert` stays false.
-function passedRadio(node, root) {
-  if (!groupedRadio(node)) return false;
-  const group = radioGroup(node).filter(
-    (radio) => takesStop(radio) && within(root, radio),
-  );
-  return (group.find((radio) => radio.checked) ?? group[0]) !== node;
-}
-const isStop = (node, root) =>
-  node.matches(SEQUENTIAL) && takesStop(node) && !passedRadio(node, root);
-// The stops Tab walks inside `root` right now, in the order it walks them: the candidates
-// above, and the embedded documents and players Tab also enters, that take a stop,
-// through open shadow trees as rendered. Positive `tabindex` ordering is not modelled.
-// The modal Tab loop reads this (layer-stack.js).
+// The controls inside `root` that take a Tab stop right now, through open shadow trees as
+// rendered: the candidates above and the embedded documents and players Tab enters, in
+// the order, enabled, and drawn. A host that delegates its focus is no stop of its own,
+// since Tab enters its tree. Which of them Tab visits, and in what order, is the
+// browser's; nothing here predicts its walk.
 export const tabStops = (root) =>
-  [...renderedElements(root)].filter((node) => isStop(node, root));
-// Where the user at `node` stands among the stops inside `root`, or null where `node`
-// is not inside it: `at` is the stop holding them, the innermost, so a control in a
-// component's shadow tree stands at the stop its host declares, or, where no stop
-// holds them, the number of stops before them, so Tab goes on from their place.
-export function tabStanding(root, node) {
-  const stops = [];
-  let before = -1;
-  for (const element of renderedElements(root)) {
-    if (element === node) before = stops.length;
-    if (isStop(element, root)) stops.push(element);
-  }
-  if (before < 0) return null;
-  for (let at = node; at && at !== root; at = upFrom(at)) {
-    const held = stops.indexOf(at);
-    if (held >= 0) return { stops, at: held, held: true };
-  }
-  return { stops, at: before, held: false };
-}
-// The stop Tab moves to from that standing, or null where it leaves the stops.
-export function nextStop({ stops, at, held }, backward) {
-  const next = backward ? at - 1 : held ? at + 1 : at;
-  return stops[next] ?? null;
-}
+  [...renderedElements(root)].filter(
+    (node) =>
+      node.matches(SEQUENTIAL) &&
+      node.tabIndex >= 0 &&
+      !node.shadowRoot?.delegatesFocus &&
+      !node.matches(":disabled") &&
+      !node.inert &&
+      node.checkVisibility({ visibilityProperty: true }),
+  );
 
 // Put the user on an element, saying what moved them there. Every focus the runtime and
 // the packages place goes through here (the lint `architecture/placements` refuses a
@@ -145,7 +106,7 @@ export function nextStop({ stops, at, held }, backward) {
 // to. The cause is one of:
 //
 // - `move`: a route taking the user somewhere, whether a key or a press began it;
-// - `step`: standing in for Tab or Shift+Tab, as a modal's own Tab loop does;
+// - `step`: standing in for Tab or Shift+Tab;
 // - `return`: putting the user back where they came from or handing them across, a
 //   closing layer's hand-back, a re-render carrying them to the node that replaced the
 //   one they stood on, a chrome placement moving the box they stand in;
@@ -450,7 +411,7 @@ let stood = null;
 //   for what it lands on; or a placement landing on a control to press it on the user's
 //   behalf (`focusDestination`), which asks the same;
 // - `step`: sequential navigation, Tab or Shift+Tab, whether the browser moves them or
-//   a placement stands in for it, as a modal's Tab loop does;
+//   a placement stands in for it;
 // - `move`: a placement taking them somewhere, or anything else, whether a key or a
 //   press began it (`pressLed` says which);
 // - `drop`: a change hid or removed the node they stood on, and focus fell to the body,

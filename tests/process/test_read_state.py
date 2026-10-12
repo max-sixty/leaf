@@ -2,7 +2,7 @@
 
 import json
 
-from interact_support import fetch, published, record_claim, state_json
+from interact_support import fetch, published, record_claim, served_thread, state_json
 from leaf import event_endpoint as endpoint_model
 from leaf import event_log as event_log_model
 from leaf import harness as harness_model
@@ -27,7 +27,7 @@ def _unread(state, root):
     """One thread's unread reading, as the browser receives it."""
     return next(
         thread["unread"]
-        for thread in state["browser"]["thread"]["threads"]
+        for thread in served_thread(state["browser"])["threads"]
         if thread["id"] == root
     )
 

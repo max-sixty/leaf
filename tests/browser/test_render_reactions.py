@@ -857,7 +857,7 @@ def test_comment_response_choices_expand_in_place(browser, serve, width):
     expect(choices).to_have_count(7)
     expect(bar.locator(":scope > .lf-response-options")).to_have_attribute(
         "aria-keyshortcuts",
-        "1 2 3 4 5 6 Tab Shift+Tab ArrowLeft ArrowRight ArrowUp ArrowDown Enter Space Escape",
+        "1 2 3 4 5 6 ArrowLeft ArrowRight ArrowUp ArrowDown Enter Space Escape",
     )
     suggest = bar.locator(".lf-fab-suggest")
     expect(suggest).to_be_focused()
@@ -909,8 +909,15 @@ def test_comment_response_choices_expand_in_place(browser, serve, width):
     field.press("ArrowRight")
     expect(bar).to_have_class(re.compile("lf-response-open"))
     expect(choices).to_have_count(7)
+    # Tab is the browser's while the choices stand open: on from the field through its
+    # send control to the first choice, and back the same way.
+    send = bar.locator(".lf-compose-submit")
+    page.keyboard.press("Tab")
+    expect(send).to_be_focused()
     page.keyboard.press("Tab")
     expect(suggest).to_be_focused()
+    page.keyboard.press("Shift+Tab")
+    expect(send).to_be_focused()
     page.keyboard.press("Shift+Tab")
     expect(field).to_be_focused()
     count = len(events_model.read_events(serve.page_dir))
@@ -937,6 +944,8 @@ def test_comment_response_choices_expand_in_place(browser, serve, width):
             or narrowed["y"] + narrowed["height"] <= narrowed_target["y"]
             or narrowed["y"] >= narrowed_target["y"] + narrowed_target["height"]
         ), (narrowed_target, narrowed)
+    page.keyboard.press("Tab")
+    expect(send).to_be_focused()
     page.keyboard.press("Tab")
     expect(suggest).to_be_focused()
     page.keyboard.press("Escape")

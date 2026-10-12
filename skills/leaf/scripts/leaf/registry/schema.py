@@ -2,7 +2,7 @@ r"""Offline JSON Schema validation shared by registry, markup, and event admissi
 
 Each validator owns a self-contained resource graph and is cached by schema content.
 Leaf's date-time format admits only absolute, timezone-aware RFC3339 instants, and its
-uri format only absolute URLs the browser's URL parser accepts. A registry schema may
+uri format only absolute URLs parsed by pywhatwgurl. A registry schema may
 name only a format `FORMAT_CHECKER` checks (`check_schema`).
 
 A schema's regular expressions are ECMAScript, as JSON Schema defines them and the
@@ -20,12 +20,12 @@ import json
 import re
 from datetime import datetime
 
-import ada_url
 import jsonschema._keywords
 import jsonschema._utils
 import regress
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import SchemaError
+from pywhatwgurl import URL
 from referencing import Registry
 from referencing.exceptions import Unresolvable
 from referencing.jsonschema import DRAFT202012
@@ -46,14 +46,16 @@ def is_aware_datetime(value) -> bool:
 
 @FORMAT_CHECKER.checks("uri")
 def is_browser_url(value) -> bool:
-    """An absolute URL by the WHATWG URL Standard, which a page parses it by.
+    """An absolute URL parsed by the pure-Python WHATWG implementation.
 
     jsonschema checks `uri` only with an optional RFC 3987 package, and RFC 3986
     admits URLs the browser refuses, such as a port past 65535; a widget's
-    `new URL` would then throw on a value `data set` accepted."""
+    `new URL` would then throw on a value `data set` accepted. pywhatwgurl avoids
+    a native compiler requirement; its IDNA handling can differ from browsers
+    for unusual internationalized domains."""
     if not isinstance(value, str):
         return True  # the declared JSON Schema owns the type complaint
-    return ada_url.check_url(value)
+    return URL.can_parse(value)
 
 
 def aware_instant(value: str):

@@ -185,15 +185,7 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     # The save moved the stamp too; the read that follows it is answered now.
     for route in held_reads:
         route.continue_()
-    # The pane growing into the comparison carries its rewritten message up with it,
-    # which the watch reports when the conflict lands outside the retry's input window.
-    consume_browser_errors(
-        page,
-        "Failed to load resource: net::ERR_FAILED",
-        "409 ",
-        "#text in p.lf-file-editor-explanation.lf-ui.lf-ui-face in shadow of "
-        "lf-file-editor#notes-file moved without input",
-    )
+    consume_browser_errors(page, "Failed to load resource: net::ERR_FAILED", "409 ")
 
     # Two versions remain available after a stale save. Explicit replacement
     # checks the displayed disk revision again instead of force-writing.

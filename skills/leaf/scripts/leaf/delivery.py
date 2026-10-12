@@ -21,9 +21,9 @@ Server turn). Freezing with `turn_replies` marks each reply answer
 `writer: "turn"`, and the harness reserves the answer's address before it starts
 the turn (`thread.reserve_delivery_reply`); the page's status keeps the
 reservation under `stream.reply_reservations`, and session-lifetime.md says when it
-stands and when it clears. While it stands, no other delivery can reserve the address, the turn's final
-message commits as the reply, and failure receipts and other provider finals are
-refused or write nothing. A direct `leaf response reply` still commits at once,
+stands and when it clears. While it stands, no other delivery can reserve the
+address, the turn's final message commits as the reply, and failure receipts and
+other provider finals are refused or write nothing. A direct `leaf response reply` still commits at once,
 and the turn's final then yields to it. `writer` is the hint captured at freeze;
 only a standing reservation decides who writes. Neither changes the answer's
 operation: reply and markup answers mean the same on every transport.

@@ -944,34 +944,41 @@ RESTORED_PROSE = "".join(
 
 
 @pytest.mark.parametrize(
-    ("saved", "wide", "window"),
+    ("saved", "wide", "window", "contained"),
     [
         # Questions stands on the Threads panel's edge, at the width the user drew it.
         (
             {"lf-auxiliary-surface": "queue", "lf-thread-panel-width": "380"},
             False,
             1600,
+            False,
         ),
         (
             {"lf-auxiliary-surface": "threads", "lf-thread-panel-width": "500"},
             True,
             1440,
+            False,
         ),
         # Where it would leave less than a usable page it covers the page instead.
-        ({"lf-auxiliary-surface": "threads"}, True, 700),
+        ({"lf-auxiliary-surface": "threads"}, True, 700, False),
         # The Questions panel by the same rule: 420 of a 600px window leaves 180.
-        ({"lf-auxiliary-surface": "queue"}, False, 600),
+        ({"lf-auxiliary-surface": "queue"}, False, 600, False),
+        # A sample's child page starts without its host's saved chrome. Isolation is
+        # one rule whatever the surface and window, so one case asks it.
+        (
+            {"lf-auxiliary-surface": "queue", "lf-thread-panel-width": "380"},
+            False,
+            1600,
+            True,
+        ),
     ],
-    ids=["queue", "threads-wide-page", "covering", "queue-covering"],
+    ids=["queue", "threads-wide-page", "covering", "queue-covering", "contained"],
 )
-@pytest.mark.parametrize("contained", [False, True])
 def test_a_restored_auxiliary_surface_leaves_the_page_where_it_painted(
     browser, serve, saved, wide, window, contained
 ):
     """Restored auxiliary chrome leaves a page's first-paint geometry alone; an
     isolated sample starts without inheriting its host's saved chrome."""
-    if contained and wide:
-        pytest.skip("a sample's child page is the column its template writes")
     surface = saved["lf-auxiliary-surface"]
     content = "<h1>Restored surface</h1>" + RESTORED_PROSE
     if contained:

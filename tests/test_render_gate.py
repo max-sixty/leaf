@@ -3187,9 +3187,10 @@ def surface_findings(page):
     surface keeps for next time and leave what it changed on purpose, such as threads
     read or the last announcement; a later trip that leaves more is leaving something
     behind, and a count of nodes or listeners that climbs on every trip is a leak.
-    Later trips preserve accessible content, control values, focus, caret, and layout.
+    The last trip preserves accessible content, control values, focus, caret, and
+    layout; what a trip leaves behind stays, so that reading is the one that counts.
     DOM nodes and listeners, including invisible markers and detached cached nodes,
-    are measured separately for accumulation.
+    are measured after every trip for accumulation.
 
     Each surface the page offers must open, so a key that stopped opening one fails
     here rather than passing for having left nothing behind. The keys start from the
@@ -3206,11 +3207,11 @@ def surface_findings(page):
             page.keyboard.press(key)
             rendered(page)
 
-    def unwind():
+    def unwind(read=True):
         for _ in range(UNWIND):
             page.keyboard.press("Escape")
             rendered(page)
-        return reader_state(page)
+        return reader_state(page) if read else None
 
     def settled_state(reading):
         # The live region retains the last spoken command. A panel can mark a
@@ -3235,15 +3236,15 @@ def surface_findings(page):
             findings.append(f"{'+'.join(keys)} opened no {surface}")
             continue
         trips = [live_counts(page)]
-        for _ in range(AGAIN):
+        for trip in range(1, AGAIN + 1):
             press(keys)
-            left = unwind()
+            closed = unwind(read=trip == AGAIN)
             trips.append(live_counts(page))
-            if changes := state_changes(first, settled_state(left)):
-                findings.append(
-                    f"the {surface} closed again leaving\n" + "\n".join(changes[:12])
-                )
-                break
+        left = closed
+        if changes := state_changes(first, settled_state(left)):
+            findings.append(
+                f"the {surface} closed again leaving\n" + "\n".join(changes[:12])
+            )
         for what in trips[0]:
             held = [trip[what] for trip in trips]
             if len(trips) == AGAIN + 1 and all(

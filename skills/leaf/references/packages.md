@@ -177,7 +177,7 @@ a typography or color override does not remove those requirements.
 
 Icon, widget,
 and vendor files replace by path. Runtime modules add package-owned paths; they
-cannot replace the kernel or default package's JavaScript, including `leaf.js`.
+cannot replace the kernel's JavaScript, including `leaf.js`.
 Those modules are private, and the website compiles them together into one kernel.
 Package checks refuse imports of private kernel modules as well as replacements,
 so source modules and the compiled kernel expose the same extension contract.
@@ -497,6 +497,26 @@ Add `"owns": true` to a typed contract whose referrer fills its target, as a com
 fills the readings seat it names. `page check` then requires the target in the
 referrer's own document, and every element there that the predicate selects named by
 exactly one referrer, so no seat stands empty or holds two commands' readings.
+
+Where members of one owner name each other by a word rather than an id, declare the
+word unique within the owner with `x-unique`, a map from the member's attribute to the
+owner's tag, and refer to it with a keyed contract, `{tag, key}`:
+
+```json
+{
+  "lf-playground-control": { "x-unique": { "name": "lf-playground" } },
+  "lf-playground-setting": {
+    "x-refers": { "for": { "tag": "lf-playground-control", "key": "name" } }
+  }
+}
+```
+
+`page check` and message markup validation then refuse two controls of one playground
+sharing a `name`, and a setting whose `for` names no control of its own playground. A
+keyed contract resolves inside the referrer's nearest enclosing owner of the tag its
+target's `x-unique` names for `key`, so the same name in another playground never
+answers it. Rules that need the content itself, such as a range value within its
+bounds, stay with the widget and `page check --render`.
 
 Leaf validates the generic relation; the package owns the map, roles, and participating
 widget tags. A later package can therefore add another goal or worker widget by merging

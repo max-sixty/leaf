@@ -320,9 +320,8 @@ def kernel_runtime_paths() -> set[str]:
     """
     manifest = PLUGIN_ROOT / "leaf-distribution.json"
     paths = {
-        path.relative_to(root / "runtime").as_posix()
-        for root in (ASSETS, DEFAULT_PACKAGE)
-        for path in (root / "runtime").rglob("*.js")
+        path.relative_to(ASSETS / "runtime").as_posix()
+        for path in (ASSETS / "runtime").rglob("*.js")
     }
     if manifest.is_file():
         paths.update(json.loads(manifest.read_text())["runtime_paths"])
@@ -364,27 +363,6 @@ def layer_fingerprint(composition: LayerComposition) -> str:
                 for directory, entries in composition.directory_files.items()
                 for name, data in entries.items()
             },
-        }
-    )
-
-
-def payload_runtime_fingerprint() -> str:
-    """Identify the runtime modules this payload's own browser code is written against.
-
-    The kernel is the payload's own directory, so this reads the same from any working
-    directory and on any machine, and a page's selected packages cannot move it. That
-    is what the render gate needs: it runs out of the Leaf running the command
-    against the runtime out of the page, and a page's recorded layer fingerprint
-    cannot be recomposed away from the project its packages were resolved in.
-    `page init` records this reading under `$layer.runtime`, and `foreign_runtime`
-    compares the two.
-    """
-    runtime = ASSETS / "runtime"
-    return files_identity(
-        {
-            path.relative_to(runtime).as_posix(): path.read_bytes()
-            for path in runtime.rglob("*")
-            if path.is_file()
         }
     )
 
@@ -435,28 +413,6 @@ def incompatible_layer(page_dir: Path, registry: dict) -> str | None:
         f"{vendored if vendored is not None else 'none'}, and this Leaf "
         f"({PLUGIN_ROOT}) speaks protocol {running}, so it cannot serve the page or "
         f"write its log. Re-vendor it with `leaf page init {page_dir}`."
-    )
-
-
-def foreign_runtime(page_dir: Path, layer: dict) -> str | None:
-    """Why the render gate cannot probe a page, given its recorded `$layer`: the
-    page's runtime modules are not this Leaf's own. None when they are.
-
-    The gate's probe modules come from this Leaf and import the runtime's modules
-    out of the page by name, an internal coupling no protocol covers, so the gate
-    needs the exact runtime (`payload_runtime_fingerprint`), where a server needs
-    only a compatible one (`incompatible_layer`). A page vendored before the
-    identity was recorded names none, and is refused too.
-    """
-    vendored = layer.get("runtime")
-    running = payload_runtime_fingerprint()
-    if vendored == running:
-        return None
-    return (
-        f"{page_dir} was vendored from another Leaf's runtime: its layer names "
-        f"{vendored or 'no runtime identity'}, and this Leaf ({PLUGIN_ROOT}) ships "
-        f"{running}. The render gate probes a page only against the runtime it "
-        f"ships, so re-vendor it with `leaf page init {page_dir}`."
     )
 
 
@@ -572,7 +528,7 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
         "/runtime/widget-api.js"
     }
     for root in roots:
-        if root.resolve() in {ASSETS.resolve(), DEFAULT_PACKAGE.resolve()}:
+        if root.resolve() == ASSETS.resolve():
             continue
         replacements = [
             f"runtime/{path.relative_to(root / 'runtime').as_posix()}"

@@ -661,7 +661,8 @@ A module reaches another widget through an attribute its entry declares in `x-re
 ([packages.md, "References between widgets"](packages.md#references-between-widgets)) rather than looking the id up itself. Leaf
 resolves the attribute in the owner's own authored document first, so a widget in a
 reply finds its message's element before a page element with the same id, as the server
-does, and then in the page, which a reply's widget may name. Both verbs below
+does, and then in the page, which a reply's widget may name. A keyed contract resolves
+inside the owner's enclosing scope instead, as the server does. Both verbs below
 throw a `TypeError` for an attribute the owner's entry does not declare.
 
 A key addresses elements under the named widget in one key space: a registered visual

@@ -542,6 +542,14 @@ def _capture_input_stamps(page_dir: Path) -> tuple[tuple[str, tuple], ...]:
     ) + tuple((logical, _path_stamp(path)) for logical, path in PROBE_SOURCES.items())
 
 
+def probe_resources() -> dict[str, Resource]:
+    """This Leaf's browser probe modules, as a capture holds them."""
+    return {
+        logical: Resource(source.read_bytes(), "application/javascript")
+        for logical, source in PROBE_SOURCES.items()
+    }
+
+
 def capture_artifact(
     page_dir: Path,
     document: SourceDocument,
@@ -705,12 +713,7 @@ def _capture_artifact(
     # Live observations and headless checks are browser code too. Capture their
     # source beside the runtime it reads, so a revision and an export have one
     # complete module graph, even when the serving checkout later changes.
-    resources.update(
-        {
-            logical: Resource(source.read_bytes(), "application/javascript")
-            for logical, source in PROBE_SOURCES.items()
-        }
-    )
+    resources.update(probe_resources())
 
     entries = []
     documents = [document]

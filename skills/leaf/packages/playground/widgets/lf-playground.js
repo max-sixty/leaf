@@ -34,6 +34,7 @@ import {
   says,
   tabStore,
   wear,
+  whileConnected,
   widgetController,
 } from "/runtime/widget-api.js";
 import "./lf-playground-output.js";
@@ -107,28 +108,26 @@ customElements.define(
     #ready = false;
     #interactive = false;
     #regions = [];
-    #unregister = [];
 
     connectedCallback() {
-      if (!once(this)) {
-        this.#registerRegions();
-        this.#paintAvailability();
-        return;
-      }
+      if (!once(this)) return;
       try {
         this.#build();
         this.#ready = true;
         if (this.#interactive)
           this.#controller.subscribe(() => this.#paintAvailability());
       } catch (error) {
-        this.#unregisterRegions();
         failSoft(this, error);
+        return;
       }
-    }
-
-    disconnectedCallback() {
-      clearTimeout(this.#copyTimer);
-      this.#unregisterRegions();
+      whileConnected(this, () => {
+        const stops = this.#regions.map((region) => registerReadingRegion(region));
+        this.#paintAvailability();
+        return () => {
+          clearTimeout(this.#copyTimer);
+          for (const stop of stops) stop();
+        };
+      });
     }
 
     get values() {
@@ -247,9 +246,7 @@ customElements.define(
         });
         this.#commands();
       }
-      this.#registerRegions();
       this.#paintPresets();
-      this.#paintAvailability();
     }
 
     #parse(control, raw) {
@@ -299,15 +296,6 @@ customElements.define(
       if (at?.localName === "iframe")
         return Boolean(at.closest("lf-sample")?.focusedContent);
       return Boolean(at) && at !== at.ownerDocument.body;
-    }
-
-    #registerRegions() {
-      this.#unregister = this.#regions.map((region) => registerReadingRegion(region));
-    }
-
-    #unregisterRegions() {
-      for (const stop of this.#unregister) stop();
-      this.#unregister = [];
     }
 
     #commands() {

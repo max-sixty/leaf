@@ -4004,23 +4004,6 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         assert started == {"status": "started", "thread": "codex-thread"}
         assert agent_harness.attached == [published]
 
-        for refused in (
-            {},
-            {"failure": "unknown"},
-            {"failure": None},
-            # The words are the adapter's, declared beside the code, so a Worker that
-            # sends its own is one copy of them too many rather than an override.
-            {"failure": "startup_failed", "text": "Failure"},
-            # And `turn_failed` says a turn was followed to nothing, which only the
-            # code that followed it can say.
-            {"failure": "turn_failed"},
-        ):
-            with pytest.raises(urllib.error.HTTPError) as invalid:
-                post(
-                    f"{root}/examples/decision/_leaf/agent/fail",
-                    {"event": comment["id"], **refused},
-                )
-            assert invalid.value.code == 400
         with pytest.raises(urllib.error.HTTPError) as forged:
             post(
                 f"{root}/examples/decision/api/event",

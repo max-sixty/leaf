@@ -22,9 +22,9 @@ import {
   nothing,
   render,
   repeat,
-  nextRender,
-  cancelRender,
+  frameFor,
   sizeObserver,
+  whileConnected,
   layoutPx,
   keeps,
   keepsHidden,
@@ -86,8 +86,8 @@ export class RecordingTimeline {
   #scrubbing = null;
   #touched = null;
   #expectedScroll = null;
-  #rulerFrame = 0;
-  #overviewFrame = 0;
+  #queueRuler;
+  #queueOverview;
   #observer;
   #width = 0;
   // The time at the window's left edge. Width changes rescale the track; this
@@ -106,6 +106,13 @@ export class RecordingTimeline {
     this.#host = host;
     this.#options = options;
     this.#observer = sizeObserver(() => this.#resized());
+    this.#queueRuler = frameFor(host, () => this.#drawRuler());
+    // Several geometry steps can run in one task; the overview reads their end.
+    this.#queueOverview = frameFor(host, () => this.#drawOverview());
+    whileConnected(host, () => {
+      this.#observeScroller();
+      return () => this.#observer.disconnect();
+    });
   }
 
   get scroller() {
@@ -116,15 +123,9 @@ export class RecordingTimeline {
     return this.#zoom;
   }
 
-  connect() {
-    if (this.scroller) this.#observer.observe(this.scroller);
-  }
-
-  disconnect() {
-    this.#observer.disconnect();
-    if (this.#rulerFrame) cancelRender(this.#rulerFrame);
-    if (this.#overviewFrame) cancelRender(this.#overviewFrame);
-    this.#rulerFrame = this.#overviewFrame = 0;
+  // The scroller arrives with the first drawing, which can follow the connection.
+  #observeScroller() {
+    if (this.scroller && this.#host.isConnected) this.#observer.observe(this.scroller);
   }
 
   /** The visible window, in recording time, for restoring a scope's view. */
@@ -157,7 +158,7 @@ export class RecordingTimeline {
     // Labels carry each mark's selection state, so they follow every update.
     if (!this.#host.querySelector(".lf-trace-track")) this.#draw();
     this.#layoutLabels();
-    if (changed) this.connect();
+    if (changed) this.#observeScroller();
     this.setTime(model.time);
   }
 
@@ -667,11 +668,7 @@ export class RecordingTimeline {
 
   // The ruler draws only ticks near the visible window, so deep zoom stays cheap.
   #drawRuler() {
-    // Several geometry steps can run in one task; the overview reads their end.
-    this.#overviewFrame ||= nextRender(() => {
-      this.#overviewFrame = 0;
-      this.#drawOverview();
-    });
+    this.#queueOverview();
     const ruler = this.#host.querySelector(".lf-trace-ruler");
     const scroller = this.scroller;
     if (!ruler || !scroller?.clientWidth || !this.#model) return;
@@ -722,12 +719,6 @@ export class RecordingTimeline {
     this.#start = this.#pxToTime(scroller.scrollLeft);
     this.#options.onUserPan?.();
     this.#queueRuler();
-  }
-  #queueRuler() {
-    this.#rulerFrame ||= nextRender(() => {
-      this.#rulerFrame = 0;
-      this.#drawRuler();
-    });
   }
 
   #wheel(event) {

@@ -1,0 +1,82 @@
+[
+  {
+    "id": "a section is named by its heading",
+    "markup": "<section id=\"it\"><h2>Plan</h2><p>Body words.</p></section>",
+    "name": "Plan"
+  },
+  {
+    "id": "a disclosure is named by its summary",
+    "markup": "<details id=\"it\"><summary>Method</summary><p>Steps.</p></details>",
+    "name": "Method"
+  },
+  {
+    "id": "a titled member's chips stand before its title",
+    "markup": "<lf-option id=\"it\"><small class=\"tag\">effort: low</small><strong>Flag first</strong> Ship dark.</lf-option>",
+    "name": "Flag first"
+  },
+  {
+    "id": "plain words are no name",
+    "markup": "<p id=\"it\">Some <em>plain</em> words.</p>",
+    "name": ""
+  },
+  {
+    "id": "an untitled widget has no name",
+    "markup": "<lf-card id=\"it\">Untitled card words.</lf-card>",
+    "name": ""
+  },
+  {
+    "id": "a leading header holds the title",
+    "markup": "<div id=\"it\"><header><h1>Review</h1></header><p>Body.</p></div>",
+    "name": "Review"
+  },
+  {
+    "id": "an eyebrow stands above a header's title",
+    "markup": "<section id=\"it\"><header><p class=\"eyebrow\">Stage 2</p><strong>Migration rehearsal</strong></header></section>",
+    "name": "Migration rehearsal"
+  },
+  {
+    "id": "words before a title mean it is not one",
+    "markup": "<p id=\"it\">This is <strong>important</strong> text.</p>",
+    "name": ""
+  },
+  {
+    "id": "a title group names itself by its heading",
+    "markup": "<hgroup id=\"it\"><p class=\"eyebrow\">Stage 2</p><h1>Review</h1><p>Subtitle.</p></hgroup>",
+    "name": "Review"
+  },
+  {
+    "id": "a title group names its owner",
+    "markup": "<section id=\"it\"><header><hgroup><p class=\"eyebrow\">Stage 2</p><h2>Migration</h2></hgroup></header></section>",
+    "name": "Migration"
+  },
+  {
+    "id": "the x-name attribute names its element",
+    "registry": { "lf-column": { "x-name": "label" } },
+    "markup": "<lf-column id=\"it\" label=\"Ready\"><lf-card><strong>A</strong></lf-card></lf-column>",
+    "name": "Ready"
+  },
+  {
+    "id": "the x-name attribute comes before a heading",
+    "registry": { "lf-column": { "x-name": "label" } },
+    "markup": "<lf-column id=\"it\" label=\"Ready\"><h3>Later</h3></lf-column>",
+    "name": "Ready"
+  },
+  {
+    "id": "without its attribute an element takes its heading",
+    "registry": { "lf-column": { "x-name": "label" } },
+    "markup": "<lf-column id=\"it\"><h3>Later</h3></lf-column>",
+    "name": "Later"
+  },
+  {
+    "id": "an attribute shown first is not a name",
+    "registry": { "lf-reading": { "x-says": { "value": "before" } } },
+    "markup": "<lf-reading id=\"it\" value=\"312\">daily visits</lf-reading>",
+    "name": ""
+  },
+  {
+    "id": "a gloss's tip is no part of a heading's name",
+    "registry": { "lf-gloss": { "x-says": { "tip": "after" } } },
+    "markup": "<section id=\"it\"><h2>Deploy a <lf-gloss tip=\"A thin, end-to-end path.\">walking skeleton</lf-gloss></h2></section>",
+    "name": "Deploy a walking skeleton"
+  }
+]

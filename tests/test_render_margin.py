@@ -9223,7 +9223,7 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
     expect(dialog).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
-    expect(page.locator(".lf-banner-more")).to_have_attribute("aria-expanded", "false")
+    expect(page.locator(".lf-banner-menu")).to_be_hidden()
 
 
 def test_crossing_to_the_small_screen_keeps_the_card_by_its_pin(browser, serve):

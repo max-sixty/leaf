@@ -6,7 +6,14 @@ import pytest
 from leaf import data as data_model
 from leaf.render_checks import one_frame, rendered
 from playwright.sync_api import expect
-from render_harness import holding, leaf_page, open_page, reported_browser_errors, write
+from render_harness import (
+    consume_browser_errors,
+    holding,
+    leaf_page,
+    open_page,
+    reported_browser_errors,
+    write,
+)
 
 
 @pytest.mark.parametrize("width,scheme", [(1280, "light"), (390, "dark")])
@@ -312,6 +319,33 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
     write(inline, markdown)
     inline.press("Control+Enter" if touch else "Enter")
     assert reading(diff.locator(".lf-msg-body").first) == physical_reading
+
+
+def test_an_inline_patch_that_failed_stays_failed_when_its_diff_returns(browser, serve):
+    """An inline patch never changes, so a refusal of it stands: a diff that leaves the
+    page and returns, as document reconciliation moves it, renders its patch again only
+    when the departure cut that rendering short, and does not tell the author twice."""
+    one = "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-x\n+y\n"
+    source = leaf_page(
+        "bad diff",
+        f'<h1 id="t">Bad</h1>\n<lf-diff id="d-bad"><pre>\n{one}{one}</pre></lf-diff>',
+    )
+    page = open_page(browser, serve(source))
+    expect(page.locator("#d-bad .lf-error")).to_contain_text("repeats file path")
+    returned = page.evaluate("""async () => {
+        const diff = document.getElementById('d-bad');
+        const failure = diff.querySelector('.lf-error');
+        const parent = diff.parentNode;
+        const next = diff.nextSibling;
+        diff.remove();
+        await new Promise((resolve) => setTimeout(resolve));
+        parent.insertBefore(diff, next);
+        for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame);
+        return diff.querySelector('.lf-error') === failure;
+    }""")
+    assert returned, "the returning diff rendered its refused patch again"
+    errors = consume_browser_errors(page, '<lf-diff id="d-bad"> failed: ')
+    assert len(errors) == 1, errors
 
 
 def test_an_expanded_diff_file_can_retry_its_failed_chunk_in_place(browser, serve):

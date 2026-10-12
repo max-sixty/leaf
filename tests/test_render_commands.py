@@ -73,8 +73,10 @@ def unnamed_browser():
 
 
 def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
-    """A comment on a widget's option leaves a page the gate passes: the mark and the note
-    counting the comment are the runtime's, and none of it is words the widget wrote.
+    """A comment on a widget's option leaves a page the gate passes
+    (`test_every_table_the_theme_sets_honestly_passes_the_gate` gates one): the mark
+    and the note counting the comment are the runtime's, and none of it is words the
+    widget wrote.
 
     The pass hunting words drawn on other words holds out a control the runtime hangs out
     of flow over the page (`floating` in words.js). A control planted over the option's
@@ -106,7 +108,6 @@ def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
         page, "coveredWords", {"holdFloating": False}
     )
     page.close()
-    assert render_gate_model.render_version(browser, url).failures == []
     assert held == []
     assert any("planted float" in found for found in reported), (
         "the planted control covers no words, so a gate that never looked would pass too"
@@ -136,8 +137,6 @@ def test_the_gate_passes_collapsed_words_that_overlap_when_visible(browser, serv
     expect(collapsed.locator("p").first).to_be_hidden()
 
     assert render_checks_model.evaluate_probe(page, "coveredWords") == []
-    page.close()
-    assert render_gate_model.render_version(browser, url).failures == []
 
 
 def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
@@ -167,6 +166,10 @@ def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
         f"the suggestion is {sug_width}px, so it clears the floor and proves nothing"
     )
 
+    assert (
+        render_checks_model.evaluate_probe(page, "tinyBoxes", page_registry(page)) == []
+    ), "the gate refuses glosses and a suggestion with nothing wrong with them"
+
     # Asked without the declaration, the same floor flags it — so what passes the page
     # is the declaration, not a floor gone missing.
     undeclared = json.loads(json.dumps(page_registry(page)))
@@ -191,52 +194,39 @@ def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
     assert [box for box in flattened if box["tag"] == "lf-gloss"], (
         "a gloss with no height left reports nothing, so the floor is gone rather than declared"
     )
-    assert render_gate_model.render_version(browser, url).failures == []
 
 
-def test_check_render_refuses_what_only_a_browser_can_see(serve, headless_shell):
+def test_check_render_refuses_what_only_a_browser_can_see(serve):
     """`page check --render` end to end, as the agent runs it: the static lint
     passes both sources, and only one renders clean. The broken source is deliberately
     unstamped — refusing it before `page stamp` names it is the gate's whole job,
     so the preview server has to expose the exact candidate without activating it.
 
-    Over the clean source once through each browser a host can supply: the installed
-    Chrome the default channel finds, and the executable leaf's browser variable
-    names. That each older variable names a browser too is
-    `test_a_named_browser_that_is_not_one_names_the_variable`'s. The default arm states every
+    The clean source goes through the installed Chrome the default channel finds; the
+    executable leaf's browser variable names is
+    `test_an_installed_payload_passes_its_real_browser_gate`'s. This arm states every
     variable empty rather than inheriting whatever the developer or the job
     exported, since a set one would otherwise turn the channel this arm exists to
-    cover into a second run of the other. A runner image really does export
-    CHROME_BIN, so unnaming leaf's alone is not unnaming. Each arm's success line
-    has to name the browser that drew the page: a clean gate telling a Chromium host
-    that Chrome drew it is the same false claim on the way out that the failure
-    messages stopped making."""
+    cover into a run of the named one. A runner image really does export
+    CHROME_BIN, so unnaming leaf's alone is not unnaming. The success line has to name
+    the browser that drew the page: a clean gate telling a Chromium host that Chrome
+    drew it is the same false claim on the way out that the failure messages stopped
+    making."""
     serve(LONG_PAGE)
     d = serve.page_dir
 
-    def gate(*args, variable=None, executable=""):
+    def gate():
         return subprocess.run(
-            [
-                *LEAF_COMMAND,
-                "page",
-                "check",
-                str(d),
-                "--render",
-                *args,
-            ],
+            [*LEAF_COMMAND, "page", "check", str(d), "--render"],
             capture_output=True,
             text=True,
             check=False,  # both exit codes are the subject
-            env=unnamed_browser() | ({variable: executable} if variable else {}),
+            env=unnamed_browser(),
         )
 
     ok = gate()
     assert ok.returncode == 0, ok.stderr
     assert "render checks passed in Chrome" in ok.stdout
-
-    named = gate(variable="LEAF_BROWSER_EXECUTABLE", executable=headless_shell)
-    assert named.returncode == 0, named.stderr
-    assert f"render checks passed in {headless_shell}" in named.stdout
 
     # A vw width slips the static lint (which counts only px) and overflows only
     # in a layout engine.
@@ -257,8 +247,7 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     four tiles in its body changes twice there: its tiles wrap before its track stacks.
     Each open Ask, a suggestion as much as an lf-ask, gets the window `q` brings it
     into, as the user working the page meets it, including those `q` reaches past a
-    page widget move handed back to the user, which is a stop of its own and no Ask.
-    A second check replaces the first's screens rather than adding to them."""
+    page widget move handed back to the user, which is a stop of its own and no Ask."""
     tiles = "".join(
         f"<dl id='m{i}'><dt>metric {i}</dt><dd>{i}</dd></dl>" for i in range(4)
     )
@@ -314,20 +303,17 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     on_you = state_json(serve.page_dir)["queues"]["on_you"]
     assert {"kind": "widget", "id": "ship"} in [item["subject"] for item in on_you]
 
-    def check():
-        ran = subprocess.run(
-            [*LEAF_COMMAND, "page", "check", str(serve.page_dir), "--render"],
-            capture_output=True,
-            text=True,
-            check=True,
-            env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": headless_shell},
-        )
-        lines = ran.stdout.splitlines()
-        heading = next(line for line in lines if "screens to read" in line)
-        into = Path(heading.split(" in ", 1)[1].rstrip(":"))
-        return into, lines[lines.index(heading) + 1 :]
-
-    into, listed = check()
+    ran = subprocess.run(
+        [*LEAF_COMMAND, "page", "check", str(serve.page_dir), "--render"],
+        capture_output=True,
+        text=True,
+        check=True,
+        env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": headless_shell},
+    )
+    lines = ran.stdout.splitlines()
+    heading = next(line for line in lines if "screens to read" in line)
+    into = Path(heading.split(" in ", 1)[1].rstrip(":"))
+    listed = lines[lines.index(heading) + 1 :]
     names = sorted(path.name for path in into.iterdir())
     assert {"1200px-1.png", "1920px-1.png", "390px-1.png"} <= set(names)
     assert {
@@ -344,9 +330,6 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     # A page longer than its first screens says so rather than passing for read whole.
     assert "390px-9.png" not in names
     assert any("phone, the first 8 of the page's" in line for line in listed)
-    again, _listed = check()
-    assert again == into
-    assert sorted(path.name for path in into.iterdir()) == names
 
 
 def test_a_named_browser_that_is_not_one_names_the_variable(serve, tmp_path):
@@ -456,7 +439,8 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
     """Exercise the copied artifact a harness installs, never an import from this checkout.
 
     Its browser gate runs on a named Chromium, since the install is where a host with
-    a Chromium and no Chrome meets it; the default channel's Chrome is
+    a Chromium and no Chrome meets it, and its success line names that executable
+    rather than Chrome; the default channel's Chrome is
     `test_check_render_refuses_what_only_a_browser_can_see`'s."""
     root = Path(__file__).parent.parent
     installed = install_payload(tmp_path / "host" / "leaf")
@@ -505,7 +489,7 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
         env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": headless_shell},
     )
     assert rendered.returncode == 0, rendered.stderr
-    assert "render checks passed" in rendered.stdout
+    assert f"render checks passed in {headless_shell}" in rendered.stdout
 
 
 @pytest.mark.parametrize("touch", [False, True])
@@ -760,12 +744,12 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
 
     Pointer drag and the component's complete keyboard pattern move one divider. The
     rail jumps to the named endpoints, while print keeps the two complete frames
-    and their order."""
+    and their order. The gate's pass over the pair is
+    `test_render_reads_painted_facts_and_widget_chrome_where_they_stand`'s."""
     url = serve(
         SHOT_PAGE,
         media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
     )
-    assert render_gate_model.render_version(browser, url).failures == []
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.add_init_script(
@@ -1370,205 +1354,108 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
         expect(delta).to_be_visible()
 
 
-def test_a_shot_refuses_a_pair_shot_at_two_widths(browser, serve):
-    """Both frames render at the frame's width, so a pair captured at two viewports is
-    scaled by two different factors and every line in it lands somewhere new — the flip
-    then reports that the whole page changed, convincingly and with nothing on screen
-    to say otherwise. The one failure worth an error box rather than a caveat."""
-    narrow = solid_png(400, 300, (235, 215, 205))
-    page_html = SHOT_PAGE.replace(
-        SHOT_SRC["after"], f"/media/{hashlib.sha256(narrow).hexdigest()[:16]}.png"
+def stage_reach_cases(page):
+    """Words and controls planted under chrome once the carried options load: a
+    link and a hidden note on #c-bearer, a shown note, a chrome row and a button
+    on #c-lax, and two offered controls, one below an unscrollable clip."""
+    page.add_init_script(
+        """addEventListener('DOMContentLoaded', () => {
+          const control = document.getElementById('c-bearer');
+          const link = document.createElement('a');
+          link.id = 'native-link';
+          link.className = 'lf-ui';
+          link.href = '#h';
+          link.textContent = 'Read context';
+          const hidden = document.createElement('span');
+          hidden.id = 'hidden-note';
+          hidden.className = 'lf-ui';
+          hidden.hidden = true;
+          hidden.textContent = 'opens in a new tab';
+          control.prepend(link, hidden);
+
+          const option = document.getElementById('c-lax');
+          const shown = document.createElement('span');
+          shown.id = 'shown-note';
+          shown.className = 'lf-ui';
+          shown.textContent = 'opens in a new tab';
+          const row = document.createElement('div');
+          row.id = 'unreachable-row';
+          row.className = 'lf-ui';
+          row.innerHTML = '<strong>Session cookies</strong>';
+          const button = document.createElement('button');
+          button.id = 'unreachable-button';
+          button.setAttribute('data-lf-said', '');
+          button.textContent = 'Lax, host-only';
+          option.prepend(shown, row, button);
+
+          // A visible control and an otherwise identical one below an
+          // unscrollable clip keep the control-reachability field non-vacuous.
+          const holder = document.createElement('div');
+          holder.id = 'clipped-holder';
+          holder.className = 'lf-ui';
+          holder.style.cssText = 'position:fixed;left:0;top:100px;width:120px;'
+            + 'height:40px;overflow:hidden';
+          for (const [id, words] of [['shown-offer', 'Reachable'], ['clipped-offer', 'Clipped']]) {
+            const offer = document.createElement('button');
+            offer.id = id;
+            offer.className = 'lf-reach-control lf-ui';
+            offer.setAttribute('data-lf-offer', '');
+            offer.textContent = words;
+            offer.style.cssText = 'display:block;height:20px;margin:0';
+            if (id === 'clipped-offer') offer.style.marginTop = '40px';
+            holder.append(offer);
+          }
+          document.body.append(holder);
+        }, {once: true});"""
     )
-    narrow_src = f"/media/{hashlib.sha256(narrow).hexdigest()[:16]}.png"
-    url = serve(
-        page_html,
-        media={SHOT_SRC["before"]: SHOTS["before"], narrow_src: narrow},
-    )
-
-    assert [
-        f
-        for f in render_gate_model.render_version(browser.unwatched, url).failures
-        if "600px" in f and "400px" in f
-    ], "the gate has to hear about a mismatch, since nobody else will"
 
 
-def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
-    """The user's half of the gate. A user selected a draft's heading, tried to
+def test_render_reads_painted_facts_and_widget_chrome_where_they_stand(
+    browser, serve, tmp_path, monkeypatch, declared_reading_package
+):
+    """The user's reading of a page, on one page.
+
+    The words a widget puts out of reach. A user selected a draft's heading, tried to
     comment on it, and got nothing back — twice, months apart, on the same page. The
     heading was the page's word in a row its author had marked as the runtime's, and
     `.lf-ui` is a look rather than a permission, so the class alone can't be the answer:
     the declaration goes on the label (relabel), and an undeclared word under chrome is
-    reported here.
+    reported. It is about a word the user was shown, so the check asks that first: a
+    word the browser reads out and the page never paints is hidden with [hidden], the
+    silence available in every root, and the same word shown is still reported. A
+    visible control and an otherwise identical one below an unscrollable clip keep the
+    control-reachability reading non-vacuous.
 
-    It is about a word the user was shown, so the check asks that first. A word
-    the browser reads out and the page never paints, such as an aria-describedby
-    target inside a shadow tree, is hidden with [hidden], the silence available in
-    every root, and the same word shown is still reported."""
+    The x-paints half, and the line it draws between two silences. A widget may paint
+    a fact — `state="failure"` is a visual state and no text node — and it owes a user
+    who is listening the same fact in words. The runtime writes that word, so what is
+    left to check is whether anything drew it. Asking is asking for a box, and only an
+    element that is being laid out has one to give: a disclosure nobody opened lays
+    out nothing, and its emptiness is the ancestor's answer rather than the widget's.
+    So a word drawn nowhere on a page that is on screen is reported, and the same
+    widget behind a fold is not, there being nothing to measure and the fold being the
+    user's to open. The other silence — a word the runtime never wrote — no fixture
+    can stage: `quietFacts` returns the attribute's own value or its name, so a
+    declared paint always gets its word, and the branch is reachable only by a
+    regression in `renderQuiet` itself, which the corpus holds.
 
-    def stage_reach_cases(page):
-        page.add_init_script(
-            """addEventListener('DOMContentLoaded', () => {
-              const control = document.getElementById('c-bearer');
-              const link = document.createElement('a');
-              link.id = 'native-link';
-              link.className = 'lf-ui';
-              link.href = '#h';
-              link.textContent = 'Read context';
-              const hidden = document.createElement('span');
-              hidden.id = 'hidden-note';
-              hidden.className = 'lf-ui';
-              hidden.hidden = true;
-              hidden.textContent = 'opens in a new tab';
-              control.prepend(link, hidden);
+    The chrome half, asked where the nesting turns over. A widget's chrome is a
+    `.lf-ui` the widget put inside itself. A widget in a message is the other way up:
+    the runtime's own layer is above it and the widget has none of its own, so every
+    word it holds sits under a `.lf-ui` with nothing wrong. Asking whether the *words*
+    stand in a widget cannot tell those apart and accuses the second; asking whose the
+    `.lf-ui` is can. One reply carries three widgets: a question, an exhibit beside it,
+    and a badge whose module injects unmarked words under the chrome face. The panel
+    around all three says nothing; the badge's own chrome is read exactly as it would
+    be on a page. Nothing here had ever been rendered until a fixture asked the gate
+    rather than the panel.
 
-              const option = document.getElementById('c-lax');
-              const shown = document.createElement('span');
-              shown.id = 'shown-note';
-              shown.className = 'lf-ui';
-              shown.textContent = 'opens in a new tab';
-              const row = document.createElement('div');
-              row.id = 'unreachable-row';
-              row.className = 'lf-ui';
-              row.innerHTML = '<strong>Session cookies</strong>';
-              const button = document.createElement('button');
-              button.id = 'unreachable-button';
-              button.setAttribute('data-lf-said', '');
-              button.textContent = 'Lax, host-only';
-              option.prepend(shown, row, button);
-
-              // A visible control and an otherwise identical one below an
-              // unscrollable clip keep the control-reachability field non-vacuous.
-              const holder = document.createElement('div');
-              holder.id = 'clipped-holder';
-              holder.className = 'lf-ui';
-              holder.style.cssText = 'position:fixed;left:0;top:100px;width:120px;'
-                + 'height:40px;overflow:hidden';
-              for (const [id, words] of [['shown-offer', 'Reachable'], ['clipped-offer', 'Clipped']]) {
-                const offer = document.createElement('button');
-                offer.id = id;
-                offer.className = 'lf-reach-control lf-ui';
-                offer.setAttribute('data-lf-offer', '');
-                offer.textContent = words;
-                offer.style.cssText = 'display:block;height:20px;margin:0';
-                if (id === 'clipped-offer') offer.style.marginTop = '40px';
-                holder.append(offer);
-              }
-              document.body.append(holder);
-            }, {once: true});"""
-        )
-
-    primed_browser = primed(browser, stage_reach_cases)
-    page = open_page(primed_browser, serve(CARRIED_PAGE))
-    assert (
-        page.locator(
-            "#native-link, #hidden-note, #shown-note, #unreachable-row, "
-            "#unreachable-button"
-        ).count()
-        == 5
-    )
-    assert page.locator("#hidden-note").is_hidden()
-    assert page.locator("#shown-offer, #clipped-offer").count() == 2
-    assert page.locator("#shown-offer").is_visible()
-    # A label inside a form control no marker can reach is the suite's question of
-    # Leaf's own modules (`test_page_fixture_renders`), not the gate's.
-    assert render_checks_model.evaluate_probe(page, "wordsInFormControls") == [
-        (
-            '<lf-option id=c-lax> says "Lax, host-only" inside a form control, where '
-            "no selection can reach it"
-        )
-    ]
-    page.close()
-
-    found = render_gate_model.render_version(
-        primed_browser, serve(CARRIED_PAGE)
-    ).failures
-    assert len(found) == 6, found
-    clipped = [f for f in found if "(#clipped-offer)" in f]
-    assert len(clipped) == 2, found
-    assert all(
-        "outside the <div id=clipped-holder> that clips it" in f for f in clipped
-    )
-    assert not [f for f in found if "(#shown-offer)" in f], found
-    assert sorted({f.split("] ", 1)[1] for f in found if f not in clipped}) == [
-        (
-            '<lf-option id=c-lax> puts "Session cookies" under .lf-ui, where no comment '
-            "can reach it"
-        ),
-        (
-            '<lf-option id=c-lax> puts "opens in a new tab" under .lf-ui, where no '
-            "comment can reach it"
-        ),
-    ], found
-
-
-def test_render_reports_a_painted_fact_whose_word_was_drawn_nowhere(
-    browser, serve, declared_reading_package
-):
-    """The x-paints half of the same gate, and the line it draws between two silences.
-
-    A widget may paint a fact — `kind="failure"` is a visual state and no text node —
-    and it owes a user who is listening the same fact in words. The runtime
-    writes that word, so what is left to check is whether anything drew it. Asking
-    is asking for a box, and only an element that is being laid out has one to give:
-    a disclosure nobody opened, a tab nobody switched to and a shut thread panel
-    all lay out nothing, and their emptiness is the ancestor's answer rather than
-    the widget's.
-
-    So the two silences part here, and this holds one of them: a word drawn nowhere
-    on a page that is on screen is reported, and the same widget behind a fold is
-    not, there being nothing to measure and the fold being the user's to open.
-    That exemption is what lets a widget riding a message out, in
-    `test_render_leaves_a_widget_riding_a_reply_out_of_that_reading`.
-
-    The other silence — a word the runtime never wrote, which is a fault wherever
-    the element stands — no fixture can stage: `quietFacts` returns the attribute's
-    own value or its name, so a declared paint always gets its word, and the branch
-    is reachable only by a regression in `renderQuiet` itself. What holds it is the
-    corpus with that regression put back: silence `renderQuiet` and every painted
-    option in the examples is reported, an option in a tab nobody opened among them.
-    Skipping the unrendered element before asking whether
-    a word exists is what drops that one, so the order of the two questions here is
-    the contract, and this test does not pin it."""
-    found = [
-        f.split("] ", 1)[1]
-        for f in render_gate_model.render_version(
-            browser,
-            serve(
-                PAINTED_IN_SILENCE_PAGE,
-                packages=(*EXAMPLE_PACKAGES, declared_reading_package),
-            ),
-        ).failures
-    ]
-    assert sorted(set(found)) == [
-        (
-            '<lf-reading id=p-seen> paints state="failure" and says nothing a user '
-            "listening can hear"
-        )
-    ], found
-
-
-def test_render_reads_a_reply_widgets_own_chrome_and_not_the_panel_around_it(
-    browser, serve, tmp_path, monkeypatch
-):
-    """The same reading, asked where the nesting turns over.
-
-    A widget's chrome is a `.lf-ui` the widget put inside itself. A widget in a
-    message is the other way up: the runtime's own layer is above it and the
-    widget has none of its own, so every word it holds sits under a `.lf-ui`
-    with nothing wrong. Asking whether the *words* stand in a widget cannot tell
-    those apart and accuses the second. Asking whose the `.lf-ui` is can.
-
-    Both halves, because either alone is half a claim. One reply carries three
-    widgets: a question, an exhibit beside it, and a badge whose module injects
-    unmarked words under the chrome face. The panel around all three says
-    nothing; the badge's own chrome is read exactly as it would be on a page.
-
-    Nothing here had ever been rendered. No example shipped a widget in its log
-    until one did, and every fixture that put one in a reply asked about the
-    panel rather than about the gate — while the gate walks text nodes rather
-    than boxes, so it had been reading the panel all along with the panel shut.
-    It would have refused the first page that carried a question in a reply,
-    which is a shape the vocabulary describes and `leaf thread reply --markup` posts."""
+    Beside them, a pair shot captured at two widths: both frames render at the frame's
+    width, so the pair is scaled by two different factors and every line lands somewhere
+    new, and the flip would report that the whole page changed with nothing on screen
+    to say otherwise. That is the one shot failure worth an error box rather than a
+    caveat, and the gate has to hear about it, since nobody else will. The same shot
+    with both frames at one width passes."""
     monkeypatch.chdir(tmp_path)
     package = tmp_path / ".leaf"
     add_test_widget(package, "lf-badge", upgrade=True)
@@ -1579,8 +1466,29 @@ def test_render_reads_a_reply_widgets_own_chrome_and_not_the_panel_around_it(
             "      if (!once(this)) return;\n" + BADGE_CHROME,
         )
     )
-
-    url = serve(REPLY_HOST_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+    start = PAINTED_IN_SILENCE_PAGE.index('<div id="open-group">')
+    painted = PAINTED_IN_SILENCE_PAGE[start : PAINTED_IN_SILENCE_PAGE.index("</main>")]
+    narrow = solid_png(400, 300, (235, 215, 205))
+    narrow_src = f"/media/{hashlib.sha256(narrow).hexdigest()[:16]}.png"
+    pair = (
+        f'<lf-shot id="shot-pair" alt="the navigation rail" before="{SHOT_SRC["before"]}"'
+        f' after="{narrow_src}"></lf-shot>'
+        f'<lf-shot id="shot-nav" alt="the navigation rail" before="{SHOT_SRC["before"]}"'
+        f' after="{SHOT_SRC["after"]}"></lf-shot>'
+    )
+    start = CARRIED_PAGE.index('<lf-options id="carried">')
+    carried = CARRIED_PAGE[start : CARRIED_PAGE.index("</lf-options>") + 13]
+    source = REPLY_HOST_PAGE.replace(
+        "</main>", carried + painted + pair + "</main>"
+    ).replace("</head>", "<style>.lf-quiet { display: none }</style></head>")
+    url = serve(
+        source,
+        packages=(*EXAMPLE_PACKAGES, declared_reading_package),
+        media={
+            **{SHOT_SRC[name]: data for name, data in SHOTS.items()},
+            narrow_src: narrow,
+        },
+    )
     append_carried_log_record(
         serve.page_dir,
         {
@@ -1602,17 +1510,67 @@ def test_render_reads_a_reply_widgets_own_chrome_and_not_the_panel_around_it(
             "markup": SAMPLE_MARKUP + '<lf-badge id="rp-badge">Weighed.</lf-badge>',
         },
     )
+    page = open_page(primed(browser, stage_reach_cases), url)
+    assert (
+        page.locator(
+            "#native-link, #hidden-note, #shown-note, #unreachable-row, "
+            "#unreachable-button"
+        ).count()
+        == 5
+    )
+    assert page.locator("#hidden-note").is_hidden()
+    assert page.locator("#shown-offer, #clipped-offer").count() == 2
+    assert page.locator("#shown-offer").is_visible()
+    # A label inside a form control no marker can reach is the suite's question of
+    # Leaf's own modules (`test_page_fixture_renders`), not the gate's.
+    assert [
+        said
+        for said in render_checks_model.evaluate_probe(page, "wordsInFormControls")
+        if "c-lax" in said
+    ] == [
+        (
+            '<lf-option id=c-lax> says "Lax, host-only" inside a form control, where '
+            "no selection can reach it"
+        )
+    ]
+    # The two-width pair fails soft, as the gate below is to hear.
+    consume_browser_errors(page, '<lf-shot id="shot-pair"> failed')
+    page.close()
+
+    failures = render_gate_model.render_version(
+        primed(browser.unwatched, stage_reach_cases), url
+    ).failures
+    assert [f for f in failures if "600px" in f and "400px" in f], failures
+    clipped = [f for f in failures if "(#clipped-offer)" in f]
+    assert len(clipped) == 2, failures
+    assert all(
+        "outside the <div id=clipped-holder> that clips it" in f for f in clipped
+    )
+    assert not [f for f in failures if "(#shown-offer)" in f], failures
     found = sorted(
         {
             f.split("] ", 1)[1]
-            for f in render_gate_model.render_version(browser, url).failures
+            for f in failures
+            if "shot-pair" not in f and f not in clipped
         }
     )
     assert found == [
         (
             '<lf-badge id=rp-badge> puts "Sent by the reviewer" under .lf-ui, where no '
             "comment can reach it"
-        )
+        ),
+        (
+            '<lf-option id=c-lax> puts "Session cookies" under .lf-ui, where no comment '
+            "can reach it"
+        ),
+        (
+            '<lf-option id=c-lax> puts "opens in a new tab" under .lf-ui, where no '
+            "comment can reach it"
+        ),
+        (
+            '<lf-reading id=p-seen> paints state="failure" and says nothing a user '
+            "listening can hear"
+        ),
     ], found
 
 

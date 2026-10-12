@@ -226,14 +226,6 @@ def moved_at(cdp, node):
     return name
 
 
-# The host case of the same failure: the declarations are on the element that stages the
-# tree, so both passes find it — it is in the document — and write into a light DOM the
-# shadow root hides. The markup then holds every word the entry promised and the user
-# gets none of them, which is why the gate reads the rendered page rather than the markup.
-SHADOW_HOST_PAGE = CUSTOM_WIDGET_PAGE.replace(
-    '<lf-callout id="custom-note">',
-    '<lf-callout id="custom-note" label="Escalated" urgent>',
-)
 # Every cell one unbreakable token, so no amount of wrapping gets this table
 # inside the column and the third of the theme's three cases is the one on trial.
 WIDE_TABLE_PAGE = leaf_page(

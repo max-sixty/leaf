@@ -369,7 +369,7 @@ listeners; a page resized says at each width what it said there before. So whate
 sets a state also clears it, when the width or the gesture that called for it ends,
 and "none" has one spelling, the attribute's absence, which `keeps` writes for a null
 value. The corpus holds each rule, in
-`test_a_still_page_comes_back_from_every_journey_as_it_was`.
+`test_page_fixture_renders`.
 
 Stylesheets apply in cascade layers, in the order `layer.py`'s `CASCADE_LAYERS`
 declares and `../references/packages.md`, "Styles and composition", describes;

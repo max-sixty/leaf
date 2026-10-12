@@ -1776,8 +1776,8 @@ def test_no_face_is_stated_for_one_selector_in_both_layer_sheets():
 
     One selector spelled the same on both sides is what this reads, which is the shape
     a copy takes. Two different selectors that tie on one element are the same defect
-    and cannot be seen in a file; test_the_adopted_sheet_decides_nothing_by_standing_last
-    puts that question to a browser."""
+    and cannot be seen in a file; `adopted_sheet_findings` (test_render_gate.py) puts
+    that question to a browser."""
     adopted = _stated_faces(
         schema_model.ASSETS / "runtime" / "chrome.css", only_top_level=True
     )

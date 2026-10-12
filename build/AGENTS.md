@@ -63,4 +63,4 @@ it and bypassing named form properties. It adapts the published modules in memor
 and fails if a locked seam changes.
 Lift it to a release
 that carries lit/lit#5299; the closed-surface journey of
-`test_a_still_page_comes_back_from_every_journey_as_it_was` fails while the leak stands.
+`test_page_fixture_renders` fails while the leak stands.

@@ -74,23 +74,12 @@ RESOURCE_TYPES = {
     ".otf": "font/otf",
 }
 _JAVASCRIPT = Language(tree_sitter_javascript.language())
-# The grammar parses JSX too, which no browser runs, so a clean parse can still hold
-# it. The browser check reaches only what runs by first paint, so JSX in a module
-# imported on a click is refused here or reaches the user.
-_JSX_KINDS = sorted(
-    kind
-    for kind_id in range(_JAVASCRIPT.node_kind_count)
-    if (kind := _JAVASCRIPT.node_kind_for_id(kind_id))
-    and kind.startswith("jsx_")
-    and _JAVASCRIPT.node_kind_is_named(kind_id)
-)
 # The nodes `javascript_imports` reads, matched in the parser's own code rather than
 # by visiting every node of a vendored bundle in Python.
 _IMPORT_NODES = Query(
     _JAVASCRIPT,
     "(import_statement) @node (export_statement) @node "
-    "(call_expression function: (import)) @node "
-    + " ".join(f"({kind}) @node" for kind in _JSX_KINDS),
+    "(call_expression function: (import)) @node",
 )
 JAVASCRIPT_SUFFIXES = frozenset(
     suffix
@@ -303,10 +292,6 @@ def javascript_imports(data: bytes, path: str) -> tuple[tuple[int, int, str], ..
     )
     imports = []
     for node in nodes:
-        if node.type.startswith("jsx_"):
-            raise ArtifactError(
-                f"{path}:{node.start_point[0] + 1}: JSX is not executable JavaScript"
-            )
         literal = None
         if node.type in {"import_statement", "export_statement"}:
             literal = node.child_by_field_name("source")

@@ -218,7 +218,7 @@ export {
   syntax,
   tokenLines,
 } from "./syntax.js";
-export { bodyText, dataBody, failSoft, once } from "./widget-upgrade.js";
+export { bodyText, dataBody, failSoft, once, reportFailure } from "./widget-upgrade.js";
 export { saidAt, reportSequence, watchHistory, watchReports } from "./reports.js";
 export {
   HIDDEN,

@@ -78,16 +78,27 @@ told. A check that fires mostly on pages that already work, because delivery or 
 page's own CSS handles what it looks for, costs more than it catches. Prefer widening a
 general reading to adding a narrow one beside it.
 
-## Let the agent correct its own input
+## Be a helpful linter, not a nanny or a partial checker
 
+Leaf's checks exist to tell the agent about a mistake it would not otherwise hear of.
 The agent that writes a page or sets its data reads what comes back: a `page check`
 finding, a widget's failure box, a command's error. It fixes a mistake it can see, so
-code handles the input its contract describes, such as a patch as `git diff` writes
-it, and lets anything else fail through the parser or check already in its path.
-Detecting, repairing or explaining each malformed variant adds code to every reader of
-that input and buys nothing the agent's next attempt would not. Handle a malformed
-case only where it would otherwise pass silently into state the user relies on, such
-as an admitted event or a stored decision.
+code handles the input its contract describes, such as a patch as `git diff` writes it,
+and lets anything else fail through the parser or check already in its path.
+
+Two kinds of check cost more than they return. A nanny refuses input that would work, or
+detects, repairs or explains each malformed variant, which adds code to every reader of
+that input and buys nothing the agent's next attempt would not. A partial checker judges
+input that another component already judges exactly, with a second parser, a subset of a
+grammar, or a refusal list kept in step with a widget's. It disagrees with the real
+judge at the edges, and each disagreement found becomes another check. Leave the judging
+to the component that consumes the input, and make sure its refusal reaches the agent:
+`patch_manifest.py` stores a patch as given, and `lf-diff` refuses a file it cannot draw
+and reports it with `reportFailure`.
+
+Handle a malformed case only where nothing downstream would refuse it, so that it would
+pass silently into state the user relies on, such as an admitted event or a stored
+decision.
 
 What one Leaf module writes for another, over a channel only Leaf code writes, is not
 input: the browser reading the server's answer, the Worker reading the manifest its

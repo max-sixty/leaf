@@ -50,6 +50,7 @@ import {
   threadSurface,
   readingPaint,
   releaseOutlets,
+  reportFailure,
   reserve,
   retainUserIntent,
   scrollBehavior,
@@ -133,8 +134,8 @@ async function sourceRecords(source) {
 
 // A manifest record's patch, fetched for the delivery that listed it, must hold that
 // one file.
-async function deferredFile(snapshot, path) {
-  const files = await parsedFiles(await loadDeferred(snapshot, path));
+async function deferredFile(patch, path) {
+  const files = await parsedFiles(patch);
   if (files.length !== 1 || files[0].name !== path)
     throw new Error(`the deferred patch for ${path} does not contain that one file`);
   return files[0];
@@ -685,9 +686,9 @@ async function renderFile(file, sharedStyles) {
   return { nodes: [...rendered.children], pre, lines };
 }
 
-// What the widget can present. The diff package's `patch_manifest.py` refuses the same
-// excluded entries before a manifest is stored, and `tests/diff_patch_cases.json` holds
-// both readers to one table of cases.
+// What the widget can present, which it alone judges: the diff package's
+// `patch_manifest.py` stores what it is given, and an entry refused here reports when
+// its file opens. `tests/diff_patch_cases.json` is the table of cases.
 async function parsedFiles(source) {
   if (/^copy (?:from|to) /m.test(source))
     throw new Error(
@@ -721,25 +722,33 @@ async function parsedFiles(source) {
 
 // The box takes the place of the file's lines, so core's composer leaves their outlets
 // first: a user writing about one of them stays in it, and the hold below, which
-// would hand them to Retry, finds them outside the file.
+// would hand them to Retry, finds them outside the file. A patch the widget cannot draw
+// offers no Retry, and the hold lands on the file's header.
 function deferredError(details, error, retry) {
   releaseOutlets(details);
   const restore = holdFocus(details);
+  const header = details.firstElementChild;
+  const message = error?.message || error;
   const box = document.createElement("div");
   box.className = "lf-error";
   box.dataset.lfGen = "1";
-  box.textContent = `That file's diff failed to load: ${error?.message || error}`;
-  const button = offer("button", "lf-btn");
-  button.type = "button";
-  button.textContent = "Retry";
-  button.addEventListener("click", () => {
-    if (button.getAttribute("aria-disabled") === "true") return;
-    button.setAttribute("aria-disabled", "true");
-    retry();
-  });
-  box.append(" ", button);
-  setChildren(details, [details.firstElementChild, box]);
-  restore?.(button);
+  box.textContent = retry
+    ? `That file's diff failed to load: ${message}`
+    : `That file's diff cannot be shown: ${message}`;
+  let standIn = header;
+  if (retry) {
+    standIn = offer("button", "lf-btn");
+    standIn.type = "button";
+    standIn.textContent = "Retry";
+    standIn.addEventListener("click", () => {
+      if (standIn.getAttribute("aria-disabled") === "true") return;
+      standIn.setAttribute("aria-disabled", "true");
+      retry();
+    });
+    box.append(" ", standIn);
+  }
+  setChildren(details, [header, box]);
+  restore?.(standIn);
 }
 
 customElements.define(
@@ -964,6 +973,7 @@ customElements.define(
               record,
               loaded: rename,
               failed: false,
+              refused: false,
               loading: null,
               prepared,
             });
@@ -1013,15 +1023,32 @@ customElements.define(
       }
     }
 
+    // A patch that fails to load may load on Retry. One this widget cannot draw never
+    // will, so it offers no Retry and reports to the agent, which stored it: the
+    // manifest's producer leaves judging a patch to this widget.
     async prepareEntry(snapshot, record, renderKey, sharedStyles) {
+      let file = record.parsed;
+      if (!file) {
+        let patch;
+        try {
+          patch = await loadDeferred(snapshot, record.path);
+        } catch (error) {
+          return { error, retry: true };
+        }
+        try {
+          file = await deferredFile(patch, record.path);
+        } catch (error) {
+          reportFailure(this, error);
+          return { error };
+        }
+      }
       try {
-        const file = record.parsed ?? (await deferredFile(snapshot, record.path));
         const nextKey = JSON.stringify(file);
         const rendered =
           renderKey === nextKey ? null : await renderFile(file, sharedStyles);
         return { renderKey: nextKey, rendered };
       } catch (error) {
-        return { error };
+        return { error, retry: true };
       }
     }
 
@@ -1228,17 +1255,24 @@ customElements.define(
 
     // Returns the focus restore for the caller to run once the file's evidence is staged.
     applyEntry(entry) {
-      const { error, renderKey, rendered } = entry.prepared;
+      const { error, retry, renderKey, rendered } = entry.prepared;
       entry.prepared = null;
       if (error) {
         entry.failed = true;
+        // Reopening retries a load, and nothing retries a patch this widget refused.
+        entry.refused = !retry;
         entry.lines = [];
         entry.renderKey = null;
-        deferredError(entry.details, error, () => {
-          if (!entry.failed) return;
-          entry.failed = false;
-          this.present(this.loadEntry(entry));
-        });
+        deferredError(
+          entry.details,
+          error,
+          retry &&
+            (() => {
+              if (!entry.failed) return;
+              entry.failed = false;
+              this.present(this.loadEntry(entry));
+            }),
+        );
         return null;
       }
       const restore =
@@ -1291,7 +1325,8 @@ customElements.define(
       if (!entry.details) return;
       entry.disclose ??= () => {
         threadSurface(this).update();
-        if (!entry.details.open || !this.fileEntries?.includes(entry)) return;
+        if (!entry.details.open || !this.fileEntries?.includes(entry) || entry.refused)
+          return;
         entry.failed = false;
         this.present(this.loadEntry(entry));
       };

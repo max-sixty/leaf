@@ -164,7 +164,10 @@ the view's `placeSelection()` from its `connectedMoveCallback`.
 Once `render(template, container)` owns a container, update its children through
 `render` so Lit retains its markers and disconnects removed directives. `failSoft`
 resets the container and renders an error box; a later template render replaces
-that box. It also supports native recovery and repeated failures.
+that box. It also supports native recovery and repeated failures. Either way the
+agent hears the failure as the page's error. `reportFailure(element, error)` sends
+that report alone, for a part the widget shows failed its own way while the rest
+stands, such as a diff file whose patch it cannot draw.
 
 `shadowStage(host, nodes)` owns the shadow root's structure and styles. For a
 template, stage a concrete container with `shadowStage(host, [container])` and

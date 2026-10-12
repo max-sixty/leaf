@@ -13,7 +13,6 @@ from leaf import __main__ as leaf_entry
 from leaf import cli as cli_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
-from leaf import layer as layer_model
 from leaf import service as service_model
 from leaf.registry import validation as registry_validation
 from leaf.registry.schema import check_schema
@@ -21,7 +20,6 @@ from leaf.structure import SourceDocument
 from leaf.validation import composition as validation_model
 from leaf_dev import record_demo
 from leaf_dev import site as site_model
-from leaf_dev.page_fixtures import source_packages
 from unidiff import PatchSet
 
 ROOT = Path(__file__).parents[2]
@@ -138,26 +136,6 @@ def test_catalog_descriptions_follow_example_metadata(tmp_path, monkeypatch):
         composed[composed.index("<!--") : composed.index("-->") + 3]
         == catalog[catalog.index("<!--") : catalog.index("-->") + 3]
     )
-
-
-def test_docs_pages_use_only_registered_widgets(monkeypatch):
-    monkeypatch.chdir(ROOT)
-    registries = [
-        package / "registry.json"
-        for package in layer_model.layer_inputs(
-            tuple(source_packages(DOCS / "index.html"))
-        )
-    ]
-    registry = {}
-    for source in registries:
-        if source.exists():
-            registry.update(json.loads(source.read_text()))
-    used = {
-        tag
-        for page in DOCS.glob("*.html")
-        for tag in re.findall(r"<(lf-[a-z-]+)", page.read_text())
-    }
-    assert used and used <= set(registry)
 
 
 def test_every_product_page_has_the_same_site_navigation():

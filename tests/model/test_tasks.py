@@ -13,6 +13,7 @@ from interact_support import (
     asks_on_user,
     publish,
     response_reference,
+    served_thread,
     stamp,
     state_json,
 )
@@ -389,7 +390,7 @@ def test_user_queue_selects_widget_and_prose_questions(page_dir, sessionless):
     served = full_state(page_dir, events_model.read_events(page_dir))
     named_question = next(
         message
-        for thread in served["browser"]["thread"]["threads"]
+        for thread in served_thread(served["browser"])["threads"]
         for message in thread["msgs"]
         if message["id"] == question["id"]
     )
@@ -413,7 +414,7 @@ def test_user_queue_selects_widget_and_prose_questions(page_dir, sessionless):
     served = full_state(page_dir, events_model.read_events(page_dir))
     [answered] = [
         entry
-        for entry in served["browser"]["thread"]["asks"]["all"]
+        for entry in served_thread(served["browser"])["asks"]["all"]
         if entry["source"]["id"] == question["id"]
     ]
     assert (answered["status"], answered["answer"]["event"]["id"]) == (
@@ -452,10 +453,11 @@ def test_an_opening_question_retains_its_answer_in_the_question_inventory(
         },
     )
     served = full_state(page_dir, events_model.read_events(page_dir))
-    [thread] = served["browser"]["thread"]["threads"]
+    [thread] = served_thread(served["browser"])["threads"]
     assert thread["user_prompt"] == {"message": question["id"], "version": edit["id"]}
     assert [
-        entry["source"]["id"] for entry in served["browser"]["thread"]["asks"]["user"]
+        entry["source"]["id"]
+        for entry in served_thread(served["browser"])["asks"]["user"]
     ] == [question["id"]]
     answer = append_carried_log_record(
         page_dir,
@@ -468,10 +470,10 @@ def test_an_opening_question_retains_its_answer_in_the_question_inventory(
         },
     )
     served = full_state(page_dir, events_model.read_events(page_dir))
-    assert served["browser"]["thread"]["threads"][0]["user_prompt"] is None
+    assert served_thread(served["browser"])["threads"][0]["user_prompt"] is None
     assert served["browser"]["todos"] == []
     assert served["browser"]["ended_todos"] == []
-    [ended] = served["browser"]["thread"]["asks"]["all"]
+    [ended] = served_thread(served["browser"])["asks"]["all"]
     assert (ended["source"]["id"], ended["status"], ended["answer"]["event"]["id"]) == (
         question["id"],
         "answered",
@@ -484,7 +486,7 @@ def test_an_opening_question_retains_its_answer_in_the_question_inventory(
         served = full_state(page_dir, events_model.read_events(page_dir))
         assert [
             entry["source"]["id"]
-            for entry in served["browser"]["thread"]["asks"]["user"]
+            for entry in served_thread(served["browser"])["asks"]["user"]
         ] == [question["id"]]
         assert served["browser"]["ended_todos"] == []
 
@@ -540,7 +542,7 @@ def test_a_question_ends_at_the_reaction_that_settles_it(page_dir):
         == "answered"
     )
     served = full_state(page_dir, events_model.read_events(page_dir))
-    [answered] = served["browser"]["thread"]["asks"]["all"]
+    [answered] = served_thread(served["browser"])["asks"]["all"]
     assert (answered["status"], answered["answer"]["event"]["id"]) == (
         "answered",
         keep["id"],
@@ -1016,7 +1018,7 @@ def test_widget_question_ends_through_its_source_and_prose_end_withdraws_request
     assert state["threads"][0]["attention"] is None
     served = full_state(page_dir, events_model.read_events(page_dir))
     assert served["browser"]["ended_todos"] == []
-    [ended] = served["browser"]["thread"]["asks"]["all"]
+    [ended] = served_thread(served["browser"])["asks"]["all"]
     assert (ended["id"], ended["status"], ended["answer"]) == (
         "reply:" + question["id"],
         "withdrawn",

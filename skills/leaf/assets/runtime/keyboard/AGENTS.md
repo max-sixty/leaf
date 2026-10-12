@@ -107,8 +107,11 @@ control, serving both a finger and a mouse. A row declares the control's words a
 `touch-controls.js` builds the control from the row the key uses.
 
 - A page command's control is an entry in the banner's More.
-- A page-scope row's control is a step on the banner's row while its scope is the
-  innermost applying scope with steps, since a phone's row fits one interaction's. A
+- A scope row's control is a step on the banner's row while its scope, a page scope
+  or one on the focused element, is the innermost applying scope with steps, since a
+  phone's row fits one interaction's. An element scope declares one only where its
+  widget draws no control for a finger, as a code block draws Copy only for a pointer,
+  and the banner offers an element scope's step only under a coarse pointer. A
   mode or bounded interaction a finger can enter declares its way out, and anything else
   inside it a finger cannot otherwise do, such as walking search matches.
 

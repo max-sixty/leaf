@@ -15,7 +15,7 @@ assertions always consume this checkout's server rather than a recorded copy.
 import json
 from pathlib import Path
 
-from interact_support import model_layer
+from interact_support import model_layer, served_thread
 from leaf.event_log import EventRefused
 from leaf.passages import SourceReading
 from leaf.projection import StateProjection, authored_rank, question_value
@@ -29,7 +29,7 @@ PAGE = leaf_page("Served records", '<h1 id="h">Steps</h1><p id="p">Two steps.</p
 def _served(events: tuple[dict, ...]) -> dict:
     state = served_reading(PAGE, events)
     return {
-        "threads": state["browser"]["thread"]["threads"],
+        "threads": served_thread(state["browser"])["threads"],
         "workflows": state["workflows"],
     }
 

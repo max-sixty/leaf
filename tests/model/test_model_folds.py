@@ -9,7 +9,7 @@ putting one in the claim.
 """
 
 import model_folds as model
-from interact_support import page_packages
+from interact_support import page_packages, served_thread
 
 HUB = model.leaf_page(
     "command hub",
@@ -482,11 +482,11 @@ def test_question_lifecycle_selects_current_prompt_and_preserves_first_settlemen
         "version": "second",
     }
     assert state["todos"] == []
-    assert [question["id"] for question in state["thread"]["asks"]["all"]] == [
+    assert [question["id"] for question in served_thread(state)["asks"]["all"]] == [
         "reply:first",
         "reply:second",
     ]
-    assert [question["id"] for question in state["thread"]["asks"]["user"]] == [
+    assert [question["id"] for question in served_thread(state)["asks"]["user"]] == [
         "reply:second"
     ]
     state = add("reply", "reaction", "user", parent="second", token="keep")
@@ -494,10 +494,10 @@ def test_question_lifecycle_selects_current_prompt_and_preserves_first_settlemen
         "message": "first",
         "version": "first",
     }
-    assert [question["id"] for question in state["thread"]["asks"]["user"]] == [
+    assert [question["id"] for question in served_thread(state)["asks"]["user"]] == [
         "reply:first"
     ]
-    assert state["thread"]["asks"]["all"][1]["answer"]["event"]["id"] == "reaction"
+    assert served_thread(state)["asks"]["all"][1]["answer"]["event"]["id"] == "reaction"
     state = add(
         "todo_end",
         "end",
@@ -507,7 +507,7 @@ def test_question_lifecycle_selects_current_prompt_and_preserves_first_settlemen
     )
     assert model.threads(state)["first"]["user_prompt"] is None
     state = add("reply", "answer", "user", parent="first", text="Route A")
-    first, second = state["thread"]["asks"]["all"]
+    first, second = served_thread(state)["asks"]["all"]
     assert (first["status"], first["answer"]) == ("withdrawn", None)
     assert (second["status"], second["answer"]["event"]["id"]) == (
         "answered",
@@ -518,7 +518,7 @@ def test_question_lifecycle_selects_current_prompt_and_preserves_first_settlemen
     assert state["todos"] == []
     assert model.threads(state)["first"]["user_prompt"] is None
     state = add("unresolve", "reopen", "user", parent="first")
-    assert [question["id"] for question in state["thread"]["asks"]["user"]] == [
+    assert [question["id"] for question in served_thread(state)["asks"]["user"]] == [
         "reply:third"
     ]
     assert model.threads(state)["first"]["user_prompt"] == {
@@ -549,7 +549,7 @@ def test_frozen_ask_attention_comes_from_its_widget_without_a_prose_task():
         "workflow": None,
     }
     assert state["todos"] == []
-    [question] = state["thread"]["asks"]["all"]
+    [question] = served_thread(state)["asks"]["all"]
     assert question["id"] == "widget:routes"
     assert question["next_actor"] == "user"
     events.append(
@@ -564,7 +564,7 @@ def test_frozen_ask_attention_comes_from_its_widget_without_a_prose_task():
     assert model.threads(state)["e1"]["user_prompt"] is None
     assert state["todos"] == []
     assert state["ended_todos"] == []
-    [question] = state["thread"]["asks"]["all"]
+    [question] = served_thread(state)["asks"]["all"]
     assert (question["status"], question["answer"]["value"]) == (
         "answered",
         ["route-a"],
@@ -659,7 +659,7 @@ def test_after_is_what_each_gesture_leaves_the_thread_as_the_log_reads_it():
     def owed(state):
         return [
             question["id"]
-            for question in state["thread"]["asks"]["user"]
+            for question in served_thread(state)["asks"]["user"]
             if question["thread"] == "e1"
         ]
 

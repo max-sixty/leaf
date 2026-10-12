@@ -61,6 +61,7 @@ from interact_support import (
     release_codex_command,
     release_held,
     response_reference,
+    served_thread,
     serving,
     spawn_probe,
     stamp,
@@ -526,7 +527,7 @@ def test_terminal_harness_failure_keeps_exact_user_recovery_without_stop_obligat
     # The move is the user's to resend, so the banner counts nothing as saved for
     # the agent to pick up.
     assert set(state["activity"]["counts"].values()) == {0}
-    [thread] = state["browser"]["thread"]["threads"]
+    [thread] = served_thread(state["browser"])["threads"]
     assert thread["attention"] == {
         "kind": "needs_user",
         "reason": "resend",
@@ -561,7 +562,7 @@ def test_user_resend_clears_terminal_failure_recovery(page_dir):
     assert [(item["input"], item["next_actor"]) for item in state["workflows"]] == [
         (resent["id"], "agent")
     ]
-    [thread] = state["browser"]["thread"]["threads"]
+    [thread] = served_thread(state["browser"])["threads"]
     assert thread["attention"] == {
         "kind": "waiting",
         "reason": "workflow",
@@ -679,7 +680,7 @@ def test_unrelated_agent_update_does_not_clear_a_standing_user_ask(page_dir):
         },
     )
 
-    [thread] = page_state(page_dir)["browser"]["thread"]["threads"]
+    [thread] = served_thread(page_state(page_dir)["browser"])["threads"]
     assert thread["user_prompt"]["message"] == question["id"]
     assert thread["attention"] == {
         "kind": "needs_user",
@@ -691,7 +692,7 @@ def test_unrelated_agent_update_does_not_clear_a_standing_user_ask(page_dir):
 def test_settling_reaction_closes_an_agent_root_ask(page_dir):
     publish(page_dir)
     question = thread_model.cmd_comment(page_dir, "", "", "", "Is forty enough?", None)
-    [before] = page_state(page_dir)["browser"]["thread"]["threads"]
+    [before] = served_thread(page_state(page_dir)["browser"])["threads"]
     assert before["user_prompt"]["message"] == question["id"]
     assert before["attention"]["kind"] == "needs_user"
 
@@ -705,7 +706,7 @@ def test_settling_reaction_closes_an_agent_root_ask(page_dir):
         },
     )
 
-    [after] = page_state(page_dir)["browser"]["thread"]["threads"]
+    [after] = served_thread(page_state(page_dir)["browser"])["threads"]
     assert after["user_prompt"] is None
     assert after["attention"] is None
 
@@ -764,7 +765,7 @@ def test_frozen_widget_workflow_contributes_to_its_thread_attention(page_dir):
     )
     thread = next(
         item
-        for item in state["browser"]["thread"]["threads"]
+        for item in served_thread(state["browser"])["threads"]
         if item["id"] == asked["id"]
     )
     assert thread["attention"] == {
@@ -794,7 +795,7 @@ def test_frozen_widget_workflow_contributes_to_its_thread_attention(page_dir):
         {"kind": "failed", "operation": "response"},
     )
     assert state["activity"]["obligations"] == []
-    [thread] = state["browser"]["thread"]["threads"]
+    [thread] = served_thread(state["browser"])["threads"]
     assert thread["attention"] == {
         "kind": "needs_user",
         "reason": "resend",
@@ -846,7 +847,7 @@ def test_a_frozen_move_that_answers_no_ask_keeps_a_receipt_and_owes_nothing(
 
     def reading():
         state = page_state(page_dir)
-        [thread] = state["browser"]["thread"]["threads"]
+        [thread] = served_thread(state["browser"])["threads"]
         return state, thread["attention"]
 
     state, attention = reading()
@@ -4137,7 +4138,9 @@ def test_a_task_connection_streams_and_commits_its_delivery_reply(
     assert connection.start_delivery(prepared.payload)
 
     streamed = wait_for(
-        lambda: page_state(page_dir)["browser"]["thread"]["threads"][0]["msgs"][-1],
+        lambda: served_thread(page_state(page_dir)["browser"])["threads"][0]["msgs"][
+            -1
+        ],
         lambda message: message["text"] == "Streaming",
         failure="the streamed reply did not reach the page",
     )
@@ -4170,7 +4173,7 @@ def test_a_task_connection_streams_and_commits_its_delivery_reply(
             service_model.delivery_reply_attempt(prepared.payload["id"]),
         )
     ]
-    [thread] = page_state(page_dir)["browser"]["thread"]["threads"]
+    [thread] = served_thread(page_state(page_dir)["browser"])["threads"]
     assert thread["msgs"][-1]["id"] == replies[0]["id"]
 
 
@@ -6781,7 +6784,7 @@ def test_thread_summary_is_admitted_as_one_ordered_thread_range(page_dir):
         internal_reaction["id"],
         second["id"],
     ]
-    browser_thread = page_state(page_dir)["browser"]["thread"]["threads"][0]
+    browser_thread = served_thread(page_state(page_dir)["browser"])["threads"][0]
     assert [message["id"] for message in browser_thread["msgs"]] == [
         root["id"],
         internal_reaction["id"],
@@ -6836,7 +6839,7 @@ def test_summary_cli_can_fold_without_prose_only_when_explicit(page_dir, label):
     )
     assert read.exit_code == 0, read.output
     [agent_fold] = json.loads(read.output)["thread"]["summaries"]
-    [thread] = page_state(page_dir)["browser"]["thread"]["threads"]
+    [thread] = served_thread(page_state(page_dir)["browser"])["threads"]
     [fold] = thread["summaries"]
     assert fold == agent_fold
     assert (fold["label"], fold["text"], fold["covers"]) == (

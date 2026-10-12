@@ -17,7 +17,6 @@ import {
 import {
   stampedState,
   sameStateDefinition,
-  sameStateOperation,
 } from "../../runtime/registry-contract.js";
 import {
   discussed,
@@ -402,30 +401,23 @@ function advance(
 
 
 
+
+
+
 /** A server view with its basis, the transport identity, left off. */
 
 
-// The server classifies page entries under the shown revision's registry and thread
-// entries under the active revision's. A pinned earlier revision captured its thread
-// widgets under its own registry, so an entry whose operation that registry does not
-// define is one those widgets cannot draw, and it is left out.
-function normalizedProjection(
-  view                             ,
-  thread                                                     ,
-  document                                                     ,
-) {
+// The server classifies a view's page and thread entries alike under that revision's
+// registry, so every entry is one the view's widgets can draw.
+function normalizedProjection(view                             ) {
   const entries = [];
   const actionIds = [];
   const reportIds = [];
   const desiredIds = [];
-  for (const projection of [view?.document.projection, thread?.projection]) {
+  for (const projection of [view?.document.projection, view?.thread.projection]) {
     if (!projection) continue;
     for (const wire of projection.entries) {
       const e = wire.event;
-      const descriptor = document?.descriptors.get(e.widget);
-      const stamp =
-        document && descriptor && stampedState(document.registry, descriptor.tag, e);
-      if (descriptor && !sameStateOperation(e.meaning?.state, stamp?.definition)) continue;
       const coordinate = stateCoordinate(...wire.coordinate);
       entries.push({
         coordinate,
@@ -465,14 +457,13 @@ const NO_QUESTIONS = {
  * visible before its POST settles the ask. */
 function normalizedQuestions(
   view                 ,
-  threadView                                                     ,
   widgets                                     ,
   document                  ,
   projection                                   ,
   local                        ,
 )                {
   const page = view?.document.asks;
-  const thread = threadView?.asks;
+  const thread = view?.thread.asks;
   const all = [...(page?.all ?? []), ...(thread?.all ?? [])].map(
     (question)                 => {
       if (question.source.kind === "approval") {
@@ -892,7 +883,7 @@ export function createSemanticApplication({
     const view                  = served
       ? (({ basis: _basis, ...rest }) => rest)(served)
       : null;
-    const admitted = normalizedProjection(view, state?.browser.thread, document);
+    const admitted = normalizedProjection(view);
     const classifiedIds = new Set(admitted.entries.map(({ e }) => e.id));
     // A revision may reuse a widget/verb with a different operation. Keep its pending
     // delivery, but stop drawing it against that new declaration. This tab wrote a
@@ -936,14 +927,14 @@ export function createSemanticApplication({
     );
     const folded = ready
       ? foldThreads(
-          state?.browser.thread.threads ?? [],
+          view?.thread.threads ?? [],
           gestures,
           (token) => Boolean(document.registry.$reactions?.tokens?.[token]?.settles),
         )
       : [];
     const widgets = foldWidgetStates(document.authored, projection);
     const admittedQuestions = ready
-      ? normalizedQuestions(view, state?.browser.thread, widgets, document, projection, local)
+      ? normalizedQuestions(view, widgets, document, projection, local)
       : NO_QUESTIONS;
     const tasks = ready ? localTasks(state, local) : { open: [], ended: [] };
     // Thread attention is the server's reading, and two local facts adjust it. A
@@ -1111,7 +1102,7 @@ export function createSemanticApplication({
         all: threads,
         // Historical system rows are event narration, never current approval state.
         approvalHistory: [
-          ...(state?.browser.thread.approval_history ?? []),
+          ...(state?.browser.approval_history ?? []),
           ...local.flatMap(({ event, localId, timestamp }) => event.kind === "done"
             ? [{ ...event, id: localId, ts: timestamp }] : []),
         ].filter((event) => !local.some(({ event: gesture }) =>
@@ -1261,12 +1252,9 @@ export function createSemanticApplication({
     // Version comparison receives a server projection already interpreted through the
     // requested revision's registry. Keep that admitted spec on the wire; the current
     // document contract must not reinterpret historical events.
-    projectView(
-      view                                                ,
-      thread                                         ,
-    ) {
+    projectView(view                                                ) {
       return foldProjection({
-        ...normalizedProjection(view, thread),
+        ...normalizedProjection(view),
         pendingEntries: [],
       });
     },

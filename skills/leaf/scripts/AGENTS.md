@@ -102,8 +102,9 @@ the served response, `reading` names filesystem changes for freshness reads, and
 `service` owns the page source every route reads through (the live directory, or a
 `page_snapshot` capture) and its state transaction.
 
-Within `render_gate/`, `scheme` owns one browser and color lifecycle, `readings` owns
-the probe readings and their findings, `version` owns retry policy, `page_code` owns
+Within `render_gate/`, `findings` owns the record every check reports and its words,
+`scheme` owns one browser and color lifecycle, `readings` owns the probe readings and
+the findings they become, `version` owns retry policy, `page_code` owns
 the run plain `page check` takes, `preview` owns ephemeral servers, `browser` owns the
 browser's launch and end, `screens` owns the screens a passing check saves for the
 author, `picture` owns the picture `page picture` draws of a drawing comment,

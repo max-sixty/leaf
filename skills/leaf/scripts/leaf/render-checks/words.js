@@ -5,7 +5,7 @@ import {
   verbatimBoundaryIdentity,
   verbatimOwnerIdentity,
 } from "/runtime/check-api.js";
-import { at, place } from "./locate.js";
+import { at, place, unique } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
 const compositionalWords = (owner, declarations) => {
@@ -201,12 +201,15 @@ export function coveredWords({
       const down =
         Math.min(a.box.bottom, b.box.bottom) - Math.max(a.box.top, b.box.top);
       if (across <= 2 || down <= 2) continue;
-      found.push(
-        `${at(a.el)} draws ${JSON.stringify(a.text)} in the same place as ` +
-          `${at(b.el)}'s ${JSON.stringify(b.text)}`,
-      );
+      found.push({
+        code: "covered-words",
+        at: at(a.el),
+        words: a.text,
+        under: at(b.el),
+        covered: b.text,
+      });
     }
-  return [...new Set(found)];
+  return unique(found);
 }
 
 // Inspect the theme's actual token paint, including declared widget shadow roots.
@@ -275,11 +278,11 @@ export function unreadSyntax() {
     seen.add(surface);
     const read = ratio(ink, on);
     if (read < 4.5)
-      found.set(
+      found.set(style, {
+        code: "unread-syntax",
         style,
-        `code styled ${JSON.stringify(style)} reads at ${read.toFixed(1)}:1 ` +
-          `against the block it is set on`,
-      );
+        ratio: Math.round(read * 10) / 10,
+      });
   }
   return [...found.values()];
 }
@@ -317,9 +320,7 @@ export function silentWords(declarations) {
       for (const el of every(tag)) {
         const value = el.getAttribute(attr);
         if (value !== null && !says(el.shadowRoot ?? el).includes(value))
-          found.push(
-            `${at(el)} declares ${attr} as x-says and never says ` + `"${value}"`,
-          );
+          found.push({ code: "silent-word", at: at(el), attr, value });
       }
   return found;
 }

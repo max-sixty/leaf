@@ -68,10 +68,9 @@ from pathlib import Path
 
 import click
 import psutil
-from leaf.delivery import pickup_receipts
+from leaf.delivery import DELIVERY_FORMAT, pickup_receipts
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
-from leaf.hook_transport import INLINE_DELIVERY
 from leaf.leases import wait_is_live
 from leaf.server import running_server
 from leaf.service import claim_is_active, page_claim
@@ -274,9 +273,10 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, module: bool) -> None:
         sent.extend(names)
         settled(page, cc.session, {name: user.ids[name] for name in sent})
         # The hooks module keeps a delivery out of the user's sight; without it,
-        # Claude Code prints the one the Stop hook hands over.
+        # Claude Code prints the one the Stop hook hands over, whose envelope names
+        # its format.
         require(
-            not module or INLINE_DELIVERY not in cc.shown(),
+            not module or DELIVERY_FORMAT not in cc.shown(),
             f"{name}: a delivery was printed in the terminal",
         )
         # The turn that answers ends with a watch running, under either watcher.
@@ -494,7 +494,7 @@ def answering(browser, *, hooks_module: bool) -> Iterator[tuple[User, Callable]]
             )
             settled(place.page, cc.session, {})
             require(
-                not hooks_module or INLINE_DELIVERY not in cc.shown(),
+                not hooks_module or DELIVERY_FORMAT not in cc.shown(),
                 "setup: a delivery was printed in the terminal",
             )
             cc.keep("setup")

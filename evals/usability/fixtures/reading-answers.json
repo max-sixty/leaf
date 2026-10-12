@@ -2,45 +2,31 @@
   "questions": [
     {
       "surface": "plain",
-      "section": "schedule",
-      "question": "On what date does the migration window open?",
-      "answer": "14 October"
+      "section": "schedule"
     },
     {
       "surface": "collapsed",
-      "section": "rollback",
-      "question": "Who owns the rollback?",
-      "answer": "Priya Raman"
+      "section": "rollback"
     },
     {
       "surface": "inactive-tab",
-      "section": "attempts",
-      "question": "At which shard did the earlier attempt stop?",
-      "answer": "37"
+      "section": "attempts"
     },
     {
       "surface": "widget-data",
-      "section": "rehearsal",
-      "question": "How many write errors did ap-south record in the rehearsal?",
-      "answer": "1284"
+      "section": "rehearsal"
     },
     {
       "surface": "external-data",
-      "section": "copier",
-      "question": "What is max_parallel_copies set to in the copier configuration the page shows?",
-      "answer": "6"
+      "section": "copier"
     },
     {
       "surface": "standing-action",
-      "section": "mode",
-      "question": "Which cutover mode has the user picked?",
-      "answer": "Shard by shard: the user picked it, then picked Dual write, then undid the Dual write pick"
+      "section": "mode"
     },
     {
       "surface": "view",
-      "section": "attempts",
-      "question": "Which attempt tab am I looking at right now?",
-      "answer": "Not recorded: the open tab is the viewer's own browser state, which the page directory does not hold; Current attempt is only the default"
+      "section": "attempts"
     }
   ],
   "data": {

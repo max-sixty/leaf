@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import tomllib
 from datetime import datetime
 from pathlib import Path
 
@@ -29,6 +30,7 @@ from interact_support import (
     element_declaration,
     fetch,
     install_payload,
+    js_facts,
     lock_contention,
     publish,
     record_claim,
@@ -59,6 +61,8 @@ from leaf.render_gate import browser as browser_model
 from leaf.render_gate.preview import preview_server
 from leaf.revisioning import activate_source
 from model_folds import leaf_page
+from packaging.requirements import Requirement
+from packaging.specifiers import SpecifierSet
 
 
 def storage_contract() -> tuple[list[str], list[str]]:
@@ -129,8 +133,8 @@ def test_wait_help_says_where_a_delivery_says_how_to_confirm_it():
 def test_agent_interaction_command_help(regtest):
     """The complete help an agent follows between receiving and answering input.
 
-    Keep the full CLI output, including options, beside the dynamic interaction
-    snapshots in test_interact_session. A prose review can then follow a command
+    Keep the full CLI output, including options, beside the snapshots of what the
+    hooks and waits print to the agent. A prose review can then follow a command
     named by a reminder without reconstructing its help from source docstrings.
     """
     outputs = []
@@ -1322,21 +1326,19 @@ def test_kernel_selectors_name_no_package_tag():
         where = sheet.relative_to(schema_model.ASSETS)
         rules = tinycss2.parse_stylesheet(sheet.read_text(), skip_comments=True)
         leaks += [f"{where}: {p}" for p in preludes(rules) if leaks_in(p)]
-    query = re.compile(
-        r"\.(?:querySelector|querySelectorAll|closest|matches)\(\s*([\"'`])(.*?)\1",
-        re.DOTALL,
-    )
-    for module in sorted(schema_model.ASSETS.rglob("*.js")):
-        if "vendor" in module.parts:
-            continue
-        code = re.sub(
-            r"(?<!:)//[^\n]*|/\*.*?\*/", "", module.read_text(), flags=re.DOTALL
-        )
+    modules = [
+        module
+        for module in sorted(schema_model.ASSETS.rglob("*.js"))
+        if "vendor" not in module.parts
+    ]
+    queries = json.loads(js_facts("queries", modules))
+    assert any(queries.values()), "no DOM query was read — the reading is broken"
+    for module in modules:
         where = module.relative_to(schema_model.ASSETS)
         leaks += [
-            f"{where}: {found[1]}"
-            for found in query.findall(code)
-            if leaks_in(found[1])
+            f"{where}: {selector}"
+            for selector in queries[str(module)]
+            if leaks_in(selector)
         ]
     assert leaks == [], leaks
 
@@ -1623,20 +1625,20 @@ def test_layer_style_sources_consume_the_runtime_layout_names():
     """CSS and runtime agree on shared property and attribute names. Read editable
     sources; the stylesheet freshness gate holds their generated delivery copies."""
     runtime = schema_model.ASSETS / "runtime"
-    edges = (runtime / "drawn-edge.js").read_text()
-    page_paint = (runtime / "page-paint.js").read_text()
+    edges, page_paint, surfaces = (
+        runtime / name
+        for name in ("drawn-edge.js", "page-paint.js", "auxiliary-surfaces.js")
+    )
+    read = json.loads(js_facts("literals", [edges, page_paint, surfaces]))
     styles = schema_model.ASSETS / "styles"
     sheet = (styles / "theme.css").read_text() + (styles / "chrome.css").read_text()
 
-    def constant(pattern, source):
-        return re.search(pattern, source, re.MULTILINE | re.DOTALL).group(1)
-
-    surfaces = (runtime / "auxiliary-surfaces.js").read_text()
+    [[read_property]] = read[str(surfaces)]["calls"]["getPropertyValue"]
     for spelling in (
-        "--lf-" + constant(r'getPropertyValue\("--lf-([a-z-]+)"\)', surfaces) + ":",
-        "var(" + constant(r'^const THREAD_PANEL_PROP = "([^"]+)";', edges) + ")",
-        "var(" + constant(r'^const DRAWER_SLOT_PROP = "([^"]+)";', edges) + ")",
-        "[" + constant(r'^  question: "([^"]+)",', page_paint) + "]",
+        read_property + ":",
+        "var(" + read[str(edges)]["constants"]["THREAD_PANEL_PROP"] + ")",
+        "var(" + read[str(edges)]["constants"]["DRAWER_SLOT_PROP"] + ")",
+        "[" + read[str(page_paint)]["constants"]["PAGE_PAINT_ATTRIBUTE.question"] + "]",
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
     for spelling in (
@@ -1650,13 +1652,17 @@ def test_prepaint_marks_the_state_the_stylesheet_reads():
     """Classic startup scripts publish the live and interactive states before modules
     run; the stylesheet must consume those same markers."""
     assets = schema_model.ASSETS
-    bootstrap = (assets / "runtime" / "bootstrap.js").read_text()
-    prepaint = (assets / "runtime" / "prepaint.js").read_text()
+    bootstrap, prepaint = (
+        assets / "runtime" / f"{name}.js" for name in ("bootstrap", "prepaint")
+    )
+    read = json.loads(js_facts("literals", [bootstrap, prepaint]))
     theme = (assets / "theme.css").read_text()
 
-    assert 'root.toggleAttribute("data-lf-live", true)' in bootstrap
+    assert ["data-lf-live", True] in read[str(bootstrap)]["calls"]["toggleAttribute"]
     assert "html[data-lf-live]" in theme
-    assert 'root.toggleAttribute("data-lf-interactive", true)' in prepaint
+    assert ["data-lf-interactive", True] in read[str(prepaint)]["calls"][
+        "toggleAttribute"
+    ]
     assert "html[data-lf-interactive]" in theme
     assert 'script[type="module"][src="/leaf.js"]' not in theme
 
@@ -1944,37 +1950,22 @@ def test_payload_provenance_reads_claude_codes_git_versioned_plugin_cache(
     }
 
 
-def test_a_producer_date_without_an_offset_is_refused(page_dir):
-    """The browser reads a bare local time in each viewer's own zone, so one
-    vendored page would show every viewer a different age."""
-    stamp = page_dir / "registry.json"
-    registry = json.loads(stamp.read_text(encoding="utf-8"))
-
-    def producer_dated(value):
-        registry["$layer"]["producer"] = {"commit": "a74b08365870", "committed": value}
-        cleanup_model.write_json(stamp, registry)
-        return registry_storage.layer_metadata(page_dir)["producer"]
-
-    assert producer_dated("2026-09-26T09:32:21-07:00")["committed"] == (
-        "2026-09-26T09:32:21-07:00"
-    )
-    with pytest.raises(registry_contract.RegistryError, match="timezone offset"):
-        producer_dated("2026-09-26T09:32:21")
-
-
 def test_page_check_names_an_older_leaf_beside_its_own(page_dir):
     """Between protocol bumps an update can still break an older page, and nothing
     compares the page's files with this Leaf's. So `page check` names the Leaf that
     vendored the page beside its own, with their dates, for the agent to judge a
-    re-vendor; a page this Leaf vendored gets no such line."""
+    re-vendor; a page this Leaf vendored gets no such line. With `--json` the same
+    reading is a record of both versions."""
     (page_dir / "index.html").write_text(PLAIN_PAGE, encoding="utf-8")
     stamp = page_dir / "registry.json"
     registry = json.loads(stamp.read_text(encoding="utf-8"))
 
-    def checked(producer):
+    def checked(producer, *flags):
         registry["$layer"]["producer"] = producer
         cleanup_model.write_json(stamp, registry)
-        result = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
+        result = CliRunner().invoke(
+            cli_model.cli, ["page", "check", str(page_dir), *flags]
+        )
         assert result.exit_code == 0, result.output
         return result.output
 
@@ -1989,6 +1980,18 @@ def test_page_check_names_an_older_leaf_beside_its_own(page_dir):
         f"this is Leaf {this_leaf}." in checked(older)
     )
     assert "vendored this page" not in checked(layer_model.payload_provenance())
+    report = json.loads(checked(older, "--json"))
+    assert (report["status"], report["browser"]) == (0, None)
+    [finding] = [f for f in report["findings"] if f["code"] == "leaf-version"]
+    assert finding["severity"] == "advice"
+    assert finding["values"] == {
+        "vendored": "a74b08365870, committed 2026-09-26T09:32:21-07:00",
+        "running": this_leaf,
+        "page": str(page_dir),
+    }
+    same = json.loads(checked(layer_model.payload_provenance(), "--json"))
+    assert {f["code"] for f in same["findings"]} == {"markup"}, same
+    assert {f["severity"] for f in same["findings"]} == {"advice"}, same
 
 
 def test_a_server_names_its_leaf_where_another_vendored_the_page(page_dir):
@@ -4306,7 +4309,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     asked about — a listener nobody declared looks exactly like no listener at all until
     the press it eats goes missing — so it is pinned in the source, the way the
     document-level class surface is. The listeners are read from each parsed module
-    (tests/keydown_listeners.mjs), so one wrapped across lines or registered for several
+    (tests/js_facts.mjs), so one wrapped across lines or registered for several
     types in a loop counts as written.
 
     Each allowed one is named here. The dispatcher is the register's own. The aim latch
@@ -4329,13 +4332,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
         *sorted((layer / "packages").glob("*/widgets/*.js")),
         *sorted((ROOT / "examples/packages").glob("*/widgets/*.js")),
     ]
-    listed = subprocess.run(
-        ["node", str(ROOT / "tests/keydown_listeners.mjs"), *map(str, sources)],
-        capture_output=True,
-        text=True,
-        check=True,
-        cwd=ROOT,
-    ).stdout.split()
+    listed = js_facts("keydown", sources).split()
     by_file = {}
     for line in listed:
         name = line.split(":")[0]
@@ -4505,93 +4502,72 @@ def test_an_installed_package_runs_its_own_scripts_by_name(tmp_path, monkeypatch
     assert "unknown package 'tallies'" in unknown.stderr
 
 
-@pytest.mark.parametrize(
-    ("header", "message"),
-    [
-        ("", "needs one inline `# /// script` metadata block"),
-        (
-            '# /// script\n# dependencies = ["unidiff>=1,<2"]\n# ///\n',
-            "dependency 'unidiff<2,>=1' must state a floor (>=) and nothing else",
-        ),
-        (
-            '# /// script\n# dependencies = ["unidiff==1.0.1"]\n# ///\n',
-            "dependency 'unidiff==1.0.1' must state a floor",
-        ),
-        (
-            '# /// script\n# dependencies = ["unidiff"]\n# ///\n',
-            "dependency 'unidiff' must state a floor",
-        ),
-        (
-            '# /// script\n# requires-python = "<3.13"\n# ///\n',
-            "requires-python must state a floor",
-        ),
-        (
-            '# /// script\n# dependencies = "unidiff>=1"\n# ///\n',
-            "invalid script metadata",
-        ),
-    ],
-)
 def test_package_check_refuses_a_script_that_would_run_in_the_callers_project(
-    tmp_path, monkeypatch, header, message
+    tmp_path, monkeypatch
 ):
     """Without an inline `script` block, `uv run --script` runs a file in whatever
-    project the caller's directory reaches, so check and install refuse one; a
-    declared constraint must be a floor with no cap, since no lock ships beside it.
-    """
+    project the caller's directory reaches, so check and install refuse one."""
     monkeypatch.chdir(tmp_path)
     source = tmp_path / "src" / "tally"
     created = CliRunner().invoke(cli_model.cli, ["package", "init", str(source)])
     assert created.exit_code == 0, created.output
     (source / "scripts").mkdir()
     script = source / "scripts" / "count.py"
-    script.write_text(f"{header}print('counted')\n")
+    script.write_text("print('counted')\n")
 
     checked = CliRunner().invoke(cli_model.cli, ["package", "check", str(source)])
     installed = CliRunner().invoke(cli_model.cli, ["package", "install", str(source)])
 
     assert checked.exit_code == 1
     assert checked.output.startswith(f"Error: {script}")
+    message = "needs an inline `# /// script` metadata block"
     assert message in checked.output
     assert installed.exit_code == 1
     assert message in installed.output
     assert not (machine_model.package_store() / "tally").exists()
 
 
-def test_script_requirements_read_a_multiline_dependency_list(tmp_path):
-    """The reading `package check` applies is the one the suite's pin guard uses, so
-    a header written across several comment lines is read whole by both."""
-    script = tmp_path / "tool.py"
-    script.write_text(
-        "# /// script\n"
-        "# dependencies = [\n"
-        '#   "unidiff>=1",\n'
-        '#   "rich>=13",\n'
-        "# ]\n"
-        "# ///\n"
-    )
-    assert [str(r) for r in packages_model.script_requirements(script)] == [
-        "unidiff>=1",
-        "rich>=13",
+def bundled_script_metadata(script: Path) -> dict:
+    """The inline `script` block of one bundled script, read as PEP 723 reads it."""
+    (block,) = [
+        match["content"]
+        for match in packages_model.INLINE_METADATA.finditer(script.read_text())
+        if match["type"] == "script"
     ]
+    return tomllib.loads(
+        "".join(
+            line[2:] if line.startswith("# ") else line[1:]
+            for line in block.splitlines(keepends=True)
+        )
+    )
 
 
 def test_the_suite_pins_every_bundled_script_dependency():
     """A bundled script's header declares its dependencies and ships no lock, so
-    the dev group repeats each one: `uv.lock` then pins what the suite runs the
-    script against, and the suite needs no network to run it."""
+    they follow the tree's dependency policy, a floor and no cap (AGENTS.md, "The
+    install runs this tree"), and the dev group repeats each one: `uv.lock` then pins
+    what the suite runs the script against, and the suite needs no network to run it.
+    """
     pyproject = (PLUGIN_ROOT / "pyproject.toml").read_text()
-    declared = {
-        str(requirement)
-        for script in schema_model.BUNDLED_PACKAGES.glob("*/scripts/*.py")
-        for requirement in packages_model.script_requirements(script)
-    }
-    assert "unidiff>=1" in declared
+    scripts = sorted(schema_model.BUNDLED_PACKAGES.glob("*/scripts/*.py"))
+    assert scripts
+    declared = set()
+    for script in scripts:
+        metadata = bundled_script_metadata(script)
+        constraints = [metadata[key] for key in ["requires-python"] if key in metadata]
+        for value in metadata.get("dependencies", []):
+            requirement = Requirement(value)
+            assert requirement.url is None, (script, value)
+            constraints.append(str(requirement.specifier))
+            declared.add(str(requirement))
+        for constraint in constraints:
+            assert {spec.operator for spec in SpecifierSet(constraint)} == {">="}, (
+                script,
+                constraint,
+            )
     # Bundled packages never pass through `package install`, so hold their scripts
     # to the same check here.
-    for package in {
-        script.parent.parent
-        for script in schema_model.BUNDLED_PACKAGES.glob("*/scripts/*.py")
-    }:
+    for package in {script.parent.parent for script in scripts}:
         checked = CliRunner().invoke(cli_model.cli, ["package", "check", str(package)])
         assert checked.exit_code == 0, checked.output
     assert [

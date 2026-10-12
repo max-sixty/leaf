@@ -13,11 +13,12 @@ corpus's own page directory, so its markup still names a declared element there.
 
 import html
 import json
-import re
 import shutil
 import sys
+from pathlib import Path
 
 import click
+import turbohtml
 from leaf.registry.contract import is_element_name
 from leaf.registry.layer import merge_layer_declarations
 from leaf.structure import SourceDocument
@@ -66,9 +67,6 @@ DEVELOPER_TABS = [
         "Playwright trace package",
     ),
 ]
-CONTENTS_MAP = re.compile(
-    r"\s*<(aside|section)\b[^>]*>\s*<lf-toc\b[^>]*></lf-toc>\s*</\1>"
-)
 TABS = [
     *((EXAMPLES_DIR / f"{stem}.html", label) for stem, label in PUBLIC_TABS),
     *(
@@ -77,8 +75,6 @@ TABS = [
     ),
     *DEVELOPER_TABS,
 ]
-
-MAIN_OPEN = re.compile(r"<main(?:\s[^>]*)?>")
 
 HEAD = """\
 <!doctype html>
@@ -138,6 +134,66 @@ def build_data() -> dict:
     return ({"$captures": captures} if captures else {}) | sources
 
 
+def main_body(source: Path, parsed: SourceDocument) -> str:
+    """What a page's `<main>` holds, as its source spells it, less what the corpus
+    supplies itself.
+
+    A page's own Layout (the class on its `<main>`) is its document's to declare; a tab
+    in the corpus is part of the corpus's column page, so only the body carries over.
+    The tab's label is the example's own eyebrow, title-cased, so embedding both makes
+    the panel say its name twice. On screen the strip carries it; wherever there is no
+    strip (unupgraded, in print, in a copy) the theme paints the label back onto the
+    panel. The eyebrow is the copy that has nowhere to be. lf-toc maps its closest
+    main, which after composition is the corpus's outer document, so a source page's
+    contents map would repeat one whole-corpus outline in every tab rather than
+    navigate that source page; the container holding only the map goes with it.
+    """
+    mains = parsed.tree.select("main")
+    if len(mains) != 1:
+        sys.exit(f"{source.name}: expected exactly one <main>…</main>")
+    [main] = mains
+    text = parsed.html
+    _, start = parsed.offsets(main.source_location.start_tag)
+    end, _ = parsed.offsets(main.source_location.end_tag)
+
+    def span(element) -> tuple[int, int]:
+        return (
+            parsed.offsets(element.source_location.start_tag)[0],
+            parsed.offsets(element.source_location.end_tag)[1],
+        )
+
+    def children(element) -> list:
+        return [
+            child for child in element.children if isinstance(child, turbohtml.Element)
+        ]
+
+    cuts = []
+    first = next(iter(children(main)), None)
+    if (
+        first is not None
+        and first.tag == "p"
+        and first.attrs.get("class") == ["eyebrow"]
+    ):
+        cut_start, cut_end = span(first)
+        if not text[start:cut_start].strip():
+            rest = text[cut_end:end]
+            cuts.append((cut_start, cut_end + len(rest) - len(rest.lstrip())))
+    for holder in main.select("aside, section"):
+        if [child.tag for child in children(holder)] != ["lf-toc"]:
+            continue
+        if holder.text.strip():
+            continue
+        cut_start, cut_end = span(holder)
+        before = text[start:cut_start]
+        cuts.append((cut_start - (len(before) - len(before.rstrip())), cut_end))
+    body, cursor = [], start
+    for cut_start, cut_end in sorted(cuts):
+        body.append(text[cursor : max(cursor, cut_start)])
+        cursor = max(cursor, cut_end)
+    body.append(text[cursor:end])
+    return "".join(body).strip()
+
+
 def build() -> str:
     on_disk = {p.name for p in EXAMPLES_DIR.glob("*.html")} - {CORPUS.name}
     in_table = {stem + ".html" for stem, _ in PUBLIC_TABS}
@@ -176,22 +232,7 @@ def build() -> str:
                     f"id '{i}' is in both {owner[i]} and {source.name}; rename one"
                 )
             owner[i] = source.name
-        # A page's own Layout (the class on its `<main>`) is its document's to declare;
-        # a tab in the corpus is part of the corpus's column page, so only the body
-        # carries over.
-        opens = list(MAIN_OPEN.finditer(text))
-        if len(opens) != 1 or text.count("</main>") != 1:
-            sys.exit(f"{source.name}: expected exactly one <main>…</main>")
-        body = text[opens[0].end() : text.rindex("</main>")].strip()
-        # The tab's label is the example's own eyebrow, title-cased, so embedding both
-        # makes the panel say its name twice. On screen the strip carries it; wherever
-        # there is no strip — unupgraded, in print, in a copy — the theme paints the
-        # label back onto the panel. The eyebrow is the copy that has nowhere to be.
-        body = re.sub(r'^<p class="eyebrow">[^<]*</p>\s*', "", body)
-        # lf-toc maps its closest main. After composition that is the corpus's outer
-        # document, so retaining a source page's map would repeat one whole-corpus
-        # outline in every tab rather than navigate that source page.
-        body = CONTENTS_MAP.sub("", body)
+        body = main_body(source, parsed)
         tabs.append(f'<lf-tab id="corpus-{stem}" label="{label}">\n{body}\n</lf-tab>\n')
 
     head = HEAD.replace("</head>", "\n".join(authored_assets) + "\n</head>")

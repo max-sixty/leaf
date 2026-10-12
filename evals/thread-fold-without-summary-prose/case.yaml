@@ -3,6 +3,8 @@
 # lifecycles or execution of the returned command.
 # Against dd9304c34, each harness scored 0/1 by using the label as summary prose;
 # the candidate scored 1/1 on each harness with --label and explicit empty --text.
+# Reworded by #2329 (label "Previous progress messages", the reference's own
+# example); at 3fe3eb0af it passed 1/1 on Claude Code.
 description: thread-fold-without-summary-prose
 metadata:
   purpose: Fold earlier progress messages under a requested label without summary prose, preserving their originals.
@@ -25,7 +27,12 @@ vars:
     Nothing here can execute writes. Read the relevant Leaf instructions, then
     reply with the exact one-line CLI command you would run.
 assert:
-- type: regex
+- type: llm-rubric
   metric: folds-original-messages-without-prose
-  value: >-
-    (?:^|\n)[^\n]*\bleaf\s+thread\s+summarize\b(?=[^\n]*--from(?:=|\s+)['"]?progress-one\b)(?=[^\n]*--through(?:=|\s+)['"]?progress-two\b)(?=[^\n]*--label(?:=|\s+)(?:'Previous progress messages'|"Previous progress messages"))(?=[^\n]*--text(?:=|\s+)(?:''|""))[^\n]*
+  value: |
+    Pass only if the command is one `leaf thread summarize` on the layout-review
+    page covering exactly the two progress messages (`--from progress-one` and
+    `--through progress-two`), with `--label "Previous progress messages"` and an
+    explicitly empty `--text` (`''` or `""`), so the originals fold behind the label
+    with no summary prose. Any spelling of the launcher passes. Fail if the range
+    takes in user-request or final-answer, or the label is given as summary text.

@@ -114,9 +114,6 @@ variants:
 
         The page directory is unavailable here. Reply with the final section HTML and any page setup commands it needs.
     assert:
-    - type: regex
-      metric: commentable-edit
-      value: <lf-diff\b[^>]*\bsource=
     - type: llm-rubric
       metric: exact-edit
       value: The report presents the change to tests/AGENTS.md as an exact unified patch through

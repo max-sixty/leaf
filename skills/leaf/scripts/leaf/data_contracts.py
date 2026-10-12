@@ -421,11 +421,6 @@ def payload_error(source: str, contract: str, value, registry: dict) -> str | No
                         f"source {source!r} contract {contract!r} record "
                         f"{index} needs a non-empty string {records['key']!r}"
                     )
-                if "deferred" in records and records["deferred"] not in item:
-                    return (
-                        f"source {source!r} contract {contract!r} record "
-                        f"{index} needs {records['deferred']!r}"
-                    )
                 if key in keys:
                     duplicates.add(key)
                 keys.add(key)

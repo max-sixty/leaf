@@ -48,11 +48,11 @@
 
 import {
   dismissPopoversOutside,
-  nativeLayerHolding,
   transitionNativeAncestor,
   showNativeLayer,
   closeNativeLayer,
 } from "./keyboard/layer-stack.js";
+import { nativeLayerHolding, nativeLayerKind } from "./shadow-tree.js";
 import { registerCoveringAuxiliarySurface } from "./keyboard/register.js";
 import { hides, placeHolder } from "./geometry.js";
 import { under } from "./shadow.js";
@@ -141,7 +141,7 @@ export function createAuxiliarySurfaces({
         next &&
         document.hasFocus() &&
         !restored &&
-        !nativeLayerHolding(deepFocus())?.matches(":popover-open")
+        nativeLayerKind(nativeLayerHolding(deepFocus())) !== "popover"
       )
         focusDestination(landingIn(next), "return");
     });

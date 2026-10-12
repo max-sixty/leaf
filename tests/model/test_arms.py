@@ -17,6 +17,38 @@ EVENT_ENVELOPE = {
 }
 
 
+def test_codex_children_give_native_tools_private_temporary_directories(
+    tmp_path, monkeypatch
+):
+    """Replace only App Server startup; tool environment and login homes are real."""
+    from leaf_dev import eval_codex
+
+    login = tmp_path / "login"
+    login.mkdir()
+    (login / "auth.json").write_text("{}")
+    monkeypatch.setenv("CODEX_HOME", str(login))
+    monkeypatch.setenv("TMPDIR", str(tmp_path / "shared-host-temp"))
+    observed = []
+    monkeypatch.setattr(
+        eval_codex,
+        "private_app_server",
+        lambda executable, *, env: observed.append(env),
+    )
+    for name in ("first", "second"):
+        cwd = tmp_path / name
+        cwd.mkdir()
+        eval_codex.CodexChild(
+            cwd,
+            "Write a page",
+            stderr=cwd / "err",
+            limit=1,
+            timed_out=cwd / "timeout",
+        )
+        assert (cwd / "tmp").is_dir()
+        assert observed[-1]["TMPDIR"] == str(cwd / "tmp")
+    assert observed[0]["TMPDIR"] != observed[1]["TMPDIR"]
+
+
 def test_codex_command_and_turn_success_are_observed_harness_results():
     # Command text is retained independently of its exit status; completion is
     # the native turn outcome, rather than something inferred from stdout.
@@ -161,7 +193,7 @@ def observed_codex():
 
     child = CodexChild.__new__(CodexChild)
     child.raw = StringIO()
-    child.queue = deque()
+    child.queue, child.outbox = deque(), deque()
     child.final, child.usage, child.schema = "", None, None
     child.now = lambda: "2026-10-02T22:36:55-07:00"
     task = Task.__new__(Task)
@@ -466,3 +498,40 @@ def test_a_move_posted_on_a_stale_layer_lands_on_the_current_one(
     assert [
         event["text"] for event in read_events(page_dir) if event["kind"] == "comment"
     ] == ["Ship it"]
+
+
+def test_a_live_session_settles_only_once_its_turn_has_ended(tmp_path):
+    """A long tool call inside a turn is not the session going quiet; a phase
+    ends once a turn has answered and nothing follows, and the stream keeps the
+    driver's notes beside the child's records in the order they happened."""
+    import time
+
+    from leaf_dev.arms import LiveSession
+
+    class Child:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            pass
+
+        def close(self):
+            pass
+
+        def send(self, text):
+            self.sent = text
+
+        def records(self):
+            yield {"type": "assistant", "message": {"content": []}}
+            time.sleep(1.2)
+            yield {"type": "result", "is_error": False, "result": "done"}
+
+    stream = tmp_path / "stream.jsonl"
+    with LiveSession(Child(), stream) as live:
+        live.note({"type": "eval_phase", "phase": 1})
+        assert live.settle(0, grace=0, wake=60)
+        assert live.answered == 1 and not live.running
+        live.send("next")
+        assert live.child.sent == "next"
+    kinds = [json.loads(line)["type"] for line in stream.read_text().splitlines()]
+    assert kinds == ["eval_phase", "assistant", "result", "eval_send"]

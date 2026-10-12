@@ -185,7 +185,7 @@ class CodexChild:
 
         self.cwd, self.prompt = cwd, prompt
         self.stderr, self.timed_out = stderr, timed_out
-        self.queue, self.closing = deque(), False
+        self.queue, self.outbox, self.closing = deque(), deque(), False
         self.final, self.now, self.model = "", now, MODELS["codex"]
         self.usage = None
         self.usage_baseline = None
@@ -194,7 +194,13 @@ class CodexChild:
         options = {}
         values = iter(args)
         for name in values:
-            if name not in {"--tools", "--plugin-dir", "--resume", "--json-schema"}:
+            if name not in {
+                "--tools",
+                "--plugin-dir",
+                "--resume",
+                "--json-schema",
+                "--append-system-prompt",
+            }:
                 raise ValueError(f"unsupported Codex eval option: {name}")
             options[name] = next(values)
         self.options = options
@@ -205,6 +211,8 @@ class CodexChild:
         self.schema = json.loads(schema) if schema else None
         home = cwd.with_name(f"{cwd.name}-home")
         home.mkdir(mode=0o700, exist_ok=True)
+        temporary = cwd / "tmp"
+        temporary.mkdir(exist_ok=True)
         config_home = home / ".codex"
         if not config_home.exists():
             codex_home(
@@ -212,7 +220,10 @@ class CodexChild:
                 'model_reasoning_effort = "medium"\nweb_search = "disabled"\n[features]\nmemories = false\nmulti_agent = true\napps = false\n',
             )
         isolated = environment(
-            HOME=str(home), CODEX_HOME=str(config_home), **(env or {})
+            HOME=str(home),
+            CODEX_HOME=str(config_home),
+            TMPDIR=str(temporary),
+            **(env or {}),
         )
         executable = shutil.which("codex")
         if executable is None:
@@ -277,6 +288,8 @@ class CodexChild:
             }
             if session := self.options.get("--resume"):
                 params["threadId"] = session
+            if instructions := self.options.get("--append-system-prompt"):
+                params["developerInstructions"] = instructions
             self.task.thread = self.task.request(
                 "thread/resume" if session else "thread/start", params
             )["thread"]["id"]
@@ -290,6 +303,8 @@ class CodexChild:
 
     def records(self):
         while True:
+            while self.outbox:
+                self.task.say(self.outbox.popleft())
             while self.queue:
                 yield self.queue.popleft()
             if self.closing and not self.task.running:
@@ -300,6 +315,11 @@ class CodexChild:
                 if self.closing:
                     return
                 raise
+
+    def send(self, text):
+        """Send the user's next chat message as a turn of the same thread. The
+        thread reading `records` owns the socket, so it starts the turn."""
+        self.outbox.append(text)
 
     def close(self):
         self.closing = True

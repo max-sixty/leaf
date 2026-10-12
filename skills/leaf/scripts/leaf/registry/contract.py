@@ -237,9 +237,9 @@ _IDENTITY = {"type": "string", "minLength": 1}
 def detail_schema(entry: dict, spec: dict) -> dict:
     """The event payload contract: an effect's fixed fields or custom command data.
 
-    Recorded values use `value`; positions add `unit` and `rank`, and a report
-    declaring `report` adds required nonempty `text`. Attribute values inherit
-    the destination's exact schema. Every identity the event depends on
+    Recorded values use `value`; positions add `unit` and `rank`, and a verb
+    declaring `text: true` adds a required non-empty `text`. Attribute values
+    inherit the destination's exact schema. Every identity the event depends on
     (`event_meaning.direct_dependencies`) is a nonempty string: a custom verb's
     fold unit, and an attribute set's or position's ids. Derived schemas are
     readings, never inserted into the registry beside the effect that owns them.
@@ -275,7 +275,7 @@ def detail_schema(entry: dict, spec: dict) -> dict:
             unit=_IDENTITY,
             rank={"type": "string", "pattern": f"^(?:{RANK})$"},
         )
-    if spec.get("report"):
+    if spec.get("text"):
         properties["text"] = {"type": "string", "minLength": 1}
     return {
         "type": "object",
@@ -392,7 +392,7 @@ def state_definition(origin: str, entry: dict, spec: dict) -> dict:
 
     Later declarations may reuse a verb's name with different meaning or types.
     Recorded definitions distinguish those new operations from history, while
-    descriptive schema annotations remain free to change. A verb's `report` flag
+    descriptive schema annotations remain free to change. A verb's `text` flag
     is not recorded: all it changes is the required `text` in `detail`.
     """
     from copy import deepcopy
@@ -432,9 +432,10 @@ def same_state_operation(recorded, current) -> bool:
     """The same fold destination and construction, independent of payload domain.
 
     The operation is the fields `state_definition` writes now, `detail` aside. A
-    field an earlier Leaf recorded beside them, such as `update` before it was
-    named `report`, is how that version wrote the definition, not part of the
-    operation, so it never retracts a decision. A missing field still fails."""
+    field an earlier Leaf recorded beside them, such as the verb flag it recorded
+    as `update` and then `report`, is how that version wrote the definition, not
+    part of the operation, so it never retracts a decision. A missing field still
+    fails."""
     return (
         isinstance(recorded, dict)
         and isinstance(current, dict)

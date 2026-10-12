@@ -136,8 +136,6 @@ class LiveLeavesList extends RetainedFace {
   }
 
   present(model) {
-    if (!model || !Array.isArray(model.rows))
-      throw new TypeError("Leaves presentation needs a model with row models");
     if (!this.#face) throw new Error("Leaves presentation needs its banner control");
     if (!this.#handle)
       throw new Error("Leaves presentation needs its connected drawer");

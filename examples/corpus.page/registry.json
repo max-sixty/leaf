@@ -513,7 +513,7 @@
       "state": {
         "writer": "agent",
         "unit": "widget",
-        "report": true,
+        "text": true,
         "record": {
           "kind": "value",
           "attr": "state"

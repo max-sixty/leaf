@@ -56,6 +56,9 @@ variants:
   # then handed over undecided rewrites as prose. At 87976febb, unchanged shipped
   # instructions passed 2/2 on Codex. This short replay protects the contract;
   # it did not reproduce the long-session omission or establish an improvement.
+  # Across #2506's rename, paired on Claude Code: the case and instructions at
+  # 0cc6805bf passed 2/3, at 3fe3eb0af 3/3; the miss was the judge faulting an
+  # unrun plan the prompt asks for. Both registered two separate asks.
   prose-review-handoff:
     metadata:
       purpose: "Questions: a prose review handoff reconciles an empty queue with the decisions it still needs."
@@ -105,6 +108,13 @@ variants:
   # reopening them or moving authorized agent work onto the user. At 87976febb,
   # unchanged shipped instructions passed 2/2 on Codex. With its queue rows as
   # prose Questions, 27484affb passed 3/3 on Claude Code.
+  # Across #2506's rename (prose Question rows to `"kind":"ask"`), paired on
+  # Claude Code: 0cc6805bf passed 3/3 and 3fe3eb0af 3/3, every sample ending
+  # both `reply:` ids; 0cc6805bf ended them `done`, 3fe3eb0af `dropped`.
+  # Once `done` recorded a prose ask answered elsewhere, the rubric required
+  # `done`. Paired on Claude Code against ac09416a5: base 2/3, the miss ending
+  # both `dropped` as its instructions said; candidate 3/3, all `done` with the
+  # chat answer as the detail. The two base passes ignored that instruction.
   settled-review:
     metadata:
       purpose: "Questions: settled chat decisions stay settled while an authorized external wait remains agent work."
@@ -135,10 +145,11 @@ variants:
         metric: settled-queue
         value: |
           Pass only if the agent retires both existing prose asks with leaf
-          task end on their ask IDs (reply:event-log-q and reply:registry-q,
-          any outcome), acknowledging the chat decisions, and inspects the
-          canonical queues with leaf page state afterward. A thread reply alone
-          does not retire them.
+          task end on their ask IDs (reply:event-log-q and reply:registry-q)
+          with outcome done, since the user answered them in chat, and inspects
+          the canonical queues with leaf page state afterward. Ending either
+          dropped or failed fails: that records the question withdrawn though
+          the user answered it. A thread reply alone does not retire them.
           It must leave ci-work open on the agent, preserve the authorized CI
           wait, and introduce no user request for approval, permission to merge,
           or confirmation of the chat answers. An optional invitation to comment
@@ -149,6 +160,8 @@ variants:
   # required approval on baseline and registered it on candidate. A later pair
   # passed both arms; the evidence is illustrative, not a failure rate. Graded
   # only on the derived approval Question, 27484affb passed 2/2 on Claude Code.
+  # Across #2506's rename, paired on Claude Code: 0cc6805bf and 3fe3eb0af each
+  # passed 3/3.
   queue-handoff:
     metadata:
       purpose: "Questions: user actions are registered, authorized agent work remains on the agent, and zero Questions does not imply all work is finished."

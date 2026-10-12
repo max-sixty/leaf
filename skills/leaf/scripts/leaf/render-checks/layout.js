@@ -360,41 +360,19 @@ export function misplacedBoxes() {
         : Math.round(Math.max(b.right - right, left - b.left));
     if (past > 1) over.set(el, [past, wide, frame, host]);
   }
-  // Each finding carries its element's place (locate.js) and its kind beside the words,
-  // so a reader that takes this pass at several widths (the gate's sweep) can tell one
-  // fault met again from a new one without reading the sentence, whose pixel count
-  // moves with the width.
+  // Each finding is a record (render_gate/findings.py) carrying its element's place
+  // (locate.js) beside its code, so a reader that takes this pass at several widths
+  // (the gate's sweep) can tell one fault met again from a new one by those two,
+  // whatever pixel count the width gives it.
   const found = [];
-  const report = (el, kind, text) =>
-    found.push({ at: at(el), place: place(el), kind, text });
+  const report = (el, code, values) =>
+    found.push({ code, at: at(el), place: place(el), ...values });
   for (const [el, [past, wide, frame, host]] of over) {
     if ([...over.keys()].some((other) => other !== el && other.contains(el))) continue;
-    if (host)
-      report(
-        el,
-        "part",
-        `${at(el)} stands ${past}px outside the ${at(host)} it is part of`,
-      );
-    else if (!wide)
-      report(
-        el,
-        "column",
-        `${at(el)} is set ${past}px past the column, out in the margin`,
-      );
-    else if (frame)
-      report(
-        el,
-        "frame",
-        `${at(el)} stands ${past}px outside the ${at(frame)} that frames it — ` +
-          `declare --lf-block-frame: 1 in the rule that draws the frame, so the box ` +
-          `holds the room in as well as the margins`,
-      );
-    else
-      report(
-        el,
-        "room",
-        `${at(el)} stands ${past}px past the room the page has for a wide widget`,
-      );
+    if (host) report(el, "outside-part", { past, host: at(host) });
+    else if (!wide) report(el, "past-column", { past });
+    else if (frame) report(el, "outside-frame", { past, frame: at(frame) });
+    else report(el, "past-room", { past });
   }
   // The room being the page's own box is not the whole of what a wide widget owes,
   // because the page hangs things in that box. A sidenote stands a gutter off the
@@ -427,13 +405,7 @@ export function misplacedBoxes() {
         b.bottom > c.top + 1
       );
     });
-    if (hit)
-      report(
-        el,
-        "over",
-        `${at(el)} is drawn over ${at(hit)}, which stands in the ` +
-          `margin it grew into — the side that holds it gives no room`,
-      );
+    if (hit) report(el, "over-margin", { resident: at(hit) });
   }
   // The other half of excusing a resident: an excuse is only good if the user can
   // see the thing. Both readings above hand a box to something else to answer for —
@@ -534,14 +506,14 @@ export function misplacedBoxes() {
     // of one container hide the one hung off it and lost 400px out of another.
     if ([...lost].some(([o, [, its]]) => o !== el && its === a && o.contains(el)))
       continue;
-    report(
-      el,
-      "hidden",
-      `${at(el)} is drawn ${past}px outside ${at(a)}, which does not show it`,
-    );
+    report(el, "clipped-out", { past, container: at(a) });
   }
-  const texts = new Set();
-  return found.filter(({ text }) => !texts.has(text) && texts.add(text));
+  // One finding per fault where two elements share a name, as their words would be.
+  const seen = new Set();
+  return found.filter(({ place: _place, ...finding }) => {
+    const key = JSON.stringify(finding);
+    return !seen.has(key) && seen.add(key);
+  });
 }
 
 // A table scrolling sideways with a cell in it wrapped. The theme's three cases for a
@@ -618,14 +590,14 @@ export function misplacedBoxes() {
 // identifier written outside `<code>`, a bare URL), or because the table has more
 // columns than the measure holds. A column wraps when it stands wider with wrapping
 // turned off — its content asked for more than its longest run — which hidden content,
-// laid out on demand but size-contained, cannot change. The finding lists the wrapping
-// columns with their widths, names the widest, and leaves the diagnosis to the author.
+// laid out on demand but size-contained, cannot change. The finding carries every
+// column's name and width and whether it wraps, and leaves the diagnosis to the author.
 // A table that scrolls with nothing left to wrap is the theme's honest third case.
 //
 // Whether a table scrolls depends on the window, so the gate reads this at every width
 // of its sweep, and reports it as advice: the table still scrolls with every word in
 // reach, and the remedy is the author's choice of composition. Each finding carries its
-// table's place (locate.js) beside the words, so the sweep tells one table's run of
+// table's place (locate.js) beside its code, so the sweep tells one table's run of
 // widths from another's. A page with no scrolling table never adds the wrapping rule.
 export function squeezedTables() {
   const main = pageDocument();
@@ -672,14 +644,14 @@ export function squeezedTables() {
       if (!box.height) continue;
       const left = Math.round(box.left);
       if (!columns.has(left))
-        columns.set(left, { name: "", width: Math.round(box.width), cells: [] });
+        columns.set(left, { heading: null, width: Math.round(box.width), cells: [] });
       const column = columns.get(left);
       const head = cell.closest("thead") !== null;
       if (
         cell.matches('th:not([scope="row"])') &&
-        (!column.name || (head && !column.head))
+        (column.heading === null || (head && !column.head))
       ) {
-        column.name = `"${says(cell)}"`;
+        column.heading = says(cell);
         column.head = head;
       }
       column.cells.push(cell);
@@ -687,9 +659,7 @@ export function squeezedTables() {
     const rtl = getComputedStyle(table).direction === "rtl";
     read.set(
       table,
-      [...columns]
-        .sort((a, b) => (rtl ? b[0] - a[0] : a[0] - b[0]))
-        .map(([, c], i) => ({ ...c, name: c.name || `column ${i + 1}` })),
+      [...columns].sort((a, b) => (rtl ? b[0] - a[0] : a[0] - b[0])).map(([, c]) => c),
     );
   }
   const probe = document.createElement("style");
@@ -704,21 +674,13 @@ export function squeezedTables() {
   probe.remove();
   const found = [];
   for (const [table, columns] of read) {
-    const wraps = columns.filter((c) => c.wraps);
-    if (!wraps.length) continue;
-    const short = table.scrollWidth - table.clientWidth;
-    const top = Math.max(...columns.map((c) => c.width));
-    const widest =
-      columns.find((c) => c.width === top && c.wraps) ??
-      columns.find((c) => c.width === top);
+    if (!columns.some((c) => c.wraps)) continue;
     found.push({
+      code: "squeezed-table",
+      at: at(table),
       place: place(table),
-      text:
-        `${at(table)} scrolls ${short}px sideways: ` +
-        wraps.map((c) => `${c.name} wraps at ${c.width}px`).join(", ") +
-        (widest.wraps ? "" : ` beside ${widest.name} at ${widest.width}px`) +
-        ` — an identifier in <code> breaks inside its cell; a column fewer, or a` +
-        ` shorter word in the widest, gives the rest the measure`,
+      scrolls: table.scrollWidth - table.clientWidth,
+      columns: columns.map(({ heading, width, wraps }) => ({ heading, width, wraps })),
     });
   }
   return found;

@@ -14,8 +14,12 @@
  * `inlineComparison` / `toggleInlineComparison` disclose a block's text diff on
  * request. `comparisonBase` names the standing base. `comparisonChanges(owner)` selects
  * changed descendants from the same comparison reading; `watchComparison(owner,
- * callback)` reads on connection and each comparison change, pauses while detached,
- * and returns a function that ends the subscription.
+ * callback)` reads it on each comparison change and on the microtask after a
+ * connection, pauses while detached, and returns a function that ends the subscription.
+ * Each announced change advances the comparison's generation, which keys the reading,
+ * so a return reads again by the one return rule (`readingPaint` in presence.js): only
+ * a comparison that changed while away is read, and a reading that threw stands
+ * without ending the subscription.
  *
  * Executable identity selects the install. An unchanged registry, module graph, and
  * inline module bodies permit an in-place patch; changed executable inputs require a
@@ -66,6 +70,7 @@
  */
 import { nextRender } from "./rendering.js";
 import { whileConnected } from "./arrivals.js";
+import { readingPaint } from "./presence.js";
 import { LIVE_ROOT, layerRoot, pageUrl, revisionLabel, runtime } from "./context.js";
 import {
   documentWidgetDigests,
@@ -455,6 +460,8 @@ const diffOpaqueSel = () =>
 // owns the marked identities; the CSS marks are only their rendering.
 let diffOn = false;
 let diffBase = null;
+// Advanced with each announced change, so a watcher knows which reading it painted.
+let comparisonGeneration = 0;
 let diffPendingBase = null;
 const diffMarked = new Set();
 // What each marked block said in the base version, and which of those readings the
@@ -811,7 +818,7 @@ export function toggleInlineComparison(target) {
   const said = inlineOpen.has(target)
     ? closeInlineComparison(target)
     : openInlineComparison(target);
-  document.dispatchEvent(new CustomEvent("lf-comparison"));
+  announceComparison();
   return said;
 }
 
@@ -844,6 +851,10 @@ function setDiff(on, base, pendingBase = null) {
   presentPicker();
   // Consumers read the settled comparison projection: on/off and its marks move
   // together, rather than announcing an applied DOM diff before it is standing.
+  announceComparison();
+}
+function announceComparison() {
+  comparisonGeneration += 1;
   document.dispatchEvent(new CustomEvent("lf-comparison"));
 }
 // The one way a comparison starts, from a row's press, from the walk through the menu,
@@ -927,12 +938,17 @@ export function comparisonChanges(owner = null) {
 }
 
 export function watchComparison(owner, callback) {
-  // Each watcher holds its own listener, so one callback can serve two subscriptions.
-  const read = () => callback();
-  return whileConnected(owner, (signal) => {
+  const paint = readingPaint(owner, () => callback());
+  const read = () => paint(comparisonGeneration);
+  const stop = whileConnected(owner, (signal) => {
     document.addEventListener("lf-comparison", read, { signal });
-    read();
+    // Read outside the connection, so a reading that throws ends no subscription.
+    queueMicrotask(() => signal.aborted || read());
   });
+  return () => {
+    stop();
+    paint.stop();
+  };
 }
 
 // ---------- another version's document ----------

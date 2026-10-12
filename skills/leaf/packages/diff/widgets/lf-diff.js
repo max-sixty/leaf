@@ -47,6 +47,7 @@ import {
   projectData,
   projectedDatum,
   placeThreads,
+  readingPaint,
   reserve,
   retainUserIntent,
   scrollBehavior,
@@ -800,6 +801,15 @@ customElements.define(
         () => Boolean(this.fileEntries?.length),
       );
       const bound = this.hasAttribute("source");
+      // An inline patch never changes, so it is one reading, drawn again on a return
+      // only when the departure cut its rendering short: a refusal stands.
+      const paintInline = bound
+        ? null
+        : readingPaint(this, () => {
+            const rendering = (this.sourceRendering = this.render(this.inlineSource));
+            this.present(rendering);
+            return rendering;
+          });
       whileConnected(this, (signal) => {
         this.addEventListener("lf-reveal", this.revealPassage, { signal });
         this.threadSurface = placeThreads(this, (targets) => {
@@ -813,14 +823,12 @@ customElements.define(
         // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
         // the module answers it once with the layer's own predicate and paints the answer.
         this.toggleAttribute("data-lf-diff-pinned", !inChrome(this));
-        // An inline patch never changes, so it renders once, and again on a return
-        // only when the departure cut that rendering short: a refusal stands.
-        if (!bound && !this.settled) {
+        if (paintInline) {
           // Not bodyText: a diff's trailing whitespace is content — a hunk's last line
           // can be a lone space, the context line for a blank source line — so only the
           // closing newline is the <pre>'s layout.
           this.inlineSource ??= dataBody(this).replace(/^\n+/, "").replace(/\n$/, "");
-          this.present((this.sourceRendering = this.render(this.inlineSource)));
+          paintInline(this.inlineSource);
         }
         return () => {
           this.rendering = (this.rendering ?? 0) + 1;
@@ -939,7 +947,6 @@ customElements.define(
           this.stageFiles();
           this.projectFiles();
           this.classList.toggle("lf-rendered", true);
-          this.settled = true;
           this.filterFiles(this.diffTools.search.value);
           for (const restore of restores) restore?.();
         } finally {
@@ -947,7 +954,6 @@ customElements.define(
         }
       } catch (err) {
         if (rendering !== this.rendering || !this.isConnected) return;
-        this.settled = true;
         this.fileEntries = null;
         this.sharedStyles = null;
         this.diffTools = null;

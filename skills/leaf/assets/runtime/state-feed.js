@@ -154,11 +154,7 @@ export function createStateFeed({
   async function heartbeat() {
     if (stateApplying()) return;
     try {
-      if (
-        runtime.statePhase === "ready" &&
-        runtime.state &&
-        runtime.state.active.revision > runtime.currentRevision
-      ) {
+      if (runtime.statePhase === "ready" && runtime.state && !runtime.showsActive) {
         const activation = await prepareActivation(runtime.state);
         if (activation?.activates()) await receiveState(runtime.state);
       }

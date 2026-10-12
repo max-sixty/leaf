@@ -1217,6 +1217,14 @@ customElements.define(
       return line ? projectedDatum(this, diffDatumKey(line)) : null;
     }
 
+    // A datum's label is its coordinate's, so a thread on a line of a file not yet
+    // loaded is named as the drawn line will be.
+    lfDatumLabel(key) {
+      const coordinate = readDiffCoordinate(key);
+      if (!coordinate || coordinate.source) return null;
+      return coordinate.file ? fileLabel(coordinate) : lineLabel(coordinate);
+    }
+
     lfRevealDatum(key) {
       const coordinate = readDiffCoordinate(key);
       const entry = findDiffFile(this.fileEntries, coordinate);

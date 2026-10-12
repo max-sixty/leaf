@@ -15,7 +15,7 @@
 // final layout. A live drag defers the whole correction.
 
 import { pagePresented } from "./page-paint.js";
-import { LEAVING } from "./geometry.js";
+import { LEAVING, announceRoom } from "./geometry.js";
 
 // The theme's reduced-motion guard covers CSS animation and transitions; motion
 // driven from JS — smooth scrolls here, Web-Animations moves in widgets — checks
@@ -113,9 +113,8 @@ export const foldDuration = () => time("--lf-motion-fold");
 // gone to the user, so for the length of the exit it is inert, taking no press or focus,
 // and marked `LEAVING`, so no reading of what the page shows counts it as covering
 // anything (geometry.js).
-// A slide moves what the surface shows without a scroll, resize or mutation, so its end
-// is announced as `SLIDE_END` on the surface for readers of what is on screen.
-export const SLIDE_END = "lf-slide-end";
+// A slide moves what the surface shows without a scroll, resize or change of size, so
+// its end is announced to readers of what is on screen (geometry.js, `watchRoom`).
 const SLIDE_IN_MS = 200;
 const SLIDE_OUT_MS = 160;
 const slides = new WeakMap();
@@ -145,7 +144,7 @@ export function slide(el, side, direction) {
       slides.delete(el);
       el.removeAttribute(LEAVING);
       el.toggleAttribute("inert", false);
-      el.dispatchEvent(new Event(SLIDE_END, { bubbles: true, composed: true }));
+      announceRoom(el);
     },
     () => {},
   );

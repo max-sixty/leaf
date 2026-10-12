@@ -365,9 +365,14 @@ competes with another, a cut that may have carried a behavior. A change whose re
 is plain needs no score, such as deleting the description of an input that can no
 longer arrive or correcting a fact. Prefer personal-skill evals for general agent
 behavior (`/improving-instructions`, "Validate with evals") and the standard Leaf
-evals for consuming its shipped workflows. An internal maintainer case is justified
-only for a Leaf-specific development contract that neither can exercise. For cases
-in Leaf's suite, run both the merge base and the working tree:
+evals for consuming its shipped workflows. Score a change to Leaf's maintainer
+guidance, such as this skill or an `AGENTS.md`, with a temporary A/B in scratch that
+gives each arm its version of the passage, and commit no case for it. An internal
+maintainer case in Leaf's suite is exceptional: add one only for a development
+contract that needs the suite's own staging, such as a served page or an installed
+arm, which a scratch prompt cannot reproduce. That the rule under test is Leaf's own
+does not make it that exception. For cases in Leaf's suite, run both the merge base
+and the working tree:
 
 ```bash
 pnpm install --frozen-lockfile
@@ -435,6 +440,6 @@ is a fast-forward failure.
 
 Installed sessions load harness caches, not the checkout. Claude Code picks up a
 push on its marketplace sweep; Codex refreshes configured Git marketplaces and
-installed plugins at startup. Both follow the configured ref (`prepared` for
-consumer installs). For an immediate Codex refresh in a running session, run
+installed plugins at startup. Both follow the configured ref, `main` by default.
+For an immediate Codex refresh in a running session, run
 `codex plugin marketplace upgrade leaf`.

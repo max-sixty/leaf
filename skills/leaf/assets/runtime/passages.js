@@ -298,7 +298,6 @@ export const pageWords = (node) => Boolean(node) && !inChrome(node) && !inUi(nod
 // nothing at all — naming neither the widget that staged the text nor what was wrong
 // with it. A refusal whose message is a property name reaches its author as the runtime
 // being broken, which is the one thing it isn't.
-//
 const bareTextRefusal = (n) => {
   const host = shadowHost(n.getRootNode());
   const at = host
@@ -326,9 +325,12 @@ export const elementOver = (n) => {
 // startup failure, its own fault, which no server update fixes: it is declared
 // (`lf-startup-failed`, `page`), so the readable fallback shows at once, the notice says
 // the page has a problem, and the page never presents (leaf.js). A page already
-// presented keeps running without those words.
+// presented keeps running without those words, and without the root: a mark or a
+// projection painted into it is never cleared, and an id inside it stops resolving,
+// since every sweep of declared roots (`shadowRootsIn`) has dropped it.
 function refusesBareText(root) {
-  const bare = [...root.childNodes].find((n) => n.nodeType === Node.TEXT_NODE);
+  let bare = root.firstChild;
+  while (bare && bare.nodeType !== Node.TEXT_NODE) bare = bare.nextSibling;
   if (!bare) return false;
   refuseShadowRoot(root);
   const refusal = bareTextRefusal(bare);

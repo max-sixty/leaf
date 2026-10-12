@@ -44,7 +44,7 @@
   // load, before the page presents, is a fault too, but the page may still present
   // with everything it has, so its widgets keep their boxes. A declared fault may be
   // the page's own (`page`), as a module that staged words the page cannot read
-  // (passages.js, `elementOver`): incomplete too, but no server sends a fix for it. The
+  // (passages.js, `refusesBareText`): incomplete too, but no server fixes it. The
   // first fault names the page and is said once more as `lf-startup-fault`, which a
   // served page's bootstrap answers by saying the page has a problem where it is the
   // page's own, and otherwise by waiting for a server that can start the page

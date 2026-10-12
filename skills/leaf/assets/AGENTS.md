@@ -232,8 +232,7 @@ page only, before any resource the page loads. It marks the page live
 (`data-lf-live`), so the theme reserves the chrome's room; it shows a startup failure
 and waits for a server that can start the page, even if the module graph never loads,
 or says the page has a problem where the fault is the page's own, as words a module
-staged where the page cannot read them;
-and it holds page keys pressed before presentation. Content modules import only
+staged where the page cannot read them; and it holds page keys pressed before presentation. Content modules import only
 `runtime/widget-api.js`, the public helper surface; owners never reach back
 through it or the entry module. Owners are constructed with explicit capabilities
 and cross-owner reads happen in their mounts. Pure projection, thread, and

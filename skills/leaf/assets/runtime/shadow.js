@@ -15,7 +15,7 @@ export { shadowHost, upFrom, renderedParent };
 // subtree, so a pass over that subtree has the same boundary to cross and no document
 // to ask about.
 //
-// A root refused for holding bare text (passages.js, `elementOver`) leaves the list for
+// A root refused for holding bare text (passages.js, `refusesBareText`) leaves the list for
 // good, so its host reads as one with no declared root: by its own children.
 const refusedRoots = new WeakSet();
 export const refuseShadowRoot = (root) => refusedRoots.add(root);

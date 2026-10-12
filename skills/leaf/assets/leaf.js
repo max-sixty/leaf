@@ -920,9 +920,9 @@ mountKeyboard({
   setReact: reactions.setReact,
 });
 // A page declared failed (`lf-startup-failed`) is its readable fallback from then on
-// (prepaint.js) and never presents, though a later state answer asks it to: a page
-// whose words were refused (passages.js, `elementOver`) reads without them afterwards,
-// and presenting that reading would show a page that differs from its file.
+// (prepaint.js) and never presents, though a later state answer asks it to. A page
+// whose module staged words it cannot read (passages.js, `refusesBareText`) reads past
+// them afterwards, and presented, it would pass for a page whose widgets work.
 let startupFailed = false;
 window.addEventListener("lf-startup-failed", () => (startupFailed = true), {
   once: true,

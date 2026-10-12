@@ -4488,7 +4488,9 @@ customElements.define('lf-owned-scroll', class extends HTMLElement {
 
 
 def test_a_live_revision_with_new_authored_code_reloads_the_document(browser, serve):
-    """A new constructor and its listeners run once, with fresh local state."""
+    """A new constructor and its listeners run once, with fresh local state. The
+    browser here has no view transition API, since fresh-document activation does not
+    depend on same-document animation; the other fresh-document journeys keep it."""
     module = """<script type="module">
 customElements.define('page-counter', class extends HTMLElement {
   connectedCallback() {
@@ -4512,6 +4514,7 @@ document.querySelector('#counter').append(document.createElement('page-counter')
     page.get_by_role("button", name="Count 0", exact=True).click()
     expect(page.get_by_role("button", name="Count 1", exact=True)).to_be_visible()
     original_document = page.evaluate("performance.timeOrigin")
+    page.evaluate("document.startViewTransition = undefined")
 
     (serve.page_dir / "index.html").write_text(second)
     told(page)
@@ -4775,43 +4778,6 @@ def test_a_revision_gives_back_the_apparatus_the_user_was_working_with(browser, 
     assert page.locator("#lk-note").evaluate("el => el === document.activeElement")
 
 
-def test_a_revision_that_opens_a_box_the_user_never_touched_arrives_open(
-    browser, serve
-):
-    """The other half of the carry: what the user did not change is the author's to say.
-
-    A disclosure has no `defaultOpen` to answer with, so the state the carry reads off the
-    live box is the author's own until the user moves it. Reading the box alone would
-    carry the outgoing revision's shut over an arriving revision that opens it, and the
-    user would never see the box the author opened for them — only where it sits inside
-    a widget the install replaces whole, since a box the patch keeps is already right.
-    The baseline is the authored markup of the revision the user stands in, so an
-    untouched box is left to the arriving revision while the words they typed still cross.
-    """
-    opened = LIVE_KEYS_APPARATUS_REWRITTEN.replace(
-        '<details id="lk-why">', '<details id="lk-why" open>'
-    )
-    version_url = serve(LIVE_KEYS_APPARATUS)
-    page = open_page(browser, live_url(version_url))
-    # The user stands in the widget and writes, but never touches the box: the case is
-    # about the author's change to it, not theirs.
-    note = page.locator("#lk-note")
-    note.click()
-    note.type("half a thought")
-    assert page.locator("#lk-why").evaluate("el => el.open") is False
-
-    (serve.page_dir / "index.html").write_text(opened)
-    told(page)
-    expect(page).to_have_title("Live keys rewritten")
-    # The widget did go whole, so the carry is what decides the box.
-    expect(page.locator("#lk-decision h2")).to_have_text(
-        "Which one, now the costs are in?"
-    )
-    assert page.locator("#lk-why").evaluate("el => el.open") is True
-    # What the user did put in crosses as before.
-    expect(page.locator("#lk-note")).to_have_value("half a thought")
-
-
 def test_a_revision_gives_values_to_controls_the_user_never_touched(browser, serve):
     """An untouched control is the author's to set, whatever kind of control it is.
 
@@ -4826,6 +4792,12 @@ def test_a_revision_gives_values_to_controls_the_user_never_touched(browser, ser
     with it and crosses into the widget the revision replaced. A rule keyed on the kind
     of control instead — words carry, the rest do not — keeps the untouched tick and
     range from crossing only by leaving every range behind, the user's drag included.
+
+    A disclosure has no `defaultOpen` to answer with, so the state the carry reads off
+    the live box is the author's own until the user moves it: reading the box alone
+    would carry the outgoing revision's shut over an arriving revision that opens it.
+    The baseline is the authored markup of the revision the user stands in, so an
+    untouched box is left to the arriving revision.
     """
     moved = (
         ' <label for="lk-moved">How far</label>'
@@ -4846,7 +4818,7 @@ def test_a_revision_gives_values_to_controls_the_user_never_touched(browser, ser
         '<details id="lk-why">', unvalued + '<details id="lk-why">'
     )
     second = LIVE_KEYS_APPARATUS_REWRITTEN.replace(
-        '<details id="lk-why">', valued + '<details id="lk-why">'
+        '<details id="lk-why">', valued + '<details id="lk-why" open>'
     )
 
     version_url = serve(first)
@@ -4866,6 +4838,7 @@ def test_a_revision_gives_values_to_controls_the_user_never_touched(browser, ser
     note.type("half a thought")
     page.locator("#lk-moved").fill("17")
     assert page.locator("#lk-moved").evaluate("el => el.value") == "17"
+    assert page.locator("#lk-why").evaluate("el => el.open") is False
 
     (serve.page_dir / "index.html").write_text(second)
     told(page)
@@ -4880,6 +4853,7 @@ def test_a_revision_gives_values_to_controls_the_user_never_touched(browser, ser
     # the user moved.
     expect(page.locator("#lk-note")).to_have_value("half a thought")
     assert page.locator("#lk-moved").evaluate("el => el.value") == "17"
+    assert page.locator("#lk-why").evaluate("el => el.open") is True
 
 
 def test_a_revision_that_rewrites_a_draft_leaves_the_user_where_they_stand(
@@ -5324,18 +5298,6 @@ def test_a_revision_the_page_has_to_refuse_leaves_the_beat_beating(browser, serv
     finally:
         page.unroute("**/revisions/*", answer)
         page.unroute("**/registry.json", revendored)
-
-
-def test_a_revision_navigates_without_the_view_transition_api(browser, serve):
-    """Fresh-document activation does not depend on same-document animation."""
-    page = open_page(browser, live_url(serve(executable_revision(LIVE_V1, "one"))))
-    page.evaluate("document.startViewTransition = undefined")
-    (serve.page_dir / "index.html").write_text(executable_revision(LIVE_V2, "two"))
-
-    expect(page).to_have_title(
-        "Live second", timeout=render_checks_model.HANDOVER_DEADLINE_MS
-    )
-    wait_until_ready(page)
 
 
 def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):

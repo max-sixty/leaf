@@ -126,7 +126,8 @@ representative desktop viewport.
   A hidden tab ends the reading this protects; keyboard blur does not. Check:
   `test_news_just_after_a_press_moves_nothing` and the shift watch. Owners:
   `thread/held-news.js` for every thread surface and, through `HeldReading`, for a
-  widget's rows that only the log or the clock decides; `thread/thread-card.js`
+  widget's rows that only the log or the clock decides, and through `heldGrowth` for
+  a box a deferred arrival resizes, such as a live sample's frame; `thread/thread-card.js`
   (`newsMoves`) for whether a change would move what is seen; `thread/thread-list.js`
   for the Threads panel's reading place; `thread/thread-list-view.js` (`keeping`) for a
   card news would take out of the panel's view; `reading-continuity.js` for a hidden

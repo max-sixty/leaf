@@ -125,6 +125,7 @@ import { closestAcross } from "../passages.js";
 import { readApplication } from "../semantic-state.js";
 import { onStanding, focused, standingNodes } from "../focus.js";
 import { readingIsContinuous } from "../reading-continuity.js";
+import { pagePresented } from "../page-paint.js";
 import { watchOwner } from "../arrivals.js";
 
 // Whether this page's ledger holds a gesture of the user's on `thread`, of any kind, the
@@ -735,6 +736,25 @@ export class HeldReading {
     this.#watch?.stop?.();
     this.#watch = null;
   }
+}
+
+/** The same rule for one box whose size no gesture of the reader's changes, such as a
+ *  live sample's frame taking its child's height as the child arrives: `change()`
+ *  applies the new size now where it would move nothing the reader sees, which it does
+ *  before the page presents, while their reading is interrupted, or while growth
+ *  anywhere in `node` is unseen (geometry.js, `growthIsSeen`). Otherwise `node` stands
+ *  as drawn and the change waits until that growth would move nothing seen. Returns a
+ *  step that drops a waiting change. */
+export function heldGrowth(node, change) {
+  if (!pagePresented() || !readingIsContinuous() || !growthIsSeen(node)) {
+    change();
+    return () => {};
+  }
+  const stop = whenNone([node], growthIsSeen, () => {
+    stop();
+    change();
+  });
+  return stop;
 }
 
 /** The threads one widget holds out of its flow: each thread the agent starts at a datum

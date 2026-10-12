@@ -31,7 +31,8 @@
 
    Presentation is not the end of the page's arrival. An owner may deliberately keep work
    off the presentation path, such as a widget's progressive upgrade, and that work
-   still moves boxes when it lands. `deferredArrival` is where such an owner says so,
+   still moves boxes when it lands. Where that landing would move what the reader sees,
+   its owner holds the growth until it would not (thread/held-news.js, `heldGrowth`). `deferredArrival` is where such an owner says so,
    and the `arrived` stage of `pageReadiness` answers whether any of it is still
    outstanding. Startup waits for these arrivals before
    its final retained fragment landing, so late geometry keeps the requested place.

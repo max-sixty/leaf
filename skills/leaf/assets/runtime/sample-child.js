@@ -2,6 +2,7 @@
  * port; documents, DOM nodes, functions and browser owners remain in this realm. */
 import { canPlaceFocus, focusDestination, onStanding } from "./focus.js";
 import { pagePresented } from "./page-paint.js";
+import { whenArrived } from "./presentation.js";
 import { enterLoop, joinOuterLoop } from "./keyboard/layer-stack.js";
 const child = document.documentElement.lfSample;
 const commands = new Map();
@@ -102,6 +103,10 @@ if (child) {
       height,
       block: document.documentElement.hasAttribute("data-lf-sample-block"),
     });
+    // Presentation is not this document's whole arrival: work it deferred, its own
+    // samples' children included, lands later, and the containing page reads as
+    // arriving until it has.
+    void whenArrived().then(() => sampleNotice("arrived"));
   };
   const observer = new MutationObserver(inspect);
   observer.observe(document, {

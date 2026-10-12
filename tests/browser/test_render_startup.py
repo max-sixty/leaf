@@ -1618,6 +1618,50 @@ def test_a_broken_optional_page_interface_does_not_withhold_presentation(
     assert len(errors) == 1, errors
 
 
+SAMPLE_DOCUMENT = re.compile(r"/api/samples/([^/]+)/$")
+
+
+def held_sample_page(browser, serve, body, *, head="", hold_first=True):
+    """A page whose live sample documents wait until `release()`: every sample's when
+    `hold_first`, otherwise all but the first sample a page allocates, so an outer
+    sample presents while the one inside it waits. Returns the page and `release`."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    held = []
+    passing = []
+
+    def route(request_route):
+        sample = SAMPLE_DOCUMENT.search(request_route.request.url).group(1)
+        if not hold_first and (not passing or sample in passing):
+            passing.append(sample)
+            request_route.continue_()
+        else:
+            held.append(request_route)
+
+    page.route(SAMPLE_DOCUMENT, route)
+    page.goto(serve(leaf_page("Sample arrival", body, head=head)), wait_until="commit")
+    holding(page, held, 1, "a sample's document")
+
+    def release():
+        page.unroute(SAMPLE_DOCUMENT)
+        for each in held:
+            each.continue_()
+
+    return page, release
+
+
+def readiness(frame):
+    return frame.evaluate(
+        "document.querySelector('script[data-lf-entry]').lfReadiness(null)"
+    )
+
+
+PRACTICE = (
+    '<lf-sample id="practice"{attributes}><template id="practice-source" data-sample>'
+    "<p>Practice</p></template></lf-sample>"
+)
+
+
 @pytest.mark.parametrize("on_screen", [True, False], ids=["on-screen", "below"])
 def test_a_sample_holds_presentation_only_where_its_arrival_would_be_seen(
     browser, serve, on_screen
@@ -1626,36 +1670,99 @@ def test_a_sample_holds_presentation_only_where_its_arrival_would_be_seen(
     below the window starts loading at once but the page presents and takes keys
     without it. Either way the page reads as arrived only once the sample has."""
     spacer = "" if on_screen else '<div style="height: 300vh"></div>'
-    source = leaf_page(
-        "Sample presentation",
-        f"<h1>Containing page</h1>{spacer}"
-        '<lf-sample id="practice"><template id="practice-source" data-sample>'
-        "<p>Practice</p></template></lf-sample>",
+    page, release = held_sample_page(
+        browser,
+        serve,
+        f"<h1>Containing page</h1>{spacer}" + PRACTICE.format(attributes=""),
     )
-    held = []
-    sample_document = re.compile(r"/api/samples/[^/]+/$")
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    watched(page)
-    page.route(sample_document, lambda route: held.append(route))
-    page.goto(serve(source), wait_until="commit")
-    holding(page, held, 1, "the sample's document")
     page.evaluate("""() => {
         window.presentedAtSampleReady = document.querySelector('#practice').ready.then(
             () => document.body.hasAttribute('data-lf-presented'));
     }""")
     if not on_screen:
         expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
-        assert (
-            page.evaluate(
-                "document.querySelector('script[data-lf-entry]').lfReadiness(null)"
-            )
-            == "arrived"
-        )
-    page.unroute(sample_document)
-    for route in held:
-        route.continue_()
+        assert readiness(page) == "arrived"
+    release()
     wait_until_ready(page)
     assert page.evaluate("presentedAtSampleReady") is not on_screen
+
+
+def test_a_sample_reached_while_loading_resizes_once_it_is_out_of_sight(browser, serve):
+    """A sample the reader scrolls to while it loads keeps its loading height when its
+    child arrives, so what follows it stays put; it takes the child's height once
+    that growth would move nothing the reader sees."""
+    page, release = held_sample_page(
+        browser,
+        serve,
+        '<h1>Containing page</h1><div style="height: 300vh"></div>'
+        + PRACTICE.format(attributes="")
+        + "<p><button id=after>After the sample</button></p>"
+        + '<div style="height: 300vh"></div>',
+    )
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    page.locator("#after").scroll_into_view_if_needed()
+    frame = page.locator("#practice iframe")
+    loading = frame.bounding_box()["height"]
+    before = page.locator("#after").bounding_box()
+    release()
+    wait_until_ready(page)
+    assert page.locator("#after").bounding_box() == before
+    assert frame.bounding_box()["height"] == loading
+    page.mouse.wheel(0, -20000)
+    page.wait_for_function(
+        "h => document.querySelector('#practice iframe').offsetHeight < h", arg=loading
+    )
+
+
+def test_a_window_samples_controls_keep_their_room_as_it_arrives(browser, serve):
+    """The loading status leaving a narrow window sample's control row moves neither
+    its frame nor what follows."""
+    page, release = held_sample_page(
+        browser,
+        serve,
+        "<h1>Containing page</h1>"
+        + PRACTICE.format(attributes=" window")
+        + "<p><button id=after>After the sample</button></p>",
+        head="<style>#practice { width: 180px }</style>",
+    )
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(page.locator("#practice .lf-sample-status")).to_have_text("Loading sample…")
+    before = [
+        page.locator(selector).bounding_box()
+        for selector in ("#practice iframe", "#after")
+    ]
+    release()
+    wait_until_ready(page)
+    expect(page.locator("#practice .lf-sample-status")).to_have_text("")
+    assert [
+        page.locator(selector).bounding_box()
+        for selector in ("#practice iframe", "#after")
+    ] == before
+
+
+def test_a_page_arrives_only_once_the_samples_inside_its_samples_have(browser, serve):
+    """A sample's child counts as arrived only once its own samples have, so the page
+    holding it reads as arriving until then. The inner sample stands below the child's
+    window, so the child presents without it."""
+    inner = (
+        '<lf-sample id="inner"><template id="inner-source" data-sample>'
+        "<p>Inner</p></template></lf-sample>"
+    )
+    page, release = held_sample_page(
+        browser,
+        serve,
+        '<h1>Containing page</h1><lf-sample id="outer" window>'
+        f'<template id="outer-source" data-sample><h1>Outer</h1>'
+        f'<div style="height: 300vh"></div>{inner}</template>'
+        "</lf-sample>",
+        hold_first=False,
+    )
+    page.locator("#outer").evaluate("sample => sample.ready")
+    child = page.locator("#outer iframe").content_frame
+    expect(child.locator("body")).to_have_attribute("data-lf-presented", "1")
+    assert readiness(page) == "arrived"
+    release()
+    wait_until_ready(page)
 
 
 def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(

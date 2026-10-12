@@ -8,10 +8,17 @@
  * into a native modal dialog, keeping its document, gestures, and drafts alive. The
  * sample retains its embedded allocation while the dialog fills the viewport; Return
  * to page and the child's final Escape restore the Full view button. Each child announces
- * lf-sample-ready with its sample element, on first mount, Reset and reload. Each child
- * starts loading as its sample mounts, but the containing page presents before it
- * unless the frame's resize on arrival would move what the reader sees; until every
- * sample lands the page reads as still arriving. Reset stays focusable
+ * lf-sample-ready with its sample element, on first mount, Reset and reload.
+ * Each child starts loading as its sample mounts, but the containing page presents
+ * before it unless the frame's resize on arrival would move what the reader sees then.
+ * The sample's arrival is its child's: the child's presentation and then whatever that
+ * document deferred, its own samples included, so the page reads as still arriving
+ * until every child has arrived. Until then a resize the reader would see, because
+ * they scrolled to the sample while it loaded, waits until it would move nothing they
+ * see, the frame keeping its loading height (`heldGrowth`); a resize after Reset or
+ * Return to page is the reader's own and applies at once. The status line keeps its
+ * room through loading, ready and failure, so the frame below it stays put.
+ * Reset stays focusable
  * while loading but accepts no new press, preserving the parent's keyboard position.
  * Ordinary children remain static
  * quotation. A disconnect releases the child; moving the retained element within a
@@ -34,6 +41,7 @@ import {
   showNativeLayer,
   closeNativeLayer,
   handBack,
+  heldGrowth,
 } from "/runtime/widget-api.js";
 
 customElements.define(
@@ -50,6 +58,14 @@ customElements.define(
       frame.style.height = `${this.#heightReading + frame.offsetHeight - frame.clientHeight}px`;
     };
     #scheduleFit = frameFor(this, this.#fit);
+    // Drops a resize `heldGrowth` holds.
+    #heldFit = null;
+    // The current load's arrival, which lands once the child reports its own; whether
+    // a resize during it waits while seen; and whether the reader asked for the load.
+    #arrival;
+    #landArrival;
+    #arriving = false;
+    #asked = false;
     #ready;
     #following;
     #focusedContent = false;
@@ -78,6 +94,7 @@ customElements.define(
         this.#mount();
         return () => {
           this.#viewOperation?.abort();
+          this.#landArrival?.();
           const host = this.#host;
           this.#host = null;
           host?.destroy().catch((error) => this.#failure(error));
@@ -109,6 +126,7 @@ customElements.define(
           }
           this.#host = host;
           host.on("height", ({ height }) => this.#height(height));
+          host.on("arrived", () => this.#landArrival?.());
           host.on("loading", () => {
             this.#focusedContent = false;
             this.#track(host.ready);
@@ -138,18 +156,18 @@ customElements.define(
       // external destination.
       const shown = this.#track(ready).catch(() => {});
       // The child's startup is another document's, and nothing in this page reads
-      // it, so the page waits for it only where its arrival would move what the
-      // reader sees: a block frame resizes to its child once that presents. A window
-      // keeps its height, and a frame below the window or scrolled past grows where
-      // the reader isn't looking, so the page presents and takes keys without them
-      // while they load; the page still reads as arriving until they land.
+      // it, so presentation waits for it only where its arrival would move what the
+      // reader sees now: a block frame resizes to its child once that presents. A
+      // window keeps its height, and a frame below the window or scrolled past grows
+      // where the reader isn't looking, so the page presents and takes keys without
+      // them while they load. The page reads as arriving until each child has.
       if (
         !this.hasAttribute("window") &&
         !this.#view.matches(":modal") &&
         growthIsSeen(this.#frame)
       )
         widgetController(this).present(shown);
-      else deferredArrival(shown);
+      deferredArrival(this.#arrival);
     }
 
     // Removal closes a modal Full view at once, so the view returns to its embedded
@@ -226,7 +244,7 @@ customElements.define(
         () => handBack(this.#full),
       );
       if (this.#heightReading !== undefined)
-        this.#height(this.#heightReading, { immediate: true });
+        this.#height(this.#heightReading, { immediate: true, asked: true });
     }
 
     #embed() {
@@ -243,7 +261,7 @@ customElements.define(
 
     #setWindow(value) {
       this.#host?.setWindow(value).then(
-        ({ height }) => this.#height(height),
+        ({ height }) => this.#height(height, { asked: true }),
         (error) => this.#failure(error),
       );
     }
@@ -251,24 +269,47 @@ customElements.define(
     // The child owns its body observer and reports values over the private port.
     // Full view retains the embedded height while its same frame fills the dialog;
     // returning applies the current block reading without replacing any native editor.
-    #height(height, { immediate = false } = {}) {
+    // A reading while the child arrives waits while its resize would be seen, unless
+    // the reader `asked` for it.
+    #height(height, { immediate = false, asked = false } = {}) {
       if (this.hasAttribute("window") || this.#view.matches(":modal")) return;
       this.#heightReading = height;
-      if (immediate) this.#fit();
-      else this.#scheduleFit();
+      this.#heldFit?.();
+      this.#heldFit = null;
+      const fit = immediate ? this.#fit : this.#scheduleFit;
+      if (this.#arriving && !asked) this.#heldFit = heldGrowth(this.#frame, fit);
+      else fit();
     }
 
     // Cancellation is this widget's own, and the departed notice draws a departure.
     #failure(error) {
       if (error.name === "AbortError" || error.name === "SampleDepartedError") return;
       keepsText(this.#status, error.message);
+      keeps(this.#status, "title", error.message);
       keeps(this.#reset, "aria-disabled", null);
     }
 
     #track(promise) {
       keeps(this.#reset, "aria-disabled", "true");
       keepsText(this.#status, "Loading sample…");
-      return this.#follow(promise);
+      keeps(this.#status, "title", null);
+      this.#landArrival?.();
+      const { promise: reported, resolve } = Promise.withResolvers();
+      this.#landArrival = resolve;
+      this.#arriving = !this.#asked;
+      this.#asked = false;
+      const ready = this.#follow(promise);
+      // The child reports its arrival after its presentation, which this widget draws
+      // a turn later. A failed or cancelled child has nothing more to bring.
+      const arrival = ready.then(
+        () => reported,
+        () => {},
+      );
+      this.#arrival = arrival;
+      void arrival.then(() => {
+        if (this.#arrival === arrival) this.#arriving = false;
+      });
+      return ready;
     }
 
     // One `ready` per presentation the host promises, so a departure and the reload
@@ -329,6 +370,7 @@ customElements.define(
     async reset() {
       this.#viewOperation?.abort();
       if (this.#mounting) await this.#ready;
+      this.#asked = true;
       if (!this.#host) {
         this.#mount();
         return this.#ready;

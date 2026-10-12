@@ -2458,6 +2458,12 @@
   gap: 8px;
 }
 .lf-sample-status {
+  flex: 1 1 10em;
+  min-width: 0;
+  min-height: 1lh;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   color: var(--muted);
   font: var(--t-6)/1.4 var(--sans);
 }

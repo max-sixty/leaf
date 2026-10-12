@@ -951,8 +951,8 @@ class AppServerReplyStream:
                 if (
                     claim is None
                     or claim["id"] != self.session_id
-                    or claim.get("turn") != self.turn_id
-                    or claim.get("turn_closed") is not None
+                    or claim["turn"] != self.turn_id
+                    or claim["turn_closed"] is not None
                 ):
                     return False
                 page.set_stream_reply(

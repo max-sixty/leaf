@@ -589,9 +589,9 @@ def record_pickup(
         raise ValueError(f"unknown pickup phase {phase!r}")
     claim = page.claim
     if session is None and claim:
-        session = claim.get("id")
-    if phase == "opened" and turn is None and claim and claim.get("id") == session:
-        turn = claim.get("turn")
+        session = claim["id"]
+    if phase == "opened" and turn is None and claim and claim["id"] == session:
+        turn = claim["turn"]
     wanted = [event["id"] for event in events if requires_agent_attention(event)]
     picked = {
         (event_id, event["phase"], event["session"], event["turn"])

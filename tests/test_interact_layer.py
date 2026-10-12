@@ -1513,6 +1513,62 @@ def test_kernel_selectors_name_no_package_tag():
     ], leaks
 
 
+def test_every_widget_api_export_has_a_behavior_module_reader():
+    """widget-api.js is the API behavior modules get, so each name it exports is one a
+    behavior module imports (a bundled package's, a kernel widget's, an example's or a
+    fixture package's) or one a reference shows package authors in code. A name only
+    the render gate's probes read belongs in check-api.js, and one only the suite reads
+    is imported from its owning module, so neither widens the authoring API."""
+    strip = lambda code: re.sub(r"(?<!:)//[^\n]*|/\*.*?\*/", "", code, flags=re.DOTALL)
+    api = strip((schema_model.ASSETS / "runtime" / "widget-api.js").read_text())
+    exported = {
+        spec.split(" as ")[-1].strip()
+        for block in re.findall(r"export\s*\{([^}]*)\}", api)
+        for spec in block.split(",")
+        if spec.strip()
+    } | set(re.findall(r"export\s+(?:async\s+)?(?:function|const|class)\s+(\w+)", api))
+
+    importing = re.compile(
+        r"(?:import|export)\s*\{([^}]*)\}\s*from\s*[\"']/runtime/widget-api\.js[\"']"
+    )
+    modules = [
+        path
+        for root, pattern in (
+            (schema_model.BUNDLED_PACKAGES, "*.js"),
+            (schema_model.ASSETS / "widgets", "*.js"),
+            (ROOT / "examples", "*.html"),
+            (ROOT / "examples", "*.js"),
+            (ROOT / "tests" / "fixtures", "*.js"),
+            (ROOT / "tests" / "browser", "*.js"),
+        )
+        for path in root.rglob(pattern)
+        if "vendor" not in path.parts
+    ]
+    imported = {
+        spec.split(" as ")[0].strip()
+        for path in modules
+        for block in importing.findall(strip(path.read_text()))
+        for spec in block.split(",")
+        if spec.strip()
+    }
+    references = [
+        *(SKILL_ROOT / "references").rglob("*.md"),
+        SKILL_ROOT / "SKILL.md",
+        *schema_model.BUNDLED_PACKAGES.glob("*/instructions/*.md"),
+    ]
+    in_code = "\n".join(
+        code
+        for path in references
+        for code in re.findall(
+            r"```.*?```|`[^`\n]+`", path.read_text(), flags=re.DOTALL
+        )
+    )
+    shown = {name for name in exported if re.search(rf"\b{name}\b", in_code)}
+
+    assert {"once", "html", "widgetController"} <= imported, "no import read"
+    assert sorted(exported - imported - shown) == []
+
+
 def test_layout_style_and_widgets_never_read_each_other():
     """A Layout places boxes, a style sets type and spacing, and a widget reads its own
     box and the theme's tokens (assets/AGENTS.md, "Space and scrolling"). So a Layout

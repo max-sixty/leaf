@@ -11,6 +11,10 @@ Symlinks introduced after binding are refused rather than followed to another fi
 A binding the page lacks, as in a copied page or the unbound worked example, is a
 designed state rather than a fault: a read answers it as no file, so the browser's
 console stays clean, and only a save against it refuses.
+
+The page's reading carries each binding's stamp (`binding_stamps`), so the news token
+moves when a bound file does and a state answer names which binding moved. A stamp
+only prompts a read; the read's revision decides what changed.
 """
 
 import hashlib
@@ -20,7 +24,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from stat import S_ISREG
 
-from .files import read_json
+from .files import file_stamp, read_json
 from .leases import page_locked
 from .refusals import Refused
 from .schema import FILE_BINDINGS_FILE, HTML_NAME
@@ -60,16 +64,48 @@ def _bindings(page_dir: Path) -> dict:
     return record["bindings"]
 
 
+def _granted(raw: object) -> Path | None:
+    """A grant's path, or None where the record holds no absolute path the
+    filesystem can name."""
+    if not isinstance(raw, str) or "\0" in raw or not Path(raw).is_absolute():
+        return None
+    try:
+        os.fsencode(raw)
+    except UnicodeEncodeError:
+        return None
+    return Path(raw)
+
+
 def _target(page_dir: Path, binding: str) -> Path | None:
     if not isinstance(binding, str) or not BINDING_ID.fullmatch(binding):
         raise FileBindingError("Invalid file binding id.")
     bindings = _bindings(page_dir)
     if binding not in bindings:
         return None
-    raw = bindings[binding]
-    if not isinstance(raw, str) or not Path(raw).is_absolute():
+    path = _granted(bindings[binding])
+    if path is None:
         raise FileBindingError("Invalid file bindings; bind the file again.")
-    return Path(raw)
+    return path
+
+
+def binding_stamps(page_dir: Path) -> dict[str, str]:
+    """Each binding's short token, moving whenever its path or what the filesystem
+    says of the file there (`file_stamp`) does.
+
+    Taken without the page lock, as the page's reading is. A grants record this
+    version cannot read stamps as no bindings: the reading must not fail on it, and
+    a read through the binding names the refusal."""
+    try:
+        bindings = _bindings(page_dir)
+    except (FileBindingError, OSError, ValueError):
+        return {}
+    return {
+        binding: hashlib.sha256(
+            repr((str(path), file_stamp(path))).encode()
+        ).hexdigest()[:16]
+        for binding, raw in sorted(bindings.items())
+        if (path := _granted(raw)) is not None
+    }
 
 
 def _read(path: Path) -> dict:

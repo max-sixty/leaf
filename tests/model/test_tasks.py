@@ -982,48 +982,78 @@ def test_the_user_ends_only_explicit_user_work_and_not_a_question(page_dir):
     assert state_json(page_dir)["todos"][-1]["id"] == mine["id"]
 
 
-def test_widget_question_ends_through_its_source_and_prose_end_withdraws_request(
-    page_dir,
-):
-    """Widget Questions follow source state; an agent can withdraw prose without answering."""
+def test_widget_question_ends_through_its_source_and_agent_ends_a_prose_ask(page_dir):
+    """Widget Questions follow source state. The agent ends a prose ask `done` when the
+    user answered it elsewhere and `dropped` when it no longer applies; neither
+    invents the user's answer, and `failed` says nothing about an ask."""
     asking(page_dir)
     [ask] = asks_on_user(state_json(page_dir))
-    comment = append_carried_log_record(
-        page_dir,
-        {"kind": "comment", "author": "user", "revision": 1, "text": "Which colour?"},
-    )
-    question = written(
-        leaf(
-            "response",
-            "reply",
-            response_reference(page_dir, comment["id"]),
-            "--text",
-            "Warm or cool?",
-            "--ask",
+    asked = []
+    for text in ("Which colour?", "Which font?"):
+        comment = append_carried_log_record(
+            page_dir,
+            {"kind": "comment", "author": "user", "revision": 1, "text": text},
         )
-    )
+        asked.append(
+            "reply:"
+            + written(
+                leaf(
+                    "response",
+                    "reply",
+                    response_reference(page_dir, comment["id"]),
+                    "--text",
+                    "Warm or cool?",
+                    "--ask",
+                )
+            )["id"]
+        )
+    answered_elsewhere, dropped = asked
     refused = leaf("task", "end", page_dir, ask["id"], "dropped", "Decided in chat")
     assert refused.exit_code != 0
     assert "is a widget ask; its source owns the answer" in refused.output
     assert "retire it in the document" in refused.output
-    assert asks_on_user(state_json(page_dir)) == [ask]
+    refused = leaf("task", "end", page_dir, answered_elsewhere, "failed", "No reply")
+    assert refused.exit_code != 0
+    assert "a prose ask ends `done`" in refused.output
+    assert [item["id"] for item in state_json(page_dir)["queues"]["questions"]] == [
+        ask["id"],
+        *asked,
+    ]
 
-    written(
-        leaf(
-            "task", "end", page_dir, "reply:" + question["id"], "done", "Asked in chat"
-        )
-    )
+    written(leaf("task", "end", page_dir, answered_elsewhere, "done", "Warm, in chat"))
+    written(leaf("task", "end", page_dir, dropped, "dropped", "Font is fixed"))
     state = state_json(page_dir)
     assert [item["id"] for item in state["queues"]["questions"]] == [ask["id"]]
-    assert state["threads"][0]["attention"] is None
+    assert [thread["attention"] for thread in state["threads"]] == [None, None]
+    refused = leaf("task", "end", page_dir, dropped, "done", "Asked again")
+    assert refused.exit_code != 0
+    assert f"ask {dropped!r} is already withdrawn" in refused.output
+
     served = full_state(page_dir, events_model.read_events(page_dir))
     assert served["browser"]["ended_todos"] == []
-    [ended] = served_thread(served["browser"])["asks"]["all"]
-    assert (ended["id"], ended["status"], ended["answer"]) == (
-        "reply:" + question["id"],
-        "withdrawn",
-        None,
-    )
+    ended = {
+        record["id"]: (
+            record["status"],
+            record["answer"],
+            record["end"]["detail"],
+            record["end"]["event"]["author"],
+        )
+        for record in served_thread(served["browser"])["asks"]["all"]
+    }
+    assert ended == {
+        answered_elsewhere: ("answered_elsewhere", None, "Warm, in chat", "agent"),
+        dropped: ("withdrawn", None, "Font is fixed", "agent"),
+    }
+    [view] = served["browser"]["views"].values()
+    done = {
+        item["id"]: (item["state"], item["detail"], item["ended"] is not None)
+        for item in view["queues"]["done"]
+        if item["kind"] == "ask"
+    }
+    assert done == {
+        answered_elsewhere: ("done", "Warm, in chat", True),
+        dropped: ("dropped", "Font is fixed", True),
+    }
 
     append_command(
         page_dir,

@@ -22,7 +22,6 @@ from render_cases_navigation import (
     UNDO_PAGE,
 )
 from render_harness import (
-    FEATURE_GALLERY,
     draft_key,
     leaf_page,
     nudge,
@@ -129,12 +128,29 @@ def mark_relation(page, mark, target):
     )
 
 
+# A pick between two joined options, with page above and beside it for a stroke to
+# cross: the shape the feature gallery's map Ask has, without the gallery around it.
+CHOICE_PAGE = leaf_page(
+    "map choice",
+    '<h1 id="title">The sample trip</h1>'
+    + "<p>Every walk starts from the visitor centre and its car park.</p>" * 4
+    + '<lf-ask id="bg-choice-ask"><h3>Which map should the sample team carry?</h3>'
+    '<lf-options id="bg-choice" choose>'
+    '<lf-option id="bg-choice-street">Street map</lf-option>'
+    '<lf-option id="bg-choice-trail">Trail map</lf-option>'
+    "</lf-options></lf-ask>"
+    + "<p>The route returns along the river before the light goes.</p>"
+    * 8,
+    head="<style>#bg-choice { width: 360px; }</style>",
+)
+
+
 def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
     """One pointer stroke starts on one semantic anchor, crosses the page beyond it,
     and the accepted comment keeps its ink positioned over that anchor. The record
     carries the window it was drawn in, its layout viewport and color scheme, which
     is what lays the page out again for the agent's picture of it."""
-    url = serve(FEATURE_GALLERY)
+    url = serve(CHOICE_PAGE)
     page = open_page(browser, url, color_scheme="dark")
     target = page.locator("#bg-choice-trail")
     target.evaluate("el => { el.style.position = 'relative'; el.style.zIndex = '1'; }")
@@ -1450,7 +1466,7 @@ def test_pointer_modes_leave_document_editing_controls_usable(browser, serve, mo
 
 def test_a_draw_press_uses_the_exact_target_under_its_start(browser, serve):
     """Joined option seams use the target under the pointer when the stroke starts."""
-    page = open_page(browser, serve(FEATURE_GALLERY))
+    page = open_page(browser, serve(CHOICE_PAGE))
     trail = page.locator("#bg-choice-trail")
     trail.scroll_into_view_if_needed()
     box = trail.bounding_box()

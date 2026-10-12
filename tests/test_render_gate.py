@@ -4953,7 +4953,7 @@ def test_the_render_gate_tells_what_a_column_loses_from_what_stands_beside_it(
     from its content rather than from rects that say where it is scrolled to; the
     stand-in `primed` holds the scroll each frame for the whole of the gate's read.
     A right-margin resident would shift the column and carry the left-margin floats
-    off the window, so the clipped sidenote has a page of its own."""
+    off the window, so the clipped sidenote stands on the container-clip page."""
     fixed = """
 <style>
 #fixed-margin { position: fixed; top: 80px; left: 24px; width: 150px; }
@@ -5184,9 +5184,17 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
 
     HTML drawings own their clipped internal coordinates just as SVG does. Their
     viewport still belongs to page flow, and offered controls still lose presses
-    when clipped, beside a clean control the viewport shows completely."""
+    when clipped, beside a clean control the viewport shows completely.
+
+    A choose group clips its own box too, so a note pulled into the page's margin from
+    inside one is painted nowhere. Every other reading calls that well — the column
+    check excuses a margin resident, checkVisibility() is true of a clipped box so
+    screen and print agree, and the copy, which withholds the clip, shows the words the
+    live page dropped — so the user is the only party who loses them. A section, a tab
+    panel and a disclosure all pass a note through to the margin, so the gate names the
+    box that doesn't, at handover, to the one party who can still move it."""
     url = serve(
-        OVER_ITS_CONTAINER,
+        OVER_ITS_CONTAINER.replace("</main>", _added(SIDENOTE_IN_A_WIDGET) + "</main>"),
         layer_registry=DRAWING_CONTROL_LAYER,
         layer_widgets=DRAWING_CONTROL_WIDGETS,
     )
@@ -5194,8 +5202,32 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
     expect(page.locator("lf-test-drawing-control [data-lf-offer]")).to_have_count(2)
     expect(page.locator("#clipped-drawing-control")).to_have_text("Inspect")
     expect(page.locator("#clean-drawing-control")).to_have_text("Inspect")
+    # elementFromPoint answers about the viewport, so the question can only be put to
+    # a note that is in it. The group is what gets scrolled to, never the note:
+    # `overflow: hidden` refuses a user and not a script, so scrolling to the clipped
+    # element hands the group's own box sideways until the note is inside it.
+    page.locator("#where").scroll_into_view_if_needed()
+    seen = page.evaluate("""() => {
+        const n = document.getElementById('boxed-note');
+        const b = n.getBoundingClientRect();
+        const mid = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+        // The note or something of its own, never an ancestor: a clipped note leaves
+        // the point to <body>, which contains it and paints none of it.
+        return {painted: !!mid && (n === mid || n.contains(mid)),
+                at: mid && mid.tagName};
+    }""")
     page.close()
+    assert not seen["painted"], (
+        f"nothing clipped the note, so this proves nothing about the gate: {seen}"
+    )
     failures = render_gate_model.render_version(browser, url).failures
+
+    assert [
+        f
+        for f in failures
+        if "<aside id=boxed-note> is drawn" in f
+        and "outside <lf-options id=where>" in f
+    ], f"a note the user never sees went out with the handover: {failures}"
 
     assert [
         f
@@ -5243,50 +5275,6 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
         and "page offers a press it does not show" in f
     ], f"the drawing declaration concealed a lost control: {failures}"
     assert not [f for f in failures if "(#clean-drawing-control)" in f], failures
-
-
-def test_the_render_gate_reports_a_sidenote_a_box_clips_away(browser, serve):
-    """A choose group clips its own box, so a note pulled into the page's margin from
-    inside one is painted nowhere. Every other reading calls that well — the column
-    check excuses a margin resident, checkVisibility() is true of a clipped box so
-    screen and print agree, and the copy, which withholds the clip, shows the words the
-    live page dropped — so the user is the only party who loses them, and a reviewer
-    proofing the export sees a note that never reached anybody.
-
-    The question is put to every box rather than to floats alone, since the excuse the
-    note is claiming — my container took my overflow, so it answers for me — is granted
-    to whatever stands inside one. And the boxes that clip are the minority: a section,
-    a tab panel and a disclosure all pass a note through to the margin. So the gate
-    names the one that doesn't, at handover, to the one party who can still move it."""
-    url = serve(SIDENOTE_IN_A_WIDGET)
-    page = open_page(browser, url)
-    # elementFromPoint answers about the viewport, so the question can only be put to a
-    # note that is in it — LONG_PAGE puts this one four thousand pixels down. The group
-    # is what gets scrolled to, never the note: `overflow: hidden` refuses a user and
-    # not a script, so scrolling to the clipped element hands the group's own box
-    # sideways until the note is inside it, and the test then measures a page it made.
-    page.locator("#where").scroll_into_view_if_needed()
-    seen = page.evaluate("""() => {
-        const n = document.getElementById('boxed-note');
-        const b = n.getBoundingClientRect();
-        const mid = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
-        // The note or something of its own, never an ancestor: a clipped note leaves
-        // the point to <body>, which contains it and paints none of it.
-        return {painted: !!mid && (n === mid || n.contains(mid)),
-                at: mid && mid.tagName};
-    }""")
-    failures = render_gate_model.render_version(browser, url).failures
-    page.close()
-
-    assert not seen["painted"], (
-        f"nothing clipped the note, so this proves nothing about the gate: {seen}"
-    )
-    assert [
-        f
-        for f in failures
-        if "<aside id=boxed-note> is drawn" in f
-        and "outside <lf-options id=where>" in f
-    ], f"a note the user never sees went out with the handover: {failures}"
 
 
 # A sidenote beside a section of prose and tiles, the content a strip crushing the

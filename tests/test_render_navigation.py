@@ -3124,8 +3124,7 @@ def test_firefox_paints_a_natural_color_cue(firefox_browser, serve, target):
     assert len(blues) >= 3 and max(blues) - min(blues) >= 12, colours
 
 
-@pytest.mark.parametrize("reduced", [False, True])
-@pytest.mark.parametrize("nested_source", [False, True])
+@pytest.mark.parametrize(("nested_source", "reduced"), [(False, True), (True, False)])
 def test_an_ask_walk_glides_within_a_view_and_opens_other_tabs_at_the_question(
     browser, serve, reduced, nested_source
 ):

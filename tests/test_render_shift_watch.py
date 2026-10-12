@@ -2558,21 +2558,25 @@ def test_typing_root_scroll_keeps_a_fixed_field_but_not_its_local_carry(browser,
         consume_browser_errors(page, "typing in textarea#field moved textarea#field")
 
 
-@pytest.mark.parametrize(
-    "fault",
-    [
-        "",
-        "portal_x",
-        "portal_y",
-        "anchor_x",
-        "anchor_y",
-        "declared_unused",
-        "rule_unused",
-        "important_rule",
-    ],
-)
+# The clean case runs under both declarations; each fault runs under one, since where
+# the insets are written changes how the credit is found, not what an extra move is.
+# Rules disagreeing need the insets in rules, and an important rule over an inline
+# inset needs the inset inline.
+ANCHOR_SCROLL_CASES = [
+    ("", "inline"),
+    ("", "scoped_rule"),
+    ("portal_x", "inline"),
+    ("portal_y", "scoped_rule"),
+    ("anchor_x", "scoped_rule"),
+    ("anchor_y", "inline"),
+    ("declared_unused", "inline"),
+    ("rule_unused", "scoped_rule"),
+    ("important_rule", "inline"),
+]
+
+
+@pytest.mark.parametrize("fault, declared", ANCHOR_SCROLL_CASES)
 @pytest.mark.parametrize("transform", ["none", "scale(.8) rotate(10deg)"])
-@pytest.mark.parametrize("declared", ["inline", "scoped_rule"])
 def test_native_anchor_scroll_retains_local_motion_proof(
     browser, fault, transform, declared
 ):
@@ -2582,10 +2586,6 @@ def test_native_anchor_scroll_retains_local_motion_proof(
     A direct anchor inset that a more specific rule overrides credits nothing, even
     where a later rule in sheet order states it, and neither does an inline one an
     important rule overrides."""
-    if fault == "rule_unused" and declared == "inline":
-        pytest.skip("rules disagreeing needs the insets in rules")
-    if fault == "important_rule" and declared == "scoped_rule":
-        pytest.skip("an important rule over an inline inset needs the inset inline")
     field_style = "position:fixed;position-anchor:--target;left:calc(anchor(left) + 100px);top:calc(anchor(top) + 10px)"
     if fault == "declared_unused":
         field_style = "position:fixed;position-anchor:--target;left:100px;top:50px"

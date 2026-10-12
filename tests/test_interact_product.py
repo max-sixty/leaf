@@ -601,21 +601,33 @@ def test_shipped_widget_purposes_live_in_their_descriptions():
     assert not titled, f"widget purposes are duplicated in title: {', '.join(titled)}"
 
 
-def test_playground_range_requires_its_upper_bound_at_the_markup_boundary():
+def test_a_playground_control_value_fits_its_kind_at_the_markup_boundary():
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
-    markup = (
-        '<lf-ask id="range-ask"><h2>Choose a radius</h2>'
-        '<lf-playground id="range-playground">'
-        '<lf-playground-control name="radius" label="Radius" kind="range" '
-        'value="12"></lf-playground-control>'
-        "<lf-playground-preview><p>Preview</p></lf-playground-preview>"
-        "<lf-playground-output>Use this radius.</lf-playground-output>"
-        "</lf-playground></lf-ask>"
+
+    def errors(attributes):
+        return " ".join(
+            fragment_errors(
+                '<lf-ask id="kind-ask"><h2>Choose a setting</h2>'
+                '<lf-playground id="kind-playground">'
+                f'<lf-playground-control name="setting" label="Setting" {attributes}>'
+                "</lf-playground-control>"
+                "<lf-playground-preview><p>Preview</p></lf-playground-preview>"
+                "<lf-playground-output>Use this setting.</lf-playground-output>"
+                "</lf-playground></lf-ask>",
+                registry,
+            )
+        )
+
+    assert not errors('kind="range" value="-1.5" max="24"')
+    assert not errors('kind="toggle" value="false"')
+    assert not errors('kind="color" value="#A0b1c2"')
+    assert not errors('kind="text" value="yes"')
+    assert "'max' is a required property" in errors('kind="range" value="12"')
+    assert "does not match" in errors('kind="range" value="twelve" max="24"')
+    assert '"yes" is not one of ["true", "false"]' in errors(
+        'kind="toggle" value="yes"'
     )
-
-    errors = fragment_errors(markup, registry)
-
-    assert errors and "'max' is a required property" in " ".join(errors)
+    assert "does not match" in errors('kind="color" value="red"')
 
 
 def test_corpus_is_generated_from_the_examples():

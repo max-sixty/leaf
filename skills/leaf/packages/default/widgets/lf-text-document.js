@@ -13,7 +13,7 @@ import {
   syntax,
   watchData,
   once,
-  watchOwner,
+  whileConnected,
   keepsText,
   setRenderedChildren,
   setChildren,
@@ -26,11 +26,10 @@ customElements.define(
   class extends HTMLElement {
     connectedCallback() {
       if (!once(this)) return;
-      watchOwner(this, {
-        disconnect: () => {
-          this.rendering = (this.rendering ?? 0) + 1;
-          this.finishFrame?.();
-        },
+      // A departure abandons the rendering in flight and its frame's wait.
+      whileConnected(this, () => () => {
+        this.rendering = (this.rendering ?? 0) + 1;
+        this.finishFrame?.();
       });
       watchData(this, "document", (snapshot) => this.render(snapshot));
     }

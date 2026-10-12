@@ -51,8 +51,7 @@ import {
   dragging,
   cancelAnimation,
   nextAnimation,
-  nextRender,
-  cancelRender,
+  frameFor,
   compoundReadingRegionId,
   registerReadingRegion,
   readingRegion,
@@ -89,6 +88,7 @@ import {
   setChildren,
   sizeObserver,
   watchData,
+  whileConnected,
   widgetController,
 } from "/runtime/widget-api.js";
 
@@ -197,10 +197,8 @@ customElements.define(
     #trace = null;
     #scope = null;
     #selected = null;
-    #stopReading = null;
     #treeScope = null;
     #treePlaces = new Map();
-    #keys = null;
     #parts = null;
     #inventory = [];
     #targets = new Map();
@@ -222,12 +220,9 @@ customElements.define(
     #pictureId = null;
     #picturePreview = false;
     #pictureScope = null;
-    #resizer = null;
-    #resizeFrame = 0;
     #playFrame = 0;
     #playing = false;
     #playIntent = null;
-    #stopInput = null;
     // The playhead's time from the scope origin when it stands between captures,
     // after scrubbing or playback. Null when it stands on the selected capture.
     #cursorTime = null;
@@ -269,43 +264,35 @@ customElements.define(
 
     // Viewer owns its container sizing; reapply the page's inspection view after
     // a resize refits the image, including a hidden tab becoming visible.
-    #resize = () => {
-      this.#resizeFrame ||= nextRender(() => {
-        this.#resizeFrame = 0;
-        if (!this.imageViewport.clientWidth) {
-          this.#pause();
-          if (this.#pendingPicture) this.#closePicture();
-          return;
-        }
-        if (!this.#picture && this.#trace) this.#draw();
-        if (!this.#picture?.viewed) return;
-        const canvas = this.#picture.element.parentElement;
-        const viewer = this.#picture.viewer;
-        if (
-          viewer.clientWidth === canvas.offsetWidth &&
-          viewer.clientHeight === canvas.offsetHeight
-        )
-          return;
-        this.#picture.resize();
-        const image = this.#trace.images.find((image) => image.id === this.#pictureId);
-        this.#applyPictureView(this.#picture, image);
-        this.#placePlayback();
-        this.#imageZoom();
-        this.#parts.update();
-      });
-    };
+    #resize = frameFor(this, () => {
+      if (!this.imageViewport.clientWidth) {
+        this.#pause();
+        if (this.#pendingPicture) this.#closePicture();
+        return;
+      }
+      if (!this.#picture && this.#trace) this.#draw();
+      if (!this.#picture?.viewed) return;
+      const canvas = this.#picture.element.parentElement;
+      const viewer = this.#picture.viewer;
+      if (
+        viewer.clientWidth === canvas.offsetWidth &&
+        viewer.clientHeight === canvas.offsetHeight
+      )
+        return;
+      this.#picture.resize();
+      const image = this.#trace.images.find((image) => image.id === this.#pictureId);
+      this.#applyPictureView(this.#picture, image);
+      this.#placePlayback();
+      this.#imageZoom();
+      this.#parts.update();
+    });
 
     connectedCallback() {
-      document.addEventListener("visibilitychange", this.#visibility);
-      // The shared input owner observes synchronously before drawing claims input.
-      this.#stopInput ??= onUserInput(this.#reviewGesture);
-      const firstConnection = once(this);
-      if (firstConnection) this.#build();
-      this.#resizer ??= sizeObserver(this.#resize);
-      this.#resizer.observe(this.imageViewport);
-      this.#timeline.connect();
+      if (!once(this)) return;
+      this.#build();
+      // Element command scopes leave with their element; a return keeps the declaration.
       if (!quoted(this))
-        this.#keys ??= commands(this, "In a Playwright recording", [
+        commands(this, "In a Playwright recording", [
           // Back along the time scale is the arrow toward its start; the scale
           // runs left to right in every text direction (theme.css).
           {
@@ -382,8 +369,12 @@ customElements.define(
             },
           },
         ]);
-      if (!this.#stopReading) {
-        const stops = [
+      whileConnected(this, (signal) => {
+        document.addEventListener("visibilitychange", this.#visibility, { signal });
+        const stopInput = onUserInput(this.#reviewGesture);
+        const resizer = sizeObserver(this.#resize);
+        resizer.observe(this.imageViewport);
+        const stopReading = [
           ["recording", this, this.body],
           ["point-details", this.metadata, this.metadata],
           ["saved-elements", this.treeDetails, this.treeDetails],
@@ -394,26 +385,18 @@ customElements.define(
             body,
           }),
         );
-        this.#stopReading = () => stops.toReversed().forEach((stop) => stop());
-      }
-      if (firstConnection) watchData(this, "trace", (snapshot) => this.#show(snapshot));
-      else this.#draw();
-    }
-
-    disconnectedCallback() {
-      this.#pause(false);
-      dragging(this, false);
-      document.removeEventListener("visibilitychange", this.#visibility);
-      this.#stopInput?.();
-      this.#stopInput = null;
-      this.#stopReading?.();
-      this.#stopReading = null;
-      this.#resizer?.disconnect();
-      if (this.#resizeFrame) cancelRender(this.#resizeFrame);
-      this.#resizeFrame = 0;
-      this.#timeline.disconnect();
-      this.#closePicture();
-      // Element command scopes leave with their element; reconnect keeps the declaration.
+        // A returning recording draws the picture its departure closed.
+        if (this.#trace) this.#draw();
+        return () => {
+          this.#pause(false);
+          dragging(this, false);
+          stopInput();
+          for (const stop of stopReading.toReversed()) stop();
+          resizer.disconnect();
+          this.#closePicture();
+        };
+      });
+      watchData(this, "trace", (snapshot) => this.#show(snapshot));
     }
 
     #build() {

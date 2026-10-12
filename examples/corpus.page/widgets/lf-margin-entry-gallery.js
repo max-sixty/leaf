@@ -8,6 +8,7 @@ import {
   presentContributionEntry,
   registerContribution,
   relabel,
+  whileConnected,
 } from "/runtime/widget-api.js";
 
 function wireSample({ sample, key, control, disclosure }) {
@@ -57,27 +58,20 @@ function wireSample({ sample, key, control, disclosure }) {
 customElements.define(
   "lf-margin-entry-gallery",
   class extends HTMLElement {
-    #projection = null;
-
     connectedCallback() {
-      if (once(this)) {
-        const initial = initialRender(this);
-        for (const { node, words } of initial.labels)
-          relabel(node, words, { says: false });
-        initial.samples.forEach(wireSample);
-      }
-      this.#registerProjection();
+      if (!once(this)) return;
+      const initial = initialRender(this);
+      for (const { node, words } of initial.labels)
+        relabel(node, words, { says: false });
+      initial.samples.forEach(wireSample);
+      whileConnected(this, () => {
+        const projection = this.#registerProjection(initial.result);
+        return () => projection.unregister();
+      });
     }
 
-    disconnectedCallback() {
-      this.#projection?.unregister();
-      this.#projection = null;
-    }
-
-    #registerProjection() {
-      if (this.#projection) return;
-      const result = initialRender(this).result;
-      this.#projection = registerContribution({
+    #registerProjection(result) {
+      const projection = registerContribution({
         key: `gallery-projection:${this.id}`,
         target: () => this,
         read: () => ({
@@ -97,9 +91,10 @@ customElements.define(
         }),
         activate: () => {
           result.hidden = !result.hidden;
-          this.#projection.update({ immediate: true });
+          projection.update({ immediate: true });
         },
       });
+      return projection;
     }
   },
 );

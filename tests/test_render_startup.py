@@ -100,6 +100,7 @@ from render_harness import (
     panel_settled,
     primed,
     refuse,
+    reported_browser_errors,
     round_trip,
     select,
     sending,
@@ -2072,6 +2073,35 @@ def test_a_root_module_failure_leaves_authored_document_readable(browser, serve)
     assert (
         page.evaluate("() => getComputedStyle(document.body, '::after').content")
         == "none"
+    )
+
+
+def test_the_first_startup_fault_names_the_page(browser, serve):
+    """The first fault before presentation names the page, and later faults leave the
+    name alone: the first is the earliest evidence, and a later one is often its
+    consequence, as a page that cannot read its own words throws the same refusal from
+    every repaint. A later incomplete fault still gives back the readable fallback."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.route(
+        "**/leaf.js",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="text/javascript",
+            body="for (const word of ['first fault', 'first fault', 'later fault'])"
+            " setTimeout(() => { throw new Error(word); });"
+            " setTimeout(() => { window.dispatchEvent(new CustomEvent("
+            "'lf-startup-failed', { detail: { reason: 'declared fault' } }));"
+            " window.faulted = true; });",
+        ),
+    )
+    page.goto(serve(SHORT_SUGGESTION), wait_until="load")
+    page.wait_for_function("() => window.faulted")
+    root = page.locator("html")
+    expect(root).to_have_attribute("data-lf-startup-error", re.compile("first fault"))
+    assert root.evaluate("root => root.lfStartupException.message") == "first fault"
+    expect(root).not_to_have_attribute("data-lf-interactive", "")
+    reported_browser_errors(
+        page, "Error: first fault", "Error: first fault", "Error: later fault"
     )
 
 

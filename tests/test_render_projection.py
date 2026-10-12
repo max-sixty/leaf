@@ -7359,7 +7359,10 @@ def test_a_module_that_stages_bare_text_is_refused_in_its_own_name(
     assert page.evaluate("() => document.body.dataset.lfPresented") is None, (
         "the page presented anyway, so the words with nothing over them are in it"
     )
-    # The refusal asserted above reaches the collector as well.
+    # The refusal asserted above reaches the collector as well, and again from every
+    # later reader of the page's words, such as each repaint's touch controls, so the
+    # page closes before they are consumed.
+    page.close()
     consume_browser_errors(page, '<lf-drift id="drift-note">')
 
 

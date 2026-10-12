@@ -1294,6 +1294,39 @@ def test_a_returning_controller_widget_draws_again_only_a_changed_reading(
     ]
 
 
+def test_a_subscriber_added_after_the_first_render_fails_by_the_paint_rule(
+    browser, serve
+):
+    """A subscriber that joins a drawn reading draws through the widget's paint, so
+    its failure is reported once, as that paint's, and the widget shows its fail-soft
+    box."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Late subscriber",
+                '<h1>Late subscriber</h1><lf-local id="page-local" choice="idle">'
+                "</lf-local>",
+            ),
+            page_files={
+                "registry.json": json.dumps(PAGE_DECLARATION),
+                "widgets/lf-local.js": PAGE_WIDGET,
+            },
+        ),
+    )
+    expect(page.locator("#page-local")).to_have_attribute("data-page-widget", "ready")
+    page.evaluate(
+        "document.querySelector('#page-local').controller.subscribe(() => {"
+        " throw new Error('late subscriber failure'); }); true"
+    )
+    expect(page.locator("#page-local .lf-error")).to_have_text(
+        "<lf-local> failed: late subscriber failure"
+    )
+    reported_browser_errors(
+        page, "leaf: paint failed for lf-local#page-local: late subscriber failure"
+    )
+
+
 @pytest.mark.parametrize("lifetime", ["light", "shadow-child", "shadow-host"])
 def test_widget_controller_owns_presentation_across_values_and_lifetimes(
     browser, serve, lifetime

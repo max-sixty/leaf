@@ -20,6 +20,8 @@ Rendering work that reaches a resting state uses `nextRender`, `nextFrame` and
 when the element leaves ("Connection lifetimes"). Continuous mechanical motion, such as recording playback, uses
 `nextAnimation` and `cancelAnimation`: it schedules browser frames without holding
 page readiness open. Cancel it when the motion stops or its owner leaves.
+Work that races its own cancellation awaits `aborted(signal)`, which resolves once the
+signal aborts: `Promise.race([work, aborted(signal)])`.
 
 `/runtime/widget-api.js` is the whole Leaf API a behavior module gets: a module imports
 only that public helper surface, and does not reach into the runtime's private owners,
@@ -91,6 +93,50 @@ user outside it waits on the page rather than on a widget it would have to know 
 A declared `x-shadow` widget gets the same transition protection when it builds its root
 with `shadowStage`.
 
+### First paint
+
+Upgrade should add behavior and move nothing: a widget's box at first paint is the
+box it keeps once the page presents. `leaf package check --render` names a widget that
+moves as `keeps-first-box` ([packages.md, "Seeing it"](packages.md#seeing-it)).
+
+- Size the widget in the package theme under `html[data-lf-interactive]`, as its
+  module will draw it. Leaf sets that attribute before first paint wherever its
+  runtime will run, in a served page or an export.
+- Where the module draws a structure of its own whose shape the log does not change,
+  such as a row of count tiles, declare that structure as `x-prepaint` rather than
+  summing its line heights in the theme. Delivery writes it into each occurrence for
+  the first paint, the browser sizes and wraps it as it will the drawing, and the
+  module removes it (`:scope > [data-lf-prepaint]`) in the same step that draws its
+  replacement.
+- Where the structure depends on the instance's authored members or remembered tab
+  values, declare `x-initial` instead: the rooted path of a classic JavaScript bundle
+  that registers one synchronous producer with
+  `document.documentElement.lfInitial.register(tag, render)`. Delivery draws each
+  host with it as soon as the host's source has arrived, so the widget first appears
+  with its complete structure and values while prose before it can paint; with
+  scripts disabled, the authored host stays as written.
+  `render(host, {tabStore, offer, offerElement, keeps})` builds the drawing and
+  returns the node references and mechanical state the behavior module needs. It may move authored nodes within
+  its host, and Leaf keeps their original source and node routes for passages,
+  anchors and version comparison; `keeps` is the helper surface's own, for a later
+  pass over nodes already drawn. The producer does no asynchronous or network work
+  and reads no log-derived state. The behavior module calls `initialRender(host)`
+  from the helper surface, which adopts the existing drawing or produces it for a
+  later revision or a thread arrival, then adds behavior to those nodes without
+  rebuilding their structure. Leaf loads the declared bundle before the behavior
+  module only if it has not already registered. The theme styles the actual initial
+  layout; neither the producer nor the module reserves an estimated height.
+  `x-initial` requires `x-upgrade: true` and cannot accompany `x-prepaint`. Build its
+  classic bundle during development and commit it; installation, serving, and export
+  run the captured bundle without a compiler.
+- Where the markup cannot say how tall the drawing will be, declare `x-height`, add
+  the class `lf-rendered` once the drawing is in, and draw at the stated height where
+  the drawing can take any. `page check --render` advises a page's author the height
+  to state for a drawing that cannot.
+- Where the widget shows one of its members at a time, declare `x-views`, open on
+  `openingView`'s member, and show only the member marked `data-lf-opening` until the
+  module upgrades the element, as `lf-tabs` does.
+
 ## Template rendering
 
 Paint templates with `render(template, container)`, which lands in the turn that
@@ -116,6 +162,8 @@ that box. It also supports native recovery and repeated failures.
 `shadowStage(host, nodes)` owns the shadow root's structure and styles. For a
 template, stage a concrete container with `shadowStage(host, [container])` and
 call `render(template, container)`. Retain that container on later stage updates.
+`failSoft` on a staged host stages its error box in place of your nodes; your next
+`shadowStage` call replaces it.
 
 ## What a behavior module owes
 
@@ -871,7 +919,8 @@ resources. An actual departure aborts the signal and calls that cleanup, and a f
 permanently retires the subscription and releases active resources. Call it when the
 element no longer needs them, as a widget that fails soft from a paint it cannot
 repeat does, so a return does not start them again. Register dependent resources
-before `watchData` so they stand when its initial or resumed callback runs.
+before `watchData` so they stand when its callback runs. A return repaints only data
+that changed, so `start` restores whatever its cleanup cleared.
 
 ```js
 schedulePaint = frameFor(this, () => this.paint());
@@ -916,8 +965,12 @@ source's contract, publication, or validity changes. An incompatible contract or
 value delivers `null`, clearing the previous rendering. The subscription stays
 active and recovers when a readable value returns. `page state` and `page check`
 report invalid values; an incompatible subscriber reports the contract it requires.
-Register once for the element. Leaf pauses the subscription when its owner leaves and
-delivers the newest snapshot when it returns, even if its revision is unchanged.
+Register once for the element. Leaf pauses the subscription when its owner leaves. On
+return it delivers the newest snapshot only when that reading differs from the last
+one delivered or the departure interrupted a callback whose returned promise had not
+settled. A finished rendering, a failure included, stands. So return the promise of
+any paint that finishes later, abandon unfinished work on departure, and keep
+finished nodes where they are.
 Moving the owner within one DOM mutation batch retains the subscription. The returned
 cleanup function ends it permanently when the module explicitly stops watching.
 Its `refresh()` repaints the last delivered snapshot through the same clock
@@ -935,7 +988,8 @@ grace, the same bound the page's own activity reads. For another
 rounded time reading, use `clockValue((now) => reading)`, whose `now` argument is the
 calibrated server-now value in milliseconds. For a paint outside these
 subscriptions, wrap it with `clocked(element, paint)` and call the returned function
-where state changes; call its `.stop()` on disconnect. If painting is scheduled by a
+where state changes; call its `.stop()` when the owner leaves and its `.resume()` when
+it returns, which keeps the last painting's readings ticking. If painting is scheduled by a
 presenter, pass its synchronous claim as the third argument,
 `clocked(element, paint, invalidate)`. A clock change calls `invalidate`; the scheduled
 pass calls the function returned by `clocked`, capturing fresh time readings.

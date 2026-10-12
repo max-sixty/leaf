@@ -242,6 +242,47 @@ document.querySelector('#popup').addEventListener('click', () => {
     assert any(row.get("page") == grandchild_page for row in persisted)
 
 
+def test_sample_view_selection_waits_across_a_reload(browser, serve):
+    """A selection the child's reload interrupts lands in the next document."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Reloading sample",
+                """
+<h1>Containing page</h1>
+<lf-sample id="practice" label="Practice" window>
+  <template id="practice-source" data-sample><h1>Practice page</h1></template>
+</lf-sample>
+""",
+            )
+        ),
+    )
+    sample = page.locator("#practice")
+    sample.evaluate("async sample => await sample.ready")
+    child = sample.locator("iframe").element_handle().content_frame()
+    child.evaluate("""async () => {
+      const {registerSampleCommand} = await __lfRuntimeImport('/runtime/sample-child.js');
+      registerSampleCommand('thread', () => {
+        window.waitingCommand = true;
+        return new Promise(() => {});
+      });
+    }""")
+    # The examples' own call shape: a page that does not await its selection.
+    sample.evaluate("""sample => {
+      void sample.showThread('unawaited');
+      window.selection = sample.showThread(undefined, {surface: 'panel'}).then(
+        shown => ({shown}), error => ({error: error.name}));
+    }""")
+    child.wait_for_function("window.waitingCommand")
+    with child.expect_navigation(wait_until="domcontentloaded"):
+        child.evaluate("location.reload()")
+    # Only the next document's own command can present the panel.
+    assert page.evaluate("window.selection") == {"shown": True}
+    sample.evaluate("async sample => await sample.ready")
+    assert take_browser_errors(page) == []
+
+
 @pytest.mark.parametrize("response_type", ["json", "html"])
 def test_sample_release_failure_records_the_retired_allocation(
     browser, serve, response_type
@@ -431,8 +472,8 @@ def test_sample_native_departure_keeps_destination_and_reset(
       });
     }""")
     sample.evaluate("""sample => {
-      window.departedCall = sample.showThread('pending').then(
-        () => 'completed', error => error.name);
+      sample.showThread('pending').then(
+        shown => (window.departedCall = shown), error => (window.departedCall = error.name));
     }""")
     child.wait_for_function("window.waitingCommand")
     assert take_browser_errors(page) == []
@@ -462,18 +503,15 @@ def test_sample_native_departure_keeps_destination_and_reset(
     assert departed_record["document"] == next(
         row["document"] for row in departed_records if row["phase"] == "presented"
     )
-    assert page.evaluate("window.departedCall") == "SampleDepartedError"
+    # The selection and `ready` wait for a next document, which only Reset brings here.
+    assert page.evaluate("window.departedCall") is None
     assert (
         sample.evaluate(
-            "sample => sample.ready.then(() => 'ready', error => error.name)"
+            """sample => Promise.race([
+              sample.ready.then(() => 'ready', error => error.name),
+              new Promise(resolve => setTimeout(resolve, 50, 'waiting'))])"""
         )
-        == "SampleDepartedError"
-    )
-    assert (
-        sample.evaluate(
-            "sample => sample.showThread('departed').then(() => 'completed', error => error.name)"
-        )
-        == "SampleDepartedError"
+        == "waiting"
     )
     reset = sample.get_by_role("button", name="Reset", exact=True)
     expect(reset).to_be_enabled()
@@ -482,6 +520,7 @@ def test_sample_native_departure_keeps_destination_and_reset(
     sample.get_by_role("button", name="Return to page", exact=True).click()
     reset.click()
     sample.evaluate("async sample => await sample.ready")
+    assert page.evaluate("window.departedCall") is False
     expect(sample.frame_locator("iframe").get_by_role("heading")).to_have_text(
         "Practice page"
     )

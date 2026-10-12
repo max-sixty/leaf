@@ -37,10 +37,13 @@
         --lf-block-frame: 1;
         box-sizing: border-box;
         min-width: 0;
-        max-width: 100%;
         padding: var(--sp-2);
         border: 1px solid transparent;
         border-radius: var(--r);
+      }
+
+      .code-candidate[data-candidate] {
+        max-width: 100%;
       }
 
       .code-candidate-title,
@@ -243,16 +246,20 @@
     </script>
   </head>
   <body>
-    <main class="layout-wide">
+    <main class="layout-column">
       <p class="eyebrow">code reader design</p>
       <h1>Choose a code reader treatment</h1>
       <p class="lede">
         Compare a scrolling code reader with a wrapping one. Adjust their spacing and
         shared width, then choose the treatment to keep.
       </p>
-      <lf-ask id="code-comparison-ask" data-width="available">
+      <lf-ask id="code-comparison-ask">
         <h2>Which code-reader treatment should the agent keep?</h2>
-        <lf-playground id="code-comparison-playground" submit-label="Apply treatment">
+        <lf-playground
+          id="code-comparison-playground"
+          submit-label="Apply treatment"
+          data-width="available"
+        >
           <lf-playground-control
             name="width"
             label="Comparison viewport"
@@ -336,7 +343,7 @@ export function releaseLabels(releases) {
           </lf-playground-output>
         </lf-playground>
       </lf-ask>
-      <section id="code-reader-feedback" data-width="available">
+      <section id="code-reader-feedback">
         <h2>Point at the reader element you want changed</h2>
         <p id="code-reader-feedback-guide">
           Turn on Design mode with <kbd>l</kbd> or the More menu, then press the heading
@@ -345,7 +352,11 @@ export function releaseLabels(releases) {
           stays beside that element as its treatment changes. Describe a shared change
           in the comment when both readers should inherit it.
         </p>
-        <section id="target-reader-artifact" class="code-candidate">
+        <section
+          id="target-reader-artifact"
+          class="code-candidate"
+          data-width="available"
+        >
           <h3 id="target-reader-heading" class="reader-treatment-title">
             Reader sample
           </h3>

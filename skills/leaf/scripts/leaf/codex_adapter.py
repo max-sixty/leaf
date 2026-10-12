@@ -775,7 +775,7 @@ def _offer_queued_delivery(
         return False
     if connection is not None:
         return connection.start_delivery(prepared.payload)
-    # The embedded client reserves its reply seat independently of adapter intent.
+    # The embedded client makes its own reply reservation, whatever the adapter intends.
     # Read it outside the delivery lock: capture takes a page transaction first.
     target = stream_reply_target(prepared.payload)
     if target is not None and delivery_reply_reserved(

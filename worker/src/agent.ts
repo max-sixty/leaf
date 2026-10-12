@@ -6,7 +6,7 @@
  * turn, or to write the rate-limit or startup failure receipt the user reads in its
  * place. `prewarmContainer` starts a container ahead of the first event. Every record
  * these and the model proxy write goes through `leafAgentLog`, whose fields
- * `worker/README.md`, "Hosted-agent diagnostics", describes.
+ * `worker/README.md`, "Hosted turns", describes.
  */
 
 import { getContainer } from "@cloudflare/containers";

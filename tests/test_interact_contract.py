@@ -4624,7 +4624,7 @@ def test_check_rejects_an_unknown_authored_width(page_dir):
     assert result.exit_code == 1
     assert (
         '<table data-width="full"> (line 9) has an invalid value; expected one of '
-        "column, wide, available" in result.output
+        "wide, available" in result.output
     )
 
 
@@ -5528,7 +5528,7 @@ def test_a_gesture_at_a_coordinate_reaches_only_the_answers_still_standing_there
     later gesture's, as a revised suggestion that resolves another thread shows."""
     from leaf.thread_context import thread_memberships
 
-    def decide(id, outcome, answer, revision=1):
+    def decide(id, outcome, answer, revision=1, depends=("sug-a",)):
         return {
             "kind": "action",
             "id": id,
@@ -5536,7 +5536,7 @@ def test_a_gesture_at_a_coordinate_reaches_only_the_answers_still_standing_there
             "widget": "sug-a",
             "action": "decide",
             "detail": {"outcome": outcome},
-            "meaning": {"unit": "sug-a", "depends": ["sug-a"], "answer": answer},
+            "meaning": {"unit": "sug-a", "depends": list(depends), "answer": answer},
         }
 
     comments = [{"kind": "comment", "id": "c1"}, {"kind": "comment", "id": "c2"}]
@@ -5589,6 +5589,87 @@ def test_a_gesture_at_a_coordinate_reaches_only_the_answers_still_standing_there
         {},
     )
     assert (late["stale"], late["again"]) == (["c1"], ["c2"])
+    # A version retracting only the action that superseded an answer gives the
+    # coordinate back to that answer, which closes its thread again.
+    restored = thread_memberships(
+        [
+            *comments,
+            decide("accept", "accept", "c1"),
+            decide("reject", "reject", None, depends=("sug-a", "sug-note")),
+            {"kind": "note", "id": "v2", "revision": 2, "restated": ["sug-note"]},
+        ],
+        names,
+        {},
+        {"sug-note": ["sug-a", "sug-note"]},
+    )
+    assert (restored["reject"], restored["v2"]) == (["c1"], ["c1"])
+
+
+def test_a_sampled_thread_starts_as_its_source_log_leaves_it():
+    """A child page sampling a thread holds one revision, its parent's document, so
+    what a later version of the parent retracted stays behind rather than standing
+    again on that one revision: an answer the parent no longer counts leaves the
+    child's copy of its thread open too, and the action it had superseded, which
+    answered nothing, decides the widget there as it does in the parent."""
+    from leaf.events import build_threads
+    from leaf.passages import enclosing_ids
+    from leaf.thread_context import sample_events
+
+    document = structure_model.SourceDocument(
+        '<main><lf-suggestion id="sug-a" resolves="c1">'
+        '<p id="sug-note">Refill when half-empty.</p></lf-suggestion></main>'
+    )
+    within = enclosing_ids(document)
+    events = [
+        {
+            "kind": "comment",
+            "id": "c1",
+            "seq": 1,
+            "revision": 1,
+            "author": "user",
+            "ts": "t",
+            "text": "Refill less often?",
+            "anchor": {"section": "sug-a"},
+        },
+        {
+            "kind": "action",
+            "id": "first",
+            "seq": 2,
+            "revision": 1,
+            "author": "user",
+            "ts": "t",
+            "widget": "sug-a",
+            "action": "decide",
+            "detail": {"outcome": "defer"},
+            "meaning": {"unit": "sug-a", "depends": [], "answer": None},
+        },
+        {
+            "kind": "action",
+            "id": "accept",
+            "seq": 3,
+            "revision": 1,
+            "author": "user",
+            "ts": "t",
+            "widget": "sug-a",
+            "action": "decide",
+            "detail": {"outcome": "accept"},
+            "meaning": {"unit": "sug-a", "depends": ["sug-note"], "answer": "c1"},
+        },
+        {
+            "kind": "note",
+            "id": "v2",
+            "seq": 4,
+            "revision": 2,
+            "author": "agent",
+            "ts": "t",
+            "text": "Reworded the rule.",
+            "restated": ["sug-note"],
+        },
+    ]
+    assert build_threads(events, within)["c1"]["resolved"] is None
+    copied = sample_events(document, events, {"c1"})
+    assert [event["id"] for event in copied] == ["c1", "first"]
+    assert build_threads(copied, within)["c1"]["resolved"] is None
 
 
 @pytest.mark.parametrize(

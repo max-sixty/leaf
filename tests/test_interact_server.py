@@ -477,9 +477,7 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
     before = event_model.read_events(page_dir)
     children = []
     for _ in range(2):
-        status, raw = fetch(
-            f"{server}/api/samples", data=b'{"template":"practice","passive":true}'
-        )
+        status, raw = fetch(f"{server}/api/samples", data=b'{"template":"practice"}')
         assert status == 200, raw
         child = server + json.loads(raw)["url"].rstrip("/")
         children.append(child)
@@ -489,7 +487,6 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
             "Selected thread",
             "Seeded reply",
         ]
-        assert b"data-lf-sample-passive" in fetch(child + "/")[1]
     assert children[0] != children[1]
     assert event_model.read_events(page_dir) == before
     status, raw = fetch(f"{server}/api/samples", data=b'{"template":"missing"}')

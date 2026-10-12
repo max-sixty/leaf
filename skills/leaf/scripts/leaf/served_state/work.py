@@ -1,6 +1,6 @@
 """Semantic work with the live claim/turn evidence used by every transport.
 
-The durable reading remains separate from activity's liveness and response binding.
+The durable reading remains separate from activity's liveness and reply reservations.
 Delivery and status never need browser serialization, external data, or history.
 A serving context holds this result once; its browser selects the same objects.
 """
@@ -129,7 +129,7 @@ def work_state(
         now,
         stream.get("activity"),
         reply,
-        stream.get("reply_bindings"),
+        stream.get("reply_reservations"),
         task_reading=log,
     )
     workflows = (

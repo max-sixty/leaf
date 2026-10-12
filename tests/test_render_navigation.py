@@ -918,7 +918,7 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
         )
         .replace(
             '<main class="layout-workspace">',
-            '<main class="layout-wide"><lf-tabs id="reading-tabs">'
+            '<main class="layout-sidebar"><lf-tabs id="reading-tabs">'
             '<lf-tab id="first-tab" label="First">',
         )
         .replace(

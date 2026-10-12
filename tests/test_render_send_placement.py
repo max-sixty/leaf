@@ -446,10 +446,10 @@ def test_a_quoted_passage_keeps_its_inline_attachment_before_and_after_send(
         serve(
             leaf_page(
                 "passage attachment",
-                '<h1>Review the handler</h1><pre id="source"><code>'
+                '<div><h1>Review the handler</h1><pre id="source"><code>'
                 'const answer = {\n  decision: "Keep",\n  does: "Keep the active card",\n};'
-                "</code></pre><p>The handler records the current decision.</p>",
-                layout="wide",
+                "</code></pre><p>The handler records the current decision.</p></div>",
+                layout="sidebar",
             )
         ),
     )
@@ -506,10 +506,10 @@ def test_a_multiline_passage_attaches_to_its_first_words_through_focus_reflow_an
         serve(
             leaf_page(
                 "Multiline attachment",
-                '<h1>Review the handler</h1><pre id="source"><code class="language-javascript">'
+                '<div><h1>Review the handler</h1><pre id="source"><code class="language-javascript">'
                 'const answer = {\n  decision: "Keep",\n  does: "keep the active card",\n};'
-                "</code></pre><p>The handler records the current decision.</p>",
-                layout="wide",
+                "</code></pre><p>The handler records the current decision.</p></div>",
+                layout="sidebar",
             )
         ),
     )
@@ -595,9 +595,10 @@ def test_a_right_edge_passage_reopens_a_usable_card_without_moving_typing(
         serve(
             leaf_page(
                 "right edge passage",
-                '<h1>Review the note</h1><p id="edge">Needle</p><p>Keep its thread usable.</p>',
+                '<div><h1>Review the note</h1><p id="edge">Needle</p>'
+                "<p>Keep its thread usable.</p></div>",
                 head="<style>#edge { text-align: right; }</style>",
-                layout="wide",
+                layout="sidebar",
             )
         ),
     )

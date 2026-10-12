@@ -10072,10 +10072,10 @@ def test_the_queue_clock_owns_held_paint_failure_and_retry(browser, serve):
     assert after["pending"] == []
 
 
-def test_a_failed_queue_list_paint_reports_once_and_retains_the_prior_list(
-    browser, serve
-):
-    """A Queue list failure restores its earlier rows and leaves the banner controls."""
+def test_failed_ask_paints_report_once_and_retain_their_prior_faces(browser, serve):
+    """A failed Queue list and a failed Lit face on the banner's bulk control, failing
+    in the same publication, each report once and keep their earlier rows and controls
+    usable."""
     page = open_page(browser, serve(ASKS_PAGE))
     answer_all = page.locator(".lf-answer-all")
     expect_asks_answered(page, "1/5")
@@ -10092,11 +10092,15 @@ def test_a_failed_queue_list_paint_reports_once_and_retains_the_prior_list(
           window.__lfReadAskPresentation = readApplicationPresentation;
           const list = document.querySelector('lf-queue-list');
           window.__lfAskRows = [...list.querySelectorAll('button.lf-queue-row')];
-          const render = list.render.bind(list);
-          list.render = () => {
-            list.render = render;
-            throw new Error('deliberate Queue list failure');
-          };
+          window.__lfAskBulk = document.querySelector('.lf-answer-all');
+          const bulkFace = window.__lfAskBulk.querySelector('lf-question-banner-face');
+          for (const [face, name] of [[list, 'Queue list'], [bulkFace, 'Ask banner']]) {
+            const render = face.render.bind(face);
+            face.render = () => {
+              face.render = render;
+              throw new Error(`deliberate ${name} failure`);
+            };
+          }
           window.__lfAskListCurrentReady = false;
           window.__lfWaitForAskListCurrent = () =>
             void whenApplicationPresented().then(() => {
@@ -10115,69 +10119,12 @@ def test_a_failed_queue_list_paint_reports_once_and_retains_the_prior_list(
     assert rows.evaluate_all(
         "items => items.every((item, at) => item === window.__lfAskRows[at])"
     )
-    rows.first.click()
-    expect(page.locator("#live-question-decision")).to_be_focused()
-    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
-        "leaf: Presentation failed: deliberate Queue list failure"
-    ]
-    holding(page, held, 2, "the gesture and the page's report of its failure")
-    for route in held:
-        route.continue_()
-    page.unroute("**/api/event")
-    round_trip(page)
-
-
-def test_a_failed_ask_banner_paint_reports_once_and_retains_prior_controls(
-    browser, serve
-):
-    """One failed Lit face leaves the prior stable bulk controls usable."""
-    page = open_page(browser, serve(ASKS_PAGE))
-    answer_all = page.locator(".lf-answer-all")
-    expect_asks_answered(page, "1/5")
-    expect(answer_all).to_have_text("Accept all (1)")
-    banner_control(page, ".lf-queue").click()
-    rows = page.locator("button.lf-queue-row")
-    expect(rows).to_have_count(len(ALL_ASKS_IN_ORDER))
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    page.evaluate(
-        """async () => {
-          const {readApplicationPresentation, whenApplicationPresented} =
-            await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js');
-          window.__lfReadAskPresentation = readApplicationPresentation;
-          window.__lfAskBulk = document.querySelector('.lf-answer-all');
-          window.__lfAskRows = [
-            ...document.querySelectorAll('button.lf-queue-row')];
-          const bulkFace = window.__lfAskBulk.querySelector('lf-question-banner-face');
-          const render = bulkFace.render.bind(bulkFace);
-          bulkFace.render = () => {
-            bulkFace.render = render;
-            throw new Error('deliberate Ask banner failure');
-          };
-          window.__lfAskCurrentReady = false;
-          window.__lfWaitForAskCurrent = () =>
-            void whenApplicationPresented().then(() => {
-              window.__lfAskCurrentReady = true;
-            });
-        }"""
-    )
-    page.locator("#lq-token").click()
-    holding(page, held, 1, "the semantic answer")
-    page.evaluate("__lfWaitForAskCurrent()")
-    page.wait_for_function("__lfAskCurrentReady")
-    assert page.evaluate("__lfReadAskPresentation().pending.length") == 0
-    expect_asks_answered(page, "1/5")
-    expect(answer_all).to_have_text("Accept all (1)")
-    expect(rows).to_have_count(len(ALL_ASKS_IN_ORDER))
-    assert rows.evaluate_all(
-        "items => items.every((item, at) => item === window.__lfAskRows[at])"
-    )
     assert answer_all.evaluate("control => control === window.__lfAskBulk")
     rows.first.click()
     expect(page.locator("#live-question-decision")).to_be_focused()
-    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
-        "leaf: Presentation failed: deliberate Ask banner failure"
+    assert sorted(error.splitlines()[0] for error in take_browser_errors(page)) == [
+        "leaf: Presentation failed: deliberate Ask banner failure",
+        "leaf: Presentation failed: deliberate Queue list failure",
     ]
     holding(page, held, 2, "the gesture and the page's report of its failure")
     for route in held:

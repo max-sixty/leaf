@@ -14,116 +14,67 @@
 # change 6/6. The wording guardrail held 12/12.
 description: proposals-show-what-they-change
 metadata:
-  purpose: 'Asks: a proposal to change something visible shows it as it is today in a capture and
-    draws the change, while a wording proposal stays text.'
+  purpose: 'Asks: a proposal to change something visible shows it as it is today in a capture and draws the change, while a wording proposal stays text.'
   authoring: true
   tags:
   - asks
   - drawing
 vars:
-  prompt: |
-    The user asked: "Let's plan out: (1) what code fixes to make to Leaf from the eval
-    comparing Leaf with plain HTML, for example `leaf thread reply` refuses and names
-    <answer.ref> without saying where it comes from; (2) what changes to the evals: is
-    it realistic, e.g. every prompt says not to wait for input, which may push it the
-    wrong way; (3) can we produce some sort of report so I can see the outputs, a quick
-    version now, improved over time; (4) broader changes to Leaf to get it producing
-    better outputs: review the judges' feedback and assess where they are correct."
-
-    The report is done: `leaf-dev eval-report` wrote it as its own Leaf page, with each
-    pair's final screens side by side, at /report/. Now write the plan page, where each
-    change you propose waits on the user's accept or reject. Your notes:
-
-    CLI. When a comment is owed and the agent has no delivery, `leaf thread reply`
-    refuses with "`leaf response reply <answer.ref>` answers it", and nothing it names
-    supplies the reference. Five of nine Leaf agents hit it and searched help and
-    references before finding `leaf page claim` plus `leaf wait`. Proposal: the refusal
-    adds "`leaf wait <page>` delivers it with its reference", with `leaf page claim`
-    first when another session holds the page. One home: `answer_command` in
-    `activity.py`. Recommended.
-
-    Eval. Every phase runs headless and says "do not wait for input", so the Leaf agent
-    never serves the page or receives the comment the way a hook delivers it. Comments
-    are anchored from the source file, which cannot see script-rendered text, so 5 of 9
-    fell back to the whole page. The user's decision never travels back, so Leaf's core
-    claim goes unmeasured. Proposals: (a) how the Leaf arm gets the comment: run the
-    real loop with hooks and a served page (recommended), stay headless and hand over a
-    frozen delivery, or keep the current phases; (b) add a decision round trip to every
-    task (recommended); (c) clear-cut eval fixes to take together: post comments from a
-    browser selection, alternate condition order, a private /tmp per sample, the
-    pairwise judge as the quality score.
-
-    Leaf. Three subagents checked every judge claim about Leaf's pages against the
-    screenshots and source, citing captures under
-    `evals/proposals-show-what-they-change/captures/`. Real defects, each with its cause
-    and proposed fix:
-    1. Configuration: each alert's threshold and action controls sit in the playground's
-       right rail, apart from that alert's evidence in the stage. HTML put threshold
-       table, actions and outcome in one card per alert and won every order on this
-       (`configuration-xfz58zbt/p3-laptop-1.png`, HTML
-       `configuration-pl0smuzg/p3-laptop-1.png`). Cause: `lf-playground-control` must be
-       a direct child, drawn in the rail. Proposal: a control may stand in its item's
-       row in the stage, with a note slot under it; candidates go to a playground for
-       the user first. Recommended. Rejecting it means steering per-item configuration
-       away from the playground in the instructions.
-    2. Queue: the side list marks decided rows with a check and nothing else: no "3 of 8
-       decided", no route to the next undecided ticket, and a static "8 to decide" tag
-       in the header went stale while the banner said 7. HTML showed "0 of 8 decided"
-       with a bar and an Undecided badge per row (`queue-dldgtg4j/p3-narrow-0.png`, HTML
-       `queue-orx1fmik/p3-narrow-0.png`). On a phone the list becomes a sideways strip
-       about one ticket wide (`queue-ykvtddal/p3-phone-0.png`). Proposal: a count over
-       the list, an open mark on each undecided row, a Next undecided route, and
-       narrower strip rows. Recommended.
-    3. Document: authors hand-write a sticky sidebar that runs past the bottom of a
-       900x600 window, so its last links can't be reached; every HTML page shared this
-       (`document-z029x2il/p3-short-0.png`). Cause: `layout-sidebar` lacks the column
-       sidebar's bounded scroll. Proposal: bound the sticky aside in the Layout and
-       delete the instruction. Clear-cut.
-    4. Document: an Ask set its option cards in a narrow track beside a table, leaving
-       about 800px of empty space beside long options
-       (`document-z029x2il/p3-laptop-2.png`). Cause: the options track turns on whenever
-       a table precedes the list. Proposal: turn the track on only when the list fits
-       beside its context's height (recommended), or report it as a render-check finding
-       instead.
-    5. Queue: on touch, the copy button covers log text
-       (`queue-dldgtg4j/p3-phone-0.png`). Proposal: reserve its width on coarse
-       pointers. Clear-cut.
-    Judge claims that were wrong: "Sam Okafor not visible" (the screenshots show only
-    the first ticket); "23 services shown only as a graphic" (the table says 23).
-
-    Write the plan as a Leaf page.
+  prompt: "The user asked: \"Let's plan out: (1) what code fixes to make to Leaf from the eval\ncomparing Leaf with plain HTML, for example `leaf thread reply` refuses and names\n<answer.ref> without saying where it comes from; (2) what changes to the evals: is\nit realistic, e.g. every prompt says not to wait for input, which may push it the\nwrong way; (3) can we produce some sort of report so I can see the outputs, a quick\nversion now, improved over time; (4) broader changes to Leaf to get it producing\nbetter outputs: review the judges' feedback and assess where they are correct.\"\n\nThe report is done: `leaf-dev eval-report` wrote it as its own Leaf page, with each\npair's final screens side by side, at /report/. Now write the plan page, where each\nchange you propose waits on the user's accept or reject. Your notes:\n\nCLI. When a comment is owed and the agent has no delivery, `leaf thread reply`\nrefuses with \"`leaf response reply <answer.ref>` answers it\", and nothing it names\n\
+    supplies the reference. Five of nine Leaf agents hit it and searched help and\nreferences before finding `leaf page claim` plus `leaf wait`. Proposal: the refusal\nadds \"`leaf wait <page>` delivers it with its reference\", with `leaf page claim`\nfirst when another session holds the page. One home: `answer_command` in\n`activity.py`. Recommended.\n\nEval. Every phase runs headless and says \"do not wait for input\", so the Leaf agent\nnever serves the page or receives the comment the way a hook delivers it. Comments\nare anchored from the source file, which cannot see script-rendered text, so 5 of 9\nfell back to the whole page. The user's decision never travels back, so Leaf's core\nclaim goes unmeasured. Proposals: (a) how the Leaf arm gets the comment: run the\nreal loop with hooks and a served page (recommended), stay headless and hand over a\nfrozen delivery, or keep the current phases; (b) add a decision round trip to every\ntask (recommended); (c) clear-cut eval fixes to take\
+    \ together: post comments from a\nbrowser selection, alternate condition order, a private /tmp per sample, the\npairwise judge as the quality score.\n\nLeaf. Three subagents checked every judge claim about Leaf's pages against the\nscreenshots and source, citing captures under\n`evals/proposals-show-what-they-change/captures/`. Real defects, each with its cause\nand proposed fix:\n1. Configuration: each alert's threshold and action controls sit in the playground's\n   right rail, apart from that alert's evidence in the stage. HTML put threshold\n   table, actions and outcome in one card per alert and won every order on this\n   (`configuration-xfz58zbt/p3-laptop-1.png`, HTML\n   `configuration-pl0smuzg/p3-laptop-1.png`). Cause: `lf-playground-control` must be\n   a direct child, drawn in the rail. Proposal: a control may stand in its item's\n   row in the stage, with a note slot under it; candidates go to a playground for\n   the user first. Recommended. Rejecting it means steering per-item\
+    \ configuration\n   away from the playground in the instructions.\n2. Queue: the side list marks decided rows with a check and nothing else: no \"3 of 8\n   decided\", no route to the next undecided ticket, and a static \"8 to decide\" tag\n   in the header went stale while the banner said 7. HTML showed \"0 of 8 decided\"\n   with a bar and an Undecided badge per row (`queue-dldgtg4j/p3-narrow-0.png`, HTML\n   `queue-orx1fmik/p3-narrow-0.png`). On a phone the list becomes a sideways strip\n   about one ticket wide (`queue-ykvtddal/p3-phone-0.png`). Proposal: a count over\n   the list, an open mark on each undecided row, a Next undecided route, and\n   narrower strip rows. Recommended.\n3. Document: authors hand-write a sticky sidebar that runs past the bottom of a\n   900x600 window, so its last links can't be reached; every HTML page shared this\n   (`document-z029x2il/p3-short-0.png`). Cause: `layout-sidebar` lacks the column\n   sidebar's bounded scroll. Proposal: bound the sticky\
+    \ aside in the Layout and\n   delete the instruction. Clear-cut.\n4. Document: an Ask set its option cards in a narrow track beside a table, leaving\n   about 800px of empty space beside long options\n   (`document-z029x2il/p3-laptop-2.png`). Cause: the options track turns on whenever\n   a table precedes the list. Proposal: turn the track on only when the list fits\n   beside its context's height (recommended), or report it as a render-check finding\n   instead.\n5. Queue: on touch, the copy button covers log text\n   (`queue-dldgtg4j/p3-phone-0.png`). Proposal: reserve its width on coarse\n   pointers. Clear-cut.\nJudge claims that were wrong: \"Sam Okafor not visible\" (the screenshots show only\nthe first ticket); \"23 services shown only as a graphic\" (the table says 23).\n\nWrite the plan as a Leaf page.\n"
 assert:
-- type: regex
-  metric: has-asks
-  value: <lf-ask\b
-  transform: output.toLowerCase()
 - type: agent-rubric
   metric: shows-today
   transform: 'JSON.stringify({html: output, captures: context.metadata.capture_evidence})'
-  value: |
-    The output contains authored HTML and a map of original inputs and page media.
+  value: 'The output contains authored HTML and a map of original inputs and page media.
+
     `captures.exact_inputs` lists verified original matches for each page media URL.
+
     Treat those as the supplied captures without rechecking their identical pixels.
+
     For other page media, open the cited originals and compare the images the HTML
+
     uses: cropped or marked captures must still show the cited defect.
-    Find the asks deciding the configuration controls (defect 1), the queue's progress
+
+    Find the asks deciding the configuration controls (defect 1), the queue''s progress
+
     (defect 2) and the options track (defect 4). Pass only if each of the three shows
-    the defect as it looks today in a picture, inside that `lf-ask` or in the section
-    text directly before it that the ask rests on: the capture the notes cite for it
+
+    the defect as it looks today in a picture, inside that `lf-ask`: the capture the notes cite for it
+
     as an `<img>` or `lf-shot` (cropped or marked counts). A drawing alone does not
-    show the captured state. Fail if any of the three describes today's state only
+
+    show the captured state. Fail if any of the three describes today''s state only
+
     in words, a table row, a cited file path, or a link to the report page.
+
+    '
 - type: llm-rubric
   metric: draws-the-change
-  value: |
-    Find the asks deciding the configuration controls (defect 1) and the queue's
+  value: 'Find the asks deciding the configuration controls (defect 1) and the queue''s
+
     progress (defect 2). Pass only if each shows what accepting the proposal would look
-    like in a drawing (an inline `<svg>`, an `lf-diagram`, or an `lf-sample`), inside
-    the accepting option or elsewhere inside that `lf-ask`. Fail if either proposal is
-    described only in words.
+
+    like in a drawing (an inline `<svg>`, an `lf-diagram`, an `lf-sample`, or an HTML
+
+    mockup laid out like the interface) inside
+
+    that `lf-ask`: in the accepting `lf-option`, or in a figure that shows today beside
+
+    the change. Fail if either proposal''s change is described only in words, or drawn
+
+    only outside the `lf-ask`.
+
+    '
 - type: llm-rubric
   metric: wording-stays-text
-  value: |
-    Find the ask deciding the `leaf thread reply` refusal. Pass if it carries no image,
-    screenshot or drawing; showing the refusal's text, before or after, as text or code
+  value: 'Find the ask deciding the `leaf thread reply` refusal. Pass if it carries no image,
+
+    screenshot or drawing; showing the refusal''s text, before or after, as text or code
+
     is fine. Fail if it holds an `<img>`, `<svg>`, `lf-shot` or `lf-diagram`.
+
+    '

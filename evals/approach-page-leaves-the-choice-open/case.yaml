@@ -28,10 +28,6 @@ vars:
     \ HTML rather than writing a file. Figures may be placeholders\nsuch as `<figure id=\"owners-figure\"\
     ><svg class=\"drawing\" viewBox=\"0 0 680 300\"></svg></figure>`.\n"
 assert:
-- type: regex
-  metric: has-asks
-  value: <lf-ask\b
-  transform: output.toLowerCase()
 - type: llm-rubric
   metric: judgment
   value: |

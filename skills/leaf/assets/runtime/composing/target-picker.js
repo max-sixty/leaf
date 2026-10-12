@@ -596,6 +596,7 @@ export function createTargetPicker({
     id: "page.search.open",
     // A finger can select words it can see, but not find them elsewhere on a long page.
     touch: "Search page",
+    menu: "navigate",
     keys: ["/"],
     description: "Search all the text on the page",
     title: "search page",
@@ -782,6 +783,7 @@ export function createTargetPicker({
         : "Choose an element by pressing it or browsing targets with Tab and Enter, then comment",
     title: "select element",
     touch: "Select element",
+    menu: "annotate",
     // Once the field is open, its typing scope owns character keys. This gate also keeps
     // the route off the short line while a target is in hand.
     lineWhen: () => !Boolean(fabAnchorAt()),

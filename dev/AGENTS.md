@@ -25,8 +25,11 @@ reaches a module by importing it from this package, never through `sys.path`,
 - `arms.py`: arms (the plugin payload at a ref, or as the working tree has it) and
   an A/B's pair of them, whose base defaults to the merge base with `main`
   (`base_ref`); pages served from an authored source on an arm; the machine's load
-  average a timed command prints; the isolated `claude -p` children evals run; and
-  the throwaway Claude Code, Codex and Pi homes a child of each runs under.
+  average a timed command prints; the isolated `claude -p` children evals run, and
+  the live session (`LiveSession`) every live eval driver plays its user against;
+  and the throwaway Claude Code, Codex and Pi homes a child of each runs under.
+  `eval_user.py` is that user in a browser: a comment from a selection, and a
+  decision a user agent makes through the page's own controls.
 - `page_fixtures.py` builds a page directory from an authored source;
   `example_data.py` reads the catalog, names, and each page's companions.
 - `browser.py` launches Chrome, and opens and settles a tab, the same way for every
@@ -80,7 +83,8 @@ reaches a module by importing it from this package, never through `sys.path`,
   using the shared isolated child and page checks; their assertions read the saved
   HTML. `metadata.authoring` selects this mode in the catalog.
 - `leaf-dev eval-pairs RUN...` judges an authored task's samples across a run's two
-  columns side by side, in both orders.
+  columns side by side, in both orders, and `leaf-dev eval-report PAGE RUN...` writes
+  those samples, their spend and the verdicts to a Leaf page.
 - `leaf-dev eval-ui-review` runs the retained internal viewer-review diagnostics;
   `evals/ui-review-detection/README.md` owns their scope, controls and automatic grading.
 

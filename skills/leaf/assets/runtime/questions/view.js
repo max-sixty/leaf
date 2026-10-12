@@ -294,6 +294,25 @@ export function createQuestionView({
     const source = question && sourceNode(question);
     return source ? actionsFor(source) : [];
   };
+  // The answers an ask offers, for a surface that answers it away from where it stands,
+  // as the floating panel's Questions view does: each Decision control's own words and
+  // its own press, so the answer is the widget's, recorded as a press there would be.
+  // Null while the ask's source has no node, as in a thread turn not yet drawn; the
+  // caller then offers the arrival instead.
+  function choicesOf(question) {
+    const source = sourceNode(question);
+    if (!source) return null;
+    return actionsFor(source).map(({ id, label, control }) =>
+      Object.freeze({
+        id,
+        label,
+        chosen:
+          control.getAttribute("aria-pressed") === "true" ||
+          control.getAttribute("aria-checked") === "true",
+        press: () => presentedActionControl(control).click(),
+      }),
+    );
+  }
   function questionContext(origin) {
     const record = questionAt(readQuestions().all, hostIn(origin, document));
     let root = null;
@@ -699,5 +718,6 @@ export function createQuestionView({
     markHere,
     arriveAtQuestion,
     goToQuestion,
+    choicesOf,
   };
 }

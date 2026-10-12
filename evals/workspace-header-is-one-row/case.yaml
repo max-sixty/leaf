@@ -1,7 +1,7 @@
 # Added with the one-row workspace header (#1301). Base at cd1d37b0d 0 of 3 (one run
 # put a lede in the header), the change 3 of 3.
-# takes-working-density added with `density-working`, which the workspace template now
-# writes beside the Layout class.
+# The judgment's `density-working` clause was added with that class, which the workspace
+# template now writes beside the Layout class.
 description: workspace-header-is-one-row
 metadata:
   purpose: 'Writing a workspace: its header takes the window''s height before the panes do, so it holds
@@ -24,7 +24,8 @@ assert:
 - type: llm-rubric
   metric: judgment
   value: |
-    Read the HTML. Pass only if `main` has class `layout-workspace` and its `header`
+    Read the HTML. Pass only if `main` has classes `layout-workspace` and
+    `density-working`, and its `header`
     holds the title and, at most, the page's status as short chips or one short line of
     them (for example `.tag` spans saying how many are quarantined or fail often): no
     paragraph explaining the page, no eyebrow, no lede, no legend or instructions. The
@@ -32,7 +33,3 @@ assert:
     region of the body (for example at the top of the list pane or the detail pane).
     Fail if the header holds a lede or explanatory paragraph, or if the explanation was
     dropped from the page entirely.
-- type: regex
-  metric: takes-working-density
-  value: <main\b[^>]*\bclass=["'][^"']*\bdensity-working\b
-  transform: output.toLowerCase()

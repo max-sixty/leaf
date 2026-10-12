@@ -33,11 +33,6 @@
    user's place and caret in it (`move`), only when that graph changes. The frame ignores pointer input;
    each surface's own CSS retains its interaction policy. Without the needed native
    capability, the existing observed placement path invalidates on scroll instead.
-   Every attachment solved in the window plane retains its physical attachment point,
-   carrying sources' measured scroll offsets, and written solver point. The physical
-   point may move less than those scrolls (a sticky boundary), and the solver may move
-   less than that point (a viewport constraint). Readers can distinguish both from
-   unrelated movement of the surface or its children.
    In a region's plane the box is anchored to the region's body, the box whose edges
    bound it, which the outer scrolls carry and the region's own scroll does not. The containing frame stays fixed,
    so native focus never scrolls the page under it.
@@ -49,7 +44,8 @@
    where the boundary shifted the box in, the edge against that boundary. Content that
    grows the box then moves only its free edges, in the layout that grows it. Stood by
    its top-left corner, a box that grows at its left or top would paint grown the wrong
-   way for a frame, until the placement that follows the resize carried it back.
+   way for a frame, until the placement that follows the resize carried it back. A `hold`
+   that carries an inline offset names that axis's edge too (`inline`).
 
    Neither surface stands before the user acts, so the bundle stays off the presentation
    path and loads as soon as the page has presented, as an arrival the page answers for.
@@ -68,7 +64,7 @@ import {
   scrollOrigins,
 } from "../scroll-motion.js";
 import { containingReadingRegionFor } from "../reading-regions.js";
-import { upFrom, renderedParent } from "../shadow.js";
+import { upFrom } from "../shadow.js";
 
 let floatingUiModule = null;
 export const floatingUi = () =>
@@ -92,7 +88,7 @@ export async function positioningScale({ elements, platform, strategy }) {
 // that space. Nothing where a transform, filter, or containment between the box and the
 // body makes some box other than the viewport its containing block, since an anchor
 // outside that block cannot position it.
-const anchorAt = (reference, context, origins) => ({
+const anchorAt = (reference) => ({
   name: "anchorAt",
   async fn(state) {
     const { rects, elements, platform } = state;
@@ -107,9 +103,6 @@ const anchorAt = (reference, context, origins) => ({
           x: rects.reference.x - client.left / scale.x,
           y: rects.reference.y - client.top / scale.y,
         },
-        scrollOffsets: await referenceScrolls(context, origins, (element) =>
-          platform.getOffsetParent(element),
-        ),
       },
     };
   },
@@ -141,8 +134,9 @@ function holderOf({ edge, at }, context, overflowAncestors) {
 // The edges that hold the box where the answer stands it, one per axis, with the box's
 // size and its containing block's, which an inset on a right or bottom edge is measured
 // from. It runs after the surface's middleware, so it reads the box as sized and shifted.
-// A surface middleware named `hold` that keeps a block edge still reports it as `edge`;
-// an edge the boundary shifted the box against outranks it.
+// A surface middleware named `hold` that keeps a block edge still reports it as `edge`,
+// and one that carries an inline offset its inline edge as `inline`; an edge the
+// boundary shifted the box against outranks either.
 const held = {
   name: "held",
   async fn(state) {
@@ -154,6 +148,7 @@ const held = {
         ? { x: aligned("left", "right"), y: side === "top" ? "bottom" : "top" }
         : { x: side === "left" ? "right" : "left", y: aligned("top", "bottom") };
     edges.y = middlewareData.hold?.edge ?? edges.y;
+    edges.x = middlewareData.hold?.inline ?? edges.x;
     const shifted = middlewareData.shift ?? {};
     if (Math.abs(shifted.x ?? 0) >= 0.5) edges.x = shifted.x < 0 ? "right" : "left";
     if (Math.abs(shifted.y ?? 0) >= 0.5) edges.y = shifted.y < 0 ? "bottom" : "top";
@@ -206,27 +201,6 @@ export function floatingGeometry(contexts) {
       if (anchor) anchors.set(anchor, anchor.getBoundingClientRect());
     }
   return { anchors, origins: scrollOrigins(contexts) };
-}
-
-// Scroll sources that carry the physical reference. A fixed descendant skips to
-// its containing block, as Floating UI resolves it, retaining that block's outer
-// scrolls and any inner scroll that carries words inside the fixed box itself.
-async function referenceScrolls(context, origins, getOffsetParent) {
-  const offsets = [];
-  for (let at = context; at;) {
-    if (at instanceof Element) {
-      const origin = origins.get(at);
-      if (origin && at !== context)
-        offsets.push(Object.freeze({ source: at, left: origin.x, top: origin.y }));
-      if (getComputedStyle(at).position === "fixed") {
-        const block = await getOffsetParent(at);
-        at = block === window ? null : block;
-        continue;
-      }
-    }
-    at = renderedParent(at);
-  }
-  return Object.freeze(offsets);
 }
 
 export function floatingPlacement({ floating, update }) {
@@ -360,7 +334,6 @@ export function floatingPlacement({ floating, update }) {
       const anchoring = CSS.supports("anchor-name", "--lf-anchor");
       const anchor = anchoring ? anchorFor(context) : null;
       const client = reference.getBoundingClientRect();
-      const point = reference.attachmentPoint ?? client;
       const geometry = reference.geometry ?? floatingGeometry([context]);
       const anchorBox = geometry.anchors.get(anchor);
       const { origins } = geometry;
@@ -418,7 +391,7 @@ export function floatingPlacement({ floating, update }) {
       const answer = await computePosition(measured, frame, {
         ...options,
         strategy: "fixed",
-        middleware: [...options.middleware, held, anchorAt(measured, context, origins)],
+        middleware: [...options.middleware, held, anchorAt(measured)],
       });
       if (placement !== epoch) return null;
       // An unchanged native graph keeps following while a solve is in flight. Retire
@@ -474,9 +447,6 @@ export function floatingPlacement({ floating, update }) {
             frame: frameAnchor,
             plane,
             at,
-            reference: Object.freeze({ left: point.left, top: point.top }),
-            scrollOffsets:
-              plane === "window" ? answer.middlewareData.anchorAt.scrollOffsets : null,
           }
         : null;
       return answer;
@@ -490,15 +460,7 @@ export function floatingPlacement({ floating, update }) {
       }
       const { edges, width, height, block } = answer.middlewareData.held;
       const { offset, scale } = answer.middlewareData.anchorAt;
-      const {
-        subject,
-        anchor,
-        frame: frameAnchor,
-        plane,
-        at,
-        scrollOffsets,
-        reference,
-      } = placementProof;
+      const { subject, anchor, frame: frameAnchor, plane, at } = placementProof;
       const point = {};
       for (const [axis, start, coordinate, length, extent] of [
         ["left", "left", "x", width, block.width],
@@ -525,8 +487,6 @@ export function floatingPlacement({ floating, update }) {
           frame: frameAnchor,
           plane,
           tenure,
-          scrollOffsets,
-          reference,
           edges: Object.freeze({ left: edges.x, top: edges.y }),
           point: Object.freeze(point),
           size: Object.freeze({ width: width * scale.x, height: height * scale.y }),

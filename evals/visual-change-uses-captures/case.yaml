@@ -2,27 +2,35 @@
 # button beside its captures in 2 of 3 runs and was reverted; main passed 3 of 3.
 description: visual-change-uses-captures
 metadata:
-  purpose: 'Draw the subject, guardrail: a visible change with before/after captures shows the captures
-    and draws nothing beside them.'
+  purpose: 'Draw the subject, guardrail: a visible change with before/after captures shows the captures and draws nothing beside them.'
   authoring: true
   tags:
   - draw
   - guardrail
 vars:
-  prompt: |
-    You are writing a Leaf page for the user about a button fix. Your notes:
+  prompt: 'You are writing a Leaf page for the user about a button fix. Your notes:
 
-    Finding. The Save button's disabled state was the same grey as its enabled state, so
+
+    Finding. The Save button''s disabled state was the same grey as its enabled state, so
+
     users clicked it and nothing happened. The fix paints enabled Save in the accent colour
+
     and disabled Save at 40% opacity.
+
 
     Ask. Approve the new states, or keep the old ones.
 
+
     Captures, same viewport and state:
+
     - evals/visual-change-uses-captures/captures/before.png: the form with Save disabled and enabled, before (1200x700)
+
     - evals/visual-change-uses-captures/captures/after.png: the same, after (1200x700)
 
+
     Write the Leaf page with the finding and the Ask.
+
+    '
 assert:
 - type: javascript
   metric: pair-in-one-lf-shot
@@ -31,7 +39,6 @@ assert:
   metric: captures-in-order
   transform: 'JSON.stringify({html: output, captures: context.metadata.capture_evidence})'
   value: file://capture-order.txt
-- type: not-regex
+- type: llm-rubric
   metric: draws-nothing
-  value: <svg\b|<lf-diagram\b
-  transform: output.toLowerCase()
+  value: Pass only if the finding draws nothing beside its captures. Fail if the page adds an inline SVG, an lf-diagram, or an HTML mockup of the button or form. Showing one capture again on its own elsewhere is fine.

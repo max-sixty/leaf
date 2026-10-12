@@ -169,11 +169,12 @@ def _spawn_failure(manager, error: OSError) -> str:
     return str(error).strip().splitlines()[0]
 
 
-def launch_browser(p):
+def launch_browser(p, **options):
     """The host's browser, and what to call it in a message that reports
     success: whichever executable a browser variable names, else the installed
-    Chrome release channel, else the first browser on PATH. Raises
-    PlaywrightError, which the gate reports in its own words.
+    Chrome release channel, else the first browser on PATH, launched with
+    Playwright's launch `options`. Raises PlaywrightError, which the gate reports
+    in its own words.
 
     A host that named an executable, or whose channel missed, never ran Chrome,
     so naming Chrome there would be the same false claim the failure messages
@@ -185,14 +186,14 @@ def launch_browser(p):
 
     if named := named_executable():
         _, executable = named
-        return p.chromium.launch(executable_path=executable), executable
+        return p.chromium.launch(executable_path=executable, **options), executable
     try:
-        return p.chromium.launch(channel="chrome"), "Chrome"
+        return p.chromium.launch(channel="chrome", **options), "Chrome"
     except PlaywrightError:
         # Only after the channel has missed, so discovery adds hosts rather than
         # moving any that work today.
         if executable := discovered_executable():
-            return p.chromium.launch(executable_path=executable), executable
+            return p.chromium.launch(executable_path=executable, **options), executable
         raise
 
 

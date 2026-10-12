@@ -176,7 +176,7 @@
   "lf-options": {
     "description": "Alternatives the user can choose individually or as a set to answer a question.",
     "x-space": "column",
-    "x-instructions": "Keep shared premises and evidence with the group; lf-ask can frame its question and context. Keep each alternative's case and decision-relevant evidence inside its lf-option. Use multiple when the selections form one answer because they depend on each other, such as a limit on how many; leave it off for mutually exclusive alternatives. Items each answerable on its own are separate asks (references/authoring-questions.md). The built-in Another option field accepts unlisted answers, so author the alternatives you mean without a catch-all option. Use for only to select sections or work items that exist independently of the decision; do not create sections solely to hold alternatives. A user-added option stays in the group from the log, where the user put it; leave it out of revisions. A multiple-choice ask still needs the user's Done even when chosen is authored. Use settled to collapse a retired decision while preserving its options and anchors.",
+    "x-instructions": "Keep shared premises and evidence with the group; lf-ask can frame its question and context. Keep each alternative's case and decision-relevant evidence inside its lf-option; an accept-or-reject proposal's figure of today beside the change compares both answers, so it stays with the group. Use multiple when the selections form one answer because they depend on each other, such as a limit on how many; leave it off for mutually exclusive alternatives. Items each answerable on its own are separate asks (references/authoring-questions.md). The built-in Another option field accepts unlisted answers, so author the alternatives you mean without a catch-all option. Use for only to select sections or work items that exist independently of the decision; do not create sections solely to hold alternatives. A user-added option stays in the group from the log, where the user put it; leave it out of revisions. A multiple-choice ask still needs the user's Done even when chosen is authored. Use settled to collapse a retired decision while preserving its options and anchors.",
     "type": "object",
     "properties": {
       "id": {
@@ -362,7 +362,7 @@
   },
   "lf-shot": {
     "description": "A before-and-after screenshot pair with an operable divider, optional change outlines and changed-pixel view, and component-owned comparison, overlay, scaling and focus-crop presentation.",
-    "x-instructions": "Use served image paths printed by leaf page media for before and after, and describe the pair in alt. Read authoring-evidence.md, Source files and media, for captures and when to use outlines or pixels. Write explanations in surrounding prose rather than element content. When a decision turns on the change, put the pair inside the proposing option.",
+    "x-instructions": "Use served image paths printed by leaf page media for before and after, and describe the pair in alt. Read authoring-evidence.md, Source files and media, for captures and when to use outlines or pixels. Write explanations in surrounding prose rather than element content. When a decision turns on the change, put the pair inside the proposing option, or with the group of an accept-or-reject ask, where it compares both answers.",
     "type": "object",
     "properties": {
       "id": {
@@ -591,7 +591,7 @@
   },
   "lf-sample": {
     "description": "A quotation of page content, either static or an operable child Leaf page.",
-    "x-instructions": "For a live child page, put its main content in one direct template[data-sample] with a stable id. Use window for a whole Leaf window including its chrome. Keep invented content visibly fictional. Read page-authoring.md, Live samples, for child-page interaction, reset, and isolation.",
+    "x-instructions": "For a live child page, put its main content in one direct template[data-sample] with a stable id. Use window for a whole Leaf window including its chrome; chrome=\"floating\" or chrome=\"classic\" shows it in that chrome rather than the reader's own. Keep invented content visibly fictional. Read page-authoring.md, Live samples, for child-page interaction, reset, and isolation.",
     "x-name": "label",
     "type": "object",
     "properties": {
@@ -601,6 +601,10 @@
       },
       "label": {
         "type": "string"
+      },
+      "chrome": {
+        "enum": ["classic", "floating"],
+        "description": "For a window sample, the chrome its child page reads with; without it, the reader's own preference."
       },
       "window": {
         "type": "boolean"

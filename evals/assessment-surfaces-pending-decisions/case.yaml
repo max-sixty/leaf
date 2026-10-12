@@ -120,8 +120,8 @@ variants:
         The latest page state is:
         {"source":{"live":true,"error":null},
          "queues":{"questions":[
-           {"id":"event-log-q","kind":"todo"},
-           {"id":"registry-q","kind":"todo"}],
+           {"id":"reply:event-log-q","kind":"ask"},
+           {"id":"reply:registry-q","kind":"ask"}],
            "tasks":[{"id":"ci-work","kind":"todo"}]}}
         No work depends on further feedback; comments remain welcome.
 
@@ -133,7 +133,7 @@ variants:
         metric: settled-queue
         value: |
           Pass only if the agent settles both existing thread questions using
-          leaf task end with the question IDs, acknowledging the chat decisions,
+          leaf task end with their ask IDs, acknowledging the chat decisions,
           and inspects the canonical queues with leaf page state afterward.
           It must leave ci-work open on the agent, preserve the authorized CI
           wait, and introduce no user request for approval, permission to merge,

@@ -3888,16 +3888,16 @@ def test_the_questions_panel_lists_both_queues_and_what_is_done(browser, serve):
         ("you", "Options", "Which channel first?"),
         ("you", "Thread", "Weekly?"),
         ("agent", "Reply", "Tighten this."),
-        ("agent", "To do", "Rebuild the notes"),
-        ("done", "To do", "Retitle the release"),
+        ("agent", "To-do", "Rebuild the notes"),
+        ("done", "To-do", "Retitle the release"),
     ], rows
     # A question asked in a thread is answered there, so its row says Thread.
     assert [row["word"] for row in rows] == [
         "Options",
         "Thread",
         "Reply",
-        "To do",
-        "To do",
+        "To-do",
+        "To-do",
     ], rows
     assert rows[1]["where"].startswith("§ Release"), rows
     assert rows[-1]["where"].startswith("Done"), rows
@@ -4082,13 +4082,13 @@ def test_a_task_on_you_ends_at_its_done_where_q_lands_and_in_the_panel(browser, 
     # The page as a whole is arrived at its head, which comes first.
     page.locator("#cadence").click()
     page.keyboard.press("Shift+q")
-    expect(position).to_have_text("1 of 3 waiting on you · To do")
+    expect(position).to_have_text("1 of 3 waiting on you · To-do")
     expect(page.locator("#h")).to_be_focused()
     page.keyboard.press("q")
     expect(position).to_have_text("2 of 3 waiting on you · Ask")
     assert "x\ndone" not in shortcut_bar_text(page)
     page.keyboard.press("q")
-    expect(position).to_have_text("3 of 3 waiting on you · To do")
+    expect(position).to_have_text("3 of 3 waiting on you · To-do")
     expect(page.locator("#notes")).to_be_focused()
     assert "x\ndone" in shortcut_bar_text(page)
 
@@ -4128,7 +4128,7 @@ def test_a_task_on_you_ends_at_its_done_where_q_lands_and_in_the_panel(browser, 
     expect(you.locator(".lf-queue-finish")).to_have_count(1)
     row = you.locator(".lf-queue-row", has_text="Read it through")
     expect(row).to_contain_text("Whole page")
-    expect(row.locator(".lf-queue-kind")).to_have_text("To do")
+    expect(row.locator(".lf-queue-kind")).to_have_text("To-do")
     row.focus()
     page.keyboard.press("Tab")
     expect(you.locator(".lf-queue-finish")).to_be_focused()
@@ -4270,7 +4270,7 @@ def test_x_ends_the_innermost_task_the_user_stands_on(browser, serve):
     page.locator("#tail").click()
     assert "x\ndone" not in shortcut_bar_text(page)
     page.keyboard.press("Shift+q")
-    expect(position).to_have_text("1 of 1 waiting on you · To do")
+    expect(position).to_have_text("1 of 1 waiting on you · To-do")
     assert "x\ndone" in shortcut_bar_text(page)
 
 

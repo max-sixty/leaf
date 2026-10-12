@@ -61,13 +61,13 @@ const NOUNS = Object.freeze({
   ask: "Ask",
   thread: "Thread",
   widget: "Update",
-  page: "To do",
+  page: "To-do",
   approval: "Approval",
 });
-// What a stop is called: by where it is arrived at, but a to-do on an element is a To do
+// What a stop is called: by where it is arrived at, but a to-do on an element is a To-do
 // rather than the Update a widget's stop otherwise is.
 const nounOf = (item, stop) =>
-  stop.kind === "widget" && taskNoun(item) === "todo" ? "To do" : NOUNS[stop.kind];
+  stop.kind === "widget" && taskNoun(item) === "todo" ? "To-do" : NOUNS[stop.kind];
 
 // Where an item of either list, or one that is done, is arrived at: a widget ask by
 // the ask's own id, anything else by the thread it stands in, a to-do on the page as a

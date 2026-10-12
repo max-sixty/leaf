@@ -80,14 +80,14 @@ import { workflowLabel } from "./thread/workflow.js";
 import { walkPositionLabel } from "./walk-position.js";
 
 // A widget ask says its widget's word, or Ask; a prose ask says Thread; a to-do on
-// either side says To do. Response obligations keep their own Reply or Answer wording.
+// either side says To-do. Response obligations keep their own Reply or Answer wording.
 const WORDS = Object.freeze({
   ask: "Ask",
   resend: "Resend",
   answer: "Answer",
   reply: "Reply",
   work: "Work started",
-  todo: "To do",
+  todo: "To-do",
 });
 const wordOf = (item, noun) => WORDS[noun];
 const OUTCOMES = Object.freeze({ done: "Done", failed: "Failed", dropped: "Dropped" });

@@ -4124,7 +4124,7 @@ def test_send_returns_to_more_when_a_gesture_step_displaced_the_comment_control(
     append_carried_log_record(
         serve.page_dir,
         {
-            "kind": "task",
+            "kind": "todo",
             "author": "agent",
             "agent": "Agent",
             "session": "displaced-row",

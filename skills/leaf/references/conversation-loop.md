@@ -219,7 +219,7 @@ chat alone do not register it. A recommendation leaves its decision open. An
 optional invitation to comment creates no obligation; if you need feedback before
 continuing, make it an ask.
 
-The banner's Questions count and the Questions panel show the user's queue;
+The banner's Questions count and the Questions panel show everything waiting on the user;
 **Tasks** shows yours. The user can open either list and press `q` to reach their
 next item. Questions contains these requests and any failed send that needs the
 user to send again. Done holds ended items.
@@ -274,7 +274,7 @@ An answer in chat or another surface still settles the real question. Incorporat
 it and retire its page ask in a revision (`authoring-revisions.md`), or end
 the user's to-do with `leaf task end`. Withdraw a prose ask that no longer
 applies with `leaf task end <page> reply:<message-id> dropped "<why>"`; this records
-withdrawal, not a user answer. Keep finished requests out of the user's queue;
+withdrawal, not a user answer. Keep finished requests off the user's Questions;
 answered and withdrawn ask records remain available in the complete reading.
 A page declaring required banner sign-off adds an approval ask for its stamped version automatically; its approval answers that
 ask, and undo reopens it. Stamp a draft before requesting its sign-off.

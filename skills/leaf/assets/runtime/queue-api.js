@@ -3,8 +3,8 @@
    The application publisher alone derives membership. This boundary selects its
    immutable lists and correlates workflow context, without folding events or
    keeping another state. Activation resolves a stable kind/id key against the
-   current reading; a stale row cannot end a different task or revive an old route.
-   A Question is answered through its source; only an explicit user to-do offers
+   current reading; a stale row cannot end a different to-do or revive an old route.
+   An ask is answered through its source; only a to-do on the user offers
    Done. Navigation is supplied once by the existing queue walk. */
 import { readApplication } from "./semantic-state.js";
 import { watchProjection } from "./projection-watch.js";

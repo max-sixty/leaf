@@ -61,8 +61,11 @@ function place(press, seat) {
     row: {
       label: () => word(controls.get(press.id).press.words),
       group: press.row.menu ?? "page",
-      press: () => {
+      // The same activation as the control's own: a command that acts on where the
+      // reader stood gets that place back before it runs.
+      press: (held) => {
         const { press: current } = controls.get(press.id);
+        if (current.row.retainStanding && held) restoreBannerStanding(held);
         if (live(current.row)) invokePress(current);
       },
     },

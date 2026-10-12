@@ -128,7 +128,11 @@ registerBannerControl({
   control: queueBtn,
   rank: BANNER_CONTROL_RANK.queue,
   seat: { desk: "row", phone: "menu" },
-  row: { label: "Questions", value: () => String(readQueues().questions.length), group: "page" },
+  row: {
+    label: "Questions",
+    value: () => String(readQueues().questions.length),
+    group: "page",
+  },
 });
 registerBannerControl({
   key: "versions",
@@ -457,10 +461,14 @@ if (SHARE_ROOT) {
     control: details,
     focusTarget: share,
     rank: BANNER_CONTROL_RANK.share,
+    // The press is the Copy link control's own, with its success and failure notices.
     row: {
       label: "Copy share link",
       group: "about",
-      press: () => navigator.clipboard?.writeText(shareUrl()),
+      press: () => {
+        copy.value = shareUrl();
+        copyButton.click();
+      },
     },
   });
 }

@@ -7,6 +7,7 @@ threads and taking in news, and folding the panel to the leaf and back."""
 
 import re
 
+import pytest
 from interact_support import append_carried_log_record
 from leaf import event_log as events_model
 from model_folds import leaf_page
@@ -14,7 +15,10 @@ from playwright.sync_api import expect
 from render_cases_interaction import panel_comment
 from render_harness import LONG_PAGE, open_page, sending, stamp_page, told, write
 
-FLOATING = "localStorage.setItem('lf-chrome', 'floating')"
+from browser.test_render_controls import leaf_page as titled_page
+
+# A sample's child is an opaque origin with no storage, so the script asks nothing of it.
+FLOATING = "try { localStorage.setItem('lf-chrome', 'floating') } catch {}"
 SIGN_OFF = LONG_PAGE.replace(
     "<title>long</title>",
     '<title>long</title><meta name="lf-review" content="sign-off">',
@@ -288,3 +292,67 @@ def test_words_in_the_field_keep_it_the_row_when_it_lets_go(browser, serve):
     expect(field(page)).not_to_be_focused()
     assert page.locator(".lf-fp-field").bounding_box() == box
     expect(page.locator(".lf-fp-to .lf-fp-quick")).to_have_count(1)
+
+
+def test_writing_reaches_the_field_however_the_panel_stands(browser, serve):
+    """Asking to write reaches the panel's field from any state it stands in: `c`
+    unfolds a panel folded to the leaf, and Resume writing comes back to a reply left
+    unsent in a thread the user has since closed, in the same field."""
+    url = serve(LONG_PAGE)
+    panel_comment(serve.page_dir, "Is the window long enough?")
+    page = floating(browser, url)
+    page.locator(".lf-fp-leaf").click()
+    page.locator(".lf-fp-item", has_text="Layout").click()
+    page.locator(".lf-fp-item", has_text="Fold to the leaf").click()
+    panel = page.locator(".lf-floating-panel")
+    expect(panel).to_have_attribute("data-rest", "mark")
+    page.locator("body").focus()
+    page.keyboard.press("c")
+    expect(panel).to_have_attribute("data-rest", "row")
+    expect(field(page)).to_be_focused()
+    page.keyboard.press("Escape")
+
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
+    field(page).click()
+    page.keyboard.type("Make it the weekend.")
+    page.locator(".lf-fp-close").click()
+    expect(page.locator(".lf-fp-view")).to_have_count(0)
+    page.locator("body").focus()
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
+    expect(field(page)).to_be_focused()
+    expect(field(page)).to_have_js_property("value", "Make it the weekend.")
+    page.wait_for_timeout(300)
+    expect(page.get_by_text("That writing place is unavailable")).to_have_count(0)
+
+
+@pytest.mark.parametrize(
+    ("chrome", "panel", "banner"), [("floating", 1, 0), ("classic", 0, 1)]
+)
+def test_a_window_sample_reads_with_the_chrome_its_element_names(
+    browser, serve, chrome, panel, banner
+):
+    """A window sample shows its child page in the chrome its element names, whatever
+    the reader's own, so a review page can show classic and floating side by side."""
+    page = open_page(
+        browser,
+        serve(
+            titled_page(
+                "A chrome named",
+                f"""
+<h1>Containing page</h1>
+<lf-sample id="practice" label="Practice" window chrome="{chrome}">
+  <template id="practice-source" data-sample><h1>Practice</h1></template>
+</lf-sample>
+""",
+            )
+        ),
+        init_script=FLOATING if chrome == "classic" else None,
+    )
+    page.locator("#practice").evaluate("async sample => await sample.ready")
+    child = page.frame_locator("#practice iframe")
+    expect(child.locator(".lf-floating-panel:visible")).to_have_count(panel)
+    expect(child.locator(".lf-banner:visible")).to_have_count(banner)

@@ -33,7 +33,7 @@ import { keeps, keepsHidden, keepsText } from "./keeps.js";
 import { approvalReading, approve, toggleBtn, watchStatus } from "./banner.js";
 import { queueBtn } from "./drawers.js";
 import { keys } from "./keyboard/scopes.js";
-import { bannerRows, watchBannerRows } from "./banner-toolbar.js";
+import { bannerRows, readStanding, watchBannerRows } from "./banner-toolbar.js";
 import { readThreads } from "./thread/state.js";
 import { watchThreads } from "./thread/watch.js";
 import { threadAttention, workflowLabel } from "./thread/workflow.js";
@@ -274,10 +274,16 @@ export function createFloatingPanel({
     landAtEnd = threadByKey(key)?.key ?? key;
   }
   // The field stands for the page again, with nothing open above it.
+  // Asking to write is asking for the field, so a panel folded to the leaf unfolds.
   function writeOnPage() {
     const before = trail.at(-1);
-    trail = [];
-    transition(before);
+    const restore = () => {
+      if (prefs().rest === "mark") prefs().set("rest", "row");
+      trail = [];
+      transition(before);
+    };
+    if (prefs().rest === "mark") morphWidth(restore);
+    else restore();
     focusDestination(editor("general").input, "move");
   }
   function back() {
@@ -411,7 +417,7 @@ export function createFloatingPanel({
     return menuRow(
       entry.label,
       value,
-      () => (view ? open({ view }) : (close(), entry.press())),
+      () => (view ? open({ view }) : (close(), entry.press(heldStanding))),
       { urgent: Boolean(entry.urgent), disabled: entry.disabled },
     );
   }
@@ -1192,8 +1198,19 @@ export function createFloatingPanel({
   ]);
   // Writing begins in the field and lasts while the user stays in the panel, so the
   // destination line stays put while they press Resolve or a filter.
-  onStanding((node) => {
+  // Where the reader stood before stepping into the panel, which a row's command that
+  // acts on that place gets back (banner-toolbar.js, `readStanding`).
+  let heldStanding = null;
+  host.addEventListener(
+    "pointerdown",
+    () => {
+      if (!host.contains(focused())) heldStanding = readStanding();
+    },
+    true,
+  );
+  onStanding((node, _cause, left) => {
     const inside = host.contains(node);
+    if (inside && left && !host.contains(left)) heldStanding = readStanding(left);
     const next = inside ? writing || node.localName === "leaf-text" : false;
     if (next === writing && !inside) return;
     writing = next;
@@ -1253,6 +1270,13 @@ export function createFloatingPanel({
     follow.observe(inner);
     presentation = registerThreadPresentation(host, {
       render: nominate,
+      // The thread's reply is the panel's field, standing for the thread open here.
+      replyBox: (key) => {
+        const top = trail.at(-1);
+        return top?.view === "thread" && threadByKey(top.thread)?.key === key
+          ? editor(`reply:${key}`).input
+          : null;
+      },
       // A thread about the whole page opens here; one about a passage opens beside it.
       reveal: (key, request) => {
         const thread = threadByKey(key);

@@ -76,6 +76,9 @@
           settings.window ? null : "",
         );
         dress(worn);
+        // A sample keeps no store of its own across loads, so its chrome is the one its
+        // containing page names for it (sample.js), before the runtime builds any.
+        if (settings.chrome) root.lfChrome?.adopt(settings.chrome);
         for (const type of ["pointerdown", "keydown"])
           window.addEventListener(type, enterSample, true);
       };

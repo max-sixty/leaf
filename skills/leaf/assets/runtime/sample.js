@@ -112,7 +112,10 @@ const request = (url, body, headers = {}) =>
     "sample",
   );
 
-export function mountSample(frame, { template, window: asWindow = false }) {
+export function mountSample(
+  frame,
+  { template, window: asWindow = false, chrome = undefined },
+) {
   if (!template) throw new Error("a sample needs an authored template id");
   // A template is declared in its revision's document or in a message's frozen
   // markup, which the server reads from the log beside the current revision.
@@ -381,7 +384,7 @@ export function mountSample(frame, { template, window: asWindow = false }) {
       {
         sample: event.data.sample,
         nonce,
-        settings: { window: asWindow, dress: dressFor(frame) ?? undefined },
+        settings: { window: asWindow, dress: dressFor(frame) ?? undefined, chrome },
       },
       "*",
       [pair.port2],

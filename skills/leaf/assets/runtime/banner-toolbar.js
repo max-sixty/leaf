@@ -40,7 +40,8 @@
  *
  * Each contribution also says what it is as one line of a menu (`row`): its `label`,
  * a terse `value` such as a count, the `group` of controls it belongs with, and the
- * `press` that acts as the control would. The floating panel (floating-panel.js) draws
+ * `press` that acts as the control would, given the standing the presentation held
+ * when the user opened it (`readStanding`). The floating panel (floating-panel.js) draws
  * the run from these rows rather than from the native nodes, so a control appears
  * there without the panel naming it. `bannerRows` reads the run's rows in order, and
  * `watchBannerRows` calls back after each change to which stand.
@@ -195,10 +196,12 @@ placeRuns();
 // More temporarily borrows the reader's focus. Context-preserving commands return
 // that browser checkpoint before acting; it never becomes a remembered page target.
 let opener = null;
-function holdOpener(node = deepFocus()) {
-  if (node === overflowBtn || overflowMenu.contains(node)) return;
+// Where the reader stands: the node, its caret, and the words selected. Another
+// presentation of these controls holds it when it opens and hands it to a row's press
+// (`row.press(held)`), as More does.
+export function readStanding(node = deepFocus()) {
   const selection = getSelection();
-  opener = {
+  return {
     node,
     caret: readCaret(node),
     ends:
@@ -209,6 +212,10 @@ function holdOpener(node = deepFocus()) {
           ]
         : null,
   };
+}
+function holdOpener(node = deepFocus()) {
+  if (node === overflowBtn || overflowMenu.contains(node)) return;
+  opener = readStanding(node);
 }
 overflowBtn.addEventListener("pointerdown", () => holdOpener());
 // A key's way onto More holds the place it left. Arriving from nowhere leaves the

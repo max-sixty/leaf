@@ -506,6 +506,16 @@ def gallery_plans(page: Page) -> None:
     page.locator("#bg-plans-and-history").scroll_into_view_if_needed()
 
 
+def gallery_ask_figure(page: Page) -> None:
+    """An Ask framing a chart, with its question at the window's top so the chart and
+    every option either share the window or run past it."""
+    page.get_by_role("tab", name="Page & layout", exact=True).click()
+    settle(page)
+    page.locator("#bg-ask-across lf-ask").evaluate(
+        "el => el.scrollIntoView({block: 'start'})"
+    )
+
+
 def theme_hierarchy(page: Page) -> None:
     """A neutral callout with open and closed support; exercise the closed row by key."""
     page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
@@ -1021,6 +1031,26 @@ STATES = (
     State("frame-edges", "developer/feature-gallery", frame_edges),
     State("gallery-metrics", "developer/feature-gallery", gallery_metrics),
     State("gallery-plans", "developer/feature-gallery", gallery_plans),
+    State("gallery-ask-figure", "developer/feature-gallery", gallery_ask_figure),
+    State(
+        "gallery-ask-figure-900",
+        "developer/feature-gallery",
+        gallery_ask_figure,
+        viewport=(900, 900),
+    ),
+    State(
+        "gallery-ask-figure-dark",
+        "developer/feature-gallery",
+        gallery_ask_figure,
+        scheme="dark",
+    ),
+    State(
+        "gallery-ask-figure-phone",
+        "developer/feature-gallery",
+        gallery_ask_figure,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State("gallery-theme", "developer/feature-gallery", theme_hierarchy),
     State(
         "gallery-theme-dark",

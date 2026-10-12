@@ -1451,8 +1451,7 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     # A granted callout's padding and border fall inside the wide measure.
     for wide in ("granted", "granted-c", "holds"):
         assert at[wide] == {"width": 1080, "left": edge}, (wide, at)
-    # The widened Ask has the room for its options track, so the table stands beside
-    # the list rather than at the measure.
+    # The widened Ask frames its table, which stands wider than the measure.
     assert at["holds-t"]["width"] > 720, at
 
     column = open_page(browser, serve(leaf_page("Column", body)))

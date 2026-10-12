@@ -806,6 +806,48 @@ test("a template scope's re-render runs its latest callbacks and reads only its 
   other.remove();
 });
 
+test("a template scope refused on re-render withdraws its shortcuts, and its aliases follow each reading", async () => {
+  const { html, render } = await import("/vendor/browser-runtime.js");
+  const { scopesAt } =
+    await import("../../skills/leaf/assets/runtime/keyboard/scopes.js");
+  const root = document.createElement("section");
+  document.body.append(root);
+  const paint = (title, second) =>
+    render(
+      html`<button
+        ${commandsOn(title, [
+          {
+            id: "probe.first",
+            keys: ["y"],
+            contextKeys: ["Enter"],
+            title: "a",
+            run() {},
+          },
+          { id: "probe.second", keys: ["y"], title: "b", when: () => second, run() {} },
+        ])}
+      ></button>`,
+      root,
+    );
+  paint("First", false);
+  reflectFirstScopes();
+  reflectKeys();
+  const element = root.querySelector("button");
+  assert.equal(element.getAttribute("aria-keyshortcuts"), "y Enter");
+  paint("Second", false);
+  reflectFirstScopes();
+  assert.deepEqual(
+    scopesAt(element).map(({ title }) => title),
+    ["Second", "Second"],
+  );
+
+  paint("Second", true);
+  assert.throws(() => reflectFirstScopes(), /y/);
+  reflectKeys();
+  assert.equal(commandsWithin(root).length, 0);
+  assert.equal(element.getAttribute("aria-keyshortcuts"), null);
+  root.remove();
+});
+
 test("template scopes follow current rows and retire without removing projected commands", async () => {
   const { html, nothing, render } = await import("/vendor/browser-runtime.js");
   const root = document.createElement("section");

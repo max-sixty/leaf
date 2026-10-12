@@ -2,8 +2,9 @@
 
    A behavior module builds injected controls with `offer`, and uses `relabel` when a
    control's label is also one of the page's words. A Lit template reaches the same
-   writers through element directives built by `elementDirective`. It reserves a control's room from
-   inside `measure`: a widget upgrades wherever the runtime connects it, and a shut
+   writers through element directives built by `elementDirective`. A behavior module
+   reserves a control's room from inside `measure`: a widget upgrades wherever the
+   runtime connects it, and a shut
    panel is `display: none`, where every word measures zero and the reservation the press
    needs is nothing at all. It calls `layoutChanged(el)` after view state rearranges
    descendants without resizing its outer box — `ResizeObserver` already covers size

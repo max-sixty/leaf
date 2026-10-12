@@ -485,28 +485,35 @@ export function merge(sections, { title, when, at, liveInCommandReference, rows 
  * rows, so a widget that says its own keys out loud — a grip announcing what a grabbed
  * card answers — reads them back off the declaration rather than restating them.
  */
-function attachScope(where, declaration, { validateAtPaint = true } = {}) {
-  const scope = {
-    ...declaration,
-    el: where,
-    validated: !validateAtPaint,
-  };
-  unpainted.delete(elementScopes.get(where));
-  elementScopes.set(where, scope);
+function attachScope(where, declaration) {
+  const scope = standScope(where, declaration);
   rememberScopedElement(where);
-  if (validateAtPaint) unpainted.add(scope);
-  wireDeclaredButtons(scope);
   paintKeys();
   return scope;
 }
 
-// Withdraw an element's own declaration if `scope` is still the one standing there.
-// Projected scopes on the element stand. Returns whether anything was withdrawn.
+// Stand a declaration on `where` in place of whatever stood there, owed its first
+// reading. A scope is never changed once it stands: its contextual aliases are built
+// from it once (`localContext`), so a new reading is a new scope.
+function standScope(where, declaration) {
+  const scope = { ...declaration, el: where, validated: false };
+  unpainted.delete(elementScopes.get(where));
+  elementScopes.set(where, scope);
+  unpainted.add(scope);
+  wireDeclaredButtons(scope);
+  return scope;
+}
+
+// Withdraw an element's own declaration if `scope` is still the one standing there,
+// and re-read the element's shortcuts from what remains: projected scopes on it stand,
+// and an element the reference forgets is never read again. Returns whether anything
+// was withdrawn.
 function detachScope(element, scope) {
   if (elementScopes.get(element) !== scope) return false;
   unpainted.delete(scope);
   elementScopes.delete(element);
   forgetScopedElement(element);
+  reflectElementShortcuts(element);
   return true;
 }
 
@@ -540,14 +547,12 @@ export function keys(where, title, rows, options) {
 }
 
 // Template scopes use the same attachment as `keys`, made once per connection. A later
-// render hands the standing scope its latest declaration — title, rows, callbacks and
-// availability — and owes one reading of this element alone, which the next frame
-// takes as it takes a new declaration's first. An unchanged render therefore costs
-// that one element, not the page-wide reflection a new attachment asks for. A
-// declaration of another identity, such as a different `commandScope()` capability,
-// attaches afresh. Removing the directive withdraws only its own attachment, including
-// when Lit keeps the element. Temporary disconnection restores that declaration on
-// reconnection.
+// render stands its latest declaration — title, rows, callbacks and availability — in
+// place of the last and owes one reading of this element alone, which the next frame
+// takes as it takes any declaration's first. An unchanged render therefore costs that
+// one element, not the page-wide reflection a new attachment asks for. Removing the
+// directive withdraws only its own attachment, including when Lit keeps the element.
+// Temporary disconnection restores that declaration on reconnection.
 export const commandsOn = directive(
   class extends AsyncDirective {
     #element;
@@ -571,24 +576,16 @@ export const commandsOn = directive(
       return nothing;
     }
     reconnected() {
-      const scope = this.#scope;
-      if (
-        !scope ||
-        elementScopes.get(this.#element) !== scope ||
-        scope.identity !== this.#declaration.identity
-      ) {
+      const standing = this.#scope && elementScopes.get(this.#element) === this.#scope;
+      if (!standing) {
         this.#scope = attachScope(this.#element, this.#declaration);
         return;
       }
-      Object.assign(scope, this.#declaration, { validated: false });
-      wireDeclaredButtons(scope);
-      unpainted.add(scope);
+      this.#scope = standScope(this.#element, this.#declaration);
       repaint();
     }
     disconnected() {
-      if (!detachScope(this.#element, this.#scope)) return;
-      reflectElementShortcuts(this.#element);
-      paintKeys();
+      if (detachScope(this.#element, this.#scope)) paintKeys();
     }
   },
 );

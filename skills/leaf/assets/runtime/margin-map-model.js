@@ -35,7 +35,7 @@ const dialogControlId = (entry, offered, record) =>
 // The margin shows its target's agent work on one control (margin-model.js,
 // `workflowCarrier`); the map shows that receipt on the same control's row, and every
 // other control's own.
-const carriesWorkflow = (carrier, record) =>
+const isWorkflowCarrier = (carrier, record) =>
   carrier?.key === record.key && carrier.owner === record.owner;
 
 export function marginMapGroups(entries, faceFor, searchTextByKey) {
@@ -74,7 +74,7 @@ export function marginMapGroups(entries, faceFor, searchTextByKey) {
           label: record.accessibleLabel,
           visibleLabel: visibleContributionEntryLabel(record),
           context: record.context,
-          receipt: carriesWorkflow(entry.workflowCarrier, record)
+          receipt: isWorkflowCarrier(entry.workflowCarrier, record)
             ? entry.workflowCarrier.receipt
             : record.workflowReceipt,
           awaitsUser: false,

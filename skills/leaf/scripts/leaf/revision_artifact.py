@@ -74,9 +74,9 @@ RESOURCE_TYPES = {
     ".otf": "font/otf",
 }
 _JAVASCRIPT = Language(tree_sitter_javascript.language())
-# The grammar parses JSX too, which no browser runs, so its nodes are the one syntax
-# error a clean parse still holds. The browser check reaches only what runs by first
-# paint; a module imported on a click is judged here or nowhere.
+# The grammar parses JSX too, which no browser runs, so a clean parse can still hold
+# it. The browser check reaches only what runs by first paint, so JSX in a module
+# imported on a click is refused here or reaches the user.
 _JSX_KINDS = sorted(
     kind
     for kind_id in range(_JAVASCRIPT.node_kind_count)

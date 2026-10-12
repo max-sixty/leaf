@@ -4,8 +4,11 @@
    `renderThreads` drives, receipt updates among them, and the disclosure the browser
    drives when a user opens a card and the named group closes the one that was open.
    The hold is `user-place.js`'s, keyed by each card's thread; this module decides only
-   which changes take one. A resolution fold is followed frame by frame until it ends,
-   and its completion removes its node through `renderThreads`, under the same hold.
+   which changes take one. The open conversation stays the list's reading place even
+   when its title has scrolled above the visible band; a later card the user names by
+   pointer or focus takes precedence. A resolution fold is followed frame by frame
+   until it ends, and its completion removes its node through `renderThreads`, under
+   the same hold.
    A new agent turn, or growth of the last one, follows while the user has not named
    another card and the previous last message is visible in the panel's landing band.
    Where the list scrolls, that thread's tail must still reach the landing edge.

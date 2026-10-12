@@ -7754,6 +7754,12 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
         "the quote matched inside a slot the logged decision retired: nothing wrote "
         "the settlement mark for a module that doesn't"
     )
+    assert not any(
+        event["kind"] == "reanchor"
+        for event in events_model.read_events(serve.page_dir)
+    ), (
+        "reading an unchanged revision must not persist a temporary decision's detachment"
+    )
     page.close()
 
     # The mark follows the fold out as well as in: the file's standing state is the

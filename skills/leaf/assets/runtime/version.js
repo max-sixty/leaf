@@ -1730,8 +1730,8 @@ export function createVersionController({
   // ---------- reading continuity across a replacement ----------
   // Capture passage and decision landmarks plus each reading region's position. Resolve
   // a passage first, then its section, then a raw offset in the same scroller at the
-  // same width (reading-place.js, `rawOffsetFits`). Document travel stores this reading
-  // per tab; restored chrome layout precedes scroll recovery.
+  // same width and revision (reading-place.js, `rawOffsetFits`). Document travel stores
+  // this reading per tab; restored chrome layout precedes scroll recovery.
 
   function captureView() {
     dropGonePlaces();
@@ -2027,8 +2027,8 @@ export function createVersionController({
 
   // The newest place speaking for `box`, where it lands there: by a landmark the box now
   // carries, by a section holding the whole box, which lands it at its start, or by the
-  // box's own end, or its raw offset where its width is the one that offset was read at
-  // (reading-place.js, `rawOffsetFits`). `before` names the scrollers that carried the
+  // box's own end, or its raw offset where its width and revision are those it was read
+  // at (reading-place.js, `rawOffsetFits`). `before` names the scrollers that carried the
   // box's words before the shift; with none, as for a region returning from
   // concealment, only the box's own place speaks for it.
   function placeFor(box, recorded, before) {

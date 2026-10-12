@@ -1765,23 +1765,26 @@ def test_live_news_keeps_the_reading_draft_and_resting_target(browser, serve):
 
 
 @pytest.mark.parametrize(
-    "inside",
+    "where",
     [
-        pytest.param(False, id="above", marks=pytest.mark.watch_shifts),
+        pytest.param("above", marks=pytest.mark.watch_shifts),
         # Unwatched: the revision rewrites the words of the text node the reader reads,
         # and the watch compares that node's lines by their order, so every line below
         # the rewrite reads as moved, though each holds other words than it did.
-        pytest.param(True, id="inside"),
+        "inside",
+        pytest.param("figure", marks=pytest.mark.watch_shifts),
     ],
 )
-def test_live_revision_keeps_the_visible_semantic_reading(browser, serve, inside):
+def test_live_revision_keeps_the_visible_semantic_reading(browser, serve, where):
     """A content revision keeps the reader on a page that still asks for approval.
 
     Native scroll anchoring is disabled by this page's layout, so it cannot conceal
     a broken semantic carry when five paragraphs arrive above the reader. Where the
     reader stands partway into a long paragraph, its start under the banner, and the
     revision also lengthens words of it above their line, the line they read stays
-    where it was, not the paragraph's opening line.
+    where it was, not the paragraph's opening line. Where a figure taller than the
+    window fills it, with no words on screen, the part of the figure at the edge stays
+    there, not the old scroll offset, which now names the arriving paragraphs.
     """
     anchoring = "<style>html { overflow-anchor: none; }</style>"
     first = LIVE_V1.replace(
@@ -1789,30 +1792,52 @@ def test_live_revision_keeps_the_visible_semantic_reading(browser, serve, inside
         '<meta name="lf-review" content="sign-off">' + anchoring + "</head>",
     )
     second = LIVE_V2.replace("</head>", anchoring + "</head>")
-    if inside:
+    if where == "inside":
         words = " ".join(f"w{n:04d}" for n in range(1, 500))
         first = first.replace(LIVE_READING, words)
         second = second.replace(LIVE_READING, words).replace(
             " w0005 ", " " + "a longer phrase standing where one word stood " * 6
         )
+    if where == "figure":
+        figure = (
+            '<svg id="live-reading" viewBox="0 0 100 300"'
+            ' style="display:block;width:100%;height:auto">'
+            + "".join(
+                f'<rect x="0" y="{n * 10}" width="100" height="10"'
+                f' fill="hsl({n * 12} 60% 60%)"/>'
+                for n in range(30)
+            )
+            + "</svg>"
+        )
+        paragraph = f'<p id="live-reading">{LIVE_READING}</p>'
+        first = first.replace(paragraph, figure)
+        second = second.replace(paragraph, figure)
     page = open_page(browser, live_url(serve(first)))
     resized(page, 1200, 900)
     reading = page.locator("#live-reading")
     reading.scroll_into_view_if_needed()
     page.evaluate(
-        """(inside) => document.scrollingElement.scrollBy({
-          top: document.getElementById('live-reading').getBoundingClientRect().top
-            - (inside ? -300 : 140),
-          behavior: 'instant'
-        })""",
-        inside,
+        """(where) => {
+          const box = document.getElementById('live-reading').getBoundingClientRect();
+          document.scrollingElement.scrollBy({
+            top: box.top - {above: 140, inside: -300, figure: -0.4 * box.height}[where],
+            behavior: 'instant'
+          });
+        }""",
+        where,
     )
     scroll_settled(page)
     expect(reading).to_be_in_viewport()
-    # The first word at or below the landing band, and where it stands.
+    # The first word at or below the landing band, and where it stands; in a figure,
+    # how far through its height the band cuts it.
     word_at_band = f"""async (word) => {{
       const band = {LANDING_TOP};
-      const text = document.getElementById('live-reading').firstChild;
+      const reading = document.getElementById('live-reading');
+      if (reading.localName === 'svg') {{
+        const box = reading.getBoundingClientRect();
+        return {{top: (band - box.top) / box.height}};
+      }}
+      const text = reading.firstChild;
       const range = document.createRange();
       for (const match of text.data.matchAll(/\\S+/g)) {{
         if (word && match[0] !== word) continue;
@@ -1830,8 +1855,10 @@ def test_live_revision_keeps_the_visible_semantic_reading(browser, serve, inside
     expect(page).to_have_title("Live second")
     expect(page.locator("#live-new-4")).to_contain_text("New finding 4")
     rendered(page)
-    after = page.evaluate(word_at_band, before["word"])
-    assert after["top"] == pytest.approx(before["top"], abs=4), (before, after)
+    after = page.evaluate(word_at_band, before.get("word"))
+    assert after["top"] == pytest.approx(
+        before["top"], abs=0.01 if where == "figure" else 4
+    ), (before, after)
 
 
 def test_a_revision_keeps_the_paragraph_under_a_focused_stuck_tab(browser, serve):

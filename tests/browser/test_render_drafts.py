@@ -638,10 +638,13 @@ def test_a_page_that_never_settles_lets_the_held_place_go_after_a_while(browser,
     assert page.evaluate(heading) < held - 300, "the held place came back"
 
 
-# The first word of `main` whose line stands at or below the landing band, written
-# down on 'take' and found again on any other step: how far below the band it stands,
-# and how far into its paragraph it is.
-EDGE_WORD = """(step, band) => {
+def edge_word(blocks):
+    """A page expression `(step, band)` for the first word of the `blocks` (a selector)
+    whose line stands at or below the landing band, written down on 'take' and found
+    again on any other step: how far below the band it stands, and how far into its
+    paragraph it is."""
+    return (
+        """(step, band) => {
   const range = document.createRange();
   const top = (text, at, length) => {
     range.setStart(text, at);
@@ -649,8 +652,8 @@ EDGE_WORD = """(step, band) => {
     const rect = range.getClientRects()[0];
     return rect && {top: rect.top, middle: (rect.top + rect.bottom) / 2};
   };
+  const blocks = [...document.querySelectorAll(BLOCKS)];
   if (step === 'take') {
-    const blocks = [...document.querySelectorAll('main p')];
     for (const [block, p] of blocks.entries())
       for (const text of [...p.childNodes].filter((n) => n.nodeType === 3))
         for (const word of text.data.matchAll(/\\S+/g)) {
@@ -665,9 +668,9 @@ EDGE_WORD = """(step, band) => {
     return null;
   }
   const {block, node, at, length} = window.__edgeWord;
-  const p = document.querySelectorAll('main p')[block];
-  return {below: top(p.childNodes[node], at, length).top - band};
+  return {below: top(blocks[block].childNodes[node], at, length).top - band};
 }"""
+    ).replace("BLOCKS", repr(blocks))
 
 
 def test_paging_down_from_a_landed_section_keeps_the_paged_passage(browser, serve):
@@ -706,7 +709,7 @@ def test_paging_down_from_a_landed_section_keeps_the_paged_passage(browser, serv
     page.wait_for_function("document.scrollingElement.scrollTop > 0")
     scroll_settled(page)
     rendered(page)
-    place = f"async (step) => ({EDGE_WORD})(step, {LANDING_TOP})"
+    place = f"async (step) => ({edge_word('main p')})(step, {LANDING_TOP})"
     read = page.evaluate(place, "take")
     assert read["within"] > 0, "the page should stop partway into a paragraph"
     for width in (1200, 390):
@@ -717,16 +720,62 @@ def test_paging_down_from_a_landed_section_keeps_the_paged_passage(browser, serv
         ), width
 
 
-# Two shapes of what stands at the landing edge in the column the reader scrolls, each
-# with the reading of where it stands now and how far that may stray from where the
-# reader left it, at the reader's own width and at the others. A figure taller than the
-# window draws no text on screen, so what the reader sees is the part of it at the
-# edge: how far through its height the edge cuts. Two columns stack as the window
-# narrows; the reader scrolls the right one, so the paragraph of it at the edge is what
-# they read.
+# Shapes of what stands at the landing edge in the column the reader scrolls. Each
+# names where the pointer rests while the reader scrolls (none: it has not moved over
+# the page, as when they read by keyboard), how far to scroll, and a reading
+# `(step, band)` of where what they read stands, which may stray by `tolerance`. A
+# figure taller than the window draws no text on screen, so what the reader sees is
+# the part of it at the edge: how far through its height the edge cuts. Two columns
+# stack as the window narrows; the reader scrolls the right one. A nav of short labels
+# stands beside the text and stacks above it: the reader reads the text, whether the
+# pointer rests on the nav or nowhere. A wide exhibit lower on screen reaches into the
+# margin the pointer rests in, while the reader's paragraph stands at the edge.
+TWO_COLUMNS = (
+    "<style>.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem }"
+    " @media (width < 900px) { .cols { grid-template-columns: 1fr } }</style>"
+    "<div class='cols'><div>"
+    + "".join(
+        f"<p>Left column note {n}, a passage long enough to quote.</p>"
+        for n in range(30)
+    )
+    + "</div><div id='right'>"
+    + "".join(
+        f"<p id='r{n}'>Right column passage {n}, which the reader is reading now.</p>"
+        for n in range(30)
+    )
+    + "</div></div>"
+)
+NAV_BESIDE_TEXT = (
+    "<style>.split { display: grid; grid-template-columns: 220px 1fr; gap: 2rem }"
+    " @media (width < 900px) { .split { grid-template-columns: 1fr } }</style>"
+    "<div class='split'><nav><ul>"
+    + "".join(f"<li id='n{n}'>Part {n}</li>" for n in range(80))
+    + "</ul></nav><div>"
+    + "".join(
+        "<p id='t{n}'>{words}</p>".format(
+            n=n, words=" ".join(f"t{n}w{i}" for i in range(40))
+        )
+        for n in range(60)
+    )
+    + "</div></div>"
+)
+
+
+def landed_at(target, below):
+    """A page expression for the scroll that puts `target`'s top `below` the band."""
+    return f"""async () => document.querySelector({target!r}).getBoundingClientRect().top
+      - ({LANDING_TOP}) - {below}"""
+
+
+def top_below(target):
+    """A reading of how far below the band `target`'s top stands."""
+    return f"""(step, band) =>
+      document.querySelector({target!r}).getBoundingClientRect().top - band"""
+
+
 EDGE_SHAPES = {
-    "figure": (
-        "".join(
+    "figure": {
+        "content": "".join(
             "<p>" + " ".join(f"p{n}w{i}" for i in range(150)) + "</p>"
             for n in range(12)
         )
@@ -738,78 +787,101 @@ EDGE_SHAPES = {
             for n in range(30)
         )
         + "</svg>",
-        "#edge",
-        """async (band) => {
-          const box = document.getElementById('edge').getBoundingClientRect();
-          return (band - box.top) / box.height;
-        }""",
-        f"""async () => {{
+        "pointer": "#edge",
+        "distance": f"""async () => {{
           const box = document.getElementById('edge').getBoundingClientRect();
           return box.top - ({LANDING_TOP}) + 0.4 * box.height;
         }}""",
-        (0.01, 0.4),
-    ),
-    "right-column": (
-        "<style>.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem }"
-        " @media (width < 900px) { .cols { grid-template-columns: 1fr } }</style>"
-        "<div class='cols'><div>"
-        + "".join(
-            f"<p>Left column note {n}, a passage long enough to quote.</p>"
-            for n in range(30)
+        "reading": """(step, band) => {
+          const box = document.getElementById('edge').getBoundingClientRect();
+          return (band - box.top) / box.height;
+        }""",
+        "tolerance": 0.01,
+    },
+    "right-column": {
+        "content": TWO_COLUMNS,
+        "pointer": "#r10",
+        "distance": landed_at("#r10", 5),
+        "reading": top_below("#r10"),
+        "tolerance": 3,
+    },
+    "nav-under-pointer": {
+        "content": NAV_BESIDE_TEXT,
+        "pointer": "#n3",
+        "distance": landed_at("#t12", 5),
+        "reading": f"(step, band) => ({edge_word('.split > div p')})(step, band).below",
+        "tolerance": 3,
+    },
+    "nav-with-no-pointer": {
+        "content": NAV_BESIDE_TEXT,
+        "pointer": None,
+        "distance": landed_at("#t12", 5),
+        "reading": f"(step, band) => ({edge_word('.split > div p')})(step, band).below",
+        "tolerance": 3,
+    },
+    "wide-exhibit-in-margin": {
+        "content": "".join(
+            "<p>" + " ".join(f"o{n}w{i}" for i in range(60)) + "</p>" for n in range(6)
         )
-        + "</div><div id='right'>"
-        + "".join(
-            f"<p id='r{n}'>Right column passage {n}, which the reader is reading now.</p>"
-            for n in range(30)
-        )
-        + "</div></div>",
-        "#r10",
-        """async (band) =>
-          document.getElementById('r10').getBoundingClientRect().top - band""",
-        f"""async () =>
-          document.getElementById('r10').getBoundingClientRect().top - ({LANDING_TOP})
-          - 5""",
-        (3, 3),
-    ),
+        + '<p id="long">'
+        + " ".join(f"w{i}" for i in range(200))
+        + '</p><div data-width="wide"><p id="wide">'
+        + " ".join(f"x{i}" for i in range(80))
+        + "</p></div>",
+        "pointer": "#wide",
+        "distance": landed_at("#long", -150),
+        "reading": f"(step, band) => ({edge_word('#long')})(step, band).below",
+        "tolerance": 3,
+    },
 }
 
 
 @pytest.mark.parametrize("shape", list(EDGE_SHAPES))
 def test_a_width_change_keeps_what_stands_at_the_landing_edge(browser, serve, shape):
-    """The reader wheels until a figure taller than the window fills it, 40% of it above
-    the landing edge, or until a paragraph of the right column of two stands at the
-    edge. As the window narrows, the figure scales and the columns stack, and as it
-    widens they come back. At each width the reader still sees what they saw at the
-    edge: the same paragraph of the column they scrolled, not the left column's, which
-    comes first in the document; and the figure, whose top the browser's anchoring
-    keeps where it stood, as no words on screen give a better landmark, never the old
-    offset, which at another width is somewhere else on the page. Back at the reader's
-    own width, each is exactly where they left it."""
-    content, target, reading, distance, (own, other) = EDGE_SHAPES[shape]
+    """The reader scrolls until what they read stands at the landing edge: 40% of the
+    way into a figure taller than the window, a paragraph of the right column of two,
+    a paragraph of the text beside a nav of short labels, or a line partway into a
+    paragraph while the pointer rests in a margin that only a wide exhibit lower on
+    screen reaches. As the window narrows and widens, the figure scales and columns
+    stack, and at each width the reader still sees what they saw at the edge: the same
+    part of the figure, not its top where it stood nor the old offset; and the line or
+    paragraph they read, not the left column's, the nav's, or the exhibit's, which a
+    reading in document order or under the pointer alone would take."""
+    case = EDGE_SHAPES[shape]
     filler = "".join(
         f"<p>Filler paragraph {n} keeps the page long enough to scroll freely.</p>"
         for n in range(40)
     )
     page = open_page(
         browser,
-        serve(leaf_page("What stands at the edge", f"<h1>Edge</h1>{content}{filler}")),
+        serve(
+            leaf_page(
+                "What stands at the edge", f"<h1>Edge</h1>{case['content']}{filler}"
+            )
+        ),
     )
     resized(page, 1200, 800)
     rendered(page)
-    box = page.locator(target).bounding_box()
-    page.mouse.move(box["x"] + 20, 400)
-    page.mouse.wheel(0, page.evaluate(distance))
+    distance = page.evaluate(case["distance"])
+    if case["pointer"]:
+        box = page.locator(case["pointer"]).bounding_box()
+        page.mouse.move(box["x"] + 10, 400)
+        page.mouse.wheel(0, distance)
+    else:
+        page.evaluate(f"document.scrollingElement.scrollBy(0, {distance})")
     scroll_settled(page)
     rendered(page)
 
-    def now():
-        return page.evaluate(f"async () => ({reading})({LANDING_TOP})")
+    def now(step):
+        return page.evaluate(
+            f"async (step) => ({case['reading']})(step, {LANDING_TOP})", step
+        )
 
-    read = now()
+    read = now("take")
     for width in (600, 1200, 800, 1200):
         resized(page, width, 800)
         rendered(page)
-        assert now() == pytest.approx(read, abs=own if width == 1200 else other), width
+        assert now("read") == pytest.approx(read, abs=case["tolerance"]), width
 
 
 @pytest.mark.parametrize("bounded", [False, True])

@@ -383,9 +383,9 @@ class HostedTurn(CarriedTurn):
     """One delivery's hosted turn, from the start that made it to its receipt.
 
     The two names this opens for itself are Leaf's — the turn on the page, and the
-    reply seat the provider's final answer commits into — and the account it writes
-    at the end is the page's too: the turn closed, its reading off, and a receipt
-    for any move it was carrying that still has no answer.
+    reply reservation the provider's final answer commits under — and the account
+    it writes at the end is the page's too: the turn closed, its reading off, and a
+    receipt for any move it was carrying that still has no answer.
 
     A completion notification is the ordinary ending. A connection that drops, a
     silence past `STREAM_SILENCE`, and any fault in this code are endings as well,
@@ -444,7 +444,7 @@ class HostedTurn(CarriedTurn):
         self.record(event, **fields)
 
     def begin(self) -> None:
-        """Open this delivery's Leaf turn and reply seat for its provider turn.
+        """Open this delivery's Leaf turn and reply reservation for its provider turn.
 
         The `turn/start` request carried this delivery both as its
         `clientUserMessageId` and as its `leaf_delivery` tool output, and App Server
@@ -551,9 +551,9 @@ class HostedTurn(CarriedTurn):
         Closing the turn re-reads the page, which the turn's own work may have left
         unopenable, and the user is owed the rest whether or not it does, so the
         last two run from the `finally`. They can wait until then because the reply
-        seat has to be free before another writer can use it, and they have to run
-        at all because this turn's pickup is what stops every other writer from
-        answering for its move.
+        reservation has to be released before another writer can use it, and they
+        have to run at all because this turn's pickup is what stops every other
+        writer from answering for its move.
         """
         try:
             if reply_error is not None:
@@ -1024,10 +1024,10 @@ class WebsiteCodexHarness:
             # No turn to follow, and after an uncertain start possibly one this
             # request made and never named. This harness owns the thread, so it tells
             # the provider to drop whatever it began rather than waiting to adopt it,
-            # and gives up the delivery and any seat still reserved rather than
-            # leaving them standing, because both would otherwise block the `startup_failed`
-            # receipt the Worker writes when this raises — the receipt that tells
-            # the user to send the message again.
+            # and gives up the delivery and any reply reservation it holds rather than
+            # leaving them standing, because both would otherwise block the
+            # `startup_failed` receipt the Worker writes when this raises — the
+            # receipt that tells the user to send the message again.
             self._withdraw_delivery(
                 thread_id, prepared.payload["id"], prepared_events, reply_target
             )
@@ -1115,8 +1115,8 @@ class WebsiteCodexHarness:
     ) -> None:
         """Retire offered input that no follower took, so the Worker can receipt it.
 
-        Interrupt any provider turn the request started, release its reserved
-        reply seat, and give the moves back as unanswered input. The Worker's
+        Interrupt any provider turn the request started, release its reply
+        reservation, and give the moves back as unanswered input. The Worker's
         failure receipt then invites the user to send again; an offered delivery
         still holding those moves would swallow the retry.
         """

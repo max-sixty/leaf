@@ -81,7 +81,7 @@ class LeafGroup(click.Group):
     expose_value=False,
     is_eager=True,
     callback=_leaf_version,
-    help="Print this running Leaf payload's source version.",
+    help="Print the commit this Leaf runs from, with its commit or install date.",
 )
 @click.option(
     "--root",
@@ -361,16 +361,16 @@ def instructions(
     help="how many of a thread's messages to print (default: 50)",
 )
 def state(dir: str, target: str | None, after: int | None, limit: int | None) -> None:
-    """Fold the log onto the active revision and print the result as one JSON
-    object: the active revision's file, standing state, reports, the Questions and Tasks lists,
-    thread summaries, versions, presence, and bound data. Read the active
+    """Print the page as it is now, as one JSON object: the active revision's
+    file, the current widget actions and workers' reports, the Questions and Tasks
+    lists, thread summaries, versions, presence, and bound data. Read the active
     revision's HTML beside it for the document.
 
-    ID narrows the reading to what it names. A message, or a widget frozen into
-    one, names its thread: the reading is that thread with a page of its messages,
-    their frozen markup, and the state on its widgets, paged by --after and
-    --limit. A widget on the page names itself: its element, the actions and reports
-    standing on it, its asks and to-dos, and its workflows."""
+    ID narrows the output to what it names. A message, or a widget frozen into
+    one, names its thread: the output is that thread with a page of its messages,
+    their frozen markup, and the state of its widgets, paged by --after and
+    --limit. A widget on the page names itself: its element, its current actions
+    and reports, its asks and to-dos, and its workflows."""
     from leaf.agent_state import cmd_page_state
 
     if target is None and (after is not None or limit is not None):
@@ -594,12 +594,17 @@ def transcript(dir: str) -> None:
     cmd_transcript(resolve_dir(dir))
 
 
-@cli.group(short_help="Read input delivered by any Leaf harness.")
+@cli.group(short_help="Read a delivery by its id, and confirm you received it.")
 def delivery() -> None:
-    """Handle transport-independent Leaf deliveries."""
+    """Read a delivery that Leaf names by its id instead of printing it, as a
+    `<leaf-delivery>` pointer, and confirm you received it.
+
+    Run `leaf delivery read <id>`, and each part's `next` command until none is
+    left, then follow the `acknowledge` instruction the last part carries.
+    Confirming a delivery marks its updates Picked up for the user."""
 
 
-@delivery.command("read", short_help="Read bounded immutable delivery input.")
+@delivery.command("read", short_help="Print a delivery, one part at a time.")
 @click.argument("delivery_id", metavar="DELIVERY_ID")
 @click.option(
     "--part",
@@ -608,16 +613,20 @@ def delivery() -> None:
     help="Read this numbered part of a large delivery.",
 )
 def delivery_read(delivery_id: str, part: int) -> None:
-    """Read input without confirming it. Follow its next and acknowledgement instructions."""
+    """Print DELIVERY_ID, or one part of a large one, without confirming it.
+
+    Each part except the last gives the command for the next part in `next`; the
+    last gives in `acknowledge` how to confirm the delivery."""
     from leaf.delivery import cmd_delivery_read
 
     cmd_delivery_read(delivery_id, part=part)
 
 
-@delivery.command("ack", short_help="Confirm complete delivery input reached context.")
+@delivery.command("ack", short_help="Confirm you have read a whole delivery.")
 @click.argument("delivery_id", metavar="DELIVERY_ID")
 def delivery_ack(delivery_id: str) -> None:
-    """Attest complete receipt after reading every part of DELIVERY_ID."""
+    """Confirm that every part of DELIVERY_ID is in your context, so its updates
+    read Picked up. Reread any part whose output is missing first."""
     from leaf.delivery import cmd_delivery_ack
 
     cmd_delivery_ack(delivery_id)
@@ -866,9 +875,11 @@ def status(dir: str, state: str, detail: str) -> None:
     """Say the page waits on its user, or that you are done with it.
 
     Use waiting with DETAIL naming the answer you want from the user; waiting
-    without DETAIL invites text comments. Either puts down every item you started
-    before it. Use idle when finished; unacknowledged input, unanswered user updates
-    and open to-dos prevent it. Work in hand is no status: name it with
+    without DETAIL invites text comments. Use idle when you are finished; it is
+    refused while the page has updates nobody has picked up, updates you owe an
+    answer, or to-dos of yours still open. Either one clears every
+    `leaf task start` you made, so no update or to-do reads Working; your to-dos
+    stay open. Status has no working state: to show what you are working on, run
     `leaf task start`.
     """
     from leaf.activity import unanswered
@@ -990,17 +1001,24 @@ def _reply_options(command):
     return command
 
 
-@cli.group(short_help="Answer exact response references carried by a delivery.")
+@cli.group(short_help="Reply to an update by the reference its delivery gave.")
 def response() -> None:
-    """A response reference selects its page, input and frozen thread destination."""
+    """Reply to a user update with the reference its delivery printed as
+    `answer.ref`."""
 
 
-@response.command("reply", short_help="Author a complete addressed reply.")
+@response.command("reply", short_help="Reply to the update a reference names.")
 @click.argument("reference", metavar="REFERENCE")
 @click.option(
-    "--attempt", help="retry identity (ordinary replies default to the reference)"
+    "--attempt",
+    help="retry key: a rerun with the same key posts nothing new (default: the "
+    "reference, except with --ephemeral)",
 )
-@click.option("--failure", help="failure code when no answer is coming")
+@click.option(
+    "--failure",
+    help="failure code when no answer is coming; refused while your turn's final "
+    "message is to be the reply",
+)
 @click.option(
     "--done", is_flag=True, help="the reply delivers what the message asked for"
 )
@@ -1008,19 +1026,18 @@ def response() -> None:
 def response_reply(
     reference: str, attempt: str | None, failure: str | None, done: bool, **options
 ) -> None:
-    """Answer the exact REFERENCE printed in a delivery's answer.ref.
+    """Reply to the update REFERENCE names: the `answer.ref` its delivery printed.
 
     An answer says what it leaves the thread with: --done when it delivers what the
     message asked for, --ask when it asks the user something back, or --todo
     TITLE when it promises work it doesn't deliver, which stays on you as a to-do.
     Progress (--ephemeral) and failure receipts (--failure) take none of them.
 
-    Text, frozen HTML, titles and anchor moves share this command.
-    It validates and activates saved page edits, then commits the reply immediately.
-    A provider's later final yields to the recorded answer; failure receipts are
-    refused while that provider still owns the answer.
-    Repeating a committed reply's reference returns its earlier record;
-    --attempt names retries of progress.
+    The same command sets text, frozen HTML, the thread's title and a new anchor.
+    It validates and activates saved page edits, then posts the reply at once, and
+    your turn's final message is not posted as a second reply. Rerunning a reply
+    that posted prints the earlier reply instead of posting again; give a retried
+    --ephemeral progress line an --attempt so it posts once.
     """
     from leaf.thread import post_response
 
@@ -1059,8 +1076,8 @@ def response_reply(
 def thread_reply(dir: str, thread: str, **options) -> None:
     """Post a new agent message to THREAD (--text or stdin).
 
-    A message is refused while the thread owes a response; answer its
-    delivery reference with `leaf response reply`. --ephemeral posts progress.
+    A message is refused while the thread owes a response; answer it with
+    `leaf response reply <answer.ref>`. --ephemeral posts progress.
     Saved page edits are validated and activated before posting.
     """
     from leaf.thread import post_reply
@@ -1107,19 +1124,19 @@ def thread_resolve(dir: str, thread: str) -> None:
     _print_records(cmd_resolve(resolve_dir(dir), thread))
 
 
-@cli.group(short_help="Open or end to-dos, and take your Tasks in hand.")
+@cli.group(short_help="Open or end to-dos, and start work on your Tasks.")
 def task() -> None:
-    """Show the work you owe on the page, the item you have in hand, and what you
-    put on the user.
+    """Open and end to-dos, and say which of your Tasks you are working on.
 
-    An item on your queue is a user update you owe an answer, named by the update's
-    event id, or a to-do you opened. `leaf task start` takes one in hand for this
-    turn, with the line the banner shows. A to-do stays on your Tasks through
-    replies, resolutions, versions and the end of the session that opened it;
-    `leaf task end`, or a stamp that `--completes` its widget, ends it. A to-do you
-    open `--on user` is on the user's Questions instead, until they press its Done or you
-    end it. Every write prints the record it appended, one JSON line, as `page events`
-    prints it.
+    Your Tasks hold each user update you owe an answer, named by the update's event
+    id, and each to-do you opened. Before working on one, run `leaf task start`
+    with a line saying what you are doing: the item reads Working with that line,
+    beside it and in the banner. A to-do stays on your Tasks through replies,
+    resolutions, versions and the end of the session that opened it, until
+    `leaf task end` or a stamp that `--completes` its widget ends it. A to-do you
+    open `--on user` goes on the user's Questions instead, until they press its
+    Done or you end it. Every write prints the record it appended, one JSON line,
+    as `page events` prints it.
     """
 
 
@@ -1154,11 +1171,13 @@ def task_open(dir: str, subject: str, title: str, owner: str) -> None:
 @click.argument("item", metavar="ID")
 @click.argument("text", metavar="LINE")
 def task_start(dir: str, item: str, text: str) -> None:
-    """Take ID in hand for this turn: the event id of a user update you owe, as its
-    delivery names it, or an open to-do's id. LINE names the work and its subject in
-    one sentence; it reads Working beside the update or to-do and in the banner. Your
-    answer to the update, or the to-do's end, ends it; left in hand after your turn
-    ends, it reads stalled until you answer it or start it again."""
+    """Mark ID Working for this turn, with LINE saying what you are doing.
+
+    ID is the event id of a user update you owe, as its delivery names it, or an
+    open to-do's id. LINE names the work and its subject in one sentence; it shows
+    beside the update or to-do and in the banner. Your answer to the update, or the
+    to-do's end, ends the start. If your turn ends first, the item reads stalled
+    until you answer it or start it again."""
     from leaf.tasks import cmd_start
 
     _print_records(cmd_start(resolve_dir(dir), item, text))

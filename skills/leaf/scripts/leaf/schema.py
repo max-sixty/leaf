@@ -19,8 +19,8 @@ MESSAGE_KINDS = {"comment", "reply"}
 # The kinds a widget owns, admitted against the page's registry before they append.
 WIDGET_KINDS = {"action", "report"}
 # The operations that settle an update the agent owes, as `workflows` and
-# `activity` address them and `$events.answering` explains them. Reply writer custody
-# is separate: a provider turn may own its opening and final messages.
+# `activity` address them and `$events.answering` explains them. Which writer posts a
+# reply is separate: a reply reservation (`delivery`) gives it to a provider turn.
 ANSWER_KINDS = ("reply", "markup")
 ANSWER_ASK_INSTRUCTION = (
     "Each update takes the answer named for it. Read current obligations with "

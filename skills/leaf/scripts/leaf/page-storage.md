@@ -137,7 +137,7 @@ other page files and the external state listed below.
   `/api/deferred` come from the value in these same publications.
 
 - `status.json` — the agent's `waiting` or `idle` declaration, observed activity,
-  and reply bindings. The work in hand is no status: it is the log's `start` events.
+  and reply reservations. The work in hand is no status: it is the log's `start` events.
   [session-lifetime.md](session-lifetime.md) owns their writers and lifetimes;
   `thread.py` owns response reservations and their release. Every reader loads it
   through `service.read_status`, which reads a missing file as no declaration.

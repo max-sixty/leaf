@@ -119,13 +119,13 @@ response command for an explicit answer, including markup, an ask, a promised
 to-do, a title or relocation: it validates saved edits and commits immediately. Its author, retry
 identity and content remain in the log even if the provider later fails or
 reconnects. The provider's final yields to that successful answer. A failure
-receipt is refused while an active provider reservation still promises an answer.
+receipt is refused while the provider turn's reply reservation still promises an answer.
 Forward the response reference to a command hub worker as that
 package’s coordinator instructions direct; the worker speaks under its own
 session while the page’s captured logical owner remains the last claimant.
 That authorization survives the owner’s release or process restart; another
 session’s claim supersedes it even after that successor releases or ends.
-Retry keys deduplicate author writes; they never grant provider custody.
+Retry keys deduplicate author writes; they never take over a reply reservation.
 
 ## Preserve revised anchors
 

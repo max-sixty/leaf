@@ -16,7 +16,7 @@ A `LiveChild` keeps its session open across turns, so a driver can post
 user moves to a served page (`PageClient`) as a tab would; a `LiveSession` is how
 every live driver holds one: it records the stream, sends chat messages, and tells
 when the session has gone quiet. On macOS a Claude Code child runs under
-`PRIVATE_TMP`, so concurrent children share no file in `/tmp`.
+`private_tmp`, so concurrent children share no file in `/tmp`.
 """
 
 import base64
@@ -407,17 +407,36 @@ def scratch():
         yield work
 
 
-# The macOS sandbox profile a Claude Code child runs under, so that two children
-# never share a file under `/tmp`. Its `TMPDIR` is already its own (`claude_child`),
-# but authoring agents also write fixed names there, such as `/tmp/chk.py`, which a
-# concurrent sample would overwrite. Writes to `/tmp` are refused, except where
-# Claude Code keeps each session's shell state and socket and where Leaf keeps its
-# machine-local locks and App Server sockets, each named per session or per user.
-PRIVATE_TMP = """(version 1)
-(allow default)
-(deny file-write* (subpath "/private/tmp"))
-(allow file-write* (regex #"^/private/tmp/(claude-[^/]+|cc-socks|leaf-package-locks-[0-9]+|leaf-codex-[^/]+)(/|$)"))
-"""
+def private_tmp(*owned: Path) -> str:
+    """The macOS sandbox profile a Claude Code child runs under, so that two
+    children never share a file under `/tmp`.
+
+    Its `TMPDIR` is already its own (`claude_child`), but authoring agents also
+    write fixed names there, such as `/tmp/chk.py`, which a concurrent sample would
+    overwrite. Writes to `/tmp` are refused except under `owned`, the child's own
+    directories, wherever they are, and the names Claude Code and Leaf give their
+    own machine-local files there: Claude Code's per-user directory and each
+    shell's cwd file and socket, and Leaf's per-user package locks and each App
+    Server's socket directory. The sandbox resolves `/tmp` to `/private/tmp`, so
+    the rules name that."""
+    uid = os.getuid()
+    names = (
+        rf"claude-{uid}(/|$)|claude-[0-9a-f]+-cwd$|cc-socks(/|$)"
+        rf"|leaf-package-locks-{uid}(/|$)|leaf-codex-[^/]+(/|$)"
+    )
+    return "\n".join(
+        [
+            "(version 1)",
+            "(allow default)",
+            '(deny file-write* (subpath "/private/tmp"))',
+            f'(allow file-write* (regex #"^/private/tmp/({names})"))',
+            *(
+                f"(allow file-write* (subpath {json.dumps(str(path.resolve()))}))"
+                for path in owned
+            ),
+            "",
+        ]
+    )
 
 
 def claude_child(
@@ -432,8 +451,10 @@ def claude_child(
 
     `args` follow `-p`, so a prompt goes first. `dirs` are what the child may read
     beyond `cwd`, and `env` adds to `environment()`. Output is verbose stream-json.
-    On macOS the child runs under `PRIVATE_TMP` unless `sandbox` is False, as a
-    child that drives the harness's own browser is."""
+    On macOS the child runs under `private_tmp`, owning `cwd`, its home and
+    `dirs`, unless `sandbox` is False, as a child that drives the harness's own
+    browser is."""
+    dirs = list(dirs)
     (cwd / "tmp").mkdir(exist_ok=True)
     home = claude_home(cwd.with_name(f"{cwd.name}-home"))
     command = [
@@ -443,7 +464,8 @@ def claude_child(
         "--verbose", *(arg for d in dirs for arg in ("--add-dir", str(d))),
     ]  # fmt: skip
     if sandbox and shutil.which("sandbox-exec"):
-        command = ["sandbox-exec", "-p", PRIVATE_TMP, *command]
+        profile = private_tmp(cwd, home, *dirs)
+        command = ["sandbox-exec", "-p", profile, *command]
     child_env = claude_environment(home, TMPDIR=str(cwd / "tmp"), **(env or {}))
     return {"args": command, "cwd": cwd, "env": child_env}
 
@@ -651,6 +673,8 @@ def now() -> str:
 
 # What a `LiveSession`'s reader hands over once its child's records end.
 _ENDED = object()
+# How long a `LiveSession` leaving its context lets a closed child's records end.
+CLOSING = 30
 
 
 class LiveSession:
@@ -800,10 +824,14 @@ class LiveSession:
 
         worker = threading.Thread(target=run, daemon=True)
         worker.start()
-        for _ in self.records(idle=0.5, before=before):
-            if not worker.is_alive():
-                break
-        worker.join()
+        try:
+            for _ in self.records(idle=0.5, before=before):
+                if not worker.is_alive():
+                    break
+        finally:
+            # The action owns a browser and children of its own, which end with it
+            # even when the session's records fail first.
+            worker.join()
         succeeded, value = done.get()
         if not succeeded:
             raise value
@@ -818,8 +846,12 @@ class LiveSession:
         self.taken.set()
         try:
             self.child.close()
-            self.reader.join()
+            # A closed Claude Code child's output ends at once. A Codex child's
+            # records wait out a running turn, which only leaving its context, and
+            # so its socket, interrupts.
+            self.reader.join(timeout=CLOSING)
             self.child.__exit__(*exc)
+            self.reader.join()
         finally:
             self.stream.close()
 

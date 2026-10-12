@@ -203,7 +203,7 @@ def test_live_loop_carries_each_phase_to_the_author(tmp_path, monkeypatch):
 
     def reader(cwd, prompt, *args, out, err, **kwargs):
         assert "stay on managed Redis, 7-day TTL" in prompt
-        answer = Path(prompt.split("answers at ")[1].split(" ")[0])
+        answer = Path(prompt.split("answers at ")[1].split(" ")[0].rstrip("."))
         assert "7-day TTL" in answer.read_text()
         trace = [
             {
@@ -308,3 +308,29 @@ def test_reader_calibration_shows_the_judge_its_page_at_every_width(tmp_path):
     clean = turbohtml.parse(reader_eval.fixture(reader_eval.CASES["clean"]))
     assert seeded.select_one("#count-open dd strong").text == "8"
     assert clean.select_one("#count-open dd strong").text == "7"
+
+
+def test_reveal_opens_the_named_item_though_its_words_show_elsewhere(tmp_path):
+    """A summary naming the comment's fact does not count as the commented item
+    open: the capture clicks the item that names the target until the fact shows
+    inside it."""
+    from leaf_dev.browser import chrome, tab
+    from leaf_dev.eval_user import reveal, shows
+
+    (tmp_path / "index.html").write_text(
+        "<!doctype html><title>Queue</title>"
+        "<p>Routed today: Sam Okafor.</p>"
+        "<button onclick=\"document.getElementById('t').hidden=false\">ESC-4110</button>"
+        '<section id="t" hidden><h2>ESC-4110</h2><p>Route to Sam Okafor.</p></section>'
+    )
+    with (
+        arrangement_plain.serving(tmp_path) as url,
+        chrome() as browser,
+        tab(browser) as view,
+    ):
+        arrangement_plain.load(view, url)
+        assert shows(view, "Sam Okafor") and not shows(view, "Sam Okafor", "ESC-4110")
+        assert reveal(view, "ESC-4110", "Sam Okafor", arrangement_plain.settle) == (
+            "revealed"
+        )
+        assert view.locator("#t").is_visible()

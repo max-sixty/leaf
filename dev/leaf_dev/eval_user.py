@@ -90,7 +90,21 @@ SELECT = (
 }"""
 )
 
-SHOWS = """(pattern) => new RegExp(pattern).test((""" + DRAWN + """)().text)"""
+# Whether words matching the pattern are drawn within one item that also draws
+# `target`: an element, short enough to be one item rather than the page, whose
+# rendered text holds both. Without a target, anywhere on the page.
+SHOWS = """([pattern, target]) => {
+  const matches = new RegExp(pattern);
+  if (!target) return matches.test(document.body.innerText);
+  for (const element of document.body.querySelectorAll("*")) {
+    // An element that isn't rendered reports its whole text as its innerText.
+    if (!element.textContent.includes(target) || !element.checkVisibility()) continue;
+    const text = element.innerText ?? "";
+    if (text.length < 4000 && text.includes(target) && matches.test(text))
+      return true;
+  }
+  return false;
+}"""
 
 # Records every write a page makes to the clipboard, and every copy of a selection.
 COPY_SPY = """(() => {
@@ -124,16 +138,17 @@ COPY_SPY = """(() => {
 })()"""
 
 
-def shows(page: Page, pattern: str) -> bool:
-    """Whether the words the page draws match `pattern`."""
-    return page.evaluate(SHOWS, pattern)
+def shows(page: Page, pattern: str, target: str = "") -> bool:
+    """Whether the page draws words matching `pattern` within the item it draws
+    `target` in, or anywhere when there is no target (`SHOWS`)."""
+    return page.evaluate(SHOWS, [pattern, target])
 
 
 def reveal(page: Page, target: str, pattern: str, settled=settle) -> str:
-    """Open what holds words matching `pattern` by clicking, in turn, the drawn
-    elements that name `target`, until those words are drawn. Return `shown` when
-    they already were, `revealed`, or `hidden` when no click showed them."""
-    if shows(page, pattern):
+    """Open the item `target` names, so that words matching `pattern` are drawn
+    within it, by clicking in turn the drawn elements that name it. Return `shown`
+    when they already were, `revealed`, or `hidden` when no click showed them."""
+    if shows(page, pattern, target):
         return "shown"
     openers = page.locator(OPENERS).filter(has_text=target)
     for n in range(min(openers.count(), 6)):
@@ -142,7 +157,7 @@ def reveal(page: Page, target: str, pattern: str, settled=settle) -> str:
             continue
         opener.click()
         settled(page)
-        if shows(page, pattern):
+        if shows(page, pattern, target):
             return "revealed"
     return "hidden"
 

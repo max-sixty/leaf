@@ -52,6 +52,7 @@ from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
 from leaf.render_checks import rendered
 from leaf.schema import MESSAGE_KINDS
+from leaf.service import requires_agent_attention
 from leaf.structure import SourceDocument
 from leaf.thread import successful_replies
 
@@ -226,6 +227,13 @@ CASES = {
             text="Dana confirmed at 15:52 that 7.2's 3 s connect timeout is the cause. "
             "Mark this follow-up done and say so where the page explains the cause.",
             applied=r"15:52",
+        ),
+        decision=Decision(
+            task="Decide eu-west: roll it back to 4.11 and ship 4.12.1 with the old "
+            "timeout.",
+            typed="Roll eu-west back to 4.11 and ship 4.12.1 with the old timeout.",
+            chosen={"eu-west": "roll back to 4.11"},
+            values={"eu-west": ("resume to 100%", "hold at 50%", "roll back to 4.11")},
         ),
     ),
     "queue": Scenario(
@@ -472,8 +480,8 @@ def author(run: Run, cwd: Path) -> None:
 
 def comment(run: Run, live: LiveSession):
     """Send the scenario's comment: from a selection on the served Leaf page, or
-    in chat. On Leaf, return the check that records its delivery, `eval_received`,
-    ahead of the record that shows it."""
+    in chat. On Leaf, record its delivery, `eval_received`, if it has arrived, and
+    return the check that records it ahead of the record that shows it."""
     scenario = CASES[run.subject]
     remark = scenario.comment
     if not run.leaf_condition:
@@ -499,7 +507,7 @@ def comment(run: Run, live: LiveSession):
     )
     delivered = False
 
-    def received(record: dict) -> None:
+    def received(record: dict | None = None) -> None:
         nonlocal delivered
         if not delivered and event["id"] in opened_input_ids(
             read_events(run.authored_page)
@@ -509,6 +517,8 @@ def comment(run: Run, live: LiveSession):
                 {"type": "eval_received", "event": event["id"], "received_at": now()}
             )
 
+    # The hook may have delivered it while the browser was still posting.
+    received()
     return received
 
 
@@ -528,10 +538,14 @@ def decision_round(run: Run, live: LiveSession) -> None:
             return decide(url, decision.task, run.directory / "user")
 
     made = live.during(deciding)
+    # What the page sent the agent: the user's inputs admission marked as owing it
+    # attention, rather than bookkeeping such as a read receipt.
     gestures = [
         {k: e.get(k) for k in ("kind", "widget", "action", "detail", "text")}
         for e in (read_events(page) if run.leaf_condition else [])
-        if e["seq"] > before and e.get("author") == "user"
+        if e["seq"] > before
+        and e.get("author") == "user"
+        and requires_agent_attention(e)
     ]
     copied = (made["copies"] or [None])[-1] or made["copied"]
     if made["made"] and gestures:
@@ -596,8 +610,8 @@ def reply_json(trace: list[dict]) -> dict | None:
 
 
 def read_applied(run: Run, reply: str) -> dict:
-    """What the agent applied, read by a judge from its answers in the decision
-    phase and the final page's authored files."""
+    """What the agent applied, read by a judge from the final page's authored
+    files, with its answers in the decision phase only to point the way."""
     decision = CASES[run.subject].decision
     evidence = run.directory / "applied"
     files = evidence / "page"
@@ -615,9 +629,11 @@ def read_applied(run: Run, reply: str) -> dict:
     )
     prompt = READING.format(
         situation="A user had an assistant build a page, made decisions on it and "
-        f"asked the assistant to apply them. Read the assistant's answers at {answer} "
-        f"and the page's files:\n{listed}\n\nSay what the answers report applying or, "
-        "where they say nothing, what the page now records as decided.",
+        "asked the assistant to update the page so it records them as final. Read "
+        f"the page's files:\n{listed}\n\nand the assistant's answers at {answer}. "
+        "Say what the page's files now record as the final decision. The answers "
+        "may tell you where to look, but what they claim counts only where the "
+        "files show it.",
         items=items(decision),
     )
     (evidence / "prompt.txt").write_text(prompt)

@@ -230,10 +230,6 @@ test("semantic publication opens before subscribers and seals the newest nested 
     ["seal", 0],
   ]);
 
-  let release;
-  const held = new Promise((resolve) => {
-    release = resolve;
-  });
   let presentation;
   let nested = false;
   app
@@ -243,7 +239,7 @@ test("semantic publication opens before subscribers and seals the newest nested 
       nested = true;
       assert.equal(coordinator.read().semanticEpoch, 1);
       const renderer = coordinator.attach("widget", {});
-      presentation = renderer.present("offline", held);
+      presentation = renderer.present("offline");
       app.acceptData({ version: "empty", sources: {} }, 1);
     });
 
@@ -262,8 +258,8 @@ test("semantic publication opens before subscribers and seals the newest nested 
   });
   await Promise.resolve();
   assert.equal(ready, false);
-  release("proof");
-  await presentation;
+  presentation.resolve("proof");
+  await presentation.ready;
   assert.equal(await readiness, "presented");
 });
 

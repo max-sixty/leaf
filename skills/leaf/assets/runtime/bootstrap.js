@@ -34,10 +34,7 @@
     } else {
       let port;
       let settings;
-      let readyResolve;
-      const ready = new Promise((resolve) => {
-        readyResolve = resolve;
-      });
+      const { promise: ready, resolve: readyResolve } = Promise.withResolvers();
       const queued = [];
       const listeners = new Set();
       const send = (value) => (port ? port.postMessage(value) : queued.push(value));
@@ -49,12 +46,11 @@
         send,
         receive: (callback) => listeners.add(callback),
         present() {
-          if (!settings.passive)
-            document.documentElement.lfInitial.setRuntimeRootAttribute(
-              document.body,
-              "inert",
-              null,
-            );
+          document.documentElement.lfInitial.setRuntimeRootAttribute(
+            document.body,
+            "inert",
+            null,
+          );
         },
       };
       root.lfSample = bridge;
@@ -69,15 +65,14 @@
       // trusted input enters the browsing context before those handlers run.
       const nativeWindowFocus = window.focus;
       const enterSample = (event) => {
-        if (event.isTrusted && !settings.passive && !document.hasFocus())
-          nativeWindowFocus.call(window);
+        if (event.isTrusted && !document.hasFocus()) nativeWindowFocus.call(window);
       };
       bridge.install = () => {
         const root = document.documentElement;
         root.lfInitial.setRuntimeRootAttribute(
           root,
           "data-lf-sample-block",
-          !settings.passive && !settings.window ? "" : null,
+          settings.window ? null : "",
         );
         dress(worn);
         for (const type of ["pointerdown", "keydown"])

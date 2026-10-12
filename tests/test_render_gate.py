@@ -102,7 +102,6 @@ from render_harness import (
     CORPUS_SOURCES,
     EXAMPLE_PACKAGES,
     EXAMPLES,
-    FEATURE_GALLERY,
     LONG_PAGE,
     RECURRING_RESIZE_NOTICE,
     RELEASE_FOCUS,
@@ -979,16 +978,15 @@ def test_readiness_reopens_on_current_presentation_and_ignores_superseded_work(
             'test:current-readiness', document.body,
           );
           window.probeOlderSettled = false;
-          window.probeOlder = probePresentation.present(
-            'older',
-            new Promise(resolve => { window.releaseProbeOlder = resolve; }),
-          ).then(() => { probeOlderSettled = true; });
+          const older = probePresentation.present('older');
+          older.resolve(new Promise(resolve => { window.releaseProbeOlder = resolve; }));
+          window.probeOlder = older.ready.then(() => { probeOlderSettled = true; });
         }"""
     )
     assert page.locator("body").get_attribute("data-lf-presented") == "1"
     assert page.evaluate(readiness) == "presented"
 
-    page.evaluate("() => probePresentation.present('newer', undefined)")
+    page.evaluate("() => probePresentation.present('newer').resolve()")
     wait_until_ready(page)
     assert page.evaluate("() => probeOlderSettled") is False
 
@@ -3088,7 +3086,7 @@ def scroll_findings(page):
     return scroll_followers(scroll_writes(page, SCROLL_PASS, READING_SCROLLER))
 
 
-def rest_findings(page, source):
+def rest_findings(page):
     """A page nobody touches writes nothing, asks for no frame, moves no focus, and runs
     no animation without end, in its own document or any it frames. Its clock still
     ticks, to read the server and age what it shows, and a tick that changed nothing
@@ -3098,12 +3096,6 @@ def rest_findings(page, source):
 
     The reader has asked for reduced motion, which is when a page owes stillness: one who
     allows motion may be shown a page's own film playing itself (rust-sort's)."""
-    if source == FEATURE_GALLERY:
-        gallery_frames = page.locator("[data-interaction-frame]")
-        assert gallery_frames.count() > 0
-        expect(
-            page.locator("[data-interaction-frame][data-interaction-ready]")
-        ).to_have_count(gallery_frames.count())
     return at_rest(page)
 
 
@@ -3847,7 +3839,7 @@ def test_a_still_page_comes_back_from_every_journey_as_it_was(browser, serve, so
     url = serve(source)
     page = still_page(browser, url, width=RESIZE_PATH[0])
     findings = {
-        "at rest": rest_findings(page, source),
+        "at rest": rest_findings(page),
         "closed surfaces": surface_findings(page),
         "resized from the widest": resize_findings(page, RESIZE_PATH),
         "typed boxes": typed_box_findings(page),

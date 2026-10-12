@@ -4,9 +4,12 @@
    the log sequence, because overlapping poll and POST responses can order the authorities
    differently. `watchData(widget, input, callback)` delivers a clone of `{source,
    contract, revision, run, updated, value, origin}`, or `null` while the bound source has no
-   readable value. Subscriptions pause while their owner is absent and resume with
-   its newest snapshot. Contract, publication, or validity changes redeliver; overlapping
-   reads await the same in-flight rendering before stamping the version presented. Its
+   readable value. Subscriptions pause while their owner is absent. A return delivers
+   the newest snapshot when it differs from the last delivered or the departure
+   interrupted that paint's returned promise; a finished paint, failed or not, stands,
+   so a refusal is not reported twice. Contract, publication, or validity changes
+   redeliver; overlapping reads await the same in-flight rendering before stamping the
+   version presented. Its
    synchronous time readings refresh independently of data delivery. The returned
    cleanup's `refresh()` repaints the last delivered reading through the same clock
    tracking, without admitting or delivering a newer source. Modules project the
@@ -112,6 +115,8 @@ export function watchData(element, input, callback) {
   let delivered = false;
   let deliveredIdentity;
   let completion = Promise.resolve();
+  // The delivered paint while it is still running, which a departure interrupts.
+  let painting = null;
   const region = `data:${element.id}:${input}:${++subscriptionSequence}`;
   let presentation = null;
   const subscription = { region, notify: () => notifySelected() };
@@ -123,12 +128,13 @@ export function watchData(element, input, callback) {
     subscriptions.delete(subscription);
     stopSelection?.();
     stopSelection = null;
-    pendingDelivery?.settle();
     pendingDelivery = null;
     paint.stop();
     presentation?.disconnect();
     presentation = null;
-    delivered = false;
+    // Widgets abandon an unfinished paint when they leave, so a return owes it again.
+    if (painting) delivered = false;
+    painting = null;
   }
   function stop() {
     if (stopped) return;
@@ -151,11 +157,16 @@ export function watchData(element, input, callback) {
       // failure or re-entrant notification cannot redeliver the same failed value.
       delivered = true;
       deliveredIdentity = identity;
+      painting = null;
       const mount = presentation;
       const rendering = paint(structuredClone(snapshot));
-      completion = Promise.resolve(rendering).catch((error) => {
+      const finishing = (completion = Promise.resolve(rendering).catch((error) => {
         reportPageError(error, failureContext);
         if (mounting && presentation === mount) stop();
+      }));
+      painting = typeof rendering?.then === "function" ? finishing : null;
+      void finishing.then(() => {
+        if (painting === finishing) painting = null;
       });
     }
     return completion;
@@ -186,24 +197,14 @@ export function watchData(element, input, callback) {
     // A source can return to the reading already on screen while a later one is
     // staged; that staged reading must be replaced rather than left to paint.
     if (!pendingDelivery && delivered && deliveredIdentity === identity) return;
-    pendingDelivery?.settle();
-    let settle;
-    const pending = {
-      sourceStore,
-      completion: new Promise((resolve) => {
-        settle = resolve;
-      }),
-      settle: (rendering) => settle(rendering),
-    };
-    pendingDelivery = pending;
-    void presentation.present(identity, pending.completion);
+    // The new ticket releases a staged one that never painted.
+    pendingDelivery = { sourceStore, ticket: presentation.present(identity) };
   };
   function notifySelected() {
     const pending = pendingDelivery;
-    if (!pending) return completion;
+    if (!pending) return;
     pendingDelivery = null;
-    pending.settle(updateSafely(pending.sourceStore));
-    return pending.completion;
+    pending.ticket.resolve(updateSafely(pending.sourceStore));
   }
   // A publisher selection captures this mount's source. Its initial subscription call
   // is the mount delivery; later accepted publications stage the selected value and its
@@ -215,12 +216,14 @@ export function watchData(element, input, callback) {
     if (stopped || stopSelection || !element.isConnected) return;
     presentation = attachApplicationPresentation(region, element);
     const mount = presentation;
+    // A painting kept across the departure keeps its time readings current.
+    paint.resume();
     try {
       let mounting = true;
       stopSelection = selectedSource.subscribe((sourceStore) => {
         if (mounting) {
           const rendering = update(sourceStore, true);
-          if (!stopped) void mount.present(deliveredIdentity, rendering);
+          if (!stopped) mount.present(deliveredIdentity).resolve(rendering);
           return rendering;
         }
         stage(sourceStore);

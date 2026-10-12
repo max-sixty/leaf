@@ -3674,11 +3674,10 @@ def test_a_failed_ask_reveal_does_not_register_an_arrival(browser, serve):
           const {attachApplicationPresentation} = await window.__lfRuntimeImport(
             '/runtime/semantic-state.js');
           window.failedAskRegion = attachApplicationPresentation('ask-reveal-probe', {});
-          const held = new Promise((_resolve, reject) => {
-            window.rejectAskReveal = reject;
-          });
           document.querySelector('#sug-refill').addEventListener('lf-reveal', event => {
-            const ready = failedAskRegion.present(null, held);
+            const presentation = failedAskRegion.present(null);
+            window.rejectAskReveal = presentation.reject;
+            const ready = presentation.ready;
             ready.then(() => {}, () => { window.askRevealRejected = true; });
             event.detail.present(ready);
             window.askRevealStarted = true;

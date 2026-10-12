@@ -562,19 +562,19 @@ const placementsRule = {
 // the user ends up. A return made anywhere else is a layer return beside it, which
 // readers hear as a second move and holds read as a newer word. The rule admits
 // `handBack(...)` only in a landing's own body: the function passed as a close's `land`,
-// or one `layerLanding(...)` wraps, which a closer builds away from the call and which
-// throws if it runs at any other time. A landing is synchronous, since what it does
-// after an await or in a callback happens beside the close. The `close` argument hides
-// the layer and places nothing, so a placement written there is refused too. So is a
+// or one the kernel's `layerLanding(...)` wraps, which a closer builds away from the call
+// and which throws if it runs at any other time. A landing is synchronous, since what it
+// does after an await or in a callback happens beside the close. The `close` argument
+// hides the layer and places nothing, so a placement written there is refused too. So is a
 // `focusDestination(..., "return")` outside a landing where a statement before it in its
 // function hides something by the platform's means, a layer return spelled out by hand;
 // a hide through an owner's own function, as `showFab(null)`, is out of the rule's
 // sight. `letGo` lands the user on the page by a route, as `g p` does, so it is no layer
 // return of itself. The option names the files that may still return the user directly.
 const LAYER_RETURN_MESSAGE =
-  "Hand the user back as the layer closes, in the body of closeLayer(close, land)'s land or a layerLanding (runtime/focus.js): a return beside it reaches readers as a second move.";
+  "Hand the user back as the layer closes, in the body of closeLayer(close, land)'s land, or of a layerLanding in the kernel (runtime/focus.js; a package takes closeLayer and handBack from widget-api.js): a return beside it reaches readers as a second move.";
 const CLOSE_PLACES_MESSAGE =
-  "closeLayer's close hides the layer and places nothing; put the user in its land (runtime/focus.js).";
+  "closeLayer's close hides the layer and places nothing; put the user in its land (runtime/focus.js, or widget-api.js in a package).";
 const HIDING_CALLS = new Set(["hide", "hidePopover", "close"]);
 // Whether `node` hides something by the platform's own means: a dialog's or popover's
 // close, `hidden = true`, or a style that takes the box out of view. A function it
@@ -1291,10 +1291,7 @@ export default [
     },
   },
   {
-    files: [
-      "skills/leaf/assets/runtime/**/*.js",
-      "skills/leaf/packages/*/runtime/**/*.js",
-    ],
+    files: ["skills/leaf/assets/runtime/**/*.js"],
     plugins: { architecture: architecturePlugin },
     rules: {
       ...ownerBoundary,
@@ -1303,12 +1300,9 @@ export default [
     },
   },
   {
-    // These are the two boundaries that load authored/package modules, whose paths
-    // are data rather than runtime dependencies. Literal imports still enter the graph.
-    files: [
-      "skills/leaf/assets/runtime/interaction-gallery-playback.js",
-      "skills/leaf/assets/runtime/widget-loader.js",
-    ],
+    // This is the boundary that loads authored/package modules, whose paths are
+    // data rather than runtime dependencies. Literal imports still enter the graph.
+    files: ["skills/leaf/assets/runtime/widget-loader.js"],
     rules: {
       "no-restricted-syntax": [
         "error",

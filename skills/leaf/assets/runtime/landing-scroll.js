@@ -28,6 +28,13 @@
  * Navigation does not: `nearest` stays the native alignment (rect.js,
  * `nearestScrollBy`), which fills the band with a tall destination partly in view, so a
  * fold the user goes to opens from its start.
+ *
+ * A landing is the newest choice of where each box it moves stands, so this module
+ * numbers landings and keeps the last that moved each box (`landedSince`). A reading a
+ * place keeper recorded before that landing no longer says where the user is in the
+ * box. The navigation that lands often changes layout first, as opening a disclosure
+ * hands a region to a scroller of its own, and the keeper's restore for that change
+ * can run after the landing (version.js, `restoreShifted`).
  */
 import { localScrollBy, scrollAxes } from "./element-frame.js";
 import {
@@ -40,9 +47,19 @@ import {
   visibleBand,
 } from "./geometry.js";
 import { scrollersOf } from "./reading-regions.js";
-import { moveScrollerBy, reachable, pageScroller } from "./scrolling.js";
+import { reachable, pageScroller } from "./scrolling.js";
 import { clippingAxes, nearestScrollBy } from "./rect.js";
 import { renderedParent, renderedUnder } from "./shadow.js";
+
+let landings = 0;
+const lastLanding = new WeakMap();
+export const landingCount = () => landings;
+// Whether a landing after the `count`th moved `box`.
+export const landedSince = (box, count) => (lastLanding.get(box) ?? 0) > count;
+const land = (box, by, behavior) => {
+  lastLanding.set(box, landings);
+  box.scrollBy({ ...by, behavior });
+};
 
 const scrollMargin = (where, side = "Top") =>
   where instanceof Range
@@ -143,6 +160,7 @@ function verticalTravel(box, movement) {
 export function scrollIntoReadingBand(where, holder, block, behavior) {
   const [box, ...around] = scrollersOf(holder);
   if (!box) return;
+  landings += 1;
   const rect = placeBox(where);
   const margin = topMargin(where, box);
   let { top, bottom } = rect;
@@ -153,7 +171,7 @@ export function scrollIntoReadingBand(where, holder, block, behavior) {
     bottom += scrollMargin(where, "Bottom");
   }
   let { local, moved } = verticalTravel(box, placementBy(where, block, box, margin));
-  if (Math.abs(moved) >= 1) moveScrollerBy(box, local, behavior);
+  if (Math.abs(moved) >= 1) land(box, { top: local }, behavior);
   let inner = box;
   for (const outer of around) {
     top -= moved;
@@ -170,7 +188,7 @@ export function scrollIntoReadingBand(where, holder, block, behavior) {
       outer,
       nearestScrollBy(top, bottom, band.top, band.bottom),
     ));
-    if (Math.abs(moved) >= 1) moveScrollerBy(outer, local, behavior);
+    if (Math.abs(moved) >= 1) land(outer, { top: local }, behavior);
     inner = outer;
   }
 }
@@ -191,6 +209,7 @@ export function scrollIntoView(
   const holder = placeHolder(alignment);
   if (!holder) return;
   const targetScroller = scrollersOf(holder).next().value;
+  landings += 1;
   // Horizontal inspection can belong to any ancestor, the owning region included.
   // Only inner scrollports prepare Y; the region and its outers glide below.
   let inside = true;
@@ -208,11 +227,7 @@ export function scrollIntoView(
       const byY = inside
         ? nearestScrollBy(destination.top, destination.bottom, top, bottom)
         : 0;
-      if (byX || byY)
-        box.scrollBy({
-          ...localScrollBy(box, { x: byX, y: byY }),
-          behavior: "instant",
-        });
+      if (byX || byY) land(box, localScrollBy(box, { x: byX, y: byY }), "instant");
     }
     if (box === pageScroller || getComputedStyle(box).position === "fixed") break;
   }

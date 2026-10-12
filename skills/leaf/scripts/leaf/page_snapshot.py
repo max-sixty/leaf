@@ -26,6 +26,7 @@ from .revision_artifact import (
     artifact_name,
     capture_artifact,
     capture_local_resource,
+    probe_resources,
     read_artifact,
     read_revision,
 )
@@ -140,6 +141,12 @@ def capture_page_snapshot(
                 declaration_sources=page_registry.declaration_sources,
                 widget_sources=page_registry.widget_sources,
             )
+        # The snapshot's readers are this Leaf's probes, which call its runtime by
+        # name, so it serves them whichever Leaf captured the revision; a runtime
+        # lacking a name they import fails to link (`render_checks.ProbesUnlinked`).
+        selected = replace(
+            selected, resources={**selected.resources, **probe_resources()}
+        )
         artifacts[revision] = selected
         registry = copy.deepcopy(selected.registry)
         data = read_data(page_dir, registry)

@@ -30,29 +30,29 @@
    a newer reading gesture ends that authority. Size is fitted before paint, so a sent
    reply does not grow twice. Margin standing and its keyboard ladder own dismissal
    and target landing; the card keeps Send's focus on the thread that received it. */
-import { atScrollEnd, scrollToEnd } from "/runtime/scrolling.js";
-import { cancelRender, nextRender } from "/runtime/rendering.js";
-import { spokenSubject } from "/runtime/contribution-model.js";
-import { labelWords } from "/runtime/words.js";
+import { atScrollEnd, scrollToEnd } from "../scrolling.js";
+import { cancelRender, nextRender } from "../rendering.js";
+import { spokenSubject } from "../contribution-model.js";
+import { labelWords } from "../words.js";
 import { THREAD_CARD } from "./margin-layout.js";
-import { mapButton } from "/runtime/page-map-dialog.js";
-import { focusDestination, holdFocus, onStanding, focused } from "/runtime/focus.js";
-import { TEXT_FIELD } from "/runtime/control-selectors.js";
-import { closeControl, el, offer } from "/runtime/widget-elements.js";
-import { keeps, keepsHidden, keepsText, layoutPx } from "/runtime/keeps.js";
-import { setChildren } from "/runtime/dom-children.js";
-import { effectiveScroller, registerReadingRegion } from "/runtime/reading-regions.js";
-import { declareOffFlowSurface } from "/runtime/off-flow.js";
-import { chromeRoot, chromeForeground } from "/runtime/chrome.js";
-import { motion } from "/runtime/motion.js";
-import { closestAcross } from "/runtime/passages.js";
-import { allThreads } from "/runtime/thread/state.js";
-import { threadNames, turns } from "/runtime/thread/model.js";
-import { whenDocumentPresented } from "/runtime/semantic-state.js";
-import { iconElement } from "/runtime/icons.js";
-import { anchorLabel } from "/runtime/thread/messages.js";
-import { bannerControlDoor } from "/runtime/banner-toolbar.js";
-import { coarsePointer } from "/runtime/pointer.js";
+import { mapButton } from "../page-map-dialog.js";
+import { focusDestination, holdFocus, onStanding, focused } from "../focus.js";
+import { TEXT_FIELD } from "../control-selectors.js";
+import { closeControl, el, offer } from "../widget-elements.js";
+import { keeps, keepsHidden, keepsText, layoutPx } from "../keeps.js";
+import { setChildren } from "../dom-children.js";
+import { effectiveScroller, registerReadingRegion } from "../reading-regions.js";
+import { declareOffFlowSurface } from "../off-flow.js";
+import { chromeRoot, chromeForeground } from "../chrome.js";
+import { motion } from "../motion.js";
+import { closestAcross } from "../passages.js";
+import { allThreads } from "../thread/state.js";
+import { threadNames, turns } from "../thread/model.js";
+import { whenDocumentPresented } from "../semantic-state.js";
+import { iconElement } from "../icons.js";
+import { anchorLabel } from "../thread/messages.js";
+import { bannerControlDoor } from "../banner-toolbar.js";
+import { coarsePointer } from "../pointer.js";
 import {
   cardMeasure,
   cardMinimum,
@@ -62,14 +62,14 @@ import {
   commentPlacement,
   makeRoom,
 } from "./comment-placement.js";
-import { passageGeometry } from "/runtime/resolved-target.js";
+import { passageGeometry } from "../resolved-target.js";
 import { floatingPlacement, floatingUi } from "./floating.js";
-import { placeKeeper } from "/runtime/user-place.js";
-import { under } from "/runtime/shadow.js";
-import { retainUserIntent } from "/runtime/user-intent.js";
-import { threadFocusDestination } from "/runtime/thread/focus.js";
-import { keepThreadLanding, showLatestTurn } from "/runtime/thread/reply-landing.js";
-import { strongestWorkflow } from "/runtime/thread/workflow.js";
+import { placeKeeper } from "../user-place.js";
+import { under } from "../shadow.js";
+import { retainUserIntent } from "../user-intent.js";
+import { threadFocusDestination } from "../thread/focus.js";
+import { keepThreadLanding, showLatestTurn } from "../thread/reply-landing.js";
+import { strongestWorkflow } from "../thread/workflow.js";
 
 // A margin card's reply box.
 const REPLY_BOX = `.lf-thread-reply ${TEXT_FIELD}`;

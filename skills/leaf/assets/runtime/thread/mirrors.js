@@ -27,10 +27,6 @@ import { HeldNews, newsNotice } from "./held-news.js";
 const registrations = new WeakMap();
 
 export function registerMirrorConsumer(owner, render, { commands }) {
-  if (!(owner instanceof Element))
-    throw new TypeError("mountThreadViews needs an Element owner");
-  if (typeof render !== "function")
-    throw new TypeError("mountThreadViews needs a render callback");
   if (registrations.has(owner))
     throw new Error(`mountThreadViews(${owner.localName}) registered twice`);
 
@@ -65,8 +61,6 @@ export function registerMirrorConsumer(owner, render, { commands }) {
       thread(key, outlet) {
         if (!accepting || abort.signal.aborted)
           throw new Error("Thread mirrors belong to their current render callback");
-        if (!(outlet instanceof Element))
-          throw new TypeError("A Thread mirror outlet must be an Element");
         const thread = byKey.get(key);
         if (!thread) throw new Error(`No Thread has key ${key}`);
         if ([...selected.values()].some((threads) => threads.includes(thread)))
@@ -144,10 +138,6 @@ export function registerMirrorConsumer(owner, render, { commands }) {
    rewrite owner over the parts this reader draws (`threadRewrites`). Layout and
    disclosure belong to the caller. */
 export function createPrimaryReader(owner, render, commands, update) {
-  if (!(owner instanceof Element) || typeof render !== "function")
-    throw new TypeError(
-      "A Thread presentation needs an Element owner and render callback",
-    );
   let active = true;
   let generation = 0;
   let pending = null;
@@ -259,8 +249,6 @@ export function createPrimaryReader(owner, render, commands, update) {
     const nominate = (kind, key, message, outlet) => {
       if (!accepting || abort.signal.aborted)
         throw new Error("Thread nominations belong to their current render callback");
-      if (!(outlet instanceof Element))
-        throw new TypeError("A Thread outlet must be an Element");
       const thread = byKey.get(key);
       if (!thread) throw new Error(`No Thread has key ${key}`);
       if (message !== null && !thread.msgs.some((item) => item.key === message))

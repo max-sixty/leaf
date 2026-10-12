@@ -126,8 +126,6 @@ function suppliedDatum(source, key) {
 // handed it by package code, so an undeclared one is that code's error, thrown at the
 // call rather than read as a reference to nothing.
 export function requireReference(verb, owner, attribute) {
-  if (!(owner instanceof Element))
-    throw new TypeError(`${verb} owner must be an element`);
   if (
     typeof attribute !== "string" ||
     !Object.hasOwn(registry[owner.localName]?.["x-refers"] ?? {}, attribute)

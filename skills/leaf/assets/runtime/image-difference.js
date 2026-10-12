@@ -76,7 +76,10 @@
  *
  * A before/after widget states the reading and, when asked, draws each frame's outlines,
  * and `leaf-dev stills` loads this module into its browser on its own and crops a
- * changed state to them. The clustering dependency loads only when a comparison
+ * changed state to them. Where a change is a few pixels, a shift or a recolour inside
+ * one block, an outline says where to look but not what moved, so `changedPixels`
+ * also gives every pixel's own reading under the same rule, for a view that paints
+ * them. The clustering dependency loads only when a comparison
  * needs regions, after page presentation; this module touches no document. */
 
 const SLIGHT = 48;

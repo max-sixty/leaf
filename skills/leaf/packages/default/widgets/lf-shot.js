@@ -20,11 +20,12 @@
  * outlines its own regions, what changed and what moved, where they sit in that frame,
  * and the rail counts them. `difference` is that reading, in the images' own pixels,
  * or null for a pair the widget refused; a parent that hides the rail states it from
- * there. With `pixels`, the rail also offers a third view, Pixels, which stands over
- * the comparison: the after image faded, with each changed pixel painted through
- * `changedPixels`' mask in the theme's warning colour. Choosing an endpoint, moving
- * the divider or clicking the picture leaves it. Flip alone shows it; an inspector's
- * other views and a focus crop withdraw it.
+ * there. With `pixels`, that reading is also a press, so a narrow rail holds no fourth
+ * control: it opens the Pixels view over the comparison, the after image greyed with
+ * each changed pixel painted through `changedPixels`' mask in the theme's warning
+ * colour. The mask is built on the first press, since most readers never open it.
+ * Choosing an endpoint or moving the divider leaves the view, and clicking the picture
+ * returns to the comparison as it stood.
  * Pairs compare one per frame, so a page of large captures does not hold input for the
  * whole batch.
  *
@@ -95,7 +96,7 @@ customElements.define(
     #chose = false;
     #pixelsShown = false;
     #pixelsView;
-    #middle;
+    #reading;
     #frames = [];
     #inspection;
     #frameLabels = new Map();
@@ -307,11 +308,6 @@ customElements.define(
         if (state === "before") caption.after(open);
         else caption.before(open);
       }
-      // The reading, and with `pixels` the Pixels caption, stand between the links.
-      this.#middle = document.createElement("span");
-      this.#middle.className = "lf-shotmid";
-      this.#middle.dataset.lfGen = "1";
-      this.#openers.get("before").after(this.#middle);
 
       const box = offer("input", "lf-shotflip", undefined, "checkbox");
       this.#box = box;
@@ -373,7 +369,10 @@ customElements.define(
       this.#alt = this.getAttribute("alt");
       for (const state of ["before", "after"])
         keeps(this.#captions.get(state), "aria-label", `${state} — ${this.#alt}`);
-      this.#paintPixelsAlt();
+      if (this.#reading?.role)
+        keeps(this.#reading, "aria-label", `changed pixels — ${this.#alt}`);
+      if (this.#pixelsView)
+        keeps(this.#pixelsView, "aria-label", `changed pixels: ${this.#alt}`);
       for (const frame of this.#frames) {
         const state = frame.dataset.lfState;
         const alt = `${state}: ${this.#alt}`;
@@ -386,12 +385,6 @@ customElements.define(
       }
       keeps(this.#box, "aria-label", `Compare before and after — ${this.#alt}`);
       this.#paint();
-    }
-
-    #paintPixelsAlt() {
-      if (!this.#pixelsView) return;
-      keeps(this.#captions.get("pixels"), "aria-label", `changed pixels — ${this.#alt}`);
-      keeps(this.#pixelsView, "aria-label", `changed pixels: ${this.#alt}`);
     }
 
     attributeChangedCallback(name) {
@@ -514,62 +507,81 @@ customElements.define(
         }
         frame.append(marks);
       }
-      const count = document.createElement("span");
-      count.className = "lf-shotdelta";
-      count.dataset.lfShotDelta = differenceKind(reading);
-      relabel(count, describeDifference(reading), { says: false });
-      this.#middle.append(count);
-      if (this.hasAttribute("pixels")) await this.#offerPixels(shots);
+      const pixels = this.hasAttribute("pixels");
+      const kind = differenceKind(reading);
+      const count = pixels
+        ? selectableOffer("button", "lf-shotdelta")
+        : document.createElement("span");
+      count.className ||= "lf-shotdelta";
+      count.dataset.lfShotDelta = kind;
+      // Without outlines a count of areas points at nothing, so the press names its view.
+      relabel(
+        count,
+        pixels && kind === "areas" && !this.hasAttribute("outlines")
+          ? "changed pixels"
+          : describeDifference(reading),
+        { says: false },
+      );
+      this.#reading = count;
+      if (pixels) {
+        count.title = "Show changed pixels";
+        count.addEventListener("click", () => this.#showPixels(shots));
+        commands(count, "On a screenshot", [
+          {
+            id: "screenshot.pixels",
+            keys: PRESS,
+            title: "show changed pixels",
+            when: () => this.#controlsEnabled,
+            run: () => count.click(),
+          },
+        ]);
+        keeps(count, "aria-label", `changed pixels — ${this.#alt}`);
+        keeps(count, "aria-pressed", false);
+      }
+      this.#openers.get("before").after(count);
       return reading;
     }
 
-    // The Pixels view: the after image faded under the changed pixels, which a mask
-    // paints in the theme's colour, and its caption beside the reading.
-    async #offerPixels(shots) {
-      const { width, height, data } = compareImagePixels(...shots);
-      const canvas = new OffscreenCanvas(width, height);
-      canvas.getContext("2d").putImageData(new ImageData(data, width, height), 0, 0);
-      const mask = URL.createObjectURL(await canvas.convertToBlob({ type: "image/png" }));
-      const view = document.createElement("div");
-      view.className = "lf-shotpixels";
-      view.dataset.lfGen = "1";
-      view.role = "img";
-      const ground = document.createElement("img");
-      ground.alt = "";
-      ground.crossOrigin = "anonymous";
-      ground.src = shots[1].src;
-      const paint = document.createElement("span");
-      paint.style.setProperty("--lf-shot-pixels", `url("${mask}")`);
-      view.append(ground, paint);
-      view.addEventListener("click", (event) => {
-        if (plainPress(event)) this.#show(this.#position() > 50 ? "after" : "before");
-      });
-      this.#box.before(view);
-      this.#pixelsView = view;
-
-      const caption = selectableOffer("button", "lf-shotcap");
-      caption.dataset.lfState = "pixels";
-      relabel(caption, "pixels", { says: false });
-      caption.addEventListener("click", () => this.#showPixels());
-      commands(caption, "On a screenshot", [
-        {
-          id: "screenshot.pixels",
-          keys: PRESS,
-          title: "show changed pixels",
-          when: () => this.#controlsEnabled,
-          run: () => caption.click(),
-        },
-      ]);
-      this.#captions.set("pixels", caption);
-      this.#middle.append(caption);
-      this.#paintPixelsAlt();
-      this.#chromeState = null;
-      this.#paint();
-    }
-
-    #showPixels() {
+    // The Pixels view: the after image greyed, under the changed pixels that a mask
+    // paints in the theme's colour. The view stands at once; its paint lands with the
+    // mask.
+    #showPixels(shots) {
       this.#chose = true;
       this.#pixelsShown = true;
+      if (!this.#pixelsView) {
+        const view = document.createElement("div");
+        view.className = "lf-shotpixels";
+        view.dataset.lfGen = "1";
+        view.role = "img";
+        keeps(view, "aria-label", `changed pixels: ${this.#alt}`);
+        const ground = document.createElement("img");
+        ground.alt = "";
+        ground.crossOrigin = "anonymous";
+        ground.src = shots[1].src;
+        const paint = document.createElement("span");
+        view.append(ground, paint);
+        view.addEventListener("click", (event) => {
+          if (!plainPress(event)) return;
+          this.#pixelsShown = false;
+          this.#paint();
+        });
+        // Before the rail in the tree, so the sticky rail, at the same z-index, stands
+        // over it.
+        this.prepend(view);
+        this.#pixelsView = view;
+        const { width, height, data } = compareImagePixels(...shots);
+        const canvas = new OffscreenCanvas(width, height);
+        canvas.getContext("2d").putImageData(new ImageData(data, width, height), 0, 0);
+        void canvas
+          .convertToBlob({ type: "image/png" })
+          .then((blob) =>
+            paint.style.setProperty(
+              "--lf-shot-pixels",
+              `url("${URL.createObjectURL(blob)}")`,
+            ),
+          )
+          .catch((reason) => failSoft(this, reason));
+      }
       this.#paint();
     }
 
@@ -624,14 +636,16 @@ customElements.define(
       this.#chromeState = chromeState;
       this.#box.checked = position > 50;
       keeps(this, "data-lf-shot-view", this.#pixelsShown ? "pixels" : null);
+      // The covered comparison leaves the tab order while the view stands over it.
+      for (const node of [this.#comparison, this.#box])
+        node?.toggleAttribute("inert", this.#pixelsShown);
       for (const [state, caption] of this.#captions)
         keeps(
           caption,
           "aria-pressed",
-          state === "pixels"
-            ? this.#pixelsShown
-            : !this.#pixelsShown && position === (state === "after" ? 100 : 0),
+          !this.#pixelsShown && position === (state === "after" ? 100 : 0),
         );
+      if (this.#reading?.role) keeps(this.#reading, "aria-pressed", this.#pixelsShown);
       paintKeys();
     }
 

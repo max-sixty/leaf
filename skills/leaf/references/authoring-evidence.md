@@ -198,8 +198,8 @@ reader will hardly see the change, so name it in the prose, or say that nothing 
 redrawing changed.
 Add `pixels` where the reader needs to see exactly which pixels changed, as when
 the change is a shift of a few pixels or a recolour that flipping barely shows, or
-when the claim is that nothing else changed. The rail then offers a third view
-beside the reading, the after image greyed with every changed pixel painted over
-it, so build no difference image of your own. Leave it off where the change
-reflows much of the frame, since nearly every pixel there changes and the view
-says less than the outlines.
+when the claim is that nothing else changed. The rail's reading then opens a third
+view, the after image greyed with every changed pixel painted over it, so build no
+difference image of your own. It combines with `outlines`, which still say where
+to look. Leave it off where the change reflows much of the frame, since nearly
+every pixel there changes and the view says less than the outlines.

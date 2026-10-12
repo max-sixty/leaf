@@ -154,20 +154,30 @@
   color: var(--ink);
   background: var(--chip);
 }
-:scope:is(lf-shot) .lf-shotmid {
-  grid-area: 1 / 3;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  align-self: stretch;
-  min-width: 0;
-  gap: 2px;
-}
 :scope:is(lf-shot) .lf-shotdelta {
-  min-width: 0;
+  grid-area: 1 / 3;
+  justify-self: center;
   padding-inline: 4px;
   text-align: center;
   line-height: 1.2;
+}
+:scope:is(lf-shot) .lf-shotdelta[role=button] {
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  margin-block: 4px;
+  padding-inline: 8px;
+  border-radius: var(--r);
+  box-shadow: inset 0 0 0 1px var(--rule);
+  outline-offset: -2px;
+}
+:scope:is(lf-shot) .lf-shotdelta[role=button]:hover {
+  background: var(--chip);
+}
+:scope:is(lf-shot) .lf-shotdelta[role=button][aria-pressed=true] {
+  color: var(--warn-ink);
+  background: var(--warn-tint);
+  box-shadow: inset 0 0 0 1px var(--warn), inset 0 -3px var(--warn-ink);
 }
 :scope:is(lf-shot) .lf-shotcap[data-lf-state] {
   outline-offset: -2px;
@@ -179,11 +189,6 @@
 :scope:is(lf-shot) .lf-shotcap[data-lf-state=after] {
   --lf-shot-side-tint: var(--add-tint);
   --lf-shot-side-ink: var(--ok-ink);
-}
-:scope:is(lf-shot) .lf-shotcap[data-lf-state=pixels] {
-  flex: none;
-  --lf-shot-side-tint: var(--warn-tint);
-  --lf-shot-side-ink: var(--warn-ink);
 }
 :scope:is(lf-shot) .lf-shotcap:hover {
   background: var(--chip);
@@ -197,7 +202,7 @@
   color: var(--muted);
   box-shadow: none;
 }
-:scope:is(lf-shot):not(:has(.lf-shotcap[aria-pressed=true])) .lf-shotcap:is([data-lf-state=before], [data-lf-state=after]) {
+:scope:is(lf-shot):not([data-lf-shot-view=pixels], :has(.lf-shotcap[aria-pressed=true])) .lf-shotcap {
   color: var(--lf-shot-side-ink);
 }
 :scope:is(lf-shot) .lf-shotdiff {
@@ -229,21 +234,22 @@
   color: var(--warn-ink);
   font-weight: 650;
 }
-:scope:is(lf-shot):not([outlines]) :is(.lf-shotdiff, .lf-shotdelta[data-lf-shot-delta=areas]) {
+:scope:is(lf-shot):not([outlines]) .lf-shotdiff,
+:scope:is(lf-shot):not([outlines], [pixels]) .lf-shotdelta[data-lf-shot-delta=areas] {
   display: none;
 }
 :scope:is(lf-shot) > .lf-shotpixels {
   display: none;
   position: relative;
   grid-area: 2 / 1;
-  z-index: 3;
+  z-index: 1;
   overflow: clip;
   cursor: pointer;
   border: 1px solid var(--rule);
   border-radius: 0 0 var(--r) var(--r);
   background: var(--card);
 }
-:scope:is(lf-shot)[data-lf-shot-view=pixels]:not([data-lf-shot-mode]:not([data-lf-shot-mode=flip]), [data-lf-shot-crop=true]) > .lf-shotpixels {
+:scope:is(lf-shot)[data-lf-shot-view=pixels] > .lf-shotpixels {
   display: block;
 }
 :scope:is(lf-shot) > .lf-shotpixels > img {
@@ -260,9 +266,6 @@
   inset: 0;
   background: var(--warn);
   mask: var(--lf-shot-pixels) 0 0 / 100% 100% no-repeat;
-}
-:scope:is(lf-shot)[data-lf-shot-crop=true] .lf-shotcap[data-lf-state=pixels] {
-  display: none;
 }
 :scope:is(lf-shot) > input.lf-shotflip {
   display: none;
@@ -325,8 +328,7 @@
     content: " · bottom";
   }
   :scope:is(lf-shot) > input.lf-shotflip,
-  :scope:is(lf-shot) > .lf-shotpixels,
-  :scope:is(lf-shot) .lf-shotcap[data-lf-state=pixels] {
+  :scope:is(lf-shot) > .lf-shotpixels {
     display: none !important;
   }
   :scope:is(lf-shot) > .lf-shotrail {

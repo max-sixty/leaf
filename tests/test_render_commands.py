@@ -1298,9 +1298,8 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
     changed where each frame holds it, and nothing where a frame holds nothing, and
     says on the rail what they add up to, including a difference too slight to point
     at. The outlines and their count are the author's to ask for, with `outlines`; the
-    rest of the reading shows on every pair. With `pixels`, the rail offers a third
-    view over the comparison, painting each changed pixel, which choosing an endpoint
-    or clicking the picture leaves."""
+    rest of the reading shows on every pair. With `pixels`, the reading opens a view
+    over the comparison that paints each changed pixel."""
     plain = solid_png(600, 300, (210, 220, 235))
     patched = solid_png(
         600, 300, (210, 220, 235), patch=(420, 200, 60, 40, (30, 30, 30))
@@ -1373,32 +1372,38 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
         expect(delta).to_have_text(reading)
         expect(delta).to_be_visible()
 
-    # Only a pair that asks for `pixels` offers the view, which stands exactly over the
-    # comparison while its caption is the one pressed.
-    expect(page.locator('#shot-patch .lf-shotcap[data-lf-state="pixels"]')).to_have_count(0)
+    # With `pixels`, the reading is the press that opens a view standing exactly over
+    # the comparison; without outlines it names that view rather than a count. Clicking
+    # the view returns to the comparison as it stood, and an endpoint leaves it too.
+    expect(page.locator('#shot-patch .lf-shotdelta[role="button"]')).to_have_count(0)
     shot = page.locator("#shot-pixels")
-    caps = {
-        state: shot.locator(f'.lf-shotcap[data-lf-state="{state}"]')
-        for state in ("before", "pixels", "after")
-    }
+    press = shot.locator(".lf-shotdelta")
+    expect(press).to_have_text("changed pixels")
+    expect(press).to_have_attribute("role", "button")
     view = shot.locator(".lf-shotpixels")
-    expect(view).to_be_hidden()
-    caps["pixels"].click()
+    expect(view).to_have_count(0)
+    comparison = shot.locator(".lf-shotcomparison")
+    expect(comparison).to_be_attached()
+    standing = comparison.get_attribute("position")
+    press.click()
     expect(view).to_be_visible()
-    expect(caps["pixels"]).to_have_attribute("aria-pressed", "true")
+    expect(press).to_have_attribute("aria-pressed", "true")
     for state in ("before", "after"):
-        expect(caps[state]).to_have_attribute("aria-pressed", "false")
-    covered = shot.locator(".lf-shotcomparison").bounding_box()
-    assert view.bounding_box() == pytest.approx(covered, abs=1)
+        expect(shot.locator(f'.lf-shotcap[data-lf-state="{state}"]')).to_have_attribute(
+            "aria-pressed", "false"
+        )
+    assert view.bounding_box() == pytest.approx(comparison.bounding_box(), abs=1)
     view.click()
     expect(view).to_be_hidden()
-    expect(caps["before"]).to_have_attribute("aria-pressed", "true")
-    caps["pixels"].focus()
+    expect(press).to_have_attribute("aria-pressed", "false")
+    assert comparison.get_attribute("position") == standing
+    press.focus()
     page.keyboard.press("Enter")
     expect(view).to_be_visible()
-    caps["after"].click()
+    after = shot.locator('.lf-shotcap[data-lf-state="after"]')
+    after.click()
     expect(view).to_be_hidden()
-    expect(caps["after"]).to_have_attribute("aria-pressed", "true")
+    expect(after).to_have_attribute("aria-pressed", "true")
 
 
 def test_a_shot_refuses_a_pair_shot_at_two_widths(browser, serve):

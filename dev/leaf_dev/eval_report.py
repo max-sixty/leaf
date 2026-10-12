@@ -114,13 +114,16 @@ def verdict_line(pair: dict) -> str:
 
 
 def defects(pair: dict, column: str) -> str:
-    items = [
-        f"<li>{escape(d)}</li>"
-        for o in pair["orders"]
-        if o
-        for d in (o["defects"].get(column) or [])
+    """The defects each order's judgment named, under that order, since the two
+    judgments of one pair often name the same defect."""
+    lists = [
+        f"<p>Order {n}</p><ul>"
+        + "".join(f"<li>{escape(d)}</li>" for d in o["defects"].get(column) or [])
+        + "</ul>"
+        for n, o in enumerate(pair["orders"], 1)
+        if o and o["defects"].get(column)
     ]
-    return f"<ul>{''.join(items)}</ul>" if items else "<p>None named.</p>"
+    return "".join(lists) or "<p>None named.</p>"
 
 
 def reasons(pair: dict) -> str:
@@ -164,21 +167,48 @@ def pair_section(page: Path, subject: str, n: int, pair: dict | None, x, y) -> s
     )
 
 
-def task_section(page: Path, subject: str, columns: dict, pairs: list[dict]) -> str:
-    judged = {p["pair"]: p for p in pairs if p["subject"] == subject}
-    wins = [condition(p["winner"]) for p in judged.values() if p["winner"]]
-    outcome = (
+def outcome(subject: str, pairs: list[dict]) -> str:
+    judged = [p for p in pairs if p["subject"] == subject]
+    wins = [condition(p["winner"]) for p in judged if p["winner"]]
+    if not judged:
+        return "not judged"
+    return (
         ", ".join(f"{c} {wins.count(c)}" for c in ("Leaf", "HTML"))
         + f", split {len(judged) - len(wins)}"
-        if judged
-        else "not judged"
     )
+
+
+def means(subject: str, members: list[dict]) -> dict:
+    values = [measures(m, subject) for m in members]
+    return {k: statistics.mean(v[k] or 0 for v in values) for k in values[0]}
+
+
+def overview(found: dict, pairs: list[dict]) -> str:
+    """One row per task: the pairwise outcome and each condition's mean cost."""
+    rows = []
+    for subject, columns in sorted(found.items()):
+        cost = {condition(c): means(subject, m)["cost"] for c, m in columns.items()}
+        rows.append(
+            f"<tr><td><a href='#task-{subject}'>{subject}</a></td>"
+            f"<td>{outcome(subject, pairs)}</td>"
+            f"<td class='num'>${cost.get('Leaf', 0):.2f}</td>"
+            f"<td class='num'>${cost.get('HTML', 0):.2f}</td></tr>"
+        )
+    return (
+        '<table id="overview"><thead><tr><th>Task</th><th>Pairs won</th>'
+        "<th>Leaf cost</th><th>HTML cost</th></tr></thead><tbody>"
+        + "".join(rows)
+        + "</tbody></table>"
+    )
+
+
+def task_section(page: Path, subject: str, columns: dict, pairs: list[dict]) -> str:
+    judged = {p["pair"]: p for p in pairs if p["subject"] == subject}
     rows = []
     for column, members in sorted(columns.items()):
-        values = [measures(m, subject) for m in members]
-        mean = {k: statistics.mean(v[k] or 0 for v in values) for k in values[0]}
+        mean = means(subject, members)
         rows.append(
-            f"<tr><td>{condition(column)}</td><td class='num'>{len(values)}</td>"
+            f"<tr><td>{condition(column)}</td><td class='num'>{len(members)}</td>"
             f"<td class='num'>{mean['minutes']:.1f}</td>"
             f"<td class='num'>${mean['cost']:.2f}</td>"
             f"<td class='num'>{mean['turns']:.0f}</td>"
@@ -199,7 +229,7 @@ def task_section(page: Path, subject: str, columns: dict, pairs: list[dict]) -> 
     )
     return (
         f'<section id="task-{subject}"><h2>{subject.capitalize()}: pairs won, '
-        f"{outcome}</h2>{table}"
+        f"{outcome(subject, pairs)}</h2>{table}"
         f"<details><summary>The request, the width preference and the comment</summary>"
         f'<pre id="{subject}-request">{escape(request)}</pre>'
         + (
@@ -236,10 +266,10 @@ def eval_report(page: Path, runs: tuple[Path, ...]):
         ),
         [],
     )
-    body = "".join(
+    found = {s: c for s, c in found.items() if len(c) == 2}
+    body = overview(found, pairs) + "".join(
         task_section(page, subject, columns, pairs)
         for subject, columns in sorted(found.items())
-        if len(columns) == 2
     )
     runs_text = ", ".join(f"<code>{run.name}</code>" for run in runs)
     (page / "index.html").write_text(
@@ -256,7 +286,7 @@ def eval_report(page: Path, runs: tuple[Path, ...]):
 <h1>Leaf against plain HTML: eval outputs</h1></hgroup>
 <p class="lede" id="lede">Each task's final pages from both conditions, side by side at every
 width the judges saw, with each condition's mean spend and the pairwise judge's
-verdict and named defects.</p>
+verdict and named defects. Select a screen to zoom it to full size.</p>
 <aside class="sidebar" id="contents-sidebar"><lf-toc id="contents" max-level="3"></lf-toc></aside>
 {body}
 </main>

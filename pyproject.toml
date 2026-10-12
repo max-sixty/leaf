@@ -24,6 +24,9 @@
 # psutil is a compiled extension, so every install fetches a platform wheel for it
 # rather than pure Python. It is a runtime dependency because every page claim
 # reads the process tree above it (`machine.py`).
+# ada-url binds Ada, the WHATWG URL parser Node uses, to check the `uri` format
+# (`registry/schema.py`), so a URL `data set` accepts is one the page's `new URL`
+# accepts too. It is a compiled extension as well.
 # watchfiles supplies the native subscriptions shared by page maintenance,
 # delivery waits and developer previews, avoiding repeated idle filesystem scans.
 #
@@ -42,6 +45,7 @@ name = "leaf"
 version = "0"
 requires-python = ">=3.12"
 dependencies = [
+  "ada-url>=4",
   "anyio>=4.10",
   "click>=8",
   "jmespath>=1",

@@ -263,7 +263,7 @@ def test_a_page_another_leaf_vendored_at_this_protocol_takes_its_writes(
     """A Leaf update leaves an open page working. Another Leaf's runtime and serving
     code, and an older kernel vocabulary lacking fields this Leaf writes, in every
     registry the page and its revisions captured, still take a reply: the kernel's
-    records are the running Leaf's own (`layer.PROTOCOL`)."""
+    records are the running Leaf's own (`registry.kernel`)."""
 
     def older_leaf(page):
         captured = page.glob("revisions/*/resources/registry.json")
@@ -5171,6 +5171,55 @@ def test_visual_review_package_composes_its_run_contract(tmp_path, monkeypatch):
     assert "visual-run" in registry["$data"]["contracts"]
     assert (page / "widgets" / "lf-visual-review.js").is_file()
     assert (page / "instructions" / "author.md").is_file()
+
+
+@pytest.mark.parametrize(
+    ("change", "refusal"),
+    [
+        (
+            lambda run: {**run, "cases": [*run["cases"], run["cases"][0]]},
+            "record keys must be unique",
+        ),
+        (
+            lambda run: {**run, "base": {**run["base"], "url": "http://a.test:99999/"}},
+            "'http://a.test:99999/' is not a 'uri'",
+        ),
+    ],
+    ids=["repeated-case-id", "url-the-browser-cannot-parse"],
+)
+def test_data_set_refuses_a_visual_run_the_widget_cannot_show(
+    tmp_path, monkeypatch, change, refusal
+):
+    """A case id addresses the case's review decisions and threads, and the widget
+    opens each target URL with the browser's URL parser, so `data set` refuses a run
+    that repeats an id or names a URL that parser refuses, rather than storing a run
+    the widget cannot show."""
+    monkeypatch.chdir(tmp_path)
+    example = Path(__file__).parents[1] / "examples" / "developer"
+    page = tmp_path / "visual-review"
+    runner = CliRunner()
+    initialized = runner.invoke(
+        cli_model.cli, ["page", "init", "--package", "visual-review", str(page)]
+    )
+    assert initialized.exit_code == 0, initialized.output
+    shutil.copy(example / "visual-review-gallery.html", page / "index.html")
+    run = json.loads((example / "visual-review-gallery.data.json").read_text())[
+        "gallery-visual-run"
+    ]
+
+    def data_set(value):
+        return runner.invoke(
+            cli_model.cli,
+            ["data", "set", str(page), "gallery-visual-run"],
+            input=json.dumps(value),
+        )
+
+    accepted = data_set(run)
+    refused = data_set(change(run))
+
+    assert accepted.exit_code == 0, accepted.output
+    assert refused.exit_code == 1
+    assert refusal in refused.output
 
 
 def test_a_bundled_name_wins_over_a_same_named_project_path(tmp_path, monkeypatch):

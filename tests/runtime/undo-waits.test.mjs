@@ -71,7 +71,10 @@ test("Undo waits while a logged action is unpresented, whichever answer came fir
   applicationState.identify(1);
   applicationState.captureDocument({
     ...applicationState.read().document,
-    registry: { "lf-choice": { "x-state": { decide: { ...spec, writer: "user" } } } },
+    registry: {
+      "lf-choice": { "x-state": { decide: { ...spec, writer: "user" } } },
+      $states: { "lf-choice": { decide: { writer: "user", definition: {} } } },
+    },
     authored: new Map([
       [
         "choice",

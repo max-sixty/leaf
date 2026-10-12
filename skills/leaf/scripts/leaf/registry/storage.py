@@ -28,7 +28,7 @@ def load_registry(page_dir: Path):
     reader that rejects it wants a re-vendor rather than an edit. It checks only that
     the layer declares what every reader looks up. Its `$events` copy may be another
     Leaf's at this protocol: it is the page runtime's, and admission reads the running
-    Leaf's own (`layer.PROTOCOL`); `read_page_registry` validates the vocabulary where
+    Leaf's own (`registry.kernel`); `read_page_registry` validates the vocabulary where
     it is new.
 
     Kept in the page's memory while the file's stamp holds, because an action POST
@@ -193,13 +193,6 @@ def layer_metadata(page_dir: Path) -> dict:
             ):
                 raise RegistryError(f"{path}: $layer.{key} must be a SHA-256 identity")
             identities[key] = value
-    # A page vendored before the protocol was recorded reads as having none, which
-    # every server and the append door refuse (`layer.incompatible_layer`).
-    protocol = layer.get("protocol")
-    if protocol is not None:
-        if type(protocol) is not int:
-            raise RegistryError(f"{path}: $layer.protocol must be an integer")
-        identities["protocol"] = protocol
     producer = layer.get("producer")
     if producer is not None and not isinstance(producer, dict):
         raise RegistryError(f"{path}: $layer.producer must be an object")

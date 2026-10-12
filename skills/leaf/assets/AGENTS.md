@@ -133,9 +133,10 @@ cards may move by that growth. A reply still streaming at the transcript's end i
 that growth arriving: it may change at its foot in place as its words come and as its
 answer completes it. So is an answer that folds the progress run standing at the
 transcript's end into Previous updates, unless the reader stands on a message it puts
-away, by focus or by a selection reaching into it: what stood from that run down may
-move, and nothing above it. The declaration permits no other changes to existing
-messages or independent movement of following content.
+away, by focus or by a selection reaching into it. A run on screen stays open where
+it stood, its group's border drawn around it, so the fold moves none of its words; a
+run off screen folds away (`thread-card.js`). The declaration permits no other changes
+to existing messages or independent movement of following content.
 News grows where the reader isn't looking: above the screen, where scroll anchoring
 takes the growth into what they scrolled past, or below it. An active composition
 keeps its editor still. `thread/held-news.js` states which appended replies may move
@@ -316,7 +317,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Annotation inventory and controls | `annotation-inventory.js`, `annotation-view.js`, `contributions.js`, `contribution-controls.js`, `inline-contributions.js` |
 | Annotation records and Page Map | `margin-model.js`, `margin-map-model.js`, `page-map-dialog.js`, `pointed-place.js` |
 | Physical annotation presentation | `../../packages/default/runtime/annotation-overlay/` |
-| Passages and target identity | `passages.js`, `text-alignment.js`, `anchor-coordinate.js`, `resolved-target.js`, `anchor-resolution.js`, `addressable-names.js` |
+| Passages and target identity | `passages.js`, `passage-facts.js`, `text-alignment.js`, `anchor-coordinate.js`, `resolved-target.js`, `anchor-resolution.js`, `addressable-names.js` |
 | Anchor placement, decoration and travel | `anchor-placement.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `target-paint-geometry.js`, `visual-parts.js`, `indication.js` |
 | Banner and approvals | `banner*.js` |
 | Drawers and neighboring pages | `drawers.js`, `queue-panel.js`, `queue-list.js`, `live-leaves*.js` |

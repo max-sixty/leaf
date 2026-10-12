@@ -18,8 +18,6 @@ from __future__ import annotations
 import itertools
 import json
 import os
-import socket
-import subprocess
 import time
 from collections.abc import Callable
 from contextlib import contextmanager
@@ -29,7 +27,13 @@ from pathlib import Path
 from typing import ClassVar
 
 from leaf.files import read_json
-from leaf.leases import adapter_is_live, hooks_ran, step_hook_ran, wait_is_live
+from leaf.leases import (
+    adapter_is_live,
+    hooks_ran,
+    mark_step_hook,
+    step_hook_ran,
+    wait_is_live,
+)
 from leaf.machine import ancestry, pid_alive, process_argv
 from leaf.page_memory import Slot
 from leaf.refusals import Refused
@@ -62,11 +66,10 @@ class Harness:
     - the host, a program that drives App Server and starts every turn itself.
 
     The *transport* is how one delivery enters a turn's context: the hooks
-    (`hook_delivers`, or Codex's tool hook offering a pointer), the wait's
-    output, Codex's queue, or a turn Leaf starts over App Server. The envelope
-    states what the transport decides (`../../references/event-batches.md`).
-    The methods below answer for each
-    harness's watcher and transports:
+    (`hook_delivers`, or Codex's tool hook offering a pointer, `offer_at_step`),
+    the wait's output, Codex's queue, or a turn Leaf starts over App Server. The
+    envelope states what the transport decides (`../../references/event-batches.md`).
+    The methods below answer for each harness's watcher and transports:
 
     - Claude Code runs Leaf's Stop hooks as each turn ends: one watches the
       session's pages in the background and wakes the session when input arrives
@@ -213,6 +216,25 @@ class Harness:
         return {
             "hookSpecificOutput": {"hookEventName": event, "additionalContext": message}
         }
+
+    def reconcile_turn(self, payload: dict, expected: dict | None) -> dict | None:
+        """The session's lifecycle as a hook goes on to read it, from `expected`, the
+        record as the hook found it. A harness that records turns its hooks never
+        see applies them here. A prompt hook reconciles after recording its own
+        turn, every other hook before checking the turn its payload names."""
+        return expected
+
+    def offer_at_step(
+        self, event: str, payload: dict, expected: dict | None
+    ) -> tuple[str | None, dict | None]:
+        """Offer the session's pending page input through hook `event` ahead of the
+        hook transport (`hook_transport.carry_turn`), where this harness's hooks do.
+
+        Returns what the hook puts in the turn's context, which ends the hook, and
+        the lifecycle the hook goes on with otherwise: `expected`, or the renewal
+        an offer made under it. Where the hook transport carries every input,
+        nothing is offered here."""
+        return None, expected
 
     def nudge(self, page_dir: Path) -> bool:
         """Put this page's new input in front of the session, and say whether
@@ -516,6 +538,46 @@ class CodexHarness(EnvironmentHarness):
         if event == "Stop":
             return {"decision": "block", "reason": message}
         return super().hook_context(event, message)
+
+    def reconcile_turn(self, payload: dict, expected: dict | None) -> dict | None:
+        """Codex's native transcript also records turns resumed without input,
+        which run no prompt hook (`codex_state.sync_transcript_turn`)."""
+        if expected is None:
+            return None
+        from .codex_state import sync_transcript_turn
+
+        return sync_transcript_turn(self.session, payload.get("transcript_path"))
+
+    def offer_at_step(
+        self, event: str, payload: dict, expected: dict | None
+    ) -> tuple[str | None, dict | None]:
+        """Both the tool hook and Stop offer a pointer through Codex's one transport
+        reservation (`codex.offer_hook_delivery`), since empty-input resume can
+        reach Stop without running another tool. A tool hook also proves that
+        Codex runs Leaf's hooks for this task (`turn_takes_input`). Stop offers
+        only where the turn would continue for it (`hook_transport.stop_continues`).
+        """
+        if event not in {"PostToolUse", "Stop"} or not payload.get("turn_id"):
+            return None, expected
+        if event == "PostToolUse":
+            mark_step_hook(self.session)
+        from .service import owned_pages
+
+        if not owned_pages(self.session):
+            return None, expected
+        if event == "Stop":
+            from .hook_transport import read_plans, stop_continues
+
+            plans = read_plans(self.session)
+            if not stop_continues(
+                plans,
+                [plan.batch for plan in plans if plan.batch],
+                repeated=bool(payload.get("stop_hook_active")),
+            ):
+                return None, expected
+        from .codex import offer_hook_delivery
+
+        return offer_hook_delivery(self.session, expected)
 
     @classmethod
     def run_ack(cls, delivery_id: str) -> str:
@@ -840,6 +902,8 @@ def resume_claude_code_job(session_id: str, text: str) -> bool:
         for record in claude_code_session_records(session_id)
     ):
         return False
+    import subprocess
+
     try:
         subprocess.Popen(
             ["claude", "--bg", "--resume", session_id, text],
@@ -876,6 +940,8 @@ def message_claude_code_session(session_id: str, text: str) -> bool:
     between reading its record and connecting, so a file that vanished, was
     caught mid-write, lacks a field this reads, or names a socket nobody listens
     on skips that record."""
+    import socket
+
     sessions = claude_code_sessions()
     for record in claude_code_session_records(session_id):
         try:

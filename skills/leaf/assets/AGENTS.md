@@ -420,6 +420,7 @@ keeps its own test says why beside it. Rows marked *lint* are enforced in
 | Paint on the next frame, or watch a size | `rendering.js` `nextRender`, `nextFrame`, `sizeObserver` (*lint*) |
 | Write a DOM value only when it changed | `keeps.js` `keeps` |
 | Threads, workflow, attention, asks, settlement | the server's folds, under "One writer for each fact" |
+| Which asks a region of the page holds | `questions/place.js` `asksIn` |
 
 ### Facts both runtimes know
 

@@ -1275,7 +1275,10 @@ def test_a_side_list_workspace_scrolls_its_list_and_its_item_apart(browser, serv
 
 
 def test_side_tabs_distinguish_withdrawn_questions_from_answers(browser, serve):
-    """Withdrawal retires a request without claiming the user answered it."""
+    """A row's mark says its item's asks are open until every one is answered, and
+    withdrawal retires a request without claiming the user answered it: a row whose
+    only ask was withdrawn shows no mark, and one whose other ask is answered shows
+    the answer."""
     source = leaf_page(
         "Question outcomes",
         '<lf-tabs id="queue" list="side">'
@@ -1288,8 +1291,8 @@ def test_side_tabs_distinguish_withdrawn_questions_from_answers(browser, serve):
     )
     page = open_page(browser, live_url(serve(source)))
     marks = page.locator("#queue .lf-tab-answer")
-    expect(marks.nth(0)).not_to_have_attribute("data-lf-answered", "")
-    expect(marks.nth(1)).not_to_have_attribute("data-lf-answered", "")
+    expect(marks.nth(0)).to_have_attribute("data-lf-asks", "open")
+    expect(marks.nth(1)).to_have_attribute("data-lf-asks", "open")
     stamp_page(
         serve.page_dir,
         source.replace('id="only-options" choose', 'id="only-options"').replace(
@@ -1298,8 +1301,8 @@ def test_side_tabs_distinguish_withdrawn_questions_from_answers(browser, serve):
         "Retire unanswered requests",
     )
     wait_for_revision(page, 2)
-    expect(marks.nth(0)).not_to_have_attribute("data-lf-answered", "")
-    expect(marks.nth(1)).to_have_attribute("data-lf-answered", "")
+    expect(marks.nth(0)).not_to_have_attribute("data-lf-asks", re.compile(".*"))
+    expect(marks.nth(1)).to_have_attribute("data-lf-asks", "answered")
     expect(marks.nth(1)).to_have_text("Keep")
 
 

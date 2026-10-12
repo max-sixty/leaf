@@ -468,6 +468,18 @@ def options_in_pane(page: Page) -> None:
     page.locator("#ar-latency-decision > lf-options").scroll_into_view_if_needed()
 
 
+def tally_after_an_answer(page: Page) -> None:
+    """A queue's tally after Next question and one answer: the count down by one, the
+    answered row's check above the open marks, and Next question's second ask open."""
+    next_question = page.locator("#ar-left .lf-tally-next")
+    next_question.click()
+    page.locator("#ar-canary-consecutive").click()
+    expect(page.locator("#ar-left .lf-tally-words")).to_have_text("8 of 9 to answer")
+    next_question.click()
+    expect(page.locator("#ar-latency-decision")).to_be_focused()
+    settle(page)
+
+
 def card_grabbed(page: Page) -> None:
     """A board card grabbed by keyboard and carried one column left."""
     page.keyboard.press("Tab")
@@ -1249,6 +1261,7 @@ STATES = (
     State(
         "alert-queue-touch", "alert-review", at_rest, viewport=(390, 844), touch=True
     ),
+    State("alert-queue-tally", "alert-review", tally_after_an_answer),
     State("alert-option-long", "alert-review", option_long),
     State("alert-options-in-pane", "alert-review", options_in_pane),
     State("ideas-ask", "ideas-to-implement", ask_by_keyboard),

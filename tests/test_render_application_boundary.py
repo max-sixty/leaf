@@ -2,6 +2,7 @@
 
 import json
 import re
+import time
 from itertools import pairwise
 
 import pytest
@@ -1830,7 +1831,13 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
             "text": "Keep this thread and its editor.",
         },
     )
-    page = open_page(browser, live_url(url))
+    # A fixed wall clock keeps every age label still, so no clock repaint starts a
+    # reading of its own while the failing ones are arranged.
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, color_scheme="light"
+    )
+    context.clock.set_fixed_time(time.time())
+    page = open_page(browser, live_url(url), context=context)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     selected = page.locator('.lf-thread[data-id="selected-thread"]')
@@ -1850,10 +1857,12 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     elif place in {"choose-earlier", "leave-displaced-title"}:
         selected.locator(".lf-thread-summary").click()
 
-    # Choosing an earlier thread while the failing candidate is held starts a newer
-    # reading, and an attempt it supersedes restores nothing; that newer reading fails
-    # too, so restoring the committed reading is its to do.
-    failures = 2 if place == "choose-earlier" else 1
+    # Choosing an earlier thread while the failing candidate is held starts two newer
+    # readings (its disclosure's and the publication's), and an attempt a newer one
+    # supersedes restores nothing. Both fail too, so restoring the committed reading is
+    # the last one's to do. Each failure waits at a gate the test opens, so which
+    # attempt is current when it rejects is the test's arrangement, not a race.
+    failures = 3 if place == "choose-earlier" else 1
     page.evaluate(f"window.listFailures = {failures}")
     page.evaluate(
         """async id => {
@@ -1881,6 +1890,9 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
           let releaseFailure;
           const failedCandidate = new Promise(done => { releaseFailure = done; });
           window.releaseFirstListFailure = releaseFailure;
+          let releaseLater;
+          const laterFailures = new Promise(done => { releaseLater = done; });
+          window.releaseLaterListFailures = releaseLater;
           let releaseNext;
           const next = new Promise(done => { releaseNext = done; });
           window.releaseNextReading = releaseNext;
@@ -1897,6 +1909,9 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
               if (attempt === window.listFailures) {
                 window.failedCandidatePresented = true;
                 await failedCandidate;
+              } else {
+                window.laterCandidatesStarted = (window.laterCandidatesStarted ?? 0) + 1;
+                await laterFailures;
               }
               window.completeListFailures = (window.completeListFailures ?? 0) + 1;
               throw new Error('injected complete-list failure');
@@ -1958,17 +1973,45 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     for route in held_readings:
         route.continue_()
     page.wait_for_function("() => window.failedCandidatePresented === true")
+    # Later state reads wait too while the failures are arranged, so no reading but
+    # the ones the test starts can supersede them.
+    held_readings = []
+    page.route("**/api/state*", lambda route: held_readings.append(route))
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 4")
     if place == "choose-earlier":
         selected = page.locator('.lf-thread[data-id="earlier-thread"]')
         selected.locator(".lf-thread-summary").click()
+        # Once both of the choice's readings have started, the first attempt is
+        # superseded before it rejects, and that rejection settles before the others.
+        # One script runs the sequence, so the restore still answers the press, as it
+        # does when the choice's own reading fails without waiting at a gate.
+        page.evaluate(
+            """async () => {
+              const until = (condition) => new Promise((done) => {
+                const poll = () => (condition() ? done() : requestAnimationFrame(poll));
+                poll();
+              });
+              await until(() => window.laterCandidatesStarted === 2);
+              window.releaseFirstListFailure();
+              await until(() => window.completeListFailures === 1);
+              await new Promise((done) => setTimeout(done));
+              window.releaseLaterListFailures();
+            }"""
+        )
         expect(selected).to_have_attribute("open", "")
-    elif place == "leave-displaced-title":
-        expect(
-            page.locator('[data-withdrawn="selected-thread"] button')
-        ).to_be_focused()
-        page_comment(page)
-    page.evaluate("window.releaseFirstListFailure()")
+    else:
+        if place == "leave-displaced-title":
+            expect(
+                page.locator('[data-withdrawn="selected-thread"] button')
+            ).to_be_focused()
+            page_comment(page)
+        page.evaluate("window.releaseFirstListFailure()")
+    page.wait_for_function(
+        "failures => window.completeListFailures === failures", arg=failures
+    )
+    page.unroute("**/api/state*")
+    for route in held_readings:
+        route.continue_()
     page.wait_for_function(
         """failures => window.completeListFailures === failures &&
           window.nextReadingHeld === true""",

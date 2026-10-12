@@ -112,10 +112,19 @@ export function createDataProjection({ invalidateDom }) {
       identity,
       origin = snapshot?.origin ?? null,
     } of datums) {
+      // A key and an identity become a comment's anchor, and nothing past this point
+      // reads them again, so one that is not a word (an object stringifies to the same
+      // "[object Object]" as the next) would let a comment follow an unrelated datum.
+      if (typeof key !== "string" || !key)
+        throw new TypeError(`projectData(${root.id}) keys must be non-empty strings`);
       if (keys.has(key))
         throw new Error(`projectData(${root.id}) received duplicate key ${key}`);
       keys.add(key);
       if (identity !== undefined) {
+        if (typeof identity !== "string" || !identity)
+          throw new TypeError(
+            `projectData(${root.id}) identity for ${key} must be a non-empty string`,
+          );
         if (identities.has(identity))
           throw new Error(
             `projectData(${root.id}) received duplicate identity ${identity}`,

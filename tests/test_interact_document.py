@@ -573,12 +573,7 @@ def test_an_interrupted_capture_never_publishes_a_partial_revision(
     )
 
 
-def test_artifact_cache_refuses_a_replaced_immutable_manifest(page_dir):
-    activated = revisioning_model.activate_source(page_dir)
-    assert activated.error is None and activated.revision == 1
-    revision = files_model.latest_revision(page_dir)
-    first = artifact_model.read_artifact(page_dir, revision)
-    assert artifact_model.read_artifact(page_dir, revision) is first
+def _replace_manifest(page_dir, revision):
     manifest_path = (
         files_model.revision_path(page_dir, revision).with_suffix("") / "manifest.json"
     )
@@ -588,8 +583,27 @@ def test_artifact_cache_refuses_a_replaced_immutable_manifest(page_dir):
         [(manifest_path, json.dumps(manifest, sort_keys=True).encode(), False)]
     )
 
+
+def test_artifact_read_refuses_a_replaced_immutable_manifest(page_dir):
+    activated = revisioning_model.activate_source(page_dir)
+    assert activated.error is None and activated.revision == 1
+    revision = files_model.latest_revision(page_dir)
+    _replace_manifest(page_dir, revision)
+
     with pytest.raises(artifact_model.ArtifactError, match="manifest digest"):
         artifact_model.read_artifact(page_dir, revision)
+
+
+def test_artifact_cache_holds_a_bundle_by_its_content_addressed_path(page_dir):
+    """A revision's name carries its manifest's digest, so a held bundle is read
+    once; a later change to its files is not reread."""
+    activated = revisioning_model.activate_source(page_dir)
+    assert activated.error is None and activated.revision == 1
+    revision = files_model.latest_revision(page_dir)
+    first = artifact_model.read_artifact(page_dir, revision)
+    _replace_manifest(page_dir, revision)
+
+    assert artifact_model.read_artifact(page_dir, revision) is first
 
 
 def test_stylesheet_dependencies_obey_the_same_capture_boundary(page_dir):

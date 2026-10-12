@@ -3910,8 +3910,9 @@ main:not([data-lf-margin~="map"], [data-lf-margin~="sidebar"]) #bg-sidebar {disp
 )
 
 
-def _draft_in_view(page, words):
-    field = page.locator(".lf-fab-input")
+def _draft_in_view(page, words, field=None):
+    if field is None:
+        field = page.locator(".lf-fab-input")
     box = field.bounding_box()
     viewport = page.viewport_size
     return (

@@ -72,6 +72,7 @@ from render_harness import (
     resized,
     round_trip,
     scroll_settled,
+    select,
     select_words,
     sending,
     shortcut_bar_text,
@@ -6794,3 +6795,112 @@ def test_a_delayed_draft_close_yields_to_a_newer_page_selection(browser, serve):
     # The shared selection owner may expand partial words; the newer passage remains.
     assert selected in page.evaluate("getSelection().toString()")
     page.evaluate("stopCloseObserver()")
+
+
+@pytest.mark.parametrize("edited", [False, True], ids=["seed", "edited"])
+def test_commenting_on_the_same_selection_preserves_the_existing_suggestion(
+    browser, serve, edited
+):
+    """Activating an already captured passage focuses its existing draft and mode."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Selection mode",
+                '<h1>Selection mode</h1><p id="words">The same selected passage.</p>',
+            )
+        ),
+    )
+    select_words(page, "#words")
+    page.keyboard.press("c")
+    editor = page.locator(".lf-fab-input")
+    expect(editor).to_be_focused()
+    page.keyboard.press("Tab")
+    page.locator(".lf-fab-suggest").click()
+    expect(editor).to_have_attribute("placeholder", re.compile(r"^Replacement text"))
+    words = "My replacement" if edited else "The same selected passage."
+    if edited:
+        write(editor, words)
+    select_words(page, "#words")
+    rendered(page)
+    expect(page.locator('input[name="suggest-replacement"]')).to_be_checked()
+    page.keyboard.press("c")
+    expect(editor).to_be_focused()
+    expect(editor).to_have_js_property("value", words)
+    expect(editor).to_have_attribute("placeholder", re.compile(r"^Replacement text"))
+
+
+@pytest.mark.parametrize("resumed", [False, True])
+def test_saved_widget_words_cannot_dismiss_an_unfinished_comment(browser, serve, resumed):
+    """A later widget edit retains the active or resumed native comment editor."""
+    source = leaf_page(
+        "Mutable words",
+        '<h1>Mutable words</h1><lf-draft id="mutable">'
+        "<pre>The words first shown.</pre></lf-draft>",
+    )
+    url = serve(source)
+
+    def replace_words(value="Different saved words."):
+        append_command(
+            serve.page_dir,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": "mutable",
+                "action": "edit",
+                "detail": {"value": value},
+            },
+        )
+
+    page = open_page(browser, url)
+    shown = page.locator("#mutable .lf-draft-body")
+    expect(shown).to_have_text("The words first shown.")
+    bounds = shown.evaluate(
+        "e => { const r = document.createRange(); r.selectNodeContents(e); "
+        "return r.getBoundingClientRect().toJSON(); }"
+    )
+    y = bounds["top"] + bounds["height"] / 2
+    select(page, (bounds["left"] + 1, y), (bounds["right"] - 1, y))
+    page.keyboard.press("c")
+    editor = page.locator(".lf-fab-input")
+    words = "Keep this unfinished observation."
+    write(editor, words)
+    if resumed:
+        page.keyboard.press("Escape")
+        page.mouse.click(5, 600)
+        page.keyboard.press("g")
+        page.keyboard.press("i")
+        expect(editor).to_be_focused()
+    editor.press("Home")
+    editor.press("Shift+ArrowRight")
+    caret = editor.evaluate("e => [e.selectionStart, e.selectionEnd]")
+    rendered(page)
+    editor_before = editor.bounding_box()
+    replace_words()
+    told(page)
+    expect(shown).to_have_text("Different saved words.")
+    rendered(page)
+    editor_after = editor.bounding_box()
+    assert abs(editor_after["x"] - editor_before["x"]) < 1
+    assert abs(editor_after["y"] - editor_before["y"]) < 1
+    expect(editor).to_be_visible()
+    expect(editor).to_be_focused()
+    expect(editor).to_have_js_property("value", words)
+    assert editor.evaluate("e => [e.selectionStart, e.selectionEnd]") == caret
+    replace_words("The words first shown.")
+    told(page)
+    rendered(page)
+    editor_restored = editor.bounding_box()
+    assert abs(editor_restored["x"] - editor_before["x"]) < 1
+    assert abs(editor_restored["y"] - editor_before["y"]) < 1
+    page.keyboard.press("ControlOrMeta+Enter")
+    round_trip(page)
+    comments = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("text") == words
+    ]
+    assert len(comments) == 1
+    assert comments[0]["revision"] == 1
+    assert comments[0]["anchor"]["quote"] == "The words first shown."

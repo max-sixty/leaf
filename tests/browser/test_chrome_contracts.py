@@ -203,6 +203,9 @@ class _ProblemPage:
     def add_init_script(self, **_):
         pass
 
+    def expose_binding(self, *_):
+        pass
+
     def on(self, *_):
         pass
 

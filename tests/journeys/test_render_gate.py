@@ -189,7 +189,7 @@ def test_a_broken_probe_module_is_a_gate_finding(browser, serve):
         )
 
     failures = render_gate_model.render_version(
-        primed(browser, break_probe), serve(LONG_PAGE)
+        primed(browser.unwatched, break_probe), serve(LONG_PAGE)
     ).failures
 
     assert failures

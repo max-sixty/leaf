@@ -847,7 +847,8 @@ opening's automatic focus, so place the intended arrival with `focusDestination`
 popover keeps its `source` when Leaf re-seats it, as it does when a panel starts or stops
 covering the page. Close a native dialog or popover with `closeNativeLayer(layer)`,
 which inside a sample keeps the platform's return from taking focus from the containing
-page.
+page. `isNativeLayer(node)` asks whether a popover is open or a dialog stands modal; lint
+refuses a selector that asks it again.
 
 A layer closes with `closeLayer(close, land)`. `close` hides it, and `land`, a function,
 puts a user who stood in it where the close takes them, usually

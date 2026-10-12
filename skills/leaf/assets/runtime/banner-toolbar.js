@@ -47,6 +47,7 @@
  * `watchBannerRows` calls back after each change to which stand.
  */
 import { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
+import { isNativeLayer } from "./shadow-tree.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { setChildLists } from "./dom-children.js";
 import { el } from "./widget-elements.js";
@@ -144,7 +145,7 @@ const currentMenuSeats = () =>
 // The door's name says what its dot stands for: each urgent control behind it names
 // its news.
 function paintDoor() {
-  const open = overflowMenu.matches(":popover-open");
+  const open = isNativeLayer(overflowMenu);
   const news = [
     ...new Set(
       menu.filter((entry) => entry.urgent && visible(entry)).map((e) => e.urgent),
@@ -463,7 +464,7 @@ function focusAfterRemoval(entry, wasInMenu) {
 // answers the layer's shared disclosure route: `reveal` walks the ancestors of what a
 // caller means to show, and this is the only one that can open for a menu control.
 function revealMenuControl(control) {
-  if (!overflowMenu.matches(":popover-open")) {
+  if (!isNativeLayer(overflowMenu)) {
     showNativeLayer(overflowMenu);
     return;
   }
@@ -500,7 +501,7 @@ export function bannerControlDoor(control = overflowBtn) {
 // hands the user back to the door, and the user stands on the control.
 export function returnToBannerControl(control) {
   if (overflowMenu.contains(control)) {
-    if (!overflowMenu.matches(":popover-open")) focusDestination(overflowBtn, "return");
+    if (!isNativeLayer(overflowMenu)) focusDestination(overflowBtn, "return");
     revealMenuControl(control);
   }
   const destination = bannerControlDoor(control);
@@ -508,5 +509,5 @@ export function returnToBannerControl(control) {
 }
 
 export function dismissBannerControls() {
-  if (overflowMenu.matches(":popover-open")) closeNativeLayer(overflowMenu);
+  if (isNativeLayer(overflowMenu)) closeNativeLayer(overflowMenu);
 }

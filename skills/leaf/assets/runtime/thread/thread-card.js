@@ -31,7 +31,13 @@
    whole-thread geometry readings rather than descendant nodes. */
 import { nextRender, sizeObserver } from "../rendering.js";
 import { setChildLists, setChildren } from "../dom-children.js";
-import { holdFocus, focusDestination, focused, standsOn } from "../focus.js";
+import {
+  holdFocus,
+  focusDestination,
+  focused,
+  standsOn,
+  standingIn,
+} from "../focus.js";
 import { html, render, nothing, ref } from "../../vendor/browser-runtime.js";
 import { turns, threadKey, threadSummary } from "./model.js";
 import { anchorLabel, MessageView, messageReading } from "./messages.js";
@@ -616,8 +622,7 @@ export class ThreadView {
           grow: false,
           settlement: Object.freeze({ ...prior.settlement, pending: false }),
         });
-        if (this.node.contains(focused()))
-          focusDestination(this.#commands.listRoot, "return");
+        if (standingIn(this.node)) focusDestination(this.#commands.listRoot, "return");
       }
     }
     if (this.#heldNews)
@@ -1287,7 +1292,7 @@ export class ThreadView {
       available: () => this.node.isConnected,
     });
     const land = (may = mayLand) => {
-      if (!may() || !this.node.contains(focused())) return false;
+      if (!may() || !standingIn(this.node)) return false;
       scrollThreadIntoView(this.node, focused());
       return true;
     };

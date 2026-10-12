@@ -51,6 +51,7 @@ import {
   takesLetters,
   whenLeft,
   deepFocus,
+  standingIn,
 } from "../focus.js";
 import { under } from "../shadow.js";
 import { scrollBehavior } from "../motion.js";
@@ -500,7 +501,7 @@ async function showThreadNow(
       else focusDestination(destination, "move");
     });
   }
-  const directThread = node === thread && thread.contains(focused());
+  const directThread = node === thread && standingIn(thread);
   // A direct arrival aims at the reply area wherever the user stands in the thread; a
   // long thread whose reply row is pinned aims at the thread's end, which the row
   // stands over.

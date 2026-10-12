@@ -25,7 +25,7 @@ import {
   tellDraft,
 } from "../drafts.js";
 import { sendLanding } from "./reply-landing.js";
-import { readCaret, focused } from "../focus.js";
+import { readCaret, focused, standingIn } from "../focus.js";
 import { threadKey } from "./model.js";
 import { closestAcross } from "../passages.js";
 import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
@@ -390,7 +390,7 @@ export function createReplyView(
     binding.take = (owner) => {
       // The row going holds no place of the user's: whoever carries the owner's row
       // puts them in it (focus.js, `replyDestination`), not the redraw's focus hold.
-      if (composition.row.contains(focused())) focused().blur();
+      if (standingIn(composition.row)) focused().blur();
       detach();
       // The row given up is gone for good, so no later hand-off carries it back.
       composition.retired = true;

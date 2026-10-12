@@ -123,6 +123,7 @@ import {
   focusDestination,
   focused,
   closeLayer,
+  standingIn,
 } from "../focus.js";
 import { commandScope, projectCommandScope } from "../keyboard/scopes.js";
 import { under, upFrom } from "../shadow.js";
@@ -1234,7 +1235,7 @@ export function createResponseSurface({
       inline &&
       (inline.dataset.thread ?? inline.dataset.id) === threadId &&
       (!here ||
-        inline.contains(focused()) ||
+        standingIn(inline) ||
         (target && under(target, heldQuestion() ?? here.element))) &&
       threadInput(inline);
     const said =

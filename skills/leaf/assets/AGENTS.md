@@ -389,6 +389,7 @@ keeps its own test says why beside it. Rows marked *lint* are enforced in
 | Question | Owner |
 | --- | --- |
 | Where the user stands: focus inside open shadow trees, or a label press holding them; asked in one tree, the node standing for it there | `focus.js` `focused`, `focused(tree)` (*lint*) |
+| Whether the user stands in a scope, across shadow trees and slots | `focus.js` `standingIn` (*lint*) |
 | The user's working place, read before something borrows it and handed back after | `history.js` `readPlace`, `returnPlace` |
 | Where a page walk starts, and which item it steps to from there | `standing-target.js` `walkOrigin`, `stepFrom` |
 | Which of two nodes the reader reaches first, across shadow trees | `shadow-tree.js` `renderedOrder`, `byRenderedOrder` |

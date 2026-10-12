@@ -19,7 +19,7 @@ import {
   scrollersOf,
 } from "./reading-regions.js";
 import { walkOrigin, heldQuestion, placeOf, stepFrom } from "./standing-target.js";
-import { focused } from "./focus.js";
+import { focused, standingIn } from "./focus.js";
 import { bannerStanding } from "./banner-toolbar.js";
 import { pageSelection } from "./composing/capture.js";
 import { blockAt, closestAcross, pageRange } from "./passages.js";
@@ -111,8 +111,7 @@ function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
   const targetId = !current && threadAtStanding();
   const atTarget = targetId && threads.find((thread) => thread.dataset.id === targetId);
   // Focus on a list row the walk does not count, such as a withdrawn thread's notice.
-  const atRow =
-    panelIsOpen() && focused() !== threadsBox && threadsBox.contains(focused());
+  const atRow = panelIsOpen() && focused() !== threadsBox && standingIn(threadsBox);
   const { row: next, wrapped } = current
     ? cycledRow(threads, current, dir)
     : atTarget

@@ -609,6 +609,26 @@ export const standingReadsRule = {
         )
           context.report({ node, message: STANDING_READ_MESSAGE });
       },
+      // `scope.contains(focused())` stops at a shadow root and misses a node slotted
+      // into the scope, where `standingIn(scope)` climbs as rendered.
+      CallExpression(node) {
+        const { callee, arguments: args } = node;
+        if (
+          callee.type === "MemberExpression" &&
+          !callee.computed &&
+          callee.property.name === "contains" &&
+          args.length === 1 &&
+          args[0].type === "CallExpression" &&
+          args[0].callee.type === "Identifier" &&
+          args[0].callee.name === "focused" &&
+          args[0].arguments.length === 0
+        )
+          context.report({
+            node,
+            message:
+              "Ask whether the user stands in a scope with standingIn(scope) (runtime/focus.js; widget-api.js in a package): contains() stops at a shadow root.",
+          });
+      },
     };
   },
 };

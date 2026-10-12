@@ -134,7 +134,7 @@ import { bannerControlDoor } from "../banner-toolbar.js";
 
 import { seenRect, shownWindow, skipped, watchRoom } from "../geometry.js";
 
-import { hostIn, under } from "../shadow.js";
+import { hostIn, renderedUnder, under } from "../shadow.js";
 import { retainUserIntent } from "../user-intent.js";
 
 export function createMarginProjection({
@@ -1156,7 +1156,7 @@ export function createMarginProjection({
     const source =
       pointerHost ??
       focusedHost ??
-      ((preview.contains(active) || previewOpen()) && !onTarget
+      ((renderedUnder(active, preview) || previewOpen()) && !onTarget
         ? hosts.get(card.selection()?.entry?.key)
         : null);
     const entry = pageInventory.find(
@@ -1298,7 +1298,7 @@ export function createMarginProjection({
       !previewOpen() ||
       (atFocus &&
         !nowhere &&
-        !preview.contains(active) &&
+        !renderedUnder(active, preview) &&
         !(card.selection()?.control && host?.contains(card.selection()?.control)))
     )
       return null;
@@ -1592,8 +1592,8 @@ export function createMarginProjection({
     if (
       !active ||
       active === document.body ||
-      preview.contains(active) ||
-      panel.contains(active) ||
+      renderedUnder(active, preview) ||
+      renderedUnder(active, panel) ||
       designModeActive()
     )
       return;
@@ -1670,7 +1670,7 @@ export function createMarginProjection({
   const accompaniedThreadHere = () => {
     const active = focused();
     if (panelIsOpen()) {
-      const entry = active && !panel.contains(active) && threadEntryAt(active);
+      const entry = active && !renderedUnder(active, panel) && threadEntryAt(active);
       return entry ? accompaniedThread(threadIdsOf(entry)) : null;
     }
     return card.accompanied();

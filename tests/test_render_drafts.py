@@ -1339,7 +1339,11 @@ def test_an_empty_draft_survives_reload_and_a_live_revision(browser, serve):
 def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     """A second gesture cannot overtake an earlier request or let that request clear
     newer unsent text. Hold the first POST in the browser: while it owns the draft,
-    every edit door stays closed and the exact body remains recoverable."""
+    every edit door stays closed and the exact body remains recoverable, and the busy
+    draft is readable content.
+
+    A refused save is then an editable state, with Retry and Cancel at the same
+    target."""
     page = open_page(browser, serve(JOURNEY_V1))
     page.evaluate(
         """() => {
@@ -1367,6 +1371,10 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     draft_control(page, "save", "draft-ops").click()
     expect(draft).to_have_attribute("aria-busy", "true")
     assert stored_draft_text(page, "edit:draft-ops") == sent
+    expect(draft.locator(".lf-draft-body")).to_have_text(sent)
+    expect(draft).to_have_css("opacity", "1")
+    expect(draft).to_have_css("cursor", "progress")
+    assert draft.evaluate("node => node.getAnimations().length") == 0
 
     expect(draft_control(page, "edit", "draft-ops")).to_be_disabled()
     # The projection owns a native disabled button, so a forced DOM click is refused
@@ -1386,44 +1394,11 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
         if event["kind"] == "action"
     ]
     assert [event["detail"]["value"] for event in events] == [sent]
+    expect(draft.locator(".lf-draft-body")).to_have_text(sent)
 
     draft_control(page, "edit", "draft-ops").click()
-    expect(draft.locator("leaf-text")).to_be_focused()
-    page.keyboard.press("Escape")
-
-
-def test_a_sending_draft_keeps_its_edited_reading_legible(browser, serve):
-    """A busy draft is readable content, including while its Save waits on delivery."""
-    page = open_page(browser, serve(JOURNEY_V1))
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    draft = page.locator("#draft-ops")
-    draft.locator(".lf-draft-body").dblclick()
-    words = "Keep the edited words readable while their delivery is pending."
-    write(draft.locator("leaf-text"), words)
-    draft_control(page, "save", "draft-ops").click()
-    holding(page, held, 1, "the draft edit")
-    expect(draft).to_have_attribute("aria-busy", "true")
-    expect(draft.locator(".lf-draft-body")).to_have_text(words)
-    expect(draft).to_have_css("opacity", "1")
-    expect(draft).to_have_css("cursor", "progress")
-    assert draft.evaluate("node => node.getAnimations().length") == 0
-
-    held[0].continue_()
-    page.unroute("**/api/event")
-    round_trip(page)
-    expect(draft).not_to_have_attribute("aria-busy", "true")
-    expect(draft.locator(".lf-draft-body")).to_have_text(words)
-
-
-def test_a_refused_draft_keeps_text_and_offers_retry_without_a_details_pane(
-    browser, serve
-):
-    """Failure is an editable state, with Retry and Cancel at the same target."""
-    page = open_page(browser, serve(JOURNEY_V1))
-    draft = page.locator("#draft-ops")
-    draft.locator(".lf-draft-body").dblclick()
     editor = draft.locator("leaf-text")
+    expect(editor).to_be_focused()
     write(editor, "Keep these unsent words.")
     page.route(
         "**/api/event",
@@ -1456,7 +1431,8 @@ def test_a_refused_draft_keeps_text_and_offers_retry_without_a_details_pane(
         if event.get("action") == "edit"
     ]
     assert [event["detail"] for event in edits] == [
-        {"value": "Keep the revised unsent words."}
+        {"value": sent},
+        {"value": "Keep the revised unsent words."},
     ]
     consume_browser_errors(page, "400")
 
@@ -1773,47 +1749,6 @@ def test_a_refused_selection_comment_leaves_the_words_on_their_passage(
     consume_browser_errors(page, "400")
 
 
-def test_a_reply_behind_a_refused_parent_is_withdrawn_rather_than_sent(
-    held_events, serve
-):
-    """A gesture against a message the log refused has nothing left to be about. It
-    never reaches the wire under a name only this page used, and its own words go back
-    to the box they were written in."""
-    browser, held = held_events
-    page = open_page(browser, serve(LONG_PAGE))
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    write(page_comment(page), "The parent the server will refuse.")
-    page.locator(".lf-general .lf-compose-submit").click()
-    holding(page, held, 1, "the parent send")
-
-    card = page.locator('.lf-thread[data-id^="pending:"]')
-    expect(card).to_have_count(1)
-    words = "A reply behind a parent that never lands."
-    write(card.locator("leaf-text").first, words)
-    card.get_by_role("button", name="Send", exact=True).click()
-
-    attempt = held[0].request.post_data_json["attempt"]
-    with page.expect_response(lambda response: "/api/event" in response.url):
-        held.pop(0).fulfill(
-            status=400,
-            json={
-                "ok": False,
-                "attempt": attempt,
-                "error": "refused before append",
-                "final": True,
-            },
-        )
-    round_trip(page)
-    expect(card).to_have_count(0)
-    assert not [
-        route for route in held if "pending:" in (route.request.post_data or "")
-    ], "a gesture reached the wire naming a thread the log never took"
-    # The reply's draft keys by its thread's stable name, which is the parent's attempt.
-    assert stored_draft_text(page, f"reply:{attempt}") == words
-    consume_browser_errors(page, "400")
-
-
 def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
     held_events, serve
 ):
@@ -1821,7 +1756,11 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
 
     The user has moved on to the pending thread in Threads by the time the refusal
     lands, so the card's box does not take their keys back: the words wait in it, and
-    focus falls from the withdrawn thread to the list it stood in."""
+    focus falls from the withdrawn thread to the list it stood in.
+
+    A reply the user sent behind that parent has nothing left to be about. It never
+    reaches the wire under a name only this page used, and its own words go back to the
+    box they were written in."""
     browser, held = held_events
     page = open_page(browser, serve(LONG_PAGE))
     page.locator(".lf-threads-toggle").click()
@@ -1834,6 +1773,9 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
     holding(page, held, 1, "the general send")
     pending = page.locator('.lf-thread[data-id^="pending:"]')
     expect(pending).to_have_count(1)
+    reply = "A reply behind a parent that never lands."
+    write(pending.locator("leaf-text").first, reply)
+    pending.get_by_role("button", name="Send", exact=True).click()
     # The card is a native disclosure, so its title is the stop the user stands on.
     title = pending.locator(":scope > .lf-thread-summary")
     title.focus()
@@ -1857,11 +1799,17 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
     expect(box).to_have_js_property("value", words)
     expect(page.locator(".lf-notice")).to_contain_text("Couldn't send")
     assert stored_draft_text(page, "general") == words
+    round_trip(page)
     assert not [
         event
         for event in events_model.read_events(serve.page_dir)
-        if event.get("text") == words
+        if event.get("text") in {words, reply}
     ]
+    assert not [
+        route for route in held if "pending:" in (route.request.post_data or "")
+    ], "a gesture reached the wire naming a thread the log never took"
+    # The reply's draft keys by its thread's stable name, which is the parent's attempt.
+    assert stored_draft_text(page, f"reply:{attempt}") == reply
     consume_browser_errors(page, "400")
 
 
@@ -4403,16 +4351,22 @@ def test_a_composer_on_one_passage_is_one_box_in_every_tab(browser, serve, one_u
     assert said == [sent], "one box, and so one comment however many tabs showed it"
 
 
-def test_text_alignment_is_lossless_and_keeps_a_shared_spine(browser, serve):
-    """The draft renderer is allowed to choose where an ambiguous repeated word
-    aligns, but never to lose or invent a character. The two projections are the
-    contract: same+delete is the old text, same+insert the new one. Unicode,
-    whitespace and repetition are where a character or regex diff quietly breaks.
+def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, serve):
+    """One disclosure answers both deferred draft decisions. It compares this version's
+    authored body with the standing body, retains every absolute edit in log order,
+    and walks back by posting another ordinary edit. A second tab proves restore is
+    durable replay rather than local history state; copy mode proves the local history
+    does not survive without its handlers.
 
-    Both granularities, because the unit is the caller's and the contract is not: a
-    draft's history aligns by word, while an inline version comparison starts with
-    sentences and refines a local edit by word. Neither may drop or invent a character."""
-    page = open_page(browser, serve(JOURNEY_V1))
+    The comparison is drawn by the text aligner, which is allowed to choose where an
+    ambiguous repeated word aligns, but never to lose or invent a character: same+delete
+    is the old text, same+insert the new one. Unicode, whitespace and repetition are
+    where a character or regex diff quietly breaks. Both granularities, because the unit
+    is the caller's and the contract is not: a draft's history aligns by word, while an
+    inline version comparison starts with sentences and refines a local edit by word.
+    Its words come from Intl.Segmenter, so it is read in the browser."""
+    url = serve(JOURNEY_V1)
+    page = open_page(browser, url)
     cases = [
         ("", ""),
         ("one line", "one longer line"),
@@ -4471,15 +4425,6 @@ def test_text_alignment_is_lossless_and_keeps_a_shared_spine(browser, serve):
         ", including focused replays of its motion"
     )
 
-
-def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, serve):
-    """One disclosure answers both deferred draft decisions. It compares this version's
-    authored body with the standing body, retains every absolute edit in log order,
-    and walks back by posting another ordinary edit. A second tab proves restore is
-    durable replay rather than local history state; copy mode proves the local history
-    does not survive without its handlers."""
-    url = serve(JOURNEY_V1)
-    page = open_page(browser, url)
     draft = page.locator("#draft-ops")
     edits = [
         "Run the migration before deploying. It takes one minute.",

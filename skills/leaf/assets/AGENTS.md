@@ -487,9 +487,10 @@ contains its source, prompt, typed answer, status and next actor. The browser
 selects each widget answer from the same local-inclusive state its controls draw,
 without folding its `x-awaits.answered` completion rule again. A required-version
 approval is another ask source: its local approval or undo updates its contained
-answer and status immediately, with refusal restoring the admitted reading. Thread attention
-(`needs_user` or `waiting`) changes locally for unresolved sends; a refusal restores
-the admitted reading. Asks derive their queue rows directly, while to-dos hold
+answer and status immediately, with refusal restoring the admitted reading. While a
+reply, rewrite, settlement or settling reaction is unresolved, its thread's attention and the asks
+in it the user owes are what the server read that gesture leaving them (each served
+thread's `after`); a refusal restores the admitted reading. Asks derive their queue rows directly, while to-dos hold
 explicit committed work. Every state read has
 one `through_seq`, and version comparison asks `/api/view` at the sequence
 already applied. A page widget's projection stops at the current revision; a
@@ -529,8 +530,8 @@ visible change").
 
 ## Working on the runtime
 
-`../references/module-authoring.md`, "Template rendering", owns container ownership
-and how placements keep the user's place. Paints whose contract requires the current
+`../references/module-authoring.md`, "Template rendering" and "Retained nodes", own
+container ownership and how placements keep the user's place. Paints whose contract requires the current
 turn use `render`; `LitElement` schedules updates on a microtask and belongs only to
 runtime faces that permit that delay.
 

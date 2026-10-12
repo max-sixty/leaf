@@ -280,9 +280,12 @@ def test_versions_travel_and_approval_open_in_the_panel(browser, serve):
 def test_a_mode_entered_from_the_panel_offers_its_way_out_in_the_row(browser, serve):
     """The pen opens Annotations, whose Draw mode, while it holds the banner's gesture
     seat, stands its steps in the row in the counts' place; Exit leaves the mode and
-    the counts return."""
+    the counts return. Picking an element is left to the page, where selecting words
+    or pressing `s` starts it, so Annotations doesn't list it."""
     page = floating(browser, serve(LONG_PAGE, comments=1))
     page.locator(".lf-fp-annotate").click()
+    expect(page.locator(".lf-fp-item", has_text="Capture area")).to_be_visible()
+    expect(page.locator(".lf-fp-item", has_text="Select element")).to_have_count(0)
     page.locator(".lf-fp-item", has_text="Draw mode").click()
     exit_step = page.locator(".lf-fp-step", has_text="Exit Draw mode")
     expect(exit_step).to_be_visible()

@@ -26,7 +26,9 @@ what the module header of `runtime/floating-panel.js` now states:
   which no longer stand at the window's head (`--lf-notice-seat: panel`).
 - **Marks with counts in the row**: the question mark, the thread mark with a dot
   for news, and the pen, which opens Annotations. Send stands in their place while
-  the user types.
+  the user types. Annotations leaves out Select element, which the user starts on
+  the page by selecting words or pressing `s` ("I don't think we need the select
+  mode").
 - **The leaf's menu is a small menu** of one-line rows with each row's shortcut
   (the toolbar row contract's `shortcut`), the agent's state at its head.
 - **Where the user is sits at a view's top edge**, with its filters, search,

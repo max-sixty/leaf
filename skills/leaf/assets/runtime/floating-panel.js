@@ -100,7 +100,9 @@ const OWN_VIEWS = Object.freeze({
   queue: "questions",
   versions: "versions",
 });
-// Rows the panel's row or its views already hold, so the menu leaves them out.
+// Rows held elsewhere, so the menu and its groups leave them out: by the panel's row or
+// its views, or, for picking an element to comment on, by the page itself, where
+// selecting words or pressing `s` already starts it.
 const FOLD = "panel.floating.fold";
 const HELD_ELSEWHERE = Object.freeze([
   "threads",
@@ -109,7 +111,11 @@ const HELD_ELSEWHERE = Object.freeze([
   "approval",
   "keyboard",
   `command:${FOLD}`,
+  "command:target.picker.open",
 ]);
+// A row the menu or a group lists: neither held elsewhere nor the next step of a
+// gesture, which stands in the counts' place instead.
+const listed = (entry) => !entry.gesture && !HELD_ELSEWHERE.includes(entry.key);
 const FILTERS = Object.freeze(["open", "unread", "drafts", "resolved"]);
 const capital = (word) => word[0].toUpperCase() + word.slice(1);
 const coarse = () => matchMedia("(pointer: coarse)").matches;
@@ -565,12 +571,7 @@ export function createFloatingPanel({
     // the page's rows follow in the toolbar's order.
     const lead = Object.keys(OWN_VIEWS);
     const page = all
-      .filter(
-        (entry) =>
-          entry.group === "page" &&
-          !entry.gesture &&
-          !HELD_ELSEWHERE.includes(entry.key),
-      )
+      .filter((entry) => entry.group === "page" && listed(entry))
       .sort(
         (a, b) =>
           (lead.includes(a.key) ? lead.indexOf(a.key) : lead.length) -
@@ -579,7 +580,7 @@ export function createFloatingPanel({
     const keyboard = all.find((entry) => entry.key === "keyboard");
     const fold = all.find((entry) => entry.key === `command:${FOLD}`);
     const groups = Object.keys(GROUPS).filter((group) =>
-      all.some((entry) => entry.group === group && !entry.gesture),
+      all.some((entry) => entry.group === group && listed(entry)),
     );
     // The state in a word over its one line; the whole of it on hover, as on the leaf.
     const word = TONE_WORDS[status.tone];
@@ -616,7 +617,7 @@ export function createFloatingPanel({
   function groupView(group) {
     return html`<div class="lf-fp-list">
       ${rows()
-        .filter((entry) => entry.group === group && !entry.gesture)
+        .filter((entry) => entry.group === group && listed(entry))
         .map(rowFor)}
     </div>`;
   }
@@ -921,7 +922,7 @@ export function createFloatingPanel({
         prompt
           ? html`<h3 class="lf-fp-qtitle">${title}</h3>
               <p class="lf-fp-prompt">${prompt}</p>`
-          : html`<p class="lf-fp-prompt lf-fp-whole">${title}</p>`
+          : html`<p class="lf-fp-prompt">${title}</p>`
       }
       <div class="lf-fp-answers">${answers}</div>
     </section>`;
@@ -1012,7 +1013,7 @@ export function createFloatingPanel({
           },
         )}<button
           type="button"
-          class="lf-fp-icon-btn lf-fp-find"
+          class="lf-fp-icon-btn"
           aria-label="Find a thread or message"
           aria-pressed=${String(searching)}
           @click=${() => {

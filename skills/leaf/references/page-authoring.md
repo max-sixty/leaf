@@ -425,7 +425,9 @@ readable and its parts stay commentable. For fixed recordings and screen capture
 follow `authoring-evidence.md`, "Source files and media". When the shape of numbers is
 the point — a trend, ranking, groups on one scale, or series moving together —
 lead with an `lf-chart`, even if the numbers compare the same dimensions across
-items. Put a table below it in `<details>` when readers also need exact values.
+items. The chart labels the values the page's argument cites (`lf-chart`'s
+instructions); put the rest in a table below it in `<details>` when readers also
+need exact values.
 Use a table for value lookup, mixed units that cannot share an axis, or comparisons
 with text-heavy cells; use native sections for a few alternatives read as wholes,
 and `lf-options` when the user must choose among them. A headline measurement is

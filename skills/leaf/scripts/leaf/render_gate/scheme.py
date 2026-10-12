@@ -9,7 +9,6 @@ from leaf.files import version_num
 from leaf.registry.contract import element_declarations
 from leaf.render_checks import (
     HANDOVER_DEADLINE_MS,
-    ProbesUnlinked,
     SERVED_TIMEOUT_MS,
     PageNotReady,
     evaluate_probe,
@@ -310,7 +309,7 @@ def _render_scheme(
             [],
             False,
         )
-    except (PlaywrightError, ProbesUnlinked) as error:
+    except PlaywrightError as error:
         return probe_failure(error)
     except RuntimeError as error:
         page.close()
@@ -350,7 +349,7 @@ def _render_scheme(
             [],
             False,
         )
-    except (PlaywrightError, ProbesUnlinked) as error:
+    except PlaywrightError as error:
         return probe_failure(error)
     # The served documents every reading below is asked against, read once each
     # (`served` says why they are read from out here rather than fetched inside

@@ -73,6 +73,7 @@ from render_harness import (
     REPLY_HOST_PAGE,
     TOKEN,
     consume_browser_errors,
+    held_frames,
     leaf_page,
     margins_laid_out,
     nudge,
@@ -2346,8 +2347,8 @@ def test_a_scrolling_breakout_table_keeps_its_caption_in_its_scrollport(
     container its caption reads its width from; the caption is held to the box instead.
     On a phone, where the room is the column and an eight-column table scrolls, a long
     caption stays inside the scrollport at either end of the scroll: in the page's flow,
-    in a list item, which its list indents from the column the bound measures from and
-    so keeps the table its own container, and in a quotation, whose frame holds it."""
+    in a list item, whose table is measured from the column as the bound is, and in a
+    quotation, whose frame holds it."""
     cells = "".join(f"<td>measured value {i}</td>" for i in range(8))
     caption = "Services in the migration, by stage, with their owners and windows"
     table = (
@@ -2378,6 +2379,283 @@ def test_a_scrolling_breakout_table_keeps_its_caption_in_its_scrollport(
         assert at["caption"][0] >= at["box"][0] - 1, (end, at)
         assert at["caption"][1] <= at["box"][1] + 1, (end, at)
     assert root_overflow(page) == 0
+
+
+INDENTED_CELLS = "".join(f"<td>measured value {i}</td>" for i in range(8))
+
+
+def _indented(name):
+    """The breakouts one indented holder holds, each id prefixed with the holder's."""
+    return (
+        f'<div id="{name}-wide" data-width="wide">Wide.</div>'
+        f'<div id="{name}-available" data-width="available">Available.</div>'
+        f'<table id="{name}-table" data-width="available"><tr>{INDENTED_CELLS}</tr>'
+        "</table>"
+        f'<table id="{name}-narrow" data-width="available"><tr><th>Plan</th>'
+        "<td>60</td></tr></table>"
+    )
+
+
+INDENTED_PAGE = leaf_page(
+    "Indented holders",
+    '<h1>Holders</h1><p id="prose">A paragraph at the measure, long enough to fill '
+    "the column it stands in from one edge to the other.</p>"
+    + _indented("control")
+    + f'<ul><li>One<ol><li>Two<ul><li id="nested">Three{_indented("nested")}</li></ul>'
+    "</li></ol></li></ul>"
+    + f'<ol class="steps"><li id="steps">A step{_indented("steps")}</li></ol>'
+    + f'<ul class="plain"><li id="plain">An item{_indented("plain")}</li></ul>'
+    + f'<div class="inset" id="inset">An indented block{_indented("inset")}</div>',
+    head="<style>ul.plain { padding: 0; list-style: none; }"
+    " .inset { padding-left: 40px; }</style>",
+)
+
+
+@pytest.mark.parametrize("posture", ["even", "map", "sidebar", "phone"])
+@pytest.mark.parametrize("direction", ["ltr", "rtl"])
+def test_a_breakout_in_an_indented_holder_measures_its_room_from_the_column(
+    browser, serve, direction, posture
+):
+    """A holder that stands in from the column, however it got there, gives a block
+    that breaks out of it the column's room: three nested list items, a step list whose
+    items pad themselves, a list the page resets to no indent, and a page's own indented
+    block. The runtime reads how far each holder stands in rather than each kind of
+    holder declaring it, so a wide or available block in any of them takes the same box
+    as one in the page's flow, on the prose axis, beside a contents map and with a
+    sidebar in the margin as on a plain column, and on a phone. A table wider than its
+    holder stands where one in the page's flow does: centred on the prose axis, or from
+    the prose's left edge beside a margin sidebar. One that fits its holder stays with
+    it, starting where the holder's text starts."""
+    source = INDENTED_PAGE
+    if posture == "map":
+        source = source.replace(
+            '<main class="layout-column">',
+            '<main class="layout-column"><aside class="sidebar">'
+            '<lf-toc id="toc"></lf-toc></aside>',
+            1,
+        )
+    elif posture == "sidebar":
+        source = source.replace(
+            '<main class="layout-column">',
+            '<main class="layout-column"><aside class="sidebar">'
+            "<p>Owner: payments. Window: Thursday.</p></aside>",
+            1,
+        )
+    source = source.replace(
+        '<html lang="en">', f'<html lang="en" dir="{direction}">', 1
+    )
+    page = open_page(browser, serve(source))
+    if posture == "phone":
+        resized(page, 390, 844)
+    else:
+        resized(page, 1440, 900)
+    margins_laid_out(page)
+    at = page.evaluate(
+        """(direction) => {
+      const edges = (el) => {
+        const box = el.getBoundingClientRect();
+        return {left: box.left, right: box.right, centre: (box.left + box.right) / 2};
+      };
+      const textStart = (el) => {
+        const box = el.getBoundingClientRect(), style = getComputedStyle(el);
+        return direction === 'rtl'
+          ? box.right - parseFloat(style.paddingRight) - parseFloat(style.borderRightWidth)
+          : box.left + parseFloat(style.paddingLeft) + parseFloat(style.borderLeftWidth);
+      };
+      const reading = {
+        margin: document.querySelector('main').getAttribute('data-lf-margin') ?? '',
+        prose: edges(document.getElementById('prose')),
+      };
+      for (const name of ['control', 'nested', 'steps', 'plain', 'inset'])
+        reading[name] = {
+          wide: edges(document.getElementById(`${name}-wide`)),
+          available: edges(document.getElementById(`${name}-available`)),
+          table: edges(document.querySelector(`#${name}-table tr`)),
+          narrow: edges(document.querySelector(`#${name}-narrow tr`)),
+          text: textStart(document.getElementById(`${name}-narrow`).parentElement),
+        };
+      return reading;
+    }""",
+        direction,
+    )
+    if posture in ("map", "sidebar"):
+        assert posture in at["margin"].split(), at
+    control, prose = at["control"], at["prose"]
+    start = "left" if direction == "ltr" else "right"
+    assert abs(at["nested"]["text"] - control["text"]) >= 70, at
+    for name in ("nested", "steps", "plain", "inset"):
+        holder = at[name]
+        for block in ("wide", "available", "table"):
+            for edge in ("left", "right"):
+                assert holder[block][edge] == pytest.approx(
+                    control[block][edge], abs=1
+                ), (name, block, edge, at)
+        assert holder["narrow"][start] == pytest.approx(holder["text"], abs=1), (
+            name,
+            at,
+        )
+    if posture in ("even", "map"):
+        assert control["wide"]["centre"] == pytest.approx(prose["centre"], abs=1), at
+        assert control["table"]["centre"] == pytest.approx(prose["centre"], abs=1), at
+    elif posture == "sidebar":
+        assert control["table"]["left"] == pytest.approx(prose["left"], abs=1), at
+    assert root_overflow(page) == 0
+
+
+RESTYLED = """async ([selector, how]) => {
+  const holder = document.querySelector(selector);
+  const edges = (id) => {
+    const box = document.getElementById(id).getBoundingClientRect();
+    return {left: box.left, right: box.right};
+  };
+  // The next rendering update, read in a ResizeObserver made after the runtime's: after
+  // its frame callbacks, layout and the runtime's own observers, and before it paints.
+  const update = () => new Promise((resolve) => {
+    const sentinel = document.createElement('div');
+    sentinel.style.cssText = 'position: fixed; width: 1px; height: 1px';
+    document.body.append(sentinel);
+    const observer = new ResizeObserver(() => {
+      observer.disconnect();
+      sentinel.remove();
+      resolve();
+    });
+    observer.observe(sentinel);
+  });
+  // Frame callbacks are held, so after one update and a task none the runtime asked for
+  // before the change is left to run in the update that lays the change out.
+  await update();
+  await new Promise((resolve) => setTimeout(resolve));
+  if (how === 'class') holder.classList.add('deeper');
+  else if (how === 'style') holder.style.paddingInlineStart = '64px';
+  else if (how === 'remove' || how === 'unhold') {
+    // Unwatched by the removal itself, in the microtask it queues, before a rendering
+    // update could report the removed box's size: the holder's list, or only the
+    // breakouts it held, leaving the holder in place.
+    if (how === 'remove') holder.closest('main > ul').remove();
+    else for (const breakout of holder.querySelectorAll(':scope > [data-lf-space]'))
+      breakout.remove();
+    await null;
+    return {replaced: window.lfWatchedHolder(holder)};
+  }
+  else {
+    // As a revision replaces a passage: the list holding the holder, anew, with one
+    // more list inside.
+    const list = holder.closest('main > ul');
+    const copy = list.cloneNode(true);
+    copy.querySelector(selector).insertAdjacentHTML('beforeend', '<ul><li id="late">Four'
+      + '<div id="late-wide" data-lf-space="wide">Wide.</div>'
+      + '<table id="late-narrow" data-lf-space="available"><tr><th>Plan</th>'
+      + '<td>60</td></tr></table></li></ul>');
+    list.replaceWith(copy);
+  }
+  const watched = window.lfWatchedHolder;
+  await update();
+  const name = how === 'insert' ? 'late' : holder.id;
+  return {
+    moved: edges(`${name}-narrow`),
+    wide: edges(`${name}-wide`),
+    control: edges('control-wide'),
+    replaced: watched(holder),
+    current: watched(document.getElementById(name)),
+  };
+}"""
+
+
+# Which elements some ResizeObserver watches, kept from before the runtime makes one.
+WATCHED_HOLDERS = """(() => {
+  const watched = new Map();
+  const {observe, unobserve, disconnect} = ResizeObserver.prototype;
+  ResizeObserver.prototype.observe = function (target, options) {
+    if (!watched.has(this)) watched.set(this, new Set());
+    watched.get(this).add(target);
+    return observe.call(this, target, options);
+  };
+  ResizeObserver.prototype.unobserve = function (target) {
+    watched.get(this)?.delete(target);
+    return unobserve.call(this, target);
+  };
+  ResizeObserver.prototype.disconnect = function () {
+    watched.delete(this);
+    return disconnect.call(this);
+  };
+  window.lfWatchedHolder = (target) =>
+    [...watched.values()].some((targets) => targets.has(target));
+})();"""
+
+
+@pytest.mark.parametrize("how", ["class", "style", "insert", "remove", "unhold"])
+def test_a_breakout_moved_in_after_load_re_lands_before_it_paints(browser, serve, how):
+    """A breakout whose holder stands further in after load stays on the prose axis
+    from the first paint that shows it, without waiting for a frame's margin pass or
+    the next resize: one a revision's replacement puts a list deeper, and a holder a
+    class or an inline style pads anew, which inserts nothing. A holder a revision
+    removes, with or without a replacement, or one whose breakouts a revision removes,
+    is no longer watched. Each is read again in the rendering update
+    that lays the change out, before that update paints."""
+    source = INDENTED_PAGE.replace(
+        " .inset { padding-left: 40px; }",
+        " .inset { padding-left: 40px; } .inset.deeper { padding-left: 100px; }",
+        1,
+    )
+    page = open_page(browser, serve(source), init_script=WATCHED_HOLDERS)
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    holder = "#inset" if how == "class" else "#nested"
+    before = page.evaluate(
+        "(id) => document.getElementById(id).getBoundingClientRect().left",
+        f"{holder[1:]}-narrow",
+    )
+    assert page.evaluate(
+        "(selector) => lfWatchedHolder(document.querySelector(selector))", holder
+    )
+    with held_frames(page):
+        at = page.evaluate(RESTYLED, [holder, how])
+    # The holders watched for a change of width are the ones the reading measured: a
+    # revision's replacement, or a removal alone, leaves a holder it removed, or one
+    # that holds no breakout now, unwatched.
+    assert at["replaced"] == (how in ("class", "style")), at
+    if how in ("remove", "unhold"):
+        return
+    assert at["current"], at
+    assert at["moved"]["left"] > before + 20, ("the holder was not padded", at)
+    for edge in ("left", "right"):
+        assert at["wide"][edge] == pytest.approx(at["control"][edge], abs=1), at
+    if how != "insert":
+        return
+    # A holder a revision brings and then takes away again, with no reading after the
+    # removal to replace one, is held by nothing the runtime keeps. An authored holder
+    # is no test of this, since the authored copy of the document maps back to every
+    # node the page was written with (prepaint.js, `origins`), nor is a table, which
+    # other owners release on their next frame.
+    with held_frames(page):
+        page.evaluate("""async () => {
+          // Let a frame requested before the hold run, so no reading follows below.
+          await new Promise((resolve) => {
+            const observer = new ResizeObserver(() => {
+              observer.disconnect();
+              setTimeout(resolve);
+            });
+            observer.observe(document.body);
+          });
+          const lf = document.documentElement.lfInitial;
+          window.lfReadings = 0;
+          for (const name of ['residency', 'indents']) {
+            const read = lf[name];
+            lf[name] = () => (window.lfReadings++, read());
+          }
+          const main = document.querySelector('main');
+          main.insertAdjacentHTML('beforeend', '<ul><li id="gone">Gone'
+            + '<div data-lf-space="wide">Wide.</div></li></ul>');
+          const gone = document.getElementById('gone');
+          await null;
+          if (!window.lfWatchedHolder(gone)) throw new Error('never watched');
+          window.lfRemovedHolder = new WeakRef(gone);
+          gone.parentElement.remove();
+        }""")
+        page.context.new_cdp_session(page).send("HeapProfiler.collectGarbage")
+        assert page.evaluate(
+            "() => [window.lfReadings, window.lfRemovedHolder.deref() === undefined]"
+        ) == [1, True]
 
 
 def test_a_sample_fills_the_room_its_authored_width_takes(browser, serve):
@@ -4158,7 +4436,7 @@ def test_margin_residency_verifies_authored_tracks_and_retries_changed_css(
       const observer = new MutationObserver(records => writes += records.length);
       observer.observe(document.body, {attributes: true, attributeFilter: ['style']});
       const owner = document.documentElement.lfInitial;
-      const changed = owner.residency() || owner.residency();
+      const changed = owner.residency().changed || owner.residency().changed;
       await new Promise(requestAnimationFrame);
       observer.disconnect();
       return {changed, writes};

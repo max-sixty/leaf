@@ -1669,8 +1669,8 @@ def read_record(path: Path) -> DeliveryRecord | None:
     reads. No partial state may enter delivery recovery, and an unreadable record
     never authorizes deletion.
     """
-    # Codex hooks import this module on every step; the validator loads only
-    # once a task has a record to read.
+    # Codex's hooks import this module between steps (module docstring), so the
+    # validator loads only once a task has a record to read.
     from .registry.schema import json_validator
 
     try:

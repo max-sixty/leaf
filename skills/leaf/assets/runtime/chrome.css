@@ -371,6 +371,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     font-family: var(--mono);
     font-size: inherit;
   }
+  .lf-layer-line {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .lf-status-button {
     display: flex;
     align-items: center;

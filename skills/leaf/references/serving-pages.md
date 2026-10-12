@@ -76,6 +76,14 @@ newer runtime, theme or package:
 leaf page init <page>
 ```
 
+While Leaf is in alpha, an update can also break an older page without changing the
+protocol. Where the Leaf that vendored a page differs from the one running, `page
+check` names both with their dates, and the page's banner menu shows the user its own
+Leaf beside the one serving it. When a page misbehaves and its Leaf is much
+older than the running one, re-vendor it rather than working around the fault. A page
+that works needs no re-vendor for its age alone, since re-vendoring a changed layer
+reloads the user's open tabs.
+
 Init validates incoming layer declarations and file destinations first; refusal
 leaves the page and server unchanged. An unchanged layer and serving payload
 preserve installed files and the running server without reloading open tabs.
@@ -90,8 +98,8 @@ restarts independently of session ownership.
 Serving or writing a page vendored at another protocol refuses with the same init
 command. If restart fails,
 follow init's diagnostic; an enabled page's watcher also tries one revival.
-Init reads the log under Leaf's kernel transport contract. If an earlier page's
-log cannot be read or the page misbehaves after an update, initialize a new
+Init reads the log under Leaf's kernel transport contract. If init cannot read an
+earlier page's log, or the page still misbehaves once re-vendored, initialize a new
 directory, write the current page there, and hand over its new URL.
 
 ## Page lifetime

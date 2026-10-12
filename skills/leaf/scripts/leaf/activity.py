@@ -9,6 +9,7 @@ answer.
 """
 
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import NamedTuple
 
 WORKING_GRACE = timedelta(minutes=15)
@@ -134,22 +135,46 @@ def reply_reservation_stands(
     )
 
 
-def answer_command(answer: dict) -> str:
-    """The one operation that writes an answer, with the id it is addressed to."""
-    if answer["kind"] == "reply" and answer.get("writer") != "turn":
-        return f"`leaf response reply <answer.ref>` for {answer['for']}"
-    if answer.get("writer") == "turn":
-        return (
-            f"your turn's final message or `leaf response reply <answer.ref>` "
-            f"for {answer['for']}"
+def answer_command(answer: dict, page_dir: Path) -> str:
+    """The one operation that writes an answer on the page at `page_dir`, as every
+    refusal and reminder naming an owed update says it.
+
+    A reply names the exact `ref` the update's receipt recorded (`workflows`). An
+    update no receipt has carried has none, and minting one would deliver the page's
+    whole pending batch and mark its other input Picked up unseen, so the reply
+    names the `leaf wait` that delivers it, after the claim its receipt needs where
+    this command's session does not hold the page (`service.may_receive`)."""
+    if answer["kind"] != "reply":
+        return f"a stamped version whose markup records action {answer['action']}"
+    if "ref" in answer:
+        reply = f"`leaf response reply {answer['ref']}`"
+    else:
+        from .harness import session_harness
+        from .service import may_receive, page_claim
+
+        harness = session_harness()
+        claim = (
+            ""
+            if may_receive(page_claim(page_dir), harness.session if harness else None)
+            else f" (`leaf page claim {page_dir}` first, since this session does "
+            "not hold the page)"
         )
-    return f"a stamped version whose markup records action {answer['action']}"
+        reply = (
+            "`leaf response reply <answer.ref>` with the `answer.ref` that "
+            f"`leaf wait {page_dir}` delivers for {answer['for']}{claim}"
+        )
+    if answer.get("writer") == "turn":
+        return f"your turn's final message or {reply}"
+    return reply
 
 
-def unanswered(obligations: list[dict], of: str = "") -> str:
-    """Say how many user updates have no answer and name what answers each. `of`
-    narrows which updates these are, such as the acknowledged ones."""
-    commands = "; ".join(answer_command(item["answer"]) for item in obligations)
+def unanswered(obligations: list[dict], page_dir: Path, of: str = "") -> str:
+    """Say how many user updates on the page at `page_dir` have no answer and name
+    what answers each. `of` narrows which updates these are, such as the
+    acknowledged ones."""
+    commands = "; ".join(
+        answer_command(item["answer"], page_dir) for item in obligations
+    )
     updates = f"user update{'s' if len(obligations) != 1 else ''}"
     return (
         f"{len(obligations)} {of + ' ' if of else ''}{updates} with no answer "

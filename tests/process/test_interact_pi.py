@@ -193,6 +193,7 @@ def test_an_escape_leaves_input_handed_to_the_run_for_the_next_prompt(page_dir, 
     [entry] = handed["entries"]
     [batch] = json.loads(entry["content"].split("\n")[1])["batches"]
     assert [event["id"] for event in batch["events"]] == [comment["id"]]
+    ref = batch["events"][0]["answer"]["ref"]
     pi.emit("agent_settled", idle=True)
     wait_for(
         lambda: cleanup_model.session_record("pi-s1")["turn_closed"],
@@ -204,7 +205,7 @@ def test_an_escape_leaves_input_handed_to_the_run_for_the_next_prompt(page_dir, 
     pi.emit("agent_start")
     continued = pi.emit("turn_end")
     [entry] = continued["entries"]
-    assert f"`leaf response reply <answer.ref>` for {comment['id']}" in entry["content"]
+    assert f"`leaf response reply {ref}`" in entry["content"]
     pickup = events_model.read_events(page_dir)[-1]
     assert (pickup["kind"], pickup["events"], pickup["turn"]) == (
         "pickup",

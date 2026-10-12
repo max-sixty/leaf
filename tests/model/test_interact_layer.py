@@ -196,6 +196,9 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
         )
         assert code == 200, response
         ids.append(events_model.read_events(page)[-1]["id"])
+    # Undelivered, the owed message has no reference yet: the refusal names the
+    # wait that delivers one.
+    record(["thread", "reply", str(page), ids[0], "--text", "Answer"], 1)
     woke = runner.invoke(cli_model.cli, ["wait", str(page)])
     assert woke.exit_code == 0, woke.output
     envelope = json.loads(woke.output)
@@ -203,10 +206,11 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     delivery_model.receive(envelope, "s1")
     [batch] = envelope["batches"]
     assert len(batch["events"]) == 2
-    record(["thread", "reply", str(page), "--text", "Answer"], 2)
-    record(["thread", "reply", str(page), ids[0], "--text", "Answer"], 1)
     reference = batch["events"][0]["answer"]["ref"]
     references.append(reference)
+    # Delivered, the refusal names the delivery's exact reference.
+    record(["thread", "reply", str(page), "--text", "Answer"], 2)
+    record(["thread", "reply", str(page), ids[0], "--text", "Answer"], 1)
 
     def response_args(*extra):
         return ["response", "reply", reference, "--text", "Answer", "--done", *extra]

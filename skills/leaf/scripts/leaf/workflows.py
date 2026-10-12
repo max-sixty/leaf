@@ -23,6 +23,10 @@ Answers are one of:
   widget's answered Question and the authored markup does not yet record, answered by
   a stamped version that writes it in.
 
+Once a receipt has carried the update, its answer also has the `ref` that receipt's
+pickup recorded (`delivery.record_pickup`), the newest where several did. An
+update no receipt has carried has no `ref`: only its delivery mints one.
+
 Two kinds of update have workflows with no answer of their own. An update a
 newer one in the same thread covers is answered through the newest, whose one
 answer settles both. A widget action that answers no Question, such as an edit to a
@@ -226,11 +230,14 @@ def canonical_workflows(
         for input_id, response in responses.items()
         if response.get("failure")
     }
+    # The newest `answer.ref` a receipt recorded for each input (`record_pickup`).
+    refs: dict[str, str] = {}
     for event in events:
         if event["kind"] != "pickup":
             continue
         for event_id in event["events"]:
             deliveries.setdefault(event_id, {})[event["phase"]] = event
+        refs.update(event.get("refs", {}))
 
     log = task_reading or TaskReading(events)
     starts = log.starts
@@ -292,6 +299,8 @@ def canonical_workflows(
         else:
             stage, evidence = "sent", source
         fallback = opened or queued
+        if answer is not None and source["id"] in refs:
+            answer = {**answer, "ref": refs[source["id"]]}
         return {
             "id": source["id"],
             "input": source["id"],

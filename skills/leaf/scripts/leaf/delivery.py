@@ -29,7 +29,11 @@ only a standing reservation decides who writes. Neither changes the answer's
 operation: reply and markup answers mean the same on every transport.
 
 Freeze emits an exact `answer.ref`, qualified by delivery, page batch and input.
-The immutable envelope is the only address store. Direct authors and provider
+The immutable envelope is the only address store. A receipt's pickup copies the
+refs its batch carries into the page log (`record_pickup`'s `refs`), so a reader
+of the page, such as a refusal naming the input a thread owes, recovers the ref
+without the envelope's id; an input no receipt has carried has none, and nothing
+mints one outside a delivery. Direct authors and provider
 finals resolve it through `response_address` before the rich durable reply writer
 rechecks the captured logical owner, exact input and standing obligation under the
 page lock. An address may be forwarded to a worker without changing its own
@@ -53,7 +57,12 @@ from .harness import session_harness
 from .machine import state_home
 from .refusals import Refused
 from .schema import CURSOR_FILE, WIDGET_KINDS
-from .service import PageTransaction, requires_agent_attention, unacknowledged
+from .service import (
+    PageTransaction,
+    may_receive,
+    requires_agent_attention,
+    unacknowledged,
+)
 from .state import (
     flocked,
     open_session_turn,
@@ -273,6 +282,16 @@ def response_addresses(payload: dict) -> Iterator[dict]:
                     "claim": batch["claim"],
                     "input": {"id": event["id"], "seq": event["seq"]},
                 }
+
+
+def batch_refs(batch: dict) -> dict[str, str]:
+    """The `answer.ref` one frozen envelope batch gives each input it owes an
+    answer, by input id."""
+    return {
+        event["id"]: event["answer"]["ref"]
+        for event in batch["events"]
+        if "answer" in event
+    }
 
 
 def response_address(reference: str) -> dict:
@@ -575,6 +594,7 @@ def record_pickup(
     session: str | None = None,
     turn: str | None = None,
     failure: str | None = None,
+    refs: dict[str, str] | None = None,
 ) -> dict | None:
     """Durably record one delivery transition for exact attention-bearing inputs.
 
@@ -588,6 +608,12 @@ def record_pickup(
     Queued and opened are transport evidence, not authored work claims. A queued
     transition may therefore be followed by an opened transition for the same
     events, while a retry of the same transition appends nothing.
+
+    ``refs`` are the `answer.ref`s the receipt's envelope batch gave the inputs it
+    owes (`batch_refs`), which the record keeps for the inputs it names, so the
+    page's workflows can name each owed input's ref (`workflows`). A transition
+    that carries no envelope, such as the prompt re-presenting debt an earlier
+    receipt recorded, passes none.
     """
     claim = page.claim
     if session is None and claim:
@@ -610,6 +636,9 @@ def record_pickup(
     )
     if not fresh:
         return None
+    carried = {
+        event_id: refs[event_id] for event_id in fresh if refs and event_id in refs
+    }
     from .event_contracts import append_admitted
 
     record, _ = append_admitted(
@@ -622,6 +651,7 @@ def record_pickup(
             "session": session,
             "turn": turn,
             **({"failure": failure} if failure is not None else {}),
+            **({"refs": carried} if carried else {}),
         },
     )
     return record
@@ -675,11 +705,7 @@ def receive_batch(
         if session_id
         else nullcontext()
     ):
-        if (
-            page.active_claim is not None
-            if session_id is None
-            else page.claim_of(session_id) is None
-        ):
+        if not may_receive(page.claim, session_id):
             raise ReceiptRefused(f"delivery no longer owns its page: {page.page_dir}")
         if refusal := write_refusal(page.page_dir):
             raise ReceiptRefused(refusal)
@@ -773,5 +799,7 @@ def receive_one(
             # Receipt observes the consumer turn. The explicit acknowledgement
             # boundary can open an unnamed turn; hooks and providers cannot.
             turn = observed["turn"]
-        record_pickup(page, events, session=session_id, turn=turn)
+        record_pickup(
+            page, events, session=session_id, turn=turn, refs=batch_refs(batch)
+        )
     return page_dir

@@ -331,6 +331,15 @@ def receive_through(page_dir: Path, seq: int) -> None:
     delivery_model.receive_delivery(delivery_through(page_dir, seq))
 
 
+def delivered_ref(page_dir: Path, input_id: str) -> str:
+    """The `answer.ref` the page's log recorded for a received input, checked to
+    resolve to that input in its delivery's envelope."""
+    events = events_model.read_events(page_dir)
+    ref = delivery_model.current_responses(page_dir, events)[input_id]["ref"]
+    assert delivery_model.response_address(ref)["input"]["id"] == input_id
+    return ref
+
+
 def test_delivery_ids_are_short_and_rerolled_under_the_store_lock(monkeypatch):
     minted = iter(["aaaaaaaa", "aaaaaaaa", "bbbbbbbb"])
     widths = []
@@ -4330,6 +4339,7 @@ def test_an_observed_queue_pointer_leaves_its_reply_to_leaf_reply(page_dir):
         "kind": "reply",
         "to": comment["id"],
         "for": comment["id"],
+        "ref": delivered_ref(page_dir, comment["id"]),
     }
 
     posted = thread_model.post_reply(
@@ -4909,6 +4919,7 @@ def test_a_reply_reservation_lapses_when_a_turn_it_does_not_name_opens(page_dir)
         "kind": "reply",
         "to": comment["id"],
         "for": comment["id"],
+        "ref": delivered_ref(page_dir, comment["id"]),
     }
     posted = thread_model.post_reply(
         page_dir,
@@ -4985,6 +4996,7 @@ def test_a_reply_reservation_lapses_when_its_turn_closes(page_dir):
         "kind": "reply",
         "to": comment["id"],
         "for": comment["id"],
+        "ref": delivered_ref(page_dir, comment["id"]),
     }
     posted = thread_model.post_reply(
         page_dir,
@@ -13777,6 +13789,9 @@ def test_pages_owing_the_same_thing_carry_one_copy_of_the_protocol(
     # first protocol rather than one page per protocol.
     assert reason.index(str(second)) < reason.index(schema_model.ANSWER_ASK_INSTRUCTION)
     reason = re.sub(r'(<leaf-delivery id=")[0-9a-f]{8}(" )', r"\1<delivery>\2", reason)
+    reason = re.sub(
+        r"`leaf response reply [0-9a-f]{8}:", "`leaf response reply <delivery>:", reason
+    )
     snapshot.check(
         yaml_document(
             "Two pages carry distinct debts and one shared answering instruction.",
@@ -13937,7 +13952,7 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
     if rewritten:
         answer = json.loads(printed)
         assert "decision" not in answer
-        assert f"for {asked['id']}" in continued(answer)
+        assert delivered_ref(claimed, asked["id"]) in continued(answer)
     else:
         assert printed == ""
 
@@ -13972,7 +13987,11 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     # what was said under it, so the instruction that reaches it has to carry the
     # reading that recovers the exchange.
     assert schema_model.ANSWER_ASK_INSTRUCTION in continued(answer)
-    assert f"`leaf response reply <answer.ref>` for {asked['id']}" in continued(answer)
+    # The receipt recorded the delivery's reference, so the reminder names the
+    # complete command rather than a placeholder nothing on hand fills.
+    assert f"`leaf response reply {delivered_ref(claimed, asked['id'])}`" in continued(
+        answer
+    )
 
     # A bound move can be answered by its provider final or an explicit addressed
     # reply. The proactive thread writer still refuses an owed move.
@@ -13981,8 +14000,8 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     reason = continued(capsys.readouterr().out)
     assert (
-        f"your turn's final message or `leaf response reply <answer.ref>` "
-        f"for {asked['id']}"
+        "your turn's final message or "
+        f"`leaf response reply {delivered_ref(claimed, asked['id'])}`"
     ) in reason
     assert "leaf thread reply <page>" not in reason
     with service_model.PageTransaction(claimed) as page:
@@ -14022,7 +14041,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     assert [event["id"] for event in batch["events"]] == [follow["id"]]
     consume_pending_input("s1")
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
-    assert f"for {follow['id']}" in continued(capsys.readouterr().out)
+    assert delivered_ref(claimed, follow["id"]) in continued(capsys.readouterr().out)
     thread_model.post_reply(
         claimed,
         {"to": follow["id"], "for": follow["id"]},
@@ -14062,7 +14081,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     cleanup_model.prompt_turn("s1")
     receive_through(claimed, last_deliverable_seq(claimed))
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
-    assert f"for {answered['id']}" in continued(capsys.readouterr().out)
+    assert delivered_ref(claimed, answered["id"]) in continued(capsys.readouterr().out)
     thread_model.post_reply(
         claimed, {"to": answered["id"], "for": answered["id"]}, "sqlite it is"
     )
@@ -14957,7 +14976,8 @@ def test_waiting_written_over_an_unanswered_move_names_it(claimed, snapshot):
     assert json.loads(early.stdout)["detail"] == "pick one"
     assert early.stderr.splitlines() == [
         (
-            f"1 user update with no answer (`leaf response reply <answer.ref>` for {comment}); "
+            "1 user update with no answer (`leaf response reply <answer.ref>` with "
+            f"the `answer.ref` that `leaf wait {claimed}` delivers for {comment}); "
             "the page reads waiting once each has one"
         )
     ]
@@ -16523,7 +16543,7 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, capsys):
     )
     reason = _stop(capsys)
     assert f"your start on {asked['id']} came before this turn" in reason
-    assert f"`leaf response reply <answer.ref>` for {asked['id']}" in reason
+    assert f"`leaf response reply {delivered_ref(claimed, asked['id'])}`" in reason
 
     assert _start(claimed, asked["id"], "the second sketch").exit_code == 0
     # A task notification reaching the turn mid-way says nothing about it either.
@@ -16547,7 +16567,7 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, capsys):
     capsys.readouterr()
     consume_pending_input("s1")
     reason = _stop(capsys)
-    assert f"`leaf response reply <answer.ref>` for {follow['id']}" in reason
+    assert f"`leaf response reply {delivered_ref(claimed, follow['id'])}`" in reason
     assert f"your start on {asked['id']} came before this turn" in reason
     assert _start(claimed, follow["id"], "adding C").exit_code == 0
     assert _stop(capsys) is None
@@ -16618,7 +16638,8 @@ def test_each_owed_move_in_a_thread_takes_a_start_of_its_own(claimed, capsys):
     )
     receive_through(claimed, last_deliverable_seq(claimed))
     reason = _stop(capsys)
-    assert f"for {again['id']}" in reason and "your start" not in reason
+    assert delivered_ref(claimed, again["id"]) in reason
+    assert "your start" not in reason
     leases_model.release_lease(lease)
 
 
@@ -17994,6 +18015,7 @@ def test_hook_snapshot_serializes_receipt_and_reply(claimed, monkeypatch):
     [batch] = [
         plan.batch for plan in hook_transport_model.read_plans("s1") if plan.batch
     ]
+    [frozen] = delivery_model.freeze_delivery([batch])["batches"]
     projected = hook_transport_model.read_page
     lock_proved = threading.Event()
     errors = []
@@ -18012,7 +18034,7 @@ def test_hook_snapshot_serializes_receipt_and_reply(claimed, monkeypatch):
                             "receipt could enter between hook log and cursor reads"
                         )
                         lock_proved.set()
-                delivery_model.receive_one(batch, "s1")
+                delivery_model.receive_one(frozen, "s1")
                 thread_model.post_reply(
                     page_dir,
                     {"to": asked["id"], "for": asked["id"]},
@@ -18049,7 +18071,8 @@ def test_prompt_pickup_does_not_restamp_a_response_settled_after_planning(claime
     [batch] = [
         plan.batch for plan in hook_transport_model.read_plans("s1") if plan.batch
     ]
-    delivery_model.receive_one(batch, "s1")
+    [frozen] = delivery_model.freeze_delivery([batch])["batches"]
+    delivery_model.receive_one(frozen, "s1")
     plans = hook_transport_model.read_plans("s1")
     assert plans[0].acknowledged
     thread_model.post_reply(claimed, {"to": asked["id"], "for": asked["id"]}, "Handled")

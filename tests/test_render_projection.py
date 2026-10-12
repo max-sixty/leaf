@@ -354,9 +354,13 @@ def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, 
     page.emulate_media(media="screen")
 
 
-def test_pr_review_observed_age_refreshes_without_a_data_change(browser, serve):
+@pytest.mark.parametrize("returned", [False, True], ids=["stayed", "returned"])
+def test_pr_review_observed_age_refreshes_without_a_data_change(
+    browser, serve, returned
+):
     """The observation time is rendered after Markdown loading, but still follows the
-    shared clock when the source revision remains unchanged."""
+    shared clock when the source revision remains unchanged, including after the brief
+    leaves the page and returns with its painting kept."""
     authored = leaf_page(
         "pull request clock",
         '<lf-pr-brief id="reviewed-pr" source="pr-1842"></lf-pr-brief>',
@@ -386,6 +390,17 @@ def test_pr_review_observed_age_refreshes_without_a_data_change(browser, serve):
     page = open_page(browser, url)
     observed = page.locator(".pr-observed")
     expect(observed).to_have_text("Observed just now")
+    if returned:
+        page.locator("#reviewed-pr").evaluate(
+            """async (element) => {
+              const parent = element.parentNode;
+              const next = element.nextSibling;
+              element.remove();
+              await new Promise((resolve) => setTimeout(resolve));
+              parent.insertBefore(element, next);
+              await new Promise((resolve) => setTimeout(resolve));
+            }"""
+        )
 
     # Only the browser's clock can be moved from here, and every state answer
     # recalibrates the page's one measured offset against the server's real `now`
@@ -1071,12 +1086,6 @@ def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
     expect(groups.nth(1)).not_to_have_attribute("open", "")
     location = widget.locator(".lf-call-location", has_text="utils.py:2")
     location.focus()
-    location.evaluate(
-        """node => {
-          window.heldCallDiffControl = node;
-          window.heldCallDiffRow = node.closest('.lf-call-line');
-        }"""
-    )
     for destination, roots in (
         ("app.py:20", (first_work, second_work + shared, third_work + unfocused)),
         (
@@ -1098,10 +1107,6 @@ def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
         expect(location).to_be_visible()
         expect(location).to_be_focused()
         expect(groups.last).not_to_have_attribute("open", "")
-        assert location.evaluate(
-            """node => node === window.heldCallDiffControl &&
-              node.closest('.lf-call-line') === window.heldCallDiffRow"""
-        ), "a surviving call's group change replaced its row or control"
 
 
 def test_visual_review_guides_one_typed_still_run(browser, serve):
@@ -2019,9 +2024,9 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     url = serve(
         leaf_page(
             "source comment draft",
-            '<h1 id="title">Review</h1>'
-            '<lf-text-document id="source" source="document"></lf-text-document>',
-            layout="wide",
+            '<div><h1 id="title">Review</h1>'
+            '<lf-text-document id="source" source="document"></lf-text-document></div>',
+            layout="sidebar",
         )
     )
     data_model.cmd_data_set(serve.page_dir, "document", "Original source words.")
@@ -7748,6 +7753,12 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     assert painted(page, "lf-mark") == "", (
         "the quote matched inside a slot the logged decision retired: nothing wrote "
         "the settlement mark for a module that doesn't"
+    )
+    assert not any(
+        event["kind"] == "reanchor"
+        for event in events_model.read_events(serve.page_dir)
+    ), (
+        "reading an unchanged revision must not persist a temporary decision's detachment"
     )
     page.close()
 

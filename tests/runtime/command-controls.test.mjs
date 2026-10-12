@@ -759,7 +759,7 @@ test("a lent hint inside a button keeps its out-of-flow seat after withdrawal", 
   }
 });
 
-test("a template scope's re-render runs its latest callbacks and reads only its own element", async () => {
+test("a scope's attachment and re-render run its latest callbacks and read only its own element", async () => {
   const { html, render } = await import("/vendor/browser-runtime.js");
   const other = document.createElement("button");
   document.body.append(other);
@@ -802,6 +802,14 @@ test("a template scope's re-render runs its latest callbacks and reads only its 
   assert.equal(element.getAttribute("aria-keyshortcuts"), "y");
   commandsWithin(root)[0].row.run();
   assert.deepEqual(invoked, ["third"]);
+
+  const added = document.createElement("button");
+  root.append(added);
+  keys(added, "Added", [{ id: "probe.added", keys: ["z"], title: "z" }]);
+  reflectFirstScopes();
+  reflectKeys();
+  assert.equal(otherReads, 0, "an imperative attachment reads no other scoped element");
+  assert.equal(added.getAttribute("aria-keyshortcuts"), "z");
   root.remove();
   other.remove();
 });

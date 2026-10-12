@@ -615,7 +615,7 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         '<aside class="callout warn" id="note">Paused.</aside>'
         '<aside class="callout" id="chart-note" data-width="wide">Chart.</aside>'
         '<lf-zone id="queue" label="Queue"><div><lf-label>new</lf-label></div></lf-zone>'
-        '<lf-board id="board" data-width="column"></lf-board>'
+        '<lf-board id="board" data-width="available"></lf-board>'
         '<lf-feed id="feed" class="selected"></lf-feed><section id="wide" data-width="wide"></section>'
         '<table id="native"></table>'
         '<pre data-bound="start">log</pre>'
@@ -649,7 +649,7 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     }
     assert marks[("lf-zone", "queue")] == {"data-lf-reading-role": "pane"}
     assert marks[("lf-label", None)] == {"data-lf-inline": ""}
-    assert marks[("lf-board", "board")] == {"data-lf-space": "column"}
+    assert marks[("lf-board", "board")] == {"data-lf-space": "available"}
     assert marks[("aside", "note")] == {"data-lf-space": "column"}
     assert marks[("aside", "chart-note")] == {"data-lf-space": "wide"}
     assert marks[("lf-feed", "feed")] == {
@@ -684,7 +684,7 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         ' data-lf-space="wide"',
         ' data-lf-reading-role="pane"',
         ' data-lf-inline=""',
-        ' data-lf-space="column"',
+        ' data-lf-space="available"',
         ' data-lf-bound="end"',
         ' data-lf-space="column"',
         ' data-lf-space="wide"',

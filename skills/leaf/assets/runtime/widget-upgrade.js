@@ -8,7 +8,7 @@
 import { reportPageError } from "./layer-client.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { render } from "../vendor/browser-runtime.js";
-import { replaceChildren } from "./dom-children.js";
+import { shadowStage } from "./shadow-stage.js";
 
 const initialized = new WeakSet();
 
@@ -74,8 +74,26 @@ function showFailure(el, text, source) {
     pre.textContent = source;
     box.append(pre);
   }
-  // A native renderer may have recovered since the previous error, or moved its
-  // error nodes into a shadow stage. Discard that part before starting this fallback.
-  replaceChildren(el);
+  // An x-shadow widget shows only what its stage holds, so the box stands there, and
+  // the widget's next stage replaces it.
+  if (el.shadowRoot) {
+    shadowStage(el, [box]);
+    return;
+  }
+  // Rendered as a template value, so the widget's next template render replaces it.
+  // A native renderer may have replaced the children since a template last owned them,
+  // leaving Lit's cached part pointing at markers no longer here.
+  releaseTemplate(el);
+  el.replaceChildren();
   render(box, el);
+}
+
+// End a template's ownership of `el`: Lit's public RootPart.setConnected(false)
+// disconnects its directives, but render() has no public reset, so its pinned,
+// deliberately unminified cache key goes too, letting the next render start afresh.
+function releaseTemplate(el) {
+  const part = el._$litPart$;
+  if (!part) return;
+  part.setConnected(false);
+  delete el._$litPart$;
 }

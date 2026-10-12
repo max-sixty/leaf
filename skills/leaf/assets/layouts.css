@@ -47,16 +47,11 @@
    * room on one side than centring leaves it; the margin pass measures and writes it
    * (prepaint.js, `residency`), and the free room on each side follows.
    *
-   * The free room is the shell's (100cqi), so only a column on `main` has it. A column
-   * Layout on a block inside another Layout keeps the measure and centres in its box,
-   * and a breakout in it stays in that box rather than reaching past the Layout around
-   * it. */
-  .layout-column {
+   * The free room is the shell's (100cqi), so the column is a page's shape, on `main`,
+   * and arranges no other box. */
+  main.layout-column {
     max-width: var(--col);
     margin-inline: auto;
-  }
-  :not(main).layout-column { --lf-free-l: 0px; --lf-free-r: 0px; --lf-room: 100%; }
-  main.layout-column {
     padding-inline: var(--col-pad);
     --lf-width: min(var(--col), max(0px, 100cqi - 2 * var(--col-pad)));
     --lf-beside: calc((100cqi - var(--lf-width)) / 2);
@@ -252,8 +247,8 @@
       box-sizing: border-box;
     }
     /* `wide` is one width wherever the block stands. The breakout above only grows a
-     * block past its holder, so in a holder already wider than `--wide`, such as a wide
-     * Layout's track or a workspace's pane, the block would take the holder's width; the
+     * block past its holder, so in a holder already wider than `--wide`, such as a
+     * sidebar page's body or a workspace's pane, the block would take the holder's width; the
      * cap holds it to the evidence width there, at the holder's start. A holder narrower
      * than `--wide` still bounds it, and `available` is the width that takes everything. */
     [data-lf-space="wide"] {
@@ -262,6 +257,83 @@
     }
     [data-lf-space="available"] {
       --lf-reach: var(--lf-room, 0px);
+    }
+    /* A table is the one breakout whose box paints nothing of its own, only its columns'
+     * rules, so the room it was granted is a limit rather than a size: spread across its
+     * columns, an eight-column table stood at 1080px with 30px of nothing between each
+     * pair. Its box takes the columns' natural width instead (`max-content`), at least
+     * its holder's, so one that fits the column stands where the prose does, and at most
+     * an even span about its holder's axis, so it grows the same distance each way. The
+     * margin moves the box by half its holder's width and the translation back by half
+     * its own, since each percentage reads the box it names, so its centre lands on the
+     * holder's centre, which on a column page is the prose axis. Wider than its holder,
+     * the box is over-constrained, and the browser keeps the margin at the holder's
+     * inline start, so the margin is that one and the translation's sign follows the
+     * direction. Where the margins are uneven, beside a contents map's spine or
+     * a column moved over for a sidenote, the even span is twice the narrower side's
+     * growth, so a grid wider than it wraps or scrolls that much sooner: 48px sooner
+     * beside a map's spine at 1440px. Where the left margin is spoken for, as by a
+     * sidebar standing there, an even span would be the column alone, so the box starts
+     * at the prose's left edge and grows right, in either direction, since the sidebar
+     * stands on the left in both.
+     *
+     * The box's width is its content's, so it gives up the size containment above:
+     * inside a box that sizes itself to what it holds, such as a page's own grid track
+     * at its content's minimum, the table can widen it, as any table without a width of
+     * its own can. Nor is the table the container its caption reads its width from
+     * (reading.css), so the caption is held to the widest the box can be
+     * (`--lf-table-span`), which is the box's width wherever the columns scroll. Only
+     * where the room is the page's: in a frame or inside another breakout, the table
+     * fills or starts at its holder as every table there does. A holder the theme
+     * indents is narrower than the column the caption's bound and the right-to-left
+     * sidebar translation measure from (`--lf-width`). A quotation is one, but it draws
+     * a frame, which holds the table already; a list item, indented by its list's
+     * padding, draws none, so a table in one keeps the allocation as its box and fills
+     * it. Margins, percentages and
+     * translation place it the same in every engine. Two layouts this replaced did not:
+     * aligning the anonymous table grid inside a box the allocation's width (Firefox and
+     * WebKit left it at the box's left edge), and translating the table's parts (column
+     * backgrounds and collapsed borders stayed behind). A display of grid on the table
+     * set its head and body apart. */
+    @container not (style(--lf-room: 100%) or style(--lf-block-frame: 1)) {
+      main.layout-column table:is([data-lf-space="wide"], [data-lf-space="available"]):not(
+        :is([data-lf-space="wide"], [data-lf-space="available"], li) table) {
+        contain: none;
+        container-type: scroll-state;
+        width: max-content;
+        min-width: 100%;
+        max-width: calc(100% + 2 * min(var(--lf-grow-l), var(--lf-grow-r)));
+        margin-inline: 50% 0;
+        translate: -50% 0;
+        --lf-table-span: min(100cqi,
+          var(--lf-width) + 2 * min(var(--lf-free-l), var(--lf-free-r)));
+      }
+      main.layout-column table[data-lf-space="wide"]:not(
+        :is([data-lf-space="wide"], [data-lf-space="available"], li) table) {
+        --lf-table-span: min(100cqi, var(--wide),
+          var(--lf-width) + 2 * min(var(--lf-free-l), var(--lf-free-r)));
+      }
+      main.layout-column[data-lf-margin~="sidebar"]
+        table:is([data-lf-space="wide"], [data-lf-space="available"]):not(
+        :is([data-lf-space="wide"], [data-lf-space="available"], li) table) {
+        max-width: calc(100% + var(--lf-grow-r));
+        margin-inline-start: 0;
+        translate: none;
+        --lf-table-span: var(--lf-width);
+      }
+      main.layout-column table:is([data-lf-space="wide"], [data-lf-space="available"]):dir(rtl):not(
+        :is([data-lf-space="wide"], [data-lf-space="available"], li) table) {
+        translate: 50% 0;
+      }
+      main.layout-column[data-lf-margin~="sidebar"]
+        table:is([data-lf-space="wide"], [data-lf-space="available"]):dir(rtl):not(
+        :is([data-lf-space="wide"], [data-lf-space="available"], li) table) {
+        translate: calc(100% - var(--lf-width)) 0;
+      }
+      main.layout-column table:is([data-lf-space="wide"], [data-lf-space="available"]):not(
+        :is([data-lf-space="wide"], [data-lf-space="available"], li) table) > caption {
+        max-inline-size: var(--lf-table-span, 100cqi);
+      }
     }
     /* A breakout inside another takes its holder's width. A box allocated the column is
      * no holder of that kind: one that draws a frame withholds the room as any frame does
@@ -337,37 +409,34 @@
       overflow: clip;
     }
   }
-  /* The page as wide as the window: a gutter that grows with it and a cap at the widest
-   * page. It holds one flow on its own, and the sidebar and tiles Layouts on `main`
-   * stand in it. It says so (`--lf-wide-page`), and the theme sets the title a size up
-   * for a page that wide; the type is the theme's. A workspace has a frame of its own
-   * below. */
-  main:is(.layout-wide, .layout-sidebar, .layout-tiles) {
+  /* The sidebar page: a body beside its side track, as wide as the window, with a gutter
+   * that grows with it and a cap at the widest page. It says so (`--lf-wide-page`), and
+   * the theme sets the title a size up for a page that wide; the type is the theme's.
+   *
+   * The track is the Layout's `aside`, wherever it is written: one written before the
+   * body stands on the left and comes first where the two stack, as on a phone, and one
+   * written after it stands on the right and comes last. So the page's source order is
+   * the reading order at every width. The body takes two parts of the room and the track
+   * one, from bases of 30rem and 18rem, and the two stack where they no longer fit beside
+   * each other at those bases or where the body could not keep its content's minimum: a
+   * board declaring the width its columns need wraps the track below it rather than
+   * clipping. A header or footer takes the whole row. The items' own block margins go,
+   * since flex margins don't collapse into the gap. */
+  main.layout-sidebar {
     padding-inline: clamp(var(--col-pad), 4cqi, 64px);
     max-width: var(--wide-page-max);
     margin-inline: auto;
     --lf-room: 100%;
     --lf-wide-page: 1;
-  }
-  /* Body and side track. The track is the Layout's `aside`, wherever it is written: one
-   * written before the body stands on the left and comes first where the two stack, as on
-   * a phone, and one written after it stands on the right and comes last. So the page's
-   * source order is the reading order at every width. The body takes two parts of the room
-   * and the track one, from bases of 30rem and 18rem, and the two stack where they no
-   * longer fit beside each other at those bases or where the body could not keep its
-   * content's minimum: a board declaring the width its columns need wraps the track below
-   * it rather than clipping. A header or footer takes the whole row. The items' own block
-   * margins go, since flex margins don't collapse into the gap. */
-  .layout-sidebar {
     display: flex;
     flex-wrap: wrap;
     align-items: flex-start;
     gap: var(--sp-4);
   }
-  .layout-sidebar > :is(header, footer) { flex: 1 0 100%; margin-block: 0; }
-  .layout-sidebar > :not(header, footer) { flex: 2 1 30rem; margin-block: 0; }
-  .layout-sidebar > aside { flex: 1 1 18rem; }
-  .layout-sidebar > :not(header, footer) > :first-child { margin-top: 0; }
+  main.layout-sidebar > :is(header, footer) { flex: 1 0 100%; margin-block: 0; }
+  main.layout-sidebar > :not(header, footer) { flex: 2 1 30rem; margin-block: 0; }
+  main.layout-sidebar > aside { flex: 1 1 18rem; }
+  main.layout-sidebar > :not(header, footer) > :first-child { margin-top: 0; }
   /* Tiles: equal cells, as many to a row as fit at 9rem each, and every cell in a row
    * as tall as the row. How a row wraps is the page's to judge: the pre-handover review
    * (page-authoring.md) names a lone tile on its own row as a look to avoid, and the
@@ -396,7 +465,7 @@
    * The window is the workspace's, so it takes the whole of it: no cap at the widest
    * page, and a gutter, a gap between panes and a header only as large as keeps them
    * apart. Each pixel of frame is one the panes give up, and at 1920px the cap and the
-   * wide page's gutters held them to 1,472px of the 1,896px this leaves. The type is the
+   * sidebar page's gutters held them to 1,472px of the 1,896px this leaves. The type is the
    * theme's: a workspace usually takes working density (`.density-working`, theme.css),
    * which the Layout neither sets nor reads. */
   main.layout-workspace {

@@ -113,7 +113,13 @@ import {
   prepareDeclaredMarkdown,
   formatDeclaredMarkdown,
 } from "./markdown.js";
-import { moveScrollerBy, pageScroller } from "./scrolling.js";
+import {
+  chosenSince,
+  moveScrollerBy,
+  pageScroller,
+  placeKept,
+  scrollChoices,
+} from "./scrolling.js";
 import {
   containingReadingRegionFor,
   effectiveScroller,
@@ -1711,7 +1717,7 @@ export function createVersionController({
       if (!shownRegionBounds(region)) continue;
       const reading = capturePlace(region, blocks);
       if (readingPosture(region) === "bounded" || region.id === active?.id) {
-        regionViews.set(region.id, reading);
+        keepReading(region.id, reading);
         view.regions[region.id] = reading;
       }
     }
@@ -1773,9 +1779,20 @@ export function createVersionController({
   // left to keep: its reading goes when the next reading is taken, so a page whose
   // blocks come and go carries only the regions it has.
   const regionViews = new Map();
+  // The reader's choices counted when each reading was taken: a box they have chosen
+  // for since stands where they put it, and that reading no longer says where it is.
+  const takenAt = new WeakMap();
+  const keepReading = (id, reading) => {
+    takenAt.set(reading, scrollChoices());
+    regionViews.set(id, reading);
+  };
+  // A region showing one subject of several keeps the readings of those it is not
+  // showing, by subject (reading-regions.js, `showReadingSubject`).
+  const subjectViews = new Map();
   const dropGoneRegions = () => {
     const standing = new Set(readingRegions().map(({ id }) => id));
-    for (const id of regionViews.keys()) if (!standing.has(id)) regionViews.delete(id);
+    for (const views of [regionViews, subjectViews])
+      for (const id of views.keys()) if (!standing.has(id)) views.delete(id);
   };
 
   // Only the page's own regions, only those a scroll moved, and only their own words: a
@@ -1795,7 +1812,7 @@ export function createVersionController({
     const active = activeReadingRegion(shown, [...words.values()].flat());
     for (const region of shown)
       if (readingPosture(region) === "bounded" || region.id === active?.id)
-        regionViews.set(region.id, capturePlace(region, words.get(region.id)));
+        keepReading(region.id, capturePlace(region, words.get(region.id)));
   }
   let recordQueued = false;
   const scrolled = new Set();
@@ -1875,26 +1892,71 @@ export function createVersionController({
   // the banner takes another row: the line the user was reading went under it. So the
   // page moves with its band first, and a region the page carries lands against the new
   // band from its own record.
+  //
+  // A shift restores only what layout moved. A navigation that changes layout, as
+  // opening a disclosure hands a region to a scroller of its own, can move the reader
+  // before the shift it caused is announced: a landing, or find-in-page scrolling to its
+  // match. That choice is newer than the record, so a region whose scroller the reader
+  // has chosen for since keeps where they put it (scrolling.js, `chosenSince`).
   function restoreShifted(shifted, currentIntent, views) {
     if (compositionChanges.size) return;
     if (!currentIntent()) return;
     const page = shifted.find(({ region }) => !region);
-    if (page?.band) moveScrollerBy(pageScroller, -page.band);
+    if (page?.band) {
+      moveScrollerBy(pageScroller, -page.band);
+      placeKept(pageScroller);
+    }
     const candidates = shifted
       .map(({ region }) => region)
-      .filter((region) => region && shownRegionBounds(region));
+      .filter(
+        (region) =>
+          region &&
+          shownRegionBounds(region) &&
+          !chosenSince(effectiveScroller(region), takenAt.get(views.get(region.id))),
+      );
     restoreRegions(candidates, currentIntent, null, views);
     recordRegions();
+  }
+
+  // A subject leaving keeps the reader's place in it, read now where the region's own
+  // box scrolls it, on screen or not; the one showing returns them to theirs. Neither
+  // waits on a composition around it, which restores where the reader is in what shows
+  // rather than which subject shows.
+  function showSubject(phase, region) {
+    const ownBox =
+      readingPosture(region) === "bounded" && region.body.checkVisibility();
+    if (phase === "leaving") {
+      if (ownBox) keepReading(region.id, capturePlace(region, textBlocks(region.body)));
+      const reading = regionViews.get(region.id);
+      if (!reading) return;
+      if (!subjectViews.has(region.id)) subjectViews.set(region.id, new Map());
+      subjectViews.get(region.id).set(region.subject, reading);
+      return;
+    }
+    const reading = subjectViews.get(region.id)?.get(region.subject);
+    if (!reading) {
+      regionViews.delete(region.id);
+      return;
+    }
+    // The reading stands for this subject from now: the reader's scrolls in the box
+    // under another subject chose nothing in this one.
+    keepReading(region.id, reading);
+    if (ownBox) restorePlace(reading, region);
   }
 
   function readingRegionTransition({
     phase,
     owner,
+    region,
     regions,
     cancelled,
     retained,
     shifted,
   }) {
+    if (phase === "leaving" || phase === "showing") {
+      showSubject(phase, region);
+      return;
+    }
     // Announced from a resize observer's delivery; restoring there could reveal a
     // region and resize what the observer watches, so it waits for the next frame.
     if (phase === "shift") {
@@ -1925,7 +1987,7 @@ export function createVersionController({
       const blocks = textBlocks();
       for (const region of regions)
         if (shownRegionBounds(region))
-          regionViews.set(region.id, capturePlace(region, blocks));
+          keepReading(region.id, capturePlace(region, blocks));
       compositionChanges.set(owner, {
         currentIntent: retainUserIntent(),
         regions: regions.map(({ id }) => id),
@@ -1949,7 +2011,11 @@ export function createVersionController({
     if (readingContinuityInstalled) return;
     readingContinuityInstalled = true;
     watchReadingRegionTransitions(readingRegionTransition);
-    document.addEventListener("scroll", queueRecord, { capture: true, passive: true });
+    // A scroll's end is the reader's choice (scrolling.js), and a reading taken before
+    // it would read as older than that choice. WebKit, and Chromium for touch, end a
+    // scroll frames after its last scroll event, so the end takes a reading of its own.
+    for (const type of ["scroll", "scrollend"])
+      document.addEventListener(type, queueRecord, { capture: true, passive: true });
     // Arriving or editing changes the reading place even when no scroller moves.
     // Keep the intact place now: an immediate resize can invalidate geometry before
     // the queued record runs. Record again after any seat or layout commits.

@@ -71,7 +71,9 @@
    reader asking straight after an input handler that queued work reads false.
 
    Finite asynchronous preparation registers a `holdRendering` until it commits or its
-   owner retires. Registration unsettles synchronously; release requires a final quiet
+   owner retires. The one open-ended hold is a live sample whose first document departs
+   before presenting, which waits for a next document or Reset (lf-sample.js).
+   Registration unsettles synchronously; release requires a final quiet
    update, including the preparation's DOM writes and observer deliveries. A held local
    edit is not rendering work: it defers a semantic reading until the gesture ends.
 

@@ -1354,20 +1354,22 @@ export class ThreadView {
   }
 
   #prepareLanding(reopen) {
-    const { travel, openThreads } = this.#commands;
+    const { travel, listRoot } = this.#commands;
+    // The cards the list's walks step through (thread-list-view.js, `walkRows`).
+    const walked = () => listRoot.walkRows().flatMap(({ thread }) => thread ?? []);
     const mayLand = travel.retainPanelLanding(this.node);
     const shownCard = () =>
       !this.node.hidden && this.node.isConnected ? this.node : null;
     let mayRestore = () => false;
     if (!reopen) {
-      const at = openThreads().indexOf(this.node);
+      const at = walked().indexOf(this.node);
       return {
         optimistic: () => {
           if (!mayLand()) return false;
-          const kept = openThreads();
-          const destination = kept[at] ?? kept[at - 1] ?? this.#commands.listRoot;
-          if (destination.matches?.(".lf-thread")) {
-            this.#commands.listRoot.revealNavigation(destination.dataset.id);
+          const kept = walked();
+          const destination = kept[at] ?? kept[at - 1] ?? listRoot;
+          if (destination !== listRoot) {
+            listRoot.revealNavigation(destination.dataset.id);
             // The user goes on to the next thread, which the list lands in view.
             focusThread(destination, "move");
           } else focusDestination(destination, "move");

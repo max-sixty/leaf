@@ -4,8 +4,9 @@
    the log sequence, because overlapping poll and POST responses can order the authorities
    differently. `watchData(widget, input, callback)` delivers a clone of `{source,
    contract, revision, run, updated, value, origin}`, or `null` while the bound source has no
-   readable value. Subscriptions pause while their owner is absent and resume with
-   its newest snapshot. Contract, publication, or validity changes redeliver; overlapping
+   readable value. Subscriptions pause while their owner is absent, and a return
+   delivers by the rule every returning paint follows (`readingPaint` in
+   `presence.js`). Contract, publication, or validity changes redeliver; overlapping
    reads await the same in-flight rendering before stamping the version presented. Its
    synchronous time readings refresh independently of data delivery. The returned
    cleanup's `refresh()` repaints the last delivered reading through the same clock
@@ -22,9 +23,9 @@ import {
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
 import { registry } from "./registry.js";
-import { clocked } from "./presence.js";
 import { reportPageError, requestJson } from "./layer-client.js";
 import { watchOwner } from "./arrivals.js";
+import { readingPaint } from "./presence.js";
 
 export function acceptData(candidate, taken) {
   if (
@@ -103,14 +104,12 @@ export function watchData(element, input, callback) {
   // element and therefore establishes a new subscription when authored markup changes.
   const source = element.getAttribute(declaration.source);
   const failureContext = `data subscriber failed for ${element.localName}#${element.id} input ${input} source ${source}`;
-  const paint = clocked(element, callback);
+  const paint = readingPaint(element, callback);
   const selectedSource = applicationState.select((root) =>
     source && Object.hasOwn(root.data.sources, source)
       ? root.data.sources[source]
       : null,
   );
-  let delivered = false;
-  let deliveredIdentity;
   let completion = Promise.resolve();
   const region = `data:${element.id}:${input}:${++subscriptionSequence}`;
   let presentation = null;
@@ -124,21 +123,20 @@ export function watchData(element, input, callback) {
     stopSelection?.();
     stopSelection = null;
     pendingDelivery = null;
-    paint.stop();
     presentation?.disconnect();
     presentation = null;
-    delivered = false;
   }
   function stop() {
     if (stopped) return;
     stopped = true;
     stopLifetime?.();
     disconnect();
+    paint.stop();
   }
   // A null delivery stands until the accepted source reading changes, including
   // recovery from an incompatible contract without a new content revision.
   const deliver = (snapshot, identity, mounting = false) => {
-    if (!delivered || deliveredIdentity !== identity) {
+    if (paint.owes(identity)) {
       if (snapshot)
         snapshot.origin = {
           input,
@@ -146,12 +144,8 @@ export function watchData(element, input, callback) {
           contract: declaration.contract,
           revision: snapshot.revision,
         };
-      // Claim this source reading before invoking package code so a synchronous
-      // failure or re-entrant notification cannot redeliver the same failed value.
-      delivered = true;
-      deliveredIdentity = identity;
       const mount = presentation;
-      const rendering = paint(structuredClone(snapshot));
+      const rendering = paint(identity, structuredClone(snapshot));
       completion = Promise.resolve(rendering).catch((error) => {
         reportPageError(error, failureContext);
         if (mounting && presentation === mount) stop();
@@ -162,7 +156,7 @@ export function watchData(element, input, callback) {
   const update = (sourceStore, mounting = false) => {
     const identity = readingIdentity(sourceStore);
     const incompatible = sourceStore && sourceStore.contract !== declaration.contract;
-    if (incompatible && (!delivered || deliveredIdentity !== identity))
+    if (incompatible && paint.owes(identity))
       reportPageError(
         `data source ${source} carries contract ${sourceStore.contract}; ` +
           `watchData(${element.localName}, ${input}) requires ${declaration.contract}`,
@@ -184,7 +178,7 @@ export function watchData(element, input, callback) {
     const identity = readingIdentity(sourceStore);
     // A source can return to the reading already on screen while a later one is
     // staged; that staged reading must be replaced rather than left to paint.
-    if (!pendingDelivery && delivered && deliveredIdentity === identity) return;
+    if (!pendingDelivery && !paint.owes(identity)) return;
     // The new ticket releases a staged one that never painted.
     pendingDelivery = { sourceStore, ticket: presentation.present(identity) };
   };
@@ -209,7 +203,7 @@ export function watchData(element, input, callback) {
       stopSelection = selectedSource.subscribe((sourceStore) => {
         if (mounting) {
           const rendering = update(sourceStore, true);
-          if (!stopped) mount.present(deliveredIdentity).resolve(rendering);
+          if (!stopped) mount.present(readingIdentity(sourceStore)).resolve(rendering);
           return rendering;
         }
         stage(sourceStore);
@@ -227,9 +221,7 @@ export function watchData(element, input, callback) {
     subscriptions.add(subscription);
   }
   stopLifetime = watchOwner(element, { connect, disconnect });
-  stop.refresh = () => {
-    if (!stopped && element.isConnected && delivered) return paint.refresh();
-  };
+  stop.refresh = paint.refresh;
   return stop;
 }
 

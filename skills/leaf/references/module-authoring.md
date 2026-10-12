@@ -20,6 +20,8 @@ Rendering work that reaches a resting state uses `nextRender`, `nextFrame` and
 when the element leaves ("Connection lifetimes"). Continuous mechanical motion, such as recording playback, uses
 `nextAnimation` and `cancelAnimation`: it schedules browser frames without holding
 page readiness open. Cancel it when the motion stops or its owner leaves.
+Work that races its own cancellation awaits `aborted(signal)`, which resolves once the
+signal aborts: `Promise.race([work, aborted(signal)])`.
 
 `/runtime/widget-api.js` is the whole Leaf API a behavior module gets: a module imports
 only that public helper surface, and does not reach into the runtime's private owners,
@@ -160,6 +162,8 @@ that box. It also supports native recovery and repeated failures.
 `shadowStage(host, nodes)` owns the shadow root's structure and styles. For a
 template, stage a concrete container with `shadowStage(host, [container])` and
 call `render(template, container)`. Retain that container on later stage updates.
+`failSoft` on a staged host stages its error box in place of your nodes; your next
+`shadowStage` call replaces it.
 
 ## What a behavior module owes
 
@@ -277,8 +281,9 @@ Call `subscribe(callback)` once during the widget's initialization. It calls the
 callback with the complete reading while connected and returns cleanup for retiring
 the callback itself. A node connecting before document adoption waits for that reading.
 The controller retains callbacks across removal: it stops semantic updates and releases
-presentation regions while detached, then paints the latest reading and restores
-preparation proof when the same owner reconnects. No unsubscribe or resubscribe belongs
+presentation regions while detached, then restores preparation proof when the same
+owner reconnects and paints by the return rule in "Connection lifetimes": only a
+reading that changed while it was away. No unsubscribe or resubscribe belongs
 in the widget's connection callbacks. Native listeners, timers, reading
 regions, margin contributions, and thread surfaces still follow their own lifetimes.
 For each reading the controller calls the module's `renderState(state)` first and these
@@ -346,7 +351,10 @@ A compound widget whose parts scroll independently registers each with
 `compoundReadingRegionId(owner, localName)`. A composition that hides or reveals regions,
 such as a tab switch, runs the change through `preserveReadingRegions(owner, change)`,
 which awaits the change's returned layout promise before restoring the visible regions'
-scrollers. `runtime/reading-regions.js` describes the region model.
+scrollers. A region that shows one subject of several in turn, as a trace's saved tree
+shows one checkpoint's elements, replaces its body's contents inside
+`showReadingSubject(id, subject, render)`, and the runtime returns the reader to their
+place in each subject. `runtime/reading-regions.js` describes the region model.
 
 A widget that re-renders or resizes content holds the user's place with
 `placeKeeper(scroller, {items, identity})` rather than by restoring a `scrollTop`.
@@ -451,9 +459,10 @@ A widget's own layer, such as a list it opens over its contents, records where i
 opened from with `openLayer(layer)` as it opens, which reads where the user stands.
 Open a native modal dialog or popover with `showNativeLayer(layer, {source})`;
 `modal: false` opens a nonmodal dialog. It suppresses the native opening's automatic
-focus inside a sample; use `focusDestination` for the intended arrival. Close a
-native dialog or popover with `closeNativeLayer(layer)`, which prevents the native
-return from taking input from the containing page. A layer
+focus inside a sample; use `focusDestination` for the intended arrival. A popover keeps
+its `source` when the runtime re-seats it, as it does when a panel starts or stops
+covering the page. Close a native dialog or popover with `closeNativeLayer(layer)`,
+which prevents the native return from taking input from the containing page. A layer
 closes with `closeLayer(close, land)`: `close` hides it, and `land` puts a user who stood
 in it where the close takes them, usually `handBack(openerOf(layer))`, which lets go onto
 the page where the opener is gone. Readers of where the user stands hear only where they
@@ -886,13 +895,15 @@ omitting the attribute keeps the visual as one target.
 
 ## Projection subscriptions
 
-Register `watchQuestions`, `watchReports`, `watchHistory`, and `watchThreads` once for each
-owner. They coalesce reads at the script's microtask checkpoint, pause while the owner
-is absent, and read the latest projection when it returns, even when unchanged.
+Register `watchQuestions`, `watchQueues`, `watchReports`, `watchHistory`, and
+`watchThreads` once for each owner. They coalesce reads at the script's microtask
+checkpoint and pause while the owner is absent. A return reads again by the rule in
+"Connection lifetimes": only when the semantic state, a projection deferral, or the
+page's presentation changed while the owner was away, or a paint was cut short.
 Moving the owner within one mutation batch retains its subscription. Their returned
 cleanup permanently retires the subscription, including queued reads and clock paints.
-Its `refresh()` reruns the same clock-tracked reading synchronously while the owner
-is connected, retaining the watcher's readiness proof. Use it when a mechanical
+Its `refresh()` reruns the same clock-tracked reading synchronously, retaining the
+watcher's readiness proof; asked while the owner is away, it reruns on the return. Use it when a mechanical
 change, such as revealing held news or entering print, needs to repaint; calling
 the renderer directly would leave its new time readings outside the subscription.
 
@@ -919,7 +930,16 @@ resources. An actual departure aborts the signal and calls that cleanup, and a f
 permanently retires the subscription and releases active resources. Call it when the
 element no longer needs them, as a widget that fails soft from a paint it cannot
 repeat does, so a return does not start them again. Register dependent resources
-before `watchData` so they stand when its initial or resumed callback runs.
+before `watchData` so they stand when its callback runs.
+
+`watchData`, the projection subscriptions and a `widgetController` subscription
+pause while their owner is away. On return a subscription calls its callback, and the
+controller its `renderState`, again only when its reading changed while the owner was
+away, or when a callback's returned promise had not settled while the owner stood. A
+finished rendering, a failure included, stands, so a refusal is reported once. So return the promise of any paint that finishes later, abandon
+unfinished work on departure, keep finished nodes where they are, and have `start`
+restore whatever its cleanup cleared. A `HeldReading` built with its widget,
+`new HeldReading(this, region, changed)`, keeps waiting across a return itself.
 
 ```js
 schedulePaint = frameFor(this, () => this.paint());
@@ -964,13 +984,13 @@ source's contract, publication, or validity changes. An incompatible contract or
 value delivers `null`, clearing the previous rendering. The subscription stays
 active and recovers when a readable value returns. `page state` and `page check`
 report invalid values; an incompatible subscriber reports the contract it requires.
-Register once for the element. Leaf pauses the subscription when its owner leaves and
-delivers the newest snapshot when it returns, even if its revision is unchanged.
+Register once for the element. Leaf pauses the subscription when its owner leaves,
+and a return delivers by the rule in "Connection lifetimes".
 Moving the owner within one DOM mutation batch retains the subscription. The returned
 cleanup function ends it permanently when the module explicitly stops watching.
 Its `refresh()` repaints the last delivered snapshot through the same clock
-tracking. It neither delivers a pending source reading nor revives an absent or
-retired subscription.
+tracking, on the return when asked while the owner is away. It neither delivers a
+pending source reading nor revives a retired subscription.
 The callback must state the whole rendering and remain idempotent.
 
 Time readings made synchronously in controller, `watchData`, `watchReports`, and
@@ -983,8 +1003,8 @@ grace, the same bound the page's own activity reads. For another
 rounded time reading, use `clockValue((now) => reading)`, whose `now` argument is the
 calibrated server-now value in milliseconds. For a paint outside these
 subscriptions, wrap it with `clocked(element, paint)` and call the returned function
-where state changes; call its `.stop()` on disconnect. If painting is scheduled by a
-presenter, pass its synchronous claim as the third argument,
+where state changes. Its readings pause while the element is away and tick again
+when it returns. If painting is scheduled by a presenter, pass its synchronous claim as the third argument,
 `clocked(element, paint, invalidate)`. A clock change calls `invalidate`; the scheduled
 pass calls the function returned by `clocked`, capturing fresh time readings.
 The claim's return is ignored; the presenter owns its completion and failure. Until that paint runs,

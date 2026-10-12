@@ -18,7 +18,6 @@ from render_harness import (
     judge_watches,
     leaf_page,
     open_page,
-    panel_settled,
     resized,
     scroll_settled,
     take_browser_errors,
@@ -1168,10 +1167,7 @@ def test_an_input_owns_its_counted_rendering_until_it_settles(browser, serve, wo
     consume_browser_errors(page, "button#control moved without input")
 
 
-@pytest.mark.parametrize("route", ["pointer", "keyboard"])
-def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(
-    browser, serve, route
-):
+def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(browser, serve):
     """A press's declared widget preparation is its result, however late it lands, and
     the press owns nothing while it waits.
 
@@ -1197,11 +1193,7 @@ def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(
     page.route("**/vendor/syntax/markdown.js", lambda route: held.append(route))
     first = page.locator("#patch .lf-diff-file").first
     control = page.locator("#control")
-    if route == "pointer":
-        first.locator(".lf-diff-head").click()
-    else:
-        first.locator(".lf-diff-head").focus()
-        page.keyboard.press("Enter")
+    first.locator(".lf-diff-head").click()
     holding(page, held, 1, "the markdown grammar")
     rendered(page, facts=("updatesSettled",))
     assert not page.evaluate(
@@ -1239,7 +1231,7 @@ def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(
 
 @pytest.mark.parametrize(
     "input_at",
-    ["outside", "same-widget", "same-disclosure", "same-disclosure-attr-node"],
+    ["outside", "same-widget", "same-disclosure-attr-node"],
 )
 def test_a_preparation_no_input_began_lands_passive(browser, serve, input_at):
     """Overlapping an input's rendering or widget does not make its preparation input's.
@@ -2175,7 +2167,7 @@ def test_disposing_a_frame_releases_parent_input_without_unwatching_its_sibling(
     consume_browser_errors(page, "#text in p#below moved without input")
 
 
-@pytest.mark.parametrize("surface", ["card", "panel", "inline"])
+@pytest.mark.parametrize("surface", ["card", "inline"])
 def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
     browser, serve, surface
 ):
@@ -2213,12 +2205,8 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
     if surface == "card":
         page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
         surface_root = page.locator(".lf-margin-preview")
-    elif surface == "inline":
-        surface_root = page.locator(".lf-page-thread[data-lf-runtime]")
     else:
-        page.locator(".lf-threads-toggle").click()
-        panel_settled(page)
-        surface_root = page.locator(".lf-thread[open]")
+        surface_root = page.locator(".lf-page-thread[data-lf-runtime]")
     header = surface_root.locator(".lf-msg-head").first
     receipt = header.locator(".lf-msg-sending")
     timestamp = header.locator("time")

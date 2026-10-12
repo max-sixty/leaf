@@ -2,7 +2,6 @@
  * port; documents, DOM nodes, functions and browser owners remain in this realm. */
 import { canPlaceFocus, focusDestination, onStanding } from "./focus.js";
 import { pagePresented } from "./page-paint.js";
-import { enterLoop, joinOuterLoop } from "./keyboard/layer-stack.js";
 const child = document.documentElement.lfSample;
 const commands = new Map();
 const observers = new Map();
@@ -45,18 +44,6 @@ if (child) {
   onStanding((node) => {
     if (node && node !== document.body) standing = node;
     sampleNotice("standing", { focused: Boolean(node && node !== document.body) });
-  });
-  // The containing page says whether this frame stands in a Tab loop there, and Tab
-  // past this document's ends goes back to that page to move on past the frame
-  // (keyboard/layer-stack.js, `joinOuterLoop`).
-  let looped = false;
-  onSampleNotice("tab-loop", ({ standing }) => {
-    looped = standing;
-  });
-  onSampleNotice("tab-enter", ({ backward }) => enterLoop(backward));
-  joinOuterLoop({
-    standing: () => looped,
-    leave: (backward) => sampleNotice("tab", { backward }),
   });
   registerSampleCommand("restore-standing", () => {
     if (!standing?.isConnected || !canPlaceFocus()) return false;

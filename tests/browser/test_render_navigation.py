@@ -426,6 +426,35 @@ def test_a_pane_bodys_ring_is_drawn_whole_against_the_workspace_edges(browser, s
     assert not ring_faults(drawn, "the focused pane body")
 
 
+def test_tab_in_a_covering_panel_walks_only_the_panel(browser, serve):
+    """A covering panel makes the whole chrome envelope modal, and Tab there is the
+    browser's: it walks the panel's controls and out to the browser's own interface,
+    never onto the envelope's other chrome or the page beneath."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 700}, reduced_motion="reduce"
+    )
+    page = open_page(browser, serve(READING_REGIONS_PAGE), context=context)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel = page.locator(".lf-thread-panel")
+    expect(panel).to_be_visible()
+    close = panel.get_by_role("button", name="Close threads")
+    reached = False
+    for _ in range(12):
+        page.keyboard.press("Tab")
+        at = panel.evaluate(
+            """panel => {
+              let at = document.activeElement;
+              while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
+              return at === document.body || panel.contains(at)
+                || panel.contains(at.getRootNode().host);
+            }"""
+        )
+        assert at, "Tab left the covering panel"
+        reached |= close.evaluate("button => button.matches(':focus')")
+    assert reached, "Tab never reached the panel's controls"
+
+
 def test_covering_panel_keeps_focus_on_a_nested_reading_region(browser, serve):
     context = browser.new_context(
         viewport={"width": 390, "height": 700}, reduced_motion="reduce"

@@ -1358,122 +1358,42 @@ def fail_sample_startup(route):
     )
 
 
-RADIO_DIALOG_PAGE = leaf_page(
-    "Radio dialog",
-    """<p id="intro">A page with its own dialog.</p>
-<label><input type="radio" name="cross" value="outside"> Outside</label>
-<dialog id="pick-cross">
-  <button type="button" id="cross-first">First</button>
-  <label><input type="radio" name="cross" value="inside"> Inside</label>
-</dialog>
-<dialog id="pick">
-  <button type="button" id="pick-first">First</button>
-  <label><input type="radio" name="size" value="s"> Small</label>
-  <label><input type="radio" name="size" value="l"> Large</label>
-</dialog>
-<dialog id="pick-disabled">
-  <button type="button" id="disabled-first">First</button>
-  <label><input type="radio" name="tone" value="off" disabled> Off</label>
-  <label><input type="radio" name="tone" value="on"> On</label>
-</dialog>
-<dialog id="pick-split">
-  <label><input type="radio" name="side" value="a"> A</label>
-  <button type="button" id="split-middle">Middle</button>
-  <label><input type="radio" name="side" value="b"> B</label>
-</dialog>""",
-)
-
-
-def test_tab_leaves_a_radio_group_ending_a_modal_for_its_first_stop(browser, serve):
-    """A radio group is one Tab stop, its checked member or else its first, so Tab from
-    any of its members leaves the group. Where the group ends a modal, the browser would
-    carry the user out to its own interface; the modal takes them round to its first
-    stop instead."""
-    page = open_page(browser, serve(RADIO_DIALOG_PAGE))
-    page.evaluate("() => document.getElementById('pick').showModal()")
-    first = page.locator("#pick-first")
-    small = page.locator("input[value=s]")
-    large = page.locator("input[value=l]")
-    first.focus()
-    page.keyboard.press("Tab")
-    expect(small).to_be_focused()
-    page.keyboard.press("Tab")
-    expect(first).to_be_focused()
-
-    large.check()
-    first.focus()
-    page.keyboard.press("Shift+Tab")
-    expect(large).to_be_focused()
-    page.keyboard.press("Tab")
-    expect(first).to_be_focused()
-
-    # A disabled member takes no stop, so the group's stop is its enabled member.
-    page.evaluate("() => document.getElementById('pick').close()")
-    page.evaluate("() => document.getElementById('pick-disabled').showModal()")
-    page.locator("#disabled-first").focus()
-    page.keyboard.press("Tab")
-    expect(page.locator("input[value=on]")).to_be_focused()
-    page.keyboard.press("Tab")
-    expect(page.locator("#disabled-first")).to_be_focused()
-
-    # A group split by another stop is still one stop, its first member: Tab passes
-    # over the second, and leaves from it where script put the user there.
-    page.evaluate("() => document.getElementById('pick-disabled').close()")
-    page.evaluate("() => document.getElementById('pick-split').showModal()")
-    middle = page.locator("#split-middle")
-    middle.focus()
-    page.keyboard.press("Tab")
-    expect(page.locator("input[value=a]")).to_be_focused()
-    page.locator("input[value=b]").focus()
-    page.keyboard.press("Tab")
-    expect(page.locator("input[value=a]")).to_be_focused()
-
-    # Checked, the split group is its checked member alone, at either end.
-    page.locator("input[value=a]").check()
-    middle.focus()
-    page.keyboard.press("Tab")
-    expect(page.locator("input[value=a]")).to_be_focused()
-    page.locator("input[value=b]").check()
-    middle.focus()
-    page.keyboard.press("Shift+Tab")
-    expect(page.locator("input[value=b]")).to_be_focused()
-
-    # A member outside the modal is inert there, so the group's stop is the one inside.
-    page.evaluate("() => document.getElementById('pick-split').close()")
-    page.evaluate("() => document.getElementById('pick-cross').showModal()")
-    page.locator("#cross-first").focus()
-    page.keyboard.press("Tab")
-    expect(page.locator("input[value=inside]")).to_be_focused()
-    page.keyboard.press("Tab")
-    expect(page.locator("#cross-first")).to_be_focused()
-
-
-def test_tab_wraps_through_a_full_view_sample(browser, serve):
-    """Full view is modal and holds its frame last, and a key pressed in the frame is
-    the child's. Shift+Tab from the view's first stop enters the child at its last
-    stop, and Tab from there comes back to the first, where the browser would carry the
-    user out to its own interface."""
+def test_tab_walks_into_and_out_of_a_full_view_sample(browser, serve):
+    """Full view is modal and holds its frame, and Tab is the browser's there: it walks
+    into the child's controls, on out of the frame, and round to the view's own controls,
+    never onto the page beneath."""
     page = open_page(browser, serve(LIVE_SAMPLES_PAGE))
     sample = page.locator("#first-practice")
     frame = sample.locator("iframe")
     child = frame.element_handle().content_frame()
     sample.get_by_role("button", name="Full view", exact=True).click()
+    view = sample.locator("dialog.lf-sample-view")
     expect(
         sample.get_by_role("button", name="Return to page", exact=True)
     ).to_be_focused()
-    first = sample.get_by_role("button", name="Reset", exact=True)
-    first.focus()
 
-    page.keyboard.press("Shift+Tab")
-    expect(frame).to_be_focused()
-    child.wait_for_function(
-        "() => document.activeElement && document.activeElement !== document.body"
-    )
-    page.keyboard.press("Tab")
-    expect(first).to_be_focused()
+    # Where focus stands in the containing page: in the view, on its frame, or out at
+    # the browser's own interface.
+    standing = """view => {
+      let at = document.activeElement;
+      while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
+      if (at === document.body) return "browser";
+      if (!view.contains(at)) return "page";
+      return at.localName === "iframe" ? "frame" : "view";
+    }"""
+    entered = left = False
+    for _ in range(40):
+        page.keyboard.press("Tab")
+        at = view.evaluate(standing)
+        assert at != "page", "Tab left Full view for the page beneath"
+        entered |= at == "frame" and child.evaluate("() => document.hasFocus()")
+        if entered and at == "view":
+            left = True
+            break
+    assert entered, "Tab never entered the sample's own page"
+    assert left, "Tab never came back out of the sample to the view's controls"
 
-    # Back on the page the frame stands in no loop, so Tab past the child's last stop
-    # is the browser's own move on to the page's next stop.
+    # Back on the page, Tab past the child's last stop goes on to the page's next stop.
     page.keyboard.press("Escape")
     expect(sample.get_by_role("button", name="Full view", exact=True)).to_be_focused()
     child.evaluate(

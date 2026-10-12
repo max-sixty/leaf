@@ -1376,13 +1376,46 @@ def serious_axe_violations(page):
     return violations, report
 
 
+# The element at an axe target's selector within one document: a list is a chain of
+# shadow roots, one selector per root.
+AXE_TARGET = """(selector) => {
+  let el = document;
+  for (const hop of [].concat(selector)) el = (el.shadowRoot ?? el).querySelector(hop);
+  return el;
+}"""
+# Whether boxes that paint nothing are all that stand over these words: no background
+# colour or image, border, shadow, or replaced content. Axe finds what stands over words
+# by geometry and ignores pointer-events, so such a box hides words from it that no
+# reader loses. A painted box over words, as a scroller's edge fade or a margin pin is,
+# covers them for the reader too, where the layer's own rules put it.
+UNDER_EMPTY_BOXES = r"""(el) => {
+  const paints = (box) => {
+    if (/^(img|svg|canvas|video|iframe|object|embed)$/i.test(box.localName)) return true;
+    const s = getComputedStyle(box);
+    const seen = (colour) => !/^(transparent|rgba\(.*,\s*0\)|color\(.* \/ 0\))$/.test(colour);
+    return seen(s.backgroundColor) || s.backgroundImage !== 'none' || s.boxShadow !== 'none'
+      || ['Top', 'Right', 'Bottom', 'Left'].some((side) =>
+        parseFloat(s[`border${side}Width`]) > 0 && s[`border${side}Style`] !== 'none'
+        && seen(s[`border${side}Color`]));
+  };
+  axe.setup();
+  try {
+    const over = axe.commons.dom.getTextElementStack(el).flatMap((stack) =>
+      stack.slice(0, stack.indexOf(el)).filter((box) => !box.contains(el)));
+    return over.length > 0 && !over.some(paints);
+  } finally {
+    axe.teardown();
+  }
+}"""
+
+
 def overlapped_words(page):
-    """Words axe read no contrast for because a box stands over them, one line each.
+    """Words axe read no contrast for because a box that paints nothing stands over them.
 
     Axe answers these as incomplete, not as violations, so a sweep keeping violations
     alone passes words it never measured. A window-sized transparent layer over the
-    first screen hid every word under it this way (#2559). A gradient or image behind
-    the words stays unmeasured too; that is their paint, not something in the way."""
+    first screen hid every word under it this way (#2559). The run is
+    `serious_axe_violations`' frame traversal, so it reads the same exposed documents."""
     axe = Axe()
     for frame in page.frames:
         frame.evaluate(axe.axe_script)
@@ -1393,18 +1426,32 @@ def overlapped_words(page):
             "resultTypes": ["incomplete"],
         },
     )
-    return [
-        " ".join(
-            sel if isinstance(sel, str) else " >>> ".join(sel) for sel in node["target"]
-        )
-        for incomplete in result.response["incomplete"]
-        for node in incomplete["nodes"]
-        if any(
-            isinstance(check.get("data"), dict)
-            and check["data"].get("messageKey") == "bgOverlap"
-            for check in node["any"]
-        )
-    ]
+    unread = []
+    for rule in result.response["incomplete"]:
+        for node in rule["nodes"]:
+            if not any(
+                isinstance(check.get("data"), dict)
+                and check["data"].get("messageKey") == "bgOverlap"
+                for check in node["any"]
+            ):
+                continue
+            # One selector per document, each frame's inside the one before it.
+            *frames, words = node["target"]
+            frame = page.main_frame
+            for hop in frames:
+                frame = (
+                    frame.evaluate_handle(AXE_TARGET, hop).as_element().content_frame()
+                )
+            if frame.evaluate(
+                UNDER_EMPTY_BOXES, frame.evaluate_handle(AXE_TARGET, words)
+            ):
+                unread.append(
+                    " ".join(
+                        sel if isinstance(sel, str) else " >>> ".join(sel)
+                        for sel in node["target"]
+                    )
+                )
+    return unread
 
 
 # Chips whose words are a price and nothing else, which is two or three characters and

@@ -3444,8 +3444,8 @@ def test_the_feature_gallery_has_no_serious_wcag_a_or_aa_violations(browser, ser
                 findings.append(f"[{width}px {color_scheme}]\n{report}")
             if unread := overlapped_words(page):
                 findings.append(
-                    f"[{width}px {color_scheme}] no contrast read, something stands "
-                    "over: " + ", ".join(unread)
+                    f"[{width}px {color_scheme}] no contrast read under a box that paints "
+                    "nothing: " + ", ".join(unread)
                 )
 
     assert findings == [], "\n\n".join(findings)

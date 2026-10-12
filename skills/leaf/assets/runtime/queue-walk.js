@@ -5,7 +5,7 @@
    What waits on the user is the application's one reading, `queues.onYou`
    (`runtime/queues.js`, the browser's selection of `agent_state.queues`): each open
    Question or explicit task on the user, each thread holding a
-   move to send again, and each page widget move handed back to them. The walk does not
+   update to send again, and each page widget action handed back to them. The walk does not
    decide membership; it stops once at each place an item is arrived at, so a thread
    holding an open Question is reached as that Question. `t` still walks every open thread
    (navigation.js).
@@ -13,8 +13,8 @@
    Arrival belongs to the item's owner, so the walk adds no arrival of its own beside
    theirs: a Question arrives through the Question view's `arriveAtQuestion`; a thread through the
    t/T walk's own (navigation.js, `arriveAtThread`), so it lands wherever that walk
-   lands; a page widget move, or a task on an element or the page, by travel's `arrive`,
-   onto the widget the move was made on, the element, or the page's head.
+   lands; a page widget action, or a task on an element or the page, by travel's `arrive`,
+   onto the widget the action was made on, the element, or the page's head.
    A Questions panel row arrives through the same function (`arriveAtItem`), for an item on
    either queue or one that is done.
 
@@ -33,7 +33,7 @@
    (`queue-api.js`, `done`): the user's `task_end`, which leaves the queue in the turn it is pressed.
 
    Page order is each item's place in the document: a Question's own element, or its
-   thread's passage for a Question seated in a thread; a thread's passage; the widget a move
+   thread's passage for a Question seated in a thread; a thread's passage; the widget an action
    was made on or the element a task is on; the page's head for a task on the whole
    page. An item with no place on the page, a general thread or one whose passage is
    gone, comes after every placed one in the queue's own order, as the t/T walk reaches
@@ -46,7 +46,7 @@ import { pageCommand, pageScope } from "./keyboard/register.js";
 import { documentFocused, paintKeys } from "./keyboard/scopes.js";
 import { coarsePointer } from "./pointer.js";
 import { questionHolding, placeOf, walkOrigin } from "./standing-target.js";
-import { elementById, inChrome } from "./passages.js";
+import { elementById, inChrome, pageDocument } from "./passages.js";
 import { hostIn, inUi, under } from "./shadow.js";
 import { readQuestions } from "./questions/model.js";
 import { questionPlace } from "./questions/place.js";
@@ -61,18 +61,18 @@ const QUALIFIER = "waiting on you";
 const NOUNS = Object.freeze({
   question: "Question",
   thread: "Thread",
-  widget: "Move",
+  widget: "Update",
   page: "To do",
   approval: "Approval",
 });
 // What a stop is called: by where it is arrived at, but a task on an element is a To do
-// rather than the Move a widget's stop otherwise is.
+// rather than the Update a widget's stop otherwise is.
 const nounOf = (item, stop) =>
   stop.kind === "widget" && taskNoun(item) === "task" ? "To do" : NOUNS[stop.kind];
 
 // Where an item of either queue, or one that is done, is arrived at: a widget Question by
 // the Question's own id, anything else by the thread it stands in, a task on the page as a
-// whole at the page's head, or else the element it stands on, as a move is arrived at
+// whole at the page's head, or else the element it stands on, as an action is arrived at
 // on the widget it was made on.
 const stopOf = (item) =>
   item.kind === "question" && item.question.source.kind === "approval"
@@ -90,7 +90,7 @@ const sameStop = (a, b) => a.kind === b.kind && a.id === b.id;
 // top-level heading, or its first element.
 const pageHead = () =>
   [...document.querySelectorAll("h1")].find((heading) => !inChrome(heading)) ??
-  document.querySelector("main") ??
+  pageDocument() ??
   document.body.firstElementChild;
 
 export function createQueueWalk({
@@ -207,7 +207,7 @@ export function createQueueWalk({
     return dir > 0 ? (reach[0] ?? list.at(-1)) : (reach.at(-1) ?? list[0]);
   }
 
-  // A page widget move handed back to the user, or a task on an element or the page, has
+  // A page widget action handed back to the user, or a task on an element or the page, has
   // no owner that arrives at it, so travel puts the user on the element itself.
   function arriveAtElement(find) {
     const intent = retainUserIntent({ available: () => Boolean(find()) });

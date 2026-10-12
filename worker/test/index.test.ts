@@ -122,7 +122,7 @@ const MANIFEST = {
 
 const startupReport = (overrides: Record<string, unknown> = {}) => ({
   version: 2,
-  loadId: "123e4567-e89b-42d3-a456-426614174000",
+  loadId: "123e4567e89b42d3a456426614174000",
   release: RELEASE,
   layer: LAYER,
   outcome: "presented",
@@ -394,7 +394,7 @@ describe("product-site delivery", () => {
     ];
     try {
       for (const [index, path] of [sample, nested].entries()) {
-        const body = JSON.stringify({ session: `child-${index}`, entries: [entries[index]] });
+        const body = JSON.stringify({ session: String(index).repeat(32), entries: [entries[index]] });
         const response = await worker.fetch(new Request(`https://leaf.page/examples/triage-board${path}/api/interaction`, {
           method: "POST", headers: { Origin: "null" }, body,
         }), env);
@@ -406,13 +406,13 @@ describe("product-site delivery", () => {
       expect(logged.mock.calls.map(call => call[0])).toEqual([
         {
           component: "leaf-interaction", event: "client_batch", route: "/examples/triage-board",
-          release: RELEASE, sampleReference: "645988520964", session: "child-0",
+          release: RELEASE, sampleReference: "645988520964", session: "0".repeat(32),
           entries: [{ ts: entries[0].ts, sequence: 1, type: "sample", phase: "failed",
             sampleReference: "380479911687", error: { name: "AuthoredSampleError", status: 503 } }],
         },
         {
           component: "leaf-interaction", event: "client_batch", route: "/examples/triage-board",
-          release: RELEASE, sampleReference: "380479911687", session: "child-1",
+          release: RELEASE, sampleReference: "380479911687", session: "1".repeat(32),
           entries: [{ ts: entries[1].ts, sequence: 1, type: "click", target: ["button"] }],
         },
       ]);
@@ -436,7 +436,7 @@ describe("product-site delivery", () => {
       idFromString: vi.fn(() => ({})), get: vi.fn(() => ({ fetch: containerFetch })),
     } as unknown as Env["PAGES"] });
     const entry = { ts: "2026-10-10T12:00:00.000Z", sequence: 1, type: "click" };
-    const batch = { session: "child-1", entries: [entry] };
+    const batch = { session: "1".repeat(32), entries: [entry] };
     const cases = [
       { status: 404, body: JSON.stringify(batch), expected: 404 },
       { status: 503, body: JSON.stringify(batch), expected: 503 },
@@ -504,7 +504,7 @@ describe("product-site delivery", () => {
     try {
       const response = await worker.fetch(new Request("https://leaf.page/examples/triage-board/api/interaction", {
         method: "POST", headers: { Cookie: `__Host-leaf-page=${"17".repeat(16)}` },
-        body: JSON.stringify({ session: "tab-1", entries }),
+        body: JSON.stringify({ session: "a".repeat(32), entries }),
       }), environment());
       expect(response.status).toBe(204);
       const batch = logged.mock.calls[0][0] as { entries: unknown[] };
@@ -555,7 +555,7 @@ describe("product-site delivery", () => {
     const url = "https://leaf.page/examples/triage-board/api/interaction";
     const headers = { Cookie: `__Host-leaf-page=${sessionId}` };
     const batch = {
-      session: "tab-1",
+      session: "a".repeat(32),
       entries: [
         {
           ts: "2026-09-25T12:00:00.000Z",
@@ -627,7 +627,7 @@ describe("product-site delivery", () => {
         reference: "964433995543",
         route: "/examples/triage-board",
         release: RELEASE,
-        session: "tab-1",
+        session: "a".repeat(32),
         entries: [
           {
             ts: "2026-09-25T12:00:00.000Z",
@@ -1483,6 +1483,88 @@ describe("website event analytics", () => {
       ],
       doubles: [2, 0],
     });
+  });
+});
+
+describe("page faults", () => {
+  const send = (cookie: string, body: object) =>
+    worker.fetch(
+      new Request("https://leaf.page/examples/triage-board/api/event", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: cookie,
+          // A tab still on the release before a deploy, so the record tells the
+          // document's release apart from the edge's.
+          "Leaf-Release": "b".repeat(64),
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+            "AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36",
+        },
+        body: JSON.stringify(body),
+      }),
+      environment(),
+    );
+
+  it("logs a passive reader's page fault at the edge without activating a container", async () => {
+    const sessionId = "13".repeat(16);
+    const containerFetch = vi.fn();
+    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    const logged = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    try {
+      const response = await send(`__Host-leaf-page=${sessionId}`, {
+        kind: "error",
+        revision: 3,
+        text: `syntax highlight failed: ${"x".repeat(400)}`,
+      });
+
+      expect(response.status).toBe(204);
+      expect(response.headers.get("Leaf-Session")).toBe("passive");
+      expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
+      expect(response.headers.get("Set-Cookie")).toBeNull();
+      expect(containerFetch).not.toHaveBeenCalled();
+      expect(logged).toHaveBeenCalledOnce();
+      const record = logged.mock.calls[0][0];
+      expect(record).toMatchObject({
+        component: "leaf-page-error",
+        event: "browser_page_error",
+        reference: "318445474579",
+        route: "/examples/triage-board",
+        release: "b".repeat(64),
+        currentRelease: RELEASE,
+        revision: 3,
+        browser: "chrome",
+        platform: "windows",
+      });
+      expect(record.reason).toHaveLength(300);
+      expect(record.reason.startsWith("syntax highlight failed: x")).toBe(true);
+    } finally {
+      logged.mockRestore();
+    }
+  });
+
+  it("keeps an active session's faults and a passive reader's gestures in the container", async () => {
+    const sessionId = "14".repeat(16);
+    const containerFetch = vi.fn(async () =>
+      Response.json({ ok: true, state: { events: [], activity: { obligations: [] } } }),
+    );
+    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+
+    await send(`__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board")}`, {
+      kind: "error",
+      text: "a widget failed",
+    });
+    await send(`__Host-leaf-page=${sessionId}`, {
+      kind: "comment",
+      attempt: "a-comment",
+      text: "hello",
+    });
+
+    expect(containerFetch).toHaveBeenCalledTimes(2);
+    const bodies = await Promise.all(
+      containerFetch.mock.calls.map(([request]) => (request as Request).json()),
+    );
+    expect(bodies.map((body) => body.kind)).toEqual(["error", "comment"]);
   });
 });
 

@@ -1,6 +1,6 @@
 // `syncLayout` derives floating chrome placement and reservations from current chrome
 // boxes, and asks which residents stand in the page's margin (`scheduleResidency`,
-// margin-layout.js), the one posture JavaScript decides for the document: it reads the
+// content-layout.js), the one posture JavaScript decides for the document: it reads the
 // room beside `main`, which the page's own CSS sets. CSS owns the rest of the shell:
 // `body` is the named `lf-shell` inline-size container, and a query on it may answer a
 // narrow column's facts. `layoutSizes` schedules `syncLayout` and page repaint after a
@@ -9,9 +9,11 @@
 // re-places document-attached paint without re-running chrome reservation.
 //
 // `syncLayout` measures only chrome whose placement or reservation depends on rendered
-// chrome, and writes only chrome boxes. `layoutSizes` watches `document.body`'s
-// content-box size without deriving a posture from it. A width change schedules
-// `syncLayout` and page repaint in the following frame; a height-only content reflow calls `pageShifted` during observer delivery so
+// chrome, and writes only chrome boxes. A window resize runs `syncLayout` synchronously,
+// after restating the edges and auxiliary modality, so they follow a live drag in the same
+// frame. `layoutSizes` watches `document.body`'s content-box size without deriving a
+// posture from it. A width change also schedules `syncLayout` and page repaint in the
+// following frame; a height-only content reflow calls `pageShifted` during observer delivery so
 // page paint follows targets that moved. That direct path may write only unobserved paint
 // hosts and state or queue work for a frame. A `ResizeObserver` callback must not resize
 // the box it observes, directly or through a class or attribute that changes that box.
@@ -39,7 +41,7 @@
 import { sizeObserver } from "./rendering.js";
 import { drawnEdge } from "./drawn-edge.js";
 import { standsBeside } from "./auxiliary-surfaces.js";
-import { rightCover } from "./geometry.js";
+import { layoutWindow, rightCover } from "./geometry.js";
 import { scheduleResidency } from "./content-layout.js";
 import { syncLayoutRegion } from "./reading-regions.js";
 
@@ -128,7 +130,7 @@ export function createChromeLayout({
         if (reply.checkVisibility())
           occupied = Math.max(
             occupied,
-            innerHeight - list.bottom + padding + box.height,
+            layoutWindow().bottom - list.bottom + padding + box.height,
           );
       }
     }
@@ -162,36 +164,35 @@ export function createChromeLayout({
   let bodyContentWidth = 0;
   let bodyContentHeight = 0;
   const layoutSizes = sizeObserver((entries) => {
-    let layoutChanged = false;
+    let shellWidthChanged = false;
     let shellMoved = false;
     let chromeMoved = false;
     for (const { contentRect, target } of entries) {
       if (target !== document.body) {
-        layoutChanged = true;
         chromeMoved = true;
         continue;
       }
       const widthChanged = contentRect.width !== bodyContentWidth;
-      const heightChanged = contentRect.height !== bodyContentHeight;
-      if (widthChanged) {
-        layoutChanged = true;
-      }
-      if (widthChanged || heightChanged) shellMoved = true;
+      if (widthChanged) shellWidthChanged = true;
+      if (widthChanged || contentRect.height !== bodyContentHeight) shellMoved = true;
       bodyContentWidth = contentRect.width;
       bodyContentHeight = contentRect.height;
     }
-    if (layoutChanged) scheduleLayout(shellMoved, chromeMoved);
+    if (shellWidthChanged || chromeMoved) scheduleLayout(shellMoved, chromeMoved);
     else if (shellMoved) pageShifted();
   });
   // Mount only after chrome is attached. Constructors perform no observation or
   // listener installation, so importing the public widget API cannot start layout.
   function mountLayoutObservers() {
     commentsEdge.handle(panel, () => closeBtn);
+    // A window resize restates both edges' caps, then the auxiliary modality that reads
+    // them, then layout, during the event rather than a frame later, so a live window
+    // drag clamps an edge and turns a beside surface into a covering one in the same
+    // frame. page-geometry.js's resize door re-places page paint for the same event.
     addEventListener("resize", () => {
       commentsEdge.state();
       restateDrawerEdge();
       syncAuxiliarySurfaces();
-      pageShifted();
       syncLayout();
     });
     layoutSizes.observe(document.body);

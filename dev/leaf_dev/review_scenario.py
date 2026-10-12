@@ -92,7 +92,7 @@ def post(url: str, step: str, text: str | None = None) -> str:
     section, or `text` on the page as a whole."""
     section, text = COMMENTS[step] if text is None else (None, text)
     client = PageClient(url)
-    client.post(
+    state = client.post(
         {
             "kind": "comment",
             "revision": client.state()["active"]["revision"],
@@ -103,7 +103,7 @@ def post(url: str, step: str, text: str | None = None) -> str:
     )
     return next(
         event["id"]
-        for event in client.state()["events"]
+        for event in state["events"]
         if event.get("attempt") == attempt(step)
     )
 

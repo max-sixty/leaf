@@ -8,7 +8,7 @@
           border-bottom: 1px solid var(--rule); }
 .lf-page-thread > .lf-page-thread-summary[hidden] { display: none; }
 .lf-page-thread .lf-btn { font: inherit; }
-.lf-page-thread :is(.lf-btn, summary):is(:focus-visible, .lf-focus-visible) {
+.lf-page-thread :is(.lf-btn, summary)[data-lf-focus] {
           outline: var(--focus-ring); outline-offset: 1px; --lf-focus-ring: thread; }
 @media print {
   .lf-page-thread,
@@ -43,7 +43,7 @@
   .lf-outline-chip:is(button, [role="button"]) { display: inline-flex;
           align-items: center; }
 }
-.lf-outline-chip:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
+.lf-outline-chip[data-lf-focus] { outline: var(--focus-ring);
           --lf-focus-ring: chip; outline-offset: 1px; }
 /* Reaction controls own their resting, selected and interactive appearance together.
    A surface places and reveals them without restating their ink, border or fill.
@@ -51,19 +51,19 @@
    an opaque resting surface because they float over page content. */
 .lf-msg-control { color: var(--muted); border: 1px solid transparent;
           background: transparent; }
-.lf-msg-control:is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded="true"]) {
+.lf-msg-control:is(:hover, [data-lf-focus], [aria-expanded="true"]) {
           color: var(--ink-2); border-color: var(--border-2); background: var(--chip); }
 .lf-react { display: inline-flex; align-items: center; justify-content: center; gap: 4px;
           min-width: max(26px, var(--aim-floor)); }
 .lf-react:not(.lf-margin-entry) { color: var(--muted);
           border-color: transparent; background: transparent; }
-.lf-react:not(.lf-margin-entry):is([aria-pressed="true"], :hover, :focus-visible,
-          .lf-focus-visible, [aria-busy="true"]) {
+.lf-react:not(.lf-margin-entry):is([aria-pressed="true"], :hover, [data-lf-focus],
+          [data-lf-focus], [aria-busy="true"]) {
           color: var(--ink-2); border-color: var(--border-2); background: var(--chip); }
 .lf-react.lf-response-action:not([aria-pressed="true"]) { background: var(--card); }
 .lf-react[aria-busy="true"] { opacity: .55; }
-/* A reaction's word, while a press on it is held or the keyboard stands on it
-   (held-word.js): the finger's and the keyboard's reading of a face that is
+/* A reaction's word, while a press on it is held or it has focus
+   (held-word.js): the focused or held reading of a face that is
    otherwise one glyph. The word is the choice's own name, so it says what the accessible
    name says, and it stands above the choice, where the finger pressing it does not cover
    it. The press owns the gesture, so it neither scrolls nor opens the platform's
@@ -71,7 +71,7 @@
 .lf-react { touch-action: none; -webkit-touch-callout: none;
           user-select: none; -webkit-user-select: none; }
 .lf-react:not(.lf-margin-entry) { position: relative; }
-.lf-react:not(.lf-margin-entry):is([data-lf-held-word], :focus-visible, .lf-focus-visible)::after {
+.lf-react:not(.lf-margin-entry):is([data-lf-held-word], [data-lf-focus])::after {
           content: attr(aria-label); position: absolute; z-index: 5;
           inset-block-end: calc(100% + 6px); inset-inline-start: 50%; translate: -50% 0;
           width: max-content; max-width: 220px; padding: 4px 7px; border-radius: 4px;
@@ -91,7 +91,7 @@
    that control's room at its end, so it covers none of the header's words, and the
    control follows that edge when thread actions narrow the header; the full-width
    message body does not place it. It appears only for the message under pointer or
-   keyboard focus.
+   focus.
    A reply with no feedback keeps no row. The reaction picker is an overlaid menu below
    its control; opening it never moves this message or the threads after it. At rest
    only feedback already left earns flow space. */
@@ -121,8 +121,8 @@
 .lf-msg-control-icon { inline-size: 16px; block-size: 16px; overflow: visible;
           fill: none; stroke: currentColor; stroke-width: 1.6;
           stroke-linecap: round; stroke-linejoin: round; }
-.lf-msg:is(:hover, :focus-within) .lf-msg-control,
-.lf-msg-control:is(:focus-visible, .lf-focus-visible) { opacity: 1; }
+.lf-msg:is(:hover, [data-lf-focus-within]) .lf-msg-control,
+.lf-msg-control[data-lf-focus] { opacity: 1; }
 .lf-react-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
           margin-top: 0; anchor-scope: --lf-react-trigger; }
 .lf-react-strip:has(.lf-react[aria-pressed="true"]) { margin-top: 4px; }
@@ -235,9 +235,8 @@
     );
   }
   :is([data-lf-more-before], [data-lf-more-after]):is(
-      :focus-visible,
-      .lf-focus-visible,
-      :has(:is(:focus-visible, .lf-focus-visible))
+      [data-lf-focus],
+      :has([data-lf-focus])
     ) {
     -webkit-mask-image: none;
     mask-image: none;
@@ -303,5 +302,5 @@
    Beside the face above it, so a button inside a declared widget tree wears this ring
    too. In chrome.css, where it was, it reached neither that button nor a
    package wanting to answer it. */
-:is(.lf-btn, .button):is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
+:is(.lf-btn, .button)[data-lf-focus] { outline: var(--focus-ring);
           --lf-focus-ring: btn; outline-offset: 2px; }

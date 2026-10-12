@@ -2,7 +2,7 @@
  * size. Every visual consumer projects through the same current element frame, so
  * ink and its contextual picture follow a scale or rotation without treating text
  * reflow as a transform. */
-import { elementFrame } from "../geometry.js";
+import { elementFrame } from "../element-frame.js";
 import { leafSurface } from "../passages.js";
 import { shadowHost, under, upFrom } from "../shadow.js";
 import { MAX_DRAWING_FRAME_DEPTH } from "./drawing-record.js";

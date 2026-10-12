@@ -4,7 +4,7 @@ import { html, nothing, render } from "../vendor/browser-runtime.js";
 import { JUST_NOW, ago, clocked } from "./presence.js";
 import { el, offer, reserve } from "./widget-elements.js";
 import { keeps, keepsText } from "./keeps.js";
-import { runtime, runtimeResource } from "./context.js";
+import { SHARE_ROOT, runtime, runtimeResource, shareUrl } from "./context.js";
 import {
   BANNER_CONTROL_RANK,
   bannerActions,
@@ -17,7 +17,7 @@ import {
 import { iconElement } from "./icons.js";
 import { latestChip, versionBtn } from "./version-picker.js";
 import { othersBtn, queueBtn } from "./drawers.js";
-import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
+import { pagePresented } from "./page-paint.js";
 import { repaint } from "./repaint.js";
 import { sizeObserver } from "./rendering.js";
 import {
@@ -28,20 +28,17 @@ import {
 } from "./notifications.js";
 import { watchProjection } from "./projection-watch.js";
 import { readQuestions } from "./questions/model.js";
-import { createBannerApprovalFace } from "./banner-approval.js";
 import { createBannerStatusView } from "./banner-status-view.js";
 import { declareBanner } from "./geometry.js";
 import { agentName, watchSemantic } from "./semantic-state.js";
 import { taskNoun } from "./queues.js";
 import { readQueues } from "./queue-api.js";
-import { SHARE_ROOT, shareUrl } from "./storage.js";
 
 export const banner = el("header", "lf-ui lf-banner");
 banner.id = "lf-banner";
 declareBanner(banner);
 const bannerStatus = createBannerStatusView(repaint);
 registerNoticePresentation(() => bannerStatus.presentNotice(noticeReading()));
-export const dot = bannerStatus.dot;
 // The agent's Tasks count, which opens the Questions panel listing them (drawers.js).
 export const queueCounts = bannerStatus.queues;
 
@@ -86,8 +83,21 @@ export const approvalTarget = () => (signoff ? approveBtn : null);
 approveBtn.title = "Approve this work; the page stays open for follow-up";
 // The page's decision is not actionable until the page itself is present. Discussion chrome
 // stays live during replay, but approving hidden authored content would decide a version
-// the user has not seen yet. The face states that refusal from its first reading.
-const approvalFace = createBannerApprovalFace(approveBtn);
+// the user has not seen yet. The control states that refusal from its first reading.
+let approvalReason = "Approval waits until this page has read its current state";
+// Keep a refused press focusable, with its reason available to keyboard and touch.
+function presentApproval({ reason, text, title }) {
+  approvalReason = reason;
+  render(text, approveBtn);
+  keeps(approveBtn, "aria-disabled", reason ? "true" : null);
+  keeps(approveBtn, "aria-description", reason || null);
+  keeps(approveBtn, "title", title);
+}
+presentApproval({
+  reason: approvalReason,
+  text: "Approve version",
+  title: approvalReason,
+});
 
 // The toolbar owns this complete order from typed contributions rather than discovering
 // or reconstructing it from whichever nodes happen to be in the row.
@@ -146,7 +156,19 @@ const WORK_WORDS = {
   awaiting_user: "waiting for you",
   replying: "replying",
 };
-export const countResponses = (count) => `${count} response${count === 1 ? "" : "s"}`;
+const countResponses = (count) => `${count} response${count === 1 ? "" : "s"}`;
+// What each canonical count says the agent owes, in the order a reader is told.
+const COUNT_PHRASES = {
+  active: "being worked on",
+  handling: "owed on picked-up updates",
+  queued: "owed on queued updates",
+  picked_up: "owed on picked-up updates; no current turn observed",
+  pending: "owed on updates awaiting delivery",
+};
+const phrased = (counts, kinds) =>
+  kinds
+    .filter((kind) => counts[kind])
+    .map((kind) => `${countResponses(counts[kind])} ${COUNT_PHRASES[kind]}`);
 // What the banner and the leaves drawer both read off one page's server-owned `activity`
 // before either words it. Each seat keeps its own sentences; a fact they share changes
 // here once:
@@ -156,21 +178,18 @@ export const countResponses = (count) => `${count} response${count === 1 ? "" : 
 //   for a dropped claim.
 // - `listening` is whether input is still on its way to the agent (pending or queued),
 //   which turns a listening page's standing request into "listening".
-// - `waiting` phrases the queued and pending moves, in that order.
+// - `waiting` phrases the queued and pending updates, in that order, and `owed` the
+//   other counts, for a seat with room to say them beside `waiting`.
 export function activityFacts({ activity }) {
   const { counts } = activity;
-  const waiting = [];
-  if (counts.queued)
-    waiting.push(`${countResponses(counts.queued)} owed on queued updates`);
-  if (counts.pending)
-    waiting.push(`${countResponses(counts.pending)} owed on updates awaiting delivery`);
   return Object.freeze({
     tone: TONE[activity.kind],
     work: WORK_WORDS[activity.observed_kind] || "working",
     left: Boolean(activity.dropped),
     silentSince: ago(activity.ts),
     listening: Boolean(counts.pending || counts.queued),
-    waiting: Object.freeze(waiting),
+    waiting: Object.freeze(phrased(counts, ["queued", "pending"])),
+    owed: Object.freeze(phrased(counts, ["active", "handling", "picked_up"])),
   });
 }
 // The judgment's third seat. A user keeps a leaf in a tab for days and looks at
@@ -245,10 +264,10 @@ export async function loadIcon() {
 // first poll has already judged the page.
 function paintTab() {
   if (!iconMark) return;
-  const url = iconUrl(getComputedStyle(dot).backgroundColor);
+  const url = iconUrl(getComputedStyle(bannerStatus.dot).backgroundColor);
   // Written only on change: an unchanged poll must not hand the browser its icon again
   // every two seconds.
-  if (tabLink.getAttribute("href") !== url) tabLink.setAttribute("href", url);
+  keeps(tabLink, "href", url);
 }
 // Summary and explanation share the canonical activity reading. The complete wording
 // remains available to pointer, keyboard, and touch through the native disclosure;
@@ -560,8 +579,8 @@ const publicationWords = (published) => [
   "Install Leaf",
 ];
 
-// The moves an open turn picked up, by kind: a comment in a thread, or an answer to an
-// Question. A lone move is the user's own; several are counted.
+// The updates an open turn picked up, by kind: a comment in a thread, or an answer to a
+// Question. A lone update is the user's own; several are counted.
 function pickedUpWords({ comments, answers }) {
   if (comments + answers === 1) return comments ? "your comment" : "your answer";
   const counted = (count, noun) => `${count} ${noun}${count === 1 ? "" : "s"}`;
@@ -575,7 +594,7 @@ function pickedUpWords({ comments, answers }) {
 
 // Both levels of wording follow server-owned activity. Short summaries retain the
 // actionable distinction: working, listening, away, or nobody holding the page. How many
-// moves are waiting or saved is the disclosure's; the row counts what waits on each
+// updates are waiting or saved is the disclosure's; the row counts what waits on each
 // side instead (`queueWords`).
 function statusWords({
   age,
@@ -603,7 +622,7 @@ function statusWords({
   // reading this row must not give.
   //
   // Until the agent writes that sentence, what Leaf knows is which of the user's
-  // moves its open turn picked up, so the row names them, in the words of their
+  // updates its open turn picked up, so the row names them, in the words of their
   // Picked up stage, rather than standing on a bare "working", and the disclosure
   // says the agent's own words are still to come.
   if (kind === "working") {
@@ -806,8 +825,8 @@ export function mountBanner({ approveVersion, paintApproval }) {
   approveBtn.onclick = async () => {
     if (approving) return;
     // A refused press answers with its reason where every user sees it.
-    if (approvalFace.reason) {
-      notice(approvalFace.reason);
+    if (approvalReason) {
+      notice(approvalReason);
       return;
     }
     approving = true;
@@ -868,20 +887,16 @@ export function paintApproval(blockingQuestions) {
     ? "Approved. Press z to undo while approval is still your latest update"
     : runtime.currentStamp === null
       ? "There is no stamped version to approve yet"
-      : !signoff ||
-          !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented) ||
-          blockingQuestions === null
+      : !signoff || !pagePresented() || blockingQuestions === null
         ? "Approval waits until this page has read its current state"
         : blockingQuestions.length
           ? "Answer every Question before approving this work"
           : null;
-  approvalFace.present(
-    Object.freeze({
-      reason: reason ?? (approving ? "Approving this version" : null),
-      text: approved ? "✓ Version approved" : "Approve version",
-      title: reason ?? "Approve this work; the page stays open for follow-up",
-    }),
-  );
+  presentApproval({
+    reason: reason ?? (approving ? "Approving this version" : null),
+    text: approved ? "✓ Version approved" : "Approve version",
+    title: reason ?? "Approve this work; the page stays open for follow-up",
+  });
   // Approval is open while a press would approve this version, and behind More, on a
   // phone, that puts More's dot up. A refused press does not: the dot comes up when the
   // last Question holding approval is answered, which is when the user can act on it.

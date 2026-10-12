@@ -55,7 +55,7 @@ import {
   keySequenceModel,
   keySequenceTemplate,
   neutralStates,
-} from "./presentation.js";
+} from "./key-sequence.js";
 import {
   handBack,
   focusDestination,
@@ -104,7 +104,7 @@ commandReferenceDialog.append(commandReferenceSearch);
 
 // Page-key presentation owns this retained native control's changing name and shortcut
 // metadata. The reference template only seats it.
-export const commandReferenceClose = closeControl({
+const commandReferenceClose = closeControl({
   name: "Close the command reference",
   className: "lf-command-reference-close",
 });
@@ -928,11 +928,11 @@ const focusedCommandId = () =>
     ? focused().dataset.lfCommand
     : null;
 
-export const commandReferenceCommandActive = () =>
+const commandReferenceCommandActive = () =>
   commandReferenceView.visibleCommands.length > 0 &&
   (focused() === commandReferenceSearch.input || focusedCommandId() !== null);
 
-export function moveCommandReferenceSelection(dir) {
+function moveCommandReferenceSelection(dir) {
   const ids = commandReferenceView.visibleCommands.map(({ entry }) => entry.id);
   if (!ids.length) return;
   const focusedId = focusedCommandId();
@@ -964,7 +964,7 @@ export function moveCommandReferenceSelection(dir) {
   });
 }
 
-export function activateSelectedCommand() {
+function activateSelectedCommand() {
   if (!commandReferenceCommandActive()) return false;
   const id =
     focusedCommandId() ??

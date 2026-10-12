@@ -27,11 +27,9 @@ def test_new_reply_and_user_question_share_one_notice_without_moving_focus(
 
     thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "I changed the route. Does this answer your question?",
-        None,
         question=True,
-        for_event=root,
     )
     told(page)
     notice = re.compile(r".+ replied; Input needed")
@@ -66,10 +64,8 @@ def test_terminal_failure_is_a_response_notice_not_an_agent_reply(browser, serve
 
     thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "The agent turn ended before completion.",
-        None,
-        for_event=root,
         failure="turn_failed",
         attempt="response-failed-attempt",
     )
@@ -134,7 +130,7 @@ def test_initial_history_and_repeated_stage_readings_are_quiet(browser, serve):
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "What changed?")
     thread_model.post_reply(
-        serve.page_dir, root, "The initial historical answer.", None, for_event=root
+        serve.page_dir, {"to": root, "for": root}, "The initial historical answer."
     )
     page = open_page(browser, url)
     expect(page.locator(".lf-notice")).to_be_hidden()

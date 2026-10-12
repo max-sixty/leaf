@@ -5,6 +5,7 @@ from typing import NamedTuple
 
 from leaf.events import (
     action_rests_on,
+    action_retracted,
     active_summaries,
     build_threads,
     conversation_turns,
@@ -238,45 +239,77 @@ def thread_memberships(
     """Event id → every thread whose history that event changes.
 
     Leaf owns the relation because each event kind names its thread in a
-    different way. Some name none directly: a later action on one widget
-    supersedes the earlier answers there that still stand, an undo inherits the
-    gesture's membership, and a version note can retract what an answer rested on.
-    An answer taken back or retracted no longer stands, so nothing later at its
-    coordinate changes the thread it closed.
+    different way. An event names its own threads directly (`event_threads`), and an
+    undo inherits the membership of the gesture it takes back. An event also changes
+    every thread whose settlement it moves: whatever changes which action wins a
+    coordinate, as `build_threads` reads winners, changes the threads the old and the
+    new winner answer. A later action there supersedes, an undo unseats, and a
+    version note retracts what an action rested on, restoring whatever it had
+    superseded. Each is read against the log up to that event.
 
     This is the shared join for wait delivery, sampled thread closures, and the
-    browser state, which serves it so the browser files an unsent undo or action
-    with the logged gesture it takes back or replaces. Current resolution still
-    comes from `build_threads`; membership says which raw records explain that fold
-    rather than becoming another state projection. Read state and the history feed
-    read the direct relation, `event_threads`: an update the user made in a thread,
-    rather than every thread it changed.
+    browser state, which serves it so the browser files a gesture under the threads
+    it changed once the log has it. Current resolution still comes from
+    `build_threads`; membership says which raw records explain that fold rather than
+    becoming another state projection. Read state and the history feed read the
+    direct relation, `event_threads`: an update the user made in a thread, rather
+    than every thread it changed.
     """
     memberships: dict[str, list[str]] = {}
-    # The answers at each coordinate that a later gesture there could still unseat:
-    # an undo takes one out, and so does a version note retracting what it rested on,
-    # after which a later action at its coordinate leaves the thread it closed alone.
-    answers: dict[tuple, dict[str, tuple[dict, str]]] = {}
+    floors: dict[str, int] = {}
+    withdrawn: set[str] = set()
+    actions: dict[tuple, list[dict]] = {}
+    coordinates: dict[str, tuple] = {}
+
+    def winner(coordinate: tuple) -> dict | None:
+        return next(
+            (
+                action
+                for action in reversed(actions[coordinate])
+                if action["id"] not in withdrawn
+                and not action_retracted(action, floors, within)
+            ),
+            None,
+        )
+
     for event in events:
         if event["kind"] == "undo":
             named = memberships.get(event["undoes"], [])
-            for held in answers.values():
-                held.pop(event["undoes"], None)
+            moved = (
+                [coordinates[event["undoes"]]] if event["undoes"] in coordinates else []
+            )
         else:
             named = event_threads(event, names, widgets)
+            moved = []
         if event["kind"] == "action":
-            held = answers.setdefault(event_coordinate(event), {})
-            named = [*named, *(answered for _, answered in held.values())]
-            if answered := event["meaning"].get("answer"):
-                held[event["id"]] = (event, answered)
+            coordinates[event["id"]] = event_coordinate(event)
+            moved = [coordinates[event["id"]]]
+            actions.setdefault(moved[0], [])
         elif event["kind"] == "note" and (restated := set(event.get("restated", []))):
-            for held in answers.values():
-                for action_id, (action, answered) in list(held.items()):
-                    if event["revision"] > action["revision"] and restated.intersection(
-                        action_rests_on(action, within)
-                    ):
-                        named = [*named, answered]
-                        del held[action_id]
+            moved = [
+                coordinate
+                for coordinate, held in actions.items()
+                if any(restated.intersection(action_rests_on(a, within)) for a in held)
+            ]
+        before = {coordinate: winner(coordinate) for coordinate in moved}
+        if event["kind"] == "action":
+            actions[moved[0]].append(event)
+        elif event["kind"] == "undo":
+            withdrawn.add(event["undoes"])
+        elif event["kind"] == "note":
+            for identity in event.get("restated", []):
+                floors[identity] = max(floors.get(identity, 0), event["revision"])
+        for coordinate, was in before.items():
+            now = winner(coordinate)
+            if now is not was:
+                named = [
+                    *named,
+                    *(
+                        action["meaning"]["answer"]
+                        for action in (was, now)
+                        if action and action["meaning"].get("answer")
+                    ),
+                ]
         memberships[event["id"]] = list(dict.fromkeys(named))
     return memberships
 

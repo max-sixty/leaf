@@ -19,8 +19,7 @@ from pathlib import Path
 import click
 
 from leaf_dev import LEAF_COMMAND
-from leaf_dev.arms import read_trace, resumed, trace_summary
-from leaf_dev.arrangement_eval import CASES, TASKS, WIDTHS, phases
+from leaf_dev.arrangement_eval import CASES, TASKS, WIDTHS, later_messages, phases
 from leaf_dev.eval_pairs import samples
 
 LABELS = {"laptop": "Laptop", "narrow": "900px", "short": "900 × 600", "phone": "Phone"}
@@ -46,18 +45,18 @@ def condition(column: str) -> str:
 
 
 def measures(sample: dict, subject: str) -> dict:
-    """What a sample spent over its phases, and the final version's code."""
-    names = [str(p) for p in phases(subject)]
-    session = resumed(
-        [trace_summary(read_trace(sample["work"] / f"stream-{n}.jsonl")) for n in names]
-    )
-    final = sample["diagnostics"]["phases"][names[-1]]
+    """What a sample's author spent over its phases, the final version's code, and
+    whether its decision was applied as chosen."""
+    recorded = sample["diagnostics"]["phases"]
+    session = [recorded[str(p)]["trace"] for p in phases(subject) if str(p) in recorded]
+    final = recorded.get(str(phases(subject)[-1]), {})
     return {
         "minutes": sum(p["minutes"] or 0 for p in session),
         "cost": sum(p["cost_usd"] or 0 for p in session),
         "turns": sum(p["turns"] for p in session),
         "css": final.get("css_lines"),
         "script": final.get("script_lines"),
+        "applied": sample["checks"].get("decision-applied") is True,
     }
 
 
@@ -213,15 +212,24 @@ def task_section(page: Path, subject: str, columns: dict, pairs: list[dict]) -> 
             f"<td class='num'>${mean['cost']:.2f}</td>"
             f"<td class='num'>{mean['turns']:.0f}</td>"
             f"<td class='num'>{mean['css']:.0f}</td>"
-            f"<td class='num'>{mean['script']:.0f}</td></tr>"
+            f"<td class='num'>{mean['script']:.0f}</td>"
+            + (
+                f"<td class='num'>{mean['applied']:.0%}</td>"
+                if CASES[subject].decision
+                else ""
+            )
+            + "</tr>"
         )
     table = (
         f'<table id="{subject}-measures"><thead><tr><th>Condition</th><th>Samples</th>'
         "<th>Minutes</th><th>Cost</th><th>Turns</th><th>CSS lines</th>"
-        "<th>Script lines</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table>"
+        "<th>Script lines</th>"
+        + ("<th>Decision applied</th>" if CASES[subject].decision else "")
+        + "</tr></thead><tbody>"
+        + "".join(rows)
+        + "</tbody></table>"
     )
     request = (TASKS / subject / "request.md").read_text()
-    comment = CASES[subject].comment
     first, second = sorted(columns)
     sections = "".join(
         pair_section(page, subject, n, judged.get(n), (first, x), (second, y))
@@ -230,13 +238,9 @@ def task_section(page: Path, subject: str, columns: dict, pairs: list[dict]) -> 
     return (
         f'<section id="task-{subject}"><h2>{subject.capitalize()}: pairs won, '
         f"{outcome(subject, pairs)}</h2>{table}"
-        f"<details><summary>The request, the width preference and the comment</summary>"
+        "<details><summary>The request and the user's later messages</summary>"
         f'<pre id="{subject}-request">{escape(request)}</pre>'
-        + (
-            f"<p>Comment: on {escape(comment.target)}: {escape(comment.text)}</p>"
-            if comment
-            else ""
-        )
+        + "".join(f"<p>{escape(line)}</p>" for line in later_messages(subject) if line)
         + f"</details>{sections}</section>"
     )
 

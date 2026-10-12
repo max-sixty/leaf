@@ -2,7 +2,7 @@
 
 import json
 
-from leaf_dev.arrangement_eval import WIDTHS
+from leaf_dev.arrangement_eval import WIDTHS, phases
 
 
 def test_pairwise_counts_only_a_winner_both_orders_name(tmp_path, monkeypatch):
@@ -20,7 +20,7 @@ def test_pairwise_counts_only_a_winner_both_orders_name(tmp_path, monkeypatch):
         shots = run / "screenshots" / work.name
         shots.mkdir(parents=True)
         for name in WIDTHS:
-            (shots / f"p3-{name}-0.png").write_bytes(b"")
+            (shots / f"p{phases('document')[-1]}-{name}-0.png").write_bytes(b"")
         results.append(
             {
                 "provider": {"label": column},
@@ -65,3 +65,71 @@ def test_a_resumed_phase_costs_only_its_own_work():
     totals = [{"cost_usd": 1.0}, {"cost_usd": 1.5}, {"cost_usd": 2.25}]
     assert [p["cost_usd"] for p in resumed(totals)] == [1.0, 0.5, 0.75]
     assert [p["cost_usd"] for p in resumed([{"cost_usd": None}] * 2)] == [None, None]
+
+
+def test_a_live_session_splits_into_its_phases_by_the_harness_marks():
+    """Each phase's turns are the records after its mark, so each costs only its
+    own turns once `resumed` takes the session's running total apart."""
+    from leaf_dev.arms import resumed, trace_summary
+    from leaf_dev.arrangement_eval import phase_traces
+
+    def turn(total):
+        return {"type": "result", "is_error": False, "total_cost_usd": total}
+
+    trace = [
+        {"type": "eval_phase", "phase": 1},
+        turn(1.0),
+        {"type": "eval_phase", "phase": 2},
+        {"type": "eval_send", "text": "revise"},
+        turn(1.5),
+        turn(2.0),
+    ]
+    split = phase_traces(trace)
+    assert [len(split[1]), len(split[2])] == [1, 3]
+    costs = resumed([trace_summary(split[p]) for p in (1, 2)])
+    assert [c["cost_usd"] for c in costs] == [1.0, 1.0]
+
+
+def test_each_decision_chooses_among_its_own_values():
+    """A reader is asked for one listed value per item, so a chosen value outside
+    its item's list could never be read back as applied."""
+    from leaf_dev.arrangement_eval import CASES
+
+    for scenario in CASES.values():
+        if decision := scenario.decision:
+            assert decision.chosen.keys() == decision.values.keys()
+            for item, value in decision.chosen.items():
+                assert value in decision.values[item]
+
+
+def test_applying_a_decision_reads_every_item_and_names_its_route():
+    """Only a reading that gives every item its chosen value counts as applied, in
+    any case and spacing; the request to apply carries the page's copy or the
+    user's words only where the page did not take the decision."""
+    from leaf_dev.arrangement_eval import CASES, apply_message, matches
+
+    decision = CASES["configuration"].decision
+    exact = {item: f"  {value.upper()} " for item, value in decision.chosen.items()}
+    assert all(matches(decision, exact).values())
+    off = {**exact, "webhook-backlog routing": "off"}
+    assert not matches(decision, off)["webhook-backlog routing"]
+    assert not any(matches(decision, None).values())
+    assert apply_message(decision, "page", None).startswith("I've made my")
+    assert "a: 1" in apply_message(decision, "copied", "a: 1")
+    assert decision.typed in apply_message(decision, "typed", None)
+
+
+def test_leaf_checks_its_own_loop_and_html_shares_the_outcomes():
+    from leaf_dev.arrangement_eval import expected_checks
+
+    leaf = expected_checks("configuration", condition="leaf")
+    html = expected_checks("configuration", condition="html")
+    assert set(leaf) - set(html) == {
+        "handed-over",
+        "comment-delivered",
+        "decision-reader-completed",
+        "decision-reader-correct",
+        "decision-reader-page-unchanged",
+    }
+    assert set(html) < set(leaf)
+    assert {"decision-made", "decision-applied", "phase-4-render"} <= set(html)

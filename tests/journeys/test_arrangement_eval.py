@@ -1,11 +1,20 @@
-"""Product controls really render ordinary HTML; judges read real screenshots."""
+"""Product controls really render ordinary HTML; the live loop carries each phase
+to a scripted author; judges read real screenshots."""
 
 import json
+import time
 from pathlib import Path
 
 import turbohtml
+from leaf.event_log import read_events
+from leaf.service import PageTransaction
 from leaf_dev import ROOT, arrangement_plain
-from leaf_dev.arrangement_eval import CASES, WIDTHS, comment_prompt, first_prompt
+from leaf_dev.arrangement_eval import (
+    CASES,
+    WIDTHS,
+    comment_message,
+    first_prompt,
+)
 
 
 def test_html_control_uses_browser_without_leaf_payload(tmp_path):
@@ -19,9 +28,8 @@ def test_html_control_uses_browser_without_leaf_payload(tmp_path):
     assert "$LEAF" not in prompt
     assert "ordinary HTML" in prompt
     comment = CASES["document"].comment
-    revision = comment_prompt(page, comment, "html")
-    assert comment.target in revision and comment.text in revision
-    assert "$LEAF" not in revision
+    message = comment_message(comment)
+    assert comment.target in message and comment.text in message
     assert arrangement_plain.gate(page, WIDTHS)["passed"]
     (page / "index.html").write_text(
         "<!doctype html><title>Fault</title><style>body{width:1800px}</style><h1>Report</h1><script>throw Error('seeded fault')</script>"
@@ -32,110 +40,206 @@ def test_html_control_uses_browser_without_leaf_payload(tmp_path):
     assert any("overflows" in item["error"] for item in reading["findings"])
 
 
-def test_comparison_snapshots_exclude_later_leaf_feedback(tmp_path, monkeypatch):
-    """Script the external model; real admission and publication preserve user input,
-    and the user's comment reaches the page anchored on the passage it names."""
-    from leaf_dev import arrangement_eval
-    from leaf_dev.arms import run_leaf
+class Scripted:
+    """A live child whose author a test plays: `turn` answers each chat message,
+    and `comment` each user comment the page admits, with the turn's reply."""
+
+    def __init__(self, turn, comment=None, page: Path | None = None):
+        self.turn, self.comment, self.page = turn, comment, page
+        self.inbox, self.closed, self.seen = [], False, set()
+
+    def __call__(self, cwd, prompt, *args, **kwargs):
+        self.inbox.append(prompt)
+        self.state = Path(kwargs["env"]["XDG_STATE_HOME"]) if kwargs["env"] else None
+        return self
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        pass
+
+    def send(self, text):
+        self.inbox.append(text)
+
+    def close(self):
+        self.closed = True
+
+    def waiting(self) -> dict | None:
+        if self.comment is None or not (self.page / "events.jsonl").exists():
+            return None
+        return next(
+            (
+                e
+                for e in read_events(self.page)
+                if e["kind"] == "comment"
+                and e["author"] == "user"
+                and e["id"] not in self.seen
+            ),
+            None,
+        )
+
+    def records(self):
+        while not self.closed:
+            if self.inbox:
+                reply = self.turn(self.inbox.pop(0))
+            elif event := self.waiting():
+                self.seen.add(event["id"])
+                with PageTransaction(self.page) as transaction:
+                    from leaf.delivery import record_pickup
+
+                    record_pickup(transaction, [event], session="eval")
+                reply = self.comment(event)
+            else:
+                time.sleep(0.1)
+                continue
+            yield {"type": "assistant", "message": {"content": []}}
+            yield {
+                "type": "result",
+                "is_error": False,
+                "num_turns": 1,
+                "duration_ms": 1000,
+                "total_cost_usd": 0.0,
+                "result": reply,
+            }
+
+
+DOCUMENT = (
+    '<!doctype html><html lang="en"><head><title>Decision review</title>'
+    '<meta name="description" content="Review evidence."></head><body>'
+    '<main class="layout-column"><h1>Decision review</h1>'
+    '<p id="review-status">{body}</p>'
+    '<p id="ask">Need the database owners to say whether 55% peak CPU '
+    "is acceptable.</p>"
+    '<lf-ask id="choice"><h2>Which option?</h2><lf-options id="decision" choose>'
+    '<lf-option id="redis">Stay on managed Redis</lf-option>'
+    '<lf-option id="postgres">Postgres</lf-option>'
+    "</lf-options></lf-ask></main></body></html>"
+)
+
+
+def test_live_loop_carries_each_phase_to_the_author(tmp_path, monkeypatch):
+    """Script only the model and the user agent: the served page takes a comment
+    from a browser selection, its delivery is recorded, the user's pick reaches
+    the log, and each phase's page and request stay apart."""
+    from leaf_dev import arrangement_eval, usability_eval
+    from leaf_dev.arms import PageClient, read_page_state, run_leaf
 
     evidence = tmp_path / "evidence"
     evidence.mkdir()
     run = arrangement_eval.Run("document", ROOT, evidence, evidence / "shots")
-    author_turns = 0
+    cwd = tmp_path / "cwd"
+    page = cwd / "page"
+    versions = []
 
-    def model(cwd, prompt, *args, out, err, **kwargs):
-        nonlocal author_turns
-        if cwd == run.work:
-            author_turns += 1
-            page = run.authored_page
-            if author_turns == 1:
-                run_leaf(ROOT, run.state, "page", "init", str(page), check=True)
-            if author_turns == 3:
-                comment = arrangement_eval.posted_comment(page)
-                assert "anchor" in comment and "Mei Tanaka" in comment["text"]
-                arrangement_eval.arm_fixture(
-                    run, "answer", str(page), comment["id"], "Named Mei Tanaka's team."
-                )
-            body = {3: "Ask Mei Tanaka's team", 4: "Reviewed"}.get(
-                author_turns, f"Author version {author_turns}"
-            )
-            (page / "index.html").write_text(
-                '<!doctype html><html lang="en"><head><title>Decision review</title>'
-                '<meta name="description" content="Review evidence."></head><body>'
-                '<main class="layout-column"><h1>Decision review</h1>'
-                f'<p id="review-status">{body}</p>'
-                '<p id="ask">Need the database owners to say whether 55% peak CPU '
-                "is acceptable.</p>"
-                '<lf-ask id="choice"><h2>Which option?</h2><lf-options id="decision" choose>'
-                '<lf-option id="a">A</lf-option><lf-option id="b">B</lf-option>'
-                "</lf-options></lf-ask></main></body></html>"
-            )
-            run_leaf(
-                ROOT, run.state, "page", "stamp", str(page), "--text", body, check=True
-            )
-            response = str(page)
-        else:
-            state = json.loads(run.leaf("page", "state", str(run.authored_page)).stdout)
-            selected = next(
-                item["detail"]["value"]
-                for item in state["state"]
-                if item["widget"] == "decision"
-            )
-            response = json.dumps({"options": selected})
+    def stamp(body):
+        (page / "index.html").write_text(DOCUMENT.format(body=body))
+        run_leaf(
+            ROOT, run.state, "page", "stamp", str(page), "--text", body, check=True
+        )
+
+    def turn(message):
+        versions.append(message)
+        if len(versions) == 1:
+            run_leaf(ROOT, run.state, "page", "init", str(page), check=True)
+            stamp("Author version 1")
+            run_leaf(ROOT, run.state, "server", "start", str(page), check=True)
+            return read_page_state(ROOT, run.state, page)["server"]["url"]
+        if len(versions) == 2:
+            assert "900px" in message
+            stamp("Author version 2")
+            return "Revised."
+        assert message.startswith("I've made my decisions on the page.")
+        stamp("Decided: stay on managed Redis, 7-day TTL")
+        return "Applied: staying on managed Redis with a 7-day TTL."
+
+    def comment(event):
+        assert event["text"] == CASES["document"].comment.text
+        assert "anchor" in event
+        usability_eval.arm_fixture(
+            run, "answer", str(page), event["id"], "Named Mei Tanaka's team."
+        )
+        stamp("Ask Mei Tanaka's team")
+        return "Answered on the page."
+
+    def decide(url, task, directory):
+        state = PageClient(url).state()
+        PageClient(url).post(
+            {
+                "kind": "action",
+                "widget": "decision",
+                "action": "choose",
+                "revision": state["active"]["revision"],
+                "detail": {"value": ["redis"]},
+                "attempt": "scripted-user-pick-0001",
+            }
+        )
+        return {"made": True, "copied": None, "notes": "", "copies": [], "trace": {}}
+
+    child = Scripted(turn, comment, page)
+    monkeypatch.setattr(arrangement_eval, "LiveChild", child)
+    monkeypatch.setattr(arrangement_eval, "decide", decide)
+    monkeypatch.setattr(arrangement_eval, "GRACE", 0.5)
+    arrangement_eval.author(run, cwd)
+
+    records = [
+        json.loads(line)
+        for line in (evidence / "stream.jsonl").read_text().splitlines()
+    ]
+    assert [r["phase"] for r in records if r["type"] == "eval_phase"] == [1, 2, 3, 4]
+    assert any(r["type"] == "eval_served" for r in records)
+    assert any(r["type"] == "eval_received" for r in records)
+    for phase, marker in enumerate(
+        ("Author version 1", "Author version 2", "Mei Tanaka", "Decided"), 1
+    ):
+        assert marker in (evidence / f"page-phase{phase}/index.html").read_text()
+    remark = run.recorded("comment")
+    assert remark["route"] == "selection" and remark["anchor"]
+    decision = run.recorded("decision")
+    assert decision["route"] == "page"
+    assert [g["detail"] for g in decision["gestures"]] == [{"value": ["redis"]}]
+    assert arrangement_eval.comment_applied(run, evidence / "page-phase3")
+    assert arrangement_eval.comment_answered(run, "")
+
+    def reader(cwd, prompt, *args, out, err, **kwargs):
+        assert "stay on managed Redis, 7-day TTL" in prompt
+        answer = Path(prompt.split("answers at ")[1].split(" ")[0])
+        assert "7-day TTL" in answer.read_text()
         trace = [
             {
                 "type": "result",
                 "is_error": False,
-                "session_id": "observed-session",
-                "result": response,
+                "result": json.dumps({"option": "stay on managed Redis, 7-day TTL"}),
             }
         ]
-        out.write_text("\n".join(json.dumps(record) for record in trace))
-        err.write_text("")
+        out.write_text("\n".join(json.dumps(r) for r in trace))
         return trace
 
-    monkeypatch.setattr(arrangement_eval, "run_agent", model)
-    arrangement_eval.author(run, tmp_path / "cwd")
-    choice = json.loads((evidence / "choice.json").read_text())
-    assert choice["seeded"] and choice["correct"] and choice["page_unchanged"]
-    assert author_turns == 4
-    assert "Author version 1" in (evidence / "page-phase1/index.html").read_text()
-    assert "Author version 2" in (evidence / "page-phase2/index.html").read_text()
-    assert arrangement_eval.comment_applied(run, evidence / "page-phase3")
-    assert arrangement_eval.comment_answered(run, "")
-    assert "Reviewed" in (evidence / "page-continuation/index.html").read_text()
-    for snapshot in ("page-phase1", "page-phase2", "page-phase3"):
-        assert not any(
-            json.loads(line)["kind"] == "action"
-            for line in (evidence / snapshot / "events.jsonl").read_text().splitlines()
-        )
-    state = json.loads(run.leaf("page", "state", str(run.authored_page)).stdout)
-    assert state["active"]["revision"] != choice["revision"]
-    assert next(
-        item["detail"]["value"]
-        for item in state["state"]
-        if item["widget"] == "decision"
-    ) == ["b"]
+    monkeypatch.setattr(arrangement_eval, "run_agent", reader)
+    split = arrangement_eval.phase_traces(records)
+    applied = arrangement_eval.read_applied(run, arrangement_eval.replies(split[4]))
+    assert applied["items"] == {"option": True}
 
 
-def test_completed_record_has_a_render_correction_loop_without_a_seeded_decision(
+def test_completed_record_has_a_render_correction_loop_without_a_decision(
     tmp_path, monkeypatch
 ):
     """Script only the model; actual checks reject, repair and render its page."""
     from leaf_dev import arrangement_eval
+    from leaf_dev.arms import read_page_state
 
     calls = []
+    child = None
 
-    def model(cwd, prompt, *args, out, err, **kwargs):
+    def turn(prompt):
         calls.append(prompt)
-        page = cwd / "page"
-        state = Path(kwargs["env"]["XDG_STATE_HOME"])
+        page = child.cwd / "page"
 
         def leaf(*arguments):
-            return arrangement_eval.run_leaf(ROOT, state, *arguments)
+            return arrangement_eval.run_leaf(ROOT, child.state, *arguments)
 
-        assert f"page check {page} --render" in prompt
-        if not page.exists():
+        if len(calls) == 1:
+            assert f"page check {page} --render" in prompt
             assert leaf("page", "init", str(page)).returncode == 0
         (page / "index.html").write_text("<!doctype html><p>Incomplete record</p>")
         refused = leaf("page", "check", str(page), "--render")
@@ -155,27 +259,28 @@ def test_completed_record_has_a_render_correction_loop_without_a_seeded_decision
         accepted = leaf("page", "check", str(page), "--render")
         assert accepted.returncode == 0, accepted.stdout + accepted.stderr
         assert leaf("page", "stamp", str(page), "--text", "Repaired").returncode == 0
-        trace = [
-            {
-                "type": "result",
-                "is_error": False,
-                "session_id": "record-session",
-                "result": str(page),
-            }
-        ]
-        out.write_text("\n".join(json.dumps(record) for record in trace))
-        err.write_text("")
-        return trace
+        if len(calls) == 1:
+            assert leaf("server", "start", str(page)).returncode == 0
+            return read_page_state(ROOT, child.state, page)["server"]["url"]
+        return str(page)
 
-    monkeypatch.setattr(arrangement_eval, "run_agent", model)
+    class Child(Scripted):
+        def __call__(self, cwd, prompt, *args, **kwargs):
+            self.cwd = cwd
+            return super().__call__(cwd, prompt, *args, **kwargs)
+
+    child = Child(turn)
+    monkeypatch.setattr(arrangement_eval, "LiveChild", child)
+    monkeypatch.setattr(arrangement_eval, "GRACE", 0.5)
     evidence = tmp_path / "evidence"
     response = arrangement_eval.execute_scenario(
         "sidebar-page-at-900px", ROOT, evidence, shots=evidence / "shots"
     )
     assert len(calls) == 2
-    assert all(response["metadata"]["checks"].values())
-    assert not (evidence / "choice.json").exists()
-    assert not any(key.startswith("choice-") for key in response["metadata"]["checks"])
+    assert all(response["metadata"]["checks"].values()), response["metadata"]["checks"]
+    assert not any(
+        key.startswith("decision-") for key in response["metadata"]["checks"]
+    )
     for phase in response["metadata"]["diagnostics"]["phases"].values():
         assert phase["captures"]["short"]
         assert all(Path(path).is_file() for path in phase["captures"]["short"])

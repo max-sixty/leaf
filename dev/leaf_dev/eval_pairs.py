@@ -7,7 +7,7 @@ its two columns in the order they ran, and asks a judge which final version serv
 the request better. A judge favors one position, so each pair is judged in both
 orders and only a winner both orders name counts; a disagreement is recorded as
 such. The judge is a Claude Code child that can use only Read, shown the request,
-the later preference and comment, and each page's screenshots as A and B.
+the later messages, and each page's screenshots as A and B.
 Verdicts go to `pairs.json` in the first run's directory.
 """
 
@@ -20,20 +20,25 @@ from pathlib import Path
 import click
 
 from leaf_dev.arms import run_agent, trace_result
-from leaf_dev.arrangement_eval import CASES, PREFERENCE, TASKS, WIDTHS, listing, phases
+from leaf_dev.arrangement_eval import (
+    CASES,
+    REACHABLE,
+    TASKS,
+    WIDTHS,
+    later_messages,
+    listing,
+    phases,
+)
 
-ASPECTS = ("evidence", "decisions", "width", "phone", "comment")
+ASPECTS = ("evidence", "decisions", "width", "phone", "comment", "applied")
 
 JUDGE = """You are judging two web pages built for the same user request. Read the
 brief at {brief}, then open every screenshot it lists with the Read tool before
 judging. Open no other file.
 
-Judge as the user who made the request would, from what the screenshots show. A
-labeled control whose content is out of view (a collapsed disclosure, an unselected
-queue item, a scroll region's remainder) counts as reachable but costs the user a
-step; content cut off with no visible way to reach it does not count. Ignore which
-tool or framework made a page and any fixed viewer chrome outside the page's
-content; judge the content, its arrangement and its legibility.
+Judge as the user who made the request would, from what the screenshots show.
+{reachable} Ignore which tool or framework made a page and any fixed viewer chrome
+outside the page's content; judge the content, its arrangement and its legibility.
 
 Compare A and B on:
 - evidence: the request's substantive facts are present and readable
@@ -42,10 +47,12 @@ Compare A and B on:
 - phone: the page is usable at 390px
 - comment: the final page carries the change the comment asked for where a reader
   of that passage would find it
+- applied: the final page records the decisions the user made, as they made them
 
 Reply with only JSON:
 {{"evidence": "A"|"B"|"tie", "decisions": ..., "width": ..., "phone": ...,
-"comment": ..., "overall": "A"|"B"|"tie", "margin": "slight"|"clear"|"strong",
+"comment": ..., "applied": ..., "overall": "A"|"B"|"tie",
+"margin": "slight"|"clear"|"strong",
 "defects_A": ["..."], "defects_B": ["..."], "reason": "two or three sentences"}}"""
 
 
@@ -65,6 +72,7 @@ def samples(runs: list[Path]) -> dict[str, dict[str, list[dict]]]:
                     "sample": work.name,
                     "work": work,
                     "diagnostics": metadata["diagnostics"],
+                    "checks": metadata.get("checks") or {},
                     "shots": run / "screenshots" / work.name,
                     "started": (work / "prompt-1.txt").stat().st_mtime,
                 }
@@ -94,16 +102,8 @@ def brief(subject: str, a: dict, b: dict) -> str:
     lines = [
         f"<request>\n{(TASKS / subject / 'request.md').read_text()}</request>",
         "",
-        f"After the first version, the user added a standing preference: {PREFERENCE}",
+        *later_messages(subject, "the first version"),
     ]
-    if comment := CASES[subject].comment:
-        lines += [
-            "",
-            (
-                "After the second version, the user commented: "
-                f'"On {comment.target}: {comment.text}"'
-            ),
-        ]
     lines += [
         "",
         (
@@ -126,7 +126,7 @@ def judge(subject: str, a: dict, b: dict, evidence: Path) -> dict | None:
         cwd.mkdir()
         trace = run_agent(
             cwd,
-            JUDGE.format(brief=evidence / "brief.md"),
+            JUDGE.format(brief=evidence / "brief.md", reachable=REACHABLE),
             "--tools",
             "Read",
             out=evidence / "stream.jsonl",

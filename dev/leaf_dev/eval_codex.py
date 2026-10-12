@@ -185,7 +185,7 @@ class CodexChild:
 
         self.cwd, self.prompt = cwd, prompt
         self.stderr, self.timed_out = stderr, timed_out
-        self.queue, self.closing = deque(), False
+        self.queue, self.outbox, self.closing = deque(), deque(), False
         self.final, self.now, self.model = "", now, MODELS["codex"]
         self.usage = None
         self.usage_baseline = None
@@ -283,6 +283,8 @@ class CodexChild:
 
     def records(self):
         while True:
+            while self.outbox:
+                self.task.say(self.outbox.popleft())
             while self.queue:
                 yield self.queue.popleft()
             if self.closing and not self.task.running:
@@ -293,6 +295,11 @@ class CodexChild:
                 if self.closing:
                     return
                 raise
+
+    def send(self, text):
+        """Send the user's next chat message as a turn of the same thread. The
+        thread reading `records` owns the socket, so it starts the turn."""
+        self.outbox.append(text)
 
     def close(self):
         self.closing = True

@@ -823,8 +823,9 @@ customElements.define(
         // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
         // the module answers it once with the layer's own predicate and paints the answer.
         this.toggleAttribute("data-lf-diff-pinned", !inChrome(this));
-        // An inline patch whose rendering a departure cut short renders on return.
-        if (!bound && !this.classList.contains("lf-rendered")) {
+        // An inline patch never changes, so it renders once, and again on a return
+        // only when the departure cut that rendering short: a refusal stands.
+        if (!bound && !this.settled) {
           // Not bodyText: a diff's trailing whitespace is content — a hunk's last line
           // can be a lone space, the context line for a blank source line — so only the
           // closing newline is the <pre>'s layout.
@@ -948,6 +949,7 @@ customElements.define(
           this.stageFiles();
           this.projectFiles();
           this.classList.toggle("lf-rendered", true);
+          this.settled = true;
           this.filterFiles(this.diffTools.search.value);
           for (const restore of restores) restore?.();
         } finally {
@@ -955,6 +957,7 @@ customElements.define(
         }
       } catch (err) {
         if (rendering !== this.rendering || !this.isConnected) return;
+        this.settled = true;
         this.fileEntries = null;
         this.sharedStyles = null;
         this.diffTools = null;

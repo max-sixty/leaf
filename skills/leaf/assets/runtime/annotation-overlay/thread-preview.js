@@ -292,15 +292,15 @@ export function createThreadPreview({
   function deferThreadPreviewFocus(positioned, focus) {
     const mayFocus = retainUserIntent();
     const session = previewSession;
-    const pending = { holding: document.activeElement };
+    const pending = { holding: focused() };
     previewSession.focusPending = pending;
     void positioned?.then((placed) => {
       if (previewSession !== session || session.focusPending !== pending) return;
       previewSession.focusPending = null;
       const holdingGone =
-        document.activeElement === document.body &&
+        focused() === document.body &&
         (!pending.holding?.isConnected || !pending.holding?.checkVisibility());
-      if (placed && (document.activeElement === pending.holding || holdingGone))
+      if (placed && (focused() === pending.holding || holdingGone))
         mayFocus.handoff(focus);
     });
   }
@@ -429,7 +429,7 @@ export function createThreadPreview({
       strongestWorkflow(latest.workflows)?.stage === "sending";
     const drafting = Boolean(
       replyEditor?.checkVisibility() &&
-      (replyEditor.closest(".lf-thread-reply").contains(document.activeElement) ||
+      (replyEditor.closest(".lf-thread-reply").contains(focused(document)) ||
         replyEditor.value !== "" ||
         sending),
     );
@@ -581,10 +581,7 @@ export function createThreadPreview({
   }
   // The card hangs from another entry, and a user standing on the entry it hung from goes
   // with it: the same place, the thread's own entry, under a new control.
-  function transferThreadCard(
-    button,
-    carry = document.activeElement === previewSession?.control,
-  ) {
+  function transferThreadCard(button, carry = focused() === previewSession?.control) {
     if (previewSession?.control === button) return;
     forgetThreadPreviewPlacement();
     previewSession.control = button;
@@ -632,8 +629,7 @@ export function createThreadPreview({
   function buildThreadCard(entry, requestedItem = null) {
     const restoreFocus = holdFocus(preview);
     const focusedItem = restoreFocus
-      ? (document.activeElement.closest?.("[data-lf-margin-entry]")?.lfMarginItem ??
-        null)
+      ? (focused(document)?.closest?.("[data-lf-margin-entry]")?.lfMarginItem ?? null)
       : null;
     const threadItems = entry.items.filter((item) => item.kind === "comment");
     const wanted = requestedItem ?? previewSession.threadItem ?? focusedItem;
@@ -825,11 +821,7 @@ export function createThreadPreview({
     return origin ? revealThread(origin, positioned) : positioned;
   }
 
-  function refresh(
-    entry,
-    control,
-    carry = document.activeElement === previewSession?.control,
-  ) {
+  function refresh(entry, control, carry = focused() === previewSession?.control) {
     if (!previewSession || previewSession.preparing) return;
     transferThreadCard(control, carry);
     buildThreadCard(entry);

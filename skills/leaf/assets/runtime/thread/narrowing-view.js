@@ -19,7 +19,7 @@ import {
   repeat,
 } from "../../vendor/browser-runtime.js";
 import { searchField, reserve } from "../widget-elements.js";
-import { focusDestination } from "../focus.js";
+import { focusDestination, focused } from "../focus.js";
 
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
 const TAG = "leaf-thread-narrowing";
@@ -112,7 +112,7 @@ class ThreadNarrowingView extends HTMLElement {
   #resetFilters(event) {
     // Reset retires its own control; keep the user at the surviving disclosure.
     const toggle =
-      document.activeElement === event.currentTarget &&
+      focused() === event.currentTarget &&
       this.querySelector(".lf-thread-filter-toggle");
     if (toggle) {
       focusDestination(toggle, "return");

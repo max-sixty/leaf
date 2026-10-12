@@ -32,6 +32,7 @@ import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
 import { THREAD, SAY_ROW } from "./selectors.js";
 import { editContext } from "./message-edit.js";
 import { offer } from "../widget-elements.js";
+import { pressIsKeyboardActivation } from "../pointer.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 
 const REPLY_COMPOSITION = Symbol("reply composition");
@@ -154,7 +155,7 @@ export function cancelReplyDictation(surface) {
 document.addEventListener(
   "click",
   (event) => {
-    if (event.detail === 0) return;
+    if (pressIsKeyboardActivation(event)) return;
     const within = replyDraftContext(event.composedPath()[0]);
     for (const context of compositions.keys())
       if (context !== within) dismissContext(context);

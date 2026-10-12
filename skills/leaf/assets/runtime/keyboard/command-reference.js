@@ -65,9 +65,11 @@ import {
   openerOf,
   rove,
   standingIn,
+  deepFocus,
 } from "../focus.js";
 import { closeControl, searchField } from "../widget-elements.js";
 import { keeps } from "../keeps.js";
+import { renderedOrder } from "../shadow.js";
 import { ELEMENTS, pageScope, pageScopes } from "./register.js";
 import { EVERYTHING } from "./text-entry.js";
 import {
@@ -174,9 +176,7 @@ function declaredStack(origin) {
       .filter(
         (node) => node?.isConnected && scopesAt(node).some((scope) => scope.title),
       );
-    held.sort((left, right) =>
-      left.compareDocumentPosition(right) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1,
-    );
+    held.sort(renderedOrder);
     const seen = new Set();
     for (const node of held) {
       for (const section of scopesAt(node)) {
@@ -897,8 +897,7 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
     closeLayer(
       () => {
         if (commandReferenceDialog.open) closeNativeLayer(commandReferenceDialog);
-        if (commandReferenceDialog.contains(document.activeElement))
-          document.activeElement.blur();
+        if (commandReferenceDialog.contains(focused(document))) deepFocus()?.blur();
         repaint();
       },
       handingBack && (() => handBack(restore)),

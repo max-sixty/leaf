@@ -880,7 +880,9 @@ its platform meaning, such as a new tab or a context menu.
 
 A control whose label is the page's own words checks `reachedForWords(control)` in its
 click handler: true means the press ended a text selection on the control, so the user
-was taking the words rather than pressing. A container that takes a press anywhere on its
+was taking the words rather than pressing. A click the keyboard made, Enter or Space on
+the control, took no words, so the handler asks `pressIsKeyboardActivation(event)` first
+and lets that click through. A container that takes a press anywhere on its
 box, as an option card does, first asks `worksInside(event.target, container)`, which
 returns the control or widget inside it the press was aimed at, or `null` where the
 container is the aim.

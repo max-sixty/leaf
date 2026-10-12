@@ -39,6 +39,7 @@ import { offer, reachedForWords, measure, reserve } from "../widget-elements.js"
 import { keeps, keepsHidden, layoutPx } from "../keeps.js";
 import { commandsOn, keys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
+import { pressIsKeyboardActivation } from "../pointer.js";
 import {
   createReplyView,
   replyIsEditing,
@@ -869,7 +870,7 @@ export class ThreadView {
                 role=${model.quote.found ? "button" : nothing}
                 tabindex=${model.quote.found ? "0" : nothing}
                 title=${model.quote.title ?? nothing}
-                @click=${this.#returnToQuote}
+                @click=${this.#quotePressed}
                 ${commandsOn("On a comment's quoted passage", [
                   {
                     id: "passage.return",
@@ -877,7 +878,7 @@ export class ThreadView {
                     description: "Return to the quoted passage on the page",
                     title: "return to the passage",
                     when: () => Boolean(model.quote.found),
-                    run: () => this.#returnToQuote({ detail: 0 }),
+                    run: this.#returnToQuote,
                   },
                 ])}
               >
@@ -1303,10 +1304,16 @@ export class ThreadView {
     this.repaint();
   };
 
-  #returnToQuote = (event) => {
+  // A pointer press that ended holding the quote's words took them rather than the trip.
+  #quotePressed = (event) => {
+    if (!pressIsKeyboardActivation(event) && reachedForWords(event.currentTarget))
+      return;
+    this.#returnToQuote();
+  };
+
+  #returnToQuote = () => {
     const model = this.#model;
     if (!model.quote?.anchored || !model.quote.found) return;
-    if (event.detail !== 0 && reachedForWords(event.currentTarget)) return;
     const travel = this.#commands.travel;
     // The trip promises to show the passage, so it clears the panel where the panel
     // stands over most of it and leaves the panel open beside one seen where it stands.

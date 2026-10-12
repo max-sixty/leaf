@@ -18,3 +18,65 @@ export const upFrom = (node) => node?.parentElement ?? shadowHost(node?.getRootN
 // The same step through the tree as rendered: a node slotted into a shadow tree renders
 // inside its slot, so the slot is where it is scrolled and ordered, not its light parent.
 export const renderedParent = (node) => node?.assignedSlot ?? upFrom(node);
+
+// The same two climbs through every node rather than every element: a root, a shadow root
+// or the document, is a step of its own, so a reading can stop at a root as well as at an
+// element. The parent node, then a shadow root's host:
+export const composedParentNode = (node) => node.parentNode ?? shadowHost(node);
+// and as rendered, a slotted node's slot first.
+const renderedParentNode = (node) => node.assignedSlot ?? composedParentNode(node);
+// Is `node` inside `root`, or `root` itself? `Element.contains` stops at a shadow
+// boundary and these readings walk through one, so the climb is the same one
+// `closestAcross` makes. The boundary decides whether a quote is found at all: a section
+// holding an x-shadow widget does not `contains` the words that widget renders, so
+// narrowing a search to that section threw away every candidate inside it and the
+// passage resolved to nothing — the anchor captured, the mark never painted.
+export const under = (node, root) => {
+  for (let at = node; at; at = composedParentNode(at)) if (at === root) return true;
+  return false;
+};
+// Containment in the rendered tree, which includes slots and their shadow ancestors.
+export const renderedUnder = (node, root) => {
+  for (let at = node; at; at = renderedParentNode(at)) if (at === root) return true;
+  return false;
+};
+
+// Which of two nodes the reader reaches first in the page as rendered: negative when `a`
+// is, positive when `b` is, 0 for one node. A node comes before what it holds, so a
+// section reaches the reader before the paragraph inside it. `compareDocumentPosition`
+// calls nodes in separate shadow trees disconnected, in an implementation-specific
+// order, and a host stands for its whole tree only by losing the order inside it, so
+// the two rendered ancestries are compared from the top instead: the first nodes where
+// they part share a parent, and that parent's tree orders them.
+const renderedChain = (node) => {
+  const chain = [];
+  for (let at = node; at; at = renderedParent(at)) chain.push(at);
+  return chain.reverse();
+};
+export function renderedOrder(a, b) {
+  if (a === b) return 0;
+  const left = renderedChain(a);
+  const right = renderedChain(b);
+  let index = 0;
+  while (index < left.length && index < right.length && left[index] === right[index])
+    index += 1;
+  if (index === left.length || index === right.length)
+    return left.length - right.length;
+  return left[index].compareDocumentPosition(right[index]) &
+    Node.DOCUMENT_POSITION_FOLLOWING
+    ? -1
+    : 1;
+}
+
+// `items` in the page's rendered order of their places (`placeOfItem`), those with no
+// place after every placed one; items at one place, and the unplaced, keep their given
+// order.
+export const byRenderedOrder = (items, placeOfItem) => {
+  const placed = items.map((item) => ({ item, place: placeOfItem(item) }));
+  return [
+    ...placed
+      .filter(({ place }) => place)
+      .sort((a, b) => renderedOrder(a.place, b.place)),
+    ...placed.filter(({ place }) => !place),
+  ].map(({ item }) => item);
+};

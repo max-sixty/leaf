@@ -50,11 +50,11 @@ import {
   deepFocus,
   drawn,
   focusDestination,
+  focused,
   onStanding,
-  readCaret,
   releaseFocus,
 } from "./focus.js";
-import { selectEnds } from "./passages.js";
+import { readPlace, returnPlace } from "./history.js";
 
 const EMPTY = Object.freeze([]);
 
@@ -160,22 +160,12 @@ function placeRuns() {
 placeRuns();
 
 // More temporarily borrows the reader's focus. Context-preserving commands return
-// that browser checkpoint before acting; it never becomes a remembered page target.
+// that working place (history.js, `readPlace`) before acting; it never becomes a
+// remembered page target.
 let opener = null;
 function holdOpener(node = deepFocus()) {
   if (node === overflowBtn || overflowMenu.contains(node)) return;
-  const selection = getSelection();
-  opener = {
-    node,
-    caret: readCaret(node),
-    ends:
-      selection?.rangeCount && !selection.isCollapsed
-        ? [
-            [selection.anchorNode, selection.anchorOffset],
-            [selection.focusNode, selection.focusOffset],
-          ]
-        : null,
-  };
+  opener = readPlace(node);
 }
 overflowBtn.addEventListener("pointerdown", () => holdOpener());
 // A key's way onto More holds the place it left. Arriving from nowhere leaves the
@@ -193,10 +183,8 @@ export function bannerStanding() {
 export function restoreBannerStanding(held) {
   opener = null;
   // Handing the borrowed focus back is the menu's own return, not the user going there.
-  if (held?.node?.isConnected && held.node !== document.body)
-    focusDestination(held.node, "return", { caret: held.caret });
+  if (held) returnPlace(held);
   else releaseFocus();
-  if (held?.ends?.every(([node]) => node.isConnected)) selectEnds(...held.ends);
 }
 
 function paintControl(entry) {
@@ -215,22 +203,16 @@ function paintControl(entry) {
 // whether or not focus has left it yet. A control that stays on the row and goes is
 // its caller's to hand on (`focusAfterRemoval`).
 function paint() {
-  const held = [...controls.values()].find(
-    (entry) => document.activeElement === entry.focusTarget,
-  );
+  const held = [...controls.values()].find((entry) => focused() === entry.focusTarget);
   placeRuns();
   for (const entry of controls.values()) paintControl(entry);
-  if (
-    !held ||
-    (document.activeElement === held.focusTarget &&
-      !overflowMenu.contains(held.control))
-  )
+  if (!held || (focused() === held.focusTarget && !overflowMenu.contains(held.control)))
     return;
   // Where the control stands, not whether it would take a press: a refused Approval
   // is still a Tab stop.
   const door = bannerControlDoor(held.control);
   const place = door === held.control ? held.focusTarget : door;
-  if (place && document.activeElement !== place) focusDestination(place, "return");
+  if (place && focused() !== place) focusDestination(place, "return");
 }
 
 const focusable = (entry) =>
@@ -246,7 +228,7 @@ overflowMenu.addEventListener("beforetoggle", (event) => {
 overflowMenu.addEventListener("toggle", (event) => {
   const open = event.newState === "open";
   paintDoor();
-  const first = open && document.activeElement === overflowBtn && menu.find(focusable);
+  const first = open && focused() === overflowBtn && menu.find(focusable);
   if (first) {
     focusDestination(first.focusTarget, "move");
     scrollIntoView(first.focusTarget, { block: "nearest" });
@@ -363,14 +345,13 @@ export function showBannerControls(changes) {
     moved.push({
       prior,
       entry: Object.freeze({ ...prior, present: Boolean(shown) }),
-      heldFocus: document.activeElement === prior.focusTarget,
+      heldFocus: focused() === prior.focusTarget,
       wasInMenu: menu.includes(prior),
     });
   }
   if (!moved.length) return;
   const loopFocus = row.find(
-    (candidate) =>
-      seatOf(candidate) !== "menu" && document.activeElement === candidate.focusTarget,
+    (candidate) => seatOf(candidate) !== "menu" && focused() === candidate.focusTarget,
   );
   for (const { prior, entry } of moved) replaceEntry(prior, entry);
   paint();
@@ -388,7 +369,7 @@ export function showNews(control, on) {
   if (!entry) throw new TypeError("Banner news control is not registered");
   on = Boolean(on);
   if (entry.conditional && entry.offered === on) return;
-  const focused = document.activeElement === entry.focusTarget;
+  const standing = focused() === entry.focusTarget;
   const wasInMenu = menu.includes(entry);
   const prior = entry;
   entry = Object.freeze({
@@ -398,7 +379,7 @@ export function showNews(control, on) {
   });
   replaceEntry(prior, entry);
   paint();
-  if (focused && !on) {
+  if (standing && !on) {
     focusAfterRemoval(entry, wasInMenu);
   }
 }

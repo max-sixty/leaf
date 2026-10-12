@@ -69,6 +69,7 @@ import {
   classMap,
   styleMap,
   offered,
+  pressIsKeyboardActivation,
   createRef,
   ref,
   render,
@@ -1373,7 +1374,7 @@ customElements.define(
         const commit = (viewer) => {
           if (!current()) return;
           const retired = this.#picture;
-          const hadFocus = this.#viewport.value.contains(document.activeElement);
+          const hadFocus = this.#viewport.value.contains(focused(document));
           this.#picture = viewer;
           // Leaf owns container resize so unchanged window signals leave the
           // inspected image alone. Viewer otherwise refits it on every signal.
@@ -1888,7 +1889,7 @@ customElements.define(
                           const pressed = this.#pressedPlay;
                           this.#playIntent =
                             pressed &&
-                            event.detail > 0 &&
+                            !pressIsKeyboardActivation(event) &&
                             event.pointerId === pressed.pointerId
                               ? pressed.pause
                               : null;

@@ -14,7 +14,7 @@ import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 import { dismissBannerControls } from "./banner-toolbar.js";
 import { el } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
-import { focusDestination, canPlaceFocus, inputCount } from "./focus.js";
+import { focusDestination, canPlaceFocus, inputCount, focused } from "./focus.js";
 import { scrollIntoView } from "./landing-scroll.js";
 
 const LATEST_FAILED = "Latest edit couldn't be shown";
@@ -124,7 +124,7 @@ class VersionPickerView {
   }
 
   atBoundary(end) {
-    return document.activeElement === this.stops().at(end);
+    return focused() === this.stops().at(end);
   }
 
   #selectedRow() {

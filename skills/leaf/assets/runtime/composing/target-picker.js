@@ -684,34 +684,13 @@ export function createTargetPicker({
     claims: targetingClaims,
     rows: [
       TARGET_HINT_TYPE,
-      {
-        id: "target.picker.hint.walk",
-        keys: ["Tab", "Shift+Tab"],
-        routes: [
-          {
-            id: "target.picker.hint.next",
-            binding: "Tab",
-            title: "Hear the next visible target",
-          },
-          {
-            id: "target.picker.hint.previous",
-            binding: "Shift+Tab",
-            title: "Hear the previous visible target",
-          },
-        ],
-        title: "browse hints",
-        repeat: true,
-        when: () => hints.candidates().length > 0,
-        run: (binding) => hints.walk(binding === "Tab" ? 1 : -1),
-      },
-      {
-        id: "target.picker.target.choose",
-        keys: ["Enter"],
-        description: "Choose the target just announced",
-        title: "choose target",
-        when: hints.walking,
-        run: hints.choose,
-      },
+      ...hints.walkRows({
+        id: "target.picker.hint",
+        choose: {
+          description: "Choose the target just announced",
+          title: "choose target",
+        },
+      }),
       TARGETING_BACK,
     ],
   };

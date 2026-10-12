@@ -635,11 +635,9 @@ export function createMarginProjection({
       holdTabStop(null);
       return;
     }
-    const focused = available.find((row) => row === document.activeElement);
+    const standing = available.find((row) => row === focused());
     const candidates = visible.length ? visible : available;
-    const held = candidates.find(
-      (row) => row === document.activeElement || row.tabIndex === 0,
-    );
+    const held = candidates.find((row) => row === focused() || row.tabIndex === 0);
     const room = shownWindow();
     const distance = (row) => {
       const box = row.getBoundingClientRect();
@@ -648,7 +646,7 @@ export function createMarginProjection({
       return 0;
     };
     const next =
-      focused ??
+      standing ??
       held ??
       candidates.reduce((best, row) => (distance(row) < distance(best) ? row : best));
     holdTabStop(next);
@@ -762,7 +760,7 @@ export function createMarginProjection({
   });
   watchAnnotations((hidden) => {
     if (hidden) {
-      const holding = closestAcross(document.activeElement, ".lf-margin-cluster");
+      const holding = closestAcross(focused(), ".lf-margin-cluster");
       if (holding?.dataset.lfPlace === "pin" && holding.lfTarget?.isConnected)
         focusDestination(holding.lfTarget, "return");
       if (previewOpen()) closePreview();
@@ -934,12 +932,8 @@ export function createMarginProjection({
     // none does (focus.js, `onStanding`).
     const primary = host.present(projection);
     const options = host.options;
-    const lostOptionFocus =
-      focus.focusedOption && !options.contains(document.activeElement);
-    if (
-      !projection.hasOptions &&
-      (document.activeElement === more || lostOptionFocus)
-    ) {
+    const lostOptionFocus = focus.focusedOption && !options.contains(focused(document));
+    if (!projection.hasOptions && (focused() === more || lostOptionFocus)) {
       const destination = primary ?? (primaryReading(entry) ? marker : null);
       if (destination === marker && marker.hidden) marker.lfTakeFocus = true;
       else if (destination) focusDestination(destination, "return");
@@ -967,8 +961,7 @@ export function createMarginProjection({
   function renderNow(inventory) {
     const selected = card.selection();
     const forcedKey = selected?.forced ? selected.entry.key : null;
-    const threadOwnerHeld =
-      transferThreadFocus || document.activeElement === selected?.control;
+    const threadOwnerHeld = transferThreadFocus || focused() === selected?.control;
     transferThreadFocus = false;
     // Before the card, which anchors to its rows (`mount`).
     if (!nav.isConnected)
@@ -1074,7 +1067,7 @@ export function createMarginProjection({
       host.lfTarget = targetFor(entry);
       marker.lfEntry = entry;
       const focus = {
-        focusedOption: Boolean(host.options?.contains(document.activeElement)),
+        focusedOption: Boolean(host.options?.contains(focused(document))),
         // The entry the user stands on, by its contribution's key, across the projection
         // that may replace its control (focus.js, keyed `holdFocus`).
         restore: holdFocus(host, { key: "data-lf-margin-entry-identity" }),
@@ -1687,7 +1680,7 @@ export function createMarginProjection({
   declareSide((node) => {
     const projected = marginTargetAt(node);
     if (projected) return projected;
-    if (preview.contains(node)) return targetFor(card.selection()?.entry);
+    if (under(node, preview)) return targetFor(card.selection()?.entry);
     return null;
   });
   // A live revision replaces the browser document, so DOM identity cannot carry a

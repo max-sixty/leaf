@@ -46,7 +46,6 @@ import { focused } from "../focus.js";
 import {
   commandDeclarationsWithin,
   commandsWithin,
-  documentFocused,
   contextScopes,
 } from "../keyboard/scopes.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
@@ -257,10 +256,7 @@ export function createQuestionView({
   // answered question leaves both worklists but stays in the active inventory: the
   // Questions panel's Done rows can return the user to it, and standing there restores
   // the same numeric action route so they can revise the recorded answer.
-  //
-  // Document focus rather than the inner control: a control staged in a shadow tree
-  // retargets to its host, and the host is the place in the document this wants.
-  function standingQuestion(held = documentFocused()) {
+  function standingQuestion(held = focused()) {
     if (!held || held === document.body) return null;
     const record = questionAt(readQuestions().all, held);
     if (!record) return null;
@@ -400,7 +396,7 @@ export function createQuestionView({
   // margin entry for the same Question are keyed by that id already, so a patch hands each of
   // them back as the same element, still holding the focus the user put on it.
   function captureStanding() {
-    const held = documentFocused();
+    const held = focused(document);
     if (!held || held === document.body || inChrome(held)) return null;
     return standingQuestion()?.id ?? null;
   }

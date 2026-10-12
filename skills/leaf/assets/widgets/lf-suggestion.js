@@ -36,6 +36,7 @@ import {
   textNodesUnder,
   notice,
   widgetController,
+  focused,
 } from "/runtime/widget-api.js";
 
 const WORDS = { accept: "Accept", reject: "Reject" };
@@ -169,7 +170,7 @@ customElements.define(
       this.#controller.subscribe((reading) => {
         if (quoted(this) || !this.#margin) return;
         if (
-          this.#margin.contains(document.activeElement) &&
+          this.#margin.contains(focused(document)) &&
           outcomeOf(reading.state) !== this.#presentedOutcome
         ) {
           // Signals publish before the projection adapter. Keep the currently focused
@@ -327,7 +328,7 @@ customElements.define(
 
     #refreshMargin({ immediate = false, focus = null } = {}) {
       if (!this.#margin) return;
-      const held = this.#margin.contains(document.activeElement);
+      const held = this.#margin.contains(focused(document));
       this.#margin.update({
         immediate,
         focus: focus ?? (held ? this.#focusKey() : null),

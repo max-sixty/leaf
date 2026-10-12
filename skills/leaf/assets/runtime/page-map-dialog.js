@@ -40,7 +40,7 @@ import {
 import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 import { iconTemplate } from "./icons.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
-import { coarsePointer } from "./pointer.js";
+import { coarsePointer, pressIsKeyboardActivation } from "./pointer.js";
 import { rowWalk } from "./walk-position.js";
 import { closeControl, el, searchField } from "./widget-elements.js";
 import { keepsHidden, keepsText } from "./keeps.js";
@@ -170,7 +170,7 @@ export function createPageMapDialog({
       contributionSource(offered).registration.activate(record.key, {
         origin: control,
         surface: "map",
-        input: event.detail === 0 ? "keyboard" : "pointer",
+        input: pressIsKeyboardActivation(event) ? "keyboard" : "pointer",
       });
       nextRender(() => {
         if (!currentIntent()) return;
@@ -191,7 +191,7 @@ export function createPageMapDialog({
     contributionSource(offered).registration.activate(record.key, {
       origin: control,
       surface: "map",
-      input: event.detail === 0 ? "keyboard" : "pointer",
+      input: pressIsKeyboardActivation(event) ? "keyboard" : "pointer",
     });
   }
 

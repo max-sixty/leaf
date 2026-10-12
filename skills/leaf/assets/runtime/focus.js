@@ -63,7 +63,7 @@
 import { afterScript, nextRender } from "./rendering.js";
 import { keeps } from "./keeps.js";
 import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
-import { renderedParent } from "./shadow-tree.js";
+import { renderedParent, renderedUnder, shadowHost } from "./shadow-tree.js";
 
 // The elements under `node` in the tree as rendered: a host's shadow tree in place of
 // its children, and a slot's assigned elements, or its fallback, in its place. A host
@@ -298,8 +298,16 @@ function landLabelPress() {
 }
 
 // Where the user stands: the element holding focus, inside any open shadow tree, or the
-// element a press on a label holds them on.
-export const focused = () => heldByLabel() ?? deepFocus();
+// element a press on a label holds them on. Asked in `tree`, a document or shadow root,
+// it is the node standing for that place there, as `tree.activeElement` retargets focus:
+// the host of the shadow tree the user stands in, for a reader comparing or containing
+// nodes of that tree. Every reading of focus outside this module asks here, so none
+// misses a label press or a shadow tree (eslint's `architecture/standing-reads`).
+export const focused = (tree = null) => {
+  let at = heldByLabel() ?? deepFocus();
+  if (tree) while (at && at.getRootNode() !== tree) at = shadowHost(at.getRootNode());
+  return at;
+};
 
 // The selection the user drew in the tree `node` stands in, where the browser keeps it.
 const selectionOf = (node) => {
@@ -825,22 +833,6 @@ const dropped = () => {
   if (at && at !== document.body) return null;
   return stood && !drawn(stood) ? stood : null;
 };
-// The host of a shadow root, and nothing for any other node: a document names a form
-// called `host` as `document.host`, so a climb reading `.host` off the document walks
-// back into the page and around again. shadow.js's `shadowHost` answers the same, but
-// this module is a runtime primitive, which may import no other owner (eslint's
-// `runtimePrimitives`), and shadow.js reaches the registry.
-// It asks the node type rather than `instanceof ShadowRoot`, as `shadowHost` does, since
-// a frame's runtime climbs its parent document's nodes.
-const shadowHostOf = (node) =>
-  node?.nodeType === Node.DOCUMENT_FRAGMENT_NODE ? (node.host ?? null) : null;
-// Whether `node` stands in `scope`, across every shadow tree between them.
-const within = (scope, node) => {
-  for (let at = node; at; at = at.assignedSlot ?? at.parentNode ?? shadowHostOf(at))
-    if (at === scope) return true;
-  return false;
-};
-//
 // A list of keyed items names its place by `key`, the attribute each item carries. The
 // hold then reads the item the user stands in and the order of every item at the hold,
 // and its restore, after the held node, tries the item now carrying the same key, then
@@ -853,23 +845,24 @@ export function holdFocus(scope, { key = null } = {}) {
   const restore = holdOn(node);
   if (!key) return restore;
   let item = node;
-  while (item && !item.matches?.(`[${key}]`))
-    item = item.assignedSlot ?? item.parentNode ?? shadowHostOf(item);
-  if (!item || item === scope || !within(scope, item)) return restore;
+  while (item && !item.matches?.(`[${key}]`)) item = renderedParent(item);
+  if (!item || item === scope || !renderedUnder(item, scope)) return restore;
   // The items are read in the tree the held one stands in, which is the scope's own or a
   // shadow tree inside it.
   const tree = item.getRootNode() === scope.getRootNode() ? scope : item.getRootNode();
   const items = () =>
-    [...tree.querySelectorAll(`[${key}]`)].filter((item) => within(scope, item));
+    [...tree.querySelectorAll(`[${key}]`)].filter((item) => renderedUnder(item, scope));
   // A key marking several nodes of one place counts once, where it first stands.
   const keys = [...new Set(items().map((each) => each.getAttribute(key)))];
   const at = keys.indexOf(item.getAttribute(key));
   const order = [keys[at], ...keys.slice(at + 1), ...keys.slice(0, at).reverse()];
   // In an item, the control like the one the user stood on, as Remove for Remove, read
   // in the item's own tree, or the item itself where it holds none.
+  // Not shadow.js's `hostIn`, which answers null where the climb leaves the item's tree:
+  // this keeps the outermost host it reached.
   let control = node;
   while (control.getRootNode() !== item.getRootNode()) {
-    const host = shadowHostOf(control.getRootNode());
+    const host = shadowHost(control.getRootNode());
     if (!host) break; // Slotted document controls already name their native kind.
     control = host;
   }
@@ -927,20 +920,20 @@ export function holdFocus(scope, { key = null } = {}) {
 }
 const heldIn = (scope) => {
   const held = heldByLabel();
-  if (held) return within(scope, held) ? held : null;
+  if (held) return renderedUnder(held, scope) ? held : null;
   const standing = deepFocus(
     scope.getRootNode().activeElement ?? scope.ownerDocument.activeElement,
   );
-  if (standing && standing !== document.body && within(scope, standing))
+  if (standing && standing !== document.body && renderedUnder(standing, scope))
     return standing;
   // Asked of every node `move` inserts, so the cheap containment reading comes first.
-  return stood && within(scope, stood) ? dropped() : null;
+  return stood && renderedUnder(stood, scope) ? dropped() : null;
 };
 
 // Whether the user stands in `scope`, across every shadow tree between them.
 export const standingIn = (scope) => {
   const at = focused();
-  return Boolean(at) && at !== document.body && within(scope, at);
+  return Boolean(at) && at !== document.body && renderedUnder(at, scope);
 };
 
 // The roving stop of a group: `stop` is the one item Tab reaches, and every other item
@@ -1101,6 +1094,8 @@ const land = (landing) => {
   }
 };
 
+// bootstrap.js spells `takesLetters` again, for keys pressed before any
+// module loads; a type added here goes there too.
 const TYPED_TYPES = new Set([
   "text",
   "search",
@@ -1141,6 +1136,7 @@ export function controlNavigationKeys(node) {
   if (node?.matches('input[type="radio"], [role="radio"]'))
     return ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"];
   if (node?.matches('input[type="range"], [role="slider"]'))
+    // A slider's value steps, not control-selectors.js's CARET_KEYS: the same keys today.
     return [
       "ArrowLeft",
       "ArrowRight",

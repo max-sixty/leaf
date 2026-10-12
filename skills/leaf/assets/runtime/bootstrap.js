@@ -150,6 +150,24 @@
   // keeps its own meaning. A chord never starts a run, and a modifier alone is half a
   // press, which neither starts nor ends one. After a beat the held keys are shown, so a press visibly landed; a page that
   // presents within the beat shows nothing.
+  const TYPED_TYPES = new Set([
+    "text",
+    "search",
+    "url",
+    "tel",
+    "email",
+    "password",
+    "number",
+    "date",
+    "time",
+    "datetime-local",
+    "month",
+    "week",
+  ]);
+  const takesLetters = (node) =>
+    node.isContentEditable ||
+    node.matches('textarea, leaf-text, select, [role="option"]') ||
+    (node.localName === "input" && TYPED_TYPES.has(node.type));
   const HALF_PRESSES = new Set([
     "Shift",
     "Control",
@@ -212,14 +230,13 @@
         queue(event);
       } else {
         // Only a printed page key starts a run. One typed into a field is the field's,
-        // and Space on its own scrolls. `leaf-text` is the runtime's text field, named
-        // here rather than read from `TEXT_BOX` (focus.js) because this script runs
-        // before any module; its closed root makes the host the event's origin.
+        // and Space on its own scrolls. Which fields take one is focus.js's
+        // `takesLetters`, spelled again here because this script runs before any
+        // module, so a checkbox or radio the user stands on, which takes no letters,
+        // holds the key as the presented page would act on it. `leaf-text` is the
+        // runtime's text field; its closed root makes the host the event's origin.
         const origin = event.composedPath()[0];
-        const typing =
-          origin instanceof Element &&
-          (origin.isContentEditable ||
-            origin.matches("input, textarea, leaf-text, select"));
+        const typing = origin instanceof Element && takesLetters(origin);
         if (typing || !printed || event.key === " ") return;
         queue(event);
       }

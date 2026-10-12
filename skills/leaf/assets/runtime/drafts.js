@@ -85,6 +85,7 @@ import { randomId } from "./ids.js";
 import { focusDestination, readCaret, focused } from "./focus.js";
 import { notice } from "./notifications.js";
 import { retainUserIntent } from "./user-intent.js";
+import { CARET_KEYS, selectsAll } from "./control-selectors.js";
 
 // ---------- draft persistence ----------
 // Text the user typed but hasn't sent must survive navigation, reload, version switches,
@@ -643,20 +644,9 @@ document.addEventListener("input", (event) => {
   if (editor) rememberWriting(editorInput(editor));
 });
 document.addEventListener("keyup", (event) => {
-  if (
-    [
-      "ArrowLeft",
-      "ArrowRight",
-      "ArrowUp",
-      "ArrowDown",
-      "Home",
-      "End",
-      "PageUp",
-      "PageDown",
-    ].includes(event.key) ||
-    (event.key === "a" && (event.ctrlKey || event.metaKey))
-  )
-    keepWritingCaret();
+  // The gesture's end, not `selectionchange`, which fires on every typed character and
+  // every step of a drag: the place is stored once per gesture.
+  if (CARET_KEYS.includes(event.key) || selectsAll(event)) keepWritingCaret();
 });
 document.addEventListener("pointerup", keepWritingCaret);
 

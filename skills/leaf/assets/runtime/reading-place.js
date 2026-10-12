@@ -10,7 +10,8 @@
  * what moved the pixels under it — a new revision, a resize, a view that was hidden
  * while its width changed. A focused destination in view (user-place.js,
  * `focusedInView`) is the live place while that gesture still holds focus in this
- * region. Focus on the reading surface itself keeps its passage as the place. The
+ * region. Focus on the reading surface itself keeps its passage as the place, and so
+ * does focus on a container holding that passage, as a section a fragment landed on. The
  * destination's DOM identity stays local; serialized places and replaced elements use
  * the ordinary passage reading. A restore jumps rather than glides. It keeps the
  * reader's current disclosures and views: a landmark they concealed supplies no geometry.
@@ -50,7 +51,6 @@ import { targetElement, targetSegments } from "./resolved-target.js";
 import {
   containingReadingRegionFor,
   effectiveScroller,
-  readingPosture,
   readingRegionFor,
   readingRegions,
   scrollersOf,
@@ -111,7 +111,36 @@ const drawsLandmark = (parent) => {
   return Boolean(box?.checkVisibility({ opacityProperty: true }));
 };
 const blockWords = new WeakMap();
-function* renderedBlocks(blocks) {
+// Whether a block's words are drawn inside its own box: none stands in an element
+// taken out of flow, positioned or transformed, between the words and the block. Read
+// once per reading of the screen, and only for blocks it would pass over.
+const drawnInside = (block, segments, known) => {
+  if (!known.has(block)) {
+    const asked = new Set();
+    let inside = true;
+    for (const { node } of segments) {
+      for (let at = renderedParent(node); inside && at && at !== block;) {
+        if (asked.has(at)) break;
+        asked.add(at);
+        const style = getComputedStyle(at);
+        inside =
+          (style.position === "static" || style.position === "sticky") &&
+          style.transform === "none" &&
+          style.translate === "none";
+        at = renderedParent(at);
+      }
+      if (!inside) break;
+    }
+    known.set(block, inside);
+  }
+  return known.get(block);
+};
+// Each block's drawn words, with the union of their boxes. With `within`, a block whose
+// own box lies wholly above or below that band, and whose words are drawn inside that
+// box, is passed over before its words are measured, so a reading of the screen costs
+// the blocks near it rather than every block above it. A block with no box of its own
+// (display: contents) is measured.
+function* renderedBlocks(blocks, within = null) {
   const reading = pageText();
   if (!blockWords.has(reading)) {
     const words = new Map();
@@ -122,10 +151,23 @@ function* renderedBlocks(blocks) {
     blockWords.set(reading, words);
   }
   const words = blockWords.get(reading);
+  // Read fresh each time: a stylesheet or a breakpoint can take words out of flow with
+  // no change to the page's text.
+  const inside = new Map();
   const drawn = new Map();
   const range = document.createRange();
   for (const block of blocks) {
+    // Skipped content stays unmeasured: asking for a box inside it lays it out.
     if (inChrome(block) || skipped(block)) continue;
+    if (within) {
+      const own = block.getBoundingClientRect();
+      if (
+        own.height &&
+        (own.bottom <= within.top || own.top >= within.bottom) &&
+        drawnInside(block, words.get(block), inside)
+      )
+        continue;
+    }
     const boxes = [],
       runs = [];
     let run = null;
@@ -181,12 +223,8 @@ export function* blocksOnScreen(region = null, blocks = textBlocks()) {
     region && effectiveScroller(region) === pageScroller
       ? shownWindow({ within: shown })
       : shown;
-  for (const [block, rect, runs] of renderedBlocks(blocks)) {
-    if (
-      region
-        ? !under(block, region.body)
-        : readingPosture(readingRegionFor(block)) === "bounded"
-    )
+  for (const [block, rect, runs] of renderedBlocks(blocks, bounds)) {
+    if (region ? !under(block, region.body) : effectiveScroller(block) !== pageScroller)
       continue;
     const clips = new Map();
     const onScreen = runs.filter(({ boxes }) =>
@@ -241,23 +279,28 @@ export function capturePlace(region = null, blocks = textBlocks()) {
   const standing = focusedInView();
   const body = region?.body ?? pageDocument();
   const standingBody = readingRegionFor(standing)?.body ?? body;
-  if (
+  const focusPlace = () => ({
+    node: standing,
+    body,
+    region: containingReadingRegionFor(standing)?.id,
+    intent: retainUserIntent({ source: standing }),
+  });
+  const standsOn =
     recentPlaceInput() === "focus" &&
     standing &&
     under(standing, body) &&
     // Focus on the reading surface itself names its contents, not a landmark.
-    !under(standingBody, standing)
-  )
-    view[FOCUSED_PLACE] = {
-      node: standing,
-      body,
-      region: containingReadingRegionFor(standing)?.id,
-      intent: retainUserIntent({ source: standing }),
-    };
-  if (region && followingItsEnd(box)) return { ...view, end: true };
+    !under(standingBody, standing);
+  if (region && followingItsEnd(box))
+    return { ...view, ...(standsOn && { [FOCUSED_PLACE]: focusPlace() }), end: true };
+  // The block whose words name the place, so focus on a container the user reads
+  // through, such as a section a fragment landed on, names that passage rather than
+  // itself: only focus on what the passage is not inside, a control, is the place.
+  let named = null;
   for (const [block, rect, runs] of blocksOnScreen(region, blocks)) {
     const section = closestAcross(block, ADDRESSABLE);
     if (!view.section && section) {
+      named = block;
       // The first on-screen block's section, kept only until a quotable block supplies
       // its own: a page with nothing quotable on screen still has somewhere to land.
       view.section = section.id;
@@ -277,6 +320,7 @@ export function capturePlace(region = null, blocks = textBlocks()) {
     if (text) {
       // Unconditionally, so a quotable block under no section clears the earlier one
       // rather than sending the search into a subtree its text isn't in.
+      named = block;
       view.section = section?.id;
       view.sectionTop =
         section &&
@@ -294,7 +338,39 @@ export function capturePlace(region = null, blocks = textBlocks()) {
       break;
     }
   }
+  if (standsOn && !(named && under(named, standing)))
+    view[FOCUSED_PLACE] = focusPlace();
   return view;
+}
+
+// What a place stands on now, found as `restorePlace` finds it: the live focused
+// destination, the passage's drawn words, or the drawn section. `node` names it and
+// `top` reads where it stands. Null where the place has no landmark the page draws, so
+// only its own scroller's offset can take it.
+function landmarkOf(view) {
+  const live = focusedPlace(view);
+  if (live) return { node: live, top: () => shownBox(live).top };
+  const segments = targetSegments(view.quote && resolveAnchor(view));
+  if (
+    segments.length &&
+    segments.every(({ node }) => drawsLandmark(renderedParent(node)))
+  )
+    return {
+      node: segments[0].node,
+      top: () => rangeOf(segments).getBoundingClientRect().top,
+    };
+  const section =
+    view.section && targetElement(resolveAnchor({ section: view.section }));
+  return section && drawsLandmark(section)
+    ? { node: section, top: () => shownBox(section).top }
+    : null;
+}
+export const placeNode = (view) => landmarkOf(view)?.node ?? null;
+// How far below its box's landing edge a place's landmark stands now, or null.
+export function placeOffset(view, region = null) {
+  const landmark = landmarkOf(view);
+  const box = region ? effectiveScroller(region) : pageScroller;
+  return landmark ? landmark.top() - landingBand(box).top : null;
 }
 
 // A restore jumps rather than glides: a page is free to set scroll-behavior: smooth, and

@@ -94,7 +94,15 @@ export function registerReadingRegion({ id, host, body }) {
     throw new Error("leaf: a reading region needs id, host, and body");
   if (live(regions.get(id)))
     throw new Error(`leaf: reading region ${id} is already live`);
-  const region = { id, host, body, subject: undefined, scroller: null, width: null };
+  const region = {
+    id,
+    host,
+    body,
+    subject: undefined,
+    scroller: null,
+    width: null,
+    away: false,
+  };
   const stopReaching = reachReadingScroller(body);
   regions.set(id, region);
   sizes.observe(host);
@@ -425,14 +433,19 @@ function measureRegions() {
     if (!live(region) || !shown(region)) continue;
     const scroller = effectiveScroller(region);
     const width = region.host.offsetWidth;
+    // A region concealed when last measured, as a closed disclosure's, returns: its
+    // words stood in no scroller meanwhile, though one carried its box.
+    const away = concealed(region);
     if (region.scroller && (viewportChanged || !asSeen(region, scroller, width)))
       shifted.push({
         region: regionRecord(region),
         from: region.scroller,
         to: scroller,
+        returned: Boolean(region.away) && !away,
       });
     region.scroller = scroller;
     region.width = width;
+    region.away = away;
   }
   const now = pageGeometry();
   if (pageMoved(now)) shifted.push({ region: null, band: now.band - pageSeen.band });

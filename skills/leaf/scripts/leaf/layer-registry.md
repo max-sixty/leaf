@@ -59,7 +59,8 @@ marks a startup failure before the module graph or stylesheet can fail, so the t
 gives back the readable fallback. A served page's inline bootstrap also supervises
 the failure. It reloads when the server incarnation, layer generation, or website
 release changes. A published page also reloads when its release-addressed probe
-disappears. A rejected or unchanged re-vendor preserves its running server and
+disappears. A fault that is the page's own, which no server fixes, it reports and
+stops supervising. A rejected or unchanged re-vendor preserves its running server and
 layer, so neither triggers a reload. Source files carry neither
 script, and an export no supervisor.
 

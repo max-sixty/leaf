@@ -271,13 +271,14 @@ def test_sample_view_selection_waits_across_a_reload(browser, serve):
     # The examples' own call shape: a page that does not await its selection.
     sample.evaluate("""sample => {
       void sample.showThread('unawaited');
-      window.selection = sample.showThread('missing').then(
+      window.selection = sample.showThread(undefined, {surface: 'panel'}).then(
         shown => ({shown}), error => ({error: error.name}));
     }""")
     child.wait_for_function("window.waitingCommand")
     with child.expect_navigation(wait_until="domcontentloaded"):
         child.evaluate("location.reload()")
-    assert page.evaluate("window.selection") == {"shown": False}
+    # Only the next document's own command can present the panel.
+    assert page.evaluate("window.selection") == {"shown": True}
     sample.evaluate("async sample => await sample.ready")
     assert take_browser_errors(page) == []
 

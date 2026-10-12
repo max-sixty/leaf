@@ -127,7 +127,10 @@ customElements.define(
         },
       );
       // A failed child is drawn by this widget's status and Reset. That is a
-      // completed parent rendering; the public sample.ready still rejects.
+      // completed parent rendering; the public sample.ready still rejects. A first
+      // document that departs before presenting holds it until the next document,
+      // which a reload brings, or Reset: the parent cannot tell a reload from an
+      // external destination.
       widgetController(this).present(this.#track(ready).catch(() => {}));
     }
 
@@ -284,7 +287,7 @@ customElements.define(
     // which waits for the next document as it waits for the first. A newer
     // selection, Reset or removal supersedes it. The outer control remains the
     // keyboard stop while the child draws its view.
-    showThread(id, { surface = "page", status, waiting } = {}) {
+    async showThread(id, { surface = "page", status, waiting } = {}) {
       this.#viewOperation?.abort();
       const operation = new AbortController();
       this.#viewOperation = operation;

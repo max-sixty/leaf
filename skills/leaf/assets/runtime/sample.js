@@ -208,8 +208,10 @@ export function mountSample(
     for (const { reject } of pending.values()) reject(reason);
     pending.clear();
   }
-  // Public readiness includes failure retirement. Reset coalesces this same
-  // operation, so a reported failure already permits a fresh allocation.
+  // Public readiness includes failure retirement. Reset coalesces with an
+  // allocation's own operation, so a reported failure already permits a fresh one.
+  // A reload's presentation, or a departure's wait, is not an operation: Reset then
+  // allocates afresh.
   function begin(work) {
     const active = work;
     operation = active;
@@ -248,7 +250,11 @@ export function mountSample(
   // A departed or replaced document's successor presents into the presentation
   // already pending, so a departure and the reload after it share one `ready`.
   function awaitNext() {
-    if (!presenting) host.ready = settle(presentation());
+    if (presenting) return;
+    host.ready = settle(presentation());
+    // Owners read its outcome from `ready`; a host nobody awaits drops it, as an
+    // operation's does.
+    host.ready.catch(() => {});
   }
   function failure(error) {
     if (presenting) readyReject(error);

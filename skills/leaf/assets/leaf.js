@@ -1016,6 +1016,7 @@ async function startPage() {
       : loadIcon().catch((error) => reportPageError(error, "tab icon failed to load")),
   ]);
   if (!upgraded) return;
+  app.watchThreadSurfaces();
   // Initial layout and later residency share prepaint's synchronous computation.
   openResidency({ onRead: annotationRenderer?.syncMarginResidency });
   if (!offlineInteractive) {

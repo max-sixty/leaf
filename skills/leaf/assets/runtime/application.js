@@ -38,9 +38,9 @@ import { showHeld } from "./thread/held-news.js";
 import { threadBox as buildThreadBox } from "./thread/box.js";
 import { isMessageEvent } from "./pending/model.js";
 import {
-  placeThreads as registerConsumer,
   placePageThreads as registerPageConsumer,
   renderSurfaces,
+  watchThreadSurfaces as watchSurfaces,
 } from "./thread/surfaces.js";
 import { createStateApplication } from "./state-application.js";
 import { createStateFeed } from "./state-feed.js";
@@ -469,8 +469,9 @@ export function mountApplication(dependencies) {
       throw error;
     }
   };
-  const placeThreads = (owner, render) =>
-    registerConsumer(owner, render, threadSurfaceCommands);
+  // The widgets declaring x-thread-surface, registered for as long as they stand, once
+  // the registry that names them has loaded.
+  const watchThreadSurfaces = () => watchSurfaces(threadSurfaceCommands);
   const placePageThreads = (owner, render) => {
     requirePageAnnotations();
     return registerPageConsumer(owner, render, threadSurfaceCommands);
@@ -528,7 +529,7 @@ export function mountApplication(dependencies) {
     readAndApply: feed.readAndApply,
     refreshThread,
     presentThread,
-    placeThreads,
+    watchThreadSurfaces,
     placePageThreads,
     consumeAnnotations,
     mountThreadViews,
@@ -571,7 +572,6 @@ export const post = commandDispatch.post;
 export const projectData = (...args) => app().projectData(...args);
 export const readAndApply = (...args) => app().readAndApply(...args);
 export const refreshThread = (...args) => app().refreshThread(...args);
-export const placeThreads = (...args) => app().placeThreads(...args);
 export const placePageThreads = (...args) => app().placePageThreads(...args);
 export const consumeAnnotations = (...args) => app().consumeAnnotations(...args);
 export const mountThreadViews = (...args) => app().mountThreadViews(...args);

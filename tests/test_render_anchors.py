@@ -1581,6 +1581,10 @@ def test_a_plain_block_in_a_language_the_layer_cannot_color_stays_plain(browser,
 
 
 def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
+    # The clipped source sits beyond the near observer's 600px scroll margin
+    # (geometry.js, `nearObserver`), so the synchronous first reading and the
+    # observer's first record agree it stays out of layout. A nearer source enters
+    # layout on that record, before or after presentation as load decides.
     url = live_url(
         serve(
             leaf_page(
@@ -1588,7 +1592,7 @@ def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
                 '<h1 id="destination">Destination</h1>'
                 '<pre id="source"><code>See <a id="code-link" href="#destination">details</a></code></pre>'
                 '<div id="scroller" style="height:80px;overflow:auto">'
-                '<div style="height:200px"></div>'
+                '<div style="height:1000px"></div>'
                 '<pre id="clipped"><code>Below the inner viewport.</code></pre></div>',
             )
         )
@@ -5812,7 +5816,12 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     input_.focus()
     write(input_, "Review the whole added line.")
     input_.evaluate("input => input.setSelectionRange(7, 16)")
-    page.evaluate("() => document.querySelector('#patch').threadSurface.update()")
+    page.evaluate(
+        """async () => {
+          const {threadSurface} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          threadSurface(document.querySelector('#patch')).update();
+        }"""
+    )
     expect(input_).to_be_focused()
     assert input_.evaluate("input => [input.selectionStart, input.selectionEnd]") == [
         7,

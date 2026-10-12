@@ -5133,8 +5133,16 @@ def test_a_version_published_under_an_open_menu_reaches_it(browser, serve):
     menu = page.locator(".lf-version-menu")
     expect(page.locator(".lf-version-row")).to_have_count(2)
 
+    # Popover's deferred toggle handler places its initial focus. Let that
+    # arrival finish before choosing a different row to keep through the update.
+    page.evaluate(
+        """() => document.querySelector('.lf-version-menu').addEventListener(
+          'toggle', () => { window.__lfVersionMenuOpened = true; }, { once: true }
+        )"""
+    )
     banner_control(page, ".lf-version").click()
     expect(menu).to_be_visible()
+    page.wait_for_function("window.__lfVersionMenuOpened === true")
     focused_row = page.locator(".lf-version-row").first
     focused_row.focus()
     focused_row.evaluate("row => window.__lfFocusedVersionRow = row")

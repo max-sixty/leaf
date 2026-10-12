@@ -1950,18 +1950,15 @@ def add_test_widget(package: Path, tag: str, *, upgrade: bool = False) -> dict:
 
 @pytest.fixture
 def declared_reading_package(tmp_path, monkeypatch):
-    """A module-free vocabulary for shared said-word and painted-fact contracts."""
+    """A module-free vocabulary for the shared said-word contract."""
     monkeypatch.chdir(tmp_path)
     package = tmp_path / ".leaf"
     add_test_widget(package, "lf-reading")
     registry_path = package / "registry.json"
     registry = json.loads(registry_path.read_text())
     reading = registry["lf-reading"]
-    reading["properties"].update(
-        {"label": {"type": "string"}, "state": {"type": "string"}}
-    )
+    reading["properties"].update({"label": {"type": "string"}})
     reading["x-says"] = {"label": "before"}
-    reading["x-paints"] = ["state"]
     registry_path.write_text(json.dumps(registry))
     return "./.leaf"
 

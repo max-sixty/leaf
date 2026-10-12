@@ -65,8 +65,6 @@ import {
 // Exposure is synchronous; ready joins the presentation it started. A widget replacing
 // its visible view reports replacedView, so travel can place it before waiting on ready.
 export function reveal(el, mayReveal) {
-  if (typeof mayReveal !== "function")
-    throw new TypeError("reveal needs the intent its gesture retained");
   const chain = [];
   const pending = [];
   let replacedView = false;

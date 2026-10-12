@@ -294,8 +294,6 @@ export function presentContributionHost(
     writesSeat = true,
   } = {},
 ) {
-  if (!(control instanceof Element))
-    throw new TypeError("A margin presentation needs an Element control");
   const record = isContributionEntry(offered) ? offered : contributionEntry(offered);
   if (control instanceof HTMLButtonElement && record.behavior === "status")
     throw new TypeError("A status margin entry needs a stable span host");

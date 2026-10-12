@@ -72,8 +72,7 @@
     letter-spacing: normal; word-spacing: normal; text-transform: none; }
 /* Words for a user listening, silent on screen: real text, the one thing every
    screen reader announces in every mode, clipped to nothing where paint already says
-   the same fact to the eye (renderQuiet, lf-code's highlighted lines, the status word
-   x-paints writes). Worn with
+   the same fact to the eye (renderQuiet, lf-code's highlighted lines). Worn with
    .lf-ui, since an invisible word is apparatus the anchor pass must not offer — a
    quote resolved into a clipped box would paint a mark nobody can see. Out of flow,
    so it holds no room; the covered-words gate skips this class.

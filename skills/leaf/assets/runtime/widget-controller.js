@@ -75,8 +75,6 @@ const unavailable = (reading) =>
   });
 
 function createWidgetController(owner) {
-  if (!(owner instanceof Element))
-    throw new TypeError("A widget controller needs an Element owner");
   const descriptor = widgetDescriptor(owner);
   if (!descriptor)
     throw new Error(
@@ -283,8 +281,6 @@ function createWidgetController(owner) {
   return Object.freeze({
     read,
     subscribe(callback) {
-      if (typeof callback !== "function")
-        throw new TypeError("A widget subscription needs a callback");
       subscriptions.add(callback);
       if (!stopSelection) connect();
       else presentRender(read(), [callback]);
@@ -334,7 +330,6 @@ function createWidgetController(owner) {
       };
     },
     present(promise) {
-      if (!promise?.then) throw new TypeError("Widget presentation must be a promise");
       const value = read();
       if (!preparationBatch || preparationBatch.value !== value) {
         preparationBatch = { value, promises: [] };

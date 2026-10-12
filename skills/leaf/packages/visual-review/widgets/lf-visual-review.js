@@ -273,7 +273,6 @@ customElements.define(
     }
 
     #setScope(scope) {
-      if (!(scope in SCOPE)) return;
       if (
         scope === "focus" &&
         (!this.#caseEntries.get(this.#selected)?.shotHost.querySelector("lf-shot")
@@ -290,21 +289,20 @@ customElements.define(
     }
 
     #setMode(mode) {
-      if (!(mode in INSPECTION) || mode === this.#mode) return;
+      if (mode === this.#mode) return;
       this.#mode = mode;
       this.#paintInspector();
       notice(`${INSPECTION[mode]} view`);
     }
 
     #setScale(scale) {
-      if (!(scale in SCALE) || scale === this.#scale) return;
+      if (scale === this.#scale) return;
       this.#scale = scale;
       this.#paintInspector();
       notice(`${SCALE[scale]} evidence`);
     }
 
     #setOpacity(opacity) {
-      if (!Number.isFinite(opacity)) return;
       this.#opacity = Math.max(0, Math.min(100, opacity));
       this.#paintInspector();
     }

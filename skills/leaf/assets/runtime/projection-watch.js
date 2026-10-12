@@ -20,10 +20,6 @@ import { PRESENTATION } from "./presentation.js";
 import { watchOwner } from "./arrivals.js";
 
 export function watchProjection(owner, read, ready = null) {
-  if (!(owner instanceof Element))
-    throw new TypeError("A projection watcher needs an Element owner");
-  if (typeof read !== "function")
-    throw new TypeError("A projection watcher needs a reading function");
   let active = null;
   let disconnect;
   const stop = watchOwner(owner, {

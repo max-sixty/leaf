@@ -3,8 +3,6 @@
  * fields and the viewer's tab-local values determine the actual first layout;
  * upgrade adopts these nodes and adds Leaf commands, projection and delivery. */
 const own = (root, tag) => [...root.querySelectorAll(`:scope > ${tag}`)];
-const KINDS = new Set(["range", "toggle", "choice", "color", "text"]);
-const NAME = /^[a-z][a-z0-9-]*$/;
 const COPY_LABELS = [
   ["rest", "Copy instruction"],
   ["success", "Copied"],
@@ -25,8 +23,7 @@ function render(host, { tabStore, offer, keeps }) {
   for (const control of controls) {
     const name = control.getAttribute("name"),
       kind = control.getAttribute("kind");
-    if (!NAME.test(name ?? "") || controlByName.has(name) || !KINDS.has(kind))
-      throw new Error(`invalid or repeated playground control ${name}`);
+    if (controlByName.has(name)) throw new Error(`repeated playground control ${name}`);
     const choices = own(control, "lf-playground-choice");
     if ((kind === "choice") !== Boolean(choices.length))
       throw new Error(`control ${name} needs choices only for kind choice`);
@@ -44,13 +41,7 @@ function render(host, { tabStore, offer, keeps }) {
         min = Number(control.getAttribute("min"));
       const max = Number(control.getAttribute("max")),
         step = Number(control.getAttribute("step") ?? "1");
-      if (
-        ![value, min, max, step].every(Number.isFinite) ||
-        min >= max ||
-        step <= 0 ||
-        value < min ||
-        value > max
-      )
+      if (!Number.isFinite(value) || min >= max || value < min || value > max)
         throw new Error(`control ${name} has a value outside its range`);
       if (Math.abs((value - min) / step - Math.round((value - min) / step)) > 1e-9)
         throw new Error(`control ${name} has a value off its step`);

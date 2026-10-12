@@ -1050,8 +1050,8 @@ Thread collection as `readThreads()` on its initial presentation and on later
 publications. A Thread waiting on the user has unresolved
 `attention.kind === "needs_user"`, which
 includes recovery after a failed response; `"waiting"` means it is with the agent.
-A Thread's `id` is the name Questions and workflows give it; its `root` is the first
-message it still holds, whose id differs where the log lost the opening message.
+A Thread's `id` is the name Questions and workflows give it; its `root` is its opening
+message, which a reply or settlement names as its `parent`.
 Each Thread's `key` survives admission of a pending gesture, and its `anchor`
 names the `section` (the widget's id) and `datum` it rests on. A returned promise
 delays that widget's mirror repaint without holding up Leaf's panel, margin, or

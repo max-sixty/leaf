@@ -1850,6 +1850,11 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     elif place in {"choose-earlier", "leave-displaced-title"}:
         selected.locator(".lf-thread-summary").click()
 
+    # Choosing an earlier thread while the failing candidate is held starts a newer
+    # reading, and an attempt it supersedes restores nothing; that newer reading fails
+    # too, so restoring the committed reading is its to do.
+    failures = 2 if place == "choose-earlier" else 1
+    page.evaluate(f"window.listFailures = {failures}")
     page.evaluate(
         """async id => {
           const presentation = await window.__lfRuntimeImport(
@@ -1872,14 +1877,14 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
 
           const list = document.querySelector('leaf-thread-list');
           const present = list.present.bind(list);
-          let failures = 2;
+          let failures = window.listFailures;
           let releaseFailure;
           const failedCandidate = new Promise(done => { releaseFailure = done; });
           window.releaseFirstListFailure = releaseFailure;
-          let releaseRetry;
-          const retry = new Promise(done => { releaseRetry = done; });
-          window.releaseThreadRetry = releaseRetry;
-          window.threadRetryReleased = false;
+          let releaseNext;
+          const next = new Promise(done => { releaseNext = done; });
+          window.releaseNextReading = releaseNext;
+          window.nextReadingReleased = false;
           list.present = async model => {
             const candidate = model.rows.some(
               row => row.kind === 'thread' &&
@@ -1889,16 +1894,16 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
             if (failures > 0) {
               const attempt = failures--;
               await present(model);
-              if (attempt === 2) {
+              if (attempt === window.listFailures) {
                 window.failedCandidatePresented = true;
                 await failedCandidate;
               }
               window.completeListFailures = (window.completeListFailures ?? 0) + 1;
               throw new Error('injected complete-list failure');
             }
-            if (!window.threadRetryReleased) {
-              window.threadRetryHeld = true;
-              await retry;
+            if (!window.nextReadingReleased) {
+              window.nextReadingHeld = true;
+              await next;
             }
             return present(model);
           };
@@ -1909,7 +1914,8 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     # One departed root and two arrivals distinguish candidate and committed counts.
     # Hold delivery while the admitted undo and arriving frozen content become one
     # application reading. The failed candidate removes the selected root; retention
-    # must restore the complete committed reading before the held retry proceeds.
+    # must restore the complete committed reading before the next reading, held here,
+    # proceeds.
     held_readings = []
     page.route("**/api/state*", lambda route: held_readings.append(route))
     append_carried_log_record(
@@ -1964,8 +1970,9 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         page_comment(page)
     page.evaluate("window.releaseFirstListFailure()")
     page.wait_for_function(
-        """() => window.completeListFailures === 2 &&
-          window.threadRetryHeld === true""",
+        """failures => window.completeListFailures === failures &&
+          window.nextReadingHeld === true""",
+        arg=failures,
     )
 
     assert page.evaluate("() => !window.threadPreparationSettled")
@@ -1996,17 +2003,17 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
     ) == [6, 14, "backward"]
     assert "thread" in page.evaluate("window.readLeafPresentation().pending")
-    # The restored card must stand for a frame before retrying its withdrawal;
+    # The restored card must stand for a frame before the next reading withdraws it;
     # the choice that dismissed the failed candidate cannot hide a later jump.
     page.evaluate("lfShiftsJudged()")
     restored_top = page.evaluate("window.keptPanel.getBoundingClientRect().top")
 
-    # The retry paints the whole candidate again and then reaches the independently
-    # held frozen-widget preparation. Only that complete reading may commit.
+    # The next reading paints the whole candidate again and then reaches the
+    # independently held frozen-widget preparation. Only that complete reading may commit.
     page.evaluate(
         """() => {
-          window.threadRetryReleased = true;
-          window.releaseThreadRetry();
+          window.nextReadingReleased = true;
+          window.releaseNextReading();
         }"""
     )
     page.wait_for_function(
@@ -2039,23 +2046,14 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
             inline.querySelector(':scope > .lf-thread-reply leaf-text') === window.keptEditor;
         }""",
         kept["id"],
-    ), "successful list retry replaced a committed panel card, seat, or editor"
+    ), "the next reading replaced a committed panel card, seat, or editor"
     expect(editor).to_have_js_property("value", "draft survives sibling rollback")
     if place == "choose-earlier":
         expect(page.locator('[data-withdrawn="selected-thread"]')).to_have_count(1)
         assert page.evaluate(
             "window.keptPanel.getBoundingClientRect().top"
         ) == pytest.approx(restored_top, abs=0.1)
-    expected_errors = (
-        []
-        if place == "choose-earlier"
-        else [
-            (
-                "leaf: Presentation failed: Thread list presentation retry failed: "
-                "injected complete-list failure; injected complete-list failure"
-            )
-        ]
-    )
+    expected_errors = ["leaf: Presentation failed: injected complete-list failure"]
     errors = take_browser_errors(page)
     assert [error.splitlines()[0] for error in errors] == expected_errors, errors
 
@@ -2353,8 +2351,8 @@ def test_a_refused_thread_reading_leaves_a_user_who_moved_on_where_they_went(
     write(left, "where the user was")
     expect(left).to_be_focused()
 
-    # The reading that brings the arriving thread waits at a gate, and both its paints
-    # (the attempt and the list's own retry) fail, so the whole reading is refused.
+    # The reading that brings the arriving thread waits at a gate, and its paint fails,
+    # so the whole reading is refused.
     page.evaluate(
         """() => {
           const list = document.querySelector('leaf-thread-list');
@@ -2389,10 +2387,7 @@ def test_a_refused_thread_reading_leaves_a_user_who_moved_on_where_they_went(
     page.evaluate("() => window.openGate()")
     reported_browser_errors(
         page,
-        (
-            "leaf: Presentation failed: Thread list presentation retry failed: "
-            "injected refusal; injected refusal"
-        ),
+        "leaf: Presentation failed: injected refusal",
     )
     expect(page.locator('[data-id="arriving"]')).to_have_count(0)
 

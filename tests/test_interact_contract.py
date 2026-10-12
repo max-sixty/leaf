@@ -2718,7 +2718,6 @@ def test_boolean_attribute_subschemas_validate_without_crashing(
         # Each of these names attributes, so an empty one declares nothing while
         # reading as a declaration.
         ("x-refers", {}),
-        ("x-paints", []),
         ("x-says", []),
         ("x-state", []),
         ("x-thread-surface", False),
@@ -3650,7 +3649,6 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
             "colour",
         ),
         ("lf-option", "x-refers", {"for": {}, "about": {}}, "about"),
-        ("lf-test-task", "x-paints", ["status", "urgency"], "urgency"),
         ("lf-code", "x-language", "dialect", "dialect"),
         ("lf-column", "x-tone", "shade", "shade"),
     ],
@@ -3658,9 +3656,9 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
 def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(
     page_dir, tag, key, value, missing
 ):
-    """Five keys point at attributes rather than declaring them — the words a widget
-    shows, the ones that name another element, the ones it paints and never words, and
-    the two carrying a word its layer has to know —
+    """Four keys point at attributes rather than declaring them — the words a widget
+    shows, the ones that name another element, and the two carrying a word its layer
+    has to know —
     and each is read by a pass that finds the attribute absent and does nothing. That
     is the never-closed vocabulary's own failure mode: no error anywhere, the widget
     simply missing from the pass, and a page that looks authored correctly because it
@@ -3669,7 +3667,7 @@ def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(
     Every one of them parametrized rather than three, because it is one rule
     (ATTRIBUTE_KEYS) and the case that would go wrong is a key left off the tuple —
     which no test of the three that were written by hand could ever see. The shapes
-    differ and the rule does not: a list, a mapping keyed by the names, one name."""
+    differ and the rule does not: a mapping keyed by the names, or one name."""
     registry = json.loads((page_dir / "registry.json").read_text())
     registry[tag][key] = value
     (page_dir / "registry.json").write_text(json.dumps(registry))

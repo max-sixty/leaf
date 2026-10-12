@@ -141,12 +141,8 @@ customElements.define(
       if (this.#controlByName.has(name))
         throw new Error(`contributor ${name} collides with a control`);
       if (this.#contributors.has(name)) throw new Error(`repeats contributor ${name}`);
-      if (
-        !operations ||
-        typeof operations.read !== "function" ||
-        typeof operations.apply !== "function"
-      )
-        throw new Error(`contributor ${name} needs read and apply operations`);
+      if (typeof operations?.read !== "function")
+        throw new Error(`contributor ${name} needs a read operation`);
 
       const initial = jsonSnapshot(defaultSnapshot, `contributor ${name}`);
       this.#contributors.set(name, { ...operations, defaultSnapshot: initial });
@@ -257,8 +253,6 @@ customElements.define(
     }
 
     #normalize(candidate) {
-      if (!candidate || typeof candidate !== "object" || Array.isArray(candidate))
-        throw new Error("configuration values must be an object");
       const names = [
         ...this.#controlByName.keys(),
         ...this.#contributors.keys(),

@@ -26,7 +26,6 @@ import {
   commitThreadSeats,
   retainThreadSeats,
 } from "./inline.js";
-import { RetainedThreadListError, retainedThreadListProof } from "./thread-list.js";
 import {
   applicationPresenter,
   applicationState,
@@ -76,7 +75,6 @@ export function createThreadPresentation({
     // the panel says while it waits is this region's to draw, and a user who opens it
     // then is asking for exactly that.
     current: () => (available ? readApplication().effective.thread : null),
-    failSoft: retainedThreadListProof,
     paint: async (value, current) => {
       const phase = readApplication().phase;
       // A pass reads the latest root. Clock changes claim another pass through the
@@ -108,12 +106,6 @@ export function createThreadPresentation({
     .subscribe((value) => {
       if (value !== null) void present();
     });
-
-  function finishListRecovery(candidates) {
-    for (const candidate of candidates)
-      if (candidate?.recovered)
-        throw new RetainedThreadListError(candidate.recovered, candidate.proof);
-  }
 
   let surfaceGeneration = 0;
   let cancelCurrentRender = () => {};
@@ -203,7 +195,6 @@ export function createThreadPresentation({
           surfaceView.composition.finishPlacement();
           renderAnnotations();
           pageGeometry.pageShifted();
-          finishListRecovery(candidates);
           read.present();
           // Continuity may reveal a route needing this very presenter. Its work starts
           // after the cohort commits, and never joins the ticket it is completing.
@@ -219,7 +210,6 @@ export function createThreadPresentation({
       surfaces?.cancel();
       if (!current()) throw error;
       read.abort();
-      if (error instanceof RetainedThreadListError) throw error;
       primary?.cancel();
       // A synchronous sibling failure may leave the panel's widget preparation in
       // flight. Invalidate its private generation before restoring the whole reading.
@@ -278,7 +268,6 @@ export function createThreadPresentation({
               );
         if (!panels.has(panel) || !candidate) return;
         candidate.commit();
-        finishListRecovery([candidate]);
         pageGeometry.pageShifted();
       } catch (error) {
         if (!panels.has(panel)) return;

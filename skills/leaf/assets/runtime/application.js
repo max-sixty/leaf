@@ -488,8 +488,6 @@ export function mountApplication(dependencies) {
     registerMirrorConsumer(owner, render, { commands: inlineView });
 
   const registerThreadPresentation = (owner, { render, reveal }) => {
-    if (typeof reveal !== "function")
-      throw new TypeError("A Thread presentation needs a reveal callback");
     const reader = createPrimaryReader(owner, render, inlineView, () =>
       threadPresenter.present(),
     );

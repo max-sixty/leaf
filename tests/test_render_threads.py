@@ -5069,8 +5069,8 @@ def test_resolving_an_early_thread_keeps_the_rest_in_place(browser, serve):
     ), "the thread after the one that resolved was reinserted under the typing"
 
 
-def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve):
-    """A failed child paint restores the retained card before retrying its reading."""
+def test_a_failed_thread_list_update_keeps_one_coherent_reading(browser, serve):
+    """A failed child paint restores the retained card until the next reading paints."""
     url = serve(LONG_PAGE, comments=2)
     roots = [
         event["id"]
@@ -5108,23 +5108,6 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
             }
             return node;
           };
-          const presentList = list.present.bind(list);
-          let release;
-          const held = new Promise(done => { release = done; });
-          list.present = async model => {
-            const candidate = model.rows.find(row =>
-              row.kind === 'thread' && row.descriptor.id === id)?.descriptor;
-            if (window.threadChildFailed && candidate?.resolved &&
-                !window.threadRetryReleased) {
-              window.threadRetryHeld = true;
-              await held;
-            }
-            return presentList(model);
-          };
-          window.releaseThreadRetry = () => {
-            window.threadRetryReleased = true;
-            release();
-          };
           window.threadListPresentation = presentation;
           window.committedThread = document.querySelector(
             `.lf-thread[data-id="${id}"]`
@@ -5149,7 +5132,7 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
         root,
     )
     page.wait_for_function(
-        "() => window.threadChildFailed && window.threadRetryHeld && "
+        "() => window.threadChildFailed && "
         "window.threadListPresentation.readApplicationPresentation().pending"
         ".includes('thread')",
     )
@@ -5178,8 +5161,15 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
     expect(page.locator(".lf-thread-view-summary")).to_have_text("1 open thread")
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 1")
+    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
+        "leaf: Presentation failed: injected thread-card failure"
+    ]
 
-    page.evaluate("window.releaseThreadRetry()")
+    holding(page, held_events, 2, "the gesture and the page's report of its failure")
+    for route in held_events:
+        route.continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
     page.wait_for_function(
         "() => !window.threadListPresentation.readApplicationPresentation().pending.length"
     )
@@ -5191,17 +5181,9 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
         'id => document.querySelector(`.lf-thread[data-id="${id}"]`) '
         "=== window.committedThread",
         root,
-    ), "successful retry replaced the retained card"
+    ), "the next reading replaced the retained card"
     expect(page.locator(".lf-thread-view-summary")).to_have_text("0 open threads")
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 0")
-    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
-        "leaf: Presentation failed: injected thread-card failure"
-    ]
-    holding(page, held_events, 2, "the gesture and the page's report of its failure")
-    for route in held_events:
-        route.continue_()
-    page.unroute("**/api/event")
-    round_trip(page)
 
 
 def test_a_failed_narrowing_restore_has_one_owned_presentation_error(browser, serve):
@@ -5315,10 +5297,7 @@ def test_a_failed_narrowing_view_restores_its_committed_list_and_keeps_the_input
         }"""
     )
     assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
-        (
-            "leaf: Presentation failed: Thread list presentation retry failed: "
-            "injected narrowing-view failure; injected narrowing-view failure"
-        )
+        "leaf: Presentation failed: injected narrowing-view failure"
     ]
 
     find.fill("")
@@ -5355,19 +5334,12 @@ def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, 
         """() => {
           const list = document.querySelector('leaf-thread-list');
           const render = list.render.bind(list);
-          let failures = 2;
+          let failures = 1;
           list.render = () => {
             const row = list.model.rows.find(({kind}) => kind === 'thread');
             if (row?.descriptor.visible && failures-- > 0)
               throw new Error('deliberate reveal failure');
             return render();
-          };
-          const retain = list.retainCommitted.bind(list);
-          let retentions = 0;
-          list.retainCommitted = (...args) => {
-            if (++retentions === 2)
-              throw new Error('deliberate retry retention failure');
-            return retain(...args);
           };
         }"""
     )
@@ -5381,13 +5353,7 @@ def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, 
           return readApplicationPresentation().pending.includes('thread');
         }"""
     )
-    expected = [
-        (
-            "leaf: Presentation failed: Thread list presentation and retention failed: "
-            "Thread list presentation retry failed: deliberate reveal failure; "
-            "deliberate reveal failure; deliberate retry retention failure"
-        )
-    ]
+    expected = ["leaf: Presentation failed: deliberate reveal failure"]
     assert [error.splitlines()[0] for error in take_browser_errors(page)] == expected
 
     routes = {route.request.post_data_json["kind"]: route for route in held}
@@ -8504,93 +8470,6 @@ def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(browser, se
         "a widget an agent sent shows as nothing: no box of its own, and every part "
         "its contents paint read as the panel's apparatus"
     )
-
-
-def test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers(browser, serve):
-    """The browser walks the same relation as `build_threads`, and tore the same way.
-
-    A crash tears one line and `read_events` keeps reading past it, so the events the
-    server hands the browser can hold a reply whose message is gone. The panel is built
-    by walking replies onto their parents, and the walk threw where the parent was
-    missing — taking down not the thread but the whole reconcile, on a page whose log
-    had already been read successfully by the side that wrote it. The missing id stays
-    the recovered thread's identity, so a structural Ask in one surviving reply also
-    stays visible after a later plain reply."""
-    url = serve(REPLY_TRAVEL_PAGE)
-    d = serve.page_dir
-    append_carried_log_record(
-        d,
-        {
-            "kind": "comment",
-            "id": "tv-lost",
-            "author": "user",
-            "revision": 1,
-            "text": "the question nobody can read any more",
-        },
-    )
-    append_carried_log_record(
-        d,
-        {
-            "kind": "reply",
-            "id": "tv-kept",
-            "author": "agent",
-            "parent": "tv-lost",
-            "revision": 1,
-            "text": "the answer that survived it",
-            "markup": (
-                '<lf-ask id="tv-decision"><h2>Which recovery should we use?</h2>'
-                '<lf-options id="tv-choice" choose>'
-                '<lf-option id="tv-retry">Retry</lf-option>'
-                '<lf-option id="tv-stop">Stop</lf-option>'
-                "</lf-options></lf-ask>"
-            ),
-        },
-    )
-    append_carried_log_record(
-        d,
-        {
-            "kind": "reply",
-            "id": "tv-later",
-            "author": "agent",
-            "parent": "tv-kept",
-            "revision": 1,
-            "text": "the later plain reply",
-        },
-    )
-    log = d / "events.jsonl"
-    lines = log.read_text(encoding="utf-8").split("\n")
-    torn = next(i for i, line in enumerate(lines) if '"id": "tv-lost"' in line)
-    lines[torn] = lines[torn][: len(lines[torn]) // 2]
-    log.write_text("\n".join(lines), encoding="utf-8")
-
-    page = open_page(browser, url)
-    resized(page, 1280, 900)
-    expect_asks_answered(page, "0/1")
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    expect(page.locator(".lf-thread")).to_have_count(1)
-    expect(page.locator(".lf-thread")).to_contain_text("the answer that survived it")
-    expect(page.locator(".lf-thread")).to_contain_text("the later plain reply")
-    expect(page.locator('.lf-thread[data-id="tv-lost"]')).to_have_count(1)
-    expect(page.locator(".lf-needs")).to_have_text("You (1)")
-
-    # The lost id names the thread and no message, so the user's reply and
-    # resolve address the message that opens it now, and the log admits both.
-    card = page.locator('.lf-thread[data-id="tv-lost"]')
-    card.locator(".lf-thread-summary").click()
-    with sending(page, "a reply in the recovered thread"):
-        write(card.locator("leaf-text"), "Retry is fine.")
-        card.locator(".lf-thread-send").click()
-    expect(card).to_contain_text("Retry is fine.")
-    with sending(page, "resolving the recovered thread"):
-        card.locator(".lf-resolve").click()
-    addressed = [
-        (event["kind"], event["parent"])
-        for event in events_model.read_events(d)
-        if event["kind"] in {"reply", "resolve"} and event.get("author") == "user"
-    ]
-    assert addressed == [("reply", "tv-kept"), ("resolve", "tv-kept")], addressed
-    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
 
 
 THREAD_STANDING = """() => {

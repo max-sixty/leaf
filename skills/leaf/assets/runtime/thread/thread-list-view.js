@@ -404,7 +404,7 @@ class ThreadListView extends RetainedFace {
     const rows = [];
     const wanted = new Set();
     // Allocations are mechanical paint state. Reconcile them on every attempt,
-    // including a retry after rollback restored a formerly dismissed live card.
+    // including the next reading after a rollback restored a formerly dismissed live card.
     const allocated = this.#retaining
       ? this.#committedRows
       : this.model.count === null

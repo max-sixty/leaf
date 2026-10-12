@@ -484,16 +484,12 @@ export function merge(sections, { title, when, at, liveInCommandReference, rows 
  * rows, so a widget that says its own keys out loud — a grip announcing what a grabbed
  * card answers — reads them back off the declaration rather than restating them.
  */
-function attachScope(where, declaration, { validateAtPaint = true } = {}) {
-  const scope = {
-    ...declaration,
-    el: where,
-    validated: !validateAtPaint,
-  };
+function attachScope(where, declaration) {
+  const scope = { ...declaration, el: where, validated: false };
   unpainted.delete(elementScopes.get(where));
   elementScopes.set(where, scope);
   rememberScopedElement(where);
-  if (validateAtPaint) unpainted.add(scope);
+  unpainted.add(scope);
   wireDeclaredButtons(scope);
   paintKeys();
   return scope.rows;
@@ -502,11 +498,8 @@ function attachScope(where, declaration, { validateAtPaint = true } = {}) {
 // Both element-bound keys and a reusable command capability declare the same scope.
 // Attachment decides when its scene is validated, not what a declaration may contain.
 function declaredScope(title, rows, options) {
-  const configuration =
+  const { when, escape } =
     typeof options === "function" ? { when: options } : (options ?? {});
-  if (typeof configuration !== "object")
-    throw new TypeError("A command scope's options must be an object");
-  const { when, escape } = configuration;
   if (escape !== undefined && escape !== "inner")
     throw new TypeError(
       `A command scope's Escape ownership must be \"inner\", got ${String(escape)}`,
@@ -587,10 +580,6 @@ export function commandScope(title, rows, options) {
 // under the same key replaces that owner's scope and leaves every other owner's standing,
 // and a null capability withdraws it.
 export function projectCommandScope(control, projector, capability = null) {
-  if (!(control instanceof Element))
-    throw new TypeError("A projected command scope needs an Element");
-  if (projector == null)
-    throw new TypeError("A projected command scope needs its projector's key");
   const projections = projectedScopes.get(control) ?? new Map();
   if (capability == null) {
     projections.delete(projector);
@@ -601,8 +590,6 @@ export function projectCommandScope(control, projector, capability = null) {
     reflectElementShortcuts(control);
     return;
   }
-  if (!isCommandScope(capability))
-    throw new TypeError("A projected command scope needs a commandScope capability");
   projections.set(projector, capability.scope);
   projectedScopes.set(control, projections);
   rememberScopedElement(control);

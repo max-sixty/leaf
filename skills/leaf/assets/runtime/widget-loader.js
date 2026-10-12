@@ -256,23 +256,7 @@ export async function upgradeWidgets({ buildReactionBar }) {
   if (!response.ok)
     throw new Error(`leaf: registry failed to load (${response.status})`);
   adoptRegistry(await response.json());
-  const registryGeneration = registry.$layer?.generation;
-  if (typeof registryGeneration !== "string" || !registryGeneration)
-    throw new Error("leaf: registry lacks $layer.generation");
-  if (!sameLayer(registryGeneration)) return false;
-  if (
-    !registry.$events?.kinds ||
-    !registry.$languages?.names ||
-    !registry.$languages?.paths ||
-    !registry.$tones?.names ||
-    !registry.$reactions?.tokens ||
-    !registry.$decisions ||
-    !registry.$states ||
-    !registry.$marks
-  )
-    throw new Error(
-      "leaf: registry lacks $events, $languages, $tones, $reactions, $decisions, $states or $marks",
-    );
+  if (!sameLayer(registry.$layer.generation)) return false;
   revealLayer();
   buildReactionBar();
   await installDocument(document.body);

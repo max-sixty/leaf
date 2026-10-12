@@ -59,10 +59,6 @@ export function createThreadDestinations({
   let presentation = null;
   let opening = null;
   function register(owner, open, reader) {
-    if (!(owner instanceof Element) || typeof open !== "function")
-      throw new TypeError(
-        "A Thread presentation needs an Element owner and an open callback",
-      );
     if (presentation) throw new Error("The page already has a Thread presentation");
     const registration = { owner, open, reader };
     presentation = registration;

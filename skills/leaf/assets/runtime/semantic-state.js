@@ -174,8 +174,6 @@ export const projectionRegionsPresented = (widgets) =>
 export const watchPresentation = presentation.subscribe;
 export const readApplicationPresentation = presentation.read;
 export function setPresentationFailureReporter(report) {
-  if (typeof report !== "function")
-    throw new TypeError("Presentation failure reporting needs a callback");
   reportPresentationFailure = (reason) => report(reason, "Presentation failed");
 }
 export const watchSemantic = (callback) =>

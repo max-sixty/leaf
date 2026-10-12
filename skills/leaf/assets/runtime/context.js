@@ -66,16 +66,6 @@ const offlineMarker = document.querySelector(
 const offlinePayload = offlineMarker
   ? JSON.parse(offlineMarker.textContent || "null")
   : null;
-if (
-  offlineMarker &&
-  (!offlinePayload ||
-    typeof offlinePayload !== "object" ||
-    !offlinePayload.state ||
-    !offlinePayload.data ||
-    !offlinePayload.resources)
-)
-  throw new TypeError("Leaf's interactive export payload is incomplete");
-
 // This declaration participates in executable identity: changing it replaces this
 // document realm rather than switching initialized physical owners in place.
 export const annotationMode =

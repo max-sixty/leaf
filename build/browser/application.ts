@@ -925,12 +925,11 @@ export function createSemanticApplication({
     // The thread a gesture stands in. A message stands in the thread that draws it,
     // under its pending id or, once the log has it, its attempt. Until one does, a
     // comment opens the thread its own id names, and a reply joins the thread holding
-    // its parent, which need not be that thread's id: a thread that lost its opening
-    // message is answered at the reply that survived, and a parent no thread holds is a
-    // comment of this tab's that the log refused, whose pending id named its thread. A
-    // rewrite stands in its message's thread, a settlement in the thread it settles, and
-    // an action in the thread whose markup froze its widget; a page widget's action stands in
-    // none.
+    // its parent, or, where no thread holds it, the thread its parent names: a comment
+    // of this tab's that the log refused, whose pending id named its thread. A rewrite
+    // stands in its message's thread, a settlement in the thread it settles, and an
+    // action in the thread whose markup froze its widget; a page widget's action stands
+    // in none.
     const named = threadNames(folded);
     const threadOfEntry = ({ event, thread: drawn, namedParent }: LedgerEntry) => {
       const drawnIn = drawn && named.get(drawn.id)?.id;

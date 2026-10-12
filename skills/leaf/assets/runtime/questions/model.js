@@ -25,7 +25,5 @@ export function approvalBlockingQuestions() {
 }
 
 export function watchQuestions(owner, callback) {
-  if (typeof callback !== "function")
-    throw new TypeError("A Question watcher needs a callback");
   return watchProjection(owner, () => callback(readQuestions()));
 }

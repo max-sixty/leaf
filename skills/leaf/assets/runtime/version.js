@@ -187,10 +187,6 @@ export function comparisonChanges(owner = null) {
 }
 
 export function watchComparison(owner, callback) {
-  if (!(owner instanceof Element))
-    throw new TypeError("A comparison watcher needs an Element owner");
-  if (typeof callback !== "function")
-    throw new TypeError("A comparison watcher needs a callback");
   const read = () => {
     if (owner.isConnected) callback();
   };
@@ -800,9 +796,7 @@ export function createVersionController({
     });
     const res = await fetch(pageUrl(`api/view?${params}`));
     if (!res.ok) throw new Error(`couldn't project revision r${baseRevision}`);
-    const answer = await res.json();
-    if (!answer.browser) throw new Error(`revision r${baseRevision} has no projection`);
-    return answer.browser;
+    return (await res.json()).browser;
   }
   // The longest run of `after` that keeps the order `before` gave the same units:
   // the units that did not move.
@@ -826,11 +820,7 @@ export function createVersionController({
     return kept;
   }
   function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
-    const baseRevision = stamped(baseVersion)?.revision;
-    if (baseRevision == null)
-      throw new Error(`version v${baseVersion} has no revision`);
-    const baseView = baseReading?.views?.[String(baseRevision)];
-    if (!baseView) throw new Error(`revision r${baseRevision} has no projection`);
+    const baseView = baseReading.views[String(stamped(baseVersion).revision)];
     // The base version's widget state, folded as the publisher folds the current one:
     // its authored values, staged before its Markdown was formatted, under the
     // projection the server read for it. A report standing at the base painted there
@@ -1144,8 +1134,6 @@ export function createVersionController({
     try {
       while (mine === diffRequest) {
         const throughSeq = runtime.lastEventSeq;
-        if (!Number.isInteger(throughSeq))
-          throw new Error("the current reading has no log sequence");
         [doc, reading] = await Promise.all([
           documentRequest,
           baseReading(baseRevision, throughSeq),
@@ -1198,8 +1186,6 @@ export function createVersionController({
     const response = await fetch(url);
     if (!response.ok) throw new Error(`couldn't load ${url} (${response.status})`);
     const doc = new DOMParser().parseFromString(await response.text(), "text/html");
-    if (doc.querySelectorAll("body > main").length !== 1)
-      throw new Error(`${url} has no single authored main`);
     // First-paint delivery wrappers have no place in the authored revision.
     return restoreInitialSource(doc);
   }

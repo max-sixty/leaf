@@ -27,16 +27,6 @@ import { reportPageError, requestJson } from "./layer-client.js";
 import { watchOwner } from "./arrivals.js";
 
 export function acceptData(candidate, taken) {
-  if (
-    !candidate ||
-    typeof candidate !== "object" ||
-    Array.isArray(candidate) ||
-    typeof candidate.version !== "string" ||
-    !candidate.sources ||
-    typeof candidate.sources !== "object" ||
-    Array.isArray(candidate.sources)
-  )
-    throw new TypeError("state data must carry a version and sources");
   return applicationState.acceptData(candidate, taken);
 }
 
@@ -85,14 +75,6 @@ export async function notifyDataSubscribers() {
 // `projectData` remains the rendering boundary: this helper delivers records but writes no
 // DOM and keeps no widget-specific cache.
 export function watchData(element, input, callback) {
-  if (!(element instanceof Element))
-    throw new TypeError("watchData element must be a widget element");
-  if (typeof input !== "string" || !input)
-    throw new TypeError("watchData input must be a non-empty string");
-  if (typeof callback !== "function")
-    throw new TypeError(
-      `watchData(${element.localName}, ${input}) callback must be a function`,
-    );
   const declaration = registry[element.localName]?.["x-data"]?.[input];
   if (!declaration)
     throw new Error(
@@ -248,21 +230,6 @@ export function watchData(element, input, callback) {
 // accepted before its subscriber renders; loading through that older manifest must not
 // fetch a same-key deferred value from the replacement.
 export async function loadDeferred(manifest, key) {
-  if (
-    !manifest ||
-    typeof manifest.source !== "string" ||
-    !manifest.source ||
-    typeof manifest.revision !== "string" ||
-    !manifest.revision
-  )
-    throw new TypeError("loadDeferred needs a source delivery");
-  if (typeof key !== "string" || !key)
-    throw new TypeError("loadDeferred key must be a non-empty string");
-  const records = registry.$data?.contracts?.[manifest.contract]?.records;
-  if (!records?.deferred)
-    throw new Error(
-      `loadDeferred contract ${manifest.contract} defers no record field`,
-    );
   const { source, revision } = manifest;
   const current = () => {
     const reading = runtime.data.sources[source];
@@ -277,20 +244,11 @@ export async function loadDeferred(manifest, key) {
       `source ${source} revision ${revision} changed before loading deferred ${key}`,
     );
   if (offlineInteractive) {
-    const reading = offlineData()?.sources?.[source];
-    if (
-      !reading ||
-      reading.contract !== manifest.contract ||
-      reading.revision !== revision
-    )
-      throw new Error("interactive export deferred value does not match its source");
-    const items = reading.value?.[records.items];
-    const matches = Array.isArray(items)
-      ? items.filter((item) => item?.[records.key] === key)
-      : [];
-    if (matches.length !== 1 || !(records.deferred in matches[0]))
-      throw new Error("interactive export deferred value does not match its key");
-    return structuredClone(matches[0][records.deferred]);
+    const records = registry.$data.contracts[manifest.contract].records;
+    const item = offlineData().sources[source].value[records.items].find(
+      (item) => item[records.key] === key,
+    );
+    return structuredClone(item[records.deferred]);
   }
   const params = new URLSearchParams({ source, source_revision: revision, key });
   const answer = await requestJson(
@@ -298,13 +256,6 @@ export async function loadDeferred(manifest, key) {
     {},
     "deferred value",
   );
-  if (
-    answer.revision !== revision ||
-    answer.source !== source ||
-    answer.contract !== manifest.contract ||
-    answer.key !== key
-  )
-    throw new Error("deferred value response does not match its request");
   if (!current())
     throw new Error(
       `source ${source} revision ${revision} changed while loading deferred ${key}`,

@@ -1406,6 +1406,16 @@ RADIO_DIALOG_PAGE = leaf_page(
   <button type="button" id="pick-first">First</button>
   <label><input type="radio" name="size" value="s"> Small</label>
   <label><input type="radio" name="size" value="l"> Large</label>
+</dialog>
+<dialog id="pick-disabled">
+  <button type="button" id="disabled-first">First</button>
+  <label><input type="radio" name="tone" value="off" disabled> Off</label>
+  <label><input type="radio" name="tone" value="on"> On</label>
+</dialog>
+<dialog id="pick-split">
+  <label><input type="radio" name="side" value="a"> A</label>
+  <button type="button" id="split-middle">Middle</button>
+  <label><input type="radio" name="side" value="b"> B</label>
 </dialog>""",
 )
 
@@ -1432,6 +1442,22 @@ def test_tab_leaves_a_radio_group_ending_a_modal_for_its_first_stop(browser, ser
     expect(large).to_be_focused()
     page.keyboard.press("Tab")
     expect(first).to_be_focused()
+
+    # A disabled member takes no stop, so the group's stop is its enabled member.
+    page.evaluate("() => document.getElementById('pick').close()")
+    page.evaluate("() => document.getElementById('pick-disabled').showModal()")
+    page.locator("#disabled-first").focus()
+    page.keyboard.press("Tab")
+    expect(page.locator("input[value=on]")).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(page.locator("#disabled-first")).to_be_focused()
+
+    # A group split by another stop is left from its last member as from any other.
+    page.evaluate("() => document.getElementById('pick-disabled').close()")
+    page.evaluate("() => document.getElementById('pick-split').showModal()")
+    page.locator("input[value=b]").focus()
+    page.keyboard.press("Tab")
+    expect(page.locator("input[value=a]")).to_be_focused()
 
 
 def test_tab_wraps_through_a_full_view_sample(browser, serve):

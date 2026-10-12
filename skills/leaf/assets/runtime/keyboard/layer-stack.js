@@ -67,7 +67,8 @@ import {
   focusDestination,
   handBack,
   canPlaceFocus,
-  standingAt,
+  landingOf,
+  leavesStops,
   tabStops,
 } from "../focus.js";
 import { renderedParent, renderedUnder } from "../shadow.js";
@@ -326,7 +327,7 @@ export const enterFrameBy = (frame, enter) => {
 function enter(stop, backward) {
   const entry = frameEntries.get(stop);
   if (entry) entry(backward);
-  else focusDestination(stop, "step");
+  else focusDestination(landingOf(stop), "step");
 }
 // Moves the user from stop `at` of `loop`, one stop on, round from one end to the other,
 // or, past an end of a frame's document, on past its frame in the page around it.
@@ -379,8 +380,7 @@ addEventListener("keydown", (event) => {
   const loop = currentLoop();
   if (!loop) return;
   const stops = tabStops(loop.region);
-  const at = standingAt(stops, deepFocus());
-  if (stops.length && at !== (backward ? 0 : stops.length - 1)) return;
+  if (stops.length && !leavesStops(stops, deepFocus(), backward)) return;
   event.preventDefault();
-  step(loop, stops, stops.length ? at : -1, backward);
+  step(loop, stops, stops.length && backward ? 0 : stops.length - 1, backward);
 });

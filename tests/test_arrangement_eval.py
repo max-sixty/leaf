@@ -252,6 +252,10 @@ def test_pairwise_counts_only_a_winner_both_orders_name(tmp_path, monkeypatch):
     assert CliRunner().invoke(eval_pairs.eval_pairs, [str(run)]).exit_code == 0
     pair = json.loads((run / "pairs.json").read_text())[0]
     assert pair["winner"] == "claude-code/html/workflow"
+    results.append({**results[0]})
+    (run / "results.json").write_text(json.dumps({"results": {"results": results}}))
+    refused = CliRunner().invoke(eval_pairs.eval_pairs, [str(run)])
+    assert refused.exit_code != 0 and "2 samples" in refused.output
 
 
 def test_a_resumed_phase_costs_only_its_own_work():

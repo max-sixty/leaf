@@ -172,6 +172,11 @@ def eval_pairs(runs: tuple[Path, ...]):
             click.echo(f"{subject}: {len(columns)} columns, not 2; skipped")
             continue
         (first, firsts), (second, seconds) = sorted(columns.items())
+        if len(firsts) != len(seconds):
+            raise click.ClickException(
+                f"{subject}: {first} has {len(firsts)} samples and {second} has "
+                f"{len(seconds)}; run each column the same number of times"
+            )
         for n, (x, y) in enumerate(zip(firsts, seconds), 1):
             orders = []
             for order, (a, b, names) in enumerate(

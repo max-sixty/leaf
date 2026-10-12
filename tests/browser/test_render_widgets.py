@@ -86,6 +86,7 @@ from render_harness import (
     holding,
     leaf_page,
     margins_laid_out,
+    names,
     open_page,
     page_comment,
     pane_posture,
@@ -8635,7 +8636,7 @@ def test_covered_words_holds_a_tick_naming_its_month_on_a_second_line(browser, s
         ),
     )
     assert held == []
-    assert any("c-line" in found for found in reported), (
+    assert any(names(found, "c-line") for found in reported), (
         "the lines land on nothing, so a gate that never looked would pass this too"
     )
 
@@ -8677,7 +8678,7 @@ def test_the_covered_words_gate_still_reads_two_of_a_chart_s_labels_on_each_othe
         if scrolled:
             page.locator("#c-line").scroll_into_view_if_needed()
         covered = render_checks_model.evaluate_probe(page, "coveredWords")
-        assert [f for f in covered if all(f'"{word}"' in f for word in moved)], (
+        assert [f for f in covered if {f["words"], f["covered"]} == set(moved)], (
             f"two of a chart's labels stood on each other unreported: {covered}",
             scrolled,
         )

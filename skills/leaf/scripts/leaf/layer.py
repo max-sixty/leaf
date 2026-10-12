@@ -421,13 +421,7 @@ def incompatible_layer(page_dir: Path, registry: dict) -> str | None:
             f"serve the page or write its log. Re-vendor it with "
             f"`leaf page init {page_dir}`."
         )
-    keys = registry.get("$keys")
-    retired = sorted(
-        set(keys if isinstance(keys, dict) else ())
-        - {"description"}
-        - set(EXTENSION_SCHEMA["properties"])
-    )
-    if retired:
+    if retired := _retired_keys(registry):
         return (
             f"{page_dir} was vendored by a Leaf that declares "
             f"{', '.join(retired)}, which this Leaf ({PLUGIN_ROOT}) no longer admits, "
@@ -440,7 +434,8 @@ def incompatible_layer(page_dir: Path, registry: dict) -> str | None:
 def incompatible_revision(revision: int, registry: dict) -> str | None:
     """Why this Leaf can neither serve one of a page's revisions nor admit input made
     against it, given the registry that revision captured: it was saved at another
-    protocol. None when it may.
+    protocol, or its vocabulary uses an x- key this Leaf no longer admits, the two
+    refusals `incompatible_layer` makes of the page's layer. None when it may.
 
     Each revision captures the runtime and registry it was saved with, and a
     re-vendor leaves standing revisions as they were, so a page re-vendored across a
@@ -450,16 +445,42 @@ def incompatible_revision(revision: int, registry: dict) -> str | None:
     admit under; readings of the log keep reading every revision's registry, so
     history still projects. Serving the page saves its source as a revision first,
     so its live revision is one of these only where the source no longer saves.
+    A revision whose vocabulary uses a retired key is refused for the reason the
+    layer is: this Leaf would read the key's new name there, find nothing, and draw
+    the revision without what it declares, such as a framed ask's prompt.
     """
-    if (saved := _foreign_protocol(registry)) is None:
+    if (saved := _foreign_protocol(registry)) is not None:
+        why = (
+            f"was saved at page protocol {saved}, and this Leaf speaks protocol "
+            f"{kernel_protocol()}"
+        )
+    elif retired := _retired_keys(registry):
+        why = (
+            f"was saved by a Leaf that declares {', '.join(retired)}, which this "
+            f"Leaf no longer admits"
+        )
+    else:
         return None
     return (
-        f"Revision {revision} was saved at page protocol {saved}, and this Leaf "
-        f"speaks protocol {kernel_protocol()}, so it cannot serve that revision or "
-        f"accept input made against it. Revisions saved since the page was "
-        f"re-vendored still open, and serving the page saves one from its source; "
-        f"where that fails, `leaf page check` names why."
+        f"Revision {revision} {why}, so it cannot serve that revision or accept "
+        f"input made against it. Revisions saved since the page was re-vendored "
+        f"still open, and serving the page saves one from its source; where that "
+        f"fails, `leaf page check` names why."
     )
+
+
+def _retired_keys(registry: dict) -> list[str]:
+    """The x- keys a vocabulary documents in `$keys` or declares on an entry that
+    this Leaf no longer admits (`schema.EXTENSION_SCHEMA`), in order; none where it
+    uses only admitted ones. One-sided: a key this Leaf added and the vocabulary
+    lacks is not among them."""
+    admitted = set(EXTENSION_SCHEMA["properties"])
+    keys = registry.get("$keys")
+    used = set(keys if isinstance(keys, dict) else ()) - {"description"}
+    for name, entry in registry.items():
+        if not name.startswith("$") and isinstance(entry, dict):
+            used |= {key for key in entry if key.startswith("x-")}
+    return sorted(used - admitted)
 
 
 def _foreign_protocol(registry: dict) -> int | str | None:

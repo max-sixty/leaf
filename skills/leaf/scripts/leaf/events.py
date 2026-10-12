@@ -547,28 +547,6 @@ def seat_root(thread: dict) -> str | None:
     return anchor.get("section")
 
 
-def seats_with_agent(threads: dict) -> set[str]:
-    """Widget ids whose own seat holds a thread now waiting on the agent.
-
-    An ask whose own thread is with the agent is not one the user has to
-    deal with, so an ask projection reading their list subtracts these. It is not an
-    answer — the widget's state is untouched — which is why the reading that asks
-    whether an ask is answered passes an empty set instead. The browser receives
-    the asks this subtraction leaves rather than subtracting again, so the banner's
-    count and `page state` cannot disagree about whose turn it is.
-
-    Whose thread it is does not enter into it: the agent may open one in the seat too,
-    and once the user has answered there the ask is with the agent either way.
-
-    Takes the built fold rather than the log, because every caller already holds one:
-    `build_threads` walks the whole log and tests each action against the retraction
-    floors, and a second fold of the same events in the same function is that walk
-    done twice for one answer."""
-    return {
-        seat for t in threads.values() if awaits_agent(t) and (seat := seat_root(t))
-    }
-
-
 def note_settlements(event: dict, kind: str) -> set[str]:
     """The ids one version note settles for a provisional-information kind."""
     return {

@@ -118,15 +118,9 @@
     );
     const box = main?.getBoundingClientRect();
     return [
-      ...(upgraded.length
-        ? [`widgets upgraded before Leaf entry ran: ${upgraded.join(", ")}`]
-        : []),
-      ...(painted.length
-        ? [`runtime readiness appeared before Leaf entry ran: ${painted.join(", ")}`]
-        : []),
-      ...(!box || box.width <= 0 || box.height <= 0
-        ? ["authored main has no measurable pre-upgrade layout"]
-        : []),
+      ...(upgraded.length ? [{ code: "upgraded-early", tags: upgraded }] : []),
+      ...(painted.length ? [{ code: "ready-early", stamps: painted }] : []),
+      ...(!box || box.width <= 0 || box.height <= 0 ? [{ code: "main-unlaid" }] : []),
     ];
   };
 

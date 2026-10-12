@@ -372,12 +372,11 @@ scrolling; page-local width overrides and wheel handlers should not be needed.
 
 ### The rail and the margin
 
-Lay out the page without reserving space for Leaf's annotation markers. With room
-beside the content, Leaf puts markers in a rail; otherwise it puts them near their
-targets on the page. Pins can overlap text in a crowded view. The user hides pins
-and passage marks with `o`, or Hide annotations in the banner's More menu under
-a finger, to read the content beneath them. Padding a heading for its pin leaves
-unused space when the marker is in the rail.
+Lay out the page without reserving space for Leaf's annotation markers. Leaf seats
+markers in a rail or clear space near their targets. Crowded views retain their
+threads and actions in Page Map. User-opened controls and threads can overlay
+content. Padding a heading for its pin leaves unused space when the marker is in
+the rail.
 
 On a column page, write its contents outline in the first `aside.sidebar` and
 short notes in `aside.sidenote`. Leaf moves them into the margin when they fit;
@@ -776,6 +775,10 @@ leaf page check <page> --render
 
 It runs the browser gate in both color schemes, including when the host gives you
 no separate browser tool. Fix every failure; a screenshot is not a substitute.
+Add `--json` where a script reads the result: it prints one object with the exit
+`status`, each finding as a record (`code`, the element it names as `at`, the
+measured `values`, `severity` of `error` or `advice`, where it was read, and its
+`text`), and the browser that ran and the screens it saved.
 
 A clean check saves labeled screens at desktop, widest-window, and phone widths,
 up to eight screens down the page at each width. If the page extends beyond those,

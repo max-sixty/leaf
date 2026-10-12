@@ -128,14 +128,17 @@ def arrival_findings(browser, url):
     notices = []
 
     def console_message(message):
-        if (error := render_gate_model.console_error(message)) is None:
-            return
-        target = notices if render_gate_model.resize_observer_error(error) else errors
-        target.append(error)
+        found = render_gate_model.console_finding(message, warnings=False)
+        if found is not None:
+            errors.append(str(found))
+
+    def window_error(error):
+        found = render_gate_model.window_finding(error)
+        (notices if found.code == "resize-loop" else errors).append(str(found))
 
     page.on("console", console_message)
     render_gate_model.collect_page_exceptions(page, errors)
-    render_checks_model.install_window_errors(page)
+    render_checks_model.install_window_errors(page, window_error)
     found = []
     # A first visit, from which to read the restore cases. Reported
     # rather than raised when it doesn't arrive: this is the reading that says what

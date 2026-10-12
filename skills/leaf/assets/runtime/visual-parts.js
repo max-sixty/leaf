@@ -83,8 +83,10 @@ export function revealRegisteredVisualPart(source, id) {
   return registeredVisualPart(source, id);
 }
 
-/** Why one source's registration breaks its `x-visual` declaration: an authored part
- * it does not register, and under `prefixes` a registered id no prefix admits. Under
+/** Why one source's registration breaks its `x-visual` declaration, as records of a
+ * `kind` and the `parts` or `error` it concerns (`render_gate/findings.py` words them):
+ * an authored part it does not register, and under `prefixes` a registered id no
+ * prefix admits. Under
  * `parts` the module may register more than the author named unless the declaration
  * requires a complete list. The current state's inventory is read; a declared part it lacks
  * is a problem only when the visual cannot reveal it, and `unrevealedVisualParts` asks
@@ -92,7 +94,7 @@ export function revealRegisteredVisualPart(source, id) {
 export function visualPartProblems(source, declaration) {
   const admission = visualPartAdmission(source, declaration);
   if (!admission) return [];
-  if (!hasVisualParts(source)) return ["did not call registerVisualParts"];
+  if (!hasVisualParts(source)) return [{ kind: "unregistered" }];
   try {
     const ids = registeredVisualParts(source).map((part) => part.id);
     const missing = revealsVisualParts(source)
@@ -106,18 +108,14 @@ export function visualPartProblems(source, declaration) {
         ? ids.filter((id) => admission.rank(id) < 0)
         : [];
     return [
-      ...(missing.length
-        ? [`did not register declared parts ${missing.join(", ")}`]
-        : []),
-      ...(outside.length
-        ? [`registered parts its prefixes do not admit ${outside.join(", ")}`]
-        : []),
-      ...(unlisted.length
-        ? [`leaves nameable parts unlisted ${unlisted.join(", ")}`]
-        : []),
-    ];
+      ["unregistered-parts", missing],
+      ["unadmitted-parts", outside],
+      ["unlisted-parts", unlisted],
+    ]
+      .filter(([, parts]) => parts.length)
+      .map(([kind, parts]) => ({ kind, parts }));
   } catch (error) {
-    return [exceptionText(error, "could not read visual parts")];
+    return [{ kind: "unreadable", error: exceptionText(error) }];
   }
 }
 
@@ -127,11 +125,9 @@ export function unrevealedVisualParts(source, declaration) {
   const declared = visualPartAdmission(source, declaration)?.declared ?? [];
   try {
     const missing = declared.filter((id) => !revealRegisteredVisualPart(source, id));
-    return missing.length
-      ? [`did not reveal declared parts ${missing.join(", ")}`]
-      : [];
+    return missing.length ? [{ kind: "unrevealed-parts", parts: missing }] : [];
   } catch (error) {
-    return [exceptionText(error, "could not reveal visual parts")];
+    return [{ kind: "unrevealable", error: exceptionText(error) }];
   }
 }
 

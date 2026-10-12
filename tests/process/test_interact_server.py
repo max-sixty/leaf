@@ -40,6 +40,7 @@ from interact_support import (
     declare_data_input,
     declare_work,
     fetch,
+    fresh_process,
     live_versions,
     lock_contention,
     neighbour_page,
@@ -53,6 +54,7 @@ from interact_support import (
     running_http_server,
     spawn_probe,
     vendored_at_another_protocol,
+    vendored_before_the_ask_rename,
     wait_for,
 )
 from leaf import activity as activity_model
@@ -4351,6 +4353,78 @@ def test_a_revision_saved_before_a_re_vendor_neither_opens_nor_takes_input(page_
         assert event_model.read_events(page_dir) == before
         assert commented(2)[0] == 200
         assert append_command(page_dir, todo)["revision"] == 2
+    finally:
+        temporary.close()
+
+
+def test_a_revision_saved_before_a_key_was_renamed_neither_opens_nor_takes_input(
+    page_dir,
+):
+    """A Leaf that renamed an x- key reads only the new name, so a page an older Leaf
+    vendored, at the same protocol, would lose what it declares under the old one: a
+    framed ask its prompt and landing region. The page is refused until a re-vendor,
+    which the refusal names. Afterwards the revision saved since serves with the
+    prompt, while the one saved before neither opens nor takes input, as a revision
+    saved at another protocol does."""
+    framed = (
+        '<lf-ask id="route-ask"><h2>Which route?</h2><p>Context for the choice.</p>'
+        '<lf-options id="route" choose><lf-option id="route-a">A</lf-option>'
+        '<lf-option id="route-b">B</lf-option></lf-options></lf-ask>'
+    )
+    page = PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>\n" + framed)
+    (page_dir / "index.html").write_text(page)
+    revisioning_model.activate_source(page_dir)
+    vendored_before_the_ask_rename(page_dir)
+    # Read as the next process does, which holds nothing of the revision saved above.
+    with fresh_process():
+        _serve_after_the_ask_rename(page_dir, page)
+
+
+def _serve_after_the_ask_rename(page_dir, page):
+    comment = {"kind": "comment", "author": "user", "text": "Which plan?"}
+    with pytest.raises(event_model.EventRefused, match="x-question-context") as refused:
+        append_command(page_dir, {**comment, "revision": 1})
+    assert f"leaf page init {page_dir}" in str(refused.value)
+
+    reinitialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    assert reinitialized.exit_code == 0, reinitialized.output
+    (page_dir / "index.html").write_text(
+        page.replace("Which route?", "Which route now?")
+    )
+    revisioning_model.activate_source(page_dir)
+    [ask] = [
+        ask
+        for ask in page_state(page_dir)["browser"]["views"]["2"]["document"]["asks"][
+            "all"
+        ]
+        if ask["source"]["id"] == "route"
+    ]
+    assert ask["prompt"] == {"text": "Which route now?", "target": "route-ask"}
+    old, new = (
+        next((page_dir / "revisions").glob(f"r{n}-*.html")).name for n in (1, 2)
+    )
+
+    temporary = hosting_model.TemporaryPageServer(page_dir, token=TOKEN).start()
+    try:
+        status, body = fetch(f"{temporary.origin}/revisions/{old}")
+        assert status == 409, body
+        assert "Revision 1 was saved by a Leaf that declares x-question-context" in (
+            body.decode()
+        )
+        assert fetch(f"{temporary.origin}/revisions/{new}")[0] == 200
+
+        def commented(revision):
+            return fetch(
+                f"{temporary.origin}/api/event",
+                data=json.dumps({**comment, "revision": revision}).encode(),
+            )
+
+        before = event_model.read_events(page_dir)
+        status, body = commented(1)
+        assert status == 400, body
+        assert "x-question-context" in body.decode()
+        assert event_model.read_events(page_dir) == before
+        assert commented(2)[0] == 200
     finally:
         temporary.close()
 

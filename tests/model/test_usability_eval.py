@@ -5,24 +5,24 @@ import json
 import pytest
 from leaf.hook_transport import DELIVERY_FIELD
 from leaf_dev import ROOT
+from leaf_dev.eval_cases import definition
 from leaf_dev.usability_eval import (
     CASES,
-    JUDGED,
     Run,
     checks_for,
     expected_checks,
     progress_shown,
-    rubrics,
 )
 
 
 def test_every_scenario_has_fixed_nonvacuous_checks():
     assert len(CASES) == 19
-    assert set(JUDGED) <= set(CASES)
+    cases = definition("usability_eval")["cases"]
+    assert set(cases) == set(CASES)
     for case in CASES:
         expected = expected_checks(case)
         assert expected[0] == "completed"
-        judged = [r["metric"] for r in rubrics(case)]
+        judged = [r["metric"] for r in cases[case]["assert"]]
         assert len(expected) > 1 or judged
         assert len(set(expected + judged)) == len(expected + judged)
         actual = checks_for(case, {}, [], False)

@@ -78,10 +78,10 @@ The same reading refuses a layer whose `$keys` document an x- key this Leaf no l
 admits, since this Leaf would read the key's new name and drop what the page declares
 under the old one; a key this Leaf added and the layer lacks refuses nothing.
 Each reads the registry it would serve the page under: a snapshot's captured one, or
-else the vendored layer. A revision is judged on the registry it captured
-(`layer.incompatible_revision`): a page re-vendored across a bump keeps the revisions
-it saved before in its history, but the document server serves none of them and the
-append door admits nothing made against one.
+else the vendored layer. A revision is judged on the registry it captured, by both
+readings (`layer.incompatible_revision`): a page re-vendored across a bump or a key's
+rename keeps the revisions it saved before in its history, but the document server
+serves none of them and the append door admits nothing made against one.
 
 Any other Leaf at the same number serves and writes the page, so a plugin update
 leaves open pages working: admission validates a kernel record against the running

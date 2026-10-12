@@ -25,7 +25,7 @@ def page(attrs="choose", context=None):
     return model.leaf_page("Questions", content)
 
 
-def asks(state, revision=1):
+def page_asks(state, revision=1):
     return state["views"][str(revision)]["document"]["asks"]
 
 
@@ -41,7 +41,7 @@ def test_context_changes_prompt_target_without_changing_ask_identity_or_value():
             }
         ],
     )
-    [ask] = asks(state, 2)["all"]
+    [ask] = page_asks(state, 2)["all"]
     assert (ask["id"], ask["source"]["id"]) == ("widget:choice", "choice")
     assert ask["prompt"] == {"text": "Which route?", "target": "evidence"}
     assert ask["answer"]["value"] == ["a"]
@@ -86,7 +86,7 @@ def test_asks_name_their_exact_owning_message_without_conflating_thread_identity
     state = model.reading(document, events)
     inventory = {
         ask["id"]: (ask["thread"], ask["message"])
-        for ask in [*asks(state)["all"], *served_thread(state)["asks"]["all"]]
+        for ask in [*page_asks(state)["all"], *served_thread(state)["asks"]["all"]]
     }
     assert inventory == {
         "widget:choice": (None, None),
@@ -107,30 +107,30 @@ def test_partial_and_completed_empty_values_are_distinct_from_no_answer_and_undo
             "detail": {"value": []},
         }
     ]
-    [initial] = asks(model.reading(document))["all"]
+    [initial] = page_asks(model.reading(document))["all"]
     assert initial["answer"] is None
-    [partial] = asks(model.reading(document, events))["all"]
+    [partial] = page_asks(model.reading(document, events))["all"]
     assert (partial["status"], partial["answer"]["value"]) == ("open", [])
     events.append(
         {"kind": "action", "widget": "choice", "action": "answer", "detail": {}}
     )
-    [completed] = asks(model.reading(document, events))["all"]
+    [completed] = page_asks(model.reading(document, events))["all"]
     assert (completed["status"], completed["answer"]["value"]) == ("answered", [])
     assert completed["answer"]["event"]["id"] == "e2"
     events.append({"kind": "undo", "undoes": "e2"})
-    [reopened] = asks(model.reading(document, events))["all"]
+    [reopened] = page_asks(model.reading(document, events))["all"]
     assert (reopened["status"], reopened["answer"]["value"]) == ("open", [])
 
 
 def test_unrequested_widget_is_absent_but_removed_predicate_withdraws_existing_request():
-    assert asks(model.reading(page("")))["all"] == []
-    [withdrawn] = asks(model.reading({1: page(), 2: page("")}), 2)["all"]
+    assert page_asks(model.reading(page("")))["all"] == []
+    [withdrawn] = page_asks(model.reading({1: page(), 2: page("")}), 2)["all"]
     assert (withdrawn["status"], withdrawn["answer"], withdrawn["next_actor"]) == (
         "withdrawn",
         None,
         None,
     )
-    assert asks(model.reading({1: page(), 2: page("restated")}), 2)["all"] == []
+    assert page_asks(model.reading({1: page(), 2: page("restated")}), 2)["all"] == []
 
 
 def test_pinned_document_uses_unrequested_intermediate_history_for_registration():
@@ -153,7 +153,7 @@ def test_pinned_document_uses_unrequested_intermediate_history_for_registration(
         revision_ids=set(readings),
     )
     for revision in (3, 4):
-        [ask] = asks(state, revision)["all"]
+        [ask] = page_asks(state, revision)["all"]
         assert (ask["id"], ask["status"]) == ("widget:choice", "withdrawn")
 
 
@@ -269,7 +269,7 @@ def test_false_and_zero_are_typed_answers(value):
     document = model.leaf_page(
         "Value", '<lf-value-ask id="typed" active></lf-value-ask>'
     )
-    [ask] = asks(
+    [ask] = page_asks(
         model.reading(
             document,
             [
@@ -304,7 +304,7 @@ def test_changed_partial_value_does_not_reuse_an_earlier_completion_event():
         },
     ]
     state = model.reading(page("choose multiple"), events)
-    [ask] = asks(state)["all"]
+    [ask] = page_asks(state)["all"]
     assert ask["answer"] == {"value": ["b"], "event": None}
 
 
@@ -324,6 +324,107 @@ def test_display_only_widget_does_not_suppress_a_prose_ask():
     assert [ask["source"]["kind"] for ask in served_thread(state)["asks"]["all"]] == [
         "reply"
     ]
+
+
+def lists(state) -> tuple[list, list, list]:
+    """Questions and Tasks as served, and the open asks whose next move is the
+    agent's."""
+    queues = state["views"]["1"]["queues"]
+    asks = [*page_asks(state)["all"], *state["views"]["1"]["thread"]["asks"]["all"]]
+    return (
+        sorted(item["id"] for item in queues["questions"]),
+        sorted(item["id"] for item in queues["tasks"]),
+        sorted(
+            ask["id"]
+            for ask in asks
+            if ask["status"] == "open" and ask["next_actor"] == "agent"
+        ),
+    )
+
+
+FRAMED = model.leaf_page(
+    "Questions",
+    '<p id="intro">Context.</p><lf-ask id="frame"><h2 id="head">Two routes</h2>'
+    + OPTIONS.format(attrs="choose")
+    + OPTIONS.format(attrs="choose").replace('id="', 'id="y-')
+    + OPTIONS.format(attrs="").replace('id="', 'id="shown-')
+    + "</lf-ask>",
+)
+
+
+@pytest.mark.parametrize(
+    ("anchor", "held"),
+    [
+        ({"section": "a", "quote": "A"}, ["widget:choice"]),
+        ({"section": "head", "quote": "Two"}, ["widget:choice", "widget:y-choice"]),
+        ({"section": "shown-a", "quote": "A"}, ["widget:choice", "widget:y-choice"]),
+        ({"section": "intro", "quote": "Context"}, []),
+    ],
+    ids=["option", "frame", "display-only", "elsewhere"],
+)
+def test_a_comment_on_an_ask_is_the_agents_turn_until_the_agent_replies(anchor, held):
+    """The user's comment about an open ask hands it to the agent without answering
+    it: the ask leaves Questions while the comment's answer stands on Tasks, and comes
+    back once the agent replies. A comment on one ask leaves its framed sibling with
+    the user, one on the frame's heading or on a widget there that asks nothing is
+    about both, and one elsewhere about none."""
+    comment = {
+        "kind": "comment",
+        "id": "c1",
+        "author": "user",
+        "text": "What does this mean?",
+        "anchor": anchor,
+    }
+    asks = ["widget:choice", "widget:y-choice"]
+    owed = sorted(set(asks) - set(held))
+    assert lists(model.reading(FRAMED, [comment])) == (owed, ["c1"], held)
+    reply = {
+        "kind": "reply",
+        "author": "agent",
+        "parent": "c1",
+        "responds": "c1",
+        "text": "It means the first route.",
+    }
+    assert lists(model.reading(FRAMED, [comment, reply])) == (asks, [], [])
+
+
+def test_a_reply_after_a_thread_ask_is_the_agents_turn_until_the_agent_replies():
+    """A widget an agent sent into a thread is the agent's turn once the user writes
+    after it, and the user's again once the agent answers. A user turn the agent
+    still owes from before the widget leaves the widget with the user."""
+    asked = {
+        "kind": "reply",
+        "id": "ask",
+        "author": "agent",
+        "parent": "t",
+        "text": "Which route?",
+        "markup": OPTIONS.format(attrs="choose").replace('id="', 'id="t-'),
+    }
+    opened = {"kind": "comment", "id": "t", "author": "user", "text": "Help me pick."}
+    later = {"kind": "reply", "id": "r", "author": "user", "parent": "t", "text": "C?"}
+    answered = {
+        "kind": "reply",
+        "author": "agent",
+        "parent": "t",
+        "responds": "r",
+        "text": "No C, sorry.",
+    }
+    document = page("")
+    assert lists(model.reading(document, [opened, asked])) == (
+        ["widget:t-choice"],
+        ["t"],
+        [],
+    )
+    assert lists(model.reading(document, [opened, asked, later])) == (
+        [],
+        ["r"],
+        ["widget:t-choice"],
+    )
+    assert lists(model.reading(document, [opened, asked, later, answered])) == (
+        ["widget:t-choice"],
+        [],
+        [],
+    )
 
 
 def conditional_registry():
@@ -370,10 +471,10 @@ def test_conditional_request_retains_registration_between_value_actions():
         }
         for phase in ("open", "closed")
     ]
-    assert asks(model.reading(document, registry=registry))["all"] == []
-    [opened] = asks(model.reading(document, events[:1], registry=registry))["user"]
+    assert page_asks(model.reading(document, registry=registry))["all"] == []
+    [opened] = page_asks(model.reading(document, events[:1], registry=registry))["user"]
     assert opened["status"] == "open"
-    closed = asks(model.reading(document, events, registry=registry))
+    closed = page_asks(model.reading(document, events, registry=registry))
     [withdrawn] = closed["all"]
     assert (withdrawn["status"], withdrawn["answer"], closed["user"]) == (
         "withdrawn",
@@ -382,19 +483,21 @@ def test_conditional_request_retains_registration_between_value_actions():
     )
     not_ready = document.replace(" ready", "")
     assert (
-        asks(model.reading({1: not_ready, 2: document}, events, registry=registry), 2)[
-            "all"
-        ]
+        page_asks(
+            model.reading({1: not_ready, 2: document}, events, registry=registry), 2
+        )["all"]
         == []
     )
-    [historical] = asks(
+    [historical] = page_asks(
         model.reading({1: document, 2: not_ready}, events, registry=registry), 2
     )["all"]
     assert historical["status"] == "withdrawn"
     report_registry = deepcopy(registry)
     report_registry["lf-conditional"]["x-state"]["phase"]["writer"] = "agent"
     reports = [{**event, "kind": "report", "author": "agent"} for event in events]
-    [reported] = asks(model.reading(document, reports, registry=report_registry))["all"]
+    [reported] = page_asks(model.reading(document, reports, registry=report_registry))[
+        "all"
+    ]
     assert reported["status"] == "withdrawn"
     completed = model.reading(
         document,
@@ -409,10 +512,10 @@ def test_conditional_request_retains_registration_between_value_actions():
         ],
         registry=registry,
     )
-    assert asks(completed)["all"][0]["status"] == "answered"
+    assert page_asks(completed)["all"][0]["status"] == "answered"
     assert any(workflow["answer"] is not None for workflow in completed["workflows"])
     events.append({"kind": "undo", "undoes": "e1"})
-    assert asks(model.reading(document, events, registry=registry))["all"] == []
+    assert page_asks(model.reading(document, events, registry=registry))["all"] == []
 
 
 @pytest.mark.parametrize("writer", ["action", "report"])
@@ -561,7 +664,7 @@ def test_settled_request_repicks_keep_the_new_user_gesture_as_provenance():
             },
         ],
     )
-    [ask] = asks(state, 2)["all"]
+    [ask] = page_asks(state, 2)["all"]
     assert ask["status"] == "answered"
     assert ask["answer"]["value"] == ["b"]
     assert ask["answer"]["event"]["id"] == "e2"
@@ -629,7 +732,7 @@ def test_user_work_can_stand_on_a_source_after_its_ask_ends(state):
     )
     reading = model.reading(documents, events)
     revision = 1 if state == "answered" else 2
-    assert asks(reading, revision)["all"][0]["status"] == state
+    assert page_asks(reading, revision)["all"][0]["status"] == state
     assert reading["todos"][0]["title"] == "Check rollout numbers"
 
 
@@ -665,7 +768,7 @@ def test_repicking_a_withdrawn_request_records_provenance_without_reclosing_thre
     )
     reading = model.reading(documents, events, registry=registry)
     assert not model.threads(reading)["thread"]["resolved"]
-    answer = asks(reading, 2)["all"][0]["answer"]
+    answer = page_asks(reading, 2)["all"][0]["answer"]
     assert answer["value"] == ["b"]
     assert answer["event"]["id"] == "e4"
 

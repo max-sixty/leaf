@@ -154,6 +154,12 @@ Playwright's driver runs under its bundled Node, or `PLAYWRIGHT_NODEJS_PATH` whe
 set. Driver startup failures report the cause, the Node executable, and that
 variable; `render_gate/browser.py` owns browser and driver launch diagnostics.
 
+Every check behind `page check` reports what it finds as a record
+(`render_gate/findings.py`): a code, the element it names, what it measured, and
+whether it refuses the version or advises. The browser probes return those records
+rather than sentences, and the words are written once, at the command boundary,
+which prints them, or with `--json` prints the records.
+
 The browser checks that rendering the same complete state twice is idempotent.
 A standing decision may paint over a changed authored baseline; this is the
 state fold's behavior, not a reason to refuse the revision. `restated` explicitly

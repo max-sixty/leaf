@@ -2361,6 +2361,56 @@ def _page_owned_deferred_source(page_dir):
     return authored
 
 
+def test_a_contracts_item_schema_decides_whether_a_record_has_deferred_content(
+    page_dir,
+):
+    """The item schema owns presence; delivery neither invents nor requires payloads."""
+    authored = _page_owned_deferred_source(page_dir)
+    with pytest.raises(data_model.DataError, match="'patch' is a required property"):
+        data_model.cmd_data_set(
+            page_dir,
+            "files",
+            {"files": [{"key": "metadata", "body": "mode 100644 → 100755"}]},
+        )
+    declarations = json.loads(authored.read_text())
+    contract = declarations["$data"]["contracts"]["local-files"]
+    contract["schema"]["properties"]["files"]["items"]["required"] = ["key", "body"]
+    authored.write_text(json.dumps(declarations))
+    activated = revisioning_model.activate_source(page_dir)
+    assert activated.error is None
+    value = {
+        "files": [
+            {"key": "metadata", "body": "mode 100644 → 100755"},
+            {"key": "text", "body": "changed", "patch": "source evidence"},
+        ]
+    }
+    data_model.cmd_data_set(page_dir, "files", value)
+    registry = registry_storage.require_registry(page_dir)
+    stored = data_model.read_data(page_dir, registry)
+    reading = stored["sources"]["files"]
+    browser = data_model.browser_data_from(stored, registry)
+    assert browser["sources"]["files"]["value"] == {
+        "files": [
+            value["files"][0],
+            {"key": "text", "body": "changed"},
+        ]
+    }
+    assert (
+        data_model.deferred_value(
+            reading, registry, source="files", revision=reading["revision"], key="text"
+        )["value"]
+        == "source evidence"
+    )
+    with pytest.raises(data_model.DataError, match="deferred"):
+        data_model.deferred_value(
+            reading,
+            registry,
+            source="files",
+            revision=reading["revision"],
+            key="metadata",
+        )
+
+
 @pytest.mark.parametrize("change", ["schema", "records", "resources"])
 def test_page_owned_data_contracts_can_change_after_publication(page_dir, change):
     """Current declarations can change; old documents retain their captured registry."""
@@ -2679,7 +2729,6 @@ def test_check_refuses_the_runtimes_own_markers_in_authored_markup(page_dir):
         ("x-verbatim", "false"),
         ("x-work", []),
         ("x-work", {"seat": "content"}),
-        ("x-unknown", True),
     ],
 )
 def test_check_refuses_malformed_registry_extensions(page_dir, key, value):
@@ -2691,6 +2740,21 @@ def test_check_refuses_malformed_registry_extensions(page_dir, key, value):
     result = check(page_dir)
     assert result.exit_code != 0
     assert "<lf-options> registry extensions are invalid" in result.output
+
+
+def test_check_refuses_a_vendored_entry_declaring_a_key_this_leaf_does_not_admit(
+    page_dir,
+):
+    """A layer entry declaring an x- key outside this Leaf's set is one this Leaf
+    cannot serve (`layer.incompatible_layer`), so the refusal names the re-vendor."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-options"]["x-unknown"] = True
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+    assert result.exit_code != 0
+    assert "x-unknown" in result.output
+    assert f"leaf page init {page_dir}" in result.output
 
 
 @pytest.mark.parametrize(

@@ -10697,3 +10697,491 @@ def test_signed_scroll_motion_survives_unobserved_extent_changes(browser, serve)
     empty = page.evaluate(reading)
     assert empty["extent"] == 0 and empty["scroll"] == 0, empty
     assert empty["offset"] == pytest.approx(before["offset"], abs=1), empty
+
+
+@pytest.mark.watch_shifts
+@pytest.mark.parametrize("shape", ["code", "drawing", "css-code"])
+def test_external_clear_seat_scroll_focus_thread(browser, serve, shape):
+    target = (
+        '<pre id="target" style="margin:0;padding:0;font-size:20px;line-height:20px;white-space:pre;overflow:hidden">'
+        + "\n".join(["W" * 100] * 30)
+        + "</pre>"
+        if shape != "drawing"
+        else '<svg id="target" viewBox="0 0 340 600" style="display:block;width:100%;height:600px" role="img" aria-label="Dense plot"><rect width="340" height="600" fill="#ccd"/><path d="M0 0L340 600M340 0L0 600" stroke="#234" stroke-width="30"/></svg>'
+    )
+    bound = 'data-bound="start"' if shape != "css-code" else ""
+    body = (
+        '<h1>Dense evidence</h1><div id="pane" '
+        + bound
+        + ' style="height:180px;overflow:auto">'
+        + target
+        + '</div><p id="after">The next passage remains readable.</p>'
+    )
+    events = [
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Review this anchor.\n\n"
+            + "Inspect this evidence carefully. " * 40
+            + "\n\nLast reviewed line.",
+            "anchor": {"section": "target"},
+        }
+    ]
+    context = browser.new_context(
+        viewport={"width": 390, "height": 900}, has_touch=True, is_mobile=True
+    )
+    page = open_page(
+        browser,
+        serve(leaf_page("Clear annotations", body), events=events),
+        context=context,
+    )
+    margins_laid_out(page)
+    row = page.locator('[data-lf-margin-for="target"]')
+    expect(row).to_be_visible()
+    reading = page.evaluate(
+        "()=>{\n      const row=document.querySelector('[data-lf-margin-for=\"target\"]'),pane=document.querySelector('#pane'),after=document.querySelector('#after');\n      const rect=el=>el.getBoundingClientRect().toJSON();\n      return {row:rect(row),pane:rect(pane),after:rect(after),height:document.documentElement.scrollHeight,parent:row.parentElement.className,scroll:pane.scrollTop};\n    }"
+    )
+    assert (
+        reading["row"]["bottom"] <= reading["pane"]["top"]
+        or reading["row"]["top"] >= reading["pane"]["bottom"]
+    )
+    marker = row.get_by_role("button", name="Thread,", exact=False)
+    marker.focus()
+    page.locator("#pane").hover()
+    page.mouse.wheel(0, 80)
+    expect(page.locator("#pane")).not_to_have_js_property("scrollTop", 0)
+    margins_laid_out(page)
+    expect(marker).to_be_focused()
+    later = page.evaluate(
+        "()=>{const row=document.querySelector('[data-lf-margin-for=\"target\"]'),pane=document.querySelector('#pane'),after=document.querySelector('#after');return {row:row.getBoundingClientRect().toJSON(),pane:pane.getBoundingClientRect().toJSON(),after:after.getBoundingClientRect().toJSON(),height:document.documentElement.scrollHeight,scroll:pane.scrollTop}}"
+    )
+    assert later["scroll"] > 0
+    for key in ("row", "pane", "after"):
+        for side in ("left", "right", "top", "bottom"):
+            assert abs(later[key][side] - reading[key][side]) < 1, (
+                key,
+                side,
+                reading,
+                later,
+            )
+    assert later["height"] == reading["height"]
+    marker.press("Enter")
+    rendered(page)
+    expect(page.locator("#lf-margin-preview")).to_be_visible()
+    expect(page.locator("#lf-margin-preview")).to_contain_text("Review this anchor")
+    page.keyboard.press("Escape")
+    rendered(page)
+    expect(page.locator("#target")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator("#lf-margin-preview")).to_be_hidden()
+    marker.tap()
+    rendered(page)
+    expect(page.locator("#lf-margin-preview")).to_be_visible()
+    words = page.locator("#lf-margin-preview .lf-msg-text").evaluate(
+        "text=>{const transcript=text.closest('.lf-thread-transcript'), head=text.closest('.lf-msg').querySelector('.lf-msg-head'),range=document.createRange();range.selectNodeContents(text);return {lines:[...range.getClientRects()].filter(rect=>rect.width>1).map(rect=>({top:rect.top,bottom:rect.bottom})),head:head.getBoundingClientRect().bottom,bottom:transcript.getBoundingClientRect().bottom};}"
+    )
+    assert any(
+        line["top"] >= words["head"] and line["bottom"] <= words["bottom"]
+        for line in words["lines"]
+    ), words
+    transcript = page.locator("#lf-margin-preview .lf-thread-transcript")
+    assert transcript.evaluate("el=>el.scrollHeight>el.clientHeight")
+    transcript.hover()
+    page.mouse.wheel(0, 10000)
+    expect(transcript).not_to_have_js_property("scrollTop", 0)
+    final = page.locator("#lf-margin-preview .lf-msg-text").evaluate(
+        "el=>{\n      const words='Last reviewed line.', walker=document.createTreeWalker(el,NodeFilter.SHOW_TEXT);\n      let node; while(node=walker.nextNode()) if(node.data.includes(words))break;\n      const range=document.createRange(),at=node.data.indexOf(words);\n      range.setStart(node,at);range.setEnd(node,at+words.length);\n      return {words:range.getBoundingClientRect().toJSON(),viewport:el.closest('.lf-thread-transcript').getBoundingClientRect().toJSON(),head:el.closest('.lf-msg').querySelector('.lf-msg-head').getBoundingClientRect().bottom};\n    }"
+    )
+    assert (
+        final["words"]["top"] >= final["head"] - 1
+        and final["words"]["bottom"] <= final["viewport"]["bottom"] + 1
+    ), final
+    editor = page.locator("#lf-margin-preview leaf-text")
+    write(editor, "Keep my draft")
+    before_editor = editor.bounding_box()
+    pane_box = page.locator("#pane").bounding_box()
+    point = {"x": pane_box["x"] + 5, "y": pane_box["y"] + pane_box["height"] / 2}
+    assert page.evaluate(
+        '(point)=>document.querySelector("#pane").contains(document.elementFromPoint(point.x,point.y))',
+        point,
+    )
+    page.mouse.move(point["x"], point["y"])
+    page.mouse.wheel(0, 60)
+    rendered(page)
+    expect(editor).to_be_focused()
+    expect(editor).to_have_js_property("value", "Keep my draft")
+    assert editor.bounding_box() == before_editor
+    context.close()
+
+
+@pytest.mark.watch_shifts
+def test_exhausted_seat_uses_map_then_restores(browser, serve):
+    body = '<style>main {padding:0!important;margin:0!important;max-width:none!important;width:100%!important;} body {padding:0!important;margin:0!important;} #frame {height:100vh;overflow:hidden;} #target {display:block;width:100%;height:900px;}</style><div id="frame"><svg id="target" viewBox="0 0 390 900" role="img" aria-label="Complete plot"><rect width="390" height="900" fill="#ccd"/></svg></div>'
+    events = [
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Review the complete plot",
+            "anchor": {"section": "target"},
+        }
+    ]
+    context = browser.new_context(
+        viewport={"width": 390, "height": 900}, has_touch=True, is_mobile=True
+    )
+    page = open_page(
+        browser,
+        serve(leaf_page("Exhausted annotation seats", body), events=events),
+        context=context,
+    )
+    page.evaluate(
+        "async () => {\n      const {contributionEntry, registerContribution} = await window.__lfRuntimeImport('/runtime/widget-api.js');\n      let reviewed = false;\n      const contribution = registerContribution({\n        key: 'review-exhausted', target: document.querySelector('#target'),\n        read: () => ({entries: [contributionEntry({key:'review',glyph:'R',label:reviewed ? 'Plot reviewed' : 'Mark plot reviewed'})]}),\n        activate: () => {reviewed = true; contribution.update();},\n      });\n    }"
+    )
+    margins_laid_out(page)
+    row = page.locator('[data-lf-margin-for="target"]')
+    expect(row).to_be_hidden()
+    banner_control(page, ".lf-page-map-toggle").tap()
+    dialog = page.get_by_role("dialog", name="Page Map", exact=True)
+    expect(dialog).to_be_visible()
+    dialog.get_by_role(
+        "button", name="Open thread: Review the complete plot", exact=True
+    ).tap()
+    expect(dialog).to_be_hidden()
+    expect(page.locator("#lf-margin-preview")).to_be_visible()
+    expect(page.locator("#lf-margin-preview")).to_contain_text(
+        "Review the complete plot"
+    )
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(page.locator("#lf-margin-preview")).to_be_hidden()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    expect(dialog).to_be_visible()
+    dialog.get_by_role("button", name="Mark plot reviewed", exact=True).press("Enter")
+    expect(dialog).to_be_hidden()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    expect(
+        dialog.get_by_role("button", name="Plot reviewed", exact=True)
+    ).to_be_visible()
+    page.keyboard.press("Escape")
+    resized(page, 390, 1100)
+    margins_laid_out(page)
+    expect(row).to_be_visible()
+    context.close()
+
+
+@pytest.mark.watch_shifts
+def test_external_seat_keeps_original_target_visibility(browser, serve):
+    lines = "\n".join(["W" * 100] * 30)
+    body = (
+        '<h1>Separate target and attachment</h1><div id="pane" data-bound="start" style="height:180px;overflow:auto"><pre id="target" style="margin:0;font-size:20px;line-height:20px;overflow:hidden">'
+        + "\n".join(["W" * 100] * 5)
+        + '</pre><pre style="margin:0;font-size:20px;line-height:20px;overflow:hidden">'
+        + lines
+        + "</pre></div>"
+    )
+    events = [
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Review the first lines",
+            "anchor": {"section": "target"},
+        }
+    ]
+    context = browser.new_context(
+        viewport={"width": 390, "height": 900}, has_touch=True, is_mobile=True
+    )
+    page = open_page(
+        browser,
+        serve(leaf_page("Target visibility", body), events=events),
+        context=context,
+    )
+    margins_laid_out(page)
+    row = page.locator('[data-lf-margin-for="target"]')
+    expect(row).to_be_visible()
+    row_box, pane_box = (row.bounding_box(), page.locator("#pane").bounding_box())
+    assert (
+        row_box["y"] + row_box["height"] <= pane_box["y"]
+        or row_box["y"] >= pane_box["y"] + pane_box["height"]
+    )
+    page.locator("#pane").hover()
+    page.mouse.wheel(0, 220)
+    expect(page.locator("#pane")).not_to_have_js_property("scrollTop", 0)
+    margins_laid_out(page)
+    expect(row).to_be_hidden()
+    page.mouse.wheel(0, -220)
+    margins_laid_out(page)
+    expect(row).to_be_visible()
+    context.close()
+
+
+@pytest.mark.watch_shifts
+def test_a_pin_keeps_native_presses_inside_painted_walls_reachable(browser, serve):
+    """No clear seat leaves native controls reachable and the thread in Page Map.
+
+    Adjacent painted cards leave no clear seat beside the second card. A pin at
+    its bounded home previously covered Action inside a tinted header.
+    """
+    cards = "".join(
+        f'<section id="card{i}" style="border:1px solid var(--rule);'
+        'background:var(--card);margin:0;height:44px">'
+        '<div style="background:var(--chip);height:44px">'
+        f'<button id="action{i}" class="button" style="float:right" '
+        "onclick=\"this.textContent='Opened'\">Action</button></div></section>"
+        for i in range(12)
+    )
+    url = serve(leaf_page("Pin controls", "<h1>Pin controls</h1>" + cards, layout=None))
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Can we inspect the source here?",
+            "anchor": {"section": "card1"},
+        },
+    )
+    context = browser.new_context(
+        viewport={"width": 360, "height": 800}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, url, context=context)
+    margins_laid_out(page)
+    marker = page.locator('[data-lf-margin-for="card1"]')
+    expect(marker).to_be_hidden()
+    banner_control(page, ".lf-page-map-toggle").tap()
+    dialog = page.get_by_role("dialog", name="Page Map", exact=True)
+    dialog.get_by_role(
+        "button", name="Open thread: Can we inspect the source here?", exact=True
+    ).tap()
+    expect(page.locator("#lf-margin-preview")).to_contain_text(
+        "Can we inspect the source here?"
+    )
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(page.locator("#lf-margin-preview")).to_be_hidden()
+    for identity in ("#action1", "#action11"):
+        action = page.locator(identity)
+        action.tap()
+        expect(action).to_have_text("Opened")
+    context.close()
+
+
+@pytest.mark.watch_shifts
+@pytest.mark.parametrize("nested", [False, True])
+def test_held_external_seat_stays_when_local_room_appears(browser, serve, nested):
+    body = (
+        '<h1>Held external seat</h1><div id="pane" data-bound="start" style="height:180px;overflow:auto"><pre id="target" style="margin:0;font-size:20px;line-height:20px;overflow:hidden">'
+        + "\n".join(["W" * 100] * 30)
+        + "</pre></div>"
+    )
+    if nested:
+        body = (
+            body.replace(
+                '<div id="pane"',
+                '<div id="outer" data-bound="start" style="height:260px;overflow:auto">'
+                '<div id="pane"',
+            )
+            + '<div id="outer-footer" style="height:80px;background:var(--card)"></div></div>'
+        )
+    events = [
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Keep this control in place",
+            "anchor": {"section": "target"},
+        }
+    ]
+    context = browser.new_context(
+        viewport={"width": 390, "height": 900}, has_touch=True, is_mobile=True
+    )
+    page = open_page(
+        browser,
+        serve(leaf_page("Held external seat", body), events=events),
+        context=context,
+    )
+    margins_laid_out(page)
+    row = page.locator('[data-lf-margin-for="target"]')
+    marker = row.get_by_role("button", name="Thread,", exact=False)
+    marker.focus()
+    before = row.bounding_box()
+    pane = page.locator("#outer" if nested else "#pane").bounding_box()
+    assert (
+        before["y"] + before["height"] <= pane["y"]
+        or before["y"] >= pane["y"] + pane["height"]
+    )
+    if nested:
+        page.locator("#outer-footer").evaluate('footer=>footer.style.height="0px"')
+    else:
+        page.locator("#target").evaluate('target=>target.style.height="100px"')
+    margins_laid_out(page)
+    expect(marker).to_be_focused()
+    assert row.bounding_box() == before
+    marker.press("Enter")
+    rendered(page)
+    expect(page.locator("#lf-margin-preview")).to_contain_text(
+        "Keep this control in place"
+    )
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(page.locator("#lf-margin-preview")).to_be_hidden()
+    context.close()
+
+
+@pytest.mark.watch_shifts
+@pytest.mark.parametrize("painted", [False, True])
+def test_external_pin_uses_its_attachment_clearance(browser, serve, painted):
+    background = "background:var(--card);" if painted else ""
+    body = (
+        '<h1 style="height:100px;background:var(--card);margin:0">Inspect source</h1><div id="pane" data-bound="start" style="height:180px;overflow:auto"><div id="target" style="height:600px;position:relative;'
+        + background
+        + '"><svg viewBox="0 0 340 600" style="display:block;width:100%;height:600px" role="img" aria-label="Dense plot"><rect width="340" height="600" fill="#ccd"/><path d="M0 0L340 600M340 0L0 600" stroke="#234" stroke-width="30"/></svg><button id="native-action" onclick="this.textContent=\'Opened\'" style="position:absolute;right:0;top:180px;height:44px;width:60px">Inspect</button></div></div><p id="words" style="margin:64px 0 0;font-size:20px;line-height:24px">'
+        + ("W" * 90)
+        + "</p>"
+    )
+    events = [
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Inspect the plot",
+            "anchor": {"section": "target"},
+        }
+    ]
+    context = browser.new_context(
+        viewport={"width": 390, "height": 900}, has_touch=True, is_mobile=True
+    )
+    page = open_page(
+        browser,
+        serve(leaf_page("Attachment owns clearance", body), events=events),
+        context=context,
+    )
+    margins_laid_out(page)
+    row = page.locator('[data-lf-margin-for="target"]')
+    expect(row).to_be_visible()
+    box = row.bounding_box()
+    pane = page.locator("#pane").bounding_box()
+    words = page.locator("#words").bounding_box()
+    assert box["y"] >= pane["y"] + pane["height"]
+    assert box["y"] + box["height"] <= words["y"]
+    marker = row.get_by_role("button", name="Thread,", exact=False)
+    marker.focus()
+    page.locator("#pane").hover()
+    page.mouse.wheel(0, 80)
+    expect(page.locator("#pane")).not_to_have_js_property("scrollTop", 0)
+    margins_laid_out(page)
+    expect(marker).to_be_focused()
+    assert row.bounding_box() == box
+    page.locator("#native-action").tap()
+    expect(page.locator("#native-action")).to_have_text("Opened")
+    rendered(page)
+    assert row.bounding_box() == box
+    context.close()
+
+
+@pytest.mark.watch_shifts
+@pytest.mark.parametrize("focused", [False, True])
+def test_new_rail_keeps_a_pin_reachable(browser, serve, focused):
+    body = '<h1>Held marker</h1><section style="position:relative"><div id="pin-target" style="height:100px;width:calc(100% + 96px);max-width:none">Wide figure</div><p id="rail-target" style="position:absolute;top:0;left:0;margin:0">Rail target</p></section>'
+    events = [
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Hold the figure marker",
+            "anchor": {"section": "pin-target"},
+        }
+    ]
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = open_page(
+        browser,
+        serve(leaf_page("Held pin and new rail", body), events=events),
+        context=context,
+    )
+    margins_laid_out(page)
+    pin = page.locator('[data-lf-margin-for="pin-target"]')
+    expect(pin).to_have_attribute("data-lf-place", "pin")
+    marker = pin.get_by_role("button", name="Thread,", exact=False)
+    if focused:
+        marker.focus()
+        expect(marker).to_have_attribute("data-lf-label-side", re.compile(".+"))
+        label_before = marker.locator(".lf-margin-entry-label").bounding_box()
+    else:
+        page.mouse.move(20, 20)
+    before = pin.bounding_box()
+    page.evaluate("""async()=>{
+      const {contributionEntry,registerContribution}=await window.__lfRuntimeImport('/runtime/widget-api.js');
+      registerContribution({key:'new-rail',target:document.querySelector('#rail-target'),read:()=>({entries:[contributionEntry({key:'activate',glyph:'R',label:'Activate rail'})]}),activate:()=>{window.railActivated=true;}});
+    }""")
+    margins_laid_out(page)
+    rail = page.locator('[data-lf-margin-for="rail-target"]')
+    expect(rail).to_have_attribute("data-lf-place", "rail")
+    a, b = pin.bounding_box(), rail.bounding_box()
+    assert a == before
+    if focused:
+        assert marker.locator(".lf-margin-entry-label").bounding_box() == label_before
+        expect(marker).to_be_focused()
+    assert not (
+        a["x"] < b["x"] + b["width"]
+        and b["x"] < a["x"] + a["width"]
+        and a["y"] < b["y"] + b["height"]
+        and b["y"] < a["y"] + a["height"]
+    )
+    marker.press("Enter")
+    rendered(page)
+    expect(page.locator("#lf-margin-preview")).to_contain_text("Hold the figure marker")
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    rail.get_by_role("button", name="Activate rail", exact=True).click()
+    assert page.evaluate("()=>window.railActivated")
+    context.close()
+
+
+@pytest.mark.watch_shifts
+@pytest.mark.parametrize("focused", [False, True])
+def test_new_pin_keeps_a_rail_reachable(browser, serve, focused):
+    body = '<h1>Held rail</h1><section style="position:relative"><div id="pin-target" style="height:100px;width:calc(100% + 96px);max-width:none">Wide figure</div><p id="rail-target" style="position:absolute;top:0;left:0;margin:0">Rail target</p></section>'
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = open_page(
+        browser, serve(leaf_page("Held rail and new pin", body)), context=context
+    )
+    page.evaluate("""async()=>{
+      const {contributionEntry,registerContribution}=await window.__lfRuntimeImport('/runtime/widget-api.js');
+      window.registerPlacementControl=id=>registerContribution({key:id,target:document.getElementById(id+'-target'),read:()=>({entries:[contributionEntry({key:'activate',glyph:'R',label:'Activate '+id})]}),activate:()=>{window.placementActivated=id;}});
+      window.registerPlacementControl('rail');
+    }""")
+    margins_laid_out(page)
+    rail = page.locator('[data-lf-margin-for="rail-target"]')
+    expect(rail).to_have_attribute("data-lf-place", "rail")
+    control = rail.get_by_role("button", name="Activate rail", exact=True)
+    if focused:
+        control.focus()
+        expect(control).to_have_attribute("data-lf-label-side", re.compile(".+"))
+        label_before = control.locator(".lf-margin-entry-label").bounding_box()
+    else:
+        page.mouse.move(20, 20)
+    before = rail.bounding_box()
+    page.evaluate("()=>window.registerPlacementControl('pin')")
+    margins_laid_out(page)
+    pin = page.locator('[data-lf-margin-for="pin-target"]')
+    expect(pin).to_have_attribute("data-lf-place", "pin")
+    expect(pin).to_be_visible()
+    a, b = rail.bounding_box(), pin.bounding_box()
+    assert a == before
+    if focused:
+        assert control.locator(".lf-margin-entry-label").bounding_box() == label_before
+        expect(control).to_be_focused()
+    assert not (
+        a["x"] < b["x"] + b["width"]
+        and b["x"] < a["x"] + a["width"]
+        and a["y"] < b["y"] + b["height"]
+        and b["y"] < a["y"] + a["height"]
+    )
+    control.press("Enter")
+    assert page.evaluate("()=>window.placementActivated") == "rail"
+    pin.get_by_role("button", name="Activate pin", exact=True).click()
+    assert page.evaluate("()=>window.placementActivated") == "pin"
+    context.close()

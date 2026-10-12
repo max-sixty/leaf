@@ -28,22 +28,18 @@ from leaf_dev.arms import (
     scratch,
     waits_started,
 )
+from leaf_dev.eval_cases import definition
 from leaf_dev.review_scenario import REQUEST, prepare
 from leaf_dev.usability_eval import Case, Run, execute_live
 
 # When each of a case's comments is posted: `idle` at the end of a turn, `running`
 # once the setup turn has the page's URL.
-CASES = {"idle": ("idle", "idle"), "mid-turn": ("running",)}
-COMMENTS = (
-    {
-        "text": "Cut this paragraph to two sentences; the second one repeats the first.",
-        "anchor": {"section": "triage-lede"},
-    },
-    {
-        "text": "Rename this heading to ‘Why the migration blocks alone’.",
-        "anchor": {"section": "triage-why"},
-    },
-)
+DEFINITION = definition("delivery_eval")
+CASES = {
+    name: tuple(case["inputs"]["injection"])
+    for name, case in DEFINITION["cases"].items()
+}
+COMMENTS = tuple(DEFINITION["comments"])
 
 
 def attempt(n: int) -> str:

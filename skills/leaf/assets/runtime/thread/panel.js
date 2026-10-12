@@ -35,20 +35,19 @@ export function createThreadPanelKeys({
 
   const inPanel = () => panelFocusIsInside(panelIsOpen);
   const hasThreads = () => openThreads({ visibleOnly: panelIsOpen() }).length > 0;
-  // The list's rows are its threads' titles, which the arrows walk as they walk the
-  // Questions panel's rows; `t` and `T` still step and open. Only from a title, so the
-  // arrows inside an open thread keep scrolling it.
-  const titles = () =>
-    [...threadsBox.querySelectorAll(".lf-thread-summary")].filter((title) =>
-      title.checkVisibility(),
-    );
-  const onTitle = () => Boolean(focused()?.matches?.(".lf-thread-summary"));
+  // The list's rows are its focus stops, its threads' titles and withdrawn notices'
+  // Dismiss, which the arrows walk as they walk the Questions panel's rows; `t` and `T`
+  // still step and open. Only from a stop, so the arrows inside an open thread keep
+  // scrolling it. A position counts threads alone.
+  const stops = () => threadsBox.focusStops();
+  const onStop = () => stops().includes(focused());
   const titleWalk = rowWalk({
     id: "thread.list",
     noun: "Thread",
     plural: "threads",
-    rows: titles,
-  }).map((row) => ({ ...row, when: onTitle }));
+    rows: stops,
+    items: () => stops().filter((stop) => stop.matches(".lf-thread-summary")),
+  }).map((row) => ({ ...row, when: onStop }));
 
   const stopPanelScope = pageScope("panel", {
     title: "In the thread panel",

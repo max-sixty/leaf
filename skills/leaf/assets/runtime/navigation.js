@@ -124,7 +124,7 @@ function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
   const current = currentThread(threads, threadHere);
   const targetId = !current && threadAtStanding();
   const atTarget = targetId && threads.find((thread) => thread.dataset.id === targetId);
-  // Focus on a list row that is no thread, such as a withdrawn thread's notice.
+  // Focus on a list row the walk does not count, such as a withdrawn thread's notice.
   const atRow =
     panelIsOpen() && focused() !== threadsBox && threadsBox.contains(focused());
   const next = current

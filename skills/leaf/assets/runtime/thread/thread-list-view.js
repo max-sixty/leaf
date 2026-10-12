@@ -42,7 +42,7 @@ import { holdFocus, onStanding, focusDestination, focused } from "../focus.js";
 import { RetainedFace } from "../retained-face.js";
 import { ThreadView } from "./thread-card.js";
 import { threadHoldsDraft } from "./replies.js";
-import { forwardToThread } from "./focus.js";
+import { forwardToThread, threadFocusStop } from "./focus.js";
 import { passOn, retainUserIntent } from "../user-intent.js";
 import { layoutChanged } from "../widget-elements.js";
 import { isFolding } from "./folding.js";
@@ -250,6 +250,19 @@ class ThreadListView extends RetainedFace {
 
   navigationThreads() {
     return this.#visibleRows().map((row) => row.node);
+  }
+
+  // Each shown row's focus stop in the list's order, which the arrows walk (panel.js):
+  // a card's title, or a withdrawn notice's Dismiss.
+  focusStops() {
+    return this.#rows
+      .filter((row) => row.kind === "thread" || row.kind === "withdrawn")
+      .map((row) =>
+        row.kind === "thread"
+          ? threadFocusStop(row.node)
+          : row.node?.querySelector("button"),
+      )
+      .filter((stop) => stop?.checkVisibility());
   }
 
   // The shown cards in the page's order, whichever order the list stands in.

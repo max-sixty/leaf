@@ -2240,12 +2240,12 @@ def test_an_external_withdrawal_keeps_the_readers_allocation(browser, serve, pla
         )
 
 
-@pytest.mark.parametrize("route", ["t", "Shift+T", "click"])
+@pytest.mark.parametrize("route", ["t", "Shift+T", "ArrowDown", "click"])
 def test_choosing_beside_a_withdrawn_notice_holds_the_chosen_card(
     browser, serve, route
 ):
-    """From a withdrawn thread's notice, `t`, `T` or a press chooses the card beside
-    it, and releasing the notice's room moves none of what the user sees there."""
+    """From a withdrawn thread's notice, `t`, `T`, an arrow or a press chooses the card
+    beside it, and releasing the notice's room moves none of what the user sees there."""
     before = [f"before-{i}" for i in range(12)]
     after = [f"after-{i}" for i in range(20)]
     sections = [*before, "withdrawn", *after]

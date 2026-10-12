@@ -112,6 +112,7 @@ from render_harness import (
     watched,
     write,
 )
+from test_site import serve_interaction_gallery
 
 DRAG_HELD = (
     "async () => (await window.__lfRuntimeImport("
@@ -1737,7 +1738,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
 
 def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     """Optional page interface preparation holds the first widget upgrade."""
-    url = serve(FEATURE_GALLERY)
+    url = serve_interaction_gallery(serve)
     held = []
     release_state = False
     page = browser.new_page(viewport={"width": 1440, "height": 900})
@@ -2682,9 +2683,7 @@ def test_floating_ui_loads_after_the_page_presents(browser, serve):
 
     context.route("**/vendor/floating-ui.esm.js", hold)
     try:
-        page = open_page(
-            browser, serve(FEATURE_GALLERY), context=context, upgraded=False
-        )
+        page = open_page(browser, serve(LONG_PAGE), context=context, upgraded=False)
         wait_until_ready(page, through="presented")
         holding(page, held, 1, "the positioning module")
         assert (
@@ -2694,7 +2693,6 @@ def test_floating_ui_loads_after_the_page_presents(browser, serve):
             == "arrived"
         )
     finally:
-        # The gallery's live samples are pages of their own, each fetching it too.
         released = True
         while held:
             held.pop().continue_()
@@ -2735,7 +2733,7 @@ def test_comment_focus_waits_for_the_lazy_placement_module(browser, serve):
 
 def test_an_unavailable_floating_ui_module_withdraws_the_response(browser, serve):
     """A failed lazy module cannot leave a hidden live composer holding focus."""
-    url = serve(FEATURE_GALLERY)
+    url = serve(LONG_PAGE)
     page = browser.new_page(viewport={"width": 1280, "height": 800})
     watched(page)
     page.route("**/vendor/floating-ui.esm.js", lambda route: route.abort())
@@ -2743,7 +2741,7 @@ def test_an_unavailable_floating_ui_module_withdraws_the_response(browser, serve
     wait_until_ready(page)
 
     with page.expect_event("pageerror") as raised:
-        page.locator("#bg-react-ok").click(modifiers=["Alt"])
+        page.locator("#p3").click(modifiers=["Alt"])
     assert "Failed to fetch dynamically imported module" in str(raised.value)
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     expect(page.locator(".lf-composer")).to_be_hidden()
@@ -2757,7 +2755,7 @@ def test_an_unavailable_floating_ui_module_withdraws_the_response(browser, serve
 
 def test_an_unavailable_floating_ui_module_closes_the_thread_card(browser, serve):
     """A card that cannot be placed closes rather than standing open and unseen."""
-    url = serve(FEATURE_GALLERY)
+    url = serve(LONG_PAGE, anchored=[("p1", "Paragraph 1.")])
     page = browser.new_page(viewport={"width": 1440, "height": 900})
     watched(page)
     page.route("**/vendor/floating-ui.esm.js", lambda route: route.abort())

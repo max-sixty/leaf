@@ -3492,7 +3492,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     shown = page.locator(".lf-threads > .lf-thread:not([hidden])[open]")
     expect(shown.locator(":scope > .lf-thread-summary")).to_be_focused()
     # Read mid-slide, the panel's words stand past the window's edge, where axe reads no
-    # contrast for them.
+    # contrast for them and the sweep passes them unread.
     panel_settled(page)
     sweep("standing on the open thread")
     page.keyboard.press("c")

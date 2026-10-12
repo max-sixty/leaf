@@ -754,10 +754,12 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      not an available strip above it. Its shared scrim therefore stands above the banner
      and below the active surface. Chrome-owned targeting and native top-layer dialogs
      keep their higher planes so a command inside the auxiliary surface can still show its aim.
-     The envelope itself is an empty box at the origin: what it holds positions itself
-     against the window, and a window-sized transparent box would stand over the page's
-     first screen for anything reading the page by hit-testing, so axe could measure the
-     contrast of none of the words under it. */
+     The envelope itself is an empty box at the document's origin, so what it holds
+     positions itself against the window (fixed) or that origin (absolute, by top and
+     left), never by a right or bottom inset, a percentage or a wrapping width that
+     would read the envelope's size. A window-sized transparent box stood over the
+     page's first screen for anything reading the page by hit-testing, so axe measured
+     the contrast of none of the words under it. */
   .lf-auxiliary-envelope { position: absolute; inset: 0 auto auto 0; width: 0; height: 0;
     max-width: none; max-height: none; margin: 0; padding: 0; border: 0; overflow: visible;
     background: transparent; color: inherit; pointer-events: none; }

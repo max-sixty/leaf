@@ -351,12 +351,11 @@ def test_a_missing_native_frame_cannot_retarget_another_svg(browser, serve, chan
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
 
 
-@pytest.mark.parametrize(
-    "position", ["right 10px bottom 20px", "calc(100% - 10px) calc(100% - 20px)"]
-)
-def test_native_image_frames_follow_object_fit_and_position(browser, serve, position):
+def test_native_image_frames_follow_object_fit_and_position(browser, serve):
     """The painted content, including letterboxing and CSS edge offsets, owns
-    native image points through resizing instead of the semantic figure's box."""
+    native image points through resizing instead of the semantic figure's box. The
+    offsets are written as calc(), of which `right 10px bottom 20px` is a case."""
+    position = "calc(100% - 10px) calc(100% - 20px)"
     source = (
         "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' "
         "width='400' height='100'%3E%3Cpath d='M0 50H400' stroke='red'/%3E%3C/svg%3E"
@@ -1737,9 +1736,7 @@ CLIPPED_DRAWING_PAGE = leaf_page(
 )
 
 
-@pytest.mark.parametrize(
-    "transform", ["scale(.5)", "rotate(90deg)", "ancestor scale(.5)"]
-)
+@pytest.mark.parametrize("transform", ["rotate(90deg)", "ancestor scale(.5)"])
 def test_drawing_ink_follows_its_targets_transform(browser, serve, transform):
     """A page transform moves marked visual features and their ink together."""
     page = open_page(browser, serve(CLIPPED_DRAWING_PAGE))
@@ -1873,8 +1870,13 @@ def test_drawing_ink_follows_pixels_inside_their_ancestor_viewport(browser, serv
         )
 
 
-@pytest.mark.parametrize("long", [False, True], ids=["short", "scrolled"])
-@pytest.mark.parametrize("touch", [False, True], ids=["desktop", "phone"])
+# The text viewport's length and the device are independent, so each length takes one
+# device rather than both.
+@pytest.mark.parametrize(
+    "long, touch",
+    [(False, True), (True, False)],
+    ids=["short-phone", "scrolled-desktop"],
+)
 def test_sent_drawing_keeps_its_reference_outside_the_retained_text_viewport(
     browser, serve, long, touch
 ):

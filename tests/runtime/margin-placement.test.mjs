@@ -62,15 +62,15 @@ test("rows that would overlap are pushed below the one placed first", () => {
   assert.deepEqual(Object.fromEntries(pushes), { a: 0, b: 26, c: 0 });
 });
 
-test("a pin and a rail marker level with each other both stay where they are", () => {
+test("rail rows in separate bands stay where they are", () => {
   const pushes = packRows(
     [
       { key: "rail", rect: rect(1079, 100) },
-      { key: "pin", rect: rect(900, 100) },
+      { key: "aside", rect: rect(900, 100) },
     ],
     4,
   );
-  assert.deepEqual(Object.fromEntries(pushes), { rail: 0, pin: 0 });
+  assert.deepEqual(Object.fromEntries(pushes), { rail: 0, aside: 0 });
 });
 
 test("a row that came earlier keeps its place and one that has just come moves", () => {
@@ -107,24 +107,6 @@ test("rows are packed from the top, so a push carries on down the stack", () => 
   );
   // c goes under a, which is where b stands, so b goes under c.
   assert.deepEqual(Object.fromEntries(pushes), { a: 0, c: 32, b: 36 });
-});
-
-test("a pin level with a control of the page goes below it", () => {
-  const grip = { left: 1060, right: 1076, top: 98, bottom: 114 };
-  const pushes = packRows([{ key: "pin", rect: rect(1045, 96), fixed: [grip] }], 4);
-  assert.deepEqual(Object.fromEntries(pushes), { pin: 22 });
-  // A control beside the pin rather than under it moves nothing.
-  const aside = packRows(
-    [
-      {
-        key: "pin",
-        rect: rect(1045, 96),
-        fixed: [{ left: 900, right: 916, top: 98, bottom: 114 }],
-      },
-    ],
-    4,
-  );
-  assert.deepEqual(Object.fromEntries(aside), { pin: 0 });
 });
 
 // A paragraph's last two lines at a phone's width, 366px of column in a 390px window:
@@ -292,10 +274,14 @@ test("a pin that reaches further keeps to its own target's pins", () => {
     folded: false,
   });
   const titled = { ...pin("heading", [heading], 2), seat: box(342, 621, 366, 645) };
-  assert.deepEqual(seatRows([run, titled], { reach: 12, gap: 4 }).get("run"), {
-    rect: section.rect,
-    folded: false,
-  });
+  const expected = { rect: null, folded: false };
+  assert.deepEqual(seatRows([run, titled], { reach: 12, gap: 4 }).get("run"), expected);
+  // Interleaved rail seating solves one pin at a time, but the complete population
+  // still keeps it from borrowing another target's heading.
+  assert.deepEqual(
+    seatRows([run], { reach: 12, gap: 4, targets: [run, titled] }).get("run"),
+    expected,
+  );
 });
 
 // The longer section's pin as `seatRows` takes it: the pair, and folded, one 44px
@@ -337,28 +323,20 @@ test("a pin with no room for its face stands folded where one control finds room
   );
 });
 
-test("cramped pins remain reachable within their bounds", () => {
+test("pins with no clear seat leave their contribution to disclosure", () => {
   const crowded = [...longer.cover, box(4, 560, 386, 900)];
-  for (const input of [pair({ folds: null }), pair({ cover: crowded })]) {
-    const seat = seatOf([input]);
-    assert.ok(seat);
-    assert.ok(seat.rect.right > seat.rect.left && seat.rect.bottom > seat.rect.top);
-    assert.ok(
-      seat.rect.left >= input.bounds.left && seat.rect.right <= input.bounds.right,
-    );
-    if (input.folds === null) assert.equal(seat.folded, false);
-  }
-  // With no clear seat, both the folded toggle and the whole face still fit
-  // vertically in a clipped document or pane, at either edge.
   for (const bounds of [box(4, 730, 386, 820), box(4, 600, 386, 750)])
     for (const folds of [null, pair().folds]) {
       const input = pair({ bounds, cover: crowded, folds });
-      const { rect } = seatOf([input]);
-      assert.ok(
-        rect.top >= bounds.top && rect.bottom <= bounds.bottom,
-        JSON.stringify(rect),
-      );
+      assert.equal(seatOf([input]).rect, null);
     }
+  // A control the reader holds remains under their aim, even where new evidence
+  // fills its seat. Choosing it explicitly permits the disclosed overlay.
+  const held = box(270, 736, 366, 780);
+  assert.deepEqual(seatOf([pair({ cover: crowded, held, folds: null })]), {
+    rect: held,
+    folded: false,
+  });
 });
 
 test("a held pin is reseated when its bounds shrink", () => {
@@ -371,18 +349,15 @@ test("a held pin is reseated when its bounds shrink", () => {
       folded,
     });
     const seat = seatOf([input]);
-    assert.ok(
-      seat.rect.left >= bounds.left && seat.rect.right <= bounds.right,
-      JSON.stringify(seat),
-    );
+    assert.ok(seat.rect.left >= bounds.left && seat.rect.right <= bounds.right);
   }
 });
 
 test("a folded pin stands only where its opened actions stay inside its bounds", () => {
   // A one-word run at the column's left edge, in full lines, with room for one control
   // only above its paragraph's first line, left of a framed block. The toggle would fit
-  // there, but it opens leftward to 140px, past the window's left edge; so it takes its
-  // home instead, moved right until the opened pin fits inside the window.
+  // there, but it opens leftward to 140px, past the window's left edge. With no clear
+  // seat for its opened actions it asks the layout owner for an outer attachment.
   const walls = [box(4, 560, 386, 650), box(100, 650, 386, 717), box(4, 800, 386, 900)];
   const lines = [
     box(24, 721, 366, 742),
@@ -402,15 +377,15 @@ test("a folded pin stands only where its opened actions stay inside its bounds",
       open: 140,
     },
   });
-  assert.deepEqual(seatOf([edge]), { rect: box(100, 748, 144, 792), folded: true });
+  assert.deepEqual(seatOf([edge]), { rect: null, folded: true });
   // Opening no wider than itself, the same pin takes the room above.
   const narrow = seatOf([{ ...edge, folds: { ...edge.folds, open: 44 } }]);
   assert.equal(narrow.folded, true);
   assert.ok(narrow.rect.bottom <= 717, narrow);
-  // Bounds narrower than the opened pin, as in a thin pane, keep the toggle inside them.
+  // Bounds narrower than the opened pin also leave this resting pin without a seat.
   const thin = seatOf([{ ...edge, folds: { ...edge.folds, open: 600 } }]);
   assert.equal(thin.folded, true);
-  assert.ok(thin.rect.right <= edge.bounds.right, thin);
+  assert.equal(thin.rect, null);
 });
 
 test("a folded pin held open keeps its fold, and the others keep to its toggle", () => {
@@ -519,4 +494,40 @@ test("a hidden row keeps the pass it came at, and what has no row is forgotten",
   // The row gone for a pass, a row its target gains later is news.
   const gone = arrivals(last, [], 2);
   assert.equal(arrivals(gone, [{ row: "new", at: "t" }], 3).get("new"), 3);
+});
+
+test("pin seating clears native controls and words in one choice", () => {
+  const control = box(270, 120, 320, 164);
+  const avoided = [...words, control];
+  const seat = pinSpot({
+    seat: box(284, 116, 328, 160),
+    parts: words,
+    cover: avoided,
+    walls: [],
+    neighbours: [],
+    others: [],
+    bounds: box(4, -Infinity, 386, Infinity),
+    reach: 12,
+    line: 21,
+    gap: 4,
+  });
+  assert.ok(seat);
+  assert.ok(
+    avoided.every(
+      (part) =>
+        !(
+          seat.left < part.right &&
+          part.left < seat.right &&
+          seat.top < part.bottom &&
+          part.top < seat.bottom
+        ),
+    ),
+    seat,
+  );
+});
+
+test("rail packing preserves already held pin footprints", () => {
+  const held = rect(1141, 162, 31, 26);
+  const pushes = packRows([{ key: "rail", rect: rect(1126, 162) }], 4, [held]);
+  assert.equal(pushes.get("rail"), 30);
 });

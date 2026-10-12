@@ -4725,8 +4725,8 @@ def test_stylesheet_motion_inputs_drive_css_and_web_animations(browser, serve):
     source = leaf_page(
         "Motion inputs",
         '<h1>Motion inputs</h1><p id="subject">A visible arrival.</p>'
-        '<lf-suggestion id="edit"><lf-old>Before</lf-old>'
-        "<lf-new>After</lf-new></lf-suggestion>",
+        '<lf-suggestion id="edit"><lf-old><p>Before</p></lf-old>'
+        "<lf-new><p>After</p></lf-new></lf-suggestion>",
         head="""<style>:root {
           --lf-motion-flash: calc(.7s + 30ms);
           --lf-motion-fold: 170ms;

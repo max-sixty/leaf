@@ -1649,6 +1649,57 @@ def test_a_decision_undone_leaves_every_suggestion_pin_where_it_stood(browser, s
                 )
 
 
+def test_a_decided_suggestions_pin_stays_put_when_news_arrives_elsewhere(
+    browser, serve
+):
+    """A decision changes the surviving words' width, and their pin takes its seat by
+    them as the decision lands. Nothing that arrives afterwards moves it: an agent's
+    comment on another paragraph re-lays the margin and leaves this pin where the
+    decision put it, and the shift watch sees no control move without input. The same
+    holds once Undo puts the words back. At 390px the pin perches over the words."""
+    page = open_page(browser, serve(MARGIN_ACTIONS_PAGE))
+    resized(page, 390, 900)
+    margins_laid_out(page)
+    item = page.locator('[data-lf-margin-for="s-replace"]')
+
+    def news_leaves_the_pin(text):
+        margins_laid_out(page)
+        settled = item.bounding_box()
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "agent",
+                "revision": 1,
+                "text": text,
+                "anchor": {"section": "crowded-line"},
+            },
+        )
+        told(page)
+        expect(page.get_by_text(text).first).to_be_attached()
+        margins_laid_out(page)
+        after = item.bounding_box()
+        assert (after["x"], after["y"]) == pytest.approx(
+            (settled["x"], settled["y"]), abs=0.5
+        ), (text, settled, after)
+
+    _unfold(item)
+    applied = int(page.locator("body").get_attribute("data-lf-applied"))
+    with sending(page, "accept s-replace"):
+        item.get_by_role("button", name=re.compile("^Accept the ")).click()
+    expect(page.locator("body")).to_have_attribute("data-lf-applied", str(applied + 1))
+    render_checks_model.wait_until_ready(page)
+    news_leaves_the_pin("News after the decision.")
+
+    with sending(page, "undo s-replace"):
+        _unfold_suggestion_undo(page, "s-replace").click()
+    expect(page.locator("body")).to_have_attribute("data-lf-applied", str(applied + 2))
+    render_checks_model.wait_until_ready(page)
+    page.mouse.move(0, 0)
+    page.evaluate(RELEASE_FOCUS)
+    news_leaves_the_pin("News after the undo.")
+
+
 def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
     browser, serve
 ):

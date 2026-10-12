@@ -155,6 +155,7 @@ import {
   versionBtn,
   versionPicker,
   versionMenu,
+  closeVersionMenu,
   versionMenuIsOpen,
 } from "./version-picker.js";
 import {
@@ -401,21 +402,6 @@ export function renderVersions(state) {
     versionsWalkable = walkable;
     paintKeys();
   }
-}
-
-// The browser owns top-layer state, light dismissal and the handback. What it restores
-// focus to on a hide is the element that had it when the popover showed — not the
-// `source`, which buys the anchor and the invoker relationship and nothing about focus
-// — so every door into this menu shows it from the button, and a pointer press that
-// lands on the button gets it back. Escape is Leaf's, and the menu's own row performs
-// the whole of it: the close, and then the menu's parent. The picker stands in More,
-// so the menu opens from inside More and a layer's one step lands the user back there,
-// on the picker, whichever route opened it. Scoping the platform handback to its door
-// rather than to the state is what keeps it off a light dismissal, which restores
-// nothing on purpose: a user who pressed away into the page is left where they
-// pressed.
-export function closeVersionMenu() {
-  versionPicker.close();
 }
 
 // ---------- version diff ----------

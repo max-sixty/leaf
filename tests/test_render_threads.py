@@ -7058,6 +7058,63 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
     )
 
 
+def test_the_arrows_and_t_walk_one_list_of_threads(browser, serve):
+    """The arrows, `t` and the position they report count the same threads: every card
+    the user can step onto, one kept in the list as news from elsewhere included, and
+    not a card folding out, which is room about to go. Counted by the arrows alone, a
+    fold made `Home` say "1 of 4" where `t` walked three threads, and the arrows'
+    position left out the "shown" a narrowed list's `t` says."""
+    page = open_page(browser, serve(LONG_PAGE, comments=4), init_script=HOLD_MOTION)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    kept, folding, third, fourth = [
+        e["id"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "comment"
+    ]
+    card = lambda id: page.locator(f'.lf-threads > [data-id="{id}"]')
+    card(kept).locator(".lf-thread-summary").click()
+    append_carried_log_record(
+        serve.page_dir,
+        {"kind": "resolve", "author": "agent", "agent": "Codex", "parent": kept},
+    )
+    told(page)
+    expect(card(kept).locator(".lf-thread-news")).to_be_visible()
+    card(folding).locator(".lf-thread-summary").click()
+    card(folding).locator(".lf-resolve").click()
+    round_trip(page)
+    assert page.evaluate("() => window.__lfHeld.length") == 1
+    expect(card(kept)).to_be_visible()
+
+    position = page.locator(".lf-walk-position")
+    for key, at, label in [
+        ("Home", kept, "Thread 1 of 3"),
+        ("t", third, "Thread 2 of 3"),
+        ("t", fourth, "Thread 3 of 3"),
+        ("ArrowUp", third, "Thread 2 of 3"),
+        ("ArrowUp", kept, "Thread 1 of 3"),
+        ("End", fourth, "Thread 3 of 3"),
+        ("Shift+T", third, "Thread 2 of 3"),
+    ]:
+        page.keyboard.press(key)
+        expect(card(at).locator(":scope > .lf-thread-summary")).to_be_focused()
+        expect(position).to_have_text(label)
+
+    # A narrowed list says so in both walks' positions, `n`/`N` walking a search.
+    page.get_by_role("searchbox", name="Find in threads").fill("Comment")
+    page.keyboard.press("Enter")
+    expect(card(third).locator(":scope > .lf-thread-summary")).to_be_focused()
+    expect(position).to_have_text("Thread 1 of 2 shown")
+    for key, at, label in [
+        ("ArrowDown", fourth, "Thread 2 of 2 shown"),
+        ("Shift+N", third, "Thread 1 of 2 shown"),
+        ("End", fourth, "Thread 2 of 2 shown"),
+    ]:
+        page.keyboard.press(key)
+        expect(card(at).locator(":scope > .lf-thread-summary")).to_be_focused()
+        expect(position).to_have_text(label)
+
+
 def test_a_folding_thread_keeps_the_card_under_the_pointer_put(browser, serve):
     """A remote resolution may fold a card scrolled past, above the one the user aims
     inside. A card any of which shows stays where news leaves it (thread-list-view.js),

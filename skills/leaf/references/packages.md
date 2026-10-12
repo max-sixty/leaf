@@ -201,7 +201,7 @@ its schema. An ordinary vocabulary entry's `x-instructions` is one non-empty str
 
 ```bash
 leaf page instructions PAGE | jq 'keys'
-leaf page instructions PAGE --use lf-options --use .eyebrow | jq -er '.author'
+leaf page instructions PAGE --use lf-options --use .eyebrow | jq -r '.author // empty'
 leaf page instructions PAGE --contract unified-diff | jq -er '.producer'
 ```
 
@@ -742,6 +742,12 @@ and a blank image stands in for any media an example names. The checks:
   (`--lf-full-height`) declares it on that part too, though this check never sees
   that part scroll, since a worked example stands outside a workspace. A box that
   asks to scroll only sideways is named only while its content runs past its height.
+- `shows-context-keys`: a command declares `contextKeys` and no `bindingBadge`, so its
+  key works with nothing on the page showing it. Lend the
+  command a face, or ask for a corner badge with `bindingBadge: null`
+  (module-authoring.md, "Commands and keyboard routes"). The check reads the commands
+  the example declares, so a command only another state declares, such as a
+  multiple-choice Question's Done, needs an example in that state to be read.
 
 After `leaf page init` re-vendors the page (`serving-pages.md`, "Re-vendoring and
 layer epochs"), run `leaf page check <page> --render` on the version that uses

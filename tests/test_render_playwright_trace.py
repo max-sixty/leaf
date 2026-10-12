@@ -28,7 +28,7 @@ from render_harness import (
 ROOT = Path(__file__).resolve().parents[1]
 
 
-@pytest.mark.nightly
+@pytest.mark.main
 def test_trace_viewer_stays_idle_after_initial_presentation(browser, serve):
     """The viewer's disabled transition cannot wake margin layout after readiness."""
     url = serve(ROOT / "examples/developer/playwright-trace-gallery.html")

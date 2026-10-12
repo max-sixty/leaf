@@ -29,7 +29,7 @@ import {
 import { el, reserve } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
 import { focusDestination } from "./focus.js";
-import { WEBSITE_DELIVERY } from "./storage.js";
+import { WEBSITE_DELIVERY } from "./context.js";
 
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
 const TAG = "leaf-banner-status";

@@ -419,9 +419,9 @@ let readings = 0;
 // of which receives that input. Dedicated attributes leave component classes with
 // their owners. Public shadow parts expose both marks too, so vendor-part rules
 // can choose a carrier on the actual focus ancestry rather than its whole host.
-// Standing is synchronous, but its paint uses the script's final destination:
-// nested dialogs and focus forwarding can leave and return before anything paints.
-// Painting those intermediate arrivals would remove and restore unchanged marks.
+// Standing is synchronous, but its paint uses the gesture's final destination:
+// a layer can return focus in one microtask and move it again in another during one
+// gesture. Painting those intermediate arrivals would restore unchanged marks.
 let paintDestination = null;
 let paintedFocus = null;
 let paintedWithin = new Set();
@@ -457,7 +457,20 @@ function paintFocus(node) {
 // Attribute paint is outside this observation, so it cannot schedule itself.
 const refreshFocusPaint = () =>
   paintFocus(paintDestination?.isConnected ? paintDestination : null);
-const queueFocusPaint = () => afterScript(refreshFocusPaint);
+let returnPaintPending = false;
+const paintAfterScript = () => {
+  if (!returnPaintPending) refreshFocusPaint();
+};
+const queueFocusPaint = () => afterScript(paintAfterScript);
+const queueReturnFocusPaint = () => {
+  if (returnPaintPending) return;
+  returnPaintPending = true;
+  nextRender(() => {
+    if (!returnPaintPending) return;
+    returnPaintPending = false;
+    refreshFocusPaint();
+  });
+};
 function watchFocusPaintIn(root) {
   new MutationObserver(queueFocusPaint).observe(root, {
     childList: true,
@@ -468,7 +481,14 @@ function watchFocusPaintIn(root) {
 watchFocusPaintIn(document);
 function publish(node, cause) {
   paintDestination = node;
-  queueFocusPaint();
+  // A command-reference return may precede the command's own focus move in this
+  // gesture. Its ring waits for the frame; a forward move supersedes that return
+  // and still paints after the current script, before the next frame is shown.
+  if (cause === "return") queueReturnFocusPaint();
+  else {
+    returnPaintPending = false;
+    queueFocusPaint();
+  }
   if (node === published && !departed) return;
   departed = false;
   const left = published;

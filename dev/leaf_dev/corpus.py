@@ -24,7 +24,7 @@ from leaf.structure import SourceDocument
 from leaf.thread_context import sample_events, thread_ids
 
 from leaf_dev import ROOT
-from leaf_dev.example_data import regression_sources
+from leaf_dev.example_data import data_file, page_files, regression_sources, seed_log
 
 EXAMPLES_DIR = ROOT / "examples"
 CORPUS = EXAMPLES_DIR / "corpus.html"
@@ -114,7 +114,7 @@ def build_data() -> dict:
     sources = {}
     captures = {}
     for source, _ in TABS:
-        companion = source.with_suffix(".data.json")
+        companion = data_file(source)
         if not companion.exists():
             continue
         document = json.loads(companion.read_text(encoding="utf-8"))
@@ -209,7 +209,7 @@ def build_page() -> dict[str, bytes]:
     declarations = {}
     files = {}
     for source, _ in TABS:
-        page = source.with_suffix(".page")
+        page = page_files(source)
         if not page.is_dir():
             continue
         registry = json.loads((page / "registry.json").read_text(encoding="utf-8"))
@@ -262,7 +262,7 @@ def build_events() -> str:
             continue
         events = [
             json.loads(line)
-            for line in source.with_suffix(".jsonl").read_text().splitlines()
+            for line in seed_log(source).read_text().splitlines()
             if line.strip()
         ]
         # A declaration naming nothing is a typo here and nothing else: the history

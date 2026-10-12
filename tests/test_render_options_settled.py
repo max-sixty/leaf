@@ -28,7 +28,7 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 def test_a_reconnected_settled_ask_restores_its_diff_watcher(browser, serve):

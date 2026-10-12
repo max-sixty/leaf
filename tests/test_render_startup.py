@@ -118,7 +118,7 @@ DRAG_HELD = (
     "'/runtime/widget-elements.js')).dragHeld()"
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 VISUAL_ACTION_TIMING = """
@@ -2620,6 +2620,39 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
     assert page.evaluate("() => !!customElements.get('lf-board')")
 
 
+def test_composers_take_their_fields_when_they_first_open(browser, serve):
+    """The comment composer and the page comment card hold no field on the page until
+    each first opens, since a field on the page builds its editor
+    (composing/selection.js, thread/page-comment.js). Each open places its field in the
+    same turn, so the words typed straight after it land there, and a draft kept from
+    before a reload reaches the field when its composer opens again."""
+    page = open_page(browser, serve(LONG_PAGE))
+    card_box = page.locator(".lf-page-comment-card leaf-text")
+    composer_box = page.locator("#lf-composer leaf-text")
+    expect(card_box).to_have_count(0)
+    expect(composer_box).to_have_count(0)
+
+    page.keyboard.press("c")
+    page.keyboard.type("Words for the page")
+    expect(card_box).to_be_focused()
+    expect(card_box).to_have_js_property("value", "Words for the page")
+    page.keyboard.press("Escape")
+
+    box = page.locator("#p10").bounding_box()
+    select(page, (box["x"] + 4, box["y"] + 6), (box["x"] + 150, box["y"] + 6))
+    page.keyboard.press("c")
+    expect(composer_box).to_be_focused()
+    page.keyboard.type("Words for the passage")
+    expect(composer_box).to_have_js_property("value", "Words for the passage")
+
+    page.reload()
+    wait_until_ready(page)
+    expect(composer_box).to_have_js_property("value", "Words for the passage")
+    expect(card_box).to_have_count(0)
+    page_comment(page)
+    expect(card_box).to_have_js_property("value", "Words for the page")
+
+
 def test_diagrams_load_one_renderer_bundle_when_they_draw(browser, serve):
     """The page's six diagram types share one lazy module import and one vendored file."""
     context = browser.new_context(viewport={"width": 1280, "height": 800})
@@ -2848,8 +2881,9 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
 def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serve):
     """Sequence order is judged again after the lazy Markdown import. A newer POST
     response can enter that await before an older held poll; when the shared import
-    finishes, the older continuation must not repaint the log backwards. A composer
-    starts that import as it mounts, so the module is held from navigation onward."""
+    finishes, the older continuation must not repaint the log backwards. The test
+    starts that import before either state arrives, as an editor that is shown does,
+    and holds it."""
     marked = []
     page = open_page(
         primed(
@@ -2862,6 +2896,10 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
     )
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
+    page.evaluate(
+        "() => { window.__lfRuntimeImport('/runtime/markdown.js')"
+        ".then((markdown) => markdown.loadMarkdown()); }"
+    )
     holding(page, marked, 1, "the Markdown module")
     assert len(marked) == 1
 

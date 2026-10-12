@@ -41,6 +41,7 @@ import click
 from leaf.codex import APP_SERVER_ENV
 from leaf.delivery import opened_input_ids
 from leaf.harness import IDENTITY_VARIABLES, ClaudeCodeHarness, CodexHarness
+from leaf.hook_transport import hands_delivery
 from leaf.tasks import start_reading
 from leaf.thread import successful_replies
 
@@ -632,26 +633,41 @@ class PageClient:
             urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
         )
 
+    @property
+    def state_url(self) -> str:
+        return f"{self.origin}/api/state?t={self.token}"
+
     def state(self) -> dict:
-        with self.opener.open(
-            f"{self.origin}/api/state?t={self.token}", timeout=20
-        ) as response:
+        with self.opener.open(self.state_url, timeout=20) as response:
             return json.loads(response.read())
 
-    def post(self, event: dict) -> None:
-        """Post one move as the page does: keyed, on the served layer. The caller
-        names the revision and the retry key, as the browser does."""
-        request = urllib.request.Request(
-            f"{self.origin}/api/event?t={self.token}",
-            data=json.dumps(event).encode(),
-            headers={"Leaf-Layer": self.state()["layer"]["generation"]},
-        )
-        try:
-            self.opener.open(request, timeout=20).close()
-        except urllib.error.HTTPError as error:
-            raise click.ClickException(
-                f"posting {event}: HTTP {error.code} {error.read().decode()}"
-            ) from error
+    def post(self, event: dict) -> dict:
+        """Post one move as the page does: keyed, on the served layer, and return the
+        state the server answers with, which shows the move. The caller names the
+        revision and the retry key, as the browser does.
+
+        An answer naming another layer than the one posted on admitted nothing: the
+        page was re-vendored between the state read and the post. A tab reloads onto
+        that layer and the user moves again, so the move is posted again under it.
+        """
+        layer = self.state()["layer"]["generation"]
+        while True:
+            request = urllib.request.Request(
+                f"{self.origin}/api/event?t={self.token}",
+                data=json.dumps(event).encode(),
+                headers={"Leaf-Layer": layer},
+            )
+            try:
+                with self.opener.open(request, timeout=20) as response:
+                    answered = response.headers["Leaf-Layer"]
+                    answer = json.loads(response.read())
+            except urllib.error.HTTPError as error:
+                raise click.ClickException(
+                    f"posting {event}: HTTP {error.code} {error.read().decode()}"
+                ) from error
+            if answered == layer:
+                return answer["state"]
+            layer = answered
 
 
 def read_page_state(arm: Path, state: Path, page: Path) -> dict:
@@ -692,7 +708,7 @@ def waits_started(record: dict) -> list[str]:
 
 def hook_delivered(record: dict) -> bool:
     """Whether one stream record is a Leaf hook handing a delivery to the turn."""
-    return record.get("subtype") == "hook_response" and "leaf-delivery-v" in (
+    return record.get("subtype") == "hook_response" and hands_delivery(
         record.get("output") or ""
     )
 

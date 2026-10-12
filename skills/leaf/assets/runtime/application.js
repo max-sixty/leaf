@@ -43,6 +43,7 @@ import {
 } from "./thread/surfaces.js";
 import { createStateApplication } from "./state-application.js";
 import { createStateFeed } from "./state-feed.js";
+import { reportCarried, reportPageError } from "./layer-client.js";
 
 const commandDispatch = createCommandDispatch();
 let application = null;
@@ -53,7 +54,7 @@ const app = () => {
 
 export function mountApplication(dependencies) {
   if (application) throw new Error("Leaf application mounted twice");
-  setPresentationFailureReporter(dependencies.reportPageError);
+  setPresentationFailureReporter(reportPageError);
   const { ledger } = commandDispatch;
   watchPendingTraffic(applicationState.select((root) => root.effective.sending));
   const hasPending = () => ledger.snapshot().length > 0;
@@ -108,7 +109,7 @@ export function mountApplication(dependencies) {
   };
 
   const releasePendingSafely = (context) => {
-    void releasePending().catch((error) => console.error(`leaf: ${context}`, error));
+    void releasePending().catch((error) => reportCarried(error, context));
   };
 
   // The document-wide pass. Every presenter claims its region now and paints the current
@@ -157,7 +158,7 @@ export function mountApplication(dependencies) {
       if (entry.event.kind === "edit") announce("Message edited");
       paintKeys();
     } catch (error) {
-      console.error("leaf: optimistic presentation", error);
+      reportPageError(error, "optimistic presentation");
     } finally {
       void delivery.drain();
     }
@@ -403,7 +404,7 @@ export function mountApplication(dependencies) {
     settleRejected: async (entry, state) => {
       if (state)
         await receiveState(state).catch((error) =>
-          console.error("leaf: state in refused event response", error),
+          reportCarried(error, "state in refused event response"),
         );
       await stateApplication.runSerialized(async () => {
         ledger.refuse(entry);
@@ -429,8 +430,6 @@ export function mountApplication(dependencies) {
       }
       paintKeys();
     },
-    reportApplicationError: (error) =>
-      console.error("leaf: rejected event reconciliation", error),
   });
 
   const feed = createStateFeed({

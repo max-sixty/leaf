@@ -83,8 +83,8 @@ import { offer } from "../widget-elements.js";
 export const editContext = (id) => `rewrite:${id}`;
 // What a message's view answers by opening its rewrite, as a press on its Edit control.
 export const OPEN_MESSAGE_EDIT = "lf-open-message-edit";
-// message id -> {view, panel}: the view drawing its editor, null once that view is
-// gone, and whether it stood in the Threads panel.
+// message id -> {view, panel, thread}: the view drawing its editor, null once that
+// view is gone, whether it stood in the Threads panel, and the key of its thread.
 const open = new Map();
 // Rewrites whose words are on their way to the log: neither open nor kept.
 const sending = new Set();
@@ -106,11 +106,15 @@ export function releaseMessageEdit(id, view) {
   if (holder?.view === view) holder.view = null;
 }
 
-// Open a rewrite of `id` in `view`. A view drawing it elsewhere, in another reader of
-// the thread, draws the message as it stands again, so one editor shows it.
-export function openMessageEdit(id, view, panel) {
+// Open a rewrite of `id`, a message of thread `thread`, in `view`. A view drawing it
+// elsewhere, in another reader of the thread, draws the message as it stands again, so
+// one editor shows it; and one rewrite stands open in a thread unless the user changed
+// its words, so another left as its message says it closes, whichever reader holds it.
+function openMessageEdit(id, view, panel, thread) {
+  for (const [other, holder] of [...open])
+    if (other !== id && holder.thread === thread) holder.view?.putEditAside();
   const displaced = open.get(id)?.view;
-  open.set(id, { view, panel });
+  open.set(id, { view, panel, thread });
   if (displaced && displaced !== view) displaced.closeEdit();
 }
 
@@ -146,8 +150,10 @@ export function openMessageEditIn(thread, id) {
  * `box` answers the thread's reply box, or null where the reader shows none; `home(node)`
  * answers the drawn thread around message `node`, which the user stands on once the
  * editor goes where the box is out of view; `opening(id)` is the reader's own share of
- * a rewrite of `id` opening, such as unfolding the summary that holds it. */
+ * a rewrite of `id` opening, such as unfolding the summary that holds it; `thread`
+ * answers the thread's key, which every reader of it shares. */
 export function threadRewrites({
+  thread,
   views,
   send,
   paint,
@@ -190,12 +196,11 @@ export function threadRewrites({
         else landSent(home(message));
       },
       previous: (id) => lastEditable(id),
-      // A rewrite starts from the words as they stand, so opening one is acting in the
-      // thread. One rewrite stands open in a thread unless the user changed its words:
-      // opening one closes another left as the message says it.
-      opening: (id) => {
+      // A rewrite of message `id` opens in `view`. It starts from the words as they
+      // stand, so opening one is acting in the thread (`openMessageEdit`).
+      opening: (id, view, panel) => {
         opening(id);
-        for (const view of views()) view.putEditAside();
+        openMessageEdit(id, view, panel, thread());
       },
       reveal: (message, caretLine) => revealEditor(message, caretLine),
     },

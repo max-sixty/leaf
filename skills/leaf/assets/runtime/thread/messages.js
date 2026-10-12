@@ -28,7 +28,6 @@ import {
   OPEN_MESSAGE_EDIT,
   holdsMessageEdit,
   keptRewrite,
-  openMessageEdit,
   releaseMessageEdit,
   watchRewrite,
 } from "./message-edit.js";
@@ -422,8 +421,7 @@ export class MessageView {
     const model = this.#model;
     if (!model?.editable) return false;
     if (!this.#editor) {
-      this.#commands.edit.opening(model.id);
-      openMessageEdit(model.id, this, model.panel);
+      this.#commands.edit.opening(model.id, this, model.panel);
       this.#commands.edit.paint(this.node);
     }
     this.#editor?.enter();

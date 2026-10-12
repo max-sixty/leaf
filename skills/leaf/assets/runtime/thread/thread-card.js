@@ -355,6 +355,7 @@ export class ThreadView {
     // A rewrite of one of the user's messages (`message-edit.js`). Opening or closing
     // it paints at once, so its editor takes or gives back the focus in the same press.
     this.#rewrites = threadRewrites({
+      thread: () => this.#model.key,
       views: () =>
         (this.#model?.messages ?? []).flatMap(
           ({ key }) => this.#messages.get(key) ?? [],

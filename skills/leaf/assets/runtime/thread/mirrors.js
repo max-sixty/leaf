@@ -189,6 +189,7 @@ export function createPrimaryReader(owner, render, commands, update) {
       rewrites.set(
         key,
         threadRewrites({
+          thread: () => key,
           views: () => {
             const order = shown.get(key)?.source.msgs.map((message) => message.key);
             return partsOf(key, "message")

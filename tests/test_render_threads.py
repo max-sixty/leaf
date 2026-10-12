@@ -12677,11 +12677,14 @@ def _feed_page(serve):
     )
 
 
-def _rewrite_surface(browser, serve, surface, size=(1400, 900), resolved=False):
+def _rewrite_surface(
+    browser, serve, surface, size=(1400, 900), resolved=False, thanks=False
+):
     """A thread holding the user's message and the agent's answer, drawn on `surface`:
     the Threads panel, the seat in the page's flow, the margin card, or a package
-    reader's Feed mode; `resolved`, in the panel, under its Resolved filter. Returns the
-    page, the thread, and the message as that surface draws it."""
+    reader's Feed mode; `resolved`, in the panel, under its Resolved filter; `thanks`,
+    with the user's own reply after the answer. Returns the page, the thread, and the
+    message as that surface draws it."""
     url = (
         serve(PANEL_PAGE)
         if surface == "card"
@@ -12700,7 +12703,7 @@ def _rewrite_surface(browser, serve, surface, size=(1400, 900), resolved=False):
             "anchor": {"section": anchor},
         },
     )
-    append_carried_log_record(
+    answer = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -12712,6 +12715,16 @@ def _rewrite_surface(browser, serve, surface, size=(1400, 900), resolved=False):
             "text": "Fitted.",
         },
     )
+    if thanks:
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "user",
+                "parent": answer["id"],
+                "text": "Thanks.",
+            },
+        )
     if resolved:
         append_carried_log_record(
             serve.page_dir, {"kind": "resolve", "author": "user", "parent": mine["id"]}
@@ -12938,6 +12951,28 @@ def test_one_editor_shows_a_message_across_its_readers(browser, serve):
     card.locator(".lf-msg-text").dblclick()
     expect(card.locator(".lf-msg-editor leaf-text")).to_be_focused()
     expect(message.locator(".lf-msg-editor")).to_have_count(0)
+    expect(message.locator(".lf-msg-text")).to_have_text("Fit the north bracket.")
+
+
+def test_one_unchanged_rewrite_stands_open_in_a_thread_across_its_readers(
+    browser, serve
+):
+    """Opening a rewrite of one message closes a rewrite of another in the same thread
+    whose words the user left as they were, in a thread card. A rewrite left open in
+    Feed stayed open when another message's rewrite opened in the Threads panel, since
+    each reader put aside only its own."""
+    page, workspace, message = _rewrite_surface(browser, serve, "feed", thanks=True)
+    message.locator(".lf-msg-text").dblclick()
+    expect(message.locator(".lf-msg-editor leaf-text")).to_be_focused()
+    page.locator(".lf-threads-toggle").click()
+    said = page.locator(".lf-thread .lf-msg.user").filter(has_text="Thanks.")
+    # Named by its id, since an open rewrite holds its words in the box, not as text.
+    thanks = page.locator(
+        f'.lf-thread .lf-msg[data-mid="{said.get_attribute("data-mid")}"]'
+    )
+    thanks.locator(".lf-msg-text").dblclick()
+    expect(thanks.locator(".lf-msg-editor leaf-text")).to_be_focused()
+    expect(workspace.locator(".lf-msg-editor")).to_have_count(0)
     expect(message.locator(".lf-msg-text")).to_have_text("Fit the north bracket.")
 
 

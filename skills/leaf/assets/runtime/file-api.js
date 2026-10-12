@@ -1,10 +1,12 @@
 /* Explicitly bound files belong to the host filesystem, outside page event state.
    This transport keeps their addresses within the current page, including samples,
    and applies the same delivery-generation gate as Leaf's other HTTP consumers.
-   A captured document or export never gains write access to a live file. */
+   A captured document or export never gains write access to a live file. The state
+   answer stamps each binding (`file_bindings.binding_stamps`), so `watch` hears a
+   file move on the page's own news rather than by reading it on a timer. */
 import { offlineInteractive, pageUrl } from "./context.js";
 import { LayerRefused, requestJson } from "./layer-client.js";
-import { readApplication } from "./semantic-state.js";
+import { applicationState, readApplication } from "./semantic-state.js";
 
 export function boundFile(binding) {
   const writable = () => !offlineInteractive && readApplication().document.live;
@@ -39,5 +41,19 @@ export function boundFile(binding) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(snapshot),
       }),
+    // Calls back each time an adopted state answer carries a different stamp for this
+    // binding, the tab's first answer included, until the returned function stops it.
+    // A stamp says only that the file may have moved; `read()`'s revision says whether
+    // it did.
+    watch(callback) {
+      let subscribing = true;
+      const stop = applicationState
+        .select((root) => root.authoritative?.files[binding])
+        .subscribe(() => {
+          if (!subscribing) callback();
+        });
+      subscribing = false;
+      return stop;
+    },
   };
 }

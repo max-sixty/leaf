@@ -1,7 +1,8 @@
-/* This module owns the shared resizable boundary the thread panel and drawer panels are
- * drawn by: its width, its keys and handle, and the user's remembered answer. How the
- * shell takes a new width is the layout writer's (`land`, chrome-layout.js's landEdge),
- * handed to each edge, so this module stays outside the owner cycle and an edge can be
+/* This module owns the page's two drawn edges: the side panel's on the right, which
+ * Threads and Questions share, and the drawer panel's on the left. Each is a resizable
+ * boundary with a width, keys and a handle, and the user's remembered answer. How the
+ * shell takes a new width is the layout writer's (`landEdgesWith`, chrome-layout.js),
+ * bound once it exists, so this module stays outside the owner cycle and an edge can be
  * drawn as its owner evaluates. */
 import { userStore } from "./storage.js";
 import { el } from "./widget-elements.js";
@@ -38,7 +39,7 @@ let activeResize = null;
  * handle outside them both would not slide in with the panel it belongs to. They are handles onto one fact rather
  * than two facts — `state` is the one writer, and it says the same thing on every one.
  */
-export function drawnEdge({ side, noun, defaultWidth, min, prop, key, when, land }) {
+function drawnEdge({ side, noun, defaultWidth, min, prop, key }) {
   const handles = new Set();
   let chosen = null;
   // What the window will allow: the window itself. How much of the page a region may take
@@ -98,7 +99,7 @@ export function drawnEdge({ side, noun, defaultWidth, min, prop, key, when, land
    * does: the drawer panel's edge slides in with the drawer standing on it, and a closed
    * region's edge is hidden by the same rule that hides the region.
    */
-  function handle(region, fixedFocus) {
+  function handle(region, fixedFocus, when) {
     const edge = el("div", "lf-ui lf-edge");
     // The owner names the control that survives when this edge has no range. Stored on
     // the handle because state walks all mirrored handles together, while the target is
@@ -198,5 +199,86 @@ export function drawnEdge({ side, noun, defaultWidth, min, prop, key, when, land
     chosen = parseFloat(userStore.get(key)) || null;
     state();
   }
-  return { width, state, restore, handle, key };
+  return { width, state, restore, handle };
+}
+
+// How the shell takes an edge's new width: the edge's own `state`, then whatever reads the
+// room it leaves. Chrome layout supplies it as it is built; a user can move an edge only
+// once its handle is mounted, after that.
+let land = null;
+export function landEdgesWith(landing) {
+  land = landing;
+}
+
+// The stylesheet owns the side panel's initial width, including first paint. The edge
+// separately owns the user's chosen width and publishes its current allocation.
+//
+// How narrow they may draw it in. 320 is the narrowest window the panel is held to
+// standing up in (test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_quote),
+// so it is the narrowest width anything has laid a thread's reply box and its two
+// actions out at; below it nothing says they still fit. Wanting the panel gone is what
+// closing it is for, and narrowing it to nothing is not the same wish.
+const THREAD_PANEL_MIN = 320;
+// Where the standing width is written, and where the cascade reads it.
+const THREAD_PANEL_PROP = "--lf-thread-panel-width";
+
+// The drawer panel's width until the user moves it, and how narrow they may draw it.
+//
+// 220 is where the drawer's own row stops being one. A leaf's row spends 45px before any
+// word of the page's — the status dot's 9px, its 8px gap, and the 20px and 8px the row
+// and the drawer take for padding — and what is left holds a title that ellipsizes rather
+// than wrapping, so under this the drawer is furniture showing the first syllable of every
+// name on it.
+const DRAWER_SLOT_W = 300;
+const DRAWER_SLOT_MIN = 220;
+// Where the standing width is written, and where the cascade reads it. chrome.css spells
+// the same name, and the layer test holds the spellings equal, since a stylesheet cannot
+// read a constant. No stylesheet states a default: the drawer is built by script, and
+// this module writes the width when it makes or restores the handle, before the drawer
+// first paints. The thread panel's default is a stylesheet token instead because it is
+// a theme input page authors set (`--lf-thread-panel-default-width`, packages.md), and
+// the panel's first paint reads it before any script; the drawer's default is no
+// author's to set.
+const DRAWER_SLOT_PROP = "--lf-drawer-slot-width";
+
+// Each edge keeps the user's choice in their own store rather than the tab's, because
+// where a user keeps their threads, and how much of the page they will give a drawer, is
+// the chrome they arrange and expect to find arranged wherever they are reading (see
+// `userStore`). Live activation keeps the edges themselves; document travel and reload
+// restore the same choices, so no revision or visit asks the user to draw them again.
+// An edge's new width moves only its region: the page beneath it keeps its geometry.
+// What the width changes is whether the region still leaves a usable page beside it.
+export const sideEdge = drawnEdge({
+  side: "right",
+  noun: "side panel",
+  defaultWidth: () =>
+    parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue(
+        "--lf-thread-panel-default-width",
+      ),
+    ),
+  min: THREAD_PANEL_MIN,
+  prop: THREAD_PANEL_PROP,
+  key: "lf-thread-panel-width",
+});
+export const drawerEdge = drawnEdge({
+  side: "left",
+  noun: "drawer panel",
+  defaultWidth: () => DRAWER_SLOT_W,
+  min: DRAWER_SLOT_MIN,
+  prop: DRAWER_SLOT_PROP,
+  key: "lf-drawer-slot-width",
+});
+
+// Both edges said again: their widths against the window's current cap, and the side
+// panel's against a default the page's stylesheet may have changed.
+export function restateEdges() {
+  sideEdge.state();
+  drawerEdge.state();
+}
+
+// The user's answers put back over each edge's default (restore-state.js says when).
+export function restoreEdges() {
+  sideEdge.restore();
+  drawerEdge.restore();
 }

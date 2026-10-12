@@ -1,9 +1,10 @@
 """Leaf's fixed kernel facts, read off the kernel's own registry.
 
 `$events.kinds` and `$events.ownership` are the transport contract no layer can change
-(`layer.validate_event_contracts`), and `$passages` is the reading of a page as text
-that the browser's generated copy (`runtime/passage-facts.js`) shares. Both are read
-from the shipped `registry.json` rather than from a page's composed vocabulary.
+(`layer.merge_layer_declarations`), and `$passages` is how a page reads as text, which
+the browser's generated copy (`runtime/passage-facts.js`) shares. Both are read from
+the running Leaf's shipped `registry.json` rather than from a page's composed
+vocabulary, which may be another Leaf's at the same protocol (`leaf.layer.PROTOCOL`).
 Reading them needs no schema validator, and this module imports none: the page
 service sorts every event by these kinds, including in a harness hook that validates
 nothing."""

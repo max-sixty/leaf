@@ -67,7 +67,7 @@
     }
   },
   "$passages": {
-    "description": "How the file's reading (`leaf/passages.py`, `leaf/anchor_capture.py`) and the browser's (`runtime/passage-facts.js`, generated from this entry by build/registry.mjs) turn a page into text, so a quote the browser captures is one `leaf thread open` can confirm. Leaf's fixed reading: a layer cannot change it, and Python reads it from the shipped registry.",
+    "description": "How the file's reading (`leaf/passages.py`, `leaf/anchor_capture.py`) and the browser's (`runtime/passage-facts.js`, generated from this entry by build/registry.mjs) turn a page into text, so a quote the browser captures is one `leaf thread open` can confirm. Python reads it from the running Leaf's registry, while a page's runtime carries the copy it was vendored with, so changing it is a `PROTOCOL` bump (leaf/layer.py).",
     "collapse": "\t\n\u000b\f\r \u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff",
     "why-collapse-is-spelled-out": "`collapse` lists the characters a whitespace run is made of, which both readings fold to one space. JS's \\s and Python's str.isspace() disagree at the edges — U+FEFF is whitespace to JS alone, U+0085 and U+001C–001F to Python alone — and a page carrying one of those in prose would read differently on the two sides. The browser captures every quote, so this is its set: the characters JS's \\s and trim() treat as whitespace.",
     "blocks": ["p", "li", "h1", "h2", "h3", "h4", "h5", "h6", "td", "th", "pre", "blockquote", "dd", "dt", "figcaption", "summary"],

@@ -389,11 +389,12 @@ export function createTargetPicker({
     return true;
   }
 
-  // Layout invalidation is the mechanical source of a standing walk's refresh; the read
-  // handed to the shared walk remains a cheap cached lookup.
+  // Layout invalidation is the mechanical source of a standing walk's refresh: a reflow
+  // moves the marked line boxes even where the words stand, so the walk repaints either
+  // way. The read handed to the shared walk remains a cheap cached lookup.
   function refreshMatchWalk() {
-    if (walkPosition()?.kind !== "page-search" || !refreshMatches()) return;
-    if (pageSearchOpen) presentSearchStatus();
+    if (walkPosition()?.kind !== "page-search") return;
+    if (refreshMatches() && pageSearchOpen) presentSearchStatus();
     repaint();
   }
 

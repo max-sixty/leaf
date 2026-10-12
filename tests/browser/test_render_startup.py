@@ -2152,15 +2152,16 @@ def test_visual_comments_arrive_with_the_initialized_document(browser, serve):
     assert all(page.evaluate("() => window.__lfVisualActionInsertions"))
 
 
-@pytest.mark.parametrize("after_upgrade", [False, True])
+@pytest.mark.parametrize("phase", ["initial", "history", "ready", "anchored"])
 def test_failed_anchor_presentation_keeps_visual_actions_withheld(
-    browser, serve, after_upgrade
+    browser, serve, phase
 ):
     """A malformed visual reading cannot leave comment controls on a partial page."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
+    state_ready = phase in {"ready", "anchored"}
     held = []
     page.add_init_script(VISUAL_ACTION_TIMING)
-    if not after_upgrade:
+    if phase == "initial":
         page.add_init_script(
             """document.addEventListener('lf-page-interface', event => {
           event.detail.present(new Promise(resolve => window.releaseInterface = resolve));
@@ -2172,34 +2173,54 @@ def test_failed_anchor_presentation_keeps_visual_actions_withheld(
             GENERIC_VISUAL_PAGE,
             layer_registry=GENERIC_VISUAL_LAYER,
             layer_widgets=GENERIC_VISUAL_WIDGETS,
+            events=[
+                {
+                    "id": "visual-comment",
+                    "kind": "comment",
+                    "author": "user",
+                    "revision": 1,
+                    "text": "A comment on this visual part.",
+                    "anchor": {"section": "visual", "visual": "outer"},
+                }
+            ]
+            if phase == "anchored"
+            else [],
         ),
         wait_until="load",
     )
     page.wait_for_function(
         "() => document.querySelector('lf-test-visual')?.parts?.length === 3"
     )
-    if after_upgrade:
+    if phase != "initial":
         page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
         expect(page.locator(".lf-visual-actions")).to_have_count(1)
+    assert held, "the first state read completed before the visual was malformed"
+    if state_ready:
+        held.pop(0).continue_()
+        expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     page.locator("lf-test-visual").evaluate(
         """visual => {
           visual.validParts = visual.parts;
           visual.parts = [visual.parts[0], {...visual.parts[0]}, visual.parts[2]];
         }"""
     )
-    assert held, "the first state read completed before the visual was malformed"
-    if not after_upgrade:
+    if phase == "initial":
         page.evaluate("() => window.releaseInterface()")
-    held.pop(0).continue_()
+    if state_ready:
+        page.locator("lf-test-visual").evaluate(
+            "visual => visual.visualRegistration.update()"
+        )
+    else:
+        held.pop(0).continue_()
 
     expect(page.locator(".lf-status-detail")).to_contain_text("reload")
-    expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+    if not state_ready:
+        expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     expect(page.locator(".lf-visual-actions")).to_have_count(0)
-    if not after_upgrade:
+    if phase == "initial":
         assert page.evaluate("() => window.__lfVisualActionInsertions") == []
-    consume_browser_errors(page, "registered part outer twice")
 
-    if after_upgrade:
+    if phase != "initial":
         page.locator("lf-test-visual").evaluate(
             """visual => {
               visual.parts = visual.validParts;
@@ -2208,6 +2229,7 @@ def test_failed_anchor_presentation_keeps_visual_actions_withheld(
         )
         expect(page.locator(".lf-visual-actions")).to_have_count(1)
         expect(page.locator(".lf-visual-action")).to_have_count(4)
+    consume_browser_errors(page, "registered part outer twice")
 
 
 def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):

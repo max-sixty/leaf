@@ -203,6 +203,9 @@ export function createThreadPresentation({
     } catch (error) {
       surfaces?.cancel();
       if (!current()) throw error;
+      // Placement and control preparation both read visual coordinates. A failure
+      // in either invalidates the proxies retained from the previous reading.
+      anchorControls.withholdVisualActions();
       read.abort();
       primary?.cancel();
       // A synchronous sibling failure may leave the panel's widget preparation in

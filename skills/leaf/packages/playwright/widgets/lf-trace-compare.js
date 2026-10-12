@@ -37,6 +37,7 @@ customElements.define(
         this.#recordings = [...this.querySelectorAll(":scope > lf-trace")];
         this.#selected = this.#recordings.indexOf(openingView(this, this.#recordings));
         const header = el("div", "lf-trace-compare-controls");
+        header.dataset.lfGen = "1";
         this.#choices = offer("wa-radio-group", "lf-trace-sources lf-label-hidden");
         this.#choices.label = "Recording";
         this.#choices.name = `${this.id}-recording`;

@@ -3,7 +3,7 @@
    paint and adopted here after upgrade. This owner schedules later reads and informs
    annotation geometry and reading-region discovery when that composition changes.
    Imports are inert; boot opens it once for every interactive document. */
-import { nextFrame, nextRender } from "./rendering.js";
+import { nextFrame, nextRender, sizeObserver } from "./rendering.js";
 import { repaintPage } from "./repaint.js";
 import { layoutChanged } from "./widget-elements.js";
 import { pageDocument } from "./passages.js";
@@ -30,6 +30,7 @@ function residencyPass(time) {
 }
 function readResidency() {
   const changed = document.documentElement.lfInitial.residency();
+  watchHolders();
   if (changed) layoutChanged(pageDocument());
   readFinished?.(changed);
   if (changed) repaintPage();
@@ -38,12 +39,47 @@ export function scheduleResidency() {
   if (residencyOpen) residencyPending ||= nextRender(residencyPass);
 }
 // The same read also says how far each breakout's holder stands in from the column
-// (prepaint.js, `indent`), so a breakout a revision or a widget inserts, or one a
-// holder reveals, is read on the pass its arrival schedules, before the frame paints it.
+// (prepaint.js, `indents`), and two later causes move that without moving the column,
+// each read where it happens, before the frame paints it. A breakout a revision or a
+// widget inserts, or one a holder reveals (a panel losing `hidden`, a disclosure
+// opening), is read in the microtask its arrival queues, whether it arrived in a task,
+// in a frame's pass after the margin pass ran, or in a ResizeObserver callback. A
+// holder a class or a style pads anew changes width, which the holder's resize reports
+// after layout and before paint; a change of its height alone moves no edge and is not
+// read. Neither waits for the margin pass, which reads at most once a frame and would
+// leave the breakout one frame off; this reading moves only the breakouts, so it
+// needs no such bound. A holder that moves without changing width, as one positioned
+// or translated, keeps its reading until the next pass.
 const BREAKOUT = '[data-lf-space]:not([data-lf-space="column"])';
 const bringsBreakout = (node) =>
   node.nodeType === Node.ELEMENT_NODE &&
   (node.matches(BREAKOUT) || node.querySelector(BREAKOUT) !== null);
+const holderWidths = new WeakMap();
+const holderSizes = sizeObserver((entries) => {
+  let widened = false;
+  for (const { target, contentBoxSize } of entries) {
+    const width = contentBoxSize[0].inlineSize;
+    if (Math.abs(width - holderWidths.get(target)) > 0.5) widened = true;
+    holderWidths.set(target, width);
+  }
+  if (widened) readIndents();
+});
+// A holder is observed once, from the width the reading measured, so its first report
+// is a change only if one came after that reading.
+function watchHolders() {
+  for (const [holder, width] of document.documentElement.lfInitial.indentHolders()) {
+    if (holderWidths.has(holder)) continue;
+    holderWidths.set(holder, width);
+    holderSizes.observe(holder);
+  }
+}
+function readIndents() {
+  const changed = document.documentElement.lfInitial.indents();
+  watchHolders();
+  if (!changed) return;
+  layoutChanged(pageDocument());
+  repaintPage();
+}
 export function openResidency({ onRead }) {
   readFinished = onRead;
   residencyOpen = true;
@@ -59,12 +95,12 @@ export function openResidency({ onRead }) {
             : [...record.addedNodes].some(bringsBreakout),
         )
       )
-        scheduleResidency();
+        readIndents();
     }).observe(main, {
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ["data-lf-space", "hidden"],
+      attributeFilter: ["data-lf-space", "hidden", "open"],
     });
   readResidency();
 }

@@ -541,10 +541,15 @@
   // (`--lf-indent-l`, `--lf-indent-r`), which the breakout's room counts as its own
   // (layouts.css): a list item, a list the page resets, a page's own indented block,
   // whatever moved it, read off the boxes rather than declared by each kind of holder.
-  // Read with the column, in the same pass, so a breakout parsed before first paint is
-  // placed before it paints, and one inserted later is read on the pass its insertion
-  // schedules (content-layout.js). A holder that is not rendered keeps the last
-  // reading, and a breakout never read stands as if its holder were the column.
+  // Only a column grows a breakout past its holder, so a page whose `main` requests no
+  // column shell (`seat`) carries no reading, and a breakout inside another takes its
+  // holder's width and none of this room. A breakout the browser is not drawing, such
+  // as one in a tab not chosen, is not read, since reading skipped content forces its
+  // style and layout: it keeps its last reading, and one never read stands as if its
+  // holder were the column. Every edge is read before any is written, so the page is
+  // laid out once however many breakouts it holds. Read with the column, so a breakout
+  // parsed before first paint is placed before it paints; one inserted or revealed
+  // later is read as it arrives (content-layout.js).
   const contentEdges = (element) => {
     const box = element.getBoundingClientRect();
     const style = getComputedStyle(element);
@@ -556,22 +561,49 @@
     };
   };
   const BREAKOUT = '[data-lf-space]:not([data-lf-space="column"])';
-  const indent = (main) => {
-    let changed = false;
-    const breakouts = main.querySelectorAll(BREAKOUT);
-    if (!breakouts.length) return false;
-    const column = contentEdges(main);
-    for (const breakout of breakouts) {
-      let holder = breakout.parentElement;
-      while (holder !== main && getComputedStyle(holder).display === "contents")
-        holder = holder.parentElement;
-      if (!holder.checkVisibility()) continue;
+  // The box a breakout is laid out in: its slot's where a widget slots it, past any
+  // ancestor that draws no box of its own (shadow-tree.js, `renderedParent`).
+  const holderOf = (breakout, main) => {
+    let holder = breakout;
+    do
+      holder = holder.assignedSlot ?? holder.parentElement ?? holder.getRootNode().host;
+    while (holder !== main && getComputedStyle(holder).display === "contents");
+    return holder;
+  };
+  // The holders the last reading measured, with the width of each one's content box,
+  // which content-layout.js watches for a change: a class or style that pads a holder
+  // moves its breakout without inserting anything.
+  const indentHolders = new Map();
+  const indents = () => {
+    indentHolders.clear();
+    const main = document.querySelector("body > main");
+    if (!main) return false;
+    const grows = document.body.hasAttribute("data-lf-column-shell");
+    const readings = [];
+    let column = null;
+    for (const breakout of main.querySelectorAll(BREAKOUT)) {
+      if (breakout.parentElement.closest(BREAKOUT)) continue;
+      if (!grows) {
+        readings.push([breakout, 0, 0]);
+        continue;
+      }
+      if (!breakout.checkVisibility()) continue;
+      column ??= contentEdges(main);
+      const holder = holderOf(breakout, main);
       const edges = contentEdges(holder);
-      const sides = [
-        ["--lf-indent-l", Math.max(0, Math.round(edges.left - column.left))],
-        ["--lf-indent-r", Math.max(0, Math.round(column.right - edges.right))],
-      ];
-      for (const [property, length] of sides) {
+      indentHolders.set(holder, edges.right - edges.left);
+      readings.push([
+        breakout,
+        Math.max(0, Math.round(edges.left - column.left)),
+        Math.max(0, Math.round(column.right - edges.right)),
+      ]);
+    }
+    let changed = false;
+    for (const [breakout, left, right] of readings)
+      for (const [property, length] of [
+        ["--lf-indent-l", left],
+        ["--lf-indent-r", right],
+      ]) {
         const value = length ? `${length}px` : "";
         if (breakout.style.getPropertyValue(property) === value) continue;
         if (!sourceShells.has(breakout))
@@ -580,13 +612,11 @@
         else removeRuntimeRootStyle(breakout, property);
         changed = true;
       }
-    }
     return changed;
   };
   const residency = () => {
     const seated = seat();
-    const main = document.querySelector("body > main");
-    return (main ? indent(main) : false) || seated;
+    return indents() || seated;
   };
 
   // The id a URL fragment spells, for location.hash and for a link's href alike, from
@@ -613,6 +643,8 @@
     runtimeRootStyles: (node) => new Set(runtimeStyles.get(node) ?? []),
     authoredShell: (node) => sourceShells.get(node) ?? sources.get(node) ?? node,
     residency,
+    indents,
+    indentHolders: () => indentHolders,
     skipped,
     register(tag, render) {
       // The widget loader imports unregistered producers for later revisions and

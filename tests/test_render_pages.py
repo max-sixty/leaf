@@ -73,6 +73,7 @@ from render_harness import (
     REPLY_HOST_PAGE,
     TOKEN,
     consume_browser_errors,
+    held_frames,
     leaf_page,
     margins_laid_out,
     nudge,
@@ -2499,6 +2500,73 @@ def test_a_breakout_in_an_indented_holder_measures_its_room_from_the_column(
     elif posture == "sidebar":
         assert control["table"]["left"] == pytest.approx(prose["left"], abs=1), at
     assert root_overflow(page) == 0
+
+
+RESTYLED = """async ([selector, how]) => {
+  const holder = document.querySelector(selector);
+  const edges = (id) => {
+    const box = document.getElementById(id).getBoundingClientRect();
+    return {left: box.left, right: box.right};
+  };
+  // The next rendering update, read in a ResizeObserver made after the runtime's: after
+  // its frame callbacks, layout and the runtime's own observers, and before it paints.
+  const update = () => new Promise((resolve) => {
+    const sentinel = document.createElement('div');
+    sentinel.style.cssText = 'position: fixed; width: 1px; height: 1px';
+    document.body.append(sentinel);
+    const observer = new ResizeObserver(() => {
+      observer.disconnect();
+      sentinel.remove();
+      resolve();
+    });
+    observer.observe(sentinel);
+  });
+  // Frame callbacks are held, so after one update and a task none the runtime asked for
+  // before the change is left to run in the update that lays the change out.
+  await update();
+  await new Promise((resolve) => setTimeout(resolve));
+  if (how === 'class') holder.classList.add('deeper');
+  else if (how === 'style') holder.style.paddingInlineStart = '64px';
+  else
+    holder.insertAdjacentHTML('beforeend', '<ul><li id="late">Four'
+      + '<div id="late-wide" data-lf-space="wide">Wide.</div>'
+      + '<table id="late-narrow" data-lf-space="available"><tr><th>Plan</th>'
+      + '<td>60</td></tr></table></li></ul>');
+  await update();
+  const name = how === 'insert' ? 'late' : holder.id;
+  return {
+    moved: edges(`${name}-narrow`),
+    wide: edges(`${name}-wide`),
+    control: edges('control-wide'),
+  };
+}"""
+
+
+@pytest.mark.parametrize("how", ["class", "style", "insert"])
+def test_a_breakout_moved_in_after_load_re_lands_before_it_paints(browser, serve, how):
+    """A breakout whose holder stands further in after load stays on the prose axis
+    from the first paint that shows it, without waiting for a frame's margin pass or
+    the next resize: one inserted a list deeper, and a holder a class or an inline
+    style pads anew, which inserts nothing. Each is read again in the rendering update
+    that lays the change out, before that update paints."""
+    source = INDENTED_PAGE.replace(
+        " .inset { padding-left: 40px; }",
+        " .inset { padding-left: 40px; } .inset.deeper { padding-left: 100px; }",
+        1,
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    holder = "#inset" if how == "class" else "#nested"
+    before = page.evaluate(
+        "(id) => document.getElementById(id).getBoundingClientRect().left",
+        f"{holder[1:]}-narrow",
+    )
+    with held_frames(page):
+        at = page.evaluate(RESTYLED, [holder, how])
+    assert at["moved"]["left"] > before + 20, ("the holder was not padded", at)
+    for edge in ("left", "right"):
+        assert at["wide"][edge] == pytest.approx(at["control"][edge], abs=1), at
 
 
 def test_a_sample_fills_the_room_its_authored_width_takes(browser, serve):

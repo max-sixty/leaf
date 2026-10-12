@@ -956,28 +956,50 @@ def comment_note(page, holder):
     return page.locator(".lf-mark-note").nth(index)
 
 
-def accessible_details(page, selector):
-    """The names of what the element `selector` names as its details, read from the
-    browser's accessibility tree: what a screen reader is given, not the DOM attribute
-    that asked for it."""
+@contextmanager
+def _accessibility(page):
+    """Read nodes of the browser's accessibility tree, by selector or backend node:
+    what a screen reader is given, not the DOM attributes that asked for it."""
     cdp = page.context.new_cdp_session(page)
+
+    def ax(selector=None, **at):
+        if selector is not None:
+            root = cdp.send("DOM.getDocument")["root"]["nodeId"]
+            at = cdp.send("DOM.querySelector", {"nodeId": root, "selector": selector})
+        return cdp.send(
+            "Accessibility.getPartialAXTree", {**at, "fetchRelatives": False}
+        )["nodes"][0]
+
     try:
-        root = cdp.send("DOM.getDocument")["root"]["nodeId"]
-        node = cdp.send("DOM.querySelector", {"nodeId": root, "selector": selector})
+        yield ax
+    finally:
+        cdp.detach()
 
-        def ax(**at):
-            return cdp.send(
-                "Accessibility.getPartialAXTree", {**at, "fetchRelatives": False}
-            )["nodes"][0]
 
+def accessible_details(page, selector):
+    """The names of what the element `selector` names as its details."""
+    with _accessibility(page) as ax:
         return [
             ax(backendNodeId=related["backendDOMNodeId"])["name"]["value"]
-            for prop in ax(nodeId=node["nodeId"]).get("properties", [])
+            for prop in ax(selector).get("properties", [])
             if prop["name"] == "details"
             for related in prop["value"].get("relatedNodes", [])
         ]
-    finally:
-        cdp.detach()
+
+
+def accessible_expanded(page, selector):
+    """Whether the element `selector` is announced expanded, collapsed (False), or as
+    no disclosure at all (None). A `popovertarget` invoker gets this from the
+    platform, with no `aria-expanded` written."""
+    with _accessibility(page) as ax:
+        return next(
+            (
+                prop["value"]["value"]
+                for prop in ax(selector).get("properties", [])
+                if prop["name"] == "expanded"
+            ),
+            None,
+        )
 
 
 def plant_quiet_word(page, selector, holding):

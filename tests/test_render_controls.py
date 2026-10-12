@@ -87,6 +87,7 @@ from render_harness import (
     Traffic,
     _traffic,
     _until,
+    accessible_expanded,
     any_draft_control,
     any_owner_entry,
     any_suggestion_control,
@@ -3899,7 +3900,6 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     assert reached_state, "native Tab never reached the selected thread-status toggle"
     expect(selected_state).to_be_focused()
     expect(menu).to_be_hidden()
-    expect(page.locator(".lf-version")).to_have_attribute("aria-expanded", "false")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, open=False)
     page.close()
@@ -3956,13 +3956,11 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
 
 
 def test_banner_status_keeps_publication_links_outside_its_disclosure(browser, serve):
-    """Publication links remain ordinary links; status keeps its native disclosure."""
+    """Publication links remain ordinary links, with no disclosure left to open; the
+    ordinary status is a native disclosure the browser announces open and shut."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
     page.evaluate(
-        """() => {
-          window.__lfStatusOwner = document.querySelector('leaf-banner-status');
-          window.__lfStatusDetail = document.querySelector('.lf-status-detail');
-        }"""
+        "() => { window.__lfStatusOwner = document.querySelector('leaf-banner-status'); }"
     )
     door = page.locator(".lf-status-button")
     detail = page.locator(".lf-status-detail")
@@ -3970,6 +3968,7 @@ def test_banner_status_keeps_publication_links_outside_its_disclosure(browser, s
     page.keyboard.press("Enter")
     expect(detail).to_be_visible()
     expect(detail).to_be_focused()
+    assert accessible_expanded(page, ".lf-status-button") is True
 
     for _ in range(2):
         page.evaluate(
@@ -3983,16 +3982,13 @@ def test_banner_status_keeps_publication_links_outside_its_disclosure(browser, s
             }))"""
         )
         expect(door).to_have_count(0)
-        expect(detail).to_be_hidden()
+        expect(detail).to_have_count(0)
         expect(page.locator(".lf-status-text")).to_have_text(
             "Published copy Install Leaf"
         )
         link = page.get_by_role("link", name="Install Leaf", exact=True)
         expect(link).to_have_attribute("href", "/#install")
         assert not link.evaluate("node => !!node.closest('button')")
-        assert page.evaluate(
-            "window.__lfStatusDetail === document.querySelector('.lf-status-detail')"
-        ), "changing the layout replaced the native disclosure"
 
         page.evaluate(
             """() => window.__lfStatusOwner.present(Object.freeze({
@@ -4003,15 +3999,17 @@ def test_banner_status_keeps_publication_links_outside_its_disclosure(browser, s
         expect(page.locator(".lf-publication-install")).to_have_count(0)
         expect(door).to_have_text("Server offline")
         expect(door).to_have_attribute("popovertarget", "lf-status-detail")
-        expect(door).to_have_attribute("aria-expanded", "false")
+        assert accessible_expanded(page, ".lf-status-button") is False
         door.focus()
         page.keyboard.press("Enter")
         expect(detail).to_be_visible()
         expect(detail).to_be_focused()
         expect(detail).to_have_text("Server offline detail")
+        assert accessible_expanded(page, ".lf-status-button") is True
         page.keyboard.press("Escape")
         expect(detail).to_be_hidden()
         expect(door).to_be_focused()
+        assert accessible_expanded(page, ".lf-status-button") is False
 
 
 WEBSITE_LINE = (
@@ -4396,11 +4394,11 @@ def test_one_version_opens_a_menu_with_its_version(browser, serve):
     expect(version).to_be_enabled()
     expect(version).to_have_text("Showing v1")
     expect(version).to_have_attribute("aria-haspopup", "menu")
-    expect(version).to_have_attribute("aria-expanded", "false")
+    assert accessible_expanded(page, ".lf-version") is False
     banner_control(page, ".lf-version").click()
-    expect(version).to_have_attribute("aria-expanded", "true")
     menu = page.locator(".lf-version-menu")
     expect(menu).to_be_visible()
+    assert accessible_expanded(page, ".lf-version") is True
     expect(menu.locator(".lf-version-row")).to_have_count(1)
     expect(menu.locator(".lf-version-row")).to_have_attribute("aria-current", "true")
     expect(menu.locator(".lf-version-num")).to_have_text("v1 (latest version)")
@@ -4530,7 +4528,6 @@ def test_a_phone_banner_keeps_fixed_primary_and_menu_seats(browser, serve, other
     assert more.evaluate("control => control.matches(':focus-visible')")
     page.keyboard.press("Enter")
     expect(page.locator(".lf-banner-menu")).to_be_visible()
-    expect(more).to_have_attribute("aria-expanded", "true")
     want = secondary.evaluate_all(
         """els => els.filter(el => el.checkVisibility() && !el.disabled)
                      .map(el => (el.getAttribute('aria-label') || el.textContent).trim())"""
@@ -4574,7 +4571,6 @@ def test_a_phone_banner_keeps_fixed_primary_and_menu_seats(browser, serve, other
     )
     page.keyboard.press("Escape")
     expect(page.locator(".lf-banner-menu")).to_be_hidden()
-    expect(more).to_have_attribute("aria-expanded", "false")
     expect(more).to_be_focused()
 
     # Crossing the phone width reseats the refused Approval, a Tab stop like any

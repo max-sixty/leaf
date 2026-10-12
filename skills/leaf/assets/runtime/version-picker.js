@@ -64,10 +64,9 @@ class VersionPickerView {
     this.menu.setAttribute("aria-label", "Versions");
     // Use the platform's invoker relationship rather than toggling from a click handler.
     // A press on an open auto-popover's invoker is both a light dismissal and a press;
-    // reading the state from a handler would see the dismissal and reopen it. `lfInvoker`
-    // exposes the same relationship from the popover end to owners restoring a layer.
+    // reading the state from a handler would see the dismissal and reopen it. The
+    // relationship also exposes the button's expanded state natively.
     this.button.setAttribute("popovertarget", this.menu.id);
-    this.menu.lfInvoker = this.button;
     this.menu.addEventListener("beforetoggle", (event) => {
       if (event.newState === "open") {
         this.#openingInput = inputCount();
@@ -75,7 +74,6 @@ class VersionPickerView {
       }
     });
     this.menu.addEventListener("toggle", (event) => {
-      this.#presentDisclosure();
       if (event.newState === "open") {
         // The platform has now opened the popover and completed its autofocus.
         // Arrive on the selected row without revealing an outer sample frame.
@@ -158,8 +156,9 @@ class VersionPickerView {
     const { picker, latest } = model;
     if (!picker.offered) this.close();
 
+    // A disabled invoker has no popover target, so it announces no menu either.
     this.button.toggleAttribute("disabled", !picker.offered);
-    this.#presentDisclosure();
+    keeps(this.button, "aria-haspopup", picker.offered ? "menu" : null);
     this.button.classList.toggle("on", picker.compared);
     this.button.toggleAttribute("data-lf-news", picker.news);
     keeps(this.button, "data-lf-key-title", picker.keyTitle);
@@ -172,14 +171,6 @@ class VersionPickerView {
 
     if (!this.isOpen()) this.#displayedRows = model.rows;
     this.#renderMenu();
-  }
-
-  // The button's disclosure state has one writer, which reads the popover itself: a new
-  // model and the popover's own toggle both arrive here.
-  #presentDisclosure() {
-    const offered = this.#model.picker.offered;
-    keeps(this.button, "aria-haspopup", offered ? "menu" : null);
-    keeps(this.button, "aria-expanded", offered ? this.isOpen() : null);
   }
 
   #renderMenu() {

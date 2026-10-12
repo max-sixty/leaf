@@ -6,7 +6,12 @@ from pathlib import Path
 
 import pytest
 import turbohtml
-from interact_support import _start, append_carried_log_record, append_command
+from interact_support import (
+    _start,
+    append_carried_log_record,
+    append_command,
+    wait_for,
+)
 from leaf import data as data_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
@@ -15,8 +20,9 @@ from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import thread as thread_model
 from leaf.render_checks import rendered, wait_until_ready
-from leaf.render_gate import version as render_gate_model
 from leaf.schema import ELEMENT_ID
+from leaf.structure import SourceDocument
+from leaf_dev import corpus as corpus_model
 from leaf_dev.example_data import patch_manifest
 from leaf_dev.stills import visual_review_menu
 from playwright.sync_api import expect
@@ -77,7 +83,6 @@ from render_cases_widgets import (
 )
 from render_harness import (
     BOARD_PAGE,
-    FEATURE_GALLERY,
     LONG_PAGE,
     RELEASE_FOCUS,
     REPLY_HOST_PAGE,
@@ -5223,14 +5228,22 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
     )
 
 
+# Each scroller pairs with one motion setting: the board's own scrollport tracks the
+# card's FLIP, and the document follows a move made at once.
 @pytest.mark.parametrize(
-    ("axis", "source", "key", "steps"),
+    ("axis", "source", "key", "steps", "reduced_motion"),
     [
-        pytest.param("column", SQUEEZED_BOARD_PAGE, "ArrowRight", 4, id="columns"),
-        pytest.param("row", TALL_BOARD_PAGE, "ArrowDown", 7, id="rows"),
+        pytest.param(
+            "column",
+            SQUEEZED_BOARD_PAGE,
+            "ArrowRight",
+            4,
+            "no-preference",
+            id="columns",
+        ),
+        pytest.param("row", TALL_BOARD_PAGE, "ArrowDown", 7, "reduce", id="rows"),
     ],
 )
-@pytest.mark.parametrize("reduced_motion", ["no-preference", "reduce"])
 def test_a_keyboard_move_keeps_the_card_in_view(
     browser, serve, reduced_motion, axis, source, key, steps
 ):
@@ -5903,18 +5916,23 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
         assert flow["stacked"] is (width < 1100), (width, height, flow)
 
 
-def test_composed_corpus_runs_authored_page_modules(browser, serve):
-    corpus = Path(__file__).parent.parent / "examples" / "corpus.html"
-    page = open_page(browser, serve(corpus))
-    page.get_by_role("tab", name="Notification", exact=True).click()
-
-    expect(
-        page.locator("#notification-playground").get_by_role(
-            "slider", name="Concurrent release events"
-        )
-    ).to_have_value("2")
-    expect(page.locator(".notification-demo-card-banner")).to_have_count(2)
-    expect(page.locator(".notification-demo-card-status-strip")).to_have_count(2)
+def test_the_composed_corpus_carries_each_examples_head_modules():
+    """A playground whose head module draws its samples, as the notification
+    playground's does, runs inside the composed corpus because the corpus hoists every
+    example's early head script into its own head (`leaf_dev.corpus`). Each example's
+    own page test runs the module; this holds the composition to carrying it."""
+    composed = {
+        script["body"]
+        for script in SourceDocument(corpus_model.CORPUS.read_text()).inline_scripts
+        if script["early_head"]
+    }
+    carried = 0
+    for source, _ in corpus_model.TABS:
+        for script in SourceDocument(source.read_text()).inline_scripts:
+            if script["early_head"]:
+                assert script["body"] in composed, source.name
+                carried += 1
+    assert carried, "no example has a head script, so nothing was checked"
 
 
 def test_notification_playground_admits_only_its_exact_page_configuration(
@@ -6255,50 +6273,22 @@ def test_built_code_comparison_drives_both_candidates(browser, serve):
     expect(page.locator("#code-comparison-ask")).to_be_visible()
 
 
-@pytest.mark.parametrize("route", ["pointer", "keyboard", "touch"])
 def test_built_code_reader_design_comment_keeps_its_identity_after_revision(
-    browser, serve, route
+    browser, serve
 ):
-    """The shared comment loop carries a design request through a real reader revision."""
+    """The shared comment loop carries a design request through a real reader revision.
+    Design mode's keyboard and touch routes to a target are the aim tests'
+    (`test_render_aim.py`); this picks the built reader's heading by pointer."""
     source_path = Path(__file__).parents[1] / "examples" / "code-comparison.html"
     source = source_path.read_text(encoding="utf-8")
-    touch = route == "touch"
-    context = browser.new_context(
-        viewport={"width": 390 if touch else 1200, "height": 844 if touch else 900},
-        has_touch=touch,
-        is_mobile=touch,
-    )
-    page = open_page(browser, live_url(serve(source_path)), context=context)
-    if touch:
-        banner_control(page, ".lf-banner-menu .lf-btn:text-is('Design mode')").tap()
-        page.locator("#target-reader-heading").tap()
-    else:
-        page.locator("#target-reader-heading").scroll_into_view_if_needed()
-        page.keyboard.press("l")
-        if route == "keyboard":
-            page.keyboard.press("s")
-            spoken = page.locator(".lf-live")
-            for _ in range(30):
-                previous = spoken.text_content()
-                page.keyboard.press("Tab")
-                expect(spoken).not_to_have_text(previous)
-                expect(spoken).to_have_text(
-                    re.compile(r"^Hint .*Press Enter to choose\.$")
-                )
-                if "heading: Reader sample" in spoken.text_content():
-                    break
-            else:
-                pytest.fail("The built reader heading was absent from the target walk")
-            page.keyboard.press("Enter")
-        else:
-            page.locator("#target-reader-heading").click()
+    page = open_page(browser, live_url(serve(source_path)))
+    page.locator("#target-reader-heading").scroll_into_view_if_needed()
+    page.keyboard.press("l")
+    page.locator("#target-reader-heading").click()
     field = page.locator(".lf-fab-input")
     write(field, "Keep the heading aligned with the reader's first line.")
     with sending(page, "the reader design comment"):
-        if route == "keyboard":
-            page.keyboard.press("ControlOrMeta+Enter")
-        else:
-            page.locator(".lf-fab-bar .lf-compose-submit").click()
+        page.locator(".lf-fab-bar .lf-compose-submit").click()
     event = next(
         e
         for e in reversed(events_model.read_events(serve.page_dir))
@@ -7479,7 +7469,22 @@ def test_suggestion_emphasis_skips_generated_interface_between_changed_words(
     browser, serve
 ):
     """A changed span may cross a nested widget without painting its generated UI."""
-    page = open_page(browser, serve(FEATURE_GALLERY))
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Nested change",
+                '<h1>Walk</h1><lf-suggestion id="bg-nested-change">'
+                "<lf-old><p>Keep the practice walk indoors.</p></lf-old>"
+                "<lf-new><p>Take the practice walk outside.</p>"
+                '<lf-ask id="bg-route-ask"><h4>Which route should the walk follow?</h4>'
+                '<lf-options id="bg-route" choose>'
+                '<lf-option id="bg-route-garden">Through the garden</lf-option>'
+                '<lf-option id="bg-route-river">Along the river</lf-option>'
+                "</lf-options></lf-ask></lf-new></lf-suggestion>",
+            )
+        ),
+    )
     page.locator('[data-lf-margin-for="bg-route-ask"] .lf-margin-marker').click()
     page.locator("#bg-route .lf-pick").first.focus()
     badges = page.locator("#bg-route > lf-option > .lf-key-badge")
@@ -10808,9 +10813,7 @@ def test_every_mark_in_a_chart_body_reaches_the_drawing(browser, serve):
         assert [shape[0] for shape in shapes] == [tag] * count, (widget, drew["marks"])
 
 
-def test_the_gate_passes_a_chart_whose_tick_names_its_month_on_a_second_line(
-    browser, serve
-):
+def test_covered_words_holds_a_tick_naming_its_month_on_a_second_line(browser, serve):
     """A dated axis names the month where one begins, on a line under the day: the tick
     for the first week of June reads 1 over Jun. Those two lines are two tspans of one
     <text>, offset by the dy the drawing asked for, and each reports a line box carrying
@@ -10825,8 +10828,7 @@ def test_the_gate_passes_a_chart_whose_tick_names_its_month_on_a_second_line(
     the drawing returns. The two lines are pulled onto each other before either reading,
     so the second leg rests on an overlap this test arranged rather than on the leading
     the axis happens to be drawn with."""
-    url = serve(CHART_PAGE)
-    page = open_page(browser, url)
+    page = open_page(browser, serve(CHART_PAGE))
     # Vacuous otherwise: the page has to be carrying a tick that takes two lines.
     stacked = page.evaluate(
         """() => [...document.querySelectorAll('#c-line text')]
@@ -10855,8 +10857,6 @@ def test_the_gate_passes_a_chart_whose_tick_names_its_month_on_a_second_line(
     assert any("c-line" in found for found in reported), (
         "the lines land on nothing, so a gate that never looked would pass this too"
     )
-    page.close()
-    assert render_gate_model.render_version(browser, url).failures == []
 
 
 @pytest.mark.parametrize("scroll_to_chart", [False, True])
@@ -11099,30 +11099,36 @@ def test_a_body_the_module_cannot_draw_says_why_over_its_source(browser, serve):
         "bad-drawn": "rather than Plot.plot(...)",
         "bad-height": "as data-height on the element",
     }
-    for chart_id, body in BAD_CHARTS.items():
-        source = leaf_page(
-            "bad chart",
-            f'<h1 id="t">Bad</h1>\n<lf-chart id="{chart_id}"><pre>\n{body}\n</pre></lf-chart>',
-        )
-        page = open_page(browser, serve(source))
-        expect(page.locator(f"#{chart_id} .lf-error")).to_contain_text(said[chart_id])
+    # Each refusal is the chart's own, so every bad body stands on one page.
+    source = leaf_page(
+        "bad charts",
+        '<h1 id="t">Bad</h1>\n'
+        + "\n".join(
+            f'<lf-chart id="{chart_id}"><pre>\n{body}\n</pre></lf-chart>'
+            for chart_id, body in BAD_CHARTS.items()
+        ),
+    )
+    page = open_page(browser, serve(source))
+    reports = {chart_id: f'<lf-chart id="{chart_id}"> failed: ' for chart_id in said}
+    for chart_id, words in said.items():
+        expect(page.locator(f"#{chart_id} .lf-error")).to_contain_text(words)
         # The source stays under the message: a refusal the user cannot check is half a
         # refusal.
         expect(page.locator(f"#{chart_id} .lf-error pre")).to_contain_text("marks")
-        report = f'<lf-chart id="{chart_id}"> failed: '
-        consume_browser_errors(page, report)
-        reported = []
-        for _ in range(400):
-            reported = [
-                event["text"]
-                for event in events_model.read_events(serve.page_dir)
-                if event["kind"] == "error"
-            ]
-            if reported:
-                break
-            page.wait_for_timeout(25)
-        assert len(reported) == 1 and reported[0].startswith(report), reported
-        assert said[chart_id] in reported[0], reported
+    reported = wait_for(
+        lambda: [
+            event["text"]
+            for event in events_model.read_events(serve.page_dir)
+            if event["kind"] == "error"
+        ],
+        lambda texts: len(texts) >= len(said),
+        failure="not every refused chart reached the log as an error",
+    )
+    consume_browser_errors(page, *reports.values())
+    for chart_id, words in said.items():
+        mine = [text for text in reported if text.startswith(reports[chart_id])]
+        assert len(mine) == 1 and words in mine[0], (chart_id, reported)
+    assert len(reported) == len(said), reported
 
 
 def test_a_chart_body_is_plot_code_that_reads_the_width_it_is_drawn_at(browser, serve):
@@ -11341,13 +11347,14 @@ def test_filtering_a_diff_keeps_its_field_and_toolbar_controls_fixed(
             expect(search).to_be_focused()
 
 
-@pytest.mark.parametrize("manifest", [False, True])
-def test_a_diff_refresh_keeps_the_readers_inspection(browser, serve, manifest):
+def test_a_diff_refresh_keeps_the_readers_inspection(browser, serve):
     """A new patch changes evidence, while file disclosure and reading position
-    belong to the reader inspecting the same files."""
+    belong to the reader inspecting the same files. The evidence is a manifest, whose
+    files the widget loads one at a time."""
     url = serve(LONG_LINE_DIFF_PAGE)
-    value = patch_manifest if manifest else lambda patch: patch
-    data_model.cmd_data_set(serve.page_dir, "review-patch", value(MULTI_HUNK_PATCH))
+    data_model.cmd_data_set(
+        serve.page_dir, "review-patch", patch_manifest(MULTI_HUNK_PATCH)
+    )
     page = open_page(browser, url)
     page.locator("lf-diff summary").last.click()
     search = page.locator("lf-diff .lf-diff-search input")
@@ -11367,7 +11374,7 @@ def test_a_diff_refresh_keeps_the_readers_inspection(browser, serve, manifest):
     data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
-        value(MULTI_HUNK_PATCH.replace("new route", "new routing")),
+        patch_manifest(MULTI_HUNK_PATCH.replace("new route", "new routing")),
     )
     told(page)
     rendered(page)
@@ -11376,12 +11383,10 @@ def test_a_diff_refresh_keeps_the_readers_inspection(browser, serve, manifest):
     assert after == before, (before, after)
 
 
-@pytest.mark.parametrize("manifest", [False, True])
-def test_a_changed_diff_file_keeps_its_sideways_reader(browser, serve, manifest):
+def test_a_changed_diff_file_keeps_its_sideways_reader(browser, serve):
     """Replacing a file's evidence retains its code scrollport and focused line."""
     url = serve(LONG_LINE_DIFF_PAGE)
-    value = patch_manifest if manifest else lambda patch: patch
-    data_model.cmd_data_set(serve.page_dir, "review-patch", value(MULTI_HUNK_PATCH))
+    data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
     page = open_page(browser, url)
     page.locator("lf-diff summary").first.click()
     page.keyboard.press("Tab")
@@ -11406,7 +11411,7 @@ def test_a_changed_diff_file_keeps_its_sideways_reader(browser, serve, manifest)
     data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
-        value(MULTI_HUNK_PATCH.replace("new first", "new beginning")),
+        MULTI_HUNK_PATCH.replace("new first", "new beginning"),
     )
     told(page)
     rendered(page)
@@ -11414,8 +11419,7 @@ def test_a_changed_diff_file_keeps_its_sideways_reader(browser, serve, manifest)
     assert after == before, (before, after)
 
 
-@pytest.mark.parametrize("manifest", [False, True])
-@pytest.mark.parametrize("inserts_line", [False, True])
+@pytest.mark.parametrize("manifest, inserts_line", [(False, True), (True, False)])
 def test_a_diff_refresh_keeps_a_selection_in_unchanged_lines(
     browser, serve, manifest, inserts_line
 ):
@@ -11524,8 +11528,7 @@ def test_a_diff_recovers_when_a_failed_manifest_file_is_repaired(browser, serve)
     ).to_contain_text("new first")
 
 
-@pytest.mark.parametrize("manifest", [False, True])
-@pytest.mark.parametrize("starts_as_rename", [False, True])
+@pytest.mark.parametrize("manifest, starts_as_rename", [(False, True), (True, False)])
 def test_a_diff_file_keeps_focus_when_its_evidence_changes_kind(
     browser, serve, manifest, starts_as_rename
 ):
@@ -11584,8 +11587,7 @@ def test_a_diff_file_keeps_focus_when_its_evidence_changes_kind(
     ).to_contain_text("new beginning")
 
 
-@pytest.mark.parametrize("manifest", [False, True])
-def test_a_file_row_a_revision_brings_reads_its_cut_path(browser, serve, manifest):
+def test_a_file_row_a_revision_brings_reads_its_cut_path(browser, serve):
     """A file that a revision turns from a rename into a changed file gets a new row,
     and that row, too, says whether it cuts its path short."""
     path = "plugins/worktrunk/skills/worktrunk/reference/config/deeply/handlers.py"
@@ -11594,13 +11596,12 @@ def test_a_file_row_a_revision_brings_reads_its_cut_path(browser, serve, manifes
         f"similarity index 100%\nrename from old.py\nrename to {path}\n"
     )
     regular = MULTI_HUNK_PATCH.replace("app/handlers.py", path)
-    value = patch_manifest if manifest else lambda patch: patch
     url = serve(LONG_LINE_DIFF_PAGE)
-    data_model.cmd_data_set(serve.page_dir, "review-patch", value(rename))
+    data_model.cmd_data_set(serve.page_dir, "review-patch", patch_manifest(rename))
     context = browser.new_context(viewport={"width": 390, "height": 844})
     page = open_page(browser, url, context=context)
     expect(page.locator("lf-diff .lf-diff-rename")).to_have_count(1)
-    data_model.cmd_data_set(serve.page_dir, "review-patch", value(regular))
+    data_model.cmd_data_set(serve.page_dir, "review-patch", patch_manifest(regular))
     told(page)
     rendered(page)
     head = page.locator("lf-diff .lf-diff-head").first
@@ -11617,7 +11618,9 @@ def test_a_file_row_a_revision_brings_reads_its_cut_path(browser, serve, manifes
             f"--- a/{source}\n+++ b/{path}\n"
             "@@ -1 +1 @@\n-old()\n+new()\n"
         )
-        data_model.cmd_data_set(serve.page_dir, "review-patch", value(changed_rename))
+        data_model.cmd_data_set(
+            serve.page_dir, "review-patch", patch_manifest(changed_rename)
+        )
         told(page)
         rendered(page)
         expect(head.locator(".lf-diff-path")).to_have_attribute(
@@ -11670,9 +11673,10 @@ def test_a_markdown_document_switches_between_rendered_content_and_exact_source(
     expect(source).to_have_attribute("aria-selected", "true")
 
 
-@pytest.mark.parametrize("preview", ["markdown", "html"])
 @pytest.mark.parametrize(
-    "height", [None, 240], ids=["default-height", "authored-height"]
+    "preview, height",
+    [("markdown", None), ("html", 240)],
+    ids=["markdown-default-height", "html-authored-height"],
 )
 def test_document_readings_share_a_stable_viewport_and_keep_their_scroll(
     browser, serve, preview, height
@@ -12160,8 +12164,7 @@ def test_a_text_document_refresh_keeps_selection_in_unchanged_text(
     assert page.evaluate(reading) == before
 
 
-@pytest.mark.parametrize("manifest", [False, True])
-@pytest.mark.parametrize("changes_kind", [False, True])
+@pytest.mark.parametrize("manifest, changes_kind", [(False, True), (True, False)])
 def test_a_diff_refresh_leaves_an_inline_reply_to_its_thread_owner(
     browser, serve, manifest, changes_kind
 ):

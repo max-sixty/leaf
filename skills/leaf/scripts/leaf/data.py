@@ -259,7 +259,9 @@ def _write_source(page_dir: Path, source: str, value) -> dict:
             page_dir, registry, page.events
         )
         if binding_errors:
-            raise DataError("conflicting data bindings: " + "; ".join(binding_errors))
+            raise DataError(
+                "conflicting data bindings: " + "; ".join(map(str, binding_errors))
+            )
         contract = bindings.get(source)
         if contract is None:
             raise DataError(

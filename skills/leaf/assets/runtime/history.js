@@ -51,11 +51,13 @@ import { pageScroller } from "./scrolling.js";
 const claims = new Set();
 const places = new Map();
 
-// Read once when leaving an entry. Plain endpoints keep a removed passage from being
-// silently retargeted by a live Range. pageRange shares the declared-shadow reading
-// used for commenting; the selection's direction also keeps its working end.
-function readPlace() {
-  const focus = deepFocus();
+// The user's working place, read once before something borrows it: leaving an entry, or
+// opening More (banner-toolbar.js), whose place-keeping commands hand it back. `focus` is
+// the node they stood on, when the reading comes after focus has left it. Plain endpoints
+// keep a removed passage from being silently retargeted by a live Range. pageRange
+// shares the declared-shadow reading used for commenting; the selection's direction also
+// keeps its working end.
+export function readPlace(focus = deepFocus()) {
   const place = placeOf(focus);
   const selection = getSelection();
   const range = selection.rangeCount ? pageRange(selection) : null;
@@ -73,13 +75,20 @@ function readPlace() {
   };
 }
 
-function returnPlace(checkpoint) {
+// Put the user back in a place `readPlace` read. A live revision may have removed or
+// shortened what it named since, so a node no longer drawn is not returned to, and a
+// selection end past its node's current length is not restored.
+export function returnPlace(checkpoint) {
   const focus = checkpoint.focus?.deref();
   const place = checkpoint.place?.deref();
   const { caret } = checkpoint;
   const ends = checkpoint.ends?.map(([ref, offset]) => [ref.deref(), offset]);
-  if (focus !== document.body && drawn(focus))
+  if (focus !== document.body && drawn(focus)) {
     focusDestination(focus, "return", { caret });
+    // A field's caret is its whole selection, and clearing the document's would
+    // collapse it.
+    if (caret) return;
+  }
   // A thread card may have closed on departure. Its page target is the same working
   // place from the other side, and remains a browser focus destination on return.
   else if (drawn(place)) focusDestination(place, "return");

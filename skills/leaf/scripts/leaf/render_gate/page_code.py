@@ -27,6 +27,7 @@ reads layout, color schemes, print, or replay, and code that throws only after a
 gesture or a timer is not reached.
 """
 
+from leaf.findings import Finding
 from leaf.render_checks import (
     RENDER_VIEWPORT,
     PageNotReady,
@@ -37,7 +38,6 @@ from leaf.render_checks import (
 from leaf.revision_artifact import RevisionArtifact
 from leaf.structure import SourceDocument, script_kind
 
-from .findings import Finding
 from .scheme import answer_reports, served
 
 

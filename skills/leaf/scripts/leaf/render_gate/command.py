@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
+from leaf.findings import Finding
 from leaf.revision_artifact import RevisionArtifact
 from leaf.structure import SourceDocument
 
@@ -19,7 +20,6 @@ from .browser import (
     launch_browser,
     playwright_driver,
 )
-from .findings import Finding
 from .page_code import run_page_code
 from .preview import preview_server
 from .readings import SWEEP_WIDTHS

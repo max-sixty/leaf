@@ -360,7 +360,7 @@ export function misplacedBoxes() {
         : Math.round(Math.max(b.right - right, left - b.left));
     if (past > 1) over.set(el, [past, wide, frame, host]);
   }
-  // Each finding is a record (render_gate/findings.py) carrying its element's place
+  // Each finding is a record (findings.py) carrying its element's place
   // (locate.js) beside its code, so a reader that takes this pass at several widths
   // (the gate's sweep) can tell one fault met again from a new one by those two,
   // whatever pixel count the width gives it.

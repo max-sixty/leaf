@@ -293,7 +293,7 @@ export function worksInside(node, container) {
 // Native elements also receive lf-ui-face, the default Leaf typography and ink.
 // Custom-element hosts keep their component-owned face and state styling.
 export const offer = (...args) => document.documentElement.lfInitial.offer(...args);
-export const offerElement = (...args) =>
+const offerElement = (...args) =>
   document.documentElement.lfInitial.offerElement(...args);
 
 // Runtime searches share the vendor's native editor, frame and focus band. Callers

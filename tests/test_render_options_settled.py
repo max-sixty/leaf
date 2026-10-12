@@ -19,6 +19,7 @@ from render_harness import (
     SETTLED_PAGE,
     command_reference_rows,
     compare_with,
+    consume_browser_errors,
     open_page,
     page_registry,
     panel_settled,
@@ -68,6 +69,55 @@ def test_a_reconnected_settled_ask_restores_its_diff_watcher(browser, serve):
     expect(page.locator("#transport > .lf-settled")).to_have_count(1)
     expect(page.locator("#transport .lf-settled-diff")).to_have_count(0)
     expect(page.locator('[aria-controls="decision"] .lf-tabdiff')).to_have_text("")
+
+
+def test_a_comparison_mark_that_failed_on_return_keeps_following_the_comparison(
+    browser, serve
+):
+    """A comparison watcher whose paint throws on its owner's return reports that once
+    and still paints the next comparison: the failed reading stands, not the failure."""
+    first = SETTLED_PAGE.replace(
+        '<lf-ask id="transport-decision">',
+        '<lf-tabs id="views"><lf-tab id="decision" label="Decision">'
+        '<lf-ask id="transport-decision">',
+        1,
+    ).replace(
+        "</lf-ask>",
+        '</lf-ask></lf-tab><lf-tab id="notes" label="Notes">'
+        "<p>Notes.</p></lf-tab></lf-tabs>",
+        1,
+    )
+    url = serve(first)
+    _publish(
+        serve.page_dir,
+        2,
+        first.replace("Lax cookie", "Gentle cookie"),
+        "Revise the settled answer",
+    )
+    page = open_page(browser, url.replace("v1.html", "v2.html"))
+    mark = page.locator('[aria-controls="decision"] .lf-tabdiff')
+    # The tabs leave while the comparison starts, and their marks fail once on the
+    # return that paints it.
+    page.evaluate("""() => {
+        const views = document.getElementById('views');
+        const tab = views.querySelector('[aria-controls="decision"]');
+        tab.querySelector = () => {
+          delete tab.querySelector;
+          throw new Error('the marks failed once');
+        };
+        window.detachedViews = views;
+        views.remove();
+    }""")
+    compare_with(page, 1)
+    page.evaluate("() => document.querySelector('main').append(window.detachedViews)")
+    expect(page.locator("#transport .lf-settled-diff")).to_have_text("Δ1")
+    errors = consume_browser_errors(page, "the marks failed once")
+    # The page's report and the browser's own record of the one uncaught error.
+    assert len([error for error in errors if error.startswith("leaf:")]) == 1, errors
+    compare_with(page, 1)
+    expect(page.locator("#transport .lf-settled-diff")).to_have_count(0)
+    compare_with(page, 1)
+    expect(mark).to_have_text("Δ1")
 
 
 def test_settled_options_collapse_without_going_out_of_reach(browser, serve):

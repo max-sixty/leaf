@@ -27,7 +27,11 @@ page scopes, then the browser. An implemented declaration gets first refusal whi
 (`dispatch.js`'s `standing`: the user is in it and the page has it); if its command is
 unavailable, the press does not fall through to another Leaf meaning. Text entry keeps
 characters, composition, caret movement, and deletion ahead of ancestor widgets; an
-exact control may still claim Enter or its own Escape step.
+exact control may still claim Enter or its own Escape step. A native control keeps its
+activation press, such as Enter on a link or Space on a button: no widget or page scope
+around it runs another command on that press, while a mode that owns the keyboard still
+does. Unlike the text-entry claim, a row that only names the press, such as a link's
+Follow, still names it.
 
 ## Escape
 
@@ -134,8 +138,8 @@ Closing More or standing outside it retires the checkpoint.
 `bindings.js` (spelling, parsing, declaration checks), `scopes.js` (element
 scopes), `register.js` (scope order, page commands, the Escape ladder),
 `dispatch.js` (precedence), `controller.js` (input lifecycle), `text-entry.js`
-(native editing claims), `layer-stack.js` (popovers and dialogs over the page,
-whether a node stands in one, and the Tab loop every modal holds), `page.js` (the
+(native editing and activation claims), `layer-stack.js` (popovers and dialogs over the
+page, whether a node stands in one, and the Tab loop every modal holds), `page.js` (the
 page's own parts and the foot of the ladder), `go-to-sequence.js` (the `g` grammar),
 `control-keys.js`,
 `key-sequence.js`, `shortcut-bar.js`, `command-reference.js`, `hints.js`,

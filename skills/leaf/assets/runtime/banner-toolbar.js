@@ -104,7 +104,7 @@ overflowBtn.append(iconElement("more", "lf-action-icon"));
 const SEATS = ["row", "menu", "gesture"];
 // What a row is about, which decides where a menu built from rows puts it: on the menu
 // itself (`page`), or behind its Navigate, Annotations or About entry.
-export const ROW_GROUPS = Object.freeze(["page", "navigate", "annotate", "about"]);
+const ROW_GROUPS = Object.freeze(["page", "navigate", "annotate", "about"]);
 // The render-blocking theme decides posture once, before the banner arrives.
 const bannerFace = () =>
   getComputedStyle(document.documentElement)

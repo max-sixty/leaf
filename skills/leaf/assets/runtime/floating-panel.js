@@ -54,7 +54,13 @@ import { questionWords } from "./questions/answer.js";
 import { versionMenu, versionPicker } from "./version-picker.js";
 import { reducedMotion } from "./motion.js";
 import { pagePresented } from "./page-paint.js";
-import { focusDestination, focused, onStanding, releaseFocus } from "./focus.js";
+import {
+  focusDestination,
+  focused,
+  onStanding,
+  onUserInput,
+  releaseFocus,
+} from "./focus.js";
 import { sizeObserver } from "./rendering.js";
 import { agentName, readApplication, watchSemantic } from "./semantic-state.js";
 
@@ -277,13 +283,9 @@ export function createFloatingPanel({
   // Asking to write is asking for the field, so a panel folded to the leaf unfolds.
   function writeOnPage() {
     const before = trail.at(-1);
-    const restore = () => {
-      if (prefs().rest === "mark") prefs().set("rest", "row");
-      trail = [];
-      transition(before);
-    };
-    if (prefs().rest === "mark") morphWidth(restore);
-    else restore();
+    if (prefs().rest === "mark") prefs().set("rest", "row");
+    trail = [];
+    transition(before);
     focusDestination(editor("general").input, "move");
   }
   function back() {
@@ -391,8 +393,13 @@ export function createFloatingPanel({
   // Whether the gesture now under way came from the keyboard: a key arriving in a view
   // stands on its first control, a pointer in the view itself, with no ring drawn.
   let keyed = false;
-  host.addEventListener("keydown", () => (keyed = true), true);
-  host.addEventListener("pointerdown", () => (keyed = false), true);
+  onUserInput((event) => {
+    if (
+      ["keydown", "pointerdown"].includes(event.type) &&
+      event.composedPath().includes(host)
+    )
+      keyed = event.type === "keydown";
+  });
 
   // ---------- views ----------
   const menuRow = (label, value, press, { urgent = false, disabled = false } = {}) =>
@@ -887,27 +894,13 @@ export function createFloatingPanel({
   }
 
   // ---------- paint ----------
-  // Folding to the leaf and unfolding again change the box's width; the box tweens
-  // between the two about its centre, on the same curve as its height, so the row
-  // and the leaf read as one box narrowing rather than one control swapped for another.
-  let morph = null;
-  function morphWidth(change) {
-    const from = card.getBoundingClientRect().width;
-    morph?.cancel();
-    change();
-    const to = card.getBoundingClientRect().width;
-    if (reducedMotion() || !pagePresented() || Math.abs(to - from) < 0.5) return;
-    morph = card.animate([{ width: `${from}px` }, { width: `${to}px` }], {
-      duration: RESIZE_MS,
-      easing: EASE,
-    });
-  }
+  // Folding to the leaf and unfolding again change the box's width in one step: a
+  // width tween moves every centred control with it, and on a slow machine its last
+  // frame lands after the press's input window, as motion nobody asked for.
   function setRest(rest) {
-    morphWidth(() => {
-      prefs().set("rest", rest);
-      trail = [];
-      paint();
-    });
+    prefs().set("rest", rest);
+    trail = [];
+    paint();
     if (rest === "mark") focusDestination(leaf, "move");
   }
 
@@ -1169,12 +1162,8 @@ export function createFloatingPanel({
 
   // ---------- gestures ----------
   leaf.addEventListener("click", () => {
-    if (prefs().rest === "mark")
-      morphWidth(() => {
-        prefs().set("rest", "row");
-        open({ view: "menu" });
-      });
-    else open({ view: "menu" });
+    if (prefs().rest === "mark") prefs().set("rest", "row");
+    open({ view: "menu" });
   });
   const showPeek = (on) => keeps(peek, "data-shown", on && !trail.length ? "" : null);
   leaf.addEventListener("pointerenter", () => showPeek(true));

@@ -6963,6 +6963,40 @@ observe --cohort staff</code></pre>
                 preference stays off, then turn it on to restore the hints and keys.
               </p>
             </section>
+            <section id="bg-floating-panel">
+              <h3>The floating panel (experimental)</h3>
+              <p>
+                Add <code>?lf-chrome=floating</code> to this page's address: the banner
+                and the bottom bar give way to one panel hovering over the foot of the
+                page, and the choice stays for every page until
+                <code>?lf-chrome=classic</code> restores them. A window sample shows the
+                chrome its <code>chrome</code> attribute names, whichever you chose.
+                Below, the same page in each: press the floating panel's leaf for the
+                menu, and its field to comment.
+              </p>
+              <lf-sample
+                id="bg-chrome-classic"
+                label="classic chrome"
+                window
+                chrome="classic"
+              >
+                <template id="bg-chrome-classic-page" data-sample>
+                  <h1>Trail notes</h1>
+                  <p>The covered terrace is a short walk from the shelter.</p>
+                </template>
+              </lf-sample>
+              <lf-sample
+                id="bg-chrome-floating"
+                label="floating panel"
+                window
+                chrome="floating"
+              >
+                <template id="bg-chrome-floating-page" data-sample>
+                  <h1>Trail notes</h1>
+                  <p>The covered terrace is a short walk from the shelter.</p>
+                </template>
+              </lf-sample>
+            </section>
             <p id="bg-core-controls-guide">
               The banner also shows <strong>Threads</strong>, the
               <strong>Versions</strong> menu, <strong>Page Map</strong> (<kbd>g</kbd>

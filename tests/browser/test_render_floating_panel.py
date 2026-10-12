@@ -170,6 +170,7 @@ def test_the_panel_folds_to_the_leaf_and_stays_folded(browser, serve):
     panel = page.locator(".lf-floating-panel")
     expect(panel).to_have_attribute("data-rest", "mark")
     expect(page.locator(".lf-fp-field")).to_be_hidden()
+    expect(page.locator(".lf-fp-quick")).to_be_hidden()
 
     page.reload()
     expect(panel).to_have_attribute("data-rest", "mark")

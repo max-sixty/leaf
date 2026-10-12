@@ -66,6 +66,15 @@
       "tsx": "typescript", "yaml": "yaml", "yml": "yaml"
     }
   },
+  "$passages": {
+    "description": "How the file's reading (`leaf/passages.py`, `leaf/anchor_capture.py`) and the browser's (`runtime/passage-facts.js`, generated from this entry by build/registry.mjs) turn a page into text, so a quote the browser captures is one `leaf thread open` can confirm. Leaf's fixed reading: a layer cannot change it, and Python reads it from the shipped registry.",
+    "collapse": "\t\n\u000b\f\r \u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff",
+    "why-collapse-is-spelled-out": "`collapse` lists the characters a whitespace run is made of, which both readings fold to one space. JS's \\s and Python's str.isspace() disagree at the edges — U+FEFF is whitespace to JS alone, U+0085 and U+001C–001F to Python alone — and a page carrying one of those in prose would read differently on the two sides. The browser captures every quote, so this is its set: the characters JS's \\s and trim() treat as whitespace.",
+    "blocks": ["p", "li", "h1", "h2", "h3", "h4", "h5", "h6", "td", "th", "pre", "blockquote", "dd", "dt", "figcaption", "summary"],
+    "why-blocks": "A text node's block: one space goes between two runs of text in different blocks and none between runs that share one, so `<p>a</p><p>b</p>` reads \"a b\" and `set<em>up</em>` reads \"setup\". The browser also reads a block as one unit of prose: the passage a reader is in, where a walk over Questions starts, and what a version diff compares.",
+    "context": 24,
+    "why-context": "The characters of context a captured anchor starts with on each side of its quote. The file requires a unique quote; the browser knows which occurrence the user selected and may widen the context until the shared resolver identifies that exact span."
+  },
   "$data": {
     "description": "Replaceable external or derived values supplied to widgets. A named contract declares the meaning and JSON Schema of a value; each widget declares its typed inputs, while page and thread markup binds those inputs to concrete source ids. A source has one contract within a document; later documents may replace it. `leaf data set` validates the complete value before it can reach a page. Source values remain outside authored versions and the event log. Modules subscribe with `watchData` and render readable records through `projectData`.",
     "contracts": {}

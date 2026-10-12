@@ -100,10 +100,10 @@ import {
   inChrome,
   pageDocument,
   readingFrom,
-  TEXT_BLOCK,
   textNodesUnder,
   wrote,
 } from "./passages.js";
+import { TEXT_BLOCK } from "./passage-facts.js";
 import { registry, stateSpecs, tagsDeclaring } from "./registry.js";
 import {
   paintMarkdown,

@@ -33,6 +33,22 @@ const modules = [
     from: ["$events", "kinds", "comment", "record", "properties", "drawing"],
     code: (schema) => `export const drawingSchema = ${JSON.stringify(schema)};\n`,
   },
+  {
+    // How the passage reader and the pure folds turn a page into text, synchronous so
+    // prepaint and the folds read them without waiting on the registry fetch.
+    out: `${assets}/runtime/passage-facts.js`,
+    from: ["$passages"],
+    code: ({ collapse, blocks, context }) => {
+      const escaped = [...collapse]
+        .map((ch) => `\\u${ch.codePointAt(0).toString(16).padStart(4, "0")}`)
+        .join("");
+      return (
+        `export const COLLAPSE = /[${escaped}]+/g;\n` +
+        `export const TEXT_BLOCK = ${JSON.stringify(blocks.join(","))};\n` +
+        `export const CONTEXT = ${context};\n`
+      );
+    },
+  },
 ];
 
 export async function registryOutputs() {

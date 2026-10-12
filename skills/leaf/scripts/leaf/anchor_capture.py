@@ -2,13 +2,14 @@
 
 from .passages import collapse, page_passages, section_span
 from .registry.contract import visual_parts
+from .registry.kernel import kernel_passages
 from .structure import SourceDocument
 
 # Initial context shared with browser capture. The CLI already requires a unique
 # quote; a browser selection identifies an occurrence and may grow this context to
 # its semantic fences until the shared resolver identifies that exact span. Both
 # readers accept that complete context, and neither guesses by document order.
-CONTEXT = 24
+CONTEXT = kernel_passages()["context"]
 
 
 def enclosing_section(owner: list, lo: int, hi: int):

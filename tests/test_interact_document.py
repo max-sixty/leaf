@@ -53,7 +53,6 @@ from interact_support import (
     suggest,
     write_revision,
 )
-from leaf import anchor_capture as anchor_capture_model
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import data_contracts as data_contracts_model
@@ -1594,89 +1593,6 @@ def test_a_numbering_counts_the_lines_lf_code_draws(page_dir):
     )
     result = check(page_dir)
     assert result.exit_code == 0, result.output
-
-
-def test_the_collapse_class_is_one_set_on_both_sides():
-    """COLLAPSE_CHARS (the file side) and the passage reader's COLLAPSE regex
-    (the browser side) are two spellings of one set, and everything quote-shaped
-    rests on their agreement: a character one side collapses and the other keeps
-    is a quote captured in the browser that the file's reading can never confirm.
-    The next edit to either spelling meets this test, not a detached comment."""
-    js = (schema_model.ASSETS / "runtime" / "collapse.js").read_text()
-    found = re.search(r"const COLLAPSE =\n\s*/\[(.*?)\]\+/g;", js)
-    assert found, "the browser passage reader lost its COLLAPSE regex"
-    js_class = re.compile(f"[{found.group(1)}]")
-    js_set = {chr(c) for c in range(0x10000) if js_class.match(chr(c))}
-    assert js_set == passages_model.COLLAPSE_CHARS
-
-
-def _runtime_modules():
-    """Every module the runtime is composed of, whichever file each fact lives in today.
-
-    Named as a set rather than as paths because the runtime is being split by owner: a
-    reading that names one file goes red on the split that moves the thing it reads,
-    which says the fact changed when what changed is where it is written."""
-    return [schema_model.ASSETS / "leaf.js"] + sorted(
-        (schema_model.ASSETS / "runtime").rglob("*.js")
-    )
-
-
-def _without_comments(js: str) -> str:
-    """A module's code with its comments taken out.
-
-    The sibling reading below strips them for the reason that applies here too: a
-    pattern simple enough to find a definition is simple enough for a comment to
-    satisfy. `re.search` takes the first match in a file, so a commented-out copy above
-    the real one is read instead of it, and the test then holds Python to a sentence
-    while the constant it names drifts — green, and about nothing. Across files the same
-    comment reads as a second module stating the fact, which is a red naming the wrong
-    one.
-
-    The line-comment pattern steps over `://` so a URL in a string keeps its second
-    half; nothing here reads a URL, and a `//` inside a string is left alone at the cost
-    of nothing this asks."""
-    return re.sub(r"(?<!:)//[^\n]*", "", re.sub(r"/\*.*?\*/", "", js, flags=re.DOTALL))
-
-
-def _sole_definition(pattern: str, what: str):
-    """The one runtime module matching `pattern`, and the match — so a fact that grows a
-    second spelling is caught here rather than by whichever side happened to be read."""
-    found = [
-        (js, m)
-        for js in _runtime_modules()
-        if (m := re.search(pattern, _without_comments(js.read_text())))
-    ]
-    assert len(found) == 1, (
-        f"{len(found)} runtime modules state {what} ({[js.name for js, _ in found]}), "
-        "and this reading asks one of them"
-    )
-    return found[0]
-
-
-def test_the_block_a_text_node_sits_in_is_one_list_on_both_sides():
-    """TEXT_BLOCK_TAGS (the file side) and the passage reader's TEXT_BLOCK selector are
-    two spellings of one list, and the collapsed reading of a page rests on their
-    agreement: one space goes wherever two runs of text sit in different blocks and none
-    where they share one, so a tag one side calls a block and the other does not gives
-    the two sides different text. Every quote-shaped thing is then a quote the browser
-    captured that the file's reading cannot confirm, or the reverse.
-
-    The Python comment already said the list matches the runtime's. A comment saying so
-    is not a thing that fails when it stops being true; this is."""
-    _, found = _sole_definition(
-        r"const TEXT_BLOCK =\s*\n?\s*\"([^\"]+)\";", "TEXT_BLOCK"
-    )
-    assert set(found.group(1).split(",")) == passages_model.TEXT_BLOCK_TAGS
-
-
-def test_anchor_capture_starts_with_the_same_context_on_both_sides():
-    """Unique quotes share the initial width; repeated browser selections may grow it.
-
-    File capture requires a unique quote. The browser knows which occurrence the user
-    selected, so it widens context to identify that span, up to semantic fences.
-    """
-    _, found = _sole_definition(r"const CONTEXT = (\d+);", "the captured context width")
-    assert int(found.group(1)) == anchor_capture_model.CONTEXT
 
 
 def test_every_declared_attribute_and_enum_stands_in_an_example():

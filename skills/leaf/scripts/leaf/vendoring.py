@@ -19,7 +19,6 @@ from .layer import (
     layer_fingerprint,
     layer_inputs,
     payload_provenance,
-    payload_runtime_fingerprint,
     payload_server_fingerprint,
 )
 from .leases import lock_is_held, page_locked
@@ -254,12 +253,6 @@ def _stamp_layer(
     metadata = {
         "fingerprint": fingerprint,
         "server": payload_server_fingerprint(),
-        # The kernel half of that composition, stamped on its own because it is the
-        # half another Leaf can read the page against anywhere: the selection beside
-        # it was resolved against the project `page init` ran in, so nothing away from
-        # that directory can recompose the fingerprint. The browser gates compare this
-        # to refuse a page whose runtime their probe modules cannot import from.
-        "runtime": payload_runtime_fingerprint(),
         "packages": list(selected),
         **({"producer": producer} if producer else {}),
     }
@@ -267,7 +260,7 @@ def _stamp_layer(
     # remains the producer of the installed bytes until the contract changes.
     same = previous is not None and all(
         previous.get(key) == metadata[key]
-        for key in ("fingerprint", "runtime", "server", "packages")
+        for key in ("fingerprint", "server", "packages")
     )
     metadata = previous if same else {"generation": secrets.token_hex(16), **metadata}
     incoming = {**composition.registry, "$layer": metadata}

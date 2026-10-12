@@ -81,7 +81,7 @@ export function threadAttention(thread) {
       ) ?? null)
     : null;
   if (thread.attention?.kind === "needs_user") {
-    const answering = thread.attention.reason === "question";
+    const answering = thread.attention.reason === "ask";
     const nextMove = answering
       ? "answer"
       : workflow?.subject.kind === "thread"
@@ -104,14 +104,14 @@ export function threadAttention(thread) {
         .join(" · "),
     });
   }
-  // A task the agent opened on the thread holds it after the update it answered has
+  // A to-do the agent opened on the thread holds it after the update it answered has
   // settled; its title says what the agent still owes, and while a start runs on it,
   // that start's line says what the agent is doing about it.
-  if (thread.attention?.kind === "waiting" && thread.attention.reason === "task") {
-    const { title, line } = thread.attention.task;
+  if (thread.attention?.kind === "waiting" && thread.attention.reason === "todo") {
+    const { title, line } = thread.attention.todo;
     return Object.freeze({
       kind: "waiting",
-      label: line ? "Working" : "Task open",
+      label: line ? "Working" : "To-do open",
       workflow: null,
       secondary: line ?? title,
     });

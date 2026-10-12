@@ -1354,28 +1354,6 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
         expect(delta).to_be_visible()
 
 
-def test_a_shot_refuses_a_pair_shot_at_two_widths(browser, serve):
-    """Both frames render at the frame's width, so a pair captured at two viewports is
-    scaled by two different factors and every line in it lands somewhere new — the flip
-    then reports that the whole page changed, convincingly and with nothing on screen
-    to say otherwise. The one failure worth an error box rather than a caveat."""
-    narrow = solid_png(400, 300, (235, 215, 205))
-    page_html = SHOT_PAGE.replace(
-        SHOT_SRC["after"], f"/media/{hashlib.sha256(narrow).hexdigest()[:16]}.png"
-    )
-    narrow_src = f"/media/{hashlib.sha256(narrow).hexdigest()[:16]}.png"
-    url = serve(
-        page_html,
-        media={SHOT_SRC["before"]: SHOTS["before"], narrow_src: narrow},
-    )
-
-    assert [
-        f
-        for f in render_gate_model.render_version(browser.unwatched, url).failures
-        if "600px" in f and "400px" in f
-    ], "the gate has to hear about a mismatch, since nobody else will"
-
-
 def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
     """The user's half of the gate. A user selected a draft's heading, tried to
     comment on it, and got nothing back — twice, months apart, on the same page. The
@@ -1512,7 +1490,13 @@ def test_render_reads_painted_facts_and_widget_chrome_where_they_stand(
     and a badge whose module injects unmarked words under the chrome face. The panel
     around all three says nothing; the badge's own chrome is read exactly as it would
     be on a page. Nothing here had ever been rendered until a fixture asked the gate
-    rather than the panel."""
+    rather than the panel.
+
+    Beside them, a pair shot captured at two widths: both frames render at the frame's
+    width, so the pair is scaled by two different factors and every line lands somewhere
+    new, and the flip would report that the whole page changed with nothing on screen
+    to say otherwise. That is the one shot failure worth an error box rather than a
+    caveat, and the gate has to hear about it, since nobody else will."""
     monkeypatch.chdir(tmp_path)
     package = tmp_path / ".leaf"
     add_test_widget(package, "lf-badge", upgrade=True)
@@ -1525,10 +1509,20 @@ def test_render_reads_painted_facts_and_widget_chrome_where_they_stand(
     )
     start = PAINTED_IN_SILENCE_PAGE.index('<div id="open-group">')
     painted = PAINTED_IN_SILENCE_PAGE[start : PAINTED_IN_SILENCE_PAGE.index("</main>")]
-    source = REPLY_HOST_PAGE.replace("</main>", painted + "</main>").replace(
+    narrow = solid_png(400, 300, (235, 215, 205))
+    narrow_src = f"/media/{hashlib.sha256(narrow).hexdigest()[:16]}.png"
+    pair = (
+        f'<lf-shot id="shot-pair" alt="the navigation rail" before="{SHOT_SRC["before"]}"'
+        f' after="{narrow_src}"></lf-shot>'
+    )
+    source = REPLY_HOST_PAGE.replace("</main>", painted + pair + "</main>").replace(
         "</head>", "<style>.lf-quiet { display: none }</style></head>"
     )
-    url = serve(source, packages=(*EXAMPLE_PACKAGES, declared_reading_package))
+    url = serve(
+        source,
+        packages=(*EXAMPLE_PACKAGES, declared_reading_package),
+        media={SHOT_SRC["before"]: SHOTS["before"], narrow_src: narrow},
+    )
     append_carried_log_record(
         serve.page_dir,
         {
@@ -1550,12 +1544,9 @@ def test_render_reads_painted_facts_and_widget_chrome_where_they_stand(
             "markup": SAMPLE_MARKUP + '<lf-badge id="rp-badge">Weighed.</lf-badge>',
         },
     )
-    found = sorted(
-        {
-            f.split("] ", 1)[1]
-            for f in render_gate_model.render_version(browser, url).failures
-        }
-    )
+    failures = render_gate_model.render_version(browser.unwatched, url).failures
+    assert [f for f in failures if "600px" in f and "400px" in f], failures
+    found = sorted({f.split("] ", 1)[1] for f in failures if "shot-pair" not in f})
     assert found == [
         (
             '<lf-badge id=rp-badge> puts "Sent by the reviewer" under .lf-ui, where no '

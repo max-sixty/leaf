@@ -246,12 +246,17 @@ def deferred_value(
     if spec is None:
         raise DataError(f"data source {source!r} defers no record field")
     # `read_source` judged the value by its contract (`payload_error`): every record
-    # is an object with a unique key and the deferred field.
+    # is an object with a unique key. Its item schema decides which fields it carries.
     item = next(
         (item for item in value[spec["items"]] if item[spec["key"]] == key), None
     )
     if item is None:
         raise DataError(f"unknown record key {key!r} in data source {source!r}")
+    if spec["deferred"] not in item:
+        raise DataError(
+            f"record {key!r} in data source {source!r} has no deferred field "
+            f"{spec['deferred']!r}"
+        )
     return {
         "source": source,
         "contract": reading["contract"],

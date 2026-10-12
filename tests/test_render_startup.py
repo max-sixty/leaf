@@ -2663,47 +2663,11 @@ def test_diagrams_load_one_renderer_bundle_when_they_draw(browser, serve):
     assert [p for p in asked if "mermaid" in p] == ["/vendor/mermaid.esm.js"]
 
 
-def test_floating_ui_loads_after_the_page_presents(browser, serve):
-    """The positioning engine stays off the presentation path and arrives after it.
-
-    The thread card and the comment box both place through it, so it loads once the page
-    has presented rather than on the first response, and neither surface waits on a
-    fetch when the user first opens one. Held, it keeps the page from reading as arrived
-    but not from presenting."""
-    context = browser.new_context(viewport={"width": 1280, "height": 800})
-    held = []
-    released = False
-
-    def hold(route):
-        if released:
-            route.continue_()
-        else:
-            held.append(route)
-
-    context.route("**/vendor/floating-ui.esm.js", hold)
-    try:
-        page = open_page(
-            browser, serve(FEATURE_GALLERY), context=context, upgraded=False
-        )
-        wait_until_ready(page, through="presented")
-        holding(page, held, 1, "the positioning module")
-        assert (
-            page.evaluate(
-                "() => document.querySelector('script[data-lf-entry]').lfReadiness(null)"
-            )
-            == "arrived"
-        )
-    finally:
-        # The gallery's live samples are pages of their own, each fetching it too.
-        released = True
-        while held:
-            held.pop().continue_()
-    wait_until_ready(page)
-
-
 def test_comment_focus_waits_for_the_lazy_placement_module(browser, serve):
-    """Comment entered before the positioning dependency has arrived keeps its focus
-    request while it loads, rather than focusing a still-hidden text box."""
+    """The positioning engine stays off the presentation path: held, it keeps the page
+    from reading as arrived but not from presenting. A comment entered before it has
+    arrived keeps its focus request while it loads, rather than focusing a still-hidden
+    text box."""
     context = browser.new_context(viewport={"width": 1280, "height": 800})
     held = []
     context.route("**/vendor/floating-ui.esm.js", lambda route: held.append(route))
@@ -2712,6 +2676,12 @@ def test_comment_focus_waits_for_the_lazy_placement_module(browser, serve):
     try:
         wait_until_ready(page, through="presented")
         holding(page, held, 1, "the response placement module")
+        assert (
+            page.evaluate(
+                "() => document.querySelector('script[data-lf-entry]').lfReadiness(null)"
+            )
+            == "arrived"
+        )
         box = page.locator("#p10").bounding_box()
         select(
             page,
@@ -2733,48 +2703,34 @@ def test_comment_focus_waits_for_the_lazy_placement_module(browser, serve):
         context.unroute_all(behavior="wait")
 
 
-def test_an_unavailable_floating_ui_module_withdraws_the_response(browser, serve):
-    """A failed lazy module cannot leave a hidden live composer holding focus."""
-    url = serve(FEATURE_GALLERY)
-    page = browser.new_page(viewport={"width": 1280, "height": 800})
-    watched(page)
-    page.route("**/vendor/floating-ui.esm.js", lambda route: route.abort())
-    page.goto(url, wait_until="load")
-    wait_until_ready(page)
-
-    with page.expect_event("pageerror") as raised:
-        page.locator("#bg-react-ok").click(modifiers=["Alt"])
-    assert "Failed to fetch dynamically imported module" in str(raised.value)
-    expect(page.locator(".lf-fab-bar")).to_be_hidden()
-    expect(page.locator(".lf-composer")).to_be_hidden()
-    errors = consume_browser_errors(
-        page, "Failed to fetch dynamically imported module", "net::ERR_FAILED"
-    )
-    assert any(
-        "Failed to fetch dynamically imported module" in error for error in errors
-    )
-
-
-def test_an_unavailable_floating_ui_module_closes_the_thread_card(browser, serve):
-    """A card that cannot be placed closes rather than standing open and unseen."""
-    url = serve(FEATURE_GALLERY)
+def test_an_unavailable_floating_ui_module_leaves_no_surface_open_and_unseen(
+    browser, serve
+):
+    """A surface the failed lazy module cannot place goes away: the thread card
+    closes rather than standing open and unseen, and the response composer is
+    withdrawn rather than holding focus while hidden."""
+    url = serve(LONG_PAGE, anchored=[("p3", "Paragraph 3.")])
     page = browser.new_page(viewport={"width": 1440, "height": 900})
     watched(page)
     page.route("**/vendor/floating-ui.esm.js", lambda route: route.abort())
     page.goto(url, wait_until="load")
     wait_until_ready(page)
-    consume_browser_errors(
-        page, "Failed to fetch dynamically imported module", "net::ERR_FAILED"
-    )
+    failed = ("Failed to fetch dynamically imported module", "net::ERR_FAILED")
+    consume_browser_errors(page, *failed)
 
     page.evaluate(RELEASE_FOCUS)
     with page.expect_event("pageerror") as raised:
         page.keyboard.press("t")
-    assert "Failed to fetch dynamically imported module" in str(raised.value)
+    assert failed[0] in str(raised.value)
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    consume_browser_errors(
-        page, "Failed to fetch dynamically imported module", "net::ERR_FAILED"
-    )
+    consume_browser_errors(page, *failed)
+
+    with page.expect_event("pageerror") as raised:
+        page.locator("#p10").click(modifiers=["Alt"])
+    assert failed[0] in str(raised.value)
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    consume_browser_errors(page, *failed)
 
 
 def test_a_page_with_a_diff_loads_the_renderer_when_it_draws_lines(browser, serve):

@@ -120,14 +120,17 @@ export function createThreadPreview({
   // about, at the width it was carried at, until its placement chooses afresh.
   const grip = surfaceGrip({
     surface: preview,
+    bounds: () => previewSession?.boundary ?? commentBoundary(),
     dropped(box) {
       const session = previewSession;
       if (!session) return;
-      session.carried = box.width;
-      session.side.adopt({
-        box,
-        placement: { ...session.side.capture(), moved: true },
-      });
+      if (box) {
+        session.carried = box.width;
+        session.side.adopt({
+          box,
+          placement: { ...session.side.capture(), moved: true },
+        });
+      }
       placeThreadPreview();
     },
   });
@@ -431,6 +434,7 @@ export function createThreadPreview({
         sending),
     );
     const boundary = commentBoundary({ region: place.region });
+    session.boundary = boundary;
     if (!boundary.width || !boundary.height) {
       void floatingUi().then((ui) => stillCurrent() && watch(ui));
       return false;
@@ -568,7 +572,8 @@ export function createThreadPreview({
   }
   function scheduleThreadPreviewPosition() {
     const session = previewSession;
-    if (!session || session.positionFrame) return;
+    if (!session || session.positionFrame || preview.hasAttribute("data-lf-carried"))
+      return;
     session.positionFrame = nextRender(() => {
       session.positionFrame = 0;
       if (previewSession === session) placeThreadPreview();
@@ -617,6 +622,7 @@ export function createThreadPreview({
       stopRegion: null,
       side: commentPlacement(),
       carried: null,
+      boundary: null,
     };
     carryCommentFrame(origin);
     if (origin) previewSession.side.adopt(origin.frame);

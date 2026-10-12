@@ -574,7 +574,12 @@ export function commentPlacement() {
         name: "hold",
         fn(state) {
           const edge = !across && heldEdge;
-          const data = { edge: heldEdge && ("foot" in heldEdge ? "bottom" : "top") };
+          // A carried inline offset holds the surface by its left edge, whichever side
+          // it stands on, so a field growing as it is typed in grows away from it.
+          const data = {
+            edge: heldEdge && ("foot" in heldEdge ? "bottom" : "top"),
+            inline: carriedInline !== null ? "left" : null,
+          };
           const { line, attachmentInline, scale } = measure(state);
           const position = {};
           if (carriedInline !== null)
@@ -584,7 +589,10 @@ export function commentPlacement() {
               "foot" in edge
                 ? line + edge.foot / scale.y - state.rects.floating.height
                 : line + edge.top / scale.y;
-          return { ...position, data: { ...data, ...position } };
+          // Where the rule stands it before the boundary shifts it in, which a carried
+          // surface's attachment limit takes in.
+          const spot = { x: state.x, y: state.y, ...position };
+          return { ...position, data: { ...data, spot } };
         },
       };
       const size = ui.size({
@@ -688,13 +696,12 @@ export function commentPlacement() {
               // too, so it stands there and still leaves with what it is about.
               if (moved)
                 for (const axis of ["x", "y"]) {
-                  const own = state.middlewareData.hold?.[axis];
-                  if (own !== undefined)
-                    limited[axis] = clamp(
-                      state[axis],
-                      Math.min(limited[axis], own),
-                      Math.max(limited[axis], own),
-                    );
+                  const own = state.middlewareData.hold.spot[axis];
+                  limited[axis] = clamp(
+                    state[axis],
+                    Math.min(limited[axis], own),
+                    Math.max(limited[axis], own),
+                  );
                 }
               heldIn = Math.abs(limited.y - state.y) < 0.5;
               return limited;

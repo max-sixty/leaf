@@ -341,7 +341,10 @@ either takes its columns' natural width up to that room: one that fits where it 
 starts where the text around it starts, and a wider one grows evenly about the prose
 axis, or to the right where a sidebar stands in the left margin. A block in a list item
 or another indented block takes its room from the column, so it stands where the same
-block in the page's flow would, however deep the indent.
+block in the page's flow would, however deep the indent. A block the page places
+itself, as an item of its own grid or flex row, in an inline block, or inside one,
+keeps to the box it is given, since the room beside that box is the page's: a table
+there scrolls its columns inside it.
 An `lf-ask` or a callout keeps the column: a block of its own that declares a width
 breaks out of it on a column page, and widens it in a wider flow.
 Use these names on the semantic block itself, including a native `table`, `lf-code`, or

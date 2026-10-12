@@ -2138,20 +2138,17 @@ def test_the_render_gate_rejects_invalid_visual_inventory_records(browser, serve
 
 def test_the_render_gate_bounds_a_prefixed_inventory_by_its_prefixes(browser, serve):
     """A prefixed visual authors no tokens, so the gate has none to resolve; what it
-    holds is the widget to its own declaration, refusing a registered id outside it."""
-
-    def gate(*prefixes):
-        return render_gate_model.render_version(
-            browser.unwatched,
-            serve(
-                PREFIXED_VISUAL_PAGE,
-                layer_registry=prefixed_visual_layer(*prefixes),
-                layer_widgets=GENERIC_VISUAL_WIDGETS,
-            ),
-        ).failures
-
-    assert gate("out", "inn", "htm") == []
-    assert gate("out", "inn") == [
+    holds is the widget to its own declaration, refusing a registered id outside it
+    and only that one: `outer` and `inner` stand inside the prefixes left."""
+    failures = render_gate_model.render_version(
+        browser.unwatched,
+        serve(
+            PREFIXED_VISUAL_PAGE,
+            layer_registry=prefixed_visual_layer("out", "inn"),
+            layer_widgets=GENERIC_VISUAL_WIDGETS,
+        ),
+    ).failures
+    assert failures == [
         f"[{scheme}] <lf-test-visual id='visual'> declares addressable visual parts "
         "but its module registered parts its prefixes do not admit html"
         for scheme in ("light", "dark")
@@ -2840,6 +2837,8 @@ def test_anonymous_verbatim_owners_keep_distinct_page_and_reply_provenance(
 
 
 def _author_stateful_verbatim_widget(tmp_path):
+    """A stateful widget whose corrupt state rewrites prose it does not own: its own
+    paragraph, or, inside the preserving `lf-shell` wrapper, the wrapper's."""
     add_test_widget(tmp_path / ".leaf", "lf-stateful", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
     declarations = json.loads(registry_path.read_text())
@@ -2863,124 +2862,6 @@ def _author_stateful_verbatim_widget(tmp_path):
             "record": {"kind": "value", "attr": "agent"},
         },
     }
-    registry_path.write_text(json.dumps(declarations, indent=2))
-    (tmp_path / ".leaf" / "widgets" / "lf-stateful.js").write_text(
-        'import { keepsText, once, widgetController } from "/runtime/widget-api.js";\n'
-        'customElements.define("lf-stateful", class extends HTMLElement {\n'
-        "  controller = widgetController(this);\n"
-        "  stop;\n"
-        "  connectedCallback() { once(this); this.stop ??= this.controller.subscribe(() => {}); }\n"
-        "  disconnectedCallback() { this.stop?.(); this.stop = null; }\n"
-        "  renderState(state) {\n"
-        '    if (state.change.value === "corrupt" || state.status.value === "corrupt")\n'
-        '      keepsText(this.querySelector("p"), "State replaced unrelated prose.");\n'
-        "  }\n"
-        "});\n"
-    )
-
-
-@pytest.mark.parametrize("kind", ["action", "report"])
-def test_action_and_report_state_do_not_excuse_unrelated_verbatim_corruption(
-    browser, serve, tmp_path, monkeypatch, kind
-):
-    monkeypatch.chdir(tmp_path)
-    _author_stateful_verbatim_widget(tmp_path)
-    url = serve(
-        leaf_page(
-            f"verbatim after {kind}",
-            '<h1>Stateful prose</h1><lf-stateful id="owner">'
-            "<p>Authored prose must remain.</p></lf-stateful>",
-        ),
-        packages=(*EXAMPLE_PACKAGES, "./.leaf"),
-    )
-    command = {
-        "kind": kind,
-        "author": "user" if kind == "action" else "agent",
-        "revision": 1,
-        "widget": "owner",
-        "action": "change" if kind == "action" else "status",
-        "detail": {"value": "corrupt"},
-    }
-    if kind == "report":
-        command["agent"] = "worker"
-    append_command(serve.page_dir, command)
-
-    failures = render_gate_model.render_version(browser, url).failures
-
-    dishonest = [failure for failure in failures if "x-verbatim" in failure]
-    assert len(dishonest) == 2, failures
-    assert all("owner" in failure for failure in dishonest)
-
-
-def test_projected_rewrite_retirement_and_undo_are_honest_verbatim_changes(
-    browser, serve
-):
-    page = leaf_page(
-        "projected verbatim prose",
-        """
-<h1>Projected prose</h1>
-<lf-draft id="edited"><pre>Authored draft.</pre></lf-draft>
-<lf-suggestion id="retired">
-  <lf-old><lf-draft id="retired-draft"><pre>Retired draft.</pre></lf-draft></lf-old>
-  <lf-new><p>Accepted replacement.</p></lf-new>
-</lf-suggestion>
-<lf-suggestion id="undone">
-  <lf-old><lf-draft id="undone-draft"><pre>Restored draft.</pre></lf-draft></lf-old>
-  <lf-new><p>Withdrawn replacement.</p></lf-new>
-</lf-suggestion>
-""",
-    )
-    url = serve(page)
-    append_command(
-        serve.page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "edited",
-            "action": "edit",
-            "detail": {"value": "User's standing draft."},
-        },
-    )
-    append_command(
-        serve.page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "retired",
-            "action": "decide",
-            "detail": {"outcome": "accept"},
-        },
-    )
-    withdrawn = append_command(
-        serve.page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "undone",
-            "action": "decide",
-            "detail": {"outcome": "accept"},
-        },
-    )
-    append_carried_log_record(
-        serve.page_dir,
-        {"kind": "undo", "author": "user", "undoes": withdrawn["id"]},
-    )
-
-    failures = render_gate_model.render_version(browser, url).failures
-
-    assert not [failure for failure in failures if "x-verbatim" in failure], failures
-
-
-def test_a_child_action_does_not_excuse_its_verbatim_wrappers_prose(
-    browser, serve, tmp_path, monkeypatch
-):
-    monkeypatch.chdir(tmp_path)
-    _author_stateful_verbatim_widget(tmp_path)
-    registry_path = tmp_path / ".leaf" / "registry.json"
-    declarations = json.loads(registry_path.read_text())
     declarations["lf-shell"] = {
         "description": "A preserving wrapper around a stateful child.",
         "type": "object",
@@ -3007,39 +2888,83 @@ def test_a_child_action_does_not_excuse_its_verbatim_wrappers_prose(
         "  connectedCallback() { once(this); this.stop ??= this.controller.subscribe(() => {}); }\n"
         "  disconnectedCallback() { this.stop?.(); this.stop = null; }\n"
         "  renderState(state) {\n"
-        '    if (state.change.value === "corrupt")\n'
-        '      keepsText(this.closest("lf-shell").querySelector(":scope > p"), '
-        '"Child state replaced wrapper prose.");\n'
+        '    if (state.change.value === "corrupt" || state.status.value === "corrupt")\n'
+        '      keepsText(this.closest("lf-shell")?.querySelector(":scope > p")'
+        ' ?? this.querySelector("p"), "State replaced unrelated prose.");\n'
         "  }\n"
         "});\n"
     )
+
+
+def test_widget_state_excuses_only_the_verbatim_prose_it_projects(
+    browser, serve, tmp_path, monkeypatch
+):
+    """A user's action and an agent's report each excuse the change their widget's
+    own state projects and nothing else: a widget whose state rewrites its unrelated
+    prose is reported, and so is a child whose action rewrites its preserving
+    wrapper's prose. Beside them, the changes projections honestly make (a draft's
+    standing rewrite, a suggestion accepted and so retired, and one accepted then
+    withdrawn) are not."""
+    monkeypatch.chdir(tmp_path)
+    _author_stateful_verbatim_widget(tmp_path)
     url = serve(
         leaf_page(
-            "parent prose after child action",
-            '<h1>Nested state</h1><lf-shell id="shell">'
-            "<p>Wrapper prose must remain.</p>"
-            '<lf-stateful id="child"><p>Child prose.</p></lf-stateful>'
-            "</lf-shell>",
+            "verbatim after state",
+            """
+<h1>Stateful prose</h1>
+<lf-stateful id="acted"><p>Authored prose must remain.</p></lf-stateful>
+<lf-stateful id="reported"><p>Reported prose must remain.</p></lf-stateful>
+<lf-shell id="shell"><p>Wrapper prose must remain.</p>
+  <lf-stateful id="child"><p>Child prose.</p></lf-stateful></lf-shell>
+<lf-draft id="edited"><pre>Authored draft.</pre></lf-draft>
+<lf-suggestion id="retired">
+  <lf-old><lf-draft id="retired-draft"><pre>Retired draft.</pre></lf-draft></lf-old>
+  <lf-new><p>Accepted replacement.</p></lf-new>
+</lf-suggestion>
+<lf-suggestion id="undone">
+  <lf-old><lf-draft id="undone-draft"><pre>Restored draft.</pre></lf-draft></lf-old>
+  <lf-new><p>Withdrawn replacement.</p></lf-new>
+</lf-suggestion>
+""",
         ),
         packages=(*EXAMPLE_PACKAGES, "./.leaf"),
     )
+    user = {"kind": "action", "author": "user", "revision": 1}
+    corrupt = {"action": "change", "detail": {"value": "corrupt"}}
+    for widget in ("acted", "child"):
+        append_command(serve.page_dir, user | corrupt | {"widget": widget})
     append_command(
         serve.page_dir,
         {
-            "kind": "action",
-            "author": "user",
+            "kind": "report",
+            "author": "agent",
+            "agent": "worker",
             "revision": 1,
-            "widget": "child",
-            "action": "change",
+            "widget": "reported",
+            "action": "status",
             "detail": {"value": "corrupt"},
         },
+    )
+    edit = {"action": "edit", "detail": {"value": "User's standing draft."}}
+    append_command(serve.page_dir, user | edit | {"widget": "edited"})
+    accept = {"action": "decide", "detail": {"outcome": "accept"}}
+    append_command(serve.page_dir, user | accept | {"widget": "retired"})
+    withdrawn = append_command(serve.page_dir, user | accept | {"widget": "undone"})
+    append_carried_log_record(
+        serve.page_dir,
+        {"kind": "undo", "author": "user", "undoes": withdrawn["id"]},
     )
 
     failures = render_gate_model.render_version(browser, url).failures
 
     dishonest = [failure for failure in failures if "x-verbatim" in failure]
-    assert len(dishonest) == 2, failures
-    assert all("<lf-shell id='shell'>" in failure for failure in dishonest), dishonest
+    assert len(dishonest) == 6, failures
+    for owner in (
+        "<lf-stateful id='acted'>",
+        "<lf-stateful id='reported'>",
+        "<lf-shell id='shell'>",
+    ):
+        assert sum(owner in failure for failure in dishonest) == 2, dishonest
 
 
 def test_verbatim_wrapper_owns_prose_and_order_but_not_nested_widget_rendering(

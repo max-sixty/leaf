@@ -7,7 +7,8 @@
    asynchronous presentation. */
 import { reportPageError } from "./layer-client.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
-import { render, replaceChildren } from "./dom-children.js";
+import { render } from "../vendor/browser-runtime.js";
+import { replaceChildren } from "./dom-children.js";
 
 const initialized = new WeakSet();
 

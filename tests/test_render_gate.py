@@ -3692,16 +3692,18 @@ def test_reader_state_observes_behavior_without_freezing_the_dom(browser, serve)
 # its `data-lf-count` (banner.js). Its words are no door: Playwright's `:text-matches`
 # matches the smallest element holding them, the label inside the control.
 OPEN_THREADS = '.lf-threads-toggle[data-lf-count]:not([data-lf-count="0"])'
-# Where the focus stands in a thread the page shows, by the runtime's own selectors
+# Where the focus stands in a thread, by the runtime's own selectors
 # (thread/selectors.js): "reply" in that thread's reply field, "card" elsewhere in it,
-# or null outside every shown thread.
+# or null outside every thread or where the user sees none of the focused node
+# (`seenRect`, geometry.js, which counts the viewport and every clip).
 IN_THREAD = """async () => {
   const {THREAD, SAY_BOX} = await window.__lfRuntimeImport('/runtime/thread/selectors.js');
   const {focused} = await window.__lfRuntimeImport('/runtime/focus.js');
   const {closestAcross} = await window.__lfRuntimeImport('/runtime/passages.js');
+  const {seenRect} = await window.__lfRuntimeImport('/runtime/geometry.js');
   const at = focused();
   const thread = at && closestAcross(at, THREAD);
-  if (!thread?.checkVisibility({visibilityProperty: true})) return null;
+  if (!thread || !seenRect(at, new Map())) return null;
   return [...thread.querySelectorAll(SAY_BOX)].includes(at) ? 'reply' : 'card';
 }"""
 SURFACES = {

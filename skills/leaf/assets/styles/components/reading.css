@@ -138,11 +138,13 @@
    automatic table layout distributes that width among the columns. Wider content
    still scrolls. The claim stays on each table, so a nested table asks its own frame. */
 @property --lf-fills-frame { syntax: "<integer>"; inherits: false; initial-value: 0; }
-:where(:root, .lf-thread-transcript) table:where([data-lf-space] *) { --lf-fills-frame: 1; }
+:where(:root, .lf-thread-transcript) table:where([data-lf-space], [data-lf-space] *) { --lf-fills-frame: 1; }
 /* A table granted room of its own (`data-width`) fills only a drawn frame: elsewhere it
    keeps its columns' natural width within that room rather than spreading the room
-   between them, and layouts.css sizes its box to them. */
-:where(:root, .lf-thread-transcript) table:where([data-lf-space]:not([data-lf-space="column"])) {
+   between them, and layouts.css sizes its box to them. A list item or a description
+   is narrower than the column that placement measures from, so a table in one fills
+   its room as before. */
+:where(:root, .lf-thread-transcript) table:where([data-lf-space]:not([data-lf-space="column"])):where(:not(:is(li, dd) table)) {
   --lf-fills-frame: 0; }
 @container style(--lf-block-frame: 1) {
   :where(:root, .lf-thread-transcript) table { --lf-fills-frame: 1; }

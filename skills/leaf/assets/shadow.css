@@ -603,10 +603,10 @@ button.lf-thread-notice[data-lf-focus] {
   font-variant-numeric: tabular-nums;
 }
 @property --lf-fills-frame { syntax: "<integer>"; inherits: false; initial-value: 0; }
-:where(:root, .lf-thread-transcript) table:where([data-lf-space] *) {
+:where(:root, .lf-thread-transcript) table:where([data-lf-space], [data-lf-space] *) {
   --lf-fills-frame: 1;
 }
-:where(:root, .lf-thread-transcript) table:where([data-lf-space]:not([data-lf-space=column])) {
+:where(:root, .lf-thread-transcript) table:where([data-lf-space]:not([data-lf-space=column])):where(:not(:is(li, dd) table)) {
   --lf-fills-frame: 0;
 }
 @container style(--lf-block-frame: 1) {

@@ -284,7 +284,10 @@
      * (reading.css), so the caption is held to the widest the box can be
      * (`--lf-table-span`), which is the box's width wherever the columns scroll. Only
      * where the room is the page's: in a frame or inside another breakout, the table
-     * fills or starts at its holder as every table there does. Margins, percentages and
+     * fills or starts at its holder as every table there does. A list item or a
+     * description is narrower than the column the caption's bound and the right-to-left
+     * sidebar translation measure from (`--lf-width`), so a table in one keeps the
+     * allocation as its box and fills it. Margins, percentages and
      * translation place it the same in every engine. Two layouts this replaced did not:
      * aligning the anonymous table grid inside a box the allocation's width (Firefox and
      * WebKit left it at the box's left edge), and translating the table's parts (column
@@ -292,7 +295,7 @@
      * set its head and body apart. */
     @container not (style(--lf-room: 100%) or style(--lf-block-frame: 1)) {
       main.layout-column table:is([data-lf-space="wide"], [data-lf-space="available"]):not(
-        :is([data-lf-space="wide"], [data-lf-space="available"]) table) {
+        :is([data-lf-space="wide"], [data-lf-space="available"], li, dd) table) {
         contain: none;
         container-type: scroll-state;
         width: max-content;
@@ -304,29 +307,29 @@
           var(--lf-width) + 2 * min(var(--lf-free-l), var(--lf-free-r)));
       }
       main.layout-column table[data-lf-space="wide"]:not(
-        :is([data-lf-space="wide"], [data-lf-space="available"]) table) {
+        :is([data-lf-space="wide"], [data-lf-space="available"], li, dd) table) {
         --lf-table-span: min(100cqi, var(--wide),
           var(--lf-width) + 2 * min(var(--lf-free-l), var(--lf-free-r)));
       }
       main.layout-column[data-lf-margin~="sidebar"]
         table:is([data-lf-space="wide"], [data-lf-space="available"]):not(
-        :is([data-lf-space="wide"], [data-lf-space="available"]) table) {
+        :is([data-lf-space="wide"], [data-lf-space="available"], li, dd) table) {
         max-width: calc(100% + var(--lf-grow-r));
         margin-inline-start: 0;
         translate: none;
         --lf-table-span: var(--lf-width);
       }
       main.layout-column table:is([data-lf-space="wide"], [data-lf-space="available"]):dir(rtl):not(
-        :is([data-lf-space="wide"], [data-lf-space="available"]) table) {
+        :is([data-lf-space="wide"], [data-lf-space="available"], li, dd) table) {
         translate: 50% 0;
       }
       main.layout-column[data-lf-margin~="sidebar"]
         table:is([data-lf-space="wide"], [data-lf-space="available"]):dir(rtl):not(
-        :is([data-lf-space="wide"], [data-lf-space="available"]) table) {
+        :is([data-lf-space="wide"], [data-lf-space="available"], li, dd) table) {
         translate: calc(100% - var(--lf-width)) 0;
       }
-      main.layout-column table:is([data-lf-space="wide"], [data-lf-space="available"])
-        > caption {
+      main.layout-column table:is([data-lf-space="wide"], [data-lf-space="available"]):not(
+        :is([data-lf-space="wide"], [data-lf-space="available"], li, dd) table) > caption {
         max-inline-size: var(--lf-table-span, 100cqi);
       }
     }

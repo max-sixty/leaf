@@ -208,16 +208,16 @@ class ThreadListView extends RetainedFace {
 
   // The one rule for every card the next reading drops, the view's exclusions above and
   // the log's withdrawals alike (`#withWithdrawals`). `thread` is what the card last
-  // drew, null for an allocation already withdrawn, which takes no gesture of the
-  // user's but Dismiss. A withdrawn root keeps nothing for its words (`words: false`):
-  // its controls disconnect with it, so only news holds its room.
+  // drew, null once its allocation stands committed as withdrawn, when no gesture of
+  // the user's but Dismiss reaches it. A withdrawn root keeps nothing for its words
+  // (`words: false`): its controls disconnect with it, so only news holds its room.
   #keeping(key, intent, thread, { words = true } = {}) {
     const row = this.#rows.find((row) => row.key === key);
     const model = row?.kind === "thread" ? this.#views.get(key).model : null;
     if (
       this.#intent !== intent ||
       !row?.node?.isConnected ||
-      (model && (!model.visible || model.folding))
+      (row.kind !== "withdrawn" && (!model?.visible || model.folding))
     )
       return null;
     const seen =
@@ -232,11 +232,9 @@ class ThreadListView extends RetainedFace {
     // A turn of the user's own on its way, a reply or a rewrite, makes a card news kept
     // theirs: the turn takes the card out as any turn of theirs does (thread-card.js,
     // `#speak`). A reaction, a move or words not yet sent leave it held for the news.
-    const news =
-      !model ||
-      (model.kept
-        ? model.kept === "news" && !turnOnItsWay(thread)
-        : !gesturedOn(thread));
+    const news = model?.kept
+      ? model.kept === "news" && !turnOnItsWay(thread)
+      : !thread || !gesturedOn(thread);
     if (news && (seen || draft)) return "news";
     return draft ? "draft" : null;
   }

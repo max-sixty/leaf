@@ -523,6 +523,63 @@ test("each contribution publication validates its current activation capability"
   target.remove();
 });
 
+test("a margin entry refuses what its grammar and its owner cannot state", async () => {
+  const { registerContribution } =
+    await import("../../skills/leaf/assets/runtime/contributions.js");
+  const { contributionEntry } =
+    await import("../../skills/leaf/assets/runtime/contribution-controls.js");
+  const entry = { key: "cancel", icon: "cross", label: "Cancel" };
+  // Every axis has a default, so an axis named wrongly, the way a rename of this
+  // vocabulary reaches a call site, would otherwise state nothing and say nothing.
+  assert.throws(
+    () => contributionEntry({ ...entry, role: "escape" }),
+    /^TypeError: Unknown contribution entry option: role$/,
+  );
+  // Only the keyboard owner mints a scope projected onto shared controls.
+  assert.throws(
+    () => contributionEntry({ ...entry, scope: { scope: { title: "Counterfeit" } } }),
+    /^TypeError: A margin entry scope needs a commandScope capability$/,
+  );
+  const scope = commandScope("Status command", [
+    {
+      id: "fixture.status",
+      keys: ["x"],
+      title: "Act from status",
+      line: "act from status",
+      run: () => {},
+    },
+  ]);
+  assert.throws(
+    () =>
+      contributionEntry({
+        key: "sent",
+        icon: "sent",
+        label: "Sent",
+        behavior: "status",
+        scope,
+      }),
+    /^TypeError: A status contribution entry cannot have a command scope$/,
+  );
+  // One owner plus one entry key identifies one activation source.
+  const target = document.createElement("section");
+  document.body.append(target);
+  assert.throws(
+    () =>
+      registerContribution({
+        key: "ambiguous",
+        target,
+        read: () => ({
+          entries: ["First", "Second"].map((label) =>
+            contributionEntry({ key: "same", icon: "dot", label }),
+          ),
+        }),
+        activate: () => {},
+      }),
+    /^TypeError: Duplicate contribution entry key "same" in contribution "ambiguous"$/,
+  );
+  target.remove();
+});
+
 test("context aliases project the selected source route's availability", async () => {
   const { commandEntries, commandPresentations, bindings, live } =
     await import("../../skills/leaf/assets/runtime/keyboard/bindings.js");

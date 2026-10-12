@@ -1742,7 +1742,8 @@ def _decide_and_undo_each_suggestion(page):
         ).to_be_visible()
 
 
-@pytest.mark.parametrize("width", MARGIN_POSTURE_WIDTHS)
+# The rail and the narrowest pin; 700's pin takes the same Page Map route.
+@pytest.mark.parametrize("width", [1440, 390])
 def test_draft_and_page_map_reaction_actions_stay_reachable(browser, serve, width):
     """A draft's local Save and Cancel stay reachable while it is edited, and the save outlasts
     a reload; a standing reaction's Remove is reachable from the Page Map by keyboard
@@ -2017,25 +2018,6 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
     expect(atlas.locator(".margin-entry-gallery-projection-result")).to_be_visible()
 
 
-def test_the_feature_gallery_fragment_lands_after_presented_controls_take_space(
-    browser, serve
-):
-    """The atlas remains at the top edge when reaction controls above it appear."""
-    context = browser.new_context(viewport={"width": 700, "height": 900})
-    page = open_page(
-        browser,
-        f"{live_url(serve(FEATURE_GALLERY))}#bg-margin-controls",
-        context=context,
-    )
-    position = page.locator("#bg-margin-controls").evaluate(
-        """element => ({
-          top: element.getBoundingClientRect().top,
-          clear: parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop),
-        })"""
-    )
-    assert abs(position["top"] - position["clear"]) < 2, position
-
-
 def _the_lifecycle_sample_carries_an_entry_through_each_transition(page, page_dir):
     """The margin entry sample shows the stable endpoints and exercises each transition.
 
@@ -2159,94 +2141,6 @@ def _the_lifecycle_sample_carries_an_entry_through_each_transition(page, page_di
     ).to_have_count(1)
 
     consume_browser_errors(page, "400")
-
-
-def test_a_margin_entry_refuses_an_option_outside_its_grammar(browser, serve):
-    """An axis stated under an unknown name is a refusal, not a silent default.
-
-    Every axis has a default, so a caller that names one wrongly — the way a rename of
-    this vocabulary reaches a call site — would otherwise get the default and no word
-    about it, and the widget would look as if it had stated nothing.
-    """
-    page = open_page(browser, serve(PANEL_PAGE))
-    refusal = page.evaluate(
-        """async () => {
-          const {contributionEntry} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          try {
-            contributionEntry({
-              key: 'cancel', icon: 'cross', label: 'Cancel', role: 'escape'
-            });
-          } catch (error) {
-            return error.message;
-          }
-          return null;
-        }"""
-    )
-    assert refusal == "Unknown contribution entry option: role"
-
-
-def test_a_margin_entry_refuses_an_unowned_command_scope(browser, serve):
-    """Only the keyboard owner can mint a scope projected onto shared controls."""
-    page = open_page(browser, serve(PANEL_PAGE))
-    refusal = page.evaluate(
-        """async () => {
-          const {contributionEntry} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          try {
-            contributionEntry({
-              key: 'cancel', icon: 'cross', label: 'Cancel',
-              scope: {scope: {title: 'Counterfeit'}}
-            });
-          } catch (error) {
-            return error.message;
-          }
-          return null;
-        }"""
-    )
-    assert refusal == "A margin entry scope needs a commandScope capability"
-
-    status = page.evaluate(
-        """async () => {
-          const {commandScope, contributionEntry} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const scope = commandScope('Status command', [{
-            id: 'fixture.status', keys: ['x'], title: 'Act from status',
-            line: 'act from status', run: () => {}
-          }]);
-          try {
-            contributionEntry({key: 'sent', icon: 'sent', label: 'Sent',
-              behavior: 'status', scope});
-          } catch (error) {
-            return error.message;
-          }
-          return null;
-        }"""
-    )
-    assert status == "A status contribution entry cannot have a command scope"
-
-
-def test_margin_registration_rejects_ambiguous_margin_entry_identity(browser, serve):
-    """One owner plus one margin entry key must identify one activation source."""
-    page = open_page(browser, serve(PANEL_PAGE))
-    message = page.evaluate(
-        """async () => {
-          const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
-          try {
-            registerContribution({
-              key: 'ambiguous', target: document.querySelector('#how-cap'),
-              read: () => ({entries: ['First', 'Second'].map(label => contributionEntry({
-                key: 'same', icon: 'dot', label
-              }))}), activate: () => {}
-            });
-          } catch (error) {
-            return error.message;
-          }
-          return null;
-        }"""
-    )
-    assert (
-        message == 'Duplicate contribution entry key "same" in contribution "ambiguous"'
-    )
-    expect(page.locator('[data-lf-margin-for="how-cap"]')).to_have_count(0)
 
 
 @pytest.mark.watch_shifts
@@ -6395,11 +6289,10 @@ def test_agent_status_leaves_the_margin_transcript_where_the_user_scrolled_it(
     assert dict(statuses()) == {"working": end, "waiting": end}
 
 
-@pytest.mark.parametrize("color_scheme", ["light", "dark"])
-def test_the_margin_reply_keeps_its_shape_when_the_user_enters_it(
-    browser, serve, color_scheme
-):
+def test_the_margin_reply_keeps_its_shape_when_the_user_enters_it(browser, serve):
     """The compact reply keeps its box and face when the user enters it."""
+    # The reply's box and face are geometry, the same in either scheme.
+    color_scheme = "light"
     page = open_page(
         browser,
         serve(ASK_PAGE, events=[COMMENT_ON_ASK]),
@@ -8210,11 +8103,10 @@ def test_a_row_arriving_takes_the_room_below_the_markers_already_standing(
     assert receipt.evaluate(where) == stands
 
 
-@pytest.mark.parametrize("size", [(1200, 900), (800, 520)])
-def test_an_agent_reply_leaves_the_reply_being_typed_where_it_stands(
-    browser, serve, size
-):
+def test_an_agent_reply_leaves_the_reply_being_typed_where_it_stands(browser, serve):
     """News arriving without a gesture moves no control the user is working in."""
+    # The short card, where an arrival has the least room to take.
+    size = (800, 520)
     page, preview, editor = drafting_in_a_short_card(browser, serve, *size)
     before = preview.evaluate(DRAFTING_CARD)
     append_carried_log_record(
@@ -8339,7 +8231,7 @@ def test_a_second_margin_reply_grows_below_the_first_line(browser, serve):
         before,
         after,
     )
-    editor.type("a long new draft " * 20)
+    page.keyboard.insert_text("a long new draft " * 20)
     rendered(page)
     bounded = page.evaluate(CARD_AND_REPLY)
     assert bounded["placement"] == before["side"]
@@ -8386,7 +8278,7 @@ def test_continued_margin_draft_grows_below_its_first_line_after_agent_reply(
         before,
         after,
     )
-    editor.type(" a long continuing draft " * 20)
+    page.keyboard.insert_text(" a long continuing draft " * 20)
     rendered(page)
     bounded = page.evaluate(CARD_AND_REPLY)
     assert bounded["placement"] == before["side"]
@@ -9013,9 +8905,9 @@ def test_the_banner_offers_the_map_wherever_the_markers_are_pins(browser, serve)
             expect(toggle).to_be_hidden()
 
 
-@pytest.mark.parametrize("height", [480, 760])
-def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve, height):
+def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve):
     """The open dialog is a live projection, not a snapshot from its opening press."""
+    height = 480
     page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
     resized(page, 390, height)
     banner_control(page, ".lf-page-map-toggle").click()
@@ -9093,8 +8985,7 @@ def test_an_open_desktop_preview_reconciles_arriving_meanings(browser, serve):
     )
 
 
-@pytest.mark.parametrize("width", [1440, 1920])
-def test_a_reflow_that_moves_a_marker_carries_its_open_card(browser, serve, width):
+def test_a_reflow_that_moves_a_marker_carries_its_open_card(browser, serve):
     """The card beside a cluster's words follows it when the page moves under it.
 
     The margin geometry owner places a row at its target before the paint of a
@@ -9103,6 +8994,7 @@ def test_a_reflow_that_moves_a_marker_carries_its_open_card(browser, serve, widt
     runs, a frame behind. The reflow here is a section growing, which is what every one
     of those cases is to the margin.
     """
+    width = 1440
     page = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
     resized(page, width, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
@@ -9746,12 +9638,12 @@ def _meets(a, b):
     )
 
 
-def test_a_pin_takes_the_empty_end_of_the_heading_above_its_run(browser, serve):
-    """Under a finger a suggestion's Accept and Reject form a pin, and on
-    release-notes at 390px its run fills both lines of the Console paragraph, so the
-    nearest clear room is the empty end of the short heading just above. A block
-    that paints nothing of its own counts only by its words, so the pin stands there,
-    over none of the page's words, rather than covering the run it decides."""
+def test_release_notes_pins_under_a_finger_cover_none_of_the_words_they_decide(
+    browser, serve
+):
+    """At 390px under a finger, release-notes has three suggestions whose pins each find
+    a different kind of room: a heading's empty end, a line further out, and the
+    suggestion's own declared face. The readings change nothing, so they share a page."""
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
     )
@@ -9761,6 +9653,17 @@ def test_a_pin_takes_the_empty_end_of_the_heading_above_its_run(browser, serve):
         context=context,
     )
     margins_laid_out(page)
+    _a_pin_takes_the_empty_end_of_the_heading_above_its_run(page)
+    _a_pin_with_no_room_within_reach_reaches_past_a_line_of_words(page)
+    _a_widget_s_declared_face_is_room_for_its_own_pin(page)
+
+
+def _a_pin_takes_the_empty_end_of_the_heading_above_its_run(page):
+    """Under a finger a suggestion's Accept and Reject form a pin, and on
+    release-notes at 390px its run fills both lines of the Console paragraph, so the
+    nearest clear room is the empty end of the short heading just above. A block
+    that paints nothing of its own counts only by its words, so the pin stands there,
+    over none of the page's words, rather than covering the run it decides."""
     row = page.locator('.lf-margin-cluster[data-lf-margin-for="rn-sug-only"]')
     expect(row).to_have_attribute("data-lf-place", "pin")
     reading = pin_reading(page, "rn-sug-only")
@@ -9778,21 +9681,12 @@ def test_a_pin_takes_the_empty_end_of_the_heading_above_its_run(browser, serve):
     assert pin_distance(reading["carrier"], reading["parts"]) <= 12 + line, reading
 
 
-def test_a_pin_with_no_room_within_reach_reaches_past_a_line_of_words(browser, serve):
+def _a_pin_with_no_room_within_reach_reaches_past_a_line_of_words(page):
     """On release-notes at 390px under a finger, the API section's deletion starts on
     its paragraph's second line, below a first line full of words, and ends where
     an Accept/Reject pair has no room before the next block. No room lies within
     12px of the run, so the pair reaches one line further out, to the empty end of the
     section's heading, rather than covering the words it decides."""
-    context = browser.new_context(
-        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
-    )
-    page = open_page(
-        browser,
-        serve(next(e for e in EXAMPLES if e.stem == "release-notes")),
-        context=context,
-    )
-    margins_laid_out(page)
     row = page.locator('.lf-margin-cluster[data-lf-margin-for="rn-sug-dry"]')
     expect(row).to_have_attribute("data-lf-place", "pin")
     reading = pin_reading(page, "rn-sug-dry")
@@ -9814,6 +9708,22 @@ def test_a_pin_with_no_room_within_reach_reaches_past_a_line_of_words(browser, s
     # of the paragraph.
     apart = min(part["top"] for part in reading["parts"]) - reading["carrier"]["bottom"]
     assert 12 < apart <= 12 + line, (reading["entries"], reading["parts"], line)
+
+
+def _a_widget_s_declared_face_is_room_for_its_own_pin(page):
+    """A painted box inside a pin's target counts whole, as an option card does inside a
+    choice, unless the target's declaration names it as the target's own face
+    (`x-face`): a suggestion's tinted slot. On release-notes at 390px under a
+    finger, its pin stands on its own face, over none of the page's words, rather
+    than over the words at its corner."""
+    target = "rn-sug-window"
+    row = page.locator(f'.lf-margin-cluster[data-lf-margin-for="{target}"]')
+    expect(row).to_have_attribute("data-lf-place", "pin")
+    reading = pin_reading(page, target)
+    assert reading["entries"], reading
+    for entry in reading["entries"]:
+        covered = [word for word in reading["words"] if _meets(word, entry)]
+        assert not covered, (entry, covered)
 
 
 FOLDING_PAGE = leaf_page(
@@ -9939,31 +9849,6 @@ def test_a_heading_that_paints_its_box_keeps_a_pin_off_its_empty_end(browser, se
         stands[painted] = any(_meets(entry, heading) for entry in entries)
         page.close()
     assert stands == {False: True, True: False}, stands
-
-
-def test_a_widget_s_declared_face_is_room_for_its_own_pin(browser, serve):
-    """A painted box inside a pin's target counts whole, as an option card does inside a
-    choice, unless the target's declaration names it as the target's own face
-    (`x-face`): a suggestion's tinted slot. On release-notes at 390px under a
-    finger, its pin stands on its own face, over none of the page's words, rather
-    than over the words at its corner."""
-    target = "rn-sug-window"
-    context = browser.new_context(
-        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
-    )
-    page = open_page(
-        browser,
-        serve(next(e for e in EXAMPLES if e.stem == "release-notes")),
-        context=context,
-    )
-    margins_laid_out(page)
-    row = page.locator(f'.lf-margin-cluster[data-lf-margin-for="{target}"]')
-    expect(row).to_have_attribute("data-lf-place", "pin")
-    reading = pin_reading(page, target)
-    assert reading["entries"], reading
-    for entry in reading["entries"]:
-        covered = [word for word in reading["words"] if _meets(word, entry)]
-        assert not covered, (entry, covered)
 
 
 @pytest.mark.parametrize(

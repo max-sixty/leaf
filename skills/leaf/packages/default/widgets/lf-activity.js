@@ -42,6 +42,8 @@ import {
   addressableWord,
   ago,
   anchorLabel,
+  elementById,
+  fragmentTarget,
   layerFact,
   loadMarkdown,
   markdownReady,
@@ -69,7 +71,7 @@ const NAME = 60;
 
 // Where something happened, as the chrome names it, else its word.
 function nameOf(id) {
-  const element = id ? document.getElementById(id) : null;
+  const element = id ? elementById(id) : null;
   if (!element) return id || "the page";
   return (
     excerptWords(addressableLabel(element), NAME) || `the ${addressableWord(element)}`
@@ -299,10 +301,10 @@ export default class extends HTMLElement {
         restoreFocus?.(item.querySelector(".lf-activity-target"));
         seat.key = key;
       }
-      // Holding a drawing never holds a navigation capability. The initial and
-      // live producers consult the same current-document destination rule.
+      // Holding a drawing never holds a navigation capability: the link stands only
+      // while the current document holds the destination its fragment names.
       const link = item.querySelector("a.lf-activity-target");
-      if (link) refreshActivityTarget(link, row, keeps);
+      if (link) refreshActivityTarget(link, row, keeps, fragmentTarget);
       // Read synchronously, so the shared clock repaints this reading when it turns.
       const time = item.querySelector(".lf-activity-time");
       keepsText(time, ago(row.ts));

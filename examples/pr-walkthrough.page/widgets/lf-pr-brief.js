@@ -14,20 +14,18 @@ import {
   repeat,
   unsafeHTML,
   watchData,
-  watchOwner,
+  whileConnected,
 } from "/runtime/widget-api.js";
 
 export default class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
-    watchOwner(this, {
-      connect: () => {
-        this.paint = clocked(this, (snapshot) => this.show(snapshot));
-      },
-      disconnect: () => {
+    whileConnected(this, () => {
+      this.paint = clocked(this, (snapshot) => this.show(snapshot));
+      return () => {
         this.paint.stop();
         this.paint = null;
-      },
+      };
     });
     watchData(this, "request", async (snapshot) => {
       const paint = this.paint;

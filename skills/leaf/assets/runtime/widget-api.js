@@ -6,29 +6,25 @@
    over HTTP from the served page, as `/runtime/widget-api.js`. What only the render
    gate's probes read belongs in check-api.js instead. */
 export {
-  LitElement,
   html,
-  svg,
-  mathml,
-  noChange,
   nothing,
+  render,
   classMap,
+  createRef,
   guard,
-  ifDefined,
   keyed,
   live,
-  createRef,
   ref,
   repeat,
   styleMap,
   unsafeHTML,
-  when,
 } from "../vendor/browser-runtime.js";
 export { move } from "./dom-move.js";
 export { iconElement, iconTemplate } from "./icons.js";
 export { widgetController } from "./widget-controller.js";
+export { quoted } from "./widget-descriptors.js";
 export { initialRender } from "./initial-render.js";
-export { watchOwner, whileConnected, frameFor } from "./arrivals.js";
+export { whileConnected, frameFor } from "./arrivals.js";
 // The rank a position record carries for a unit dropped at an index in a container.
 export { rankAt } from "./projection/model.js";
 export async function mountSample(frame, options) {
@@ -37,11 +33,10 @@ export async function mountSample(frame, options) {
 }
 export { dressSamples, wear } from "./dress.js";
 
-export {
-  addressableLabel,
-  addressableWord,
-  projectedDatum,
-} from "./anchor-resolution.js";
+// `fragmentTarget(hash)` is the page element a URL fragment names, read as Leaf's own
+// arrivals and links read it.
+export { fragmentTarget, projectedDatum } from "./anchor-resolution.js";
+export { addressableLabel, addressableWord } from "./addressable-names.js";
 // The name Threads, the margin, and reactions give a comment's anchor.
 export { anchorLabel } from "./thread/messages.js";
 // The page's `main`, or the body of the message whose markup a node stands in.
@@ -52,7 +47,7 @@ export { indicate } from "./indication.js";
 export { landingInsets, shownParts, shownWindow } from "./geometry.js";
 // Holding the user's place in a scroller whose contents a widget re-renders.
 export { placeKeeper } from "./user-place.js";
-export { inUi, under } from "./shadow.js";
+export { under } from "./shadow.js";
 // Putting the user on an element, saying what moved them there; holding their place,
 // caret included, across a move or re-render of the node they stand on, by key in a
 // list; where they stand and whether it is in a scope; recording where a layer opened
@@ -65,7 +60,6 @@ export {
   focused,
   handBack,
   holdFocus,
-  layerLanding,
   openLayer,
   openerOf,
   rove,
@@ -74,7 +68,7 @@ export {
 } from "./focus.js";
 export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
 // Making an element's children a list, moving only what is out of place.
-export { render, setChildren, setRenderedChildren } from "./dom-children.js";
+export { setChildren, setRenderedChildren } from "./dom-children.js";
 export { readQuestions, watchQuestions } from "./questions/model.js";
 export { comparisonChanges, watchComparison } from "./version.js";
 export { questionWords } from "./questions/answer.js";
@@ -111,7 +105,8 @@ export { wireInput } from "./application.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
 export { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
 export { HOLDS_WORD } from "./held-word.js";
-export { PRESS, labelOf } from "./keyboard/bindings.js";
+// `rowArrows(node)` is the `[back, ahead]` arrow pair along a row, in its text direction.
+export { PRESS, labelOf, rowArrows } from "./keyboard/bindings.js";
 export {
   commandScope,
   commandsOn,
@@ -119,7 +114,6 @@ export {
   paintKeys,
   saying,
 } from "./keyboard/scopes.js";
-export { repaint } from "./repaint.js";
 export {
   afterScript,
   cancelRender,
@@ -147,7 +141,6 @@ export {
   markdownWords,
   markdownSourceOffset,
   paintMarkdown,
-  renderInlineMarkdown,
   renderMarkdown,
 } from "./markdown.js";
 export { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
@@ -158,7 +151,7 @@ export {
   describeDifference,
   differenceKind,
 } from "./image-difference.js";
-export { pageScroller, scrollLimit } from "./scrolling.js";
+export { atScrollEnd, pageScroller, scrollLimit } from "./scrolling.js";
 export { scrollIntoReadingBand, scrollIntoView } from "./landing-scroll.js";
 // The user's place as a landmark, and the history entries a widget adds.
 export { capturePlace, restorePlace } from "./reading-place.js";
@@ -166,11 +159,9 @@ export { claimTraversals, pushEntry, replaceEntry } from "./history.js";
 export { removeRuntimeRootStyle, setRuntimeRootStyle } from "./root-state.js";
 export {
   compoundReadingRegionId,
-  effectiveScroller,
   preserveReadingRegions,
   readingPosture,
   readingRegion,
-  readingRegionFor,
   registerReadingRegion,
   scrollerFor,
   watchReadingRegionTransitions,
@@ -201,16 +192,13 @@ export {
 } from "./motion.js";
 // `afterPresentation` is the package's whole route past presentation: it waits and
 // declares the arrival in one call, so a widget cannot defer without the page knowing.
-export {
-  PAGE_INTERFACE,
-  PRESENTATION,
-  afterPresentation,
-  isPagePaint,
-  quietWord,
-} from "./presentation.js";
+export { PAGE_INTERFACE, PRESENTATION, afterPresentation } from "./presentation.js";
+export { isPagePaint, quietWord } from "./declared-words.js";
 export { projectData } from "./application.js";
 export { copyCodeBlock } from "./code-copy.js";
 export { retainUserIntent } from "./user-intent.js";
+// Whether a press is the plain one a control claims: the primary button, no modifier.
+export { plainPress } from "./pointer.js";
 export { onUserInput } from "./focus.js";
 export { keepView, openingView, tabStore } from "./storage.js";
 export {
@@ -234,10 +222,8 @@ export {
   offer,
   offerElement,
   offered,
-  quoted,
   reachedForWords,
   relabel,
-  said,
   reserve,
   searchField,
   selectableOffer,

@@ -150,7 +150,16 @@ def registry_path(registry: dict, path: str):
 def reference_relation_error(
     reference: dict, registry: dict, declarations: dict
 ) -> str | None:
-    """Why one `{via, where}` target relation cannot name a declared widget."""
+    """Why one `{via, where}` or `{tag, key}` target relation cannot name a declared
+    widget. A keyed relation needs its key declared unique on the member, which also
+    supplies the owner it resolves within, so one reference names at most one member."""
+    if member := reference.get("tag"):
+        key = reference["key"]
+        if member not in declarations:
+            return f"names unknown element declaration <{member}>"
+        if key not in declarations[member].get("x-unique", {}):
+            return f"names <{member}> by `{key}`, which <{member}> does not declare in x-unique"
+        return None
     via = reference.get("via")
     if via is None:
         return None
@@ -282,8 +291,7 @@ WRITERS = {"action": "user", "report": "agent"}
 
 def verb_writer(spec: dict) -> str:
     """The side that writes one x-state verb: `agent` where it says so, else `user`.
-    The browser's `adoptRegistry` resolves the same default at intake, and
-    `tests/verb_writer_cases.json` holds both to it."""
+    The browser reads it from `$states` (`stamp_states`)."""
     return spec.get("writer", "user")
 
 
@@ -355,7 +363,8 @@ def state_definition(origin: str, entry: dict, spec: dict) -> dict:
 
     Later declarations may reuse a verb's name with different meaning or types.
     Recorded definitions distinguish those new operations from history, while
-    descriptive schema annotations remain free to change.
+    descriptive schema annotations remain free to change. A verb's `report` flag
+    is not recorded: all it changes is the required `text` in `detail`.
     """
     from copy import deepcopy
 
@@ -365,7 +374,6 @@ def state_definition(origin: str, entry: dict, spec: dict) -> dict:
             "unit": spec["unit"],
             "record": spec.get("record"),
             "creates": spec.get("creates"),
-            "report": spec.get("report", False),
             "detail": _semantic_schema(detail_schema(entry, spec)),
         }
     )
@@ -392,13 +400,19 @@ def same_state_definition(recorded, current) -> bool:
 
 
 def same_state_operation(recorded, current) -> bool:
-    """The same fold destination and construction, independent of payload domain."""
+    """The same fold destination and construction, independent of payload domain.
+
+    The operation is the fields `state_definition` writes now, `detail` aside. A
+    field an earlier Leaf recorded beside them, such as `update` before it was
+    named `report`, is how that version wrote the definition, not part of the
+    operation, so it never retracts a decision. A missing field still fails."""
     return (
         isinstance(recorded, dict)
         and isinstance(current, dict)
-        and same_state_definition(
-            {key: value for key, value in recorded.items() if key != "detail"},
-            {key: value for key, value in current.items() if key != "detail"},
+        and all(
+            key in recorded and same_state_definition(recorded[key], value)
+            for key, value in current.items()
+            if key != "detail"
         )
     )
 
@@ -425,6 +439,28 @@ def retirement_slots(registry: dict) -> dict:
         for owner in entry["x-owners"]:
             slots.setdefault(owner, {}).setdefault(outcome, []).append(tag)
     return slots
+
+
+def stamp_states(registry: dict) -> dict:
+    """Write `$states` into a validated vocabulary: tag → verb → {`writer`, the side
+    `verb_writer` names; `definition`, the operation `state_definition` records on an
+    admitted event}, for every x-state verb.
+
+    Each composition stamps it (`registry.layer.stamp_composition`), so the browser
+    compares an event's recorded operation with this definition, and reads a verb's
+    writer, rather than deriving either a second time."""
+    registry["$states"] = {
+        tag: {
+            verb: {
+                "writer": verb_writer(spec),
+                "definition": state_definition(tag, entry, spec),
+            }
+            for verb, spec in state_specs(entry)
+        }
+        for tag, entry in registry.items()
+        if is_element_name(tag) and entry.get("x-state")
+    }
+    return registry
 
 
 def stamp_decisions(registry: dict) -> dict:

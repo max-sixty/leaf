@@ -57,6 +57,16 @@ def leading_title(node: dict) -> str:
     return ""
 
 
+def element_name(node: dict, registry: dict) -> str:
+    """What the authoring contract calls an element away from itself: the attribute
+    its entry declares with `x-name`, else its leading title, in the words the author
+    wrote. The browser's `addressableName` reads the same rule off the live page;
+    `tests/name_cases.json` holds both to the same cases."""
+    attribute = registry.get(node["tag"], {}).get("x-name")
+    declared = (node["attrs"].get(attribute) or "").strip() if attribute else ""
+    return declared or leading_title(node)
+
+
 def _nodes(content: list):
     for node in content:
         if not isinstance(node, str):
@@ -78,9 +88,7 @@ class _Document:
         }
 
     def name(self, node: dict) -> str:
-        attribute = self.registry.get(node["tag"], {}).get("x-name")
-        declared = (node["attrs"].get(attribute) or "").strip() if attribute else ""
-        return declared or leading_title(node)
+        return element_name(node, self.registry)
 
 
 class GestureWords:

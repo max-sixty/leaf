@@ -2,18 +2,11 @@
    These maps retain original node/context associations outside semantic snapshots;
    reading a declaration never imports content modules or starts their registration.
    Every imported node can bind a publication, including text and comment arrivals. */
-import { isElementName } from "./registry-contract.js";
 
 const contexts = new Map();
 const owners = new WeakMap();
 export const knownVocabulary = (revision) => contexts.get(revision);
 export const rememberVocabulary = (context) => contexts.set(context.revision, context);
-export function normalizeDeclarations(declarations) {
-  for (const [tag, entry] of Object.entries(declarations))
-    if (isElementName(tag))
-      for (const spec of Object.values(entry["x-state"] ?? {})) spec.writer ??= "user";
-  return declarations;
-}
 
 export function bindVocabulary(root, context) {
   owners.set(root, context);

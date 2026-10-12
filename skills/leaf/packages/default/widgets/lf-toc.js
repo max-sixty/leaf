@@ -29,7 +29,9 @@
  * a scroll-driven animation: its keyframes are the lens at each scroll position where
  * the map bends, and the browser interpolates between them as the scroller moves, so a
  * scroll writes nothing to the page. New keyframes are set only when the map or the
- * landing band changes. Where the browser has no scroll timeline the map has no lens.
+ * landing band changes. Where the browser has no scroll timeline (Firefox), the same
+ * keyframes run as a paused animation whose time each scroll's paint sets, so the lens
+ * follows a frame behind the scroll, still writing nothing to the page.
  * ResizeObserver hears late diagrams, images, disclosures, and width changes in the
  * document, and the height of the track the rows are laid into, which the page's chrome
  * can shorten without the document moving at all; a widget whose view rearranges
@@ -46,6 +48,7 @@
  * honor a generated target that did not exist during HTML parsing. */
 import {
   atLayoutPrecision,
+  atScrollEnd,
   frameFor,
   holdFocus,
   html,
@@ -69,12 +72,16 @@ import {
 const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
 // The lens is never shorter than this, or than 1.2% of the map, so it stays in sight.
 const LENS_FLOOR = 14;
+const SCROLL_TIMELINE = "ScrollTimeline" in globalThis;
+// Without a scroll timeline the lens's animation lasts this many milliseconds over the
+// whole scroll, long enough that no browser's clamped timer precision steps it.
+const LENS_DURATION = 1_000_000;
 
 export default class extends HTMLElement {
   #main;
   #nav;
   #rows;
-  #lens = null;
+  #lens;
   #lensMotion = null;
   #lensInputs = "";
   #sections = [];
@@ -150,10 +157,6 @@ export default class extends HTMLElement {
     const title = (pageTitle ? wrote(pageTitle).trim() : "") || "Top";
     const focused = this.#sections.find(({ link }) => link === document.activeElement);
     const restore = focused && holdFocus(this.#nav);
-    const lens =
-      "ScrollTimeline" in globalThis
-        ? html`<span class="lf-toc-window" aria-hidden="true"></span>`
-        : "";
     const outline = repeat(
       items,
       ({ heading }) => heading.id || heading,
@@ -168,7 +171,7 @@ export default class extends HTMLElement {
         <nav class="lf-toc-nav lf-ui" data-lf-gen="1" aria-label="On this page">
           <p class="lf-toc-heading" data-lf-gen="1" data-lf-said>On this page</p>
           <div class="lf-toc-rows">
-            ${lens}
+            <span class="lf-toc-window" aria-hidden="true"></span>
             <div class="lf-toc-start" data-lf-depth="0">
               <a href=${`#${startDestination.id}`}>${title}</a>
             </div>
@@ -501,7 +504,7 @@ export default class extends HTMLElement {
       this.#lensMotion?.cancel();
       this.#lensMotion = null;
       this.#lensInputs = "";
-      if (this.#lens) keeps(this.#lens, "style", "display: none;");
+      keeps(this.#lens, "style", "display: none;");
       return;
     }
     // What the user can read is the scroller's landing band, clear of the banner over
@@ -511,13 +514,15 @@ export default class extends HTMLElement {
     const visibleEnd =
       this.#scroller.scrollTop + this.#scroller.clientHeight - clear.bottom;
     this.#standLens(clear);
+    if (!SCROLL_TIMELINE && this.#lensMotion)
+      this.#lensMotion.currentTime =
+        (LENS_DURATION * this.#scroller.scrollTop) / scrollLimit(this.#scroller);
 
     const threshold = visibleStart + Math.min(32, (visibleEnd - visibleStart) * 0.08);
     this.#positions.forEach((position, index) => {
       if (this.#shown[index] && position <= threshold) current = index;
     });
-    if (this.#scroller.scrollTop >= scrollLimit(this.#scroller) - 1)
-      current = this.#shown.findLastIndex(Boolean);
+    if (atScrollEnd(this.#scroller)) current = this.#shown.findLastIndex(Boolean);
     const link = this.#sections[current].link;
     if (link === this.#currentLink) return;
     this.#currentLink?.removeAttribute("aria-current");
@@ -528,7 +533,6 @@ export default class extends HTMLElement {
   // Keyframes are set again only when a measure has moved the map, or the scroller's
   // length or landing band has changed; a scroll alone reaches the early return.
   #standLens(clear) {
-    if (!this.#lens) return;
     const scroller = this.#scroller;
     const reach = scrollLimit(scroller);
     const band = scroller.clientHeight - clear.top - clear.bottom;
@@ -570,11 +574,19 @@ export default class extends HTMLElement {
     }));
     this.#lens.removeAttribute("style");
     if (this.#lensMotion) this.#lensMotion.effect.setKeyframes(frames);
-    else
+    else if (SCROLL_TIMELINE)
       this.#lensMotion = this.#lens.animate(frames, {
         timeline: new globalThis.ScrollTimeline({ source: scroller, axis: "block" }),
         fill: "both",
       });
+    else {
+      // #paint sets the time as the scroller scrolls.
+      this.#lensMotion = this.#lens.animate(frames, {
+        duration: LENS_DURATION,
+        fill: "both",
+      });
+      this.#lensMotion.pause();
+    }
   }
 
   #destinationFor(heading, position) {

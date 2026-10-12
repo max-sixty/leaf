@@ -9,8 +9,11 @@ The archive remains the evidence owner. This producer reads entries in memory,
 never extracts archive paths, and imports original raster bytes through the
 chosen Leaf launcher's page-media command. Stdout is the complete manifest for
 `leaf data set`; diagnostics use stderr. The page must already bind its source.
-API parameters remain in the archive and viewer, since a manifest reaches every
-page user and should not duplicate captured URLs or filled values.
+Native methods and input events retain selector, key, pointer coordinates and the
+input snapshot's viewport for interaction review. Other API parameters remain in the archive and viewer, since
+a manifest reaches every page user and should not duplicate URLs or filled values.
+Input events have no native timestamp: action-phase times describe their captured
+snapshot, not a simultaneous measurement of pointer coordinates and image pixels.
 Native tracing-group ancestry prefixes child action titles; groups retain their
 own titles, and parents outside a stream supply no label.
 
@@ -22,51 +25,25 @@ phase, including duplicate names, rather than promising live DOM identity or
 exact correspondence between a tree box and pixels captured earlier.
 
 Other archive versions are refused: adapting Playwright's internal format is an
-explicit package change, rather than guessing at a newer or older producer.
+explicit package change, rather than guessing at a newer or older producer. Within
+format 9 the archive is read as Playwright writes it, and a damaged one is not
+diagnosed here.
 """
 
 import hashlib
 import io
 import json
-import math
 import subprocess
 import tempfile
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from zipfile import BadZipFile, ZipFile
 
 import click
-from PIL import Image, UnidentifiedImageError
+from PIL import Image
 
 
 class TraceError(ValueError):
     """The archive cannot supply the review evidence this package presents."""
-
-
-PHASES = {"before", "action", "after"}
-
-
-def _string(value, where):
-    if not isinstance(value, str) or not value:
-        raise TraceError(f"{where}: expected a nonempty string")
-    return value
-
-
-def _number(value, where):
-    if (
-        isinstance(value, bool)
-        or not isinstance(value, (int, float))
-        or not math.isfinite(value)
-    ):
-        raise TraceError(f"{where}: expected a finite number")
-    return value
-
-
-def _json(raw, where):
-    try:
-        value = json.loads(raw, parse_constant=lambda value: _number(value, where))
-    except (ValueError, UnicodeDecodeError) as error:
-        raise TraceError(f"{where}: invalid JSON ({error})") from error
-    return value
 
 
 def _digest(value):
@@ -92,52 +69,64 @@ def _group_contexts(calls, stream_name):
                 event.get("class") == "Tracing"
                 and event.get("method") == "tracingGroup"
             ):
-                title = _string(event.get("title"), f"{child_id} tracing group title")
+                title = event["title"]
                 if title not in inherited:
                     inherited = (*inherited, title)
             contexts[child_id] = inherited
     return contexts
 
 
+def _input(event, native_input, phases, viewport):
+    """Retain native input facts, without inferring gestures from display titles."""
+    if native_input is None:
+        # Complete action records can carry the input point/snapshot directly.
+        # Format-9 action-phase snapshots also establish native input capture.
+        if (
+            event.get("point") is None
+            and event.get("inputSnapshot") is None
+            and "action" not in phases
+        ):
+            return None
+        native_input = event
+    params = event.get("params", {})
+    return {field: params.get(field) for field in ("selector", "key")} | {
+        "point": native_input.get("point"),
+        "viewport": viewport,
+    }
+
+
 class _StreamCaptures:
     """One native stream's page identities and captured call phases.
 
     Keeping these together prevents a later stream's namespace from changing an
-    earlier stream's page or phase reading. A phase names exactly one main page.
+    earlier stream's page or phase reading.
     """
 
-    def __init__(self, name: str, identity: str):
-        self.name = name
+    def __init__(self, identity: str):
         self.identity = identity
         self.pages = {}
         self.phases = {}
+        self.input_viewports = {}
 
     def page_key(self, native_id):
-        _string(native_id, "pageId")
         key = f"{self.identity}-page-{_digest(native_id)}"
         self.pages[key] = {"id": key, "stream": self.identity, "pageId": native_id}
         return key
 
     def phase(self, call_id, phase, native_page):
-        _string(call_id, "capture callId")
-        if phase not in PHASES:
-            raise TraceError(f"unsupported capture phase {phase!r}")
-        page = self.page_key(native_page)
-        held = self.phases.setdefault(
+        return self.phases.setdefault(
             (call_id, phase),
-            {"pageId": page, "timestamp": None, "imageId": None, "tree": None},
+            {
+                "pageId": self.page_key(native_page),
+                "timestamp": None,
+                "imageId": None,
+                "tree": None,
+            },
         )
-        if held["pageId"] != page:
-            raise TraceError(
-                f"{self.name}: one call phase captured multiple main pages"
-            )
-        return held
 
 
-def _nodes(tree, where):
+def _nodes(tree):
     """Pointable nodes named by their paths in the original ARIA JSON tree."""
-    if not isinstance(tree, list):
-        raise TraceError(f"{where}: expected an accessibility node array")
     result = []
 
     def walk(children, prefix):
@@ -154,32 +143,14 @@ def _nodes(tree, where):
                     }
                 )
                 continue
-            if not isinstance(child, dict):
-                raise TraceError(f"{where}/{path}: expected a node or text")
-            fields = {field: child.get(field) for field in ("role", "name", "text")}
-            if any(
-                value is not None and not isinstance(value, str)
-                for value in fields.values()
-            ):
-                raise TraceError(f"{where}/{path}: role, name and text must be strings")
-            box = child.get("box")
-            if box is not None:
-                if not isinstance(box, dict) or set(box) != {
-                    "x",
-                    "y",
-                    "width",
-                    "height",
-                }:
-                    raise TraceError(f"{where}/{path}: invalid node box")
-                box = {
-                    key: _number(value, f"{where}/{path}/box/{key}")
-                    for key, value in box.items()
+            result.append(
+                {
+                    "path": path,
+                    **{field: child.get(field) for field in ("role", "name", "text")},
+                    "box": child.get("box"),
                 }
-            result.append({"path": path, **fields, "box": box})
-            if "children" in child:
-                if not isinstance(child["children"], list):
-                    raise TraceError(f"{where}/{path}: children must be an array")
-                walk(child["children"], f"{path}/children")
+            )
+            walk(child.get("children", []), f"{path}/children")
 
     walk(tree, "")
     return result
@@ -212,17 +183,7 @@ def _media(page, launcher, images):
                 raise TraceError(
                     f"Leaf page media failed: {completed.stderr.strip() or completed.stdout.strip()}"
                 )
-            records = [
-                _json(line, "Leaf page media") for line in completed.stdout.splitlines()
-            ]
-            if len(records) != len(paths[start : start + 100]):
-                raise TraceError("Leaf page media returned an incomplete image reading")
-            for record, source in zip(records, paths[start : start + 100], strict=True):
-                if not isinstance(record, dict) or record.get("source") != str(source):
-                    raise TraceError(
-                        "Leaf page media returned a different source image"
-                    )
-                urls.append(_string(record.get("path"), "Leaf page media path"))
+            urls += [json.loads(line)["path"] for line in completed.stdout.splitlines()]
         return urls
 
 
@@ -232,41 +193,17 @@ def import_trace(trace: Path, *, page: Path, launcher: Path, viewer_url: str) ->
     archive_hash = hashlib.sha256(archive_bytes).hexdigest()
     prefix = f"trace-{archive_hash}"
     streams, pages, actions, images, rasters = [], {}, [], [], []
-    try:
-        archive = ZipFile(io.BytesIO(archive_bytes))
-    except BadZipFile as error:
-        raise TraceError(f"{trace}: not a ZIP archive ({error})") from error
-    with archive:
-        names = archive.namelist()
-        if len(set(names)) != len(names):
-            raise TraceError("trace archive repeats an entry name")
-        for name in names:
-            path = PurePosixPath(name)
-            if (
-                path.is_absolute()
-                or ".." in path.parts
-                or "\\" in name
-                or "\x00" in name
-            ):
-                raise TraceError(f"unsafe archive entry name {name!r}")
-        stream_names = sorted(name for name in names if name.endswith(".trace"))
-        if not stream_names:
-            raise TraceError("archive contains no .trace streams")
-
-        def read(name):
-            _string(name, "archive resource path")
-            if name not in names:
-                raise TraceError(f"archive is missing resource {name!r}")
-            return archive.read(name)
-
+    with ZipFile(io.BytesIO(archive_bytes)) as archive:
+        read = archive.read
+        stream_names = sorted(
+            name for name in archive.namelist() if name.endswith(".trace")
+        )
         for stream_name in stream_names:
             events = [
-                _json(line, f"{stream_name}:{index + 1}")
-                for index, line in enumerate(read(stream_name).splitlines())
+                json.loads(line)
+                for line in read(stream_name).splitlines()
                 if line.strip()
             ]
-            if not events or any(not isinstance(event, dict) for event in events):
-                raise TraceError(f"{stream_name}: expected trace event objects")
             context = events[0]
             if context.get("type") != "context-options" or context.get("version") != 9:
                 raise TraceError(
@@ -276,50 +213,24 @@ def import_trace(trace: Path, *, page: Path, launcher: Path, viewer_url: str) ->
             streams.append(
                 {
                     "id": stream_id,
-                    "origin": _string(context.get("origin"), f"{stream_name} origin"),
-                    "playwrightVersion": _string(
-                        context["playwrightVersion"], "playwrightVersion"
-                    )
-                    if "playwrightVersion" in context
-                    else None,
-                    "wallTime": _number(context["wallTime"], "wallTime")
-                    if "wallTime" in context
-                    else None,
-                    "monotonicTime": _number(context["monotonicTime"], "monotonicTime")
-                    if "monotonicTime" in context
-                    else None,
+                    "origin": context["origin"],
+                    **{
+                        field: context.get(field)
+                        for field in ("playwrightVersion", "wallTime", "monotonicTime")
+                    },
                 }
             )
-            calls = {}
-            capture = _StreamCaptures(stream_name, stream_id)
+            calls, inputs = {}, {}
+            capture = _StreamCaptures(stream_id)
 
             for index, event in enumerate(events[1:], 1):
                 kind = event.get("type")
-                if kind == "context-options" and event.get("version") != 9:
-                    raise TraceError(
-                        f"{stream_name}: unsupported trace format {event.get('version')!r}; this package reads format 9"
-                    )
                 if kind in {"before", "action"}:
-                    call_id = _string(event.get("callId"), "action callId")
-                    if "parentId" in event:
-                        _string(event["parentId"], f"{call_id} parentId")
-                    if call_id in calls:
-                        raise TraceError(f"{stream_name}: repeated action {call_id!r}")
-                    calls[call_id] = dict(event)
+                    calls[event["callId"]] = dict(event)
+                elif kind == "input":
+                    inputs[event["callId"]] = event
                 elif kind == "after":
-                    call_id = _string(event.get("callId"), "after callId")
-                    if call_id not in calls:
-                        raise TraceError(
-                            f"{stream_name}: completion has no action {call_id!r}"
-                        )
-                    if "parentId" in event:
-                        _string(event["parentId"], f"{call_id} parentId")
-                        if (
-                            "parentId" in calls[call_id]
-                            and event["parentId"] != calls[call_id]["parentId"]
-                        ):
-                            raise TraceError(f"{call_id}: conflicting parentId")
-                    calls[call_id].update(event)
+                    calls[event["callId"]].update(event)
                 elif kind == "event" and event.get("method") in {"page", "pageClosed"}:
                     capture.page_key(event["params"]["pageId"])
                 elif kind == "frame-snapshot":
@@ -328,25 +239,16 @@ def import_trace(trace: Path, *, page: Path, launcher: Path, viewer_url: str) ->
                         held = capture.phase(
                             snapshot["callId"], snapshot["phase"], snapshot["pageId"]
                         )
-                        held["timestamp"] = _number(
-                            snapshot["timestamp"], "DOM timestamp"
-                        )
+                        held["timestamp"] = snapshot["timestamp"]
+                        if snapshot["phase"] == "action" and "viewport" in snapshot:
+                            capture.input_viewports[snapshot["callId"]] = snapshot[
+                                "viewport"
+                            ]
                 elif kind in {"screencast-frame", "screenshot"}:
                     raw = read(event["file"])
                     suffix = ".jpg" if kind == "screencast-frame" else ".png"
-                    expected_format = "JPEG" if suffix == ".jpg" else "PNG"
-                    try:
-                        with Image.open(io.BytesIO(raw)) as image:
-                            if image.format != expected_format:
-                                raise TraceError(
-                                    f"{event['file']}: expected {expected_format}"
-                                )
-                            image.verify()
-                            width, height = image.size
-                    except (UnidentifiedImageError, OSError, SyntaxError) as error:
-                        raise TraceError(
-                            f"{event['file']}: invalid image ({error})"
-                        ) from error
+                    with Image.open(io.BytesIO(raw)) as image:
+                        width, height = image.size
                     image_id = f"{stream_id}-image-{index}"
                     is_checkpoint = kind == "screenshot"
                     images.append(
@@ -354,7 +256,7 @@ def import_trace(trace: Path, *, page: Path, launcher: Path, viewer_url: str) ->
                             "id": image_id,
                             "pageId": capture.page_key(event["pageId"]),
                             "stream": stream_id,
-                            "timestamp": _number(event["timestamp"], "image timestamp"),
+                            "timestamp": event["timestamp"],
                             "kind": "checkpoint" if is_checkpoint else "frame",
                             "url": "",
                             "width": width,
@@ -368,8 +270,6 @@ def import_trace(trace: Path, *, page: Path, launcher: Path, viewer_url: str) ->
                         held = capture.phase(
                             event["callId"], event["phase"], event["pageId"]
                         )
-                        if held["imageId"] is not None:
-                            raise TraceError("call phase repeats a checkpoint image")
                         held["imageId"] = image_id
                         if held["timestamp"] is None:
                             held["timestamp"] = event["timestamp"]
@@ -377,14 +277,10 @@ def import_trace(trace: Path, *, page: Path, launcher: Path, viewer_url: str) ->
                     held = capture.phase(
                         event["callId"], event["phase"], event["pageId"]
                     )
-                    if held["tree"] is not None:
-                        raise TraceError("call phase repeats an accessibility tree")
-                    timestamp = _number(event["timestamp"], "tree timestamp")
+                    timestamp = event["timestamp"]
                     held["tree"] = {
                         "timestamp": timestamp,
-                        "nodes": _nodes(
-                            _json(read(event["file"]), event["file"]), event["file"]
-                        ),
+                        "nodes": _nodes(json.loads(read(event["file"]))),
                     }
                     if held["timestamp"] is None:
                         held["timestamp"] = timestamp
@@ -410,7 +306,6 @@ def import_trace(trace: Path, *, page: Path, launcher: Path, viewer_url: str) ->
                     or event.get("apiName")
                     or f"{event.get('class', 'API')}.{event.get('method', 'call')}"
                 )
-                title = _string(title, f"{call_id} action title")
                 if not (
                     event.get("class") == "Tracing"
                     and event.get("method") == "tracingGroup"
@@ -420,8 +315,6 @@ def import_trace(trace: Path, *, page: Path, launcher: Path, viewer_url: str) ->
                         + [title]
                     )
                 params = event.get("params", {})
-                if not isinstance(params, dict):
-                    raise TraceError(f"{call_id}: expected action params object")
                 detail = next(
                     (
                         params[field]
@@ -434,32 +327,27 @@ def import_trace(trace: Path, *, page: Path, launcher: Path, viewer_url: str) ->
                     title = f"{title} · {detail}"
                 error = event.get("error")
                 if isinstance(error, dict):
-                    error = _string(error.get("message"), f"{call_id} error message")
-                elif error is not None:
-                    error = _string(error, f"{call_id} error")
+                    error = error["message"]
                 actions.append(
                     {
                         "id": f"{stream_id}-call-{_digest(call_id)}",
                         "stream": stream_id,
                         "callId": call_id,
                         "pageId": action_page,
-                        "title": title,
-                        "startTime": _number(
-                            event.get("startTime"), f"{call_id} startTime"
+                        "method": event["method"],
+                        "input": _input(
+                            event,
+                            inputs.get(call_id),
+                            phases,
+                            capture.input_viewports.get(call_id),
                         ),
-                        "endTime": _number(event["endTime"], f"{call_id} endTime")
-                        if "endTime" in event
-                        else None,
+                        "title": title,
+                        "startTime": event["startTime"],
+                        "endTime": event.get("endTime"),
                         "error": error,
                         "phases": phases,
                     }
                 )
-            unknown_calls = {call_id for call_id, _ in capture.phases} - calls.keys()
-            if unknown_calls:
-                raise TraceError(
-                    f"{stream_name}: captures name unknown calls {sorted(unknown_calls)}"
-                )
-
             pages.update(capture.pages)
 
     urls = _media(page, launcher, rasters)
@@ -495,10 +383,6 @@ def import_trace(trace: Path, *, page: Path, launcher: Path, viewer_url: str) ->
 )
 def main(trace, page, launcher, viewer_url):
     """Import native TRACE rasters into PAGE and write review JSON on stdout."""
-    if not viewer_url.startswith(("http://", "https://")) or any(
-        char.isspace() for char in viewer_url
-    ):
-        raise click.ClickException("viewer URL must be an HTTP(S) URL")
     try:
         value = import_trace(
             trace,
@@ -506,7 +390,7 @@ def main(trace, page, launcher, viewer_url):
             launcher=launcher.resolve(),
             viewer_url=viewer_url,
         )
-    except (TraceError, KeyError, BadZipFile) as error:
+    except (TraceError, KeyError, BadZipFile, json.JSONDecodeError) as error:
         raise click.ClickException(f"import_trace: {error}") from error
     click.echo(json.dumps(value, ensure_ascii=False, allow_nan=False))
 

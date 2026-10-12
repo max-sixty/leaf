@@ -11,7 +11,7 @@ from interact_support import append_carried_log_record
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.media import store_uploaded_media
-from leaf.render_checks import rendered
+from leaf.render_checks import SERVED_TIMEOUT_MS, rendered
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -1494,7 +1494,7 @@ def test_a_thread_news_resolves_stays_where_it_stands_until_the_user_moves_on(
                 "agent": "Codex",
                 "parent": first,
                 "text": "Which of the two should stay?",
-                "question": True,
+                "ask": True,
             },
         )
     page = open_page(browser, url)
@@ -2275,7 +2275,7 @@ def test_a_refused_approval_says_why_to_the_keyboard_and_the_finger(browser, ser
     page = open_page(browser, url)
     resized(page, 1440, 900)
     approval = page.locator(".lf-signoff")
-    reason = "Answer every Question before approving this work"
+    reason = "Answer every ask before approving this work"
     expect(approval).to_have_attribute("aria-disabled", "true")
     expect(approval).to_have_attribute("aria-description", reason)
     expect(approval).to_be_disabled()
@@ -2304,7 +2304,7 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
     expect(page.locator(".lf-others")).to_have_text("All pages (2)")
     expect(page.locator(".lf-signoff")).to_be_disabled()
     expect(page.locator(".lf-signoff")).to_have_attribute(
-        "title", "Answer every Question before approving this work"
+        "title", "Answer every ask before approving this work"
     )
     banner_control(page, ".lf-answer-all")
 
@@ -2856,7 +2856,8 @@ def test_a_traffic_wait_stops_when_repaints_outlive_its_deadline(monkeypatch):
 
     page = BusyPage()
     page.lf_traffic = Traffic(page)
-    times = iter((0, 31, 31, 31))
+    expired = SERVED_TIMEOUT_MS / 1000 + 1
+    times = iter((0, expired, expired, expired))
     monkeypatch.setattr(time, "monotonic", lambda: next(times))
 
     with pytest.raises(AssertionError, match="never reached a false fact"):

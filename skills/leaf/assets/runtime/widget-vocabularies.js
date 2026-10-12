@@ -9,13 +9,11 @@ import {
   rememberVocabulary,
   bindVocabulary,
   vocabularyFor,
-  normalizeDeclarations,
 } from "./widget-contexts.js";
 const preparations = new Map();
 
 export function publicationVocabulary(revision, declarations, root, primary = false) {
   if (knownVocabulary(revision)) return knownVocabulary(revision);
-  normalizeDeclarations(declarations);
   const registry = primary ? customElements : new window.CustomElementRegistry();
   const scope = document.createElement("div").attachShadow({ mode: "open", registry });
   const resource = (path) =>

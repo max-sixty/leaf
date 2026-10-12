@@ -896,8 +896,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      and the passage it is about. A quote is the page's own words and a message is
      somebody's, so a user copying either is copying what was said rather than the
      layer talking about itself — which is what a head, a count and a control's label
-     are, and why the run of them a drag once swept up ("All leaves (6) · Queue · v1")
-     is not in this list.
+     are, and why a run of them ("All leaves (6) · Queue · v1") is not in this list.
 
      Fields are not in it, and that is a measurement rather than a decision: a drag
      inside an input under the root's none still selects its value in Chromium, Gecko
@@ -908,8 +907,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      the document through everything between, because the two are one document order and
      nothing in CSS says "started outside" — that value is user-select: contain, which no
      engine here implements. Overshooting the panel's left edge by 5 or 20 pixels lands
-     on its own apparatus and stops at 67 characters where it used to take 14,472; 40
-     reaches a thread's quote and takes 14,421. Naming fewer islands does not close that,
+     on its own apparatus, which the root leaves unselectable, so the range stops at 67
+     characters rather than 14,472; overshooting by 40 reaches a thread's quote and takes
+     14,421. Naming fewer islands does not close that,
      because the fields the platform keeps selectable are islands too: with nothing here
      selectable at all, a drag onto the composer's own box still took 13,965. So this
      property bounds the accident and cannot answer for the deliberate drag; a range

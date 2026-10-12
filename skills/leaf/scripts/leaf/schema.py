@@ -14,7 +14,7 @@ ORPHAN_GRACE_SECS = 1
 UNNAMED_AGENT = "Agent"
 # Non-message gesture kinds eligible for withdrawal; events.undo_error handles
 # reactions. The complete eligibility contract is events.md, "Undo".
-UNDOABLE_KINDS = {"resolve", "unresolve", "action", "done", "task_end"}
+UNDOABLE_KINDS = {"resolve", "unresolve", "action", "done", "todo_end"}
 MESSAGE_KINDS = {"comment", "reply"}
 # The kinds a widget owns, admitted against the page's registry before they append.
 WIDGET_KINDS = {"action", "report"}
@@ -141,7 +141,10 @@ ACTION_CREATES = {
 # any authored element. A typed relation selects a package registry map
 # and an equality predicate within that map; the names and values remain vocabulary.
 # `owns` makes the relation one-to-one within a document: the referrer fills its
-# target (`validation.instances.reference_errors`).
+# target (`validation.instances.reference_errors`). A keyed relation names a member,
+# not an element id: the `tag` member whose `key` attribute holds the value, which
+# that tag declares unique within an owner (x-unique), looked up in the referrer's own
+# enclosing owner.
 REFERENCE_SCHEMA = {
     "type": "object",
     "minProperties": 1,
@@ -161,8 +164,17 @@ REFERENCE_SCHEMA = {
                 },
             },
             "owns": {"const": True},
+            "tag": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
+            "key": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         },
-        "dependentRequired": {"via": ["where"], "where": ["via"], "owns": ["via"]},
+        "dependentRequired": {
+            "via": ["where"],
+            "where": ["via"],
+            "owns": ["via"],
+            "tag": ["key"],
+            "key": ["tag"],
+        },
+        "dependentSchemas": {"key": {"not": {"required": ["via"]}}},
         "additionalProperties": False,
     },
 }
@@ -227,6 +239,7 @@ AWAITS_SCHEMA = {
         "value": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "answered": ANSWERED_SCHEMA,
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        "retired": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     },
     "required": ["value", "answered"],
     "additionalProperties": False,
@@ -297,12 +310,6 @@ EXTENSION_SCHEMA = {
         "x-language": _ATTRIBUTE_NAME,
         "x-reading-role": {"enum": ["pane"]},
         "x-resident": {"enum": ["map"]},
-        # Attributes holding line references into the nearest data body — the element's
-        # own <pre>, or its enclosing data element's (lf-note's `at` names a line of its
-        # lf-code) — by the numbers x-numbering gives that body, 1-based without it.
-        # `page check` refuses one outside the body (line_ref_errors).
-        "x-lines": _ATTRIBUTE_LIST,
-        "x-numbering": _ATTRIBUTE_NAME,
         "x-measured": MEASURED_SCHEMA,
         # Attributes the theme renders as paint alone — a status marker's tint or an
         # event's kind. The runtime speaks each as a clipped word (renderQuiet), the
@@ -325,6 +332,12 @@ EXTENSION_SCHEMA = {
         "x-state": STATE_SCHEMA,
         "x-thread-surface": {"const": True},
         "x-tone": _ATTRIBUTE_NAME,
+        "x-unique": {
+            "type": "object",
+            "minProperties": 1,
+            "propertyNames": {"pattern": f"^{HTML_NAME}$"},
+            "additionalProperties": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
+        },
         "x-upgrade": {"type": "boolean"},
         "x-verbatim": {"type": "boolean"},
         "x-visual": {
@@ -431,13 +444,12 @@ EXTENSION_SCHEMA = {
 # to say about each than that it exists.
 ATTRIBUTE_KEYS = (
     "x-language",
-    "x-lines",
     "x-name",
-    "x-numbering",
     "x-paints",
     "x-refers",
     "x-says",
     "x-tone",
+    "x-unique",
 )
 # The declarations a stylesheet reads, each painted on the element as `paint`: the room
 # it takes (x-space), whether it sets inline among words (x-inline), quotes what it holds
@@ -447,7 +459,12 @@ ATTRIBUTE_KEYS = (
 # one member at a time (x-views). Neither a stylesheet nor the prepaint, which runs
 # before the registry has loaded (`runtime/prepaint.js`), can read the registry, so
 # each is painted where a selector can ask. `authored` is
-# the attribute an occurrence writes to override its tag's or idiom's declaration.
+# the attribute an occurrence writes to override its tag's or idiom's declaration, and
+# `authored_on` where that override means something, so elsewhere it is inert:
+# `content`, a block inside `main`, since the room and the bound size a block in the
+# page's flow and on `main` or `body` would size the page itself; `declared`, an element
+# whose tag declares the mark, since a stated height reserves room for a module's
+# drawing and a block no module draws into would be clipped to it for good.
 # `message` says
 # whether the mark holds in a thread's message too:
 # each is the element's own fact wherever it renders, except the room and the margin
@@ -469,13 +486,24 @@ DECLARED_MARKS = {
     "x-space": {
         "paint": "data-lf-space",
         "authored": "data-width",
+        "authored_on": "content",
         "message": False,
         "idiom": True,
     },
     "x-inline": {"paint": "data-lf-inline", "message": True},
     "x-exhibit": {"paint": "data-lf-exhibit", "message": True},
-    "x-bound": {"paint": "data-lf-bound", "authored": "data-bound", "message": True},
-    "x-height": {"paint": "data-lf-height", "authored": "data-height", "message": True},
+    "x-bound": {
+        "paint": "data-lf-bound",
+        "authored": "data-bound",
+        "authored_on": "content",
+        "message": True,
+    },
+    "x-height": {
+        "paint": "data-lf-height",
+        "authored": "data-height",
+        "authored_on": "declared",
+        "message": True,
+    },
     "x-reading-role": {"paint": "data-lf-reading-role", "message": True},
     "x-resident": {"paint": "data-lf-resident", "message": False},
     "x-views": {"paint": "data-lf-views", "message": True},

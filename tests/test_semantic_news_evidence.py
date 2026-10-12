@@ -46,10 +46,8 @@ def test_terminal_failure_workflow_names_exact_reply_source(page_dir):
     )
     failure = thread.post_reply(
         page_dir,
-        source["id"],
+        {"to": source["id"], "for": source["id"]},
         "The agent turn ended.",
-        None,
-        for_event=source["id"],
         failure="turn_failed",
         attempt="response-attempt",
     )
@@ -78,7 +76,7 @@ def test_user_prompt_names_the_latest_question_content_version(page_dir):
             "author": "agent",
             "parent": root["id"],
             "responds": root["id"],
-            "question": True,
+            "ask": True,
             "text": "First question?",
         },
     )
@@ -102,7 +100,7 @@ def test_user_prompt_names_the_latest_question_content_version(page_dir):
             "id": "second-question",
             "author": "agent",
             "parent": first["id"],
-            "question": True,
+            "ask": True,
             "text": "Second question?",
         },
     )

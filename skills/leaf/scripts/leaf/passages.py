@@ -8,6 +8,7 @@ from urllib.parse import urlsplit
 
 import turbohtml
 
+from .registry.kernel import kernel_passages
 from .structure import VOID_TAGS, SourceDocument, pre_body
 
 # ---------- passages: the text an anchor points at ----------
@@ -63,18 +64,9 @@ from .structure import VOID_TAGS, SourceDocument, pre_body
 # readings agree by both being silent, and a fence would be room reserved for words no
 # user on either side can reach.
 
-# The collapse class, stated outright: the characters a whitespace run is made of, one
-# spelling the set and the regex both derive from, matching collapse.js's COLLAPSE exactly.
-# JS's \s and Python's str.isspace() disagree at the edges — U+FEFF is whitespace to JS
-# alone, U+0085 and U+001C–001F to Python alone — and a page carrying one of those in
-# prose read differently on the two sides, so a `leaf thread open` quote could be written
-# against text the browser never produces. The browser is the producer of every captured
-# quote, so its set is the one both sides speak.
-COLLAPSE_CHARS = frozenset(
-    "\t\n\x0b\x0c\r \u00a0\u1680"
-    "\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a"
-    "\u2028\u2029\u202f\u205f\u3000\ufeff"
-)
+# The characters a whitespace run is made of, as the browser's reading collapses them
+# (registry.json's `$passages.collapse` says why the set is spelled out).
+COLLAPSE_CHARS = frozenset(kernel_passages()["collapse"])
 COLLAPSE = re.compile("[" + re.escape("".join(sorted(COLLAPSE_CHARS))) + "]+")
 
 
@@ -256,30 +248,9 @@ class _OwnedWords:
         return self.parts
 
 
-# What a text node's "block" resolves to: one space goes wherever two runs of text sit in
-# different blocks, and none where they share one, so `<p>a</p><p>b</p>` reads "a b" and
-# `set<em>up</em>` reads "setup". The runtime spells the same list as a selector
-# (TEXT_BLOCK), and the two are held equal by a test rather than by this sentence — a
-# tag one side calls a block and the other does not gives the two readings different
-# text, which is every quote-shaped thing at once.
-TEXT_BLOCK_TAGS = {
-    "p",
-    "li",
-    "h1",
-    "h2",
-    "h3",
-    "h4",
-    "h5",
-    "h6",
-    "td",
-    "th",
-    "pre",
-    "blockquote",
-    "dd",
-    "dt",
-    "figcaption",
-    "summary",
-}
+# The tags whose text is one block: one space goes between two runs of text in
+# different blocks and none between runs that share one.
+TEXT_BLOCK_TAGS = frozenset(kernel_passages()["blocks"])
 # Text no anchor can reach: executable/style content and native field defaults.
 # head is outside the browser's tree altogether, which starts at document.body —
 # without it a page's <title> would be quotable and land nowhere.

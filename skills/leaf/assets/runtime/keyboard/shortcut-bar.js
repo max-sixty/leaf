@@ -69,7 +69,7 @@ import {
   neutralStates,
   progressStates,
   rowSteps,
-} from "./presentation.js";
+} from "./key-sequence.js";
 import { el } from "../widget-elements.js";
 import { keeps, keepsHidden } from "../keeps.js";
 import { lineOwner, shadow, stack, executeCommand } from "./dispatch.js";
@@ -218,7 +218,7 @@ export const bottomChromeBoxes = () => [
   ...boxesOf([shortcutBarEl]),
   ...standingStatusBoxes(),
 ];
-declareBottomBar(bottomChromeBoxes);
+declareBottomBar(bottomChromeBoxes, [shortcutBarEl, bottomStatusEl]);
 
 // ---------- the shortcut bar ----------
 // The rows the line shows, innermost scope first: the ones carrying a word for it. Each

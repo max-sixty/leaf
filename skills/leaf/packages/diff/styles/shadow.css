@@ -354,6 +354,17 @@
   :scope:host(.lf-rendered) .lf-diff-metadata { padding-right: 0; }
   .lf-diff-file > .lf-diff-fold > .lf-diff-head::before,
   .lf-diff-file .lf-diff-metadata::before { display: none; }
+  /* A file's row cuts its path to one line only because the screen can give the whole
+     path back (its title, focus, a held press) and pins that line at a stated height.
+     Paper does neither, so the row grows to hold the whole path, breaking after its
+     slashes, and inside a name only where one name alone outruns the line. */
+  :scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary {
+                          block-size: auto; min-block-size: var(--lf-diff-head-h);
+                          align-items: baseline; white-space: normal; }
+  .lf-diff-head > .lf-diff-path { display: block; white-space: normal;
+                                  overflow-wrap: anywhere; }
+  .lf-diff-head .lf-diff-dir[data-folder-hidden] { opacity: 1; }
+  .lf-diff-head wbr { display: inline; }
   .lf-diff-filtered { display: block !important; }
   [data-line] { white-space: pre-wrap !important; overflow-wrap: anywhere !important; }
   code[data-code] { overflow-x: visible !important; --lf-diff-row-fill: 0; }

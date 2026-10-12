@@ -2,7 +2,8 @@
 
 Loaded as a pytest plugin (`-p leaf_dev.suite_profile`, as CI's `test` job loads it),
 it gives every test one junit property, `profile`: JSON holding the seconds each
-phase took (`setup`, `call`, `teardown`) and, under `playwright`, the seconds and
+phase took (`setup`, `call`, `teardown`), under `cpu` the CPU seconds the worker and
+every process it started used meanwhile, and, under `playwright`, the seconds and
 calls the test spent in Playwright's sync API, keyed `"<method> from <caller>"`, the
 caller being the first frame outside Playwright. That sync API runs its event loop in
 a second greenlet and switches to it for every call, so a sampling profiler, which
@@ -11,8 +12,19 @@ the waiting test off the stack. Timing each call where the test makes it keeps t
 attribution. A call made from a handler's greenlet overlaps the main greenlet's wait
 and is not counted.
 
+`cpu` is the measure `tests/AGENTS.md` costs the suite in: the CPU seconds the kernel
+charged the worker's cgroup during the test. CI's `test` job delegates a cgroup to the
+suite in `SUITE_PROFILE_CGROUP`, and each worker moves into one of its own there before
+its first test, so the browsers, driver, servers and commands it starts are charged to
+it, including a process that outlives its parent, as a server `leaf server start`
+detaches or a closed browser's renderers do. A process serving several tests, such as
+a pooled browser, charges each for what it does during it. Without `SUITE_PROFILE_CGROUP`, as on macOS, which
+has no cgroups, tests carry no `cpu` and the report ranks by worker time. Summing a
+worker's process tree instead lost or recounted a process's CPU whenever it exited,
+since only a parent that reaps a child takes over its CPU.
+
 `leaf-dev suite-profile DIR` reads one run's results from DIR and prints where its
-worker time went: the junit report's phases, files and Playwright calls; py-spy's
+CPU and worker time went: the junit report's phases, CPU, files and Playwright calls; py-spy's
 sampled stacks (`stacks.txt`), for the suite's own Python by function; and `sa`'s
 table of CPU by command (`cpu-by-command.txt`), for the browsers and servers no
 Python stack shows. Accounting names a process after the last of its threads to
@@ -98,10 +110,36 @@ def _caller():
     return f"{place}:{frame.f_code.co_qualname}"
 
 
+# This worker's cgroup, made on its first test under the one CI delegates in
+# `SUITE_PROFILE_CGROUP`.
+_cgroup: Path | None = None
+_cpu = pytest.StashKey[float | None]()
+
+
+def worker_cpu() -> float | None:
+    """CPU seconds this worker's cgroup has used, or None without
+    `SUITE_PROFILE_CGROUP`. The first call makes the cgroup and moves the worker into
+    it, so every process the worker starts after that is charged to it."""
+    global _cgroup
+    if (parent := os.environ.get("SUITE_PROFILE_CGROUP")) is None:
+        return None
+    if _cgroup is None:
+        _cgroup = Path(parent) / str(os.getpid())
+        _cgroup.mkdir()
+        (_cgroup / "cgroup.procs").write_text(str(os.getpid()))
+        # A suite a test runs makes its cgroups inside this one, which still counts them.
+        os.environ["SUITE_PROFILE_CGROUP"] = str(_cgroup)
+    stat = dict(
+        line.split() for line in (_cgroup / "cpu.stat").read_text().splitlines()
+    )
+    return int(stat["usage_usec"]) / 1e6
+
+
 @pytest.hookimpl(wrapper=True)
-def pytest_runtest_protocol():
+def pytest_runtest_protocol(item):
     global _calls
     _calls = {}
+    item.stash[_cpu] = worker_cpu()
     try:
         return (yield)
     finally:
@@ -118,9 +156,10 @@ def pytest_runtest_makereport(item, call):
             key: [round(seconds, 3), calls]
             for key, (seconds, calls) in sorted((_calls or {}).items())
         }
-        report.user_properties.append(
-            ("profile", json.dumps({**phases, "playwright": playwright}))
-        )
+        profile = {**phases, "playwright": playwright}
+        if (start := item.stash[_cpu]) is not None:
+            profile["cpu"] = round(worker_cpu() - start, 3)
+        report.user_properties.append(("profile", json.dumps(profile)))
     return report
 
 
@@ -136,7 +175,7 @@ def pytest_runtest_makereport(item, call):
 )
 @click.option("--top", default=20, show_default=True, help="Rows per table.")
 def suite_profile(directory: Path, rate: float | None, top: int) -> None:
-    """Print where one suite run's worker time went, from the results in DIRECTORY:
+    """Print where one suite run's CPU and worker time went, from the results in DIRECTORY:
     `results.xml` with this module's `profile` properties, and, where present,
     py-spy's `stacks.txt` and `sa`'s `cpu-by-command.txt`. CI's `test` job uploads
     all three as its `pytest-results-*` artifact."""
@@ -176,7 +215,17 @@ def report_cases(cases: list[dict], top: int) -> None:
     profiled = [c["profile"] for c in cases if c["profile"]]
     phases = {p: sum(prof.get(p, 0) for prof in profiled) for p in PHASES}
     waits = sum(s for prof in profiled for s, _ in prof["playwright"].values())
-    section(f"{len(cases)} tests, {minutes(total)} worker-minutes")
+    # A run whose tests carry no CPU, without a cgroup, ranks by worker time instead.
+    timed = bool(profiled) and all("cpu" in prof for prof in profiled)
+    cpu = sum(prof["cpu"] for prof in profiled) if timed else None
+    section(
+        f"{len(cases)} tests, {minutes(total)} worker-minutes"
+        + (
+            f", {minutes(cpu)} CPU-minutes in the workers' process trees"
+            if timed
+            else ""
+        )
+    )
     if profiled:
         click.echo(
             "  ".join(f"{p} {minutes(s)}" for p, s in phases.items())
@@ -194,11 +243,13 @@ def report_cases(cases: list[dict], top: int) -> None:
     for name, group in by_file.items():
         seconds = sum(c["seconds"] for c in group)
         profiles = [c["profile"] for c in group if c["profile"]]
+        used = sum(p["cpu"] for p in profiles) if timed else 0.0
         setup = sum(p.get("setup", 0) for p in profiles)
         waited = sum(s for p in profiles for s, _ in p["playwright"].values())
         median = statistics.median(c["seconds"] for c in group)
         rows.append(
             (
+                used,
                 seconds,
                 name,
                 len(group),
@@ -207,12 +258,12 @@ def report_cases(cases: list[dict], top: int) -> None:
                 share(waited, seconds),
             )
         )
-    section("By file")
+    section("By file" + (", most CPU first" if timed else ""))
     table(
-        ("minutes", "tests", "median s", "setup", "Playwright", "file"),
+        ("CPU min", "minutes", "tests", "median s", "setup", "Playwright", "file"),
         [
-            (minutes(s), n, f"{m:.1f}", su, pw, name)
-            for s, name, n, m, su, pw in sorted(rows, reverse=True)[:top]
+            (minutes(c) if timed else "-", minutes(s), n, f"{m:.1f}", su, pw, name)
+            for c, s, name, n, m, su, pw in sorted(rows, reverse=True)[:top]
         ],
     )
     if not profiled:
@@ -295,7 +346,10 @@ def report_stacks(path: Path, rate: float, top: int) -> None:
 
 def _command(line: str) -> str:
     """A command line without its paths: the program's name and the words before its
-    first path argument, so every run of one command groups together."""
+    first path argument, so every run of one command groups together. py-spy records
+    some processes with an empty line."""
+    if not line.split():
+        return "(no command line)"
     program, *words = line.split()
     kept = [Path(program).name]
     for word in words:

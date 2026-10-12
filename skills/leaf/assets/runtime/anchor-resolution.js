@@ -9,16 +9,16 @@
 import { registryFor, tagsDeclaring } from "./registry.js";
 
 import { anchorKey } from "./anchor-coordinate.js";
-import { isElementName } from "./registry-contract.js";
 import {
   resolvedElement,
   resolvedPassage,
   targetElement,
   passageGeometry,
 } from "./resolved-target.js";
+import { CONTEXT } from "./passage-facts.js";
 import { overlaps } from "./rect.js";
 import { clippedContents } from "./geometry.js";
-import { inUi, shadowHost, uiInside, under, upFrom } from "./shadow.js";
+import { inUi, shadowHost, under, upFrom } from "./shadow.js";
 import {
   registeredVisualPart,
   registeredVisualPartAt,
@@ -52,12 +52,17 @@ import {
   pageDocument,
   pageQueryAll,
   settledAway,
-  TEXT_BLOCK,
 } from "./passages.js";
 
 import { PRESSABLE } from "./widget-elements.js";
 import { PRESSES, WORKS } from "./control-selectors.js";
-import { excerptWords } from "./words.js";
+import {
+  accessibleName,
+  addressableLabel,
+  addressableWord,
+  ownName,
+} from "./addressable-names.js";
+import { fragmentId } from "./initial-render.js";
 
 // Anchors are durable coordinates, so every route that can mint one begins only after
 // replay has reconciled the authored document. The presentation root owns the writer.
@@ -90,6 +95,25 @@ export const projectedDatum = (source, key) => {
   return matches.length === 1 ? matches[0] : null;
 };
 
+// What an anchor's datum is called: the label its projection gave the element drawn
+// for it, found as resolution finds it, or for a datum its lazy widget has not drawn,
+// what that widget calls it (`lfDatumLabel`), so a thread on a line of a closed file
+// is named as its row would be.
+export function datumLabel(anchor) {
+  if (!anchor?.datum) return "";
+  const source = sectionOf(anchor);
+  const datums = currentDatums(
+    source,
+    anchor.datum,
+    anchor.identity ?? null,
+    anchor.source ?? null,
+  );
+  const label = datums.length
+    ? datums.length === 1 && datums[0].dataset.lfDatumLabel
+    : source?.lfDatumLabel?.(anchor.datum);
+  return typeof label === "string" ? label.trim() : "";
+}
+
 function suppliedDatum(source, key) {
   const supplied = source?.lfDataDatum?.(key);
   return supplied instanceof Element &&
@@ -114,13 +138,27 @@ export function requireReference(verb, owner, attribute) {
     );
 }
 
-// The element an `x-refers` attribute names: in the owner's own authored document
-// first, so a widget in a message finds its message's element before a page element
-// with the same id, as the server's request check does, and then in the page beside
-// it, which a message's widget may name.
+// The element an `x-refers` attribute names. A keyed contract names the member whose
+// key holds the value inside the owner's nearest enclosing scope, the scope the
+// member's x-unique declares for that key. Any other names an id: in the owner's own
+// authored document first, so a widget in a message finds its message's element before
+// a page element with the same id, as the server's request check does, and then in the
+// page beside it, which a message's widget may name.
 export function referencedProjection(owner, attribute) {
   const id = owner.getAttribute(attribute);
   if (!id) return null;
+  const declarations = registryFor(owner);
+  const { tag, key } = declarations[owner.localName]["x-refers"][attribute];
+  if (tag) {
+    const within = declarations[tag]["x-unique"][key];
+    const scopeOf = (element) => element.parentElement?.closest(within) ?? null;
+    const scope = scopeOf(owner);
+    return (
+      [...(scope?.querySelectorAll(tag) ?? [])].find(
+        (member) => scopeOf(member) === scope && member.getAttribute(key) === id,
+      ) ?? null
+    );
+  }
   const scope = authoredScope(owner);
   const page = pageDocument();
   return elementById(id, scope) ?? (scope === page ? null : elementById(id, page));
@@ -312,143 +350,6 @@ export function annotationAt(node, fallback = addressableAt) {
 // A seat inside a shadow root stands at its host, where light-DOM chrome can sit.
 export const lightSeat = (seat) => (seat && shadowHost(seat.getRootNode())) ?? seat;
 
-const HTML_WORDS = {
-  input: "control",
-  select: "control",
-  button: "control",
-  p: "paragraph",
-  li: "item",
-  tr: "row",
-  td: "cell",
-  th: "cell",
-  figure: "figure",
-  blockquote: "quote",
-  pre: "block",
-  section: "section",
-  article: "section",
-  aside: "aside",
-  ul: "list",
-  ol: "list",
-  dl: "list",
-  table: "table",
-  details: "note",
-  h1: "heading",
-  h2: "heading",
-  h3: "heading",
-  h4: "heading",
-  h5: "heading",
-  h6: "heading",
-};
-
-export function addressableWord(addressable) {
-  if (!addressable) return "";
-  const tag = addressable.tagName.toLowerCase();
-  if (registryFor(addressable)[tag]?.["x-word"] === "module") {
-    const own = addressable.lfWord?.();
-    if (own) return own;
-  }
-  if (registryFor(addressable)[tag]?.["x-question-context"]) return "question";
-  if (tag.startsWith("lf-")) return tag.slice(3);
-  if (tag === "pre")
-    return addressable.querySelector(":scope > code") ? "code" : "block";
-  return HTML_WORDS[tag] ?? tag;
-}
-
-// The label is rooted at the addressable and reads its authored words. Generated annotation
-// chrome is excluded by the same passage reader used for anchor resolution. Display
-// surfaces constrain these complete words to their available space.
-export function addressableSays(addressable) {
-  if (!addressable) return "";
-  const own =
-    registryFor(addressable)[addressable.localName]?.["x-word"] === "module"
-      ? addressable.lfSays?.()
-      : "";
-  return own || elementReading(addressable);
-}
-
-// What names an element, where the authoring contract gives it a name
-// (`../../references/page-authoring.md`): the attribute its registry entry declares
-// with `x-name`, else a leading disclosure summary, heading, or titled member's
-// <strong>, looked for inside a leading <header> or <hgroup> too. Leading means no words come
-// before it; elements may, as a titled member's comparison chips stand in the band
-// above its title and an eyebrow above a header's heading. The words are read the way
-// `addressableSays` reads them, and generated chrome is skipped, so it never names
-// anything: chrome inside the element, asked about the element's own insides, since
-// a widget an agent sent in a reply stands inside the thread panel's chrome and its
-// heading is still its name. An element the contract gives no name answers "".
-const TITLES = "summary, h1, h2, h3, h4, h5, h6, strong";
-function leadingTitle(container) {
-  for (const node of container.childNodes) {
-    if (node.nodeType === Node.TEXT_NODE && node.data.trim()) return "";
-    if (node.nodeType !== Node.ELEMENT_NODE || uiInside(node, container)) continue;
-    if (node.matches(TITLES)) return elementReading(node);
-    if (["header", "hgroup"].includes(node.localName)) return leadingTitle(node);
-  }
-  return "";
-}
-export function addressableName(element) {
-  if (!element) return "";
-  const attribute = registryFor(element)[element.localName]?.["x-name"];
-  const declared = attribute && element.getAttribute(attribute)?.trim();
-  return declared || leadingTitle(element);
-}
-
-// What the chrome calls an element away from it: a Questions panel row, a Page Map heading,
-// a thread's anchor, a feed row. The element's name comes first: `addressableName`,
-// else its own caption, the `aria-label` its author gave it, or a control's <label>.
-// An element whose words are its own (a block of prose, anything holding text of its
-// own, or a module that answers `lfSays`) is otherwise named by them, cut short. Any other
-// element's words are its members' run together, a question's with its options' and
-// their chips', which name nothing, so it takes the name of the nearest element
-// holding it that has one, short of the document it stands in (the page's column, or
-// a message's body): a question's options by the question, a chart by its section.
-// Past that, plain markup is named by its words cut short, and a registered widget by
-// nothing: empty, and the caller says the element's word (`addressableWord`), which it
-// usually shows beside this anyway.
-const LABEL_WORDS = 60;
-const captionOf = (element) => {
-  const caption = [...element.children].find(
-    (child) => child.matches("figcaption, caption") && !uiInside(child, element),
-  );
-  return caption ? elementReading(caption) : "";
-};
-// A form control's caption is its <label>.
-const accessibleName = (element) =>
-  element.getAttribute("aria-label")?.trim() ||
-  (element.labels?.[0] ? elementReading(element.labels[0]) : "") ||
-  element.alt?.trim() ||
-  "";
-const ownName = (element) =>
-  addressableName(element) || captionOf(element) || accessibleName(element);
-const saysItself = (element) =>
-  element.matches(TEXT_BLOCK) ||
-  (registryFor(element)[element.localName]?.["x-word"] === "module" &&
-    element.lfSays?.()) ||
-  [...element.childNodes].some(
-    (node) => node.nodeType === Node.TEXT_NODE && node.data.trim(),
-  );
-export function addressableLabel(element) {
-  if (!element) return "";
-  const own = ownName(element);
-  if (own) return own;
-  if (saysItself(element)) return excerptWords(addressableSays(element), LABEL_WORDS);
-  const scope = authoredScope(element);
-  for (let at = upFrom(element); at && at !== scope; at = upFrom(at)) {
-    const name = ownName(at);
-    if (name) return name;
-  }
-  // A registered widget has a word of its own, which says more than its members' words
-  // run together. Plain markup has none worth saying (a `div`), so its words, or the
-  // name of the picture it holds, are the last resort.
-  if (isElementName(element.localName) && registryFor(element)[element.localName])
-    return "";
-  return excerptWords(
-    addressableSays(element) ||
-      element.querySelector("[aria-label]")?.getAttribute("aria-label"),
-    LABEL_WORDS,
-  );
-}
-
 const aimLabel = (addressable, says = addressableLabel(addressable)) =>
   [addressableWord(addressable), says].filter(Boolean).join(": ");
 
@@ -491,7 +392,6 @@ export function datumAimTarget(datum) {
 // semantic fences. A short unique quote keeps the file capture’s initial context;
 // repeated words grow their context until the shared resolver finds this exact span
 // or the real boundary is exhausted. An unresolved passage remains unresolved.
-const CONTEXT = 24;
 export function anchorForRange(range) {
   const node = range.commonAncestorContainer;
   const holder = node.nodeType === Node.ELEMENT_NODE ? node : upFrom(node);
@@ -935,17 +835,6 @@ export function resolveAnchor(anchor) {
     place: controlFace ? face : annotationAt(segments[0].node),
     segments,
   });
-}
-
-// One fragment reading serves message hrefs and location.hash. Malformed escapes retain
-// their literal characters rather than making a durable reference unreadable.
-export function fragmentId(fragment) {
-  const raw = fragment.slice(1);
-  try {
-    return decodeURIComponent(raw);
-  } catch {
-    return raw;
-  }
 }
 
 // The page element a fragment names: the anchor `{section}` it spells, resolved as every

@@ -10,7 +10,7 @@ import {
   render,
   saidAt,
   reportSequence,
-  watchOwner,
+  whileConnected,
   watchReports,
   widgetController,
 } from "/runtime/widget-api.js";
@@ -21,9 +21,9 @@ export default class extends HTMLElement {
     this.line = document.createElement("div");
     this.line.dataset.lfGen = "1";
     this.append(this.line);
-    watchOwner(this, {
-      connect: () => (this.paint = clocked(this, () => this.show())),
-      disconnect: () => this.paint.stop(),
+    whileConnected(this, () => {
+      this.paint = clocked(this, () => this.show());
+      return () => this.paint.stop();
     });
     this.#controller.subscribe(() => {});
     watchReports(this, () => this.paint());

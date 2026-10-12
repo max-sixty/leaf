@@ -58,7 +58,7 @@ from render_harness import (
     shortcut_bar_text,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 def unnamed_browser():
@@ -311,8 +311,8 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
             "turn": "turn-1",
         },
     )
-    on_you = state_json(serve.page_dir)["queues"]["on_you"]
-    assert {"kind": "widget", "id": "ship"} in [item["subject"] for item in on_you]
+    questions = state_json(serve.page_dir)["queues"]["questions"]
+    assert {"kind": "widget", "id": "ship"} in [item["subject"] for item in questions]
 
     def check():
         ran = subprocess.run(
@@ -1400,12 +1400,7 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
     the declaration goes on the label (relabel), and an undeclared word under chrome is
     reported here.
 
-    The second one no marker can fix, which is why it reads differently: a word inside a
-    form control is unselectable in every engine, so a widget that reaches for <button>
-    has put its label somewhere the user cannot go. `selectableOffer` is the explicit
-    exception for such page words, and this says when a widget needed it.
-
-    Both are about a word the user was shown, so the check asks that first. A word
+    It is about a word the user was shown, so the check asks that first. A word
     the browser reads out and the page never paints, such as an aria-describedby
     target inside a shadow tree, is hidden with [hidden], the silence available in
     every root, and the same word shown is still reported."""
@@ -1474,12 +1469,20 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
     assert page.locator("#hidden-note").is_hidden()
     assert page.locator("#shown-offer, #clipped-offer").count() == 2
     assert page.locator("#shown-offer").is_visible()
+    # A label inside a form control no marker can reach is the suite's question of
+    # Leaf's own modules (`test_page_fixture_renders`), not the gate's.
+    assert render_checks_model.evaluate_probe(page, "wordsInFormControls") == [
+        (
+            '<lf-option id=c-lax> says "Lax, host-only" inside a form control, where '
+            "no selection can reach it"
+        )
+    ]
     page.close()
 
     found = render_gate_model.render_version(
         primed_browser, serve(CARRIED_PAGE)
     ).failures
-    assert len(found) == 8, found
+    assert len(found) == 6, found
     clipped = [f for f in found if "(#clipped-offer)" in f]
     assert len(clipped) == 2, found
     assert all(
@@ -1494,10 +1497,6 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
         (
             '<lf-option id=c-lax> puts "opens in a new tab" under .lf-ui, where no '
             "comment can reach it"
-        ),
-        (
-            '<lf-option id=c-lax> says "Lax, host-only" inside a form control, where no '
-            "selection can reach it"
         ),
     ], found
 

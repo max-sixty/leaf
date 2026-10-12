@@ -118,7 +118,7 @@ def append_command(page_dir, command):
     event, including meaning and attention, to event_log.append_event instead.
     """
     with service_model.PageTransaction(page_dir) as page:
-        return event_contracts_model.append_admitted(page, command)
+        return event_contracts_model.append_admitted(page, command)[0]
 
 
 def response_reference(page_dir, event):
@@ -136,20 +136,18 @@ def append_carried_log_record(page_dir, event):
     """Seed already-interpreted input for a storage or transport test.
 
     These tests declare input the transport must deliver, without a document that
-    could decide its meaning. Semantic attention cases use `append_command`.
+    could decide its meaning, so user input that admission would weigh against the
+    page's obligations is taken to change them. Semantic attention cases use
+    `append_command`.
     A raw fixture can explicitly declare `attention=False` for quiet input.
     """
-    from leaf.registry.kernel import bookkeeping_kinds
+    from leaf.registry.kernel import kernel_event_kinds
 
+    attention = event_contracts_model.settled_attention(
+        event, kernel_event_kinds().get(event["kind"], {})
+    )
     return events_model.append_event(
-        page_dir,
-        {
-            "attention": (
-                event["author"] == "user" and event["kind"] not in bookkeeping_kinds()
-            )
-            or event["kind"] in {"report", "error"},
-            **event,
-        },
+        page_dir, {"attention": attention is not False, **event}
     )
 
 
@@ -292,7 +290,7 @@ def spawn_probe(spawn, page_dir, body, **environment):
     )
 
 
-STATED_TIMEOUT = 60
+STATED_TIMEOUT = 120
 """How long a pure-Python wait gives another thread or process to state its fact.
 
 The deadline separates a product that never states the fact from a machine that
@@ -473,20 +471,20 @@ def install_payload(destination):
     return destination
 
 
-def vendored_by_another_leaf(page_dir: Path) -> str:
-    """Record another Leaf's runtime identity in the page's layer, and return it.
+def vendored_at_another_protocol(page_dir: Path) -> int:
+    """Record another page protocol in the page's vendored `$events`, and return it.
 
-    The state a plugin update, or a runtime edit in a checkout, leaves a page in:
-    its runtime modules are the ones an earlier `page init` copied, and this Leaf's
-    own are something else. Only the stamp changes, which is all a comparison of
-    identities reads, and it is replaced rather than written through, as every
-    file a lent page may share with its template has to be.
+    The state a breaking Leaf update leaves a page in: its layer is the one an
+    earlier `page init` copied, at a number this Leaf no longer speaks. Only the
+    number changes, which is all the comparison reads, and the file is replaced
+    rather than written through, as every file a lent page may share with its
+    template has to be.
     """
     stamp = page_dir / "registry.json"
     registry = json.loads(stamp.read_text(encoding="utf-8"))
-    foreign = "sha256:" + "b" * 64
-    assert registry["$layer"]["runtime"] != foreign
-    registry["$layer"]["runtime"] = foreign
+    foreign = 999
+    assert registry["$events"]["protocol"] != foreign
+    registry["$events"]["protocol"] = foreign
     cleanup_model.write_json(stamp, registry)
     return foreign
 
@@ -501,7 +499,7 @@ PAGE = """<!doctype html>
 <section id="plan">
   <h2>Plan</h2>
   <p>The cutoff lives in <a href="https://example.test/jobs/backfill.py#L88"><code>jobs/backfill.py:88</code></a>.</p>
-  <lf-ask id="plan-choice-decision">
+  <div id="plan-choice-decision">
     <h3>Which plan should lead?</h3>
     <lf-options>
       <lf-option id="flag-first"><small class="tag">effort: low</small><small class="tag">risk: med</small>
@@ -511,16 +509,24 @@ PAGE = """<!doctype html>
         <strong>Backfill first</strong> Verify, then flip. <em>My take: do this first.</em>
       </lf-option>
     </lf-options>
-  </lf-ask>
-  <lf-diagram id="flow"><pre>
-graph LR
-  A --> B
-  </pre></lf-diagram>
+  </div>
 </section>
 </main>
 </body>
 </html>
 """
+# PAGE places no widget whose module only a browser can judge, so `page check` on it
+# and on the versions built from it never starts one (`needs_browser`). A test about a
+# data widget's body, its visual parts, or the section one supplies starts from
+# FLOW_PAGE, which closes the Plan section with a diagram.
+FLOW_PAGE = PAGE.replace(
+    "</section>",
+    """  <lf-diagram id="flow"><pre>
+graph LR
+  A --> B
+  </pre></lf-diagram>
+</section>""",
+)
 
 
 def package_path(path: Path) -> str:
@@ -531,7 +537,7 @@ def package_path(path: Path) -> str:
 def page_packages() -> tuple[str, ...]:
     """The integration page's package selection, resolved where it is initialized.
 
-    PAGE holds an lf-diagram, and the interact suite borrows lf-diagram and
+    FLOW_PAGE holds an lf-diagram, and the interact suite borrows lf-diagram and
     lf-diff declarations from the vendored registry.
     """
     return (package_path(COMMAND_HUB_PACKAGE), "diagram", "diff")
@@ -603,32 +609,15 @@ def declare_data_input(
         assert activated.error is None
 
 
-def stamp_activation(d):
-    """Activate the source as `page stamp` does: checked against the standing
-    log with transitions allowed, ahead of the note that records them."""
-    from leaf.validation.source import check_source
+def publish(d, text="published"):
+    """Stamp the source as the next version, through `page stamp`'s own path.
 
-    with service_model.PageTransaction(d) as page:
-        checked = check_source(d, page.events)
-        return revisioning_model.activate_checked_source(page, checked)
+    The stamped version is the user-seen baseline: `page check` compares against
+    the last one, and an action can only ever be made against one the server
+    exposed. Returns the stamp's note."""
+    from leaf.publishing import cmd_stamp
 
-
-def publish(d, version=1):
-    """Append the note event that makes a version the user-seen baseline:
-    `page check` compares against the last *published* version, and an action
-    can only ever be made against one the server exposed."""
-    activated = stamp_activation(d)
-    assert activated.error is None and activated.revision is not None
-    append_carried_log_record(
-        d,
-        {
-            "kind": "note",
-            "author": "agent",
-            "version": version,
-            "revision": activated.revision,
-            "text": "published",
-        },
-    )
+    return cmd_stamp(d, text)
 
 
 def let_a_pick_settle_a_thread(page_dir, thread):
@@ -722,7 +711,6 @@ def record_claim(page, /, harness="claude-code", **fields):
         "agent": "Claude",
         "cwd": str(Path.cwd()),
         "ts": "t",
-        "released": None,
         "turn": observed["turn"] if observed else "turn-1",
         "turn_opened": observed["turn_opened"] if observed else cleanup_model.now_iso(),
         "turn_closed": observed["turn_closed"] if observed else None,
@@ -809,8 +797,8 @@ SUGGESTION = """<lf-suggestion id="sug-refill">
 
 
 def before_choice(page, markup):
-    """Insert a fixture before the base page's titled choice Ask."""
-    start = '<lf-ask id="plan-choice-decision">'
+    """Insert a fixture before the base page's titled choice."""
+    start = '<div id="plan-choice-decision">'
     return page.replace(start, markup + start)
 
 
@@ -932,18 +920,18 @@ def state_json(d):
     return json.loads(result.output)
 
 
-def questions_on_you(state):
-    """Widget requests on the user's queue, retaining source and prompt identity."""
+def asks_on_user(state):
+    """Widget asks on the user's Questions, retaining source and prompt identity."""
     return [
         {
             "id": item["id"],
-            "tag": item["question"]["source"]["tag"],
-            "widget": item["question"]["source"]["id"],
-            "widget_tag": item["question"]["source"]["tag"],
+            "tag": item["ask"]["source"]["tag"],
+            "widget": item["ask"]["source"]["id"],
+            "widget_tag": item["ask"]["source"]["tag"],
             "thread": item["thread"],
         }
-        for item in state["queues"]["on_you"]
-        if item["kind"] == "question" and item["question"]["source"]["kind"] == "widget"
+        for item in state["queues"]["questions"]
+        if item["kind"] == "ask" and item["ask"]["source"]["kind"] == "widget"
     ]
 
 
@@ -1211,11 +1199,8 @@ def trial_page(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     trial_family(tmp_path)
     page = tmp_path / "page"
-    # The version is built out of PAGE, which holds an lf-diagram; the project package
-    # under test is explicitly selected beside it.
     initialized = CliRunner().invoke(
-        cli_model.cli,
-        ["page", "init", "--package", "diagram", "--package", "./.leaf", str(page)],
+        cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
     )
     assert initialized.exit_code == 0, initialized.output
     (page / "index.html").write_text(trial_version(TRIAL_CACHE, TRIAL_LOG, PILOT_PURGE))
@@ -1291,9 +1276,8 @@ def fetch(url, data=None, token=TOKEN, layer=None, headers=None):
 HELD_LEASES = []
 
 
-def serving(directory, port: int, lifetime: str = "standing") -> None:
-    """Hold the serving incarnation lease of a live `server run`."""
-    directory.mkdir(parents=True, exist_ok=True)
+def fixture_service(directory, port: int, lifetime: str = "standing") -> dict:
+    """Record the desired service of a `server run` on `port`, as it records its own."""
     service = {
         "host": "127.0.0.1",
         "bind": "127.0.0.1",
@@ -1303,12 +1287,17 @@ def serving(directory, port: int, lifetime: str = "standing") -> None:
         "server_id": "fixture-server",
     }
     cleanup_model.write_json(directory / "service.json", service)
-    handle = open(directory / "server.lock", "a+b")  # noqa: SIM115 - test lease
-    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    handle.truncate(0)
-    handle.write(service["server_id"].encode())
-    handle.flush()
-    HELD_LEASES.append(handle)
+    return service
+
+
+def serving(directory, port: int, lifetime: str = "standing") -> None:
+    """Hold the serving incarnation lease of a live `server run`, taken as it takes it."""
+    directory.mkdir(parents=True, exist_ok=True)
+    service = fixture_service(directory, port, lifetime)
+    lease = hosting_model._take_server_lease(directory)
+    lease.write(service["server_id"].encode())
+    lease.flush()
+    HELD_LEASES.append(lease)
 
 
 def available_loopback_port() -> int:
@@ -1441,21 +1430,10 @@ def neighbour_page(directory, title=None, dead=False, published=True, port=59999
                 "text": "t",
             },
         )
-    record = {"port": port}
     if dead:
-        cleanup_model.write_json(
-            directory / "service.json",
-            {
-                "host": "127.0.0.1",
-                "bind": "127.0.0.1",
-                "port": port,
-                "enabled": True,
-                "lifetime": "standing",
-                "server_id": "fixture-server",
-            },
-        )
+        fixture_service(directory, port)
     else:
-        serving(directory, record["port"])
+        serving(directory, port)
     server_rows_model.RowPublisher(directory, "fixture-server").refresh()
     return server_model.page_url("127.0.0.1", port, server_model.host_key())
 
@@ -1492,7 +1470,7 @@ def declare_work(page_dir, line, *, item=None, ts=None, **voice):
             or append_carried_log_record(
                 page_dir,
                 {
-                    "kind": "task",
+                    "kind": "todo",
                     "author": "agent",
                     "owner": "agent",
                     "subject": {"kind": "page"},
@@ -1524,9 +1502,9 @@ def end_work(page_dir):
             append_carried_log_record(
                 page_dir,
                 {
-                    "kind": "task_end",
+                    "kind": "todo_end",
                     "author": "agent",
-                    "task": task["id"],
+                    "todo": task["id"],
                     "outcome": "done",
                 },
             )
@@ -2137,11 +2115,11 @@ SnapshotHandlerRegistry.add_handler(
 def consume_pending_input(session_id):
     """Hand the session its pending input as a hook does inline: one complete
     envelope, confirmed as it is handed over."""
-    from leaf import delivery
+    from leaf import delivery, state
 
     batches = delivery.pending_batches(session_id)
     if not batches:
         return None
     payload = delivery.freeze_delivery(batches)
-    delivery.receive_held(payload, session_id)
+    delivery.receive_held(payload, session_id, state.session_record(session_id))
     return payload

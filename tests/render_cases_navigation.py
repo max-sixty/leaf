@@ -3,7 +3,6 @@
 import json
 from contextlib import contextmanager
 
-import pytest
 from click.testing import CliRunner
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -807,18 +806,6 @@ def _publish(page_dir, version, html, note):
     assert json.loads(result.output)["version"] == version
 
 
-@pytest.fixture
-def one_user(browser):
-    """A browser context two pages can share, which is what makes them tabs.
-
-    `Browser.new_page` opens each page in a context of its own, so two of them are two
-    users with no storage between them — and a draft lives in the user's store now,
-    which is the whole of what these tests are about."""
-    return browser.new_context(
-        viewport={"width": 1200, "height": 900}, color_scheme="light"
-    )
-
-
 def compose(page, passage, text=None):
     """Open the composer on a passage the way a user does, and type into it.
 
@@ -828,7 +815,7 @@ def compose(page, passage, text=None):
     page.locator(passage).scroll_into_view_if_needed()
     page.locator(passage).click(click_count=3)
     expect(page.locator(".lf-fab-bar")).to_be_visible()
-    expect(page.locator(".lf-fab-input")).not_to_be_focused()
+    expect(page.locator(".lf-fab-input:focus")).to_have_count(0)
     page.keyboard.press("c")
     expect(page.locator(".lf-fab-input")).to_be_focused()
     if text is not None:

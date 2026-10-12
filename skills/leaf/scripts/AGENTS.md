@@ -44,14 +44,14 @@ transport boundary exits, prints, or answers HTTP.
 - `work_reading`: the transaction-scoped durable work reading shared by admission,
   serving and delivery;
 - `workflows`, `activity`: unsettled updates with their evidence, and the
-  page-level fold over workflows, tasks, starts, status, claim, turn, and watcher;
-- `questions`: the canonical inventory of widget and prose Questions, including typed
+  page-level fold over workflows, to-dos, starts, status, claim, turn, and watcher;
+- `questions`: the canonical inventory of widget and prose asks, including typed
   answers, completion, withdrawal and attention, which every surface selects;
-- `work`: the subjects work stands on: what an id names, which widgets seat a task,
-  and which widget tasks a version would leave without a target;
+- `work`: the subjects work stands on: what an id names, which widgets seat a to-do,
+  and which widget to-dos a version would leave without a target;
 - `tasks` (experimental, expected to change a lot): explicit committed work on either
-  side, held by the log until ended, and the `start` that takes an update or task in
-  hand; their folds, admission gate, and `leaf task`. Questions never become Tasks;
+  side, held by the log until ended, and the `start` that takes an update or to-do in
+  hand; their folds, admission gate, and `leaf task`. Asks never become to-dos;
 - `delivery`, `session`, `hooks`, `hook_transport`, `harness`: the delivery envelope
   and its receipt, status and the `leaf wait` watch, the harness hooks' entry, the
   prompt and Stop hooks as a session's transport, and harness declarations;
@@ -96,7 +96,8 @@ declarations and provenance, `storage` owns the vendored-file cache, and
 Within `served_state/`, `context` owns the live or captured inputs every fold reads;
 `work` enriches the shared durable reading with live activity and response bindings;
 `wire` serializes one declared fold, `thread` and `document`
-own their scoped readings, `browser` assembles the requested views, `page` composes
+own their scoped readings, `queues` selects the work queues each view serves and
+`page state` prints, `browser` assembles the requested views, `page` composes
 the served response, `reading` names filesystem changes for freshness reads, and
 `service` owns the page source every route reads through (the live directory, or a
 `page_snapshot` capture) and its state transaction.

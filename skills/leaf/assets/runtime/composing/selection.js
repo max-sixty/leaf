@@ -9,12 +9,13 @@
    Escape hide without discarding words. A successful send settles only the submitted draft generation.
 
    A hidden draft is news and a place: hiding one that still holds words says so once,
-   and Resume writing brings its editor back. Startup reopens a stored composer
+   and Resume writing brings its editor back. A refused send reopens its box with the
+   words while the user has done nothing since Send. Startup reopens a stored composer
    record through `openDraft`. Every path that discards words empties
    the box first, so those hide silently.
 
-   Boot constructs the command owner with explicit travel, delivery, and repaint
-   capabilities. Importing this module exposes only passive nodes and live draft
+   The response surface (composing/surface.js) constructs the command owner with its bar's
+   commands and boot's travel, delivery, and repaint capabilities. Importing this module exposes only passive nodes and live draft
    readings. mount binds the field and its controls after those owners exist. */
 import { el, responseAction } from "../widget-elements.js";
 import { anchorKey } from "../anchor-coordinate.js";
@@ -38,7 +39,7 @@ import { anchorForRange } from "../anchor-resolution.js";
 import { THREAD } from "../thread/selectors.js";
 import { keys, paintKeys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
-import { PRESS } from "../keyboard/bindings.js";
+import { PRESS, rowArrows } from "../keyboard/bindings.js";
 import {
   onStanding,
   takesLetters,
@@ -121,7 +122,13 @@ const composerInput = fabInput;
 // pointed a user at it.
 composerInput.setAttribute("aria-describedby", composerQuote.id);
 const composerSend = el("button", "lf-btn", "Comment");
-composer.append(composerQuote, suggestRow, composerInput, composerSend);
+// The field, and the shelf and controls `wireInput` gathers around it, wait outside the
+// page until the composer first opens (`showComposer`), since a connected field builds
+// its editor: a page whose composer never opens builds none. Everything that reads the
+// field before then reads its words and draft, which it holds unconnected.
+const composerField = document.createDocumentFragment();
+composerField.append(composerInput);
+composer.append(composerQuote, suggestRow, composerSend);
 fabBar.prepend(composer);
 
 export let pendingAnchor = null;
@@ -333,8 +340,9 @@ export function createSelectionComposer({
     const choices = tabbing && field ? [field, ...options] : options;
     if (!choices.length) return;
     const at = choices.indexOf(focused());
-    const backward =
-      binding === "Shift+Tab" || binding === "ArrowLeft" || binding === "ArrowUp";
+    const backward = ["Shift+Tab", rowArrows(choices[0])[0], "ArrowUp"].includes(
+      binding,
+    );
     const next =
       at < 0
         ? backward
@@ -405,6 +413,7 @@ export function createSelectionComposer({
   // a guard testing for one of them ran on every mousedown in the page and swallowed the
   // click. Painting hangs off the same call, so the mark and the box are up together.
   function showComposer(open) {
+    if (open && composerField.hasChildNodes()) composer.append(composerField);
     if (!open) syncComposer?.cancelDictation();
     // Hiding keeps the words and used to say nothing at all, so a press on the banner took
     // the box off screen with the user's sentence in it and left no sign the sentence
@@ -703,6 +712,8 @@ export function createSelectionComposer({
         const point = fabPointAt();
         const epoch = composerEpoch;
         const currentIntent = retainUserIntent();
+        const untouched = retainUserIntent({ source: document.documentElement });
+        let flight = null;
         const sent = sendMessage(
           ctx,
           () => composerCtx(pendingAnchor) === ctx && owns(),
@@ -715,10 +726,21 @@ export function createSelectionComposer({
             if (suggestion) event.suggestion = true;
             if (about) event.about = about;
             if (drawing) event.drawing = drawing;
-            return createComment(event);
+            return (flight = createComment(event));
           },
         );
         if (!sent) return;
+        // A refusal withdraws the thread the send drew and hands the words back to this
+        // passage's draft. While the user has done nothing since Send, the box comes back
+        // with them, as the page comment card's does. Withdrawing the thread the send
+        // landed them on hands their focus on (`handBack`), so where focus stands is no
+        // reading of their intent here, only whether they have acted since. After a
+        // later gesture the words wait for Resume writing.
+        void Promise.resolve(flight).then((accepted) => {
+          if (accepted || composerEpoch !== epoch || composerOpen) return;
+          const record = composerRecord(ctx);
+          if (record && untouched()) untouched.handoff(() => openDraft(record));
+        });
         const revealSent = bindQueuedWork((options) =>
           openPageThread(sent.id, options),
         );
@@ -858,13 +880,8 @@ export function createSelectionComposer({
     setDraftDrawing,
     draftKey: composerCtx,
     composerHolds,
-    setSuggestionMode,
     responseOptionsAreOpen,
     responseOptionsAvailable,
-    responseOptionButtons,
-    focusedResponseOption,
-    responseReactionButtons,
-    stepResponseOptions,
     setResponseOptions,
     syncResponseOptions,
     resetResponseOptions,

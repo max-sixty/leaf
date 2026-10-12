@@ -1,94 +1,14 @@
-/* Pure semantic definitions of registry-declared widget commands.
-   These match registry.contract's admission snapshots. Presentation and schema
-   annotations are outside an operation's identity. */
+/* Registry-declared widget commands as the browser reads them. Composition stamps each
+   verb's writer and admitted definition into `$states` (Python's
+   `registry.contract.stamp_states`), so this module derives neither: it finds a verb's
+   stamped state and compares a recorded definition with it. */
 
-function semanticSchema(schema) {
-  if (!schema || typeof schema !== "object" || Array.isArray(schema)) return schema;
-  const annotations = new Set([
-    "title",
-    "description",
-    "$comment",
-    "default",
-    "examples",
-    "deprecated",
-    "readOnly",
-    "writeOnly",
-  ]);
-  const maps = new Set([
-    "properties",
-    "patternProperties",
-    "$defs",
-    "definitions",
-    "dependentSchemas",
-  ]);
-  const single = new Set([
-    "additionalProperties",
-    "unevaluatedProperties",
-    "propertyNames",
-    "items",
-    "additionalItems",
-    "unevaluatedItems",
-    "contains",
-    "not",
-    "if",
-    "then",
-    "else",
-    "contentSchema",
-  ]);
-  const sequences = new Set(["allOf", "anyOf", "oneOf", "prefixItems"]);
-  return Object.fromEntries(
-    Object.entries(schema)
-      .filter(([key]) => !annotations.has(key))
-      .map(([key, value]) => [
-        key,
-        key === "enum" || key === "const"
-          ? value
-          : maps.has(key)
-            ? Object.fromEntries(
-                Object.entries(value).map(([name, child]) => [
-                  name,
-                  semanticSchema(child),
-                ]),
-              )
-            : sequences.has(key)
-              ? value.map(semanticSchema)
-              : single.has(key)
-                ? semanticSchema(value)
-                : value,
-      ]),
-  );
-}
-
-function detailSchema(entry, spec) {
-  const record = spec.record;
-  if (!record) return spec.detail;
-  const value =
-    record.kind === "value"
-      ? entry.properties[record.attr]
-      : record.kind === "attribute"
-        ? { type: "array", items: { type: "string" }, uniqueItems: true }
-        : { type: "string" };
-  const properties = { value };
-  if (record.kind === "position")
-    Object.assign(properties, { unit: { type: "string" }, rank: { type: "string" } });
-  if (spec.report) properties.text = { type: "string", minLength: 1 };
-  return {
-    type: "object",
-    properties,
-    required: Object.keys(properties),
-    additionalProperties: false,
-  };
-}
-
-export function stateDefinition(origin, entry, spec) {
-  return {
-    origin,
-    unit: spec.unit,
-    record: spec.record ?? null,
-    creates: spec.creates ?? null,
-    report: spec.report ?? false,
-    detail: semanticSchema(detailSchema(entry, spec)),
-  };
+// The stamped state of the verb an action or report names on `tag`, when the side that
+// sent it is the verb's writer.
+export function stampedState(registry, tag, event) {
+  const state = registry.$states[tag]?.[event.action];
+  const writer = { action: "user", report: "agent" }[event.kind];
+  return state?.writer === writer ? state : null;
 }
 
 export function sameStateDefinition(recorded, current) {
@@ -114,17 +34,16 @@ export function sameStateDefinition(recorded, current) {
   );
 }
 
+// The operation is the fields the stamped definition holds, detail aside; a field an
+// earlier Leaf recorded beside them never retracts a decision. registry/contract.py's
+// same_state_operation holds the same rule.
 export function sameStateOperation(recorded, current) {
   if (!recorded || !current) return false;
-  const { detail: _recordedDetail, ...recordedOperation } = recorded;
-  const { detail: _currentDetail, ...currentOperation } = current;
-  return sameStateDefinition(recordedOperation, currentOperation);
-}
-
-export function eventSpec(entry, event) {
-  const spec = entry["x-state"]?.[event.action];
-  const writer = { action: "user", report: "agent" }[event.kind];
-  return spec && (spec.writer ?? "user") === writer ? spec : null;
+  return Object.entries(current).every(
+    ([key, value]) =>
+      key === "detail" ||
+      (Object.hasOwn(recorded, key) && sameStateDefinition(recorded[key], value)),
+  );
 }
 
 // Registry keys share schema.WIDGET_NAME with Python. Exact custom-element names

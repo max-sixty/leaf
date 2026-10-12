@@ -1,119 +1,12 @@
-/* Queues select the canonical Questions, explicit Tasks and response workflows.
- * A Question is never synthesized as a Task. Its source owns its answer; only an
- * explicit user Task offers Done. Pending thread sends change attention through
- * the application publisher, while widget completion waits for admission. */
-import { awaitsUser } from "./thread/model.js";
-import { atWork } from "./thread/workflow.js";
+/* What an item on Questions or Tasks offers and what a row calls it. The server selects the queues
+ * (`served_state.queues`) and the application publisher places this tab's sends
+ * against them; an ask is answered through its source, and only a to-do on the
+ * user, one the agent opened on them, offers Done. */
 
-export const endsByDone = (item) => item.ends === "done";
-export const queueOffers = (item, ready, onYou) => ({
+export const queueOffers = (item, ready, onUser) => ({
   open: ready,
-  done: ready && onYou && item.kind === "task" && endsByDone(item),
+  done: ready && onUser && item.kind === "todo",
 });
 
 export const taskNoun = (item) =>
   item.kind === "answer" && item.answer?.kind === "reply" ? "reply" : item.kind;
-
-const taskItem = (task) => ({
-  kind: "task",
-  id: task.id,
-  owner: task.owner,
-  subject: task.subject,
-  thread: task.thread,
-  title: task.title,
-  running: task.running,
-  agent: task.agent,
-  session: task.session,
-  ends: task.ends,
-});
-
-// What a Question is about, and how answering it ends, by where it was asked.
-const questionSource = (question) => {
-  switch (question.source.kind) {
-    case "widget":
-      return { subject: { kind: "widget", id: question.source.id }, ends: "widget" };
-    case "approval":
-      return { subject: { kind: "page" }, ends: "approval" };
-    default:
-      return { subject: { kind: "thread", id: question.thread }, ends: "reply" };
-  }
-};
-
-const questionItem = (question) => {
-  const { subject, ends } = questionSource(question);
-  return {
-    kind: "question",
-    id: question.id,
-    owner: "user",
-    subject,
-    thread: question.thread,
-    title: question.prompt.text,
-    running: null,
-    agent: null,
-    session: null,
-    ends,
-    question,
-  };
-};
-
-export function selectQueues({ threads, workflows, tasks, questions }) {
-  const onYou = [
-    ...questions.user.map(questionItem),
-    ...tasks.filter((task) => task.owner === "user").map(taskItem),
-  ];
-  for (const thread of threads)
-    if (awaitsUser(thread) && thread.attention.reason === "recovery")
-      onYou.push({
-        kind: "recovery",
-        id: thread.id,
-        subject: { kind: "thread", id: thread.id },
-        thread: thread.id,
-      });
-  const onAgent = [];
-  // A pending thread send replaces the served response obligation for that thread.
-  const sending = (workflow) =>
-    workflow.stage === "sending" && workflow.subject.kind === "thread";
-  const resent = new Set(workflows.filter(sending).map(({ thread }) => thread));
-  for (const workflow of workflows) {
-    const item = {
-      id: workflow.id,
-      subject: workflow.subject,
-      thread: workflow.thread,
-    };
-    if (workflow.next_actor === "user") {
-      if (workflow.thread === null) onYou.push({ kind: "recovery", ...item });
-    } else if (
-      sending(workflow) ||
-      (workflow.answer !== null && !resent.has(workflow.thread))
-    )
-      onAgent.push({
-        kind: "answer",
-        ...item,
-        answer: workflow.answer,
-        stage: workflow.stage,
-      });
-    else if (atWork(workflow))
-      onAgent.push({ kind: "work", ...item, detail: workflow.detail });
-  }
-  onAgent.push(...tasks.filter((task) => task.owner === "agent").map(taskItem));
-  return { onYou, onAgent };
-}
-
-export function selectDone({ tasks, questions }) {
-  return [
-    ...questions.all
-      .filter((question) => question.status !== "open")
-      .map((question) => ({
-        ...questionItem(question),
-        state: question.status === "answered" ? "done" : "dropped",
-        ended: question.answer?.event?.ts ?? null,
-        detail: null,
-      })),
-    ...tasks.map((task) => ({
-      ...taskItem(task),
-      state: task.state,
-      ended: task.outcome?.ts ?? null,
-      detail: task.outcome?.detail ?? null,
-    })),
-  ];
-}

@@ -171,9 +171,14 @@
       }
     </style>
     <script type="module">
-      import { afterPresentation } from "/runtime/widget-api.js";
-
-      import { keeps, keepsText, layoutChanged, once } from "/runtime/widget-api.js";
+      import {
+        afterPresentation,
+        keeps,
+        keepsText,
+        layoutChanged,
+        once,
+        whileConnected,
+      } from "/runtime/widget-api.js";
 
       const EVENTS = [
         {
@@ -284,19 +289,13 @@
         class extends HTMLElement {
           #banner = null;
           #strip = null;
-          #playground = null;
-          #change = null;
           #values = null;
           #cards = "";
 
           connectedCallback() {
-            if (once(this)) this.#build();
-            this.#connect();
-          }
-
-          disconnectedCallback() {
-            this.#playground?.removeEventListener("lf-playground-change", this.#change);
-            this.#playground = null;
+            if (!once(this)) return;
+            this.#build();
+            whileConnected(this, (signal) => void this.#connect(signal));
           }
 
           #build() {
@@ -307,22 +306,21 @@
             this.append(candidates);
           }
 
-          #connect() {
+          #connect(signal) {
             return afterPresentation(() => {
-              if (!this.isConnected) return;
-              this.#playground?.removeEventListener(
+              if (signal.aborted) return;
+              const playground = this.closest("lf-playground");
+              if (!playground) return;
+              playground.addEventListener(
                 "lf-playground-change",
-                this.#change,
+                (event) => {
+                  if (event.target !== playground) return;
+                  this.#values = event.detail.values;
+                  this.#render();
+                },
+                { signal },
               );
-              this.#playground = this.closest("lf-playground");
-              if (!this.#playground) return;
-              this.#change = (event) => {
-                if (event.target !== this.#playground) return;
-                this.#values = event.detail.values;
-                this.#render();
-              };
-              this.#playground.addEventListener("lf-playground-change", this.#change);
-              this.#values = this.#playground.values;
+              this.#values = playground.values;
               this.#render();
             });
           }

@@ -316,9 +316,9 @@ def state_projection(
             continue
         # Admission already checked this payload. Only a changed domain needs
         # the validator again; it may broaden without losing the old operation.
-        if not same_state_definition(recorded, current) and schema_error(
-            detail_schema(registry[rec["tag"]], spec), event["detail"]
-        ):
+        if not same_state_definition(
+            recorded.get("detail"), current["detail"]
+        ) and schema_error(detail_schema(registry[rec["tag"]], spec), event["detail"]):
             continue
         coordinate = event_coordinate(event)
         entry = (event, spec)

@@ -129,10 +129,10 @@ leaf wait:
             in the reply that reports it with `--section <id>` (narrowed by `--quote`
             or `--part` if needed), or `--detach` it if its subject has left the
             page. Every answer says what it leaves: `--done` when it delivers what
-            was asked, `--question` when its prose asks the user something back,
-            or `--task "<what you owe>"` when it promises work that outlasts this
-            turn, which then stays on you, under the reply's id, until `leaf task
-            end` (`references/conversation-loop.md`, "Long-running work").
+            was asked, `--ask` when its prose asks the user something back, or `--todo
+            "<what you owe>"` when it promises work that outlasts this turn, which
+            then stays on you, under the reply's id, until `leaf task end` (`references/conversation-loop.md`,
+            "Long-running work").
           h3: >-
             Your reply renders as Markdown in a narrow column: give each point its
             own short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -214,9 +214,9 @@ Claude Code hook:
               reports it with `--section <id>` (narrowed by `--quote` or `--part`
               if needed), or `--detach` it if its subject has left the page. Every
               answer says what it leaves: `--done` when it delivers what was asked,
-              `--question` when its prose asks the user something back, or `--task
-              "<what you owe>"` when it promises work that outlasts this turn, which
-              then stays on you, under the reply's id, until `leaf task end` (`references/conversation-loop.md`,
+              `--ask` when its prose asks the user something back, or `--todo "<what
+              you owe>"` when it promises work that outlasts this turn, which then
+              stays on you, under the reply's id, until `leaf task end` (`references/conversation-loop.md`,
               "Long-running work").
             h3: >-
               Your reply renders as Markdown in a narrow column: give each point
@@ -301,10 +301,10 @@ Codex queue:
             in the reply that reports it with `--section <id>` (narrowed by `--quote`
             or `--part` if needed), or `--detach` it if its subject has left the
             page. Every answer says what it leaves: `--done` when it delivers what
-            was asked, `--question` when its prose asks the user something back,
-            or `--task "<what you owe>"` when it promises work that outlasts this
-            turn, which then stays on you, under the reply's id, until `leaf task
-            end` (`references/conversation-loop.md`, "Long-running work").
+            was asked, `--ask` when its prose asks the user something back, or `--todo
+            "<what you owe>"` when it promises work that outlasts this turn, which
+            then stays on you, under the reply's id, until `leaf task end` (`references/conversation-loop.md`,
+            "Long-running work").
           h3: >-
             Your reply renders as Markdown in a narrow column: give each point its
             own short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -370,9 +370,9 @@ Codex App Server:
                 input. Before your first tool call, open with a short message to
                 the user: the answer, or what you are about to do. Later working
                 messages stay in Codex. Finish with the answer or what changed and
-                where it appears. For an explicit answer, including widgets, a question
-                awaiting the user (`--question`), work promised beyond this turn
-                (`--task`), a title or relocation, use `leaf response reply <answer.ref>`
+                where it appears. For an explicit answer, including widgets, an
+                ask awaiting the user (`--ask`), work promised beyond this turn
+                (`--todo`), a title or relocation, use `leaf response reply <answer.ref>`
                 and the rich options in `references/threads.md`; it validates saved
                 edits and commits immediately. Your later final yields to that recorded
                 answer.

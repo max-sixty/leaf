@@ -1,6 +1,6 @@
-# One Question, answered in its section and shown on a board
+# One ask, answered in its section and shown on a board
 
-The Questions model settles answer ownership. Shared editing from a board remains
+The ask model settles answer ownership. Shared editing from a board remains
 an open view-to-owner contract. The earlier picker/board/section/record comparison
 and discarded prototype informed this question; they do not describe the current
 API.
@@ -13,9 +13,9 @@ on a board. Both surfaces must read and write the same canonical value.
 
 ## The settled owner
 
-A Question contains its prompt, typed answer, lifecycle and source. A widget owns
+An ask contains its prompt, typed answer, lifecycle and source. A widget owns
 its canonical answer state; `lf-ask` is an optional context adapter, alongside other
-Question consumers. It owns neither another answer nor the Question's identity.
+ask consumers. It owns neither another answer nor the ask's identity.
 
 `readQuestions()` exposes `question.answer.value` directly. A board can already
 read that collection, group answers by value, and open their sources through
@@ -24,9 +24,9 @@ another answer collection. Multiple selection and partial values need an explici
 board projection policy.
 
 The source's registry declaration chooses the answer verb with `x-awaits.value`;
-`x-awaits.answered` separately defines completion. Questions, Tasks and card order
+`x-awaits.answered` separately defines completion. Asks, to-dos and card order
 remain different facts. The current contract lives in
-`skills/leaf/references/module-authoring.md`, "Reading Questions and obligation
+`skills/leaf/references/module-authoring.md`, "Reading asks and obligation
 queues", and `skills/leaf/references/packages.md`. `questions.py` owns the server
 inventory.
 
@@ -34,7 +34,7 @@ inventory.
 
 Widget actions use `[owner widget, fold unit, verb]`. A source choice and an
 independent board move occupy different coordinates, so admitting both stores two
-facts for one intended answer. Reading a Question solves the projection; it does
+facts for one intended answer. Reading an ask solves the projection; it does
 not authorize a second view to send that source's command.
 
 A declared view relation must identify the canonical owners a view shows and the

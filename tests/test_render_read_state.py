@@ -79,11 +79,9 @@ def _select_new_route(page):
 def _agent_update_reply(page_dir, root, number, for_event=None):
     return thread_model.post_reply(
         page_dir,
-        root,
+        {"to": root, "for": for_event},
         f"Update {number}.\n\nCompleted steps: {number}.",
-        None,
-        for_event=for_event,
-        when_settled="post",
+        settlement=thread_model.ProviderFinal("test-final"),
     )["id"]
 
 
@@ -95,7 +93,7 @@ def test_main_reply_replaces_unread_progress_before_the_thread_is_opened(
     panel_comment(serve.page_dir, "An earlier conversation.")
     root = panel_comment(serve.page_dir, "Check the schedule.")
     progress = thread_model.post_reply(
-        serve.page_dir, root, "Checking mounts.", None, for_event=root, ephemeral=True
+        serve.page_dir, {"to": root, "for": root}, "Checking mounts.", ephemeral=True
     )["id"]
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
@@ -105,7 +103,7 @@ def test_main_reply_replaces_unread_progress_before_the_thread_is_opened(
     expect(card.locator(".lf-thread-unread")).to_have_text("1 unread")
 
     answer = thread_model.post_reply(
-        serve.page_dir, root, "Both mounts fit.", None, for_event=root
+        serve.page_dir, {"to": root, "for": root}, "Both mounts fit."
     )["id"]
     told(page)
     expect(card.locator(".lf-thread-unread")).to_have_text("1 unread")
@@ -435,7 +433,7 @@ def test_edit_reopens_only_its_new_content_version(browser, serve):
     page.locator(f'.lf-thread[data-id="{user}"] > .lf-thread-summary').click()
     page.locator('.lf-thread-panel [aria-label="Close threads"]').click()
 
-    edit = thread_model.cmd_edit(serve.page_dir, root, "Revised answer.")
+    [edit] = thread_model.cmd_edit(serve.page_dir, root, "Revised answer.")
     told(page)
     expect(page.locator(".lf-first-unread")).to_have_text("Next unread")
     page.locator(".lf-threads-toggle").click()
@@ -615,11 +613,7 @@ def test_visible_message_waits_for_whole_document_presentation(browser, serve):
       window.__releaseReadPresentation = () => release();
     }""")
     reply = thread_model.post_reply(
-        serve.page_dir,
-        root,
-        "The result is ready.",
-        None,
-        for_event=root,
+        serve.page_dir, {"to": root, "for": root}, "The result is ready."
     )
     page.wait_for_function("window.__readHeld === true")
     body = card.locator(f'.lf-msg[data-mid="{reply["id"]}"] .lf-msg-body')
@@ -832,12 +826,11 @@ def _open_first_unread(page, child):
     }"""), "the message is not whole in the child's own viewport"
 
 
-def _still_unread(page, child):
+def _settled(page, child):
     """Deliver the owner's viewport, then wait for the child's renderable work.
 
     An offscreen child has no paint to wait for. Its rendering owner declares such
     work settled until it becomes visible; a visible child drains its reading pass.
-    A pass that read the message hides Next unread and counts a send.
     """
     rendered(page)
     child.wait_for_function(
@@ -845,6 +838,12 @@ def _still_unread(page, child):
         polling=PROBE_POLL_MS,
         timeout=SERVED_TIMEOUT_MS,
     )
+
+
+def _still_unread(page, child):
+    """Once both pages settle (`_settled`), a pass that read the message would have
+    hidden Next unread and counted a send."""
+    _settled(page, child)
     assert child.locator(".lf-first-unread").is_visible()
     assert _traffic(child).sends == 0
 
@@ -927,6 +926,147 @@ def test_a_sample_in_a_native_modal_escapes_inherited_inertness(browser, serve):
     _read_by_the_sample(page, child)
 
 
+def _framed_reader(browser, serve):
+    """A Leaf page framed by its own origin, below the containing page's first screen,
+    with its first unread message opened unseen. Returns the containing page, the
+    frame's locator and the framed page, which keeps a ledger of trips of its own."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Framed reading",
+                '<h1>Containing page</h1><div id="frame-gap"></div>',
+                head="<style>#frame-gap { height: 2000px; }"
+                " #framed-reader { display: block; width: 100%; height: 500px;"
+                " border: 0; margin-bottom: 2000px; }</style>",
+            ),
+            events=[
+                {
+                    "id": SAMPLE_READER,
+                    "kind": "comment",
+                    "author": "agent",
+                    "agent": "Agent",
+                    "revision": 1,
+                    "text": "A framed answer for the user.",
+                }
+            ],
+        ),
+    )
+    # Below the first screen, the framed page opens its first unread message unseen.
+    page.locator("#frame-gap").evaluate(
+        """async (gap, url) => {
+            const frame = document.createElement('iframe');
+            frame.id = 'framed-reader';
+            frame.src = url;
+            const loaded = new Promise(resolve =>
+                frame.addEventListener('load', resolve, {once: true}));
+            gap.after(frame);
+            await loaded;
+        }""",
+        page.url,
+    )
+    frame = page.locator("#framed-reader")
+    child = frame.element_handle().content_frame()
+    wait_until_ready(child)
+    child.lf_traffic = Traffic(child)
+    child.locator(".lf-threads-toggle").focus()
+    page.evaluate("scrollTo(0, 0)")
+    _open_first_unread(page, child)
+    _still_unread(page, child)
+    return page, frame, child
+
+
+def _framed_message_box(child):
+    return _message_body(child).evaluate(
+        "body => { const box = body.getBoundingClientRect();"
+        " return {top: box.top, height: box.height}; }"
+    )
+
+
+def _place_frame(frame, top):
+    """Scroll the containing page until the frame's top stands `top` down its window."""
+    frame.evaluate(
+        "(frame, at) => scrollBy(0, frame.getBoundingClientRect().top - at)", top
+    )
+
+
+def _framed_read(serve, child):
+    expect(child.locator(".lf-first-unread")).to_be_hidden()
+    round_trip(child)
+    assert _read_events(serve.page_dir)[-1]["messages"] == [
+        {"message": SAMPLE_READER, "version": SAMPLE_READER}
+    ]
+
+
+def test_a_same_origin_frame_under_the_containing_banner_cannot_acknowledge(
+    browser, serve
+):
+    """A Leaf page framed by its own origin is read through what the containing page
+    shows of the frame, which that page's banner stands over like its own content."""
+    page, frame, child = _framed_reader(browser, serve)
+
+    # Scrolled until the message stands under the containing page's banner, where the
+    # framed page's own window shows it whole.
+    body = _framed_message_box(child)
+    foot = page.locator("#lf-banner").evaluate(
+        "banner => banner.getBoundingClientRect().bottom"
+    )
+    assert body["height"] < foot
+    _place_frame(frame, (foot - body["height"]) / 2 - body["top"])
+    assert _message_body(child).evaluate(
+        "body => { const box = body.getBoundingClientRect();"
+        " const frame = frameElement.getBoundingClientRect();"
+        " return frame.top + box.top >= 0 && frame.top + box.bottom <= parent"
+        ".document.getElementById('lf-banner').getBoundingClientRect().bottom; }"
+    ), "the message does not stand under the containing banner"
+    _still_unread(page, child)
+
+    # Scrolled on until the frame stands below the banner, it shows the message.
+    _place_frame(frame, foot)
+    _framed_read(serve, child)
+
+
+def test_a_message_the_banner_stops_covering_is_read_without_a_scroll(browser, serve):
+    """The banner changes height without a scroll or resize, as when a tablet's
+    keyboard is attached and its rows shrink from a finger's depth, and what it stops
+    covering is shown from that moment. A framed page hears it from the containing
+    page's banner as that page would."""
+    page, frame, child = _framed_reader(browser, serve)
+    banner = page.locator("#lf-banner")
+    body = _framed_message_box(child)
+    foot = banner.evaluate("banner => banner.getBoundingClientRect().bottom")
+    # The banner grows over the message, standing just below its usual foot. It grows
+    # by its bottom border, so nothing it holds moves.
+    banner.evaluate(
+        """(banner, grow) => {
+            const { height, borderBottomWidth } = getComputedStyle(banner);
+            banner.style.height = `${parseFloat(height) + grow}px`;
+            banner.style.borderBottomWidth = `${parseFloat(borderBottomWidth) + grow}px`;
+        }""",
+        body["height"] + 40,
+    )
+    _place_frame(frame, foot + 10 - body["top"])
+    assert _message_body(child).evaluate(
+        "body => { const box = body.getBoundingClientRect();"
+        " const frame = frameElement.getBoundingClientRect();"
+        " return frame.top + box.bottom <= parent"
+        ".document.getElementById('lf-banner').getBoundingClientRect().bottom; }"
+    ), "the grown banner does not stand over the message"
+    _still_unread(page, child)
+
+    # It shrinks back, with nothing scrolled or resized, and the message is shown: read
+    # by the pass that change itself sets off, before both pages settle. An unrelated
+    # pass reads it in the end, some 40s on, so waiting for the receipt proves nothing.
+    banner.evaluate(
+        "banner => { banner.style.height = banner.style.borderBottomWidth = ''; }"
+    )
+    _settled(page, child)
+    round_trip(child)
+    assert [event["messages"] for event in _read_events(serve.page_dir)] == [
+        [{"message": SAMPLE_READER, "version": SAMPLE_READER}]
+    ], "the banner shrinking off the message set off no reading"
+
+
 def _box_height(locator):
     return locator.evaluate("node => node.getBoundingClientRect().height")
 
@@ -978,11 +1118,7 @@ def test_a_reply_held_in_a_diff_thread_is_read_once_the_keyboard_opens_it(
     expect(thread).to_be_visible()
     height = _box_height(thread)
     reply = thread_model.post_reply(
-        serve.page_dir,
-        root,
-        "The route-line answer is ready.",
-        None,
-        for_event=root,
+        serve.page_dir, {"to": root, "for": root}, "The route-line answer is ready."
     )
     told(page)
     news = thread.locator(
@@ -1314,9 +1450,7 @@ def test_a_reopening_in_a_folded_diff_thread_waits_in_its_summary(
     _to_upper_third(thread)
     height = _box_height(thread)
     # Resolving answered the comment, so the agent's turn is one nothing asked for.
-    reply = thread_model.post_reply(
-        serve.page_dir, root, "The route stays.", None, for_event=None
-    )
+    reply = thread_model.post_reply(serve.page_dir, {"to": root}, "The route stays.")
     told(page)
     expect(summary).to_have_text("Reopened · 1 new reply")
     expect(thread).not_to_have_attribute("open", "")
@@ -1767,11 +1901,7 @@ def test_a_page_seat_the_open_panel_stands_over_is_not_read(
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(0)
     find.blur()
     reply = thread_model.post_reply(
-        serve.page_dir,
-        root,
-        "The route-line answer is ready.",
-        None,
-        for_event=root,
+        serve.page_dir, {"to": root, "for": root}, "The route-line answer is ready."
     )
     told(page)
     # The answer landed on screen, so the user opens it where it waits.
@@ -1799,8 +1929,19 @@ def test_a_page_seat_the_open_panel_stands_over_is_not_read(
         # Long enough for an observation pass to have sent a receipt had it counted.
         page.wait_for_timeout(1500)
         assert not receipt(), "a message partly under the open panel was marked read"
+        # With the shortcut bar gone, as under a finger, no other chrome changes size
+        # as the panel goes, so only the panel's own announcement sets off the pass that
+        # reads the answer, before the page settles. An unrelated pass would read it some
+        # 40s on, so waiting for the receipt proves nothing.
+        page.locator(".lf-shortcut-bar").evaluate(
+            "bar => { bar.style.display = 'none'; }"
+        )
         page.get_by_role("button", name="Close threads").click()
         panel_settled(page, open=False)
+        rendered(page)
+        round_trip(page)
+        assert receipt(), "the panel closing off the answer set off no reading"
+        return
     deadline = time.monotonic() + SERVED_TIMEOUT_MS / 1000
     while not receipt() and time.monotonic() < deadline:
         page.wait_for_timeout(100)

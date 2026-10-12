@@ -62,11 +62,12 @@ from leaf.refusals import Refused
 from leaf.schema import BROWSER_DIRS, VENDORED_FILES
 
 from leaf_dev import ROOT
-from leaf_dev.example_data import capture_files, example_versions, named_source
+from leaf_dev.example_data import named_source, page_files, prior_version_files
 from leaf_dev.leaf_assets import CACHE as ASSETS_CACHE
 from leaf_dev.leaf_assets import assets_lock
 from leaf_dev.page_fixtures import (
     DEFAULT_PACKAGES,
+    fixture_history,
     import_referenced_media,
     media_source,
     package_selection_args,
@@ -249,13 +250,7 @@ def digest(path: Path) -> str | None:
 
 def fixture_seed(source: Path) -> dict:
     """Seed history is installed once, never replayed over user feedback."""
-    paths = [
-        source.with_suffix(".jsonl"),
-        source.with_suffix(".data.json"),
-        *example_versions(source)[:-1],
-        *capture_files(source),
-    ]
-    return {str(path): digest(path) for path in paths}
+    return {str(path): digest(path) for path in fixture_history(source)}
 
 
 def refused(reason) -> bool:
@@ -433,7 +428,7 @@ def refresh_preview(
             "seeded history changed; restart this claimless preview to rebuild its fixture"
         )
     try:
-        incoming = authored_files(source, source.with_suffix(".page"))
+        incoming = authored_files(source, page_files(source))
         incoming_digest = authored_digest(incoming)
         source_changed = incoming_digest != state["authored"]
         previous = authored_files(page / "index.html", page / "page")
@@ -548,7 +543,7 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path], seed: dict) -> W
         *(str(path) for path in payload_server_inputs(runtime)),
     }
     manifest = source_manifest(source)
-    companions = source.with_suffix(".page")
+    companions = page_files(source)
     media = media_source(source)
     lock = assets_lock(source)
     page = {
@@ -560,7 +555,7 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path], seed: dict) -> W
             *source_manifest_candidates(source),
             manifest or DEFAULT_PACKAGES,
             *(Path(path) for path in seed),
-            *(source.parent / "versions").glob(f"{source.stem}.v*.html"),
+            *prior_version_files(source),
             # A pinned copy's bytes change only with its pin, which is followed
             # instead, and it sits under `.tmp`, which no subscription may cover.
             *(() if media.is_relative_to(ASSETS_CACHE) else media.rglob("*")),
@@ -704,9 +699,7 @@ def serve_preview(
     # may have revised those while this watcher was absent.
     state = {
         "seed": fixture_seed(source),
-        "authored": authored_digest(
-            authored_files(source, source.with_suffix(".page"))
-        ),
+        "authored": authored_digest(authored_files(source, page_files(source))),
     }
     resumed = user and page.exists()
     if resumed:

@@ -7,7 +7,15 @@
  * private port; an ordinary reload reconnects with a fresh presentation promise.
  * An opaque parent cannot classify a later document which has no Leaf bootstrap.
  * Departed ports cannot settle the replacement's calls.
+ * `ready` and calls reject with `AbortError` only when the host's owner cancels
+ * them, by destroying the host or resetting its allocation. When the child document
+ * departs, through an authored navigation or a reload, they reject with
+ * `SampleDepartedError`; a reload then reconnects and announces `loading` with a
+ * fresh `ready`, and whatever the owner applied to the departed document it
+ * applies again to the new one.
  * A block follows the child's reported height; a window keeps its own viewport.
+ * A reading step the child's scroll chain spent goes on from the frame here, as the
+ * wheel's scroll chains out of a frame (navigation.js, `stepAlong`).
  * Passive demonstrations remain inert. Removing a frame retires its realm before
  * releasing the allocation, including on reset and parent departure. Destruction
  * cancels pending admission and queue waits; an allocation already in flight is
@@ -22,15 +30,12 @@ import { requestJson } from "./layer-client.js";
 import { pageUrl, runtime } from "./context.js";
 import { dressFor, registerSampleDress } from "./dress.js";
 import { widgetDescriptor } from "./widget-descriptors.js";
-import { excludedByInert, upFrom } from "./shadow.js";
-import { seenRect } from "./geometry.js";
-import { intersect } from "./rect.js";
+import { containingView, frameView, presented, watchRoom } from "./geometry.js";
 import {
   sampleVisibility,
   onSampleVisibility,
   readSampleVisibility,
 } from "./sample-visibility.js";
-import { nativeModalAdmits } from "./keyboard/layer-stack.js";
 import { keeps } from "./keeps.js";
 import { nextRender, sizeObserver } from "./rendering.js";
 import { recordInteraction } from "./interaction-log.js";
@@ -73,6 +78,9 @@ async function loadWithinLimit(work, signal) {
   }
 }
 
+// The child document left; a reload announces its successor with `loading`.
+const departure = (message) => new DOMException(message, "SampleDepartedError");
+
 const mounted = new Map();
 export const isSampleFrame = (node) => mounted.has(node);
 // A crop in the frame's viewport coordinates.
@@ -108,6 +116,8 @@ export function mountSample(
   let operation = null;
   let closing = null;
   let channel = null;
+  // Why the last channel closed: what a call aimed at its document rejects with.
+  let lost;
   let nextId = 0;
   let readyResolve;
   let readyReject;
@@ -156,14 +166,10 @@ export function mountSample(
   frame.toggleAttribute("data-lf-contained", true);
 
   function admitted() {
-    for (let owner = frame; owner; owner = upFrom(owner))
-      if (owner.getAttribute?.("aria-hidden") === "true") return false;
     return (
       !passive &&
       document.visibilityState === "visible" &&
-      frame.checkVisibility({ visibilityProperty: true }) &&
-      !excludedByInert(frame) &&
-      nativeModalAdmits(frame) &&
+      presented(frame) &&
       sampleVisibility()?.visible !== false
     );
   }
@@ -174,26 +180,11 @@ export function mountSample(
     try {
       const outer = await readSampleVisibility();
       if (channel !== port) return;
-      const rect = frame.getBoundingClientRect();
-      const shown = seenRect(frame, new Map());
-      const band = shown ?? { left: 0, top: 0, right: 0, bottom: 0 };
-      const { left, top, right, bottom } = intersect(
-        intersect(rect, band),
-        outer ?? { left: 0, top: 0, right: innerWidth, bottom: innerHeight },
-      );
-      const scaleX = rect.width / frame.offsetWidth || 1;
-      const scaleY = rect.height / frame.offsetHeight || 1;
+      const within = outer ? outer.visible && outer : containingView();
+      const view = admitted() && within && frameView(frame, within);
       port.postMessage({
         type: "visibility-reading",
-        detail: {
-          id,
-          visible:
-            admitted() && outer?.visible !== false && right > left && bottom > top,
-          left: (left - rect.left) / scaleX - frame.clientLeft,
-          top: (top - rect.top) / scaleY - frame.clientTop,
-          right: (right - rect.left) / scaleX - frame.clientLeft,
-          bottom: (bottom - rect.top) / scaleY - frame.clientTop,
-        },
+        detail: { id, visible: Boolean(view), ...view },
       });
     } catch (error) {
       if (channel !== port) return;
@@ -210,6 +201,7 @@ export function mountSample(
   function disconnect(reason) {
     channel?.close();
     channel = null;
+    lost = reason;
     connectedNonce = null;
     for (const { reject } of pending.values()) reject(reason);
     pending.clear();
@@ -230,11 +222,11 @@ export function mountSample(
     try {
       return await work;
     } catch (error) {
-      // Native navigation cancels the private presentation, while the browser
-      // keeps its destination. Reset and destroy retire allocations themselves.
-      if (error.name !== "AbortError") {
+      // A departed document leaves the browser's destination in the frame. Reset
+      // and destroy retire allocations themselves.
+      if (error.name !== "AbortError" && error.name !== "SampleDepartedError") {
         recordFailure(error);
-        await retire("failure");
+        await retire("failure", error);
       }
       throw error;
     }
@@ -286,7 +278,7 @@ export function mountSample(
         for (const candidate of candidates) candidate.close();
         candidates.clear();
         const reloading = hasConnected;
-        disconnect(new DOMException("sample document replaced", "AbortError"));
+        disconnect(departure("sample document replaced"));
         channel = port;
         connectedNonce = nonce;
         hasConnected = true;
@@ -304,7 +296,7 @@ export function mountSample(
       if (channel !== port) return;
       if (data.type === "departed") {
         record("departed");
-        const error = new DOMException("sample document navigated", "AbortError");
+        const error = departure("sample document navigated");
         disconnect(error);
         if (presenting) readyReject(error);
         else begin(Promise.reject(error));
@@ -341,6 +333,14 @@ export function mountSample(
         );
       } else if (data.type === "return")
         frame.dispatchEvent(new Event("lf-sample-return"));
+      else if (data.type === "step")
+        frame.dispatchEvent(
+          new CustomEvent("lf-sample-step", {
+            bubbles: true,
+            composed: true,
+            detail: data.detail,
+          }),
+        );
       else notify(data.type, data.detail);
     };
     event.source.postMessage(
@@ -358,8 +358,7 @@ export function mountSample(
     if (current && frame.hasAttribute("src")) record("loaded");
   };
   frame.addEventListener("load", loaded);
-  window.addEventListener("scroll", visibility, true);
-  window.addEventListener("resize", visibility);
+  const room = watchRoom(visibility);
   document.addEventListener("visibilitychange", visibility);
   const seen = new IntersectionObserver(visibility, { threshold: [0, 1] });
   seen.observe(frame);
@@ -375,7 +374,7 @@ export function mountSample(
     attributeFilter: ["inert", "open", "hidden", "aria-hidden", "class", "style"],
   });
   const nativeTransition = () => nextRender(visibility);
-  for (const type of ["beforetoggle", "toggle", "close"])
+  for (const type of ["beforetoggle"])
     document.addEventListener(type, nativeTransition, true);
   const unwatch = onSampleVisibility(visibility);
   const undress = registerSampleDress(frame, (dress) =>
@@ -386,7 +385,9 @@ export function mountSample(
   });
   lifetime.observe(document, { childList: true, subtree: true });
 
-  function retire(reason) {
+  // What a pending call rejects with: the failure that retires the allocation, or
+  // else the owner's cancellation.
+  function retire(reason, cause = new DOMException("sample replaced", "AbortError")) {
     if (!current) return;
     const retiringDocument = connectedNonce;
     const previous = current;
@@ -394,11 +395,10 @@ export function mountSample(
     current = null;
     samplePage = null;
     hasConnected = false;
-    const cancelled = new DOMException("sample replaced", "AbortError");
-    disconnect(cancelled);
+    disconnect(cause);
     for (const port of candidates) port.close();
     candidates.clear();
-    readyReject?.(cancelled);
+    readyReject?.(cause);
     const parent = frame.parentNode;
     const next = frame.nextSibling;
     frame.remove();
@@ -483,8 +483,7 @@ export function mountSample(
     call(method, detail = {}) {
       const ready = host.ready;
       return ready.then(() => {
-        if (ready !== host.ready || !channel)
-          throw new DOMException("sample unavailable", "AbortError");
+        if (ready !== host.ready || !channel) throw lost;
         const id = ++nextId;
         return new Promise((resolve, reject) => {
           pending.set(id, { resolve, reject });
@@ -515,13 +514,12 @@ export function mountSample(
       window.removeEventListener("message", connect);
       frame.removeEventListener("load", loaded);
       window.removeEventListener("pagehide", departing);
-      window.removeEventListener("scroll", visibility, true);
-      window.removeEventListener("resize", visibility);
+      room();
       document.removeEventListener("visibilitychange", visibility);
       seen.disconnect();
       size.disconnect();
       admission.disconnect();
-      for (const type of ["beforetoggle", "toggle", "close"])
+      for (const type of ["beforetoggle"])
         document.removeEventListener(type, nativeTransition, true);
       lifetime.disconnect();
       unwatch();

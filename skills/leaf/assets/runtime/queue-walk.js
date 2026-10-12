@@ -1,22 +1,21 @@
-/* The queue walk: `q` and Shift+`q` page through everything waiting on the user, in
-   page order: the Questions the panel lists first (queue-panel.js). The panel opens with
+/* The Questions walk: `q` and Shift+`q` page through everything waiting on the user,
+   in page order: the Questions the panel lists first (queue-panel.js). The panel opens with
    `g Q`, as the Threads panel opens with `g T` and `t` walks the threads.
 
-   What waits on the user is the application's one reading, `queues.onYou`
-   (`runtime/queues.js`, the browser's selection of `agent_state.queues`): each open
-   Question or explicit task on the user, each thread holding a
-   update to send again, and each page widget action handed back to them. The walk does not
-   decide membership; it stops once at each place an item is arrived at, so a thread
-   holding an open Question is reached as that Question. `t` still walks every open thread
+   What waits on the user is the application's one reading, `queues.questions`
+   (the server's `served_state.queues`, with this tab's sends placed against it): each open
+   ask or to-do on the user, each thread holding a resend, and each page widget action
+   handed back to them. The walk does not decide membership; it stops once at each place
+   an item is arrived at, so a thread holding an open ask is reached as that ask. `t` still walks every open thread
    (navigation.js).
 
    Arrival belongs to the item's owner, so the walk adds no arrival of its own beside
-   theirs: a Question arrives through the Question view's `arriveAtQuestion`; a thread through the
+   theirs: an ask arrives through the ask view's `arriveAtQuestion`; a thread through the
    t/T walk's own (navigation.js, `arriveAtThread`), so it lands wherever that walk
-   lands; a page widget action, or a task on an element or the page, by travel's `arrive`,
+   lands; a page widget action, or a to-do on an element or the page, by travel's `arrive`,
    onto the widget the action was made on, the element, or the page's head.
    A Questions panel row arrives through the same function (`arriveAtItem`), for an item on
-   either queue or one that is done.
+   either list or one that is done.
 
    A walk starts from the user's place, in this order:
 
@@ -27,26 +26,26 @@
    `walkOrigin` reads that place from the browser on each press, for this walk and the
    thread walk alike. There is no remembered destination underneath those readings, and
    the chrome is a binding badge, not a page position, so its controls do not become the
-   walk's origin. The user stands on an item when they stand in its Question, in its thread
+   walk's origin. The user stands on an item when they stand in its ask, in its thread
    (`threadHere`), or in its widget or element, and the press steps off it. Standing on
-   a task Done ends, `x` is that Done, a step on the banner's row under a finger
-   (`queue-api.js`, `done`): the user's `task_end`, which leaves the queue in the turn it is pressed.
+   a to-do Done ends, `x` is that Done, a step on the banner's row under a finger
+   (`queue-api.js`, `done`): the user's `todo_end`, which leaves Questions in the turn it is pressed.
 
-   Page order is each item's place in the document: a Question's own element, or its
-   thread's passage for a Question seated in a thread; a thread's passage; the widget an action
-   was made on or the element a task is on; the page's head for a task on the whole
+   Page order is each item's place in the document: an ask's own element, or its
+   thread's passage for an ask seated in a thread; a thread's passage; the widget an action
+   was made on or the element a to-do is on; the page's head for a to-do on the whole
    page. An item with no place on the page, a general thread or one whose passage is
-   gone, comes after every placed one in the queue's own order, as the t/T walk reaches
+   gone, comes after every placed one in the list's own order, as the t/T walk reaches
    such threads from its list's ends. The walk is clamped, not wrapped.
 
-   Experimental: the queues and the walk over them are new, and their shape is
+   Experimental: the lists and the walk over them are new, and their shape is
    expected to change a lot (notes/what-needs-you/). Change them freely.
 */
 import { pageCommand, pageScope } from "./keyboard/register.js";
 import { documentFocused, paintKeys } from "./keyboard/scopes.js";
 import { coarsePointer } from "./pointer.js";
 import { questionHolding, placeOf, walkOrigin } from "./standing-target.js";
-import { elementById, inChrome } from "./passages.js";
+import { elementById, inChrome, pageDocument } from "./passages.js";
 import { hostIn, inUi, under } from "./shadow.js";
 import { readQuestions } from "./questions/model.js";
 import { questionPlace } from "./questions/place.js";
@@ -59,26 +58,26 @@ import { approvalTarget } from "./banner.js";
 
 const QUALIFIER = "waiting on you";
 const NOUNS = Object.freeze({
-  question: "Question",
+  ask: "Ask",
   thread: "Thread",
   widget: "Update",
-  page: "To do",
+  page: "To-do",
   approval: "Approval",
 });
-// What a stop is called: by where it is arrived at, but a task on an element is a To do
+// What a stop is called: by where it is arrived at, but a to-do on an element is a To-do
 // rather than the Update a widget's stop otherwise is.
 const nounOf = (item, stop) =>
-  stop.kind === "widget" && taskNoun(item) === "task" ? "To do" : NOUNS[stop.kind];
+  stop.kind === "widget" && taskNoun(item) === "todo" ? "To-do" : NOUNS[stop.kind];
 
-// Where an item of either queue, or one that is done, is arrived at: a widget Question by
-// the Question's own id, anything else by the thread it stands in, a task on the page as a
+// Where an item of either list, or one that is done, is arrived at: a widget ask by
+// the ask's own id, anything else by the thread it stands in, a to-do on the page as a
 // whole at the page's head, or else the element it stands on, as an action is arrived at
 // on the widget it was made on.
 const stopOf = (item) =>
-  item.kind === "question" && item.question.source.kind === "approval"
+  item.kind === "ask" && item.ask.source.kind === "approval"
     ? { kind: "approval", id: item.id, thread: null }
-    : item.kind === "question" && item.question.source.kind === "widget"
-      ? { kind: "question", id: item.id, thread: item.thread, question: item.question }
+    : item.kind === "ask" && item.ask.source.kind === "widget"
+      ? { kind: "ask", id: item.id, thread: item.thread, ask: item.ask }
       : item.thread !== null
         ? { kind: "thread", id: item.thread, thread: item.thread }
         : item.subject.kind === "page"
@@ -86,11 +85,11 @@ const stopOf = (item) =>
           : { kind: "widget", id: item.subject.id, thread: null };
 const sameStop = (a, b) => a.kind === b.kind && a.id === b.id;
 
-// The page's head, where a task on the page as a whole is arrived at: its first
+// The page's head, where a to-do on the page as a whole is arrived at: its first
 // top-level heading, or its first element.
 const pageHead = () =>
   [...document.querySelectorAll("h1")].find((heading) => !inChrome(heading)) ??
-  document.querySelector("main") ??
+  pageDocument() ??
   document.body.firstElementChild;
 
 export function createQueueWalk({
@@ -108,10 +107,10 @@ export function createQueueWalk({
   const stopElement = (stop) =>
     stop.kind === "approval"
       ? approvalTarget()
-      : stop.kind === "question"
+      : stop.kind === "ask"
         ? stop.thread !== null
           ? threadTarget(stop.thread)
-          : questionPlace(stop.question).node
+          : questionPlace(stop.ask).node
         : stop.kind === "page"
           ? pageHead()
           : stop.thread !== null
@@ -122,9 +121,9 @@ export function createQueueWalk({
     const placed = [];
     const loose = [];
     const listed = new Set();
-    for (const item of readQueues().onYou) {
+    for (const item of readQueues().questions) {
       const stop = stopOf(item);
-      // Two items arrived at in one place, such as two tasks on one thread, are one
+      // Two items arrived at in one place, such as two to-dos on one thread, are one
       // stop.
       if (listed.has(`${stop.kind}:${stop.id}`)) continue;
       listed.add(`${stop.kind}:${stop.id}`);
@@ -147,12 +146,11 @@ export function createQueueWalk({
     return [...placed, ...loose];
   }
 
-  // The item the user stands on, if any: the thread holding them, the Question holding their
+  // The item the user stands on, if any: the thread holding them, the ask holding their
   // place, or the innermost element that does, in page order the last that holds them,
-  // as `questionHolding` reads Questions. The page's own stop is its head element alone, never
+  // as `questionHolding` reads asks. The page's own stop is its head element alone, never
   // what that holds, since on a page without a heading the head is `main`. Standing in
-  // a thread that holds an open Question is not standing on that Question, as it never was for
-  // the Question walk this replaces.
+  // a thread that holds an open ask is not standing on that ask.
   function standingStop(list) {
     if (documentFocused() === approvalTarget())
       return list.find((stop) => stop.kind === "approval") ?? null;
@@ -169,7 +167,7 @@ export function createQueueWalk({
     const question = questionHolding(readQuestions().all, placeOf(here));
     if (question) {
       const stop = list.find(
-        (candidate) => candidate.kind === "question" && candidate.id === question.id,
+        (candidate) => candidate.kind === "ask" && candidate.id === question.id,
       );
       if (stop) return stop;
     }
@@ -207,7 +205,7 @@ export function createQueueWalk({
     return dir > 0 ? (reach[0] ?? list.at(-1)) : (reach.at(-1) ?? list[0]);
   }
 
-  // A page widget action handed back to the user, or a task on an element or the page, has
+  // A page widget action handed back to the user, or a to-do on an element or the page, has
   // no owner that arrives at it, so travel puts the user on the element itself.
   function arriveAtElement(find) {
     const intent = retainUserIntent({ available: () => Boolean(find()) });
@@ -230,10 +228,10 @@ export function createQueueWalk({
     );
   }
 
-  // An answered Question is arrived at the same way, which is how the Questions panel's Done
+  // An answered ask is arrived at the same way, which is how the Questions panel's Done
   // rows return the user to one to review or revise it.
   function arriveAt(stop) {
-    if (stop.kind === "question") {
+    if (stop.kind === "ask") {
       const record = readQuestions().all.find((question) => question.id === stop.id);
       return record ? arriveAtQuestion(record) : Promise.resolve(false);
     }
@@ -241,7 +239,7 @@ export function createQueueWalk({
     return arriveAtElement(() => stopElement(stop));
   }
 
-  // Where the walk stands in the whole queue, and the kind of item it stands on: the
+  // Where the walk stands in the whole list, and the kind of item it stands on: the
   // count is of every kind, so the kind follows it rather than naming the list.
   function position() {
     const list = stops();
@@ -273,19 +271,19 @@ export function createQueueWalk({
     return ready;
   }
 
-  // The task Done ends where the user stands on `stop`.
+  // The to-do Done ends where the user stands on `stop`.
   const doneAt = (stop) =>
     stop
-      ? (readQueues().onYou.find(
+      ? (readQueues().questions.find(
           (item) => item.offers.done && sameStop(stopOf(item), stop),
         ) ?? null)
       : null;
 
-  // The task Done ends now. Under a finger with a keyboard beside it, as on a tablet,
+  // The to-do Done ends now. Under a finger with a keyboard beside it, as on a tablet,
   // Tab onto the banner's Done step takes focus through Leaf's own controls and the
   // page's body, where the user stands on no item, so while focus is there and no
-  // caret or selection stands on the page the step keeps the task it was shown for,
-  // if it is still on the user; anywhere else, the task the user stands on.
+  // caret or selection stands on the page the step keeps the to-do it was shown for,
+  // if it is still on the user; anywhere else, the to-do the user stands on.
   let shownFor = null;
   function doneTask() {
     const stop = standingStop(stops());
@@ -300,28 +298,29 @@ export function createQueueWalk({
       return shownFor;
     }
     shownFor =
-      readQueues().onYou.find((item) => item.id === shownFor?.id && item.offers.done) ??
-      null;
+      readQueues().questions.find(
+        (item) => item.id === shownFor?.id && item.offers.done,
+      ) ?? null;
     return shownFor;
   }
 
-  // The user's Done on a task on them: their `task_end`, through the one append door.
-  // The task leaves their queue in the turn they press it (`application.ts`).
+  // The user's Done on a to-do on them: their `todo_end`, through the one append door.
+  // The to-do leaves their Questions in the turn they press it (`application.ts`).
   function endTask(id) {
-    return actions.done(queueItemKey({ kind: "task", id }));
+    return actions.done(queueItemKey({ kind: "todo", id }));
   }
 
-  const offered = () => readQueues().onYou.length > 0;
+  const offered = () => readQueues().questions.length > 0;
   const doneable = () =>
     readQueues()
-      .onYou.filter((item) => item.offers.done)
+      .questions.filter((item) => item.offers.done)
       .map((item) => item.id)
       .join(" ");
   let wasOffered = false;
   let wasDoneable = "";
   let stopWatching = null;
-  // The q/Q row stands on the queue, and Done on the tasks it holds, so the surfaces
-  // reading them are repainted where the queue empties or fills or those tasks change.
+  // The q/Q row stands on Questions, and Done on the to-dos it holds, so the surfaces
+  // reading them are repainted where the list empties or fills or those to-dos change.
   function mount() {
     stopWatching ??= watchSemantic(() => {
       if (offered() === wasOffered && doneable() === wasDoneable) return;
@@ -340,15 +339,13 @@ export function createQueueWalk({
         id: "queue.next",
         binding: "q",
         title: "Next question",
-        description:
-          "Next Question, thread, to-do or update to send again waiting on you",
+        description: "Next ask, thread, to-do or resend waiting on you",
       },
       {
         id: "queue.previous",
         binding: "Shift+q",
         title: "Previous question",
-        description:
-          "Previous Question, thread, to-do or update to send again waiting on you",
+        description: "Previous ask, thread, to-do or resend waiting on you",
       },
     ],
     title: "Questions",
@@ -362,17 +359,17 @@ export function createQueueWalk({
     run: (binding) => walk(binding === "q" ? 1 : -1),
   });
 
-  // Where `q` lands on a task the user ends with Done, Done is a key, and a step on the
+  // Where `q` lands on a to-do the user ends with Done, Done is a key, and a step on the
   // banner's row under a finger. Its row in the Questions panel carries the same Done.
   pageScope("task", {
-    title: "On a task waiting on you",
+    title: "On a to-do waiting on you",
     at: () => Boolean(doneTask()),
     rows: [
       {
         id: "queue.task.done",
         keys: ["x"],
         title: "done",
-        description: "Mark the task waiting on you done",
+        description: "Mark the to-do waiting on you done",
         touch: "Done",
         when: () => Boolean(doneTask()),
         run: () => {

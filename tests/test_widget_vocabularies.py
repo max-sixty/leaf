@@ -90,11 +90,10 @@ def test_historical_document_and_frozen_replies_keep_their_widget_vocabulary(
     )
     old = thread.post_reply(
         directory,
-        parent["id"],
+        {"to": parent["id"], "for": parent["id"]},
         "Old decision",
         '<lf-ask id="old-question"><h3>Old choice</h3><lf-options id="old" choose><lf-option id="old-a">Alpha</lf-option>'
         '<lf-option id="old-b">Beta</lf-option></lf-options></lf-ask>',
-        for_event=parent["id"],
     )
     decision = append_command(
         directory,
@@ -167,12 +166,11 @@ def test_historical_document_and_frozen_replies_keep_their_widget_vocabulary(
     # Posting markup itself publishes the changed vocabulary, even with identical HTML.
     new = thread.post_reply(
         directory,
-        parent["id"],
+        {"to": parent["id"], "for": decision["id"]},
         "New decision",
         '<lf-ask id="new-question"><h3>New choice</h3><lf-options id="new" choose caption="New attribute">'
         '<lf-option id="new-a">Alpha</lf-option><lf-option id="new-b">Beta</lf-option>'
         '</lf-options></lf-ask><lf-fresh id="new-widget" caption="New widget">Current reply</lf-fresh>',
-        for_event=decision["id"],
     )
     assert old["revision"] == 1 and new["revision"] == 2
     browser = request.getfixturevalue("browser" if engine == "sample" else engine)
@@ -298,18 +296,16 @@ def test_initial_drawings_belong_to_their_publication(browser, serve):
     )
     thread.post_reply(
         directory,
-        parent["id"],
+        {"to": parent["id"], "for": parent["id"]},
         "Old",
         '<lf-initial-probe id="old-probe"></lf-initial-probe>',
-        for_event=parent["id"],
     )
     (directory / "page/initial.js").write_text(producer("new"))
     thread.post_reply(
         directory,
-        parent["id"],
+        {"to": parent["id"]},
         "New",
         '<lf-initial-probe id="new-probe"></lf-initial-probe>',
-        for_event=None,
     )
     page = open_page(browser, url, pin=True)
     expect(page.locator("#page-probe")).to_have_attribute("data-drawn", "old")

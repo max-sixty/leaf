@@ -451,6 +451,9 @@ def test_sample_native_departure_keeps_destination_and_reset(
             child.evaluate(
                 "location.assign('https://docs.example.invalid/reference.html')"
             )
+    # The native request has failed, but Playwright still owns its held route.
+    # Resolve that route before the next interaction probe sends another request.
+    held[0].abort()
     expect(child.get_by_role("heading")).to_have_text("External reference")
     departed_records = sample_records(page, serve)
     departed_record = next(
@@ -459,18 +462,18 @@ def test_sample_native_departure_keeps_destination_and_reset(
     assert departed_record["document"] == next(
         row["document"] for row in departed_records if row["phase"] == "presented"
     )
-    assert page.evaluate("window.departedCall") == "AbortError"
+    assert page.evaluate("window.departedCall") == "SampleDepartedError"
     assert (
         sample.evaluate(
             "sample => sample.ready.then(() => 'ready', error => error.name)"
         )
-        == "AbortError"
+        == "SampleDepartedError"
     )
     assert (
         sample.evaluate(
             "sample => sample.showThread('departed').then(() => 'completed', error => error.name)"
         )
-        == "AbortError"
+        == "SampleDepartedError"
     )
     reset = sample.get_by_role("button", name="Reset", exact=True)
     expect(reset).to_be_enabled()

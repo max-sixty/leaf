@@ -721,8 +721,9 @@ test("a disappearing projected command refuses instead of becoming a generic act
   owner.remove();
 });
 
-// Filling a child shortcut face can resize its native click target before activation.
-test("a lent hint rejects button children and keeps its external seat after withdrawal", async () => {
+// Filling an in-flow face would resize the click target holding it before activation, so
+// every lent face, a button's child included, keeps an out-of-flow seat.
+test("a lent hint inside a button keeps its out-of-flow seat after withdrawal", async () => {
   const { createCommandHints } =
     await import("../../skills/leaf/assets/runtime/keyboard/command-hints.js");
   const { registerCoveringAuxiliarySurface } =
@@ -748,26 +749,103 @@ test("a lent hint rejects button children and keeps its external seat after with
   control.focus();
   const hints = createCommandHints({ presentedControl: () => null });
   try {
-    assert.throws(() => hints.paint(), {
-      name: "TypeError",
-      message: "leaf: probe.hint-seat binding badge must be outside native buttons",
-    });
-    const shadowHost = document.createElement("span");
-    control.append(shadowHost);
-    shadowHost.attachShadow({ mode: "open" }).append(badge);
-    assert.throws(() => hints.paint(), {
-      name: "TypeError",
-      message: "leaf: probe.hint-seat binding badge must be outside native buttons",
-    });
-    control.before(badge);
     hints.paint();
     assert.equal(badge.classList.contains("lf-binding-seat"), true);
     hints.destroy();
     assert.equal(badge.classList.contains("lf-binding-seat"), true);
-    assert.equal(control.contains(badge), false);
+    assert.equal(control.contains(badge), true);
   } finally {
     owner.remove();
   }
+});
+
+test("a template scope's re-render runs its latest callbacks and reads only its own element", async () => {
+  const { html, render } = await import("/vendor/browser-runtime.js");
+  const other = document.createElement("button");
+  document.body.append(other);
+  keys(other, "Elsewhere", [{ id: "probe.elsewhere", keys: ["x"], title: "x" }]);
+  const root = document.createElement("section");
+  document.body.append(root);
+  const invoked = [];
+  const paint = (reading, available = true) =>
+    render(
+      html`<button
+        ${commandsOn("Template", [
+          {
+            id: "probe.template",
+            keys: ["y"],
+            title: "act",
+            when: () => available,
+            run: () => invoked.push(reading),
+          },
+        ])}
+      ></button>`,
+      root,
+    );
+  paint("first");
+  reflectFirstScopes();
+  reflectKeys();
+  const element = root.querySelector("button");
+  assert.equal(element.getAttribute("aria-keyshortcuts"), "y");
+
+  const read = other.getAttribute;
+  let otherReads = 0;
+  other.getAttribute = (...args) => (otherReads++, read.apply(other, args));
+  paint("second", false);
+  reflectFirstScopes();
+  reflectKeys();
+  assert.equal(otherReads, 0, "a re-render reads no other scoped element");
+  assert.equal(element.getAttribute("aria-keyshortcuts"), null);
+  paint("third");
+  reflectFirstScopes();
+  reflectKeys();
+  assert.equal(element.getAttribute("aria-keyshortcuts"), "y");
+  commandsWithin(root)[0].row.run();
+  assert.deepEqual(invoked, ["third"]);
+  root.remove();
+  other.remove();
+});
+
+test("a template scope refused on re-render withdraws its shortcuts, and its aliases follow each reading", async () => {
+  const { html, render } = await import("/vendor/browser-runtime.js");
+  const { scopesAt } =
+    await import("../../skills/leaf/assets/runtime/keyboard/scopes.js");
+  const root = document.createElement("section");
+  document.body.append(root);
+  const paint = (title, second) =>
+    render(
+      html`<button
+        ${commandsOn(title, [
+          {
+            id: "probe.first",
+            keys: ["y"],
+            contextKeys: ["Enter"],
+            title: "a",
+            run() {},
+          },
+          { id: "probe.second", keys: ["y"], title: "b", when: () => second, run() {} },
+        ])}
+      ></button>`,
+      root,
+    );
+  paint("First", false);
+  reflectFirstScopes();
+  reflectKeys();
+  const element = root.querySelector("button");
+  assert.equal(element.getAttribute("aria-keyshortcuts"), "y Enter");
+  paint("Second", false);
+  reflectFirstScopes();
+  assert.deepEqual(
+    scopesAt(element).map(({ title }) => title),
+    ["Second", "Second"],
+  );
+
+  paint("Second", true);
+  assert.throws(() => reflectFirstScopes(), /y/);
+  reflectKeys();
+  assert.equal(commandsWithin(root).length, 0);
+  assert.equal(element.getAttribute("aria-keyshortcuts"), null);
+  root.remove();
 });
 
 test("template scopes follow current rows and retire without removing projected commands", async () => {

@@ -57,16 +57,11 @@ preserves content position, wrapping, and block size, including when its CSS loa
 before first paint. Keep covered content reachable through placement or disclosure
 rather than padding or a reserved row.
 
-A margin row sits in the
-rail beside its target (`rowPosture`), or as a pin by its target: in room found where
-it covers no words and no other box that paints its own extent, clear of neighbouring
-blocks where its target has room of its own, and reaching one line of words further
-out only where it has none within reach (`pinSpot`, `coverIn`). A pin whose face is a primary and one more control that finds no
-room for both stands folded to its options' toggle, wearing the face of the kind its
-contribution declares, seated at that size where the actions it opens to fit inside its
-bounds (`seatRows`); a press on the toggle, or the keyboard arriving on it or standing
-at its target, opens it, spreading the actions over what stands beside it with the
-toggle left under the press, and moves nothing else.
+A margin row sits in the rail beside its target or as a pin by it, in room that
+covers no words where it finds some. A pin that can fold (`canFold`,
+`runtime/margin-model.js`) and finds no room for its face stands folded to its
+options' toggle, and opening it moves nothing else. The default package's
+`margin-placement.js` owns where rows stand (`rowPosture`, `pinSpot`, `seatRows`).
 
 The rail and a pin are different kinds. The rail is room: a strip right of `main`
 that sits wherever the window has room for it. It never moves, narrows, or indents
@@ -77,7 +72,7 @@ a passage mark, and everything else in the annotation layer is an overlay: it co
 what lies under it and takes no room. No rule pads, indents,
 widens, or reflows a block, heading, or line to clear a pin, and nothing moves when a
 marker arrives, leaves, or changes place, including a marker that always accompanies
-its target, such as a Question's. Reserved room would make the page's geometry depend on
+its target, such as an ask's. Reserved room would make the page's geometry depend on
 which markers stand and where, which is what the overlay exists to avoid. Resting pins
 never cover words or native controls. Placement may use clear space outside a crowded
 region or withhold the pin; Page Map keeps its thread and actions available. Its
@@ -91,8 +86,8 @@ at a time, leave the page live beside them, and cover it where they would leave 
 a usable page
 (`--lf-auxiliary-beside`, read by `standsBeside`). Which box scrolls is the
 stylesheet's, a Layout's or the page's, which the runtime reads rather than decides.
-The Questions panel is experimental and expected to change a lot: it replaced the Asks
-drawer to try one place for both queues (`runtime/queue-panel.js`).
+The Questions panel is experimental and expected to change a lot: it tries one place
+for both queues (`runtime/queue-panel.js`).
 
 The current Threads panel is unsatisfactory and being reconsidered. Defer
 refinements to its existing layout and interaction design; carry those findings
@@ -141,18 +136,15 @@ cards may move by that growth. A reply still streaming at the transcript's end i
 that growth arriving: it may change at its foot in place as its words come and as its
 answer completes it. So is an answer that folds the progress run standing at the
 transcript's end into Previous updates, unless the reader stands on a message it puts
-away, by focus or by a selection reaching into it: what stood from that run down may
-move, and nothing above it. The declaration permits no other changes to existing
-messages or independent movement of following content.
+away, by focus or by a selection reaching into it. A run on screen stays open where
+it stood, its group's border drawn around it, so the fold moves none of its words; a
+run off screen folds away (`thread-card.js`). The declaration permits no other changes
+to existing messages or independent movement of following content.
 News grows where the reader isn't looking: above the screen, where scroll anchoring
-takes the growth into what they scrolled past, or below it. A short thread's reply
-box follows its last message; a long panel thread pins the
-box at its scroller's foot. An idle open panel thread shows appended replies
-immediately, allowing its reply row and later cards to move. An active composition
-keeps its editor still: news that would move it waits behind the thread's existing
-notice; a pinned reply lets the transcript grow above it. Only an already pinned
-reply follows incoming messages to the end; a short thread keeps the previous reading
-in place even when a new answer is taller than the panel.
+takes the growth into what they scrolled past, or below it. An active composition
+keeps its editor still. `thread/held-news.js` states which appended replies may move
+a thread surface, `thread/thread-card.js` (`newsMoves`) decides it, and `chrome.css`
+pins a long thread's reply row at the list's foot.
 The open conversation remains the panel's reading anchor even when its title is
 scrolled above the visible band. An explicitly named later card takes precedence.
 These holds protect continuous reading. A hidden tab ends it; returning reveals
@@ -164,13 +156,12 @@ editor the user was composing in, including its focus and caret.
 Where news would move what the reader is reading, it waits behind a control of fixed size:
 in a seat in the page's flow, whatever the thread would draw differently (an agent's
 reply, a reaction from another tab, the thread resolved or reopened elsewhere) waits
-behind a notice in a row the thread already draws. Open panel cards apply the same
-hold to changes in existing messages, reactions, folds, settlement and active
-compositions. A thread the agent starts in a seat also waits there; a thread that
-would open a seat of its own, as on a diff line with no thread, waits in the margin behind its marker
-(`thread/held-news.js`). It shows once a gesture of theirs takes them to it: opening
-the notice or the thread, walking to the thread or one of its Questions, or acting there. In
-the Threads panel, a card news takes out of the view, as another actor resolving its
+behind a notice in a row the thread already draws. A thread the agent starts in a seat
+also waits there; a thread that would open a seat of its own, as on a diff line with
+no thread, waits in the margin behind its marker (`thread/held-news.js`). It shows
+once a gesture of theirs takes them to it: opening the notice or the thread, walking
+to the thread or one of its asks, or acting there. In the Threads panel, a card
+news takes out of the view, as another actor resolving its
 thread under Open does, stays where it stands, holding the news behind that notice
 and, once shown, in the shape it stood in, until its going would move nothing the
 user sees or they change the view
@@ -197,7 +188,7 @@ page to make room for its growth (`comment-placement.js`), though one a scroll c
 the words typed into it (`off-flow.js`). Only a field in flow, which cannot move apart
 from the page, keeps its controls in view as a browser keeps a caret in view
 (`reply-landing.js`). The
-suite's browser fixture watches ordinary tests and nightly tests marked `watch_shifts`
+suite's browser fixture watches unmarked tests and marked ones that opt in with `watch_shifts`
 for a protected box moving on screen without input, news landing just after a press included,
 or typing carrying its field (`tests/shift_watch.js`).
 
@@ -318,37 +309,37 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Vocabulary and public helpers | `registry.js`, `widget-api.js`, `widget-elements.js` |
 | External data | `data.js`, `projection/data.js`, `projection/authored.js` |
 | Revision installs and continuity | `version.js`, `version-picker.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js` |
-| Repaint and geometry | `rendering.js`, `repaint.js`, `page-geometry.js`, `geometry.js`, `scroll-motion.js`, `css-anchors.js`, `rect.js`, `pointer.js` |
+| Repaint and geometry | `rendering.js`, `repaint.js`, `page-geometry.js`, `geometry.js`, `element-frame.js`, `scroll-motion.js`, `css-anchors.js`, `rect.js`, `pointer.js` |
 | Chrome and available room | `chrome.js`, `chrome-layout.js`, `auxiliary-surfaces.js`, `drawn-edge.js` |
 | Reading regions and scrolling | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js` |
 | Keyboard | `keyboard/AGENTS.md` |
 | Focus and navigation | `focus.js`, `standing-target.js`, `navigation.js`, `queue-walk.js`, `history.js`, `user-intent.js`, `walk-position.js` |
-| Questions | `questions/` |
+| Asks | `questions/` |
 | Comment capture | `composing/`, `drafts.js`, `media.js` |
 | Threads | `thread/`, `thread-panel.js` |
 | Annotation inventory and controls | `annotation-inventory.js`, `annotation-view.js`, `contributions.js`, `contribution-controls.js`, `inline-contributions.js` |
 | Annotation records and Page Map | `margin-model.js`, `margin-map-model.js`, `page-map-dialog.js`, `pointed-place.js` |
-| Physical annotation presentation | `../../packages/default/runtime/annotation-overlay/` |
-| Passages and target identity | `passages.js`, `text-alignment.js`, `anchor-coordinate.js`, `resolved-target.js`, `anchor-resolution.js` |
+| Physical annotation presentation | `annotation-overlay/` |
+| Passages and target identity | `passages.js`, `passage-facts.js`, `text-alignment.js`, `anchor-coordinate.js`, `resolved-target.js`, `anchor-resolution.js`, `addressable-names.js` |
 | Anchor placement, decoration and travel | `anchor-placement.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `target-paint-geometry.js`, `visual-parts.js`, `indication.js` |
 | Banner and approvals | `banner*.js` |
 | Drawers and neighboring pages | `drawers.js`, `queue-panel.js`, `queue-list.js`, `live-leaves*.js` |
 | Activity and reports | `presence.js`, `reports.js` |
 | Notices and announcements | `semantic-news.js`, `notifications.js`, `keyboard/shortcut-bar.js` |
 | Reactions and design review | `reactions.js`, `design.js`, `design-readings.js` |
-| Presentation and validation | `presentation.js`, `validation.js`, `projection-watch.js`, `retained-face.js` |
+| Presentation and validation | `presentation.js`, `declared-words.js`, `validation.js`, `projection-watch.js`, `retained-face.js` |
 | Child pages and gallery playback | `sample.js`, `interaction-gallery*.js` |
 | Shadow trees and styles | `shadow.js`, `shadow-stage.js`, `stylesheets.js` |
 | Elements a paint belongs to while they stand, and the stages they stand in | `arrivals.js` |
-| Utilities | `icons.js`, `markdown.js`, `syntax.js`, `motion.js`, `color-scheme.js`, `storage.js`, `interaction-log.js` |
+| Utilities | `abort.js`, `icons.js`, `markdown.js`, `syntax.js`, `motion.js`, `color-scheme.js`, `storage.js`, `interaction-log.js` |
 
-The executable body declaration `data-annotations` selects the default physical
-renderer or page-owned presentation. `leaf.js` imports the default package's
-`runtime/annotation-overlay/index.js` only for overlay presentation; core owners
-cannot reach that graph. Core retains target readings, inventory, native controls,
-Thread/composer lifetimes and active/draft drawing ink. The selected package owns
-pins, contextual floating placement, posted drawing paint, marks and annotation
-visibility. Page-owned views consume the same owners through `widget-api.js`.
+The executable body declaration `data-annotations` selects the physical overlay
+or page-owned presentation. `leaf.js` imports `runtime/annotation-overlay/index.js`
+only for overlay presentation; no other owner can reach that graph. Core retains
+target readings, inventory, native controls, Thread/composer lifetimes and
+active/draft drawing ink. The overlay owns pins, contextual floating placement,
+posted drawing paint, marks and annotation visibility. Page-owned views consume the
+same owners through `widget-api.js`.
 
 `runtime/rendering.js` runs every rendering callback in one pass per frame; schedule
 through its `nextRender`, `nextFrame`, `cancelRender`, and `sizeObserver`, since
@@ -383,20 +374,16 @@ and "none" has one spelling, the attribute's absence, which `keeps` writes for a
 value. The corpus holds each rule, in
 `test_a_still_page_comes_back_from_every_journey_as_it_was`.
 
-Stylesheets apply in layers. `theme.css` holds page tokens, element styles,
-idioms, and CSS-only widgets, and each package theme follows it; shared shadow
-rules compose into `/shadow.css`, whose shared native `.lf-ui-face` defaults come
-before component rules. Custom-element hosts own their appearance; `.lf-ui`
-marks apparatus without imposing a face. In the document all of these, and each widget module's adopted
-sheet, share the `lf-base` cascade layer; `layouts.css` is `lf-layouts` above it,
-and `state.css` is `lf-state` above both so semantic retirement wins over package
-defaults and Layouts. The page's own CSS stays unlayered above those tiers,
-and inline widget motion outranks them (`layer.py`, `CASCADE_LAYERS`). Shared
-shadow rules use `lf-shadow` above adopted widget defaults in `lf-base`, and
-`state.css` reaches every declared shadow stage above both. Each
-package's rules reach only its own widgets (`layer.py`, `widget_confinement`), so a rule
-several packages' widgets need is the kernel's. The page's rules skip the chrome and
-every `.lf-ui` control unless they name a widget or the layer's vocabulary
+Stylesheets apply in cascade layers, in the order `layer.py`'s `CASCADE_LAYERS`
+declares and `../references/packages.md`, "Styles and composition", describes;
+`state.css` takes the top tier so semantic retirement wins over package defaults and
+Layouts. `theme.css` holds page tokens, element styles, idioms, and CSS-only widgets,
+and each package theme follows it; shared shadow rules compose into `/shadow.css`,
+whose shared native `.lf-ui-face` defaults come before component rules. Custom-element
+hosts own their appearance; `.lf-ui` marks apparatus without imposing a face. Each
+package's rules reach only its own widgets (`layer.py`, `widget_confinement`), so a
+rule several packages' widgets need is the kernel's. The page's rules skip the chrome
+and every `.lf-ui` control unless they name a widget or the layer's vocabulary
 (`runtime/page-sheets.js`). The chrome's root and native `.lf-ui-face` defaults
 state the face they would otherwise inherit from the page; imported components
 receive theme variables, preserving their own state presentation.
@@ -423,14 +410,14 @@ unresolved local work into the one reading every component selects from:
 | version shown | the revision the delivery prelude names; a newer revision with the same executable identity patches in place, a different one navigates to a fresh document |
 | accepted history, and the reading applied | the server event log and its `/api/state` answer, adopted whole by the publisher |
 | unresolved browser work | the publisher's one ordered ledger |
-| thread, workflow, attention, Questions, tasks, activity, unread | the server's folds; the browser adds only its own unresolved sends and the versions it is marking read |
-| what is waiting on the user and on the agent | `queues.js`'s selection from those readings, the browser's side of `agent_state.queues` |
+| thread, workflow, attention, asks, to-dos, activity, unread | the server's folds; the browser adds only its own unresolved sends and the versions it is marking read |
+| what is waiting on the user and on the agent, and what is done | the server's selection (`served_state.queues`), which `page state` prints; the publisher places this tab's sends against it (`localQueues`) |
 | what the DOM represents | the presentation coordinator's renderer tickets and preparation regions |
 | when a document-wide renderer paints | the publication that opened the epoch, in the order `runtime/semantic-state.js` declares |
 | where each thread's passage lands | `anchor-placement.js`'s resolution of its anchor in this version |
-| the row inside a target a comment stands by | `pointed-place.js`: the line a pointing gesture landed on, held by the composer until sent, then under the thread's key with the words that find it again; where it stands now is `anchor-placement.js`'s placement record (`point`, `pointRow`), written in its read, the only writer, which takes in what a send hands over; presentation only, and only the pointed threads' row, card and travel follow it |
-| the side and line a comment's box and its thread card stand by, whether they stand past its margin row, and which edge a growing one holds | the default package's `comment-placement.js` (`commentSide`, `options`, `holding`), from the card's declared widths, for both surfaces; each surface's own module measures its content and reports its gestures, and decides neither |
-| whether a margin row stands in the rail or as a pin, its seat, and the order rows are seated in | `margin-layout.js`, through `margin-placement.js`'s folds (`rowPosture`, `seatRows`, `packRows`, `arrivals`) |
+| the row inside a target a comment stands by | `pointed-place.js`'s points, written only by anchor placement's pass (`placePoints`) into its placement record; presentation only |
+| the side and line a comment's box and its thread card stand by | `annotation-overlay/comment-placement.js` (`commentSide`), for both surfaces |
+| whether a margin row stands in the rail or as a pin, and its seat | `annotation-overlay/margin-layout.js`, through `margin-placement.js`'s folds |
 | geometry readings: what a scroller shows, what a surface hides, what sticky headers stand over, how much of the window the page shows, where a change of size moves what is seen | `geometry.js` (`visibleBand`, `declareOccluder`, `headerInset`, `shownWindow`, `seenRect`, `motionBand`), so being on screen, and moving what is, each have one answer |
 
 Do not add a second cache, pending map, widget-specific replay list, or DOM
@@ -445,6 +432,48 @@ restores its standing by declared id. A hold, which defers the revision, is for 
 gesture that is not a value: an open composer, a drag, an unresolved delivery, an
 open menu.
 
+### One answer for each question
+
+A question the runtime asks in many places has one owner, which every caller asks. A
+second copy usually starts where a symptom appeared and its author did not find the
+first, then drifts from it at the edges: under a stuck header, in a shadow tree, in
+right-to-left text. Before writing a predicate or reading, or approving one in review,
+look for its question here. A change that creates an owner adds its row; a caller that
+keeps its own test says why beside it. Rows marked *lint* are enforced in
+`eslint.config.mjs`.
+
+| Question | Owner |
+| --- | --- |
+| Where the user stands: focus inside open shadow trees, or a label press holding them | `focus.js` `focused` |
+| Put the user on an element, saying what moved them | `focus.js` `focusDestination(node, cause)` (*lint*) |
+| Whether a control takes typed letters | `focus.js` `typesText`, `takesLetters` |
+| Which focused control counts as the user's place: shown, and not under a stuck box | `user-place.js` `focusedInView` |
+| Whether a click came from the keyboard | `pointer.js` `pressIsKeyboardActivation` |
+| Whether a press is the plain one a control claims: primary button, no modifier | `pointer.js` `plainPress` |
+| Which arrow means back along a row, in its text direction | `keyboard/bindings.js` `rowArrows` |
+| Whether any of a node is in front of the user | `geometry.js` `seenRect`; past top-layer surfaces, `clipsPastSurfaces` |
+| Whether a change of size there would move what is seen | `geometry.js` `motionBand`, `growthIsSeen`, `growthAfterIsSeen` |
+| When none of some nodes is seen any more | `geometry.js` `whenNone` |
+| How much of the window the page shows | `geometry.js` `shownWindow` |
+| The window's box, less its scrollbars | `geometry.js` `layoutWindow` |
+| Whether the page puts a node before the user at all, what the pages holding it show of its window, and when either may have changed | `geometry.js` `presented`, `containingView`, `frameView`, `watchRoom` |
+| Whether a box standing against a target belongs in layout yet | `geometry.js` `nearWindow`, `nearObserver` |
+| Where an element-or-Range destination stands, and what clips leave of it | `geometry.js` `placeBox`, `clippedPlace` |
+| Whether a box is stuck, and the band sticky headers cover | `geometry.js` `stuckBox`, `headerInset` |
+| Whether a box scrolls, for a script or for the user | `geometry.js` `scrollContainer`, `scrollport`, `userScrollport` |
+| Which axes a box clips | `rect.js` `clippingAxes` |
+| Whether a box is at its scroll end | `scrolling.js` `atScrollEnd`, `SCROLL_SLACK` |
+| The page's `main` | `passages.js` `pageDocument` |
+| Whether a place is already shown, and the room a landing needs | `landing-scroll.js` `alreadyShown`, `landingRoom` |
+| Bring something into view without scrolling the page around it | `landing-scroll.js` `scrollIntoView` (*lint*) |
+| Open or close a native modal or popover | `keyboard/layer-stack.js` `showNativeLayer`, `closeNativeLayer` (*lint*) |
+| Which native layers are open, and whether a modal admits a node | `keyboard/layer-stack.js` `nativeLayers`, `nativeModalAdmits` |
+| The element a URL fragment names | `anchor-resolution.js` `fragmentTarget` |
+| The language a file path means | `syntax.js` `langForPath`, from the registry's `$languages` |
+| Paint on the next frame, or watch a size | `rendering.js` `nextRender`, `nextFrame`, `sizeObserver` (*lint*) |
+| Write a DOM value only when it changed | `keeps.js` `keeps` |
+| Threads, workflow, attention, asks, settlement | the server's folds, under "One writer for each fact" |
+
 ### Facts both runtimes know
 
 A fact Python and the browser both use, such as an event kind, a registry key, or the
@@ -452,7 +481,7 @@ languages a page can highlight, has one home, so the two runtimes cannot disagre
 about it. Either one language owns it and the other receives it as data, as the
 browser receives the server's folds in `/api/state`, or the registry declares it,
 Python reads it there, and the browser's copy is generated from it, as
-`build/vendor.py` writes `runtime/syntax-languages.js` from `$languages`. A parity
+`build/registry.mjs` writes `runtime/syntax-languages.js` from `$languages`. A parity
 fixture or a test that scans one language's source for the other's names keeps two
 copies in step instead, so in review a new one is a flag that asks why the fact is
 not generated.
@@ -498,16 +527,16 @@ requires both; readers inspecting intermediate paint can select the first.
 
 ## Authoritative projection
 
-Python owns Question membership, widget completion and thread settlement. The server
-ships complete page and frozen-thread inventories as `document.questions` and
-`thread.questions`; prose Questions join that same thread inventory. A Question
+Python owns ask membership, widget completion and thread settlement. The server
+ships complete page and frozen-thread inventories as `document.asks` and
+`thread.asks`; prose asks join that same thread inventory. An ask
 contains its source, prompt, typed answer, status and next actor. The browser
 selects each widget answer from the same local-inclusive state its controls draw,
 without folding its `x-awaits.answered` completion rule again. A required-version
-approval is another Question source: its local approval or undo updates its contained
+approval is another ask source: its local approval or undo updates its contained
 answer and status immediately, with refusal restoring the admitted reading. Thread attention
 (`needs_user` or `waiting`) changes locally for unresolved sends; a refusal restores
-the admitted reading. Questions derive their queue rows directly, while Tasks hold
+the admitted reading. Asks derive their queue rows directly, while to-dos hold
 explicit committed work. Every state read has
 one `through_seq`, and version comparison asks `/api/view` at the sequence
 already applied. A page widget's projection stops at the current revision; a
@@ -539,27 +568,6 @@ nesting, passages, event shapes, and file readings; the browser owns computed la
 composed trees, module writes, focus, and replay idempotence. A test reads widget state
 through the publisher's own reading, never a test-only interpretation of it.
 
-| Reading | Contract |
-| --- | --- |
-| window-error channel | no runtime, module, resource, or ResizeObserver error reached the page |
-| `issueNode` | a DevTools issue outside a form control's shadow tree is the page's, placed at its frame if it has one |
-| `upgraded`, `moving` | upgrade completed and geometry settled |
-| `invalidPaints` | every var()-backed SVG paint resolves in each scheme |
-| `tinyBoxes` | every declared widget has a usable box |
-| `unmarkableElements` | every addressable element has a visible part to outline |
-| `misplacedBoxes` | boxes stay in the column or in reachable overflow at every width |
-| `squeezedTables` | a table scrolls sideways only with every column at its longest unbreakable run |
-| `clippedControls` | controls are visible and reachable |
-| `unreachableWords`, `coveredWords` | visible words stay in reachable flow and are not silently clipped or claimed by chrome |
-| `unreadSyntax` | highlighting does not alter source words |
-| `shownVerbatim` | preserving owners agree with their projected passage |
-| `silentWords` | `x-says` and `x-paints` promises reach the rendered page |
-| `undeclaredAttrs` | modules write no undeclared author-namespace state |
-| `retiredSlots` | settlement marks agree with the projection |
-| `trappedMargins`, `splitEdges` | authored-page spacing advice; the suite enforces frame trim on Leaf's own boxes |
-| `relativeReplays` | rendering a complete widget state twice changes nothing |
-| `shrunkLabels` | advice only |
-
 The gates judge contracts, not how the page looks. A change to what the page
 draws, including one made for geometry, is proved with before/after screenshots
 of each state it touches. `uv run leaf-dev stills` takes them for a catalogue of
@@ -568,9 +576,10 @@ visible change").
 
 ## Working on the runtime
 
-`../references/module-authoring.md`, "Template rendering", owns template timing
-and container ownership. Paints whose contract requires the current turn use the
-public `render`; `LitElement` belongs only to faces that permit its microtask delay.
+`../references/module-authoring.md`, "Template rendering", owns container ownership
+and how placements keep the user's place. Paints whose contract requires the current
+turn use `render`; `LitElement` schedules updates on a microtask and belongs only to
+runtime faces that permit that delay.
 
 `build/browser/build.mjs` compiles the TypeScript foundation into
 `vendor/browser-runtime.js` and the modules beside it in `vendor/browser-runtime/`,

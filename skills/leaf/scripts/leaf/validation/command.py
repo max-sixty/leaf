@@ -40,9 +40,13 @@ def _check(page_dir: Path, render: bool) -> int:
     runs_code = needs_browser(result.document, result.artifact)
     if not (runs_code or render):
         return 0
-    from leaf.render_gate.command import page_code_check, render_check
+    from leaf.render_gate.command import browser_check
 
-    candidate = (page_dir, result.document, result.revision.candidate, result.artifact)
-    if runs_code and page_code_check(*candidate):
-        return 1
-    return render_check(*candidate) if render else 0
+    return browser_check(
+        page_dir,
+        result.document,
+        result.revision.candidate,
+        result.artifact,
+        page_code=runs_code,
+        render=render,
+    )

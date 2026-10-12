@@ -16,7 +16,7 @@ The user follows your work on the page:
 | Page | the revised content in place, and a stamp's changelog | saving `index.html`, `leaf page stamp` |
 
 Leaf itself marks each update **Sent**, **Queued**, and **Picked up**, including
-one that owes you nothing, such as a moved card. A pick before the Done its Question
+one that owes you nothing, such as a moved card. A pick before the Done its ask
 waits for is marked with that Done. Your harness
 contract may add its own current step to the banner.
 
@@ -63,7 +63,7 @@ page's authenticated `GET /api/user-view`; captured render previews record none.
 ## When to write
 
 Everything you work on for the user is an item on your queue: an update you owe
-an answer, named by the update's event id as its delivery gives it, or a task you
+an answer, named by the update's event id as its delivery gives it, or a to-do you
 opened. Take the item in hand before starting its work, with one line saying what
 you are doing.
 
@@ -80,7 +80,7 @@ The user reads it at once, and it takes the update in hand: the update reads
 **Working** with that line beside its thread and in the banner, and the
 progress line folds into the progress disclosure when your answer arrives
 ([progress messages](threads.md#progress-messages)). Take any other item in hand,
-such as a task or an action on a page widget, which has no thread, with a start:
+such as a to-do or an action on a page widget, which has no thread, with a start:
 
 ```bash
 leaf task start <page> <id> "reading the reconnect traces" && <command>
@@ -94,16 +94,16 @@ tool call. Name the operation and its subject in one sentence; "Working on it"
 tells the user nothing the banner's dot does not already say.
 
 Work requested in chat or begun by you gets an item too. After initializing a
-new page, open and start its task before authoring. On an existing page, open it
+new page, open and start its to-do before authoring. On an existing page, open it
 on the widget it concerns, or on `page`:
 
 ```bash
 leaf task open <page> page "Add a glossary"
-leaf task start <page> <task> "drafting the glossary entries"
+leaf task start <page> <todo> "drafting the glossary entries"
 ```
 
-`leaf task open` prints the task's record; its `id` is the task. When its work is
-done, end it with `leaf task end <page> <task> done "<where the result is>"`; a task
+`leaf task open` prints the to-do's record; its `id` is the to-do. When its work is
+done, end it with `leaf task end <page> <todo> done "<where the result is>"`; a to-do
 nothing ends stays on you, and `leaf status … idle` refuses while one is open.
 Housekeeping such as re-vendoring, restarting the server, or merging owes the user
 nothing and needs no item.
@@ -123,7 +123,7 @@ User input comes before the work in hand, in this order:
    the last step before the interruption.
 
 Then do the work, and reply once its revision passes `leaf page check`, the only
-check the main skill's "Operate", step 3, asks before a reply.
+check the main skill's "Quick pages and records" step asks before a reply.
 
 ## Status and handoff
 
@@ -134,7 +134,7 @@ leaf status <page> waiting "<what you want back>"
 ```
 
 The detail names the concrete answer or decision, not the fact that you are
-waiting. For an informational page with no Question, leave it empty; the
+waiting. For an informational page with no ask, leave it empty; the
 banner then invites the user to select text to comment. Name the gesture available
 to the user and hand over by the selected harness contract. From the first handoff
 on, include
@@ -143,23 +143,23 @@ do not repeat it. An export hands over its file URL, and a harness that already
 presents the page uses its own handoff surface.
 
 A `waiting` puts down every item you
-started before it, so the banner shows what you want back; a task stays open on
+started before it, so the banner shows what you want back; a to-do stays open on
 you until you end it.
 
 What ends a start depends on its item. Your reply answering an update ends that
 update's start, and so does a stamped version whose markup records a press on an
-answered Question. A task's start ends with the task: `leaf task end`, or a stamped
+answered ask. A to-do's start ends with the to-do: `leaf task end`, or a stamped
 version that completes its widget, once per completed widget:
 
 ```bash
 leaf page stamp <page> --text "…" --completes <widget-id>
 ```
 
-`--completes` names a widget with an open task, and ends each task on it `done`,
+`--completes` names a widget with an open to-do, and ends each to-do on it `done`,
 citing the version. `leaf task open` takes a page widget that declares `x-work` or
 holds an unsettled action, any other element of the page, or `page`; work in a thread
-is opened by the reply that promises it (`--task`). A task on a widget survives unrelated versions, and a
-version cannot drop that widget while the task stands.
+is opened by the reply that promises it (`--todo`). A to-do on a widget survives unrelated versions, and a
+version cannot drop that widget while the to-do stands.
 
 ## Long-running work
 
@@ -191,24 +191,24 @@ and its explanation keeps the start's line. A start nobody renews at all ages ou
 after about a quarter of an hour. An update whose answer a worker is producing takes a
 start while your turn runs; a start written in this turn lets the turn end before the
 answer. In the turn that a worker's result or the user's next comment wakes, start
-the item again or answer it. What holds the work after the turn is a task (below).
+the item again or answer it. What holds the work after the turn is a to-do (below).
 Within a turn, the banner shows the line of the item you started last, so start the
 item that best describes what is running; each item you have in hand shows its own
 line beside its thread or widget.
 
-A start lasts a turn; a task lasts until you end it. When you take on work a thread
+A start lasts a turn; a to-do lasts until you end it. When you take on work a thread
 asked for that can outlast the turn you took it on in, such as a worker's build, a
 wait on CI, or a change you promise for the next version, answer with
-`leaf response reply <answer.ref> --task "<what you owe>"`, saying what is under way:
-the reply answers the user's message and opens the task on that thread under the
+`leaf response reply <answer.ref> --todo "<what you owe>"`, saying what is under way:
+the reply answers the user's message and opens the to-do on that thread under the
 reply's id, which keeps the thread on you, and named in the banner, through the user
-resolving it and the end of your session. A turn-written reply carries no task, so
+resolving it and the end of your session. A turn-written reply carries no to-do, so
 answer such a promise with this command. Wherever
-the result lands, the task ends there: `leaf task end <page> <task> done "<where the
+the result lands, the to-do ends there: `leaf task end <page> <todo> done "<where the
 result is>"`, or `failed` or `dropped` with the reason, so work that won't come back
-to you takes the page and the task's id in its brief. While you work on it, start it,
+to you takes the page and the to-do's id in its brief. While you work on it, start it,
 so the banner and the thread show your line.
-Work on an update that finishes inside the turn needs no task.
+Work on an update that finishes inside the turn needs no to-do.
 
 ## Questions and Tasks
 
@@ -217,44 +217,44 @@ decision, permission, review, or action elsewhere. Ask a direct question and reg
 it by one of the routes below. Prose in the page, a status line, and a question in
 chat alone do not register it. A recommendation leaves its decision open. An
 optional invitation to comment creates no obligation; if you need feedback before
-continuing, make it a Question.
+continuing, make it an ask.
 
-The banner's Questions count and the Questions panel show the user's queue;
+The banner's Questions count and the Questions panel show everything waiting on the user;
 **Tasks** shows yours. The user can open either list and press `q` to reach their
 next item. Questions contains these requests and any failed send that needs the
 user to send again. Done holds ended items.
 
 | Request | Register it | What answers it |
 | --- | --- | --- |
-| A decision or input recorded by a widget | Author a decision widget (`authoring-questions.md`); optional `lf-ask` frames its question and evidence | The widget's declared answer; a multiple-choice Question also needs the user's Done |
-| A conversational answer | Open an agent thread with the question, or add `--question` to a reply (`threads.md`) | The user's next reply there or a settling reaction |
-| Required version sign-off | Declare sign-off and stamp the version (`authoring-questions.md`, "Questions and sign-off") | That version's banner approval |
+| A decision or input recorded by a widget | Author a decision widget (`authoring-questions.md`); optional `lf-ask` frames its question and evidence | The widget's declared answer; a multiple-choice ask also needs the user's Done |
+| A conversational answer | Open an agent thread with the question, or add `--ask` to a reply (`threads.md`) | The user's next reply there or a settling reaction |
+| Required version sign-off | Declare sign-off and stamp the version (`authoring-questions.md`, "Asks and sign-off") | That version's banner approval |
 | An action neither route records, such as trying a build or connecting a browser | `leaf task open <page> <id> "<direct question naming the action>" --on user`, on its widget, section, or `page` | The user's Done; end it yourself when their action is established or no longer needed |
 
-A widget Question has id `widget:<widget-id>`, a prose Question has
-`reply:<message-id>`, and a stamped version's sign-off has `approval:v<version>`.
-Explicit user work keeps the id printed by `task open`. A thread takes no explicit
-user task; ask there with `--question`.
+A widget ask has id `widget:<widget-id>`, a prose ask has `reply:<message-id>`,
+and an approval ask for a stamped version's sign-off has `approval:v<version>`.
+A to-do on the user keeps the id printed by `task open`. A thread takes no to-do
+on the user; ask there with `--ask`.
 Keep independently answerable decisions in separate widgets or threads. A thread
-can retain several prose Questions; its latest unanswered one is the current request,
-and the next user reply settles preceding unanswered prose Questions there. Publish
-a dependent question once its prerequisite is answered. A user task's Done reports
-completion; it supplies no permission or choice that its question did not state.
+can retain several prose asks; its latest unanswered one is the current request,
+and the next user reply settles preceding unanswered prose asks there. Publish
+a dependent question once its prerequisite is answered. The user's Done on a to-do
+reports completion; it supplies no permission or choice that its question did not state.
 
 Read the lists before a handoff, before waiting for the user, and after taking in
 an answer:
 
 ```bash
-leaf page state <page> | jq '{source, questions, tasks, queues}'
+leaf page state <page> | jq '{source, asks, todos, queues}'
 ```
 
-Page state contains separate canonical `questions` and explicit `tasks`; its
-`queues.on_you` and `queues.on_agent` select those records with response obligations
+Page state contains separate canonical `asks` and `todos`; its
+`queues.questions` and `queues.tasks` select those records with response obligations
 and delivery retries for the panel. `jq` only selects these fields; do not reconstruct
 membership from events or widget state. Each queue item names its `id`, `kind`,
-`subject`, and `thread`; work items also say how they end (`ends`). A Question contains
-its prompt, typed answer and lifecycle; widget state owns its answer. Read a thread
-with `leaf page state <page> <message-id>` for its messages. For a page widget, read
+`subject`, and `thread`. An ask contains its prompt, typed answer and lifecycle;
+widget state owns its answer. Read a thread with `leaf page state <page> <message-id>`
+for its messages. For a page widget, read
 `leaf page state <page>`'s `active.file` and the identified widget in that HTML;
 the widget-specific state command reports its state and metadata. The reading
 covers the active document and admitted log, not unsent browser drafts or a tab
@@ -264,17 +264,17 @@ treating an empty list as a successful handoff.
 Reconcile the lists with what you still need and owe. Zero Questions says that
 you need nothing from the user **now**; Tasks may still contain your work or a wait
 on an external result. Complete authorized work without asking for permission
-again. A paused project needs a Question only when its disposition or resumption
+again. A paused project needs an ask only when its disposition or resumption
 needs the user's decision; after they choose to keep it paused, that decision is
 settled. A blocked action belongs on the user only when they can take the step
 that unblocks it. Work owned by another session stays there; ask here only for the
 decision this page needs.
 
 An answer in chat or another surface still settles the real question. Incorporate
-it and retire its page Question in a revision (`authoring-revisions.md`), or end
-explicit user work with `leaf task end`. Withdraw a prose Question that no longer
+it and retire its page ask in a revision (`authoring-revisions.md`), or end
+the user's to-do with `leaf task end`. Withdraw a prose ask that no longer
 applies with `leaf task end <page> reply:<message-id> dropped "<why>"`; this records
-withdrawal, not a user answer. Keep finished requests out of the user's queue;
-answered and withdrawn Question records remain available in the complete reading.
-A page declaring required banner sign-off adds a Question for its stamped version automatically; its approval answers that
-Question, and undo reopens it. Stamp a draft before requesting its sign-off.
+withdrawal, not a user answer. Keep finished requests off the user's Questions;
+answered and withdrawn ask records remain available in the complete reading.
+A page declaring required banner sign-off adds an approval ask for its stamped version automatically; its approval answers that
+ask, and undo reopens it. Stamp a draft before requesting its sign-off.

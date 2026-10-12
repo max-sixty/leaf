@@ -34,10 +34,14 @@ from render_cases_interaction import (
     LIST_ORDER,
     LIST_STATE,
     PANEL_PAGE,
+    PHOTO_THREAD,
+    PROJECTOR_THREAD,
     SEATED_ASK_LAYER,
     SEATED_ASK_WIDGETS,
     SEATED_QUESTION_PAGE,
     THREAD_DIFF_PAGE,
+    WORKSHOP_THREAD_EVENTS,
+    WORKSHOP_THREADS_PAGE,
     live_url,
     panel_comment,
 )
@@ -80,6 +84,7 @@ from render_harness import (
     sending,
     shortcut_bar_text,
     stamp_page,
+    stored_draft_text,
     take_browser_errors,
     told,
     undo,
@@ -87,7 +92,7 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 # Where focus given to the Threads list lands while it shows a thread: the title of the
@@ -273,13 +278,15 @@ def test_gallery_pending_title_opens_when_the_reader_requests_it(browser, serve)
     )
 
 
-def test_gallery_thread_rows_name_action_in_existing_status(browser, serve):
-    page = open_page(browser, serve(FEATURE_GALLERY))
+def test_thread_rows_name_action_in_existing_status(browser, serve):
+    page = open_page(
+        browser, serve(WORKSHOP_THREADS_PAGE, events=WORKSHOP_THREAD_EVENTS)
+    )
     resized(page, 1440, 900)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
 
-    asked = page.locator('.lf-thread[data-id="2be2443f0bb6cc49fc86b52f340e6073"]')
+    asked = page.locator(f'.lf-thread[data-id="{PHOTO_THREAD}"]')
     expect(asked.locator(":scope > .lf-thread-summary .lf-thread-status")).to_have_text(
         "On you to answer"
     )
@@ -336,7 +343,7 @@ def test_gallery_thread_rows_name_action_in_existing_status(browser, serve):
     asked.locator(":scope > .lf-thread-summary").focus()
     asked.locator(":scope > .lf-thread-summary").press("Enter")
     expect(asked).to_have_attribute("open", "")
-    resolved = page.locator('.lf-thread[data-id="bab3cdfcfb8c02aacbb27da731de947a"]')
+    resolved = page.locator(f'.lf-thread[data-id="{PROJECTOR_THREAD}"]')
     expect(
         resolved.locator(":scope > .lf-thread-summary .lf-thread-status")
     ).to_have_text("✓ Resolved by Codex")
@@ -665,15 +672,12 @@ def test_a_durable_reply_completes_its_stream_placeholder_in_place(
 
     reply = thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "The complete answer.",
-        (
-            '<lf-ask id="stream-reply-ask"><h3>Use this answer?</h3>'
-            '<lf-options id="stream-reply-choice" choose>'
-            '<lf-option id="stream-reply-now">Use it now</lf-option>'
-            "</lf-options></lf-ask>"
-        ),
-        for_event=root,
+        '<lf-ask id="stream-reply-ask"><h3>Use this answer?</h3>'
+        '<lf-options id="stream-reply-choice" choose>'
+        '<lf-option id="stream-reply-now">Use it now</lf-option>'
+        "</lf-options></lf-ask>",
         attempt=STREAM_ATTEMPT,
         identity={"agent": "Codex", "session": "codex-thread"},
     )
@@ -754,10 +758,8 @@ def test_a_codex_reply_streams_into_an_open_card_and_its_answer_completes_it(
 
     reply = thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "Recorded the release on the board.",
-        "",
-        for_event=root,
         attempt="leaf-response-explicit",
         identity={"agent": "Codex", "session": "codex-thread"},
     )
@@ -807,10 +809,8 @@ def test_a_held_card_counts_a_streaming_reply_once_and_names_the_users_own_messa
 
     thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "Recorded the release on the board.",
-        "",
-        for_event=root,
         attempt="leaf-response-explicit",
         identity={"agent": "Codex", "session": "codex-thread"},
     )
@@ -886,10 +886,8 @@ def test_an_answer_completing_its_stream_with_the_same_words_folds_progress_as_i
     claim_for_codex(serve.page_dir, request)
     thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "Checking the board",
-        "",
-        for_event=root,
         ephemeral=True,
         identity={"agent": "Codex", "session": "codex-thread"},
     )
@@ -904,10 +902,8 @@ def test_an_answer_completing_its_stream_with_the_same_words_folds_progress_as_i
 
     thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "Recorded the release.",
-        "",
-        for_event=root,
         attempt=STREAM_ATTEMPT,
         identity={"agent": "Codex", "session": "codex-thread"},
     )
@@ -938,10 +934,8 @@ def test_an_idle_card_shows_an_answer_folding_the_progress_at_its_end(
     claim_for_codex(serve.page_dir, request)
     thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "Checking the board",
-        "",
-        for_event=root,
         ephemeral=True,
         identity={"agent": "Codex", "session": "codex-thread"},
     )
@@ -960,10 +954,8 @@ def test_an_idle_card_shows_an_answer_folding_the_progress_at_its_end(
 
     thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "Recorded the release on the board.",
-        "",
-        for_event=root,
         attempt=STREAM_ATTEMPT,
         identity={"agent": "Codex", "session": "codex-thread"},
     )
@@ -983,10 +975,8 @@ def answer_folding_progress(page_dir, root):
     """The agent's answer to `root`, which folds the progress before it."""
     return thread_model.post_reply(
         page_dir,
-        root,
+        {"to": root, "for": root},
         "Recorded the release on the board.",
-        "",
-        for_event=root,
         attempt=STREAM_ATTEMPT,
         identity={"agent": "Codex", "session": "codex-thread"},
     )
@@ -999,10 +989,8 @@ def open_card_with_progress(browser, serve, request):
     claim_for_codex(serve.page_dir, request)
     thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "Checking the board for the release entry",
-        "",
-        for_event=root,
         ephemeral=True,
         identity={"agent": "Codex", "session": "codex-thread"},
     )
@@ -1147,14 +1135,13 @@ def test_an_inline_reply_link_reveals_its_thread(browser, serve, resolved):
     )
     reply = thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "Choose the first job.",
         '<lf-ask id="first-job-decision"><h3>Which job first?</h3>'
         '<lf-options id="first-job" choose>'
         '<lf-option id="mounts">Put the mounts back</lf-option>'
         '<lf-option id="camera">Install the camera</lf-option>'
         "</lf-options></lf-ask>",
-        for_event=root,
     )
     for i in range(8):
         append_carried_log_record(
@@ -1233,10 +1220,8 @@ def test_a_summary_folds_originals_and_a_direct_reply_link_reveals_them(browser,
     )
     first = thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "The first job establishes the dependency.",
-        None,
-        for_event=root,
     )
     middle = append_user_reply(
         serve.page_dir, root, "Does that still hold for the camera?"
@@ -1387,10 +1372,8 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     root = panel_comment(serve.page_dir, "Check the schedule.", {"section": "jobs"})
     progress = thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "Checking the camera.",
-        None,
-        for_event=root,
         ephemeral=True,
     )
     owed = root
@@ -1407,10 +1390,8 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
         owed = intervening["id"]
         thread_model.post_reply(
             serve.page_dir,
-            owed,
+            {"to": owed, "for": owed},
             "Checking the mount.",
-            None,
-            for_event=owed,
             ephemeral=True,
         )
 
@@ -1436,11 +1417,7 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
         expect(original).to_be_focused()
 
     answer = thread_model.post_reply(
-        serve.page_dir,
-        owed,
-        "The schedule works.",
-        None,
-        for_event=owed,
+        serve.page_dir, {"to": owed, "for": owed}, "The schedule works."
     )
     told(page)
     notice = card.get_by_role("button", name="1 new reply", exact=True)
@@ -1531,7 +1508,7 @@ def test_progress_disclosure_keeps_its_words_visible_beside_margin_paging(
     root = roots[0]
     progress = [
         thread_model.post_reply(
-            serve.page_dir, root, text, None, for_event=root, ephemeral=True
+            serve.page_dir, {"to": root, "for": root}, text, ephemeral=True
         )
         for text in (
             "I'm checking the afternoon schedule against the break.",
@@ -1541,10 +1518,8 @@ def test_progress_disclosure_keeps_its_words_visible_beside_margin_paging(
     ]
     thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "Three sessions, a fifteen-minute break, and the closing discussion fit before five.",
-        None,
-        for_event=root,
     )
     context = browser.new_context(
         viewport={"width": width, "height": 670}, has_touch=touch, is_mobile=touch
@@ -1672,7 +1647,7 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Start with the measured constraint.")
     reply = thread_model.post_reply(
-        serve.page_dir, root, "The constraint still applies.", None, for_event=root
+        serve.page_dir, {"to": root, "for": root}, "The constraint still applies."
     )
     end = reply["id"]
     for number in range(count - 2):
@@ -1769,7 +1744,7 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Start with the measured constraint.")
     first = thread_model.post_reply(
-        serve.page_dir, root, "The first constraint.", None, for_event=root
+        serve.page_dir, {"to": root, "for": root}, "The first constraint."
     )
     second = append_agent_reply(serve.page_dir, root, "The second constraint.")
     third = append_agent_reply(serve.page_dir, root, "The third constraint.")
@@ -1845,14 +1820,13 @@ def test_a_summary_cannot_hide_an_active_question(browser, serve):
     )
     question = thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "Choose the first job.",
         '<lf-ask id="summary-job-decision"><h3>Which job first?</h3>'
         '<lf-options id="summary-job" choose>'
         '<lf-option id="summary-mounts">Put the mounts back</lf-option>'
         '<lf-option id="summary-camera">Install the camera</lf-option>'
         "</lf-options></lf-ask>",
-        for_event=root,
     )
     summary = summarize_thread(
         serve.page_dir,
@@ -1892,14 +1866,13 @@ def test_a_held_inline_reply_reveal_yields_to_new_user_focus(browser, serve):
     )
     reply = thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "Choose the first job.",
         '<lf-ask id="held-job-decision"><h3>Which job first?</h3>'
         '<lf-options id="held-job" choose>'
         '<lf-option id="held-mounts">Put the mounts back</lf-option>'
         '<lf-option id="held-camera">Install the camera</lf-option>'
         "</lf-options></lf-ask>",
-        for_event=root,
     )
     append_carried_log_record(
         serve.page_dir, {"kind": "resolve", "author": "user", "parent": root}
@@ -2689,6 +2662,10 @@ def test_a_sent_page_comment_closes_and_a_refusal_restores_its_draft(browser, se
     expect(box).to_be_focused()
     expect(box).to_have_js_property("value", draft)
     expect(card.locator(".lf-composer-media img")).to_be_visible()
+    # The words are back in front of the user, so the refusal names no address for them.
+    expect(page.locator(".lf-notice")).to_have_text(
+        "Couldn't send — refused before append"
+    )
     page.unroute("**/api/event", hold)
     assert all("400" in error for error in take_browser_errors(page))
 
@@ -5673,14 +5650,13 @@ def test_two_standard_thread_lists_share_updates_but_not_local_state(browser, se
     ]
     authored = thread_model.post_reply(
         serve.page_dir,
-        first_id,
+        {"to": first_id, "for": first_id},
         "Choose the deployment window.",
         '<lf-ask id="two-panel-decision"><h3>Deployment window</h3>'
         '<lf-options id="two-panel-window" choose>'
         '<lf-option id="today">Today</lf-option>'
         '<lf-option id="tomorrow">Tomorrow</lf-option>'
         "</lf-options></lf-ask>",
-        for_event=first_id,
     )
     page = open_page(browser, url)
     page.evaluate(
@@ -5837,7 +5813,7 @@ def test_recent_order_lists_threads_by_their_latest_message(browser, serve):
     cap = comment("Is forty enough?", {"section": "how-cap"}, 3)
     whole = comment("The whole thing needs a summary.", None, 12)
     # A reply today makes the oldest thread the most recent one.
-    thread_model.post_reply(d, whole, "Added one at the top.", None, for_event=whole)
+    thread_model.post_reply(d, {"to": whole, "for": whole}, "Added one at the top.")
 
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
@@ -6326,7 +6302,7 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
     # One open thread awaits neither party after a complete agent answer.
     settled_turn = panel_comment(d, "A complete answer is available.")
     thread_model.post_reply(
-        d, settled_turn, "Done; nothing more is needed.", None, for_event=settled_turn
+        d, {"to": settled_turn, "for": settled_turn}, "Done; nothing more is needed."
     )
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
@@ -6517,18 +6493,14 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     asked = panel_comment(serve.page_dir, "What remains?", {"section": "how-store"})
     thread_model.post_reply(
         serve.page_dir,
-        answered,
+        {"to": answered, "for": answered},
         "Forty is what the slowest supported device can hold.",
-        None,
-        for_event=answered,
     )
     thread_model.post_reply(
         serve.page_dir,
-        asked,
+        {"to": asked, "for": asked},
         "One choice remains. Which store should own the result?",
-        None,
-        for_event=asked,
-        question=True,
+        ask=True,
     )
     page = open_page(
         browser,
@@ -6575,14 +6547,13 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     # question can never render itself into the list that would discover it.
     widget_reply = thread_model.post_reply(
         serve.page_dir,
-        answered,
+        {"to": answered},
         "Choose the backend here.",
         '<lf-ask id="backend-decision"><h3>Which backend?</h3>'
         '<lf-options id="backend" choose>'
         '<lf-option id="backend-sqlite"><strong>SQLite</strong></lf-option>'
         '<lf-option id="backend-postgres"><strong>Postgres</strong></lf-option>'
         "</lf-options></lf-ask>",
-        for_event=None,
     )
     told(page)
     expect(page.locator(".lf-needs")).to_have_text("You (2)")
@@ -6653,18 +6624,14 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     )
     answer = thread_model.post_reply(
         serve.page_dir,
-        answered["id"],
+        {"to": answered["id"], "for": answered["id"]},
         "Widened it to forty.",
-        None,
-        for_event=answered["id"],
     )
     receipt = thread_model.post_reply(
         serve.page_dir,
-        unanswered["id"],
+        {"to": unanswered["id"], "for": unanswered["id"]},
         "The agent's turn ended without an answer to this message. "
         "Send it again to retry.",
-        None,
-        for_event=unanswered["id"],
         failure="turn_failed",
     )
 
@@ -7472,14 +7439,13 @@ def test_an_inline_reply_link_finishes_a_resolution_fold(browser, serve):
     root = panel_comment(serve.page_dir, "Which job first?", {"section": "jobs"})
     reply = thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "Pick the first job.",
         '<lf-ask id="first-job-decision"><h3>Which job first?</h3>'
         '<lf-options id="first-job" choose>'
         '<lf-option id="mounts">Mounts</lf-option>'
         '<lf-option id="camera">Camera</lf-option>'
         "</lf-options></lf-ask>",
-        for_event=root,
     )
     page = open_page(browser, url, init_script=HOLD_MOTION)
     resized(page, 1920, 900)
@@ -9621,7 +9587,7 @@ def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(
     expect_asks_answered(page, "2/2")
     banner_control(page, ".lf-queue").click()
     page.locator(".lf-queue-done > summary").click()
-    done = page.locator(".lf-queue-done .lf-queue-row[data-lf-kind='question']")
+    done = page.locator(".lf-queue-done .lf-queue-row[data-lf-kind='ask']")
     expect(done).to_have_count(2)
     assert set(done.evaluate_all("rows => rows.map(row => row.dataset.lfAt)")) == {
         "widget:off-workaround-review",
@@ -10390,14 +10356,12 @@ def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
     )
     thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "I'm capturing both widths.",
-        None,
-        for_event=root,
         ephemeral=True,
     )
     answer = thread_model.post_reply(
-        serve.page_dir, root, LANDING_WORDS * 8, None, for_event=root
+        serve.page_dir, {"to": root, "for": root}, LANDING_WORDS * 8
     )["id"]
     thread_model.cmd_edit(serve.page_dir, answer, "Edited. " + LANDING_WORDS * 8)
     # Later turns leave room to scroll the answer past the top in either direction.
@@ -10493,7 +10457,10 @@ def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
              - box.getBoundingClientRect().top""",
         toggle.element_handle(),
     )
-    assert abs(focused - rest["toggle"]) <= 1, (rest, focused)
+    # Native focus reveals the offscreen disclosure below the stuck head; the
+    # exact offset depends on the space the scrollport has for that reveal.
+    assert focused >= rest["head"] - 1, (rest, focused)
+    expect(toggle).to_be_in_viewport(ratio=1)
 
 
 SEAT_FILLER = "".join(
@@ -12650,12 +12617,45 @@ def test_the_keyboard_walks_up_through_the_users_messages_to_rewrite_one(
     expect(earlier).to_have_js_property("value", "Fit the north bracket.")
 
 
-def _rewrite_surface(browser, serve, surface, size=(1400, 900), resolved=False):
+def _feed_page(serve):
+    """The feature gallery's package reader alone on a page, which in Feed mode draws
+    each message of every conversation as a part of its own, and the selected one's
+    reply box below them."""
+    companion = FEATURE_GALLERY.parent / "feature-gallery.page"
+    return serve(
+        leaf_page(
+            "Package reader",
+            '<h1>Package reader</h1><p id="cd-q">The bracket notes.</p>'
+            '<lf-conversation-workspace id="workspace"></lf-conversation-workspace>',
+        ),
+        layer_registry={
+            "lf-conversation-workspace": json.loads(
+                (companion / "registry.json").read_text()
+            )["lf-conversation-workspace"]
+        },
+        layer_widgets={
+            "lf-conversation-workspace.js": (
+                companion / "widgets/lf-conversation-workspace.js"
+            ).read_text()
+        },
+    )
+
+
+def _rewrite_surface(
+    browser, serve, surface, size=(1400, 900), resolved=False, thanks=False
+):
     """A thread holding the user's message and the agent's answer, drawn on `surface`:
-    the Threads panel, the seat in the page's flow, or the margin card; `resolved`, in
-    the panel, under its Resolved filter. Returns the page, the thread, and the message
-    as that surface draws it."""
-    url = serve(PANEL_PAGE if surface == "card" else THREAD_DIFF_PAGE)
+    the Threads panel, the seat in the page's flow, the margin card, or a package
+    reader's Feed mode; `resolved`, in the panel, under its Resolved filter; `thanks`,
+    with the user's own reply after the answer. Returns the page, the thread, and the
+    message as that surface draws it."""
+    url = (
+        serve(PANEL_PAGE)
+        if surface == "card"
+        else _feed_page(serve)
+        if surface == "feed"
+        else serve(THREAD_DIFF_PAGE)
+    )
     anchor = "how-store" if surface == "card" else "cd-q"
     mine = append_carried_log_record(
         serve.page_dir,
@@ -12667,7 +12667,7 @@ def _rewrite_surface(browser, serve, surface, size=(1400, 900), resolved=False):
             "anchor": {"section": anchor},
         },
     )
-    append_carried_log_record(
+    answer = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -12679,6 +12679,16 @@ def _rewrite_surface(browser, serve, surface, size=(1400, 900), resolved=False):
             "text": "Fitted.",
         },
     )
+    if thanks:
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "user",
+                "parent": answer["id"],
+                "text": "Thanks.",
+            },
+        )
     if resolved:
         append_carried_log_record(
             serve.page_dir, {"kind": "resolve", "author": "user", "parent": mine["id"]}
@@ -12695,6 +12705,10 @@ def _rewrite_surface(browser, serve, surface, size=(1400, 900), resolved=False):
     elif surface == "seat":
         thread = page.locator("#cd-q .lf-page-thread").first
         message = thread.locator(f'.lf-msg[data-event="{mine["id"]}"]')
+    elif surface == "feed":
+        thread = page.locator("#workspace")
+        thread.get_by_role("button", name="Feed", exact=True).click()
+        message = thread.locator(f'.lf-primary-part .lf-msg[data-event="{mine["id"]}"]')
     else:
         page.locator(f'[data-lf-margin-for="{anchor}"] .lf-margin-marker').click()
         thread = page.locator(".lf-margin-preview")
@@ -12719,7 +12733,7 @@ FIRST_LINE = """n => {
 }"""
 
 
-@pytest.mark.parametrize("surface", ["panel", "seat", "card"])
+@pytest.mark.parametrize("surface", ["panel", "seat", "card", "feed"])
 def test_a_rewrite_opens_and_closes_without_moving_the_thread(browser, serve, surface):
     """Opening a rewrite with ↑ swapped the message for a bordered box with Cancel on a
     row of its own, pushing every turn and the reply box below it down 55px, and Escape
@@ -12730,7 +12744,8 @@ def test_a_rewrite_opens_and_closes_without_moving_the_thread(browser, serve, su
     In the margin card each keystroke in the rewrite also threw, from the reply box's
     growth-following reading a reply row the rewrite has none of; the browser fixture
     fails on that error. A double click put the caret before the words, since clearing
-    the word it selected took the caret the editor had just set."""
+    the word it selected took the caret the editor had just set. A package reader's
+    Feed mode, drawing each message on its own, offered no rewrite at all."""
     page, thread, message = _rewrite_surface(browser, serve, surface)
     reply = thread.locator(".lf-thread-reply leaf-text").first
     reply.click()
@@ -12797,6 +12812,132 @@ def test_a_rewrite_opens_and_closes_without_moving_the_thread(browser, serve, su
     round_trip(page)
     rendered(page)
     unmoved()
+
+
+def test_a_package_feed_keeps_a_rewrite_where_a_card_would(browser, serve):
+    """A package reader drawing each message on its own, as the feature gallery's Feed
+    mode does, offered the user's own words no rewrite: its parts had no thread card to
+    open one in, and Resume writing took a kept rewrite to the Threads panel. The Edit
+    control opens it there now, Save sends it, and words kept through a reload come back
+    under Resume writing on the message where Feed draws it, the reader staying in
+    Feed."""
+    page, workspace, message = _rewrite_surface(browser, serve, "feed")
+    mine = message.get_attribute("data-event")
+    feed = workspace.get_by_role("button", name="Feed", exact=True)
+    expect(workspace.locator(".lf-msg.agent .lf-msg-edit")).to_have_count(0)
+
+    message.hover()
+    message.get_by_role("button", name="Edit message").click()
+    editor = message.locator(".lf-msg-editor leaf-text")
+    expect(editor).to_be_focused()
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.type("Fit the south bracket.")
+    page.keyboard.press("Enter")
+    expect(message.locator(".lf-msg-editor")).to_have_count(0)
+    expect(message.locator(".lf-msg-text")).to_have_text("Fit the south bracket.")
+    expect(message.locator(".lf-edited")).to_have_text("edited")
+    round_trip(page)
+    edits = [e for e in events_model.read_events(serve.page_dir) if e["kind"] == "edit"]
+    assert [(e["message"], e["text"]) for e in edits] == [
+        (mine, "Fit the south bracket.")
+    ]
+
+    message.locator(".lf-msg-text").dblclick()
+    expect(editor).to_be_focused()
+    page.keyboard.type(" Or the east.")
+    page.reload()
+    wait_until_ready(page)
+    feed.click()
+    expect(message.locator(".lf-msg-kept")).to_have_text("unsaved edit")
+    page.locator("body").focus()
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(editor).to_be_focused()
+    expect(editor).to_have_js_property("value", "Fit the south bracket. Or the east.")
+    expect(feed).to_have_attribute("aria-pressed", "true")
+    message.get_by_role("button", name="Cancel").click()
+    expect(message.locator(".lf-msg-editor")).to_have_count(0)
+    expect(message.locator(".lf-msg-kept")).to_have_count(0)
+    expect(message.locator(".lf-msg-text")).to_have_text("Fit the south bracket.")
+
+
+def test_a_rewrite_opened_on_held_words_starts_from_the_words_as_they_stand(
+    browser, serve
+):
+    """A rewrite another tab made, which Feed held back behind its news notice, stayed
+    under a rewrite opened here: the editor opened on the old words over the old
+    revision, so even a Save of words the user had not changed was sent, and the log
+    refused it. Until the user changes them, the editor's words follow the message, so
+    it shows the other rewrite and is written over it."""
+    page, workspace, message = _rewrite_surface(browser, serve, "feed")
+    mine = message.get_attribute("data-event")
+    words = message.locator(".lf-msg-text")
+    other = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "edit",
+            "author": "user",
+            "message": mine,
+            "base": mine,
+            "text": "Fit the west bracket.",
+        },
+    )
+    round_trip(page)
+    # Feed holds the other rewrite back while the user reads the message.
+    expect(workspace.locator(".lf-primary-news").first).to_have_text("1 message edited")
+    expect(words).to_have_text("Fit the north bracket.")
+    words.dblclick()
+    editor = message.locator(".lf-msg-editor leaf-text")
+    expect(editor).to_be_focused()
+    expect(editor).to_have_js_property("value", "Fit the west bracket.")
+    page.keyboard.type(" Twice.")
+    page.keyboard.press("Enter")
+    expect(words).to_have_text("Fit the west bracket. Twice.")
+    round_trip(page)
+    edits = [e for e in events_model.read_events(serve.page_dir) if e["kind"] == "edit"]
+    assert [(e["text"], e["base"]) for e in edits] == [
+        ("Fit the west bracket.", mine),
+        ("Fit the west bracket. Twice.", other["id"]),
+    ]
+
+
+def test_one_editor_shows_a_message_across_its_readers(browser, serve):
+    """A rewrite opened on a message in Feed stayed open there when the same message's
+    rewrite was opened in the Threads panel, so two editors of one draft stood at once.
+    Opening it in one reader closes it in the other, the message there reading as it
+    stands."""
+    page, _workspace, message = _rewrite_surface(browser, serve, "feed")
+    mine = message.get_attribute("data-event")
+    message.locator(".lf-msg-text").dblclick()
+    expect(message.locator(".lf-msg-editor leaf-text")).to_be_focused()
+    page.locator(".lf-threads-toggle").click()
+    card = page.locator(f'.lf-thread .lf-msg[data-mid="{mine}"]')
+    card.locator(".lf-msg-text").dblclick()
+    expect(card.locator(".lf-msg-editor leaf-text")).to_be_focused()
+    expect(message.locator(".lf-msg-editor")).to_have_count(0)
+    expect(message.locator(".lf-msg-text")).to_have_text("Fit the north bracket.")
+
+
+def test_one_unchanged_rewrite_stands_open_in_a_thread_across_its_readers(
+    browser, serve
+):
+    """Opening a rewrite of one message closes a rewrite of another in the same thread
+    whose words the user left as they were, in a thread card. A rewrite left open in
+    Feed stayed open when another message's rewrite opened in the Threads panel, since
+    each reader put aside only its own."""
+    page, workspace, message = _rewrite_surface(browser, serve, "feed", thanks=True)
+    message.locator(".lf-msg-text").dblclick()
+    expect(message.locator(".lf-msg-editor leaf-text")).to_be_focused()
+    page.locator(".lf-threads-toggle").click()
+    said = page.locator(".lf-thread .lf-msg.user").filter(has_text="Thanks.")
+    # Named by its id, since an open rewrite holds its words in the box, not as text.
+    thanks = page.locator(
+        f'.lf-thread .lf-msg[data-mid="{said.get_attribute("data-mid")}"]'
+    )
+    thanks.locator(".lf-msg-text").dblclick()
+    expect(thanks.locator(".lf-msg-editor leaf-text")).to_be_focused()
+    expect(workspace.locator(".lf-msg-editor")).to_have_count(0)
+    expect(message.locator(".lf-msg-text")).to_have_text("Fit the north bracket.")
 
 
 def test_walking_up_through_rewrites_shows_each_one(browser, serve):
@@ -13284,6 +13425,79 @@ def test_a_second_rewrite_lands_over_a_first_still_sending(browser, serve):
         ("Second.", edits[0]["id"]),
     ]
     expect(message.locator(".lf-msg-kept")).to_have_count(0)
+    page.unroute_all(behavior="wait")
+
+
+def test_a_second_rewrite_over_a_refused_first_goes_with_it(browser, serve):
+    """A rewrite written over one still sending names that one, by its pending id. When
+    the log refuses the first, those written over it have nothing left to stand on: they
+    go with it, the latest words back in the message's rewrite draft, rather than
+    standing on the message as unsent words over an id the log never took."""
+    url = serve(THREAD_DIFF_PAGE)
+    d = serve.page_dir
+    mine = append_carried_log_record(
+        d,
+        {
+            "kind": "comment",
+            "id": "rewritten",
+            "author": "user",
+            "revision": 1,
+            "text": "Fit the north bracket.",
+            "anchor": {"section": "cd-q"},
+        },
+    )
+    page = open_page(browser, url)
+    resized(page, 1200, 900)
+    page.locator(".lf-threads-toggle").click()
+    message = page.locator(f'.lf-thread .lf-msg[data-mid="{mine["id"]}"]')
+    held = []
+    later = []
+
+    def route(route):
+        if route.request.method != "POST":
+            route.continue_()
+        elif not held:
+            held.append(route)
+        else:
+            later.append(route.request.post_data_json)
+            route.continue_()
+
+    page.route("**/api/event", route)
+    editor = message.locator(".lf-msg-editor leaf-text")
+    message.locator(".lf-msg-text").dblclick()
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.type("First.")
+    page.keyboard.press("Enter")
+    holding(page, held, 1, "the first rewrite")
+    message.locator(".lf-msg-text").dblclick()
+    expect(editor).to_be_focused()
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.type("Second.")
+    page.keyboard.press("Enter")
+    # A third over the second names only the second, so it goes by way of it.
+    message.locator(".lf-msg-text").dblclick()
+    expect(editor).to_be_focused()
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.type("Third.")
+    page.keyboard.press("Enter")
+
+    attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        held.pop(0).fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+    round_trip(page)
+    assert [event for event in later if event.get("kind") == "edit"] == []
+    assert not [e for e in events_model.read_events(d) if e["kind"] == "edit"]
+    expect(message.locator(".lf-msg-text")).to_have_text("Fit the north bracket.")
+    assert stored_draft_text(page, f"rewrite:{mine['id']}") == "Third."
+    consume_browser_errors(page, "400")
     page.unroute_all(behavior="wait")
 
 

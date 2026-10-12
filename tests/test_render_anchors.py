@@ -4,6 +4,7 @@ import io
 import json
 import re
 from html import escape
+from pathlib import Path
 
 import pytest
 from axe_playwright_python.sync_playwright import Axe
@@ -66,7 +67,6 @@ from render_cases_navigation import (
 )
 from render_harness import (
     EXAMPLES,
-    FEATURE_GALLERY,
     INLINE_PAGE,
     LONG_PAGE,
     PASSAGE_SOURCES,
@@ -94,7 +94,7 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 def open_selected_comment(page):
@@ -186,7 +186,8 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
     wait_until_ready(page)
     result = page.evaluate(
         """async () => {
-        const {TEXT_BLOCK, pageRange} = await window.__lfRuntimeImport('/runtime/passages.js');
+        const {pageRange} = await window.__lfRuntimeImport('/runtime/passages.js');
+        const {TEXT_BLOCK} = await window.__lfRuntimeImport('/runtime/passage-facts.js');
         const {anchorForRange, resolveAnchor} =
             await window.__lfRuntimeImport('/runtime/anchor-resolution.js');
         const {nextRender, renderingState} =
@@ -208,7 +209,8 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
                 clearTimeout(timer);
             }
         };
-        const fab = document.querySelector('.lf-fab-input');
+        // The composer's field joins the page at its first open.
+        const fab = () => document.querySelector('.lf-fab-input');
         const speaks = el => {
             const near = el.closest('.lf-ui, [data-lf-said]');
             return !near || near.matches('[data-lf-said]');
@@ -263,7 +265,7 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
             range = pageRange(sel);
             // Counted, not shrugged off: a selection the button declines to offer is
             // a passage silently outside this sweep, and the sweep is the coverage.
-            if (fab.style.display !== 'block') {
+            if (fab()?.style.display !== 'block') {
                 skipped.push(range.toString().replace(/\\s+/g, ' ').trim().slice(0, 70));
                 continue;
             }
@@ -583,9 +585,19 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
         expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
 
-def test_gallery_revision_preserves_every_open_quoted_thread(browser, serve):
-    """A served gallery revision keeps two discussions beside their revised subject."""
-    url = live_url(serve(FEATURE_GALLERY))
+# One sentence two quoted threads discuss, which the agent's next revision rewrites.
+REVISED_QUOTES_PAGE = leaf_page(
+    "revised quotes",
+    """
+<h1 id="title">Rollout</h1>
+<p id="revised-quotes">The first draft uses an early estimate for the rollout.</p>
+""",
+)
+
+
+def test_a_revision_preserves_every_open_quoted_thread(browser, serve):
+    """A served revision keeps two discussions beside their revised subject."""
+    url = live_url(serve(REVISED_QUOTES_PAGE))
     roots = []
     for quote in ("first draft", "early estimate"):
         result = CliRunner().invoke(
@@ -595,7 +607,7 @@ def test_gallery_revision_preserves_every_open_quoted_thread(browser, serve):
                 "open",
                 str(serve.page_dir),
                 "--section",
-                "bg-revised-quotes",
+                "revised-quotes",
                 "--quote",
                 quote,
                 "--text",
@@ -605,7 +617,6 @@ def test_gallery_revision_preserves_every_open_quoted_thread(browser, serve):
         assert result.exit_code == 0, result.output
         roots.append(json.loads(result.output))
     page = open_page(browser, url)
-    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     for root in roots:
@@ -619,8 +630,7 @@ def test_gallery_revision_preserves_every_open_quoted_thread(browser, serve):
     )
     note = stamp_page(serve.page_dir, updated, "Refined the rollout wording.")
     wait_for_revision(page, note["revision"])
-    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
-    expect(page.locator("#bg-revised-quotes")).to_have_text(
+    expect(page.locator("#revised-quotes")).to_have_text(
         "The revised plan uses the current forecast for the rollout."
     )
     for root in roots:
@@ -639,7 +649,7 @@ def test_gallery_revision_preserves_every_open_quoted_thread(browser, serve):
         if event["kind"] == "reanchor"
     ]
     assert {event["thread"] for event in moves} == {root["id"] for root in roots}
-    assert all(event["anchor"] == {"section": "bg-revised-quotes"} for event in moves)
+    assert all(event["anchor"] == {"section": "revised-quotes"} for event in moves)
 
 
 @pytest.mark.parametrize("panes", [False, True], ids=["ask", "panes"])
@@ -1605,6 +1615,39 @@ def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
     expect(page.locator("#code-link")).to_be_focused()
     page.keyboard.press("Enter")
     expect(page).to_have_url(re.compile(r"#destination$"))
+
+
+def test_code_copy_reads_sources_before_positioning_many_controls(browser, serve):
+    blocks = "".join(
+        f"<p>Example {i}</p><pre><code>code {i}</code></pre>" for i in range(60)
+    )
+    url = live_url(serve(leaf_page("Many code blocks", blocks)))
+    page = open_page(
+        browser,
+        url,
+        init_script="""(() => {
+          const events = window.copyPlacementEvents = [];
+          const rect = Element.prototype.getBoundingClientRect;
+          Element.prototype.getBoundingClientRect = function (...args) {
+            if (this.localName === 'pre' && this.querySelector(':scope > code'))
+              events.push('read');
+            return rect.apply(this, args);
+          };
+          Object.defineProperty(CSSStyleDeclaration.prototype, 'anchorName', {
+            configurable: true,
+            get() { return this.getPropertyValue('anchor-name'); },
+            set(value) {
+              if (value?.startsWith('--lf-a')) events.push('write');
+              this.setProperty('anchor-name', value);
+            },
+          });
+        })()""",
+    )
+    expect(page.locator(".lf-chrome > .lf-code-copy")).to_have_count(60)
+    events = page.evaluate("window.copyPlacementEvents")
+    assert events.count("read") >= 60
+    assert "write" in events
+    assert events.index("write") >= 60
 
 
 @pytest.mark.parametrize("holder", ["disclosure", "tab"])
@@ -2738,136 +2781,67 @@ def test_a_diff_keeps_source_markup_inert(browser, serve):
     }
 
 
-def test_a_diff_rejects_incomplete_hunks(browser, serve):
-    """Missing or wrong hunk ranges must fail instead of hiding review evidence."""
-    expected = [
-        {
-            "rendered": False,
-            "error": (
-                "<lf-diff> failed: parsePatchContent: hunk has more lines than expected"
+DIFF_PATCH_CASES = json.loads(
+    (Path(__file__).parent / "diff_patch_cases.json").read_text()
+)["cases"]
+
+
+def test_the_widget_reads_the_diff_patch_table(browser, serve):
+    """`diff_patch_cases.json` states what lf-diff can present, for both of its
+    readers (`test_interact_document.py`, "the manifest reads the diff patch table").
+    The widget draws each accepted patch, under the row's paths, as inline text and
+    as the manifest `patch_manifest.py` builds from it, and refuses each row with a
+    `widget` message without hiding evidence, quoting the patch it could not draw."""
+    accepted = [case for case in DIFF_PATCH_CASES if "files" in case]
+    refused = [case for case in DIFF_PATCH_CASES if "widget" in case]
+    markup = "".join(
+        [
+            *(
+                f'<lf-diff id="text-{case["id"]}"><pre>{escape(case["patch"])}</pre></lf-diff>'
+                for case in [*accepted, *refused]
             ),
-            "source": (
-                "diff --git a/example.js b/example.js\n"
-                "--- a/example.js\n"
-                "+++ b/example.js\n"
-                "@@ -1 +1 @@\n"
-                "-old\n"
-                "+new\n"
-                "+silently-lost"
+            *(
+                f'<lf-diff id="files-{case["id"]}" source="files-{case["id"]}"><pre></pre></lf-diff>'
+                for case in accepted
             ),
-        },
-        {
-            "rendered": False,
-            "error": (
-                "<lf-diff> failed: unexpected diff metadata for example.js: --- a/example.js"
-            ),
-            "source": (
-                "diff --git a/example.js b/example.js\n"
-                "--- a/example.js\n"
-                "+++ b/example.js\n"
-                "-old\n"
-                "+new"
-            ),
-        },
-        {
-            "rendered": False,
-            "error": (
-                "<lf-diff> failed: unexpected diff metadata for new.js: --- a/old.js"
-            ),
-            "source": (
-                "diff --git a/old.js b/new.js\n"
-                "similarity index 100%\n"
-                "rename from old.js\n"
-                "rename to new.js\n"
-                "--- a/old.js\n"
-                "+++ b/new.js\n"
-                "-before\n"
-                "+after"
-            ),
-        },
-        {
-            "rendered": False,
-            "error": (
-                "<lf-diff> failed: diff has changed paths without rename or copy metadata"
-            ),
-            "source": ("diff --git a/old.js b/new.js\nsimilarity index 100%"),
-        },
-        {
-            "rendered": False,
-            "error": (
-                "<lf-diff> failed: rename paths disagree with its diff --git header"
-            ),
-            "source": (
-                "diff --git a/old.js b/new.js\n"
-                "similarity index 100%\n"
-                "rename from \n"
-                "rename to "
-            ),
-        },
-        {
-            "rendered": False,
-            "error": (
-                "<lf-diff> failed: rename paths disagree with its diff --git header"
-            ),
-            "source": (
-                "diff --git a/header-old.js b/header-new.js\n"
-                "similarity index 100%\n"
-                "rename from body-old.js\n"
-                "rename to body-new.js"
-            ),
-        },
-        {
-            "rendered": False,
-            "error": "<lf-diff> failed: unified diff repeats file path example.js",
-            "source": (
-                "diff --git a/example.js b/example.js\n"
-                "--- a/example.js\n"
-                "+++ b/example.js\n"
-                "@@ -1 +1 @@\n"
-                "-old\n"
-                "+new\n"
-                "diff --git a/example.js b/example.js\n"
-                "--- a/example.js\n"
-                "+++ b/example.js\n"
-                "@@ -1 +1 @@\n"
-                "-new\n"
-                "+newer"
-            ),
-        },
-    ]
-    identifiers = (
-        "wrong-count-diff",
-        "missing-hunk-diff",
-        "rename-with-missing-hunk-diff",
-        "similarity-only-diff",
-        "empty-rename-paths-diff",
-        "contradictory-rename-paths-diff",
-        "repeated-path-diff",
+        ]
     )
-    page = open_page(
-        browser,
-        serve(
-            _diff_page(
-                *(
-                    (identifier, escape(case["source"]))
-                    for identifier, case in zip(identifiers, expected, strict=True)
-                )
-            )
-        ),
-    )
-    result = page.locator("lf-diff").evaluate_all(
-        """hosts => hosts.map(host => ({
+    url = serve(leaf_page("diff patch table", f'<h1 id="cases">Cases</h1>{markup}'))
+    for case in accepted:
+        data_model.cmd_data_set(
+            serve.page_dir, f"files-{case['id']}", patch_manifest(case["patch"])
+        )
+    page = open_page(browser, url)
+    rendered(page)
+    readings = page.locator("lf-diff").evaluate_all(
+        """hosts => Object.fromEntries(hosts.map(host => [host.id, {
           rendered: host.classList.contains('lf-rendered'),
-          error: host.querySelector('.lf-error')?.firstChild?.textContent ?? null,
+          errors: [...new Set([...host.querySelectorAll('.lf-error'),
+            ...(host.shadowRoot?.querySelectorAll('.lf-error') ?? [])]
+            .map(box => box.firstChild?.textContent ?? null))],
           source: host.querySelector('.lf-error pre')?.textContent ?? null,
-        }))"""
+          files: [...(host.shadowRoot?.querySelectorAll('.lf-diff-path') ?? [])].map(
+            path => (path.querySelector('.lf-diff-destination-path') ?? path)
+              .textContent.replaceAll('\\u200b', '')),
+        }]))"""
     )
-    assert result == expected
+    for case in accepted:
+        for form in ("text", "files"):
+            reading = readings[f"{form}-{case['id']}"]
+            assert reading["rendered"] and not reading["errors"], (case["id"], reading)
+            assert reading["files"] == case["files"], (case["id"], reading)
+    for case in refused:
+        assert readings[f"text-{case['id']}"] == {
+            "files": [],
+            "rendered": False,
+            "errors": [f"<lf-diff> failed: {case['widget']}"],
+            "source": case["patch"].rstrip("\n") or None,
+        }, case["id"]
     # Each refusal reaches the author too, naming the diff that could not draw.
     reported = consume_browser_errors(
-        page, *(f'<lf-diff id="{identifier}"> failed: ' for identifier in identifiers)
+        page, *(f'<lf-diff id="text-{case["id"]}"> failed: ' for case in refused)
     )
-    assert len(reported) == len(identifiers), reported
+    assert len(reported) == len(refused), reported
 
 
 @pytest.mark.parametrize("manifest", [False, True])
@@ -4624,6 +4598,16 @@ def test_the_number_hint_names_only_versions_that_still_exist(browser, serve):
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "note" and event["version"] == 1
     )
+    # An interrupted publication is repaired when state is read. Model an
+    # unavailable older revision whose note has no recoverable publication.
+    log = serve.page_dir / "events.jsonl"
+    events = events_model.read_events(serve.page_dir)
+    for event in events:
+        if event.get("revision") == first["revision"]:
+            event.pop("publication", None)
+    log.write_text(
+        "".join(json.dumps(event) + "\n" for event in events), encoding="utf-8"
+    )
     files_model.revision_path(serve.page_dir, first["revision"]).unlink()
     page = open_page(browser, url.replace("v1.html", "v3.html"))
 
@@ -4802,12 +4786,10 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     btn = page.locator(".lf-version")
     menu = page.locator(".lf-version-menu")
     expect(btn).to_have_text("Showing v2")
-    expect(btn).to_have_attribute("aria-expanded", "false")
     expect(menu).to_be_hidden()
 
     banner_control(page, ".lf-version").click()
     expect(menu).to_be_visible()
-    expect(btn).to_have_attribute("aria-expanded", "true")
     # Versions replaces More rather than covering its own invoker. Escape closes the
     # one root panel and leaves the page as the keyboard destination.
     expect(page.locator(".lf-banner-menu")).to_be_hidden()
@@ -4948,7 +4930,6 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     # the two are one thing (the picker's focusSelectedRow).
     open_versions(page)
     expect(menu).to_be_visible()
-    expect(btn).to_have_attribute("aria-expanded", "true")
     menu_line = shortcut_bar_text(page)
     assert "1–3\nopen version" in menu_line, menu_line
     assert "back" not in menu_line, menu_line
@@ -5294,7 +5275,6 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     compared.keyboard.down("Tab")
     compared.keyboard.up("Tab")
     expect(compared.locator(".lf-version-menu")).to_be_hidden()
-    expect(compared.locator(".lf-version")).to_have_attribute("aria-expanded", "false")
 
     open_versions(compared)
     comparison.focus()
@@ -5307,7 +5287,6 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     compared.keyboard.up("Tab")
     compared.keyboard.up("Shift")
     expect(compared.locator(".lf-version-menu")).to_be_hidden()
-    expect(compared.locator(".lf-version")).to_have_attribute("aria-expanded", "false")
     compared.close()
 
     page = open_page(browser, url, pin=True)
@@ -5339,8 +5318,16 @@ def test_a_version_published_under_an_open_menu_reaches_it(browser, serve):
     menu = page.locator(".lf-version-menu")
     expect(page.locator(".lf-version-row")).to_have_count(2)
 
+    # Popover's deferred toggle handler places its initial focus. Let that
+    # arrival finish before choosing a different row to keep through the update.
+    page.evaluate(
+        """() => document.querySelector('.lf-version-menu').addEventListener(
+          'toggle', () => { window.__lfVersionMenuOpened = true; }, { once: true }
+        )"""
+    )
     banner_control(page, ".lf-version").click()
     expect(menu).to_be_visible()
+    page.wait_for_function("window.__lfVersionMenuOpened === true")
     focused_row = page.locator(".lf-version-row").first
     focused_row.focus()
     focused_row.evaluate("row => window.__lfFocusedVersionRow = row")
@@ -5843,6 +5830,31 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
     panel_settled(page, True)
     expect(page.locator(".lf-thread .lf-quote")).to_have_text("§ app.py · file")
     expect(page.locator(".lf-thread")).to_contain_text("Review this file as a whole.")
+
+    # A thread on a line of the file still unloaded is named as its drawn row would be,
+    # not by the widget holding it.
+    post_event(
+        page,
+        url.rsplit("/versions/", 1)[0] + "/api/event",
+        data={
+            "kind": "comment",
+            "revision": 1,
+            "text": "Check the new line.",
+            "anchor": {
+                "section": "patch",
+                "datum": '["app.py","new",1]',
+                "source": "review-patch",
+                "source_revision": revision,
+            },
+        },
+    )
+    expect(page.locator(".lf-thread")).to_have_count(2)
+    expect(page.locator("lf-diff [data-line-type]")).to_have_count(0)
+    quotes = page.locator(".lf-thread .lf-quote").all_text_contents()
+    assert sorted(" ".join(quote.split()) for quote in quotes) == [
+        "§ app.py · file",
+        "§ app.py · new line 1",
+    ]
 
 
 def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):

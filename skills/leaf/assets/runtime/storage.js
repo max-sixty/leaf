@@ -2,56 +2,7 @@
  * draw. Isolated samples keep all stores inside their disposable realm; ordinary
  * documents use native scoped storage, whose refusal never prevents reading. */
 
-// ---------- which address this document is ----------
-// Which version a document is comes from its served `lf-version` marker
-// (`document-identity.js`), and where another version is from that version's `url` in
-// the state reading, which the server addresses at the page root. Neither is read off
-// this path.
-const PAGE_PATH = location.pathname;
-// The live root follows the active revision in place; a virtual version address
-// (`versions/vN.html`) stays pinned to its mapped revision.
-export const LIVE_ROOT = PAGE_PATH.endsWith("/");
-// Which page this document belongs to. The server declares the page's root in the
-// canonical link it adds to every document it serves, the live root and each version
-// address alike, and every page operation resolves against it. An interactive export
-// has no server and no link, so no root: the file is the page.
-export const PAGE_ROOT =
-  document.querySelector('link[rel="canonical"][data-lf-runtime]')?.href ?? null;
-// How a server delivered this document: the runtime script it adds to every document it
-// serves (http.py) names the layer and release the document belongs to, the probe its
-// source answers, and a keyed transport's share address. An interactive export carries
-// no such script. Its own marker (context.js) shares only `data-lf-entry`, the seam a
-// harness finds either delivery by.
-const served = document.querySelector(
-  "script[data-lf-runtime][data-lf-server]",
-)?.dataset;
-export const DELIVERY = Object.freeze({
-  layer: served?.lfLayer,
-  release: served?.lfRelease,
-  probe: served?.lfProbe,
-});
-// The public website declares the release it serves; a local server declares none.
-export const WEBSITE_DELIVERY = DELIVERY.release !== undefined;
-// Where a delivered document's layer, and so its captured resources, is addressed: the
-// directory its registry probe names, the revision's own root, as the document writes
-// it. Empty where nothing declared one, and the layer is at the document's own root.
-export const layerRoot = (doc) =>
-  doc
-    .querySelector("script[data-lf-runtime][data-lf-probe]")
-    ?.dataset.lfProbe.replace(/registry\.json$/, "") ?? "";
-// A keyed transport declares its share address even on a cookie-authorized reload.
-// Samples and the public website have no share address. Preserve the current
-// version path, query and passage while taking access from the transport's URL.
-export const SHARE_ROOT = served?.lfShareUrl;
-export function shareUrl() {
-  const url = new URL(SHARE_ROOT);
-  url.pathname = location.pathname;
-  const access = [...url.searchParams];
-  url.search = location.search;
-  for (const [key, value] of access) url.searchParams.set(key, value);
-  url.hash = location.hash;
-  return url.href;
-}
+// ---------- which page the stores are scoped to ----------
 // The same page as a prefix for what the tab keeps, which the prepaint declares on the
 // root before the first paint, since it reads the tab's memory then too (prepaint.js).
 export const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
@@ -68,8 +19,10 @@ export const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
 // there. `tabStore` is this window's working state and dies with the tab — the reading
 // position, which panel of a widget stands open, whether design mode is on — because each
 // of those is about the window rather than about the page. `draftStore` is what the user
-// typed and hasn't sent: it outlives the tab, because closing one is the ordinary end of
-// a tab here, and every tab shows one live copy of it (see the draft section below).
+// typed into a composition the log settles (a comment, a reply, an `lf-draft`) and hasn't
+// sent: it outlives the tab, because closing one is the ordinary end of a tab here, and
+// every tab shows one live copy of it (see the draft section below). An edit to a bound
+// file is not one: the file on disk is what tabs share, so its buffer is working state.
 // `userStore` is this user's standing preference across pages, which is the chrome
 // they arrange and expect to find arranged. Anything two tabs must *agree* about is none
 // of the three: it goes in the log.

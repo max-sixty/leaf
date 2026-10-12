@@ -12,8 +12,7 @@
    adoption, optional interface installation and the canonical document proof both
    finish before that landing; declining stale focus never retracts accepted truth. */
 import { requireVocabulary } from "./widget-vocabularies.js";
-import { LIVE_ROOT } from "./storage.js";
-import { runtime } from "./context.js";
+import { LIVE_ROOT, runtime } from "./context.js";
 import {
   applicationState,
   whenDocumentPresented,
@@ -38,6 +37,7 @@ import {
   semanticNewsNotice,
   semanticNewsReading,
 } from "./semantic-news.js";
+import { renderVersions } from "./version.js";
 
 export function createStateApplication({
   prepareActivation,
@@ -45,7 +45,6 @@ export function createStateApplication({
   notifyDataSubscribers,
   isSignoffDeclared,
   renderStatus,
-  renderVersions,
   stateSignoff,
   renderOthers,
   accountPending,

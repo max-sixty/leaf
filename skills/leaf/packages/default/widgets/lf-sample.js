@@ -18,6 +18,7 @@ import {
   whileConnected,
   keeps,
   keepsText,
+  layoutPx,
   mountSample,
   once,
   offer,
@@ -121,6 +122,8 @@ export default class extends HTMLElement {
     widgetController(this).present(this.#track(ready).catch(() => {}));
   }
 
+  // Removal closes a modal Full view at once, so the view returns to its embedded
+  // posture in the same task rather than at the arrival batch.
   disconnectedCallback() {
     if (this.#view?.getAttribute("role") === "dialog") this.#embed();
   }
@@ -168,7 +171,7 @@ export default class extends HTMLElement {
         const height =
           this.#frame.getBoundingClientRect().bottom -
           controls.getBoundingClientRect().top;
-        this.style.setProperty("--lf-sample-height", `${height}px`);
+        this.style.setProperty("--lf-sample-height", layoutPx(height));
         closeNativeLayer(this.#view);
         this.#view.setAttribute("role", "dialog");
         this.#view.setAttribute("aria-label", this.#frame.title);
@@ -225,8 +228,9 @@ export default class extends HTMLElement {
     else this.#scheduleFit();
   }
 
+  // Cancellation is this widget's own, and the departed notice draws a departure.
   #failure(error) {
-    if (error.name === "AbortError") return;
+    if (error.name === "AbortError" || error.name === "SampleDepartedError") return;
     keepsText(this.#status, error.message);
     keeps(this.#reset, "aria-disabled", null);
   }

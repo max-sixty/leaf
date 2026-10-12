@@ -124,7 +124,6 @@ export function watchData(element, input, callback) {
     subscriptions.delete(subscription);
     stopSelection?.();
     stopSelection = null;
-    pendingDelivery?.settle();
     pendingDelivery = null;
     paint.stop();
     presentation?.disconnect();
@@ -187,24 +186,14 @@ export function watchData(element, input, callback) {
     // A source can return to the reading already on screen while a later one is
     // staged; that staged reading must be replaced rather than left to paint.
     if (!pendingDelivery && delivered && deliveredIdentity === identity) return;
-    pendingDelivery?.settle();
-    let settle;
-    const pending = {
-      sourceStore,
-      completion: new Promise((resolve) => {
-        settle = resolve;
-      }),
-      settle: (rendering) => settle(rendering),
-    };
-    pendingDelivery = pending;
-    void presentation.present(identity, pending.completion);
+    // The new ticket releases a staged one that never painted.
+    pendingDelivery = { sourceStore, ticket: presentation.present(identity) };
   };
   function notifySelected() {
     const pending = pendingDelivery;
-    if (!pending) return completion;
+    if (!pending) return;
     pendingDelivery = null;
-    pending.settle(updateSafely(pending.sourceStore));
-    return pending.completion;
+    pending.ticket.resolve(updateSafely(pending.sourceStore));
   }
   // A publisher selection captures this mount's source. Its initial subscription call
   // is the mount delivery; later accepted publications stage the selected value and its
@@ -221,7 +210,7 @@ export function watchData(element, input, callback) {
       stopSelection = selectedSource.subscribe((sourceStore) => {
         if (mounting) {
           const rendering = update(sourceStore, true);
-          if (!stopped) void mount.present(deliveredIdentity, rendering);
+          if (!stopped) mount.present(deliveredIdentity).resolve(rendering);
           return rendering;
         }
         stage(sourceStore);

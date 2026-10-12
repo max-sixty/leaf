@@ -11,7 +11,6 @@ from pathlib import Path
 import click
 import pytest
 from click.testing import CliRunner
-from jsonschema import Draft202012Validator
 from leaf import __main__ as leaf_entry
 from leaf import cli as cli_model
 from leaf import event_contracts as event_contracts_model
@@ -19,6 +18,7 @@ from leaf import event_log as events_model
 from leaf import layer as layer_model
 from leaf import service as service_model
 from leaf.registry import validation as registry_validation
+from leaf.registry.schema import check_schema
 from leaf.structure import SourceDocument
 from leaf.validation import composition as validation_model
 from leaf_dev import record_demo
@@ -41,7 +41,7 @@ def test_kernel_event_contracts_declare_closed_records():
     envelope = {"id", "ts", "author", "kind", "seq"}
     for kind, contract in events.items():
         for schema in contract.values():
-            Draft202012Validator.check_schema(schema)
+            check_schema(schema)
         record = contract["record"]
         properties = record["properties"]
         assert record["type"] == "object"
@@ -361,7 +361,7 @@ def test_the_event_log_page_shows_the_records_the_door_writes(page_dir):
             command = {k: record[k] for k in command_fields if k in record}
             if "undoes" in record:
                 command["undoes"] = ids[record["undoes"]]
-            accepted = event_contracts_model.append_admitted(
+            accepted, _ = event_contracts_model.append_admitted(
                 page, {**command, "author": "user"}
             )
             ids[record["id"]] = accepted["id"]
@@ -563,7 +563,7 @@ def test_demo_waiter_preserves_the_reason_a_wait_delivered_nothing():
         waiter.receive()
 
 
-@pytest.mark.nightly
+@pytest.mark.main
 def test_demo_recording_drives_the_browser_journey(tmp_path):
     output = tmp_path / "demo"
     # Not check=True: with the streams captured, the CalledProcessError it raises

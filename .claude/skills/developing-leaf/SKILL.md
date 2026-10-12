@@ -67,6 +67,28 @@ many tiles share a row overrides every page that needs another number. A check m
 report what it sees, as the render check names where a tile row wraps, and leave the
 call to the agent.
 
+Checks follow the same line. `page check` and its render checks hold Leaf's contracts
+on every page: each widget upgrades, nothing a user needs is clipped out of reach, every
+control can be pressed. Don't add a check that anticipates one particular authoring
+mistake, such as one attribute misapplied to one tag. Each such check costs code, tests
+and gate time on every page from then on, while a mistake agents rarely make costs one
+fix on the page where it happened, or a clearer line in the instruction it misread. Add
+a narrow check only where agents get what it reports wrong on real pages and fix it when
+told. A check that fires mostly on pages that already work, because delivery or the
+page's own CSS handles what it looks for, costs more than it catches. Prefer widening a
+general reading to adding a narrow one beside it.
+
+## Let the agent correct its own input
+
+The agent that writes a page or sets its data reads what comes back: a `page check`
+finding, a widget's failure box, a command's error. It fixes a mistake it can see, so
+code handles the input its contract describes, such as a patch as `git diff` writes
+it, and lets anything else fail through the parser or check already in its path.
+Detecting, repairing or explaining each malformed variant adds code to every reader of
+that input and buys nothing the agent's next attempt would not. Handle a malformed
+case only where it would otherwise pass silently into state the user relies on, such
+as an admitted event or a stored decision.
+
 ## Explore an open design
 
 Whenever the user is to choose among designs for a visual or interaction
@@ -165,26 +187,13 @@ merge base beside it (`dev/AGENTS.md`).
 
 When a complex interaction depends on a sequence of inputs or changes over time,
 show a recorded journey with a timeline so the user can inspect intermediate
-states and motion. Review the final exported recording through playback or decoded
-frames at their recorded times, including its loop boundary; select the interval
-that shows the behavior being reviewed. Use that same probe with
-`--record .tmp/recordings/NAME`; its `--help` owns the recording flags.
-Its Playwright trace has an action timeline, a screenshot
-filmstrip, DOM snapshots, console and network; its WebM shows the actual frames.
-`--journey FILE` drives the page with Playwright's full API, including
-assertions. Omit `--actions` from timing-sensitive reproductions. A failed journey
-keeps its recording and exits unsuccessfully. Keep the page and context open until
-the recorder finalizes: Playwright cannot save screencast video after its page
-closes. Serve the trace
-without opening a desktop browser with:
-
-```bash
-uv run leaf-dev trace-server \
-  .tmp/recordings/NAME/worktree/trace.zip
-```
-
-The command prints the viewer URL and stays running. Link that URL in the review
-page; open a desktop browser only when the user asks to watch.
+states and motion. Use that same probe with `--record .tmp/recordings/NAME`, driving
+the input from a `--journey` file where `--do` steps are not enough; its `--help`
+owns the recording flags and how to serve the trace without opening a desktop
+browser. Review the final exported recording through playback or decoded frames at
+their recorded times, including its loop boundary; select the interval that shows
+the behavior being reviewed. Link the trace viewer's URL in the review page; open a
+desktop browser only when the user asks to watch.
 
 Show the trace on the Leaf page in `lf-trace`, as
 `skills/leaf/references/authoring-evidence.md`, "Source files and media", says,
@@ -197,9 +206,9 @@ effects; they do not prove a change to the content the user came to inspect.
 Review the successful expectation's After checkpoint; returning from the input
 alone does not prove an asynchronous update finished. Native tracing groups name
 those operations without adding captures.
-Add `--checkpoint-images` alongside `--record` when the review needs native PNG images
-at those checkpoints. Taking them adds capture work and briefly hides the live
-caret, so omit it when ordinary motion and caret behavior are the evidence.
+Add `--checkpoint-images` when the review needs native PNG images at those
+checkpoints, and leave it off when ordinary motion and caret behavior are the
+evidence.
 
 `uv run leaf-dev stills` compares HEAD with the merge base with `main` and crops
 each changed catalogue state into a before/after pair. Commit first, since it
@@ -339,7 +348,9 @@ example or fixture, a playground, or a page made for this conversation. Before
 writing its content, read `<root>/skills/leaf/SKILL.md` completely and follow
 its authoring, validation, handoff, and conversation-loop routes, using the
 checkout launcher for every `leaf` command and resolving its references from
-`<root>/skills/leaf/`.
+`<root>/skills/leaf/`. A brief for a subagent that writes the page names the
+content and the decisions the page puts to the user, and leaves how they are
+posed to those instructions.
 To make an existing page exercise the current checkout, re-vendor it with the
 checkout launcher (`<root>/skills/leaf/references/serving-pages.md`); fix or
 report a compatibility refusal rather than falling back to the installed plugin.
@@ -354,9 +365,14 @@ competes with another, a cut that may have carried a behavior. A change whose re
 is plain needs no score, such as deleting the description of an input that can no
 longer arrive or correcting a fact. Prefer personal-skill evals for general agent
 behavior (`/improving-instructions`, "Validate with evals") and the standard Leaf
-evals for consuming its shipped workflows. An internal maintainer case is justified
-only for a Leaf-specific development contract that neither can exercise. For cases
-in Leaf's suite, run both the merge base and the working tree:
+evals for consuming its shipped workflows. Score a change to Leaf's maintainer
+guidance, such as this skill or an `AGENTS.md`, with a temporary A/B in scratch that
+gives each arm its version of the passage, and commit no case for it. An internal
+maintainer case in Leaf's suite is exceptional: add one only for a development
+contract that needs the suite's own staging, such as a served page or an installed
+arm, which a scratch prompt cannot reproduce. That the rule under test is Leaf's own
+does not make it that exception. For cases in Leaf's suite, run both the merge base
+and the working tree:
 
 ```bash
 pnpm install --frozen-lockfile
@@ -405,20 +421,25 @@ if Worktrunk asks to approve the project commands, ask the user to run
 
 ## Land a change
 
+Before handing over a change that adds to an area `AGENTS.md`, ask of each addition
+whether one module owns it. If one does, the rule goes in that module's header and
+the area file keeps at most a pointer (root `AGENTS.md`, "Where instructions live"),
+so the area file holds only what spans its modules and trimmed text does not come back.
+
 Thread appearance changes run `tests/test_render_thread_snapshots.py` on macOS
 before landing. Linux CI runs the same delivery journey without comparing images.
 Review captured Mac images before accepting an intentional change;
 `dev/leaf_dev/thread_snapshots.py` owns capture and acceptance.
 
-A red gate is the branch's to fix. A pull request's `test` job and the local
-pre-merge `tests` run the broad selection and the nightly tests the branch edits;
-the rest of the nightly-marked tests run once main moves, and `tend-ci-fix` answers
-them when they fail (`tests/AGENTS.md`, "Run what the change needs").
+A pull request's `test` job and the local pre-merge `tests` run the broad selection
+and the later-tier tests the branch edits; the rest of the `main` tier runs once main
+moves, the `nightly` tier in the daily run, and `tend-ci-fix` answers them when they
+fail (`tests/AGENTS.md`, "Run what the change needs").
 `wt merge` checks the rebased tree and lands it; `✗ Can't push to local main branch`
 is a fast-forward failure.
 
 Installed sessions load harness caches, not the checkout. Claude Code picks up a
 push on its marketplace sweep; Codex refreshes configured Git marketplaces and
-installed plugins at startup. Both follow the configured ref (`prepared` for
-consumer installs). For an immediate Codex refresh in a running session, run
+installed plugins at startup. Both follow the configured ref, `main` by default.
+For an immediate Codex refresh in a running session, run
 `codex plugin marketplace upgrade leaf`.

@@ -38,9 +38,10 @@
 
 import { exactTarget } from "../resolved-target.js";
 import { captureDrawingFrame, resolveDrawingFrame } from "./drawing-geometry.js";
-import { clippedContents, elementFrame } from "../geometry.js";
+import { elementFrame } from "../element-frame.js";
+import { clippedContents } from "../geometry.js";
 import { clamp, overlaps } from "../rect.js";
-import { COLLAPSE } from "../collapse.js";
+import { COLLAPSE } from "../passage-facts.js";
 import { excerptWords } from "../words.js";
 import {
   elementFromPointAcross,

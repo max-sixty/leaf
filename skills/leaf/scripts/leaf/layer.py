@@ -4,7 +4,6 @@ import hashlib
 import json
 import re
 import subprocess
-import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import NamedTuple
@@ -13,6 +12,7 @@ from .locations import located, locations_overlap
 from .machine import package_store
 from .refusals import Refused
 from .registry.contract import element_declarations, is_element_name
+from .registry.kernel import kernel_protocol
 from .schema import (
     ASSETS,
     BROWSER_DIRS,
@@ -322,9 +322,8 @@ def kernel_runtime_paths() -> set[str]:
     """
     manifest = PLUGIN_ROOT / "leaf-distribution.json"
     paths = {
-        path.relative_to(root / "runtime").as_posix()
-        for root in (ASSETS, DEFAULT_PACKAGE)
-        for path in (root / "runtime").rglob("*.js")
+        path.relative_to(ASSETS / "runtime").as_posix()
+        for path in (ASSETS / "runtime").rglob("*.js")
     }
     if manifest.is_file():
         paths.update(json.loads(manifest.read_text())["runtime_paths"])
@@ -370,27 +369,6 @@ def layer_fingerprint(composition: LayerComposition) -> str:
     )
 
 
-def payload_runtime_fingerprint() -> str:
-    """Identify the runtime modules this payload's own browser code is written against.
-
-    The kernel is the payload's own directory, so this reads the same from any working
-    directory and on any machine, and a page's selected packages cannot move it. That
-    is what a page's server and the browser gates need: each runs out of the Leaf
-    running the command against the runtime out of the page, and a page's recorded
-    layer fingerprint cannot be recomposed away from the project its packages were
-    resolved in. `page init` records this reading under `$layer.runtime`, and
-    `foreign_runtime` compares the two.
-    """
-    runtime = ASSETS / "runtime"
-    return files_identity(
-        {
-            path.relative_to(runtime).as_posix(): path.read_bytes()
-            for path in runtime.rglob("*")
-            if path.is_file()
-        }
-    )
-
-
 def payload_server_inputs(root: Path) -> list[Path]:
     """The serving code and dependency manifests an init must restart to adopt."""
     return [
@@ -401,43 +379,42 @@ def payload_server_inputs(root: Path) -> list[Path]:
 
 
 def payload_server_fingerprint() -> str:
-    """Identify the serving inputs and interpreter independently of a Git commit."""
+    """Identify serving inputs independently of a Git commit or Python build.
+
+    A site builds pages on the CI host and serves them from a container with a
+    different interpreter. The vendored event contract depends on the payload's
+    files, not that interpreter's version string.
+    """
     return files_identity(
         {
-            "$python": sys.version.encode(),
-            **{
-                path.relative_to(PLUGIN_ROOT).as_posix(): path.read_bytes()
-                for path in payload_server_inputs(PLUGIN_ROOT)
-            },
+            path.relative_to(PLUGIN_ROOT).as_posix(): path.read_bytes()
+            for path in payload_server_inputs(PLUGIN_ROOT)
         }
     )
 
 
-def foreign_runtime(page_dir: Path, layer: dict) -> str | None:
-    """Why this Leaf cannot serve a page, given its recorded `$layer`: the page's
-    runtime came from another Leaf. None when the page carries this Leaf's own.
+def incompatible_layer(page_dir: Path, registry: dict) -> str | None:
+    """Why this Leaf can neither serve a page nor write its log, given the registry it
+    would serve the page under: that registry's `$events` were vendored at another
+    `protocol` than this Leaf's own (`registry.kernel.kernel_protocol`). None when it
+    may.
 
-    Whatever serves a page runs the Leaf that started it, while the page's browser
-    runtime is whatever its last `page init` copied in, and the two speak one
-    contract: the state a server sends and the probe modules the render gate serves
-    beside the page's runtime. Served by another Leaf, the page breaks in the
-    browser on every read, in a way that reads as a defect in the page. Every page
-    server, the gate's and the website's included, refuses on this one reading
-    (`http.page_endpoint`, `leaf_website.page_binding`).
-
-    It compares only the runtime's modules (`payload_runtime_fingerprint`), so a
-    contract change made on the Python side alone passes it. A page vendored before
-    the identity was recorded names none, and is refused too.
+    A Leaf serves and writes any page vendored at its own number, whichever Leaf
+    vendored it, so a plugin update leaves open pages working. Every page server, the
+    gate's and the website's included (`http.page_endpoint`,
+    `leaf_website.page_binding`), and the one append door (`event_contracts`) refuse
+    on this one reading. A page vendored before the number was declared names none,
+    and is refused too.
     """
-    vendored = layer.get("runtime")
-    running = payload_runtime_fingerprint()
-    if vendored == running:
+    vendored = registry.get("$events", {}).get("protocol")
+    running = kernel_protocol()
+    if type(vendored) is int and vendored == running:
         return None
     return (
-        f"{page_dir} was vendored from another Leaf's runtime: its layer names "
-        f"{vendored or 'no runtime identity'}, and this Leaf ({PLUGIN_ROOT}) ships "
-        f"{running}. Leaf serves and checks a page only against the runtime it "
-        f"ships, so re-vendor it with `leaf page init {page_dir}`."
+        f"{page_dir} was vendored by a Leaf at page protocol "
+        f"{vendored if vendored is not None else 'none'}, and this Leaf "
+        f"({PLUGIN_ROOT}) speaks protocol {running}, so it cannot serve the page or "
+        f"write its log. Re-vendor it with `leaf page init {page_dir}`."
     )
 
 
@@ -553,7 +530,7 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
         "/runtime/widget-api.js"
     }
     for root in roots:
-        if root.resolve() in {ASSETS.resolve(), DEFAULT_PACKAGE.resolve()}:
+        if root.resolve() == ASSETS.resolve():
             continue
         replacements = [
             f"runtime/{path.relative_to(root / 'runtime').as_posix()}"

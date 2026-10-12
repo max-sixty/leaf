@@ -150,11 +150,7 @@ class WorkReading:
             }
             for task in self.log.tasks
         ]
-        selected = [
-            {**task, "ends": "agent" if task["owner"] == "agent" else "done"}
-            for task in log
-        ]
         return (
-            [task for task in selected if task["state"] == "open"],
-            [task for task in selected if task["state"] != "open"],
+            [task for task in log if task["state"] == "open"],
+            [task for task in log if task["state"] != "open"],
         )

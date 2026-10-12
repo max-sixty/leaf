@@ -30,6 +30,7 @@ import {
   registerVisualParts,
   scrollIntoReadingBand,
   sizeObserver,
+  whileConnected,
 } from "/runtime/widget-api.js";
 import { DEFAULT_FLAGS, EXAMPLE, Painter, compile, frame } from "../film.js";
 
@@ -61,25 +62,25 @@ export default class extends HTMLElement {
   #raf = 0;
   #focus = null;
   #inspected = null;
-  #stopTerminalReading = null;
 
   connectedCallback() {
-    if (once(this)) this.#build();
-    this.#stopTerminalReading ??= registerReadingRegion({
-      id: compoundReadingRegionId(this, "terminal"),
-      host: this.phonePainter.terminal,
-      body: this.phonePainter.log,
+    if (!once(this)) return;
+    this.#build();
+    whileConnected(this, () => {
+      const stopTerminalReading = registerReadingRegion({
+        id: compoundReadingRegionId(this, "terminal"),
+        host: this.phonePainter.terminal,
+        body: this.phonePainter.log,
+      });
+      const sizing = sizeObserver(() => this.#paint());
+      sizing.observe(this.stage);
+      this.#paint();
+      return () => {
+        sizing.disconnect();
+        stopTerminalReading();
+        this.#pause();
+      };
     });
-    this.sizing.observe(this.stage);
-    this.#paint();
-  }
-
-  disconnectedCallback() {
-    this.sizing.disconnect();
-    this.#stopTerminalReading?.();
-    this.#stopTerminalReading = null;
-    cancelAnimationFrame(this.#raf);
-    this.#playing = false;
   }
 
   #build() {
@@ -92,7 +93,6 @@ export default class extends HTMLElement {
     this.desktopPainter = new Painter(this.svg);
     this.phonePainter = new PhonePainter(stage);
     this.painter = this.desktopPainter;
-    this.sizing = sizeObserver(() => this.#paint());
     this.inspector = document.createElement("div");
     this.inspector.className = "film-inspect";
     this.inspector.hidden = true;

@@ -21,7 +21,7 @@ runs after the runtime has read the page, as inline modules, deferred classic sc
 files, or their literal local graphs rooted below `/page/`, never parser-blocking or
 `async` scripts; page-specific presentation appears inline or in captured `/page/`
 stylesheets; anything on another server is named by its http(s) URL and loaded as
-written. The encoding, runtime, theme, page identity, canonical address, and anything
+written. The runtime, theme, page identity, and anything
 declared about the whole document (a `<base>`, an http-equiv `<meta>`, an import map)
 belong to delivery and are rejected in source, and the last three in message markup
 too, which renders in every revision. Delivery inserts them at the start of
@@ -127,14 +127,11 @@ reported with the widths it spans. The sweep also finds each width where the pag
 margin residents change (`data-lf-margin` on `main`, less the rail), and the readings
 run again there in the light scheme, where each resident has the least room it will
 ever have. It reads, too, how each flex or grid box the page wrote splits its children
-into rows, and the swept widths where that changes, and it fails a workspace whose panes
-stand side by side at the desktop viewport and stack in one column at a width where the
-Layout still fills the window, since stacked there they share one window's height. A
-body of rows at the desktop viewport is a design of rows, whatever a wider window does.
+into rows, and the swept widths where that changes.
 At each swept width it also reads, as advice, each drawing whose fit to its box draws
-labels under 10px and each region of a full-height workspace that runs past its room,
-and reports each unbroken run of widths where one appears, with its reading at the
-narrowest of them. Swept sideways faults are reported by run the same way.
+labels under 10px, and reports each unbroken run of widths where one appears, with its
+reading at the narrowest of them. Swept sideways faults are reported by run the same
+way.
 
 A version that passes gets screens for the author to read (`render_gate/screens.py`):
 the page's first eight screens down from its top at the desktop viewport, at the
@@ -159,13 +156,14 @@ A standing decision may paint over a changed authored baseline; this is the
 state fold's behavior, not a reason to refuse the revision. `restated` explicitly
 retracts a decision when the agent needs a fresh answer.
 
-The render gate serves its probe modules from the Leaf running the command and the
-runtime those modules import from the page, so the ephemeral server it opens refuses
-a page whose recorded `$layer.runtime` is not the identity this payload's kernel
-runtime carries — the refusal every page server makes (`layer-registry.md`, `runtime`).
-Without it the mismatch arrives as a missing export in the probe module, which reads
-as a defect in the page. The vendored layer is the page's to keep, so the gate does
-not re-vendor on its behalf.
+The render gate serves its probe modules from the Leaf running the command, whichever
+Leaf captured the revision it reads, since its own readers call them, and the runtime
+those modules import from the page. A page another Leaf vendored at the same protocol
+is read whenever its runtime has every name the probes import
+(`layer-registry.md`, "Page protocol"). Where it lacks one, the probes fail to link,
+and the gate refuses with the browser's reason and the re-vendor that cures it, rather
+than reporting a missing export as if the page were at fault. The vendored layer is the page's to keep, so
+the gate does not re-vendor on its behalf. `page picture` loads no probe module.
 
 ## Passages
 
@@ -202,8 +200,7 @@ retired text, and repeated passages are refused.
 A page source is written in more than one language. TurboHTML's WHATWG tree drives
 the one SourceDocument reading of what the markup declares and says;
 SourceDocument also retains exact source spans. tinycss2 reads the CSS a <style> block
-holds; layout advice also reads the stylesheets the page links from `page/`, as the
-revision's capture resolves them (`RevisionArtifact.page_stylesheets`). A new question about a page becomes a field on one of those readings rather
+holds. A new question about a page becomes a field on one of those readings rather
 than a pattern over the file's text, because a pattern answers something adjacent to
 the question asked.
 

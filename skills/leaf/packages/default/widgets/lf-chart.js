@@ -107,18 +107,20 @@ export default class extends HTMLElement {
       // height is stated and stays. The redraw is scheduled after ResizeObserver
       // delivery, so the layout a paint reads never lands inside the delivery cycle
       // that asked for it, which the browser reports as undelivered notifications.
-      let watching;
+      // A failed redraw ends the watch: the failure replaced the drawing, and a
+      // chart that returns to the page keeps showing it rather than drawing again.
+      let stop;
       const paint = frameFor(this, () => {
         if (!this.clientWidth || Math.round(this.clientWidth) === this.drawn) return;
         try {
           this.paint(Plot, body);
         } catch (err) {
-          watching.disconnect();
+          stop();
           failSoft(this, err, source);
         }
       });
-      whileConnected(this, () => {
-        watching = sizeObserver(paint);
+      stop = whileConnected(this, () => {
+        const watching = sizeObserver(paint);
         watching.observe(this);
         return () => watching.disconnect();
       });

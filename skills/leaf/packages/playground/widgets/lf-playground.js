@@ -19,6 +19,7 @@
  * The last projection signature distinguishes those cases without making the DOM or a
  * second event history authoritative. */
 import {
+  announce,
   commands,
   compoundReadingRegionId,
   dressSamples,
@@ -33,6 +34,7 @@ import {
   says,
   tabStore,
   wear,
+  whileConnected,
   widgetController,
 } from "/runtime/widget-api.js";
 import "./lf-playground-output.js";
@@ -104,28 +106,26 @@ export default class extends HTMLElement {
   #ready = false;
   #interactive = false;
   #regions = [];
-  #unregister = [];
 
   connectedCallback() {
-    if (!once(this)) {
-      this.#registerRegions();
-      this.#paintAvailability();
-      return;
-    }
+    if (!once(this)) return;
     try {
       this.#build();
       this.#ready = true;
       if (this.#interactive)
         this.#controller.subscribe(() => this.#paintAvailability());
     } catch (error) {
-      this.#unregisterRegions();
       failSoft(this, error);
+      return;
     }
-  }
-
-  disconnectedCallback() {
-    clearTimeout(this.#copyTimer);
-    this.#unregisterRegions();
+    whileConnected(this, () => {
+      const stops = this.#regions.map((region) => registerReadingRegion(region));
+      this.#paintAvailability();
+      return () => {
+        clearTimeout(this.#copyTimer);
+        for (const stop of stops) stop();
+      };
+    });
   }
 
   get values() {
@@ -244,9 +244,7 @@ export default class extends HTMLElement {
       });
       this.#commands();
     }
-    this.#registerRegions();
     this.#paintPresets();
-    this.#paintAvailability();
   }
 
   #parse(control, raw) {
@@ -291,15 +289,6 @@ export default class extends HTMLElement {
     if (at?.localName === "iframe")
       return Boolean(at.closest("lf-sample")?.focusedContent);
     return Boolean(at) && at !== at.ownerDocument.body;
-  }
-
-  #registerRegions() {
-    this.#unregister = this.#regions.map((region) => registerReadingRegion(region));
-  }
-
-  #unregisterRegions() {
-    for (const stop of this.#unregister) stop();
-    this.#unregister = [];
   }
 
   #commands() {
@@ -410,6 +399,10 @@ export default class extends HTMLElement {
     if (this.#copy.dataset.copyState !== "rest") this.#copy.dataset.copyState = "rest";
   }
 
+  // The copy control is a native button rather than a `wa-copy-button`, because the
+  // initial producer draws it before any module loads and the theme reserves its
+  // feedback words' width in place. Its label shows the result where the press was;
+  // the page's live region says it, as Web Awesome's copy button says its own.
   async #copyInstruction() {
     const instruction = this.#instruction();
     let feedback;
@@ -422,6 +415,11 @@ export default class extends HTMLElement {
     if (this.#instruction() !== instruction || !this.isConnected) return;
     clearTimeout(this.#copyTimer);
     this.#copy.dataset.copyState = feedback;
+    announce(
+      feedback === "success"
+        ? "Instruction copied"
+        : "Could not copy the instruction",
+    );
     this.#copyTimer = setTimeout(() => {
       this.#copy.dataset.copyState = "rest";
     }, 2000);

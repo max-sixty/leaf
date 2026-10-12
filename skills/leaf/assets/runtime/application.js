@@ -17,6 +17,7 @@ import { paintKeys } from "./keyboard/scopes.js";
 import { watchPendingTraffic } from "./traffic.js";
 import { createCommandDispatch } from "./pending/dispatch.js";
 import { createDelivery, deliverBookkeeping } from "./delivery.js";
+import { keepRefusedWords } from "./drafts.js";
 import { createProjectionPresentation } from "./projection/presentation.js";
 import { createUndo } from "./undo.js";
 import { createDataProjection } from "./projection/data.js";
@@ -43,6 +44,7 @@ import {
 } from "./thread/surfaces.js";
 import { createStateApplication } from "./state-application.js";
 import { createStateFeed } from "./state-feed.js";
+import { reportCarried, reportPageError } from "./layer-client.js";
 
 const commandDispatch = createCommandDispatch();
 let application = null;
@@ -53,7 +55,7 @@ const app = () => {
 
 export function mountApplication(dependencies) {
   if (application) throw new Error("Leaf application mounted twice");
-  setPresentationFailureReporter(dependencies.reportPageError);
+  setPresentationFailureReporter(reportPageError);
   const { ledger } = commandDispatch;
   watchPendingTraffic(applicationState.select((root) => root.effective.sending));
   const hasPending = () => ledger.snapshot().length > 0;
@@ -108,7 +110,7 @@ export function mountApplication(dependencies) {
   };
 
   const releasePendingSafely = (context) => {
-    void releasePending().catch((error) => console.error(`leaf: ${context}`, error));
+    void releasePending().catch((error) => reportCarried(error, context));
   };
 
   // The document-wide pass. Every presenter claims its region now and paints the current
@@ -157,7 +159,7 @@ export function mountApplication(dependencies) {
       if (entry.event.kind === "edit") announce("Message edited");
       paintKeys();
     } catch (error) {
-      console.error("leaf: optimistic presentation", error);
+      reportPageError(error, "optimistic presentation");
     } finally {
       void delivery.drain();
     }
@@ -249,9 +251,6 @@ export function mountApplication(dependencies) {
 
   const annotations = createAnnotationInventory({
     readQuestions,
-    comparisonBase: dependencies.annotationCommands.comparisonBase,
-    inlineComparison: dependencies.annotationCommands.inlineComparison,
-    toggleInlineComparison: dependencies.annotationCommands.toggleInlineComparison,
     placedAt: dependencies.anchorPlacement.placedAt,
     openThread: openPageThread,
     goToQuestion: dependencies.annotationCommands.goToQuestion,
@@ -377,7 +376,6 @@ export function mountApplication(dependencies) {
     notifyDataSubscribers: dependencies.state.notifyDataSubscribers,
     isSignoffDeclared: dependencies.state.isSignoffDeclared,
     renderStatus: dependencies.state.renderStatus,
-    renderVersions: dependencies.state.renderVersions,
     stateSignoff: dependencies.state.stateSignoff,
     renderOthers: dependencies.state.renderOthers,
     accountPending,
@@ -399,17 +397,20 @@ export function mountApplication(dependencies) {
   delivery = createDelivery({
     ledger,
     applyAcceptedState: receiveState,
+    refusedWords: keepRefusedWords,
     settleRejected: async (entry, state) => {
       if (state)
         await receiveState(state).catch((error) =>
-          console.error("leaf: state in refused event response", error),
+          reportCarried(error, "state in refused event response"),
         );
+      let dependents = [];
       await stateApplication.runSerialized(async () => {
-        ledger.refuse(entry);
+        dependents = ledger.refuse(entry);
         const prepared = invalidateDom();
         releasePendingSafely("rejected event presentation");
         await prepared;
       });
+      return dependents;
     },
     settlementChanged: (entry, accepted) => {
       if (accepted) {
@@ -428,8 +429,6 @@ export function mountApplication(dependencies) {
       }
       paintKeys();
     },
-    reportApplicationError: (error) =>
-      console.error("leaf: rejected event reconciliation", error),
   });
 
   const feed = createStateFeed({
@@ -547,7 +546,7 @@ export function mountApplication(dependencies) {
       const question = readQuestions().all.find((item) => item.id === id);
       if (!question) return Promise.resolve(false);
       if (question.source.kind === "approval")
-        return queueActions.open(JSON.stringify(["question", question.id]));
+        return queueActions.open(JSON.stringify(["ask", question.id]));
       if (question.source.kind === "reply") {
         showHeld(question.thread);
         return threadDestinations.openPageThread(question.message, {

@@ -1,8 +1,13 @@
 name: ci
 
-# Pull requests run the small landing gate plus the nightly-marked tests they edit,
-# and the website gate. Main, the daily schedule, and a manual dispatch run the
-# complete selection once, with the same runtime, browser-framework and bundle gates.
+# Every event runs the runtime, browser-framework and bundle gates; the Python suite's
+# selection follows the test tiers, set by a test's marks and its measured cost
+# (`tests/conftest.py`, `run_tier`):
+# - a pull request runs the first tier, plus the `main` and `nightly` tests it edits,
+#   and the website gate;
+# - a push to main runs the first tier and `main`;
+# - the daily schedule and a manual dispatch run every test, and their junit report is
+#   what `leaf-dev cost-tiers` measures the tiers from.
 # Relevant pushes to main run the website gate in publish-site before deploy.
 on:
   push:
@@ -14,48 +19,30 @@ on:
 
 # Only a pull request cancels its own earlier run. A push to main keeps its run: a red
 # branch is judged against the base SHA's result, a cancellation reaches tend-ci-fix as
-# something to fix, and the next merge must not end a complete suite partway through.
-# Nothing outside a pull request shares a workflow group; the complete test job owns
-# the automatic suite's queue.
+# something to fix, and the next merge must not end a suite partway through. Nothing
+# outside a pull request shares a workflow group; the test job owns each event's queue.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # Branch protection requires this check by name.
-  lint:
-    if: github.event_name == 'pull_request' || github.event_name == 'push'
-    runs-on: ubuntu-24.04
-
-    steps:
-      - name: 📂 Checkout code
-        uses: actions/checkout@v7
-
-      - name: 🔍 Pre-commit hooks
-        uses: pre-commit/action@v3.0.1
-
   test:
-    # Scheduled and manual runs skip lint. A red or cancelled lint never starts tests.
-    if: >-
-      !cancelled()
-      && (needs.lint.result == 'success' || needs.lint.result == 'skipped')
-    needs: lint
     concurrency:
-      # One automatic suite at a time: it holds a runner for over an hour, and
-      # GitHub's concurrency pool is per-account, shared with the other repos here. A
-      # running suite is never cancelled, because that hour would be lost; a newer
-      # commit replaces the pending entry instead, under GitHub's default
-      # `queue: single`, so a busy main gets the suite on its tip rather than working
-      # through commits already superseded. Superseded pending entries are recorded as
-      # cancelled runs, and #296 accepted that cost for the same reason.
+      # One push suite at a time: it holds a runner for over an hour, and GitHub's
+      # concurrency pool is per-account, shared with the other repos here. A running
+      # suite is never cancelled, because that hour would be lost; a newer commit
+      # replaces the pending entry instead, under GitHub's default `queue: single`, so a
+      # busy main gets the suite on its tip rather than working through commits already
+      # superseded. Superseded pending entries are recorded as cancelled runs, and #296
+      # accepted that cost for the same reason.
       #
-      # A dispatch keeps a slot per ref, as it had before this job took a group of its
-      # own. It is the control a session runs against a base SHA, and two sessions
-      # judging two branches need both answers; behind main's queue either one would
-      # be replaced by the next merge before it ever started.
-      # PRs keep their own slot; the automatic and dispatch groups keep the complete
-      # suite's existing queue identity.
-      group: ${{ github.event_name == 'pull_request' && format('{0}-test-pr-{1}', github.workflow, github.event.pull_request.number) || format('{0}-nightly-{1}', github.workflow, github.event_name == 'workflow_dispatch' && github.ref || 'automatic') }}
+      # The daily schedule has a slot of its own. It is the only run of the `nightly`
+      # tier, and while it shared the push queue (#751) the next merge replaced it
+      # before it reached a runner. A dispatch keeps a slot per ref. It is the control a
+      # session runs against a base SHA, and two sessions judging two branches need
+      # both answers; behind main's queue either one would be replaced by the next
+      # merge before it ever started. A pull request keeps a slot per number.
+      group: ${{ format('{0}-test-{1}', github.workflow, github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.event_name == 'workflow_dispatch' && format('dispatch-{0}', github.ref) || github.event_name) }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     env:
@@ -66,7 +53,7 @@ jobs:
 
     steps:
       # A pull request's checkout is its merge commit, whose first parent is the base:
-      # the second commit is what the nightly selection below diffs against.
+      # the second commit is what `--changed-since` below diffs against.
       - name: 📂 Checkout code
         uses: actions/checkout@v7
         with:
@@ -110,13 +97,17 @@ jobs:
 
       # The bundles build from the installed lock, so a rebuild reproduces the
       # tracked bytes exactly and any difference is a lock nobody rebuilt from.
-      - name: Check vendored bundles
-        run: pnpm run check:bundles
-
-      - name: Check browser, runtime, Worker and eval assertions
+      - name: Check bundles, browser, runtime, Worker and eval assertions
         run: pnpm run check
 
-      # Cheap gates fail before the complete Python suite spends its runner time.
+      # Hooks only check source, so they can overlap Python and the private website
+      # build.
+      - name: 🔍 Pre-commit hooks
+        id: lint
+        background: true
+        uses: pre-commit/action@v3.0.1
+
+      # The synchronous gates fail before Python spends its runner time.
       # The runner's four vCPUs sat ~41% idle under two workers; four left 7% idle
       # but slowed each test 1.3–1.46×, so three take the idle share without
       # saturating the deadlines browser tests wait under.
@@ -134,13 +125,20 @@ jobs:
         # meanwhile: a pull request builds the website beside it.
         run: |
           mkdir -p .tmp/test-results
+          # Each worker charges its tests' CPU to a cgroup of its own under this one
+          # (`dev/leaf_dev/suite_profile.py`). Owning it lets the workers make and join
+          # theirs without root, and this shell joins it so pytest starts inside.
+          export SUITE_PROFILE_CGROUP=/sys/fs/cgroup/leaf-suite
+          sudo mkdir "$SUITE_PROFILE_CGROUP"
+          sudo chown -R "$(id -u)" "$SUITE_PROFILE_CGROUP"
+          echo $$ | sudo tee "$SUITE_PROFILE_CGROUP/cgroup.procs" >/dev/null
           accounting=${{ github.event_name != 'pull_request' }}
           if $accounting; then
             sudo touch /var/log/account/suite
             sudo accton /var/log/account/suite
           fi
           uv run pytest tests -n 3 -v --junitxml=.tmp/test-results/results.xml \
-            ${{ github.event_name == 'pull_request' && '--nightly-changed-since HEAD^1' || '--run-nightly' }} &
+            ${{ github.event_name == 'pull_request' && '--changed-since HEAD^1' || github.event_name == 'push' && '--run-main' || '--run-nightly' }} &
           tests=$!
           until pgrep -P "$tests" >/dev/null || ! kill -0 "$tests" 2>/dev/null; do
             sleep 0.1
@@ -168,10 +166,10 @@ jobs:
         if: github.event_name == 'pull_request'
         run: uv run leaf-dev site
 
-      # wait runs even when the build fails. Propagate Python's result and finish
-      # its artifacts before starting Docker or the unconditional upload below.
-      - name: Wait for Python tests
-        wait: python-tests
+      # wait runs even when the build fails. Propagate both results and finish
+      # Python's artifacts before Docker or the unconditional upload below.
+      - name: Wait for lint and Python tests
+        wait: [lint, python-tests]
 
       - name: Check website deployment
         if: github.event_name == 'pull_request'

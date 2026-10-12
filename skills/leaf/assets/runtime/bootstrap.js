@@ -34,10 +34,7 @@
     } else {
       let port;
       let settings;
-      let readyResolve;
-      const ready = new Promise((resolve) => {
-        readyResolve = resolve;
-      });
+      const { promise: ready, resolve: readyResolve } = Promise.withResolvers();
       const queued = [];
       const listeners = new Set();
       const send = (value) => (port ? port.postMessage(value) : queued.push(value));
@@ -420,15 +417,8 @@
           }
         }
         const current = response.headers.get("Leaf-Server");
-        let generation = response.headers.get("Leaf-Layer");
+        const generation = response.headers.get("Leaf-Layer");
         const currentRelease = response.headers.get("Leaf-Release");
-        if (!generation && response.ok) {
-          try {
-            generation = (await response.json())?.["$layer"]?.generation;
-          } catch {
-            // A non-registry probe can still identify itself through headers.
-          }
-        }
         if (
           (current && current !== incarnation) ||
           (generation && generation !== layer) ||

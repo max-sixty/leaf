@@ -60,7 +60,7 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 ROOT = Path(__file__).parent.parent
 # `leaf-dev preview`, run by the interpreter this suite runs on.
@@ -688,20 +688,20 @@ def test_a_user_preview_restarts_under_its_original_codex_claim(
     # Ownership can end while a runtime edit waits for the page transaction.
     # page init needs that transaction before it can stop the service, so do not
     # wait for its stop while holding the transaction ourselves.
-    with service_model.PageTransaction(directory) as transaction:
+    with service_model.PageTransaction(directory):
         with theme.open("a", encoding="utf-8") as stream:
             stream.write("\nh1 { color: teal; }\n")
-        transaction.release_claim()
+        cleanup_model.end_session(claim["id"])
     wait_for(
         lambda: server_model.running_server(directory),
         lambda running: not running,
-        failure="the released claim left the service running",
+        failure="the ended session left the service running",
     )
-    assert service_model.page_claim(directory)["released"] is not None
+    assert not service_model.claim_is_active(service_model.page_claim(directory))
     wait_for(
         lambda: leases_model.lock_is_held(preview_model.preview_lease(directory)),
         lambda held: not held,
-        failure="the released session left its preview running",
+        failure="the ended session left its preview running",
     )
 
 
@@ -887,53 +887,6 @@ def test_a_failed_preview_bootstrap_hears_the_replacement_server(
         json.loads((directory / "registry.json").read_text())["$layer"]["generation"]
         != generation
     )
-
-
-def test_a_failed_bootstrap_hears_a_static_registry_generation(
-    browser, watched_preview
-):
-    """A static host can supervise startup without synthesizing Leaf headers."""
-    _, _, directory, _, url, _ = watched_preview
-    registry = json.loads((directory / "registry.json").read_text())
-    generation = registry["$layer"]["generation"]
-    page = browser.new_page()
-    failures = []
-    probes = []
-    documents = requested_documents(page)
-
-    def interrupt_entry(route):
-        if failures:
-            route.continue_()
-            return
-        failures.append(True)
-        route.abort()
-
-    def static_registry(route):
-        if len(documents) > 1:
-            route.continue_()
-            return
-        probes.append(True)
-        body = json.loads(json.dumps(registry))
-        if len(probes) > 1:
-            body["$layer"]["generation"] = f"{generation}-replacement"
-        route.fulfill(content_type="application/json", body=json.dumps(body))
-
-    page.route("**/leaf.js", interrupt_entry)
-    page.route("**/registry.json", static_registry)
-    # As above: the refused entry and the server that replaces it are one restart,
-    # and its noise belongs to the span rather than to a list of wordings.
-    with restarting(page):
-        page.goto(url, wait_until="load")
-        status = page.get_by_text(
-            "Leaf couldn't start. Waiting for the server to update."
-        )
-        expect(status).to_be_visible()
-        expect(page.locator("body")).to_have_attribute(
-            "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
-        )
-    assert len(probes) >= 2
-    assert len(documents) == 2
-    expect(status).not_to_be_visible()
 
 
 @pytest.mark.parametrize("interrupted", ["registry.json", "widgets/lf-options.js"])
@@ -1210,30 +1163,27 @@ def test_a_preview_relinquishes_a_service_another_session_claims(
 
 # ---------- export: the page as one file ----------
 
-OFFLINE_WIDGET = """import { LitElement, html, widgetController } from "/runtime/widget-api.js";
+OFFLINE_WIDGET = """\
+import { html, render, widgetController } from "/runtime/widget-api.js";
 
-export default class extends LitElement {
+export default class extends HTMLElement {
   controller = widgetController(this);
   reading = this.controller.read();
   local = 0;
   stop = null;
 
-  createRenderRoot() {
-    return this.shadowRoot ?? this.attachShadow({mode: "open"});
-  }
-
   connectedCallback() {
-    super.connectedCallback();
+    if (!this.shadowRoot) this.attachShadow({mode: "open"});
     this.stop ??= this.controller.subscribe(reading => {
       this.reading = reading;
-      this.requestUpdate();
+      this.paint();
     });
+    this.paint();
   }
 
   disconnectedCallback() {
     this.stop?.();
     this.stop = null;
-    super.disconnectedCallback();
   }
 
   choose() {
@@ -1242,13 +1192,13 @@ export default class extends LitElement {
     });
   }
 
-  render() {
+  paint() {
     const choice = this.reading.state.choose?.value ?? this.getAttribute("choice");
     const action = this.reading.actions.choose;
     const unavailable = action.unavailable;
-    return html`
+    render(html`
       <style>#local { color: rgb(12, 34, 56); }</style>
-      <button id="local" @click=${() => { this.local += 1; this.requestUpdate(); }}>
+      <button id="local" @click=${() => { this.local += 1; this.paint(); }}>
         Increment locally
       </button>
       <output id="local-value">${this.local}</output>
@@ -1257,7 +1207,7 @@ export default class extends LitElement {
       </button>
       <output id="choice">${choice}</output>
       ${unavailable ? html`<p id="unavailable">${unavailable}</p>` : null}
-    `;
+    `, this.shadowRoot, {host: this});
   }
 };
 """

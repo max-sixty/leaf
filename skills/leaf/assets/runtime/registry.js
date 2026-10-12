@@ -7,11 +7,7 @@
 
 import { runtime } from "./context.js";
 import { isElementName } from "./registry-contract.js";
-import {
-  vocabularyFor,
-  vocabularies,
-  normalizeDeclarations,
-} from "./widget-contexts.js";
+import { vocabularyFor, vocabularies } from "./widget-contexts.js";
 import { readApplication } from "./semantic-state.js";
 
 // The vocabulary, vendored per page: which tags a module upgrades, and which of their
@@ -29,13 +25,10 @@ export const registryFor = (node) => vocabularyFor(node)?.declarations ?? regist
 export const elementDeclarations = (declarations = registry) =>
   Object.entries(declarations).filter(([tag]) => isElementName(tag));
 
-// Take in the fetched vocabulary. A verb's writer is resolved here, once: `agent` where
-// its declaration says so, else `user`, the rule Python's `registry.contract.verb_writer`
-// states and `tests/verb_writer_cases.json` holds both to. Every browser reading, a
-// widget descriptor's captured declaration included, then reads `spec.writer` as one of
-// the two sides rather than restating the default.
+// Take in the fetched vocabulary. A verb's writer is read from `$states`
+// (`registry-contract.js`), where composition stamped it.
 export function adoptRegistry(declarations) {
-  Object.assign(registry, normalizeDeclarations(declarations));
+  Object.assign(registry, declarations);
 }
 
 const stateIndexes = new WeakMap();

@@ -15,7 +15,7 @@ server answers its API requests.
 
 Every `leaf` command a build runs comes from the Leaf its caller hands it. `leaf-dev
 site` hands it an installation prepared from this checkout (`leaf_dev.distribution`)
-beside its output, so each page vendors the compiled kernel a consumer install carries.
+beside its output, so each page vendors the compiled kernel.
 The website's container image installs the same tree, so a revision a hosted session
 writes captures the layer the published revisions were built from. The suite and
 `refresh-previews` serve the site with this checkout's adapter, which refuses pages
@@ -23,7 +23,8 @@ another Leaf vendored, so they build with the checkout's own Leaf; the suite's b
 probes also import source modules a compiled kernel no longer has.
 
 A dead link is the failure a static host cannot report, so the build resolves every
-local href and src it wrote and refuses a site holding one that names no file.
+local href and src it wrote through the website server's routing and refuses a site
+holding one that server would not answer.
 
 The build also writes what a crawler reads: `robots.txt`, a `sitemap.xml` of the clean
 routes, and each page's link card. A page's title and description are authored in its
@@ -58,12 +59,23 @@ from leaf.media import media_name
 from leaf.revision_delivery import DeliveryAddress, rebase_document
 from leaf.schema import (
     BROWSER_DIRS,
+    DATA_DIR,
     MEDIA_DIR,
+    PAGE_STATE_FILES,
+    SERVED_PATH,
     SESSION_ROUTE_DIRS,
     VENDORED_FILES,
 )
 from leaf.structure import FRAME_ANCESTORS_CSP, SourceDocument, source_index
-from leaf_website import SITE_MANIFEST, SITE_ORIGIN, initial_state, site_metadata
+from leaf_website import (
+    SITE_MANIFEST,
+    SITE_ORIGIN,
+    PageRoute,
+    initial_state,
+    page_routes,
+    published_page,
+    site_metadata,
+)
 
 from leaf_dev import LEAF_COMMAND, ROOT
 from leaf_dev.arms import environment
@@ -155,49 +167,52 @@ def published_pages(
     return product + examples
 
 
-def resolves(out: Path, pages: list[tuple[Path, str]], url: str) -> bool:
-    """Resolve one public URL through the same longest-page-root rule as the server."""
-    path = unquote(urlsplit(url).path)
-    physical = out / path.lstrip("/")
-    if physical.is_file():
-        return True
-    for page_dir, page_root in sorted(
-        pages, key=lambda item: len(item[1]), reverse=True
-    ):
-        if path == page_root or path == f"{page_root}/":
-            return (page_dir / "index.html").is_file()
-        prefix = f"{page_root}/" if page_root else "/"
-        if path.startswith(prefix):
-            named = page_dir / path[len(prefix) :]
-            return (
-                (named / "index.html").is_file()
-                if path.endswith("/")
-                else named.exists()
-            )
-    return False
+def resolves(routes: tuple[PageRoute, ...], url: str) -> bool:
+    """Whether the website server answers one public URL with a file.
+
+    The page and the path inside it are the server's own reading
+    (`leaf_website.published_page`), and inside a page it serves its document and only
+    the files `SERVED_PATH` admits. A link to any other file the build holds, such as
+    a page's log or the site manifest, reaches nothing live.
+
+    Inside a page this restates the server's own decision (`PageEndpoint._get`) as
+    "a served path the page directory holds as a file". The server also answers
+    paths no file backs, a stamped version and a revision's captured resources, so
+    a link to one of those stops the build until this learns it. The server itself
+    cannot be asked from here: it refuses a page
+    another Leaf vendored, as the prepared install vendors the published ones, and
+    every request it answers is appended to the page's interaction log.
+    """
+    selected = published_page(routes, unquote(urlsplit(url).path))
+    if selected is None:
+        return False
+    page_dir, _, inside, _ = selected
+    if inside == "/":
+        return (page_dir / "index.html").is_file()
+    return bool(SERVED_PATH.fullmatch(inside)) and (page_dir / inside[1:]).is_file()
 
 
 def check_links(out: Path) -> None:
     dead = []
-    pages = published_pages(out)
-    for page_dir, page_root in pages:
+    manifest = json.loads((out / SITE_MANIFEST).read_text(encoding="utf-8"))
+    routes = page_routes(out, manifest["pages"])
+    for page_root, page_dir, _ in routes:
         for page in sorted(page_dir.rglob("*.html")):
             relative = page.relative_to(page_dir)
             html = rebase_document(
                 page.read_text(encoding="utf-8"),
                 DeliveryAddress(page_root, page_root),
             )
-            public_page = f"{page_root}/{relative}" if page_root else f"/{relative}"
+            public_page = f"{page_root}/{relative}"
             for target in local_targets(html):
                 public_target = urljoin(public_page, target)
-                if not resolves(out, pages, public_target):
+                if not resolves(routes, public_target):
                     dead.append(f"{public_page} → {target}")
     # A card image is named in a content attribute rather than an href, so the sweep
     # above never sees it: an unfurled link is the one surface whose broken image
     # nobody browsing the site would notice.
-    manifest = json.loads((out / SITE_MANIFEST).read_text(encoding="utf-8"))
     for route, page in sorted(manifest["pages"].items()):
-        if not resolves(out, pages, page["image"]):
+        if not resolves(routes, page["image"]):
             dead.append(f"{route} → {page['image']} (og:image)")
     if dead:
         sys.exit(
@@ -326,10 +341,7 @@ def catalog_markup(markup: str) -> str:
     for link in parsed.tree.select("a.example-link"):
         name = urlsplit(link.attrs["href"]).path.removeprefix("/examples/").strip("/")
         _, description = document_metadata(EXAMPLES / f"{name}.html")
-        caption = link.select_one(".example-description")
-        if caption is None:
-            raise ValueError(f"{name}: catalog card needs an example-description")
-        location = caption.source_location
+        location = link.select_one(".example-description").source_location
         start = index(location.start_tag.end_line, location.start_tag.end_col)
         end = index(location.end_tag.start_line, location.end_tag.start_col)
         replacements.append((start, end, escape(description, quote=False)))
@@ -544,16 +556,7 @@ def publish_live_shells(
     deduplicate_tree(assets)
     deduplicate_tree(
         out,
-        mutable_names={
-            "cursor.json",
-            "data",
-            "data.json",
-            "events.jsonl",
-            "interactions.jsonl",
-            "index.html",
-            "service.json",
-            "status.json",
-        },
+        mutable_names={"index.html", DATA_DIR, *PAGE_STATE_FILES},
     )
     return assets
 

@@ -5,11 +5,15 @@ This directory builds the browser bundles Leaf commits: everything under
 Installation, page init, and export consume that committed output and never run a
 compiler, so nothing here runs on a host.
 
-`runtime-bundle.mjs` compiles the kernel for both website delivery and prepared
-installations. `leaf-dev distribution` writes installation output under `.tmp/`;
-CI verifies it and publishes the `prepared` branch. Generated kernel chunks never
-enter development branches. Installers follow that branch and copy ready files;
-package authors continue to use native JavaScript without a build.
+`runtime-bundle.mjs` compiles the kernel for website delivery and for the
+installation tree the website's container runs, which `leaf-dev distribution`
+writes under `.tmp/`. Generated kernel chunks never enter Git, and consumer
+installs serve the source modules; package authors continue to use native
+JavaScript without a build.
+
+`browser/build.mjs` is the one builder: `pnpm run build:browser` writes every
+output below, and `pnpm run check:browser`, part of `pnpm run check`, compares a
+fresh build with the committed bytes without writing.
 
 - `browser/` is the TypeScript browser framework, its Node tests, and `build.mjs`,
   which compiles each of its modules to one JavaScript module, line for line, and
@@ -20,42 +24,43 @@ package authors continue to use native JavaScript without a build.
   equals a rebuild. `runtime-bundle.mjs` compiles the framework into the kernel for
   delivery.
 - `initial.mjs` builds each package's synchronous initial drawing from its
-  `initial.js` into the one bundle its registry declares with `x-initial`;
-  `build:browser` and `check:browser` include these outputs.
+  `initial.js` into the one bundle its registry declares with `x-initial`.
 - `styles.mjs` resolves native CSS imports in component source entrypoints under
   `skills/leaf/assets/styles/` and bundled packages' `styles/` into the committed
-  complete sheets; `build:browser` and `check:browser` include these outputs.
-  Consumers load no imports and run no compiler.
-- `vendor.py` rebuilds every third-party bundle outside the framework, bundling what
-  each consumer needs or adapting an upstream browser module. `pierre/` and
-  `webawesome/` hold the inputs their builders use.
+  complete sheets. Consumers load no imports and run no compiler.
+- `registry.mjs` generates the runtime modules that carry a registry fact to the
+  browser, one row per module.
+- `vendor.mjs` builds every third-party bundle outside the framework, bundling what
+  each consumer needs or adapting an upstream browser module, one row of its
+  `bundles` table per bundle. A directory under `build/` named after a row holds
+  that row's inputs. `lit.mjs` owns how `vendor/lit.js` names Lit's exports and how
+  a bundle binds its Lit imports to that copy.
   `floating-ui-zoom.patch` backports upstream #3492 to the locked 1.8.0 ESM;
   `floating-ui-element-zoom.patch` locally completes that conversion for a floating
   element zoomed relative to an Element offset parent, including border origins
   and overflow lengths.
-  The builder records the upstream commit and applies both to private package copies.
 
-After `pnpm install --frozen-lockfile`, both builds reproduce the tracked bytes, so a
-diff after a rebuild means the lock, a build script, or the registry input a bundle
+After `pnpm install --frozen-lockfile`, the build reproduces the tracked bytes, so a
+diff after a rebuild means the lock, a build script, or the registry input an output
 reads changed.
 Rebuild after any of those changes:
 
 ```sh
 pnpm install --frozen-lockfile
 pnpm run build:browser      # pnpm run check:browser compares without writing
-uv run build/vendor.py     # all bundles, or name the ones to rebuild
 ```
 
 Rebuild after `pnpm install` moves a pin or the lock, or after changing registry
-input a bundle reads. `package.json` pins every JavaScript version that ships.
+input a bundle reads. `package.json` pins each package an entry imports, and the lock
+pins the rest of each closure.
 `lit-html` is held at 3.3.0, below what `lit` would take: from 3.3.1, `repeat` leaves
 a comment behind for each item it removes (lit/lit#5298), so a list the chrome redraws
 grows for as long as the page is open. `browser/build.mjs` backports lit/lit#5218
 to that pin so optional `ref(undefined)` survives disconnection and reconnection.
-The build also routes lit-html's keyed and child-part insertions and root marker
-through `runtime/dom-move.js`, preserving native state where the browser supports
-it and bypassing named form properties. It adapts the published modules in memory
-and fails if a locked seam changes.
+The build also routes lit-html's keyed and child-part insertions through
+`runtime/dom-move.js`, which keeps the user's place across a move and native state
+where the browser supports it. It adapts the published modules in memory and fails
+if a locked seam changes.
 Lift it to a release
 that carries lit/lit#5299; the closed-surface journey of
 `test_a_still_page_comes_back_from_every_journey_as_it_was` fails while the leak stands.

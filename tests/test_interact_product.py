@@ -1,5 +1,6 @@
 """Version corpus, registry, message, and export tests."""
 
+import copy
 import json
 import os
 import re
@@ -10,6 +11,7 @@ import pytest
 from click.testing import CliRunner
 from interact_support import (
     COMMAND_SUBJECTS,
+    FLOW_PAGE,
     PAGE,
     ROOT,
     SHIPPED_PACKAGES,
@@ -39,11 +41,13 @@ from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import tasks as tasks_model
+from leaf.refusals import Refused
 from leaf.registry import storage as registry_storage
 from leaf.registry.contract import element_declarations
 from leaf.structure import SourceDocument
 from leaf.thread_context import thread_digest
 from leaf.validation import composition as validation_model
+from leaf.validation.admission import check_markup
 from leaf.validation.instances import reference_errors
 from leaf_dev.example_data import regression_sources
 from leaf_dev.page_fixtures import prepare_page, read_fixture
@@ -104,7 +108,7 @@ def test_valid_source_activates_once_and_a_bad_save_keeps_it_live(page_dir):
 
 def test_later_events_do_not_veto_source_readings(page_dir):
     source = page_dir / "index.html"
-    source.write_text(PAGE)
+    source.write_text(FLOW_PAGE)
     live = revisioning_model.activate_source(page_dir)
     assert live.error is None and live.revision == 1
     live = revisioning_model.activate_source(page_dir)
@@ -125,10 +129,7 @@ def test_later_events_do_not_veto_source_readings(page_dir):
 
     # Removing a thread's target activates immediately and detaches the thread;
     # the original anchor stays in the log.
-    dropped = re.sub(
-        r'<lf-diagram id="flow">.*?</lf-diagram>', "", PAGE, flags=re.DOTALL
-    )
-    source.write_text(dropped)
+    source.write_text(PAGE)
     removed = revisioning_model.activate_source(page_dir)
     assert removed.error is None and removed.created and removed.revision == 2
     threads = event_folds_model.build_threads(events_model.read_events(page_dir), {})
@@ -159,7 +160,7 @@ def test_later_events_do_not_veto_source_readings(page_dir):
     assert check(page_dir).exit_code == 0
 
     # Events cannot repair an invalid source either; only a corrected save does.
-    source.write_text(dropped.replace("</section>", ""))
+    source.write_text(PAGE.replace("</section>", ""))
     refused = revisioning_model.activate_source(page_dir)
     assert refused.error and refused.revision == 2 and not refused.created
     append_carried_log_record(
@@ -167,7 +168,7 @@ def test_later_events_do_not_veto_source_readings(page_dir):
     )
     still_refused = revisioning_model.activate_source(page_dir)
     assert still_refused.error == refused.error and still_refused.revision == 2
-    source.write_text(dropped.replace("<title>t</title>", "<title>repaired</title>"))
+    source.write_text(PAGE.replace("<title>t</title>", "<title>repaired</title>"))
     repaired = revisioning_model.activate_source(page_dir)
     assert repaired.error is None and repaired.created and repaired.revision == 3
 
@@ -325,9 +326,42 @@ def test_question_context_frames_any_number_of_independent_sources(page_dir):
         in " ".join(control_first)
     )
 
+    # A context framing no live source would show a question the banner never
+    # counts. A retired source still counts: settling a decision keeps its context.
+    assert "registers no Question: it holds no widget that declares x-awaits" in (
+        " ".join(
+            fragment_errors(
+                '<lf-ask id="decision-empty"><h2>Nothing to answer</h2></lf-ask>',
+                registry,
+            )
+        )
+    )
+    unasked = first.replace(" choose", "")
+    assert (
+        '<lf-options id="g-one"> (line 1) asks only where choose is present'
+        in " ".join(
+            fragment_errors(
+                f'<lf-ask id="decision-unasked"><h2>Choose</h2>{unasked}</lf-ask>',
+                registry,
+            )
+        )
+    )
+    settled = first.replace(" choose", " choose settled")
+    settled_ask = f'<lf-ask id="decision-settled"><h2>Chosen</h2>{settled}</lf-ask>'
+    assert fragment_errors(settled_ask, registry) == []
+    # The registry's `retired` is what says the flag ended an asked Question; a flag
+    # that merely stops a widget asking leaves the context framing nothing.
+    unretired = copy.deepcopy(registry)
+    del unretired["lf-options"]["x-awaits"]["retired"]
+    assert '<lf-options id="g-one"> (line 1) asks only where settled is absent' in (
+        " ".join(fragment_errors(settled_ask, unretired))
+    )
+    # A quoted Ask is a mention, and its widgets ask nothing by design.
     assert (
         fragment_errors(
-            '<lf-ask id="decision-empty"><h2>Nothing to answer</h2></lf-ask>',
+            '<lf-sample id="quoted-ask" label="an Ask">'
+            f'<lf-ask id="decision-quoted"><h2>Choose</h2>{second}</lf-ask>'
+            "</lf-sample>",
             registry,
         )
         == []
@@ -603,21 +637,113 @@ def test_shipped_widget_purposes_live_in_their_descriptions():
     assert not titled, f"widget purposes are duplicated in title: {', '.join(titled)}"
 
 
-def test_playground_range_requires_its_upper_bound_at_the_markup_boundary():
+def test_a_playground_control_value_fits_its_kind_at_the_markup_boundary():
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
-    markup = (
-        '<lf-ask id="range-ask"><h2>Choose a radius</h2>'
-        '<lf-playground id="range-playground">'
-        '<lf-playground-control name="radius" label="Radius" kind="range" '
-        'value="12"></lf-playground-control>'
-        "<lf-playground-preview><p>Preview</p></lf-playground-preview>"
-        "<lf-playground-output>Use this radius.</lf-playground-output>"
-        "</lf-playground></lf-ask>"
+
+    def errors(attributes):
+        return " ".join(
+            fragment_errors(
+                '<lf-ask id="kind-ask"><h2>Choose a setting</h2>'
+                '<lf-playground id="kind-playground">'
+                f'<lf-playground-control name="setting" label="Setting" {attributes}>'
+                "</lf-playground-control>"
+                "<lf-playground-preview><p>Preview</p></lf-playground-preview>"
+                "<lf-playground-output>Use this setting.</lf-playground-output>"
+                "</lf-playground></lf-ask>",
+                registry,
+            )
+        )
+
+    assert not errors('kind="range" value="-1.5" max="24"')
+    assert not errors('kind="toggle" value="false"')
+    assert not errors('kind="color" value="#A0b1c2"')
+    assert not errors('kind="text" value="yes"')
+    assert "'max' is a required property" in errors('kind="range" value="12"')
+    assert "does not match" in errors('kind="range" value="twelve" max="24"')
+    assert '"yes" is not one of ["true", "false"]' in errors(
+        'kind="toggle" value="yes"'
+    )
+    assert "does not match" in errors('kind="color" value="red"')
+
+
+def test_a_playground_names_its_controls_within_itself(tmp_path, initialized_page):
+    """A preset's setting and an instruction's value slot name a control of their
+    own playground by `name` (a keyed x-refers), and names, choice values and a
+    preset's settings are unique within their owner (x-unique). Both doors refuse a
+    break before any browser draws it: message markup, where a reply's playground
+    otherwise reaches the user with only a static check, and the page's own source."""
+    page_dir = initialized_page(tmp_path / "page", ("playground",))
+
+    def playground(ident, controls, presets="", output=""):
+        return (
+            f'<lf-playground id="{ident}">{controls}{presets}'
+            "<lf-playground-preview><p>Preview</p></lf-playground-preview>"
+            f"<lf-playground-output>Use {output}.</lf-playground-output>"
+            "</lf-playground>"
+        )
+
+    tone = (
+        '<lf-playground-control name="tone" label="Tone" kind="choice" value="quiet">'
+        '<lf-playground-choice value="quiet" label="Quiet"></lf-playground-choice>'
+        '<lf-playground-choice value="bold" label="Bold"></lf-playground-choice>'
+        "</lf-playground-control>"
+    )
+    size = (
+        '<lf-playground-control name="size" label="Size" kind="range" value="2" '
+        'max="4"></lf-playground-control>'
     )
 
-    errors = fragment_errors(markup, registry)
+    def preset(*names):
+        return (
+            '<lf-playground-preset label="Loud">'
+            + "".join(
+                f'<lf-playground-setting for="{name}" value="bold"></lf-playground-setting>'
+                for name in names
+            )
+            + "</lf-playground-preset>"
+        )
 
-    assert errors and "'max' is a required property" in " ".join(errors)
+    def slot(name):
+        return f'<lf-playground-value for="{name}"></lf-playground-value>'
+
+    def reply(*playgrounds):
+        markup = f'<lf-ask id="ask"><h2>Which?</h2>{"".join(playgrounds)}</lf-ask>'
+        try:
+            check_markup(page_dir, "reply", markup, [])
+        except Refused as refused:
+            return str(refused)
+        return ""
+
+    assert reply(playground("a", tone, preset("tone"), slot("tone"))) == ""
+    assert (
+        '<lf-playground-setting> (line 1): for="tine" names no '
+        '<lf-playground-control name="tine"> in its <lf-playground>'
+    ) in reply(playground("a", tone, preset("tine")))
+    # The name of a control in the playground beside it answers nothing here.
+    assert (
+        'for="size" names no <lf-playground-control name="size"> in its <lf-playground>'
+    ) in reply(playground("a", tone, output=slot("size")), playground("b", size))
+    assert 'name="tone" repeats the <lf-playground-control>' in reply(
+        playground("a", tone + tone.replace("Tone", "Again"))
+    )
+    assert 'value="bold" repeats the <lf-playground-choice>' in reply(
+        playground("a", tone.replace('"quiet" label', '"bold" label'))
+    )
+    assert 'for="tone" repeats the <lf-playground-setting>' in reply(
+        playground("a", tone, preset("tone", "tone"))
+    )
+
+    main = (
+        '<lf-ask id="ask"><h2>Which?</h2>'
+        + playground("a", tone + tone, output=slot("tone"))
+        + "</lf-ask>"
+    )
+    (page_dir / "index.html").write_text(
+        re.sub(r"<main>.*?</main>", f"<main>{main}</main>", PAGE, flags=re.DOTALL)
+    )
+    result = check(page_dir)
+    assert result.exit_code != 0
+    assert 'name="tone" repeats the <lf-playground-control>' in result.output
 
 
 def test_corpus_is_generated_from_the_examples():
@@ -727,7 +853,7 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace("</section>", subjects + "</section>")
     )
-    publish(page_dir, version=2)
+    publish(page_dir)
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "Act?"}
     )
@@ -789,15 +915,15 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     def question(decision_id, markup):
         return f'<lf-ask id="{decision_id}"><h2>Pick?</h2>{markup}</lf-ask>'
 
-    # `flow` is the page's lf-diagram id (PAGE fixture) — refused.
+    # `flag-first` is an option on the page (PAGE fixture) — refused.
     clash = reply(
         question(
-            "flow-decision",
-            '<lf-options id="flow" choose><lf-option id="o1"><strong>A</strong></lf-option></lf-options>',
+            "o-decision",
+            '<lf-options id="o" choose><lf-option id="flag-first"><strong>A</strong></lf-option></lf-options>',
         ),
         for_event="c1",
     )
-    assert clash.exit_code != 0 and "flow" in clash.output
+    assert clash.exit_code != 0 and "flag-first" in clash.output
     fresh = reply(
         question(
             "q1-decision",
@@ -1128,7 +1254,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
             root["id"],
             "--text",
             "Which store?",
-            "--question",
+            "--ask",
         ],
     )
     duplicate = CliRunner().invoke(
@@ -1147,7 +1273,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
                 '<lf-option id="store-a"><strong>A</strong></lf-option>'
                 "</lf-options></lf-ask>"
             ),
-            "--question",
+            "--ask",
         ],
     )
     aggregate = CliRunner().invoke(
@@ -1164,7 +1290,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
                 '<lf-test-tasks id="reply-plan"><lf-test-task id="reply-task" status="review">'
                 "<strong>Review</strong></lf-test-task></lf-test-tasks>"
             ),
-            "--question",
+            "--ask",
         ],
     )
     assert answered.exit_code == 0, answered.output
@@ -1173,9 +1299,9 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
     assert "reply markup already declares" in duplicate.output
     assert aggregate.exit_code == 0, aggregate.output
     replies = [e for e in events_model.read_events(page_dir) if e["kind"] == "reply"]
-    assert "question" not in replies[0]
-    assert replies[1]["question"] is True
-    assert replies[2]["question"] is True
+    assert "ask" not in replies[0]
+    assert replies[1]["ask"] is True
+    assert replies[2]["ask"] is True
 
 
 def test_an_agent_edits_predecessor_messages_without_rewriting_history(
@@ -1435,7 +1561,7 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
             response_reference(page_dir, again["id"]),
             "--text",
             "Which year goes first?",
-            "--question",
+            "--ask",
         ],
     )
     assert asking.exit_code == 0, asking.output
@@ -1600,7 +1726,7 @@ def test_markup_enters_only_through_the_cli_gate(server, page_dir):
     """The browser door refuses the field rather than silently dropping it: everything
     the log holds under `markup` has been through `check_markup`, which is what lets
     the thread structure and the panel index it unasked."""
-    publish(page_dir, version=1)
+    publish(page_dir)
     before = events_model.read_events(page_dir)
     status, body = fetch(
         f"{server}/api/event",
@@ -1621,7 +1747,7 @@ def test_markup_enters_only_through_the_cli_gate(server, page_dir):
 def test_export_prints_threads_and_versions(page_dir):
     # The heading is the page's title as a user sees it, entities and all.
     titled = (
-        PAGE.replace("<title>t</title>", "<title>Cutoff &amp; backfill</title>")
+        FLOW_PAGE.replace("<title>t</title>", "<title>Cutoff &amp; backfill</title>")
         .replace(
             '<lf-diagram id="flow">',
             '<lf-diagram id="flow" parts="node:A node:B">',

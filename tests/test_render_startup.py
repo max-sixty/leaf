@@ -43,6 +43,7 @@ from render_cases_interaction import (
     SUGGESTION_PAGE,
     executable_revision,
     live_url,
+    serve_interaction_gallery,
 )
 from render_cases_layout import (
     SHADOWED_DIFF,
@@ -118,7 +119,7 @@ DRAG_HELD = (
     "'/runtime/widget-elements.js')).dragHeld()"
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 VISUAL_ACTION_TIMING = """
@@ -334,7 +335,9 @@ def test_a_website_example_names_its_limited_agent(browser, serve):
     ) == ["/examples/", "/#install"]
     expect(page.locator(".lf-status-button .lf-publication-install")).to_have_count(0)
     expect(status).to_have_attribute("title", " ".join(status.text_content().split()))
-    expect(page.locator(".lf-banner .lf-dot")).to_have_class(re.compile(r"^lf-dot\s*$"))
+    assert page.locator(".lf-banner .lf-dot").evaluate("dot => [...dot.classList]") == [
+        "lf-dot"
+    ]
 
 
 @pytest.mark.parametrize("outcome", ["presented", "abandoned", "offline"])
@@ -1367,7 +1370,7 @@ def test_reading_regions_read_posture_from_the_stylesheet_and_announce_a_shift(
     page = open_page(browser, serve(SHORT_SUGGESTION))
     readings = page.evaluate(
         """async () => {
-          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const leaf = await window.__lfRuntimeImport('/runtime/reading-regions.js');
           const frames = () => new Promise(resolve =>
             requestAnimationFrame(() => requestAnimationFrame(resolve)));
           const main = document.querySelector('main');
@@ -1735,7 +1738,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
 
 def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     """Optional page interface preparation holds the first widget upgrade."""
-    url = serve(FEATURE_GALLERY)
+    url = serve_interaction_gallery(serve)
     held = []
     release_state = False
     page = browser.new_page(viewport={"width": 1440, "height": 900})
@@ -1800,7 +1803,9 @@ def test_playground_joins_initial_widget_settlement(browser, serve):
     expect(playground.locator(".lf-playground-actions")).to_be_visible()
     submit = playground.get_by_role("button", name="Create notification")
     expect(submit).to_be_disabled()
-    expect(page.locator(".lf-status-detail")).to_have_text(re.compile(r"^Connecting"))
+    expect(page.locator(".lf-status-detail")).to_have_text(
+        re.compile(r"^\s*Connecting")
+    )
 
     playground.get_by_role("button", name="Needs attention").click()
     compact = playground.get_by_role("switch", name="Compact spacing")
@@ -1812,7 +1817,7 @@ def test_playground_joins_initial_widget_settlement(browser, serve):
     expect(submit).to_be_enabled()
     expect(compact).to_be_checked()
     expect(page.locator(".lf-status-detail")).not_to_have_text(
-        re.compile(r"^Connecting")
+        re.compile(r"^\s*Connecting")
     )
 
 
@@ -2278,7 +2283,7 @@ def test_user_overrides_identify_state_that_differs_from_authored_inputs(
     page.wait_for_function("() => document.querySelector('.lf-banner') !== null")
     # A poll has run once the status text resolves, so the origin pass has too.
     page.wait_for_function(
-        "() => !document.querySelector('.lf-status-detail').textContent.startsWith('Connecting')"
+        "() => !document.querySelector('.lf-status-detail').textContent.trimStart().startsWith('Connecting')"
     )
     expect(page.locator("[data-lf-user-override]")).to_have_count(0)
 
@@ -2350,6 +2355,36 @@ def test_the_diff_marks_a_card_the_author_relocated(browser, serve):
     assert not page.evaluate(
         "document.getElementById('card-x-note').classList.contains('lf-ins-block')"
     ), "the card's passenger marked as its own move"
+
+
+def test_the_diff_marks_the_card_the_author_reordered_and_no_other(browser, serve):
+    """A card moved within its column changes no words and no column, and the state
+    half still marks it. Only the card whose move explains the new order is marked:
+    the cards it passed kept their order among themselves."""
+    cards = {
+        name: f'<lf-card id="card-{name}"><strong>{name.title()}</strong></lf-card>'
+        for name in ("y", "z")
+    }
+    v1 = JOURNEY_V1.replace(_CARD, _CARD + cards["y"] + cards["z"])
+    url = serve(v1)
+    _publish(
+        serve.page_dir,
+        2,
+        JOURNEY_V1.replace(_CARD, cards["y"] + cards["z"] + _CARD),
+        "moved card x to the end",
+    )
+    page = open_page(browser, url.replace("v1.html", "v2.html"))
+    compare_with(page)
+    page.wait_for_function(
+        "() => document.getElementById('card-x').classList.contains('lf-ins-block')"
+    )
+    assert (
+        page.evaluate(
+            "['card-y', 'card-z'].filter(id =>"
+            " document.getElementById(id).classList.contains('lf-ins-block'))"
+        )
+        == []
+    )
 
 
 def test_accepting_a_suggestion_resolves_its_thread_in_one_event(browser, serve):
@@ -2616,6 +2651,39 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
     assert page.evaluate("() => !!customElements.get('lf-board')")
 
 
+def test_composers_take_their_fields_when_they_first_open(browser, serve):
+    """The comment composer and the page comment card hold no field on the page until
+    each first opens, since a field on the page builds its editor
+    (composing/selection.js, thread/page-comment.js). Each open places its field in the
+    same turn, so the words typed straight after it land there, and a draft kept from
+    before a reload reaches the field when its composer opens again."""
+    page = open_page(browser, serve(LONG_PAGE))
+    card_box = page.locator(".lf-page-comment-card leaf-text")
+    composer_box = page.locator("#lf-composer leaf-text")
+    expect(card_box).to_have_count(0)
+    expect(composer_box).to_have_count(0)
+
+    page.keyboard.press("c")
+    page.keyboard.type("Words for the page")
+    expect(card_box).to_be_focused()
+    expect(card_box).to_have_js_property("value", "Words for the page")
+    page.keyboard.press("Escape")
+
+    box = page.locator("#p10").bounding_box()
+    select(page, (box["x"] + 4, box["y"] + 6), (box["x"] + 150, box["y"] + 6))
+    page.keyboard.press("c")
+    expect(composer_box).to_be_focused()
+    page.keyboard.type("Words for the passage")
+    expect(composer_box).to_have_js_property("value", "Words for the passage")
+
+    page.reload()
+    wait_until_ready(page)
+    expect(composer_box).to_have_js_property("value", "Words for the passage")
+    expect(card_box).to_have_count(0)
+    page_comment(page)
+    expect(card_box).to_have_js_property("value", "Words for the page")
+
+
 def test_diagrams_load_one_renderer_bundle_when_they_draw(browser, serve):
     """The page's six diagram types share one lazy module import and one vendored file."""
     context = browser.new_context(viewport={"width": 1280, "height": 800})
@@ -2645,9 +2713,7 @@ def test_floating_ui_loads_after_the_page_presents(browser, serve):
 
     context.route("**/vendor/floating-ui.esm.js", hold)
     try:
-        page = open_page(
-            browser, serve(FEATURE_GALLERY), context=context, upgraded=False
-        )
+        page = open_page(browser, serve(LONG_PAGE), context=context, upgraded=False)
         wait_until_ready(page, through="presented")
         holding(page, held, 1, "the positioning module")
         assert (
@@ -2657,7 +2723,6 @@ def test_floating_ui_loads_after_the_page_presents(browser, serve):
             == "arrived"
         )
     finally:
-        # The gallery's live samples are pages of their own, each fetching it too.
         released = True
         while held:
             held.pop().continue_()
@@ -2698,7 +2763,7 @@ def test_comment_focus_waits_for_the_lazy_placement_module(browser, serve):
 
 def test_an_unavailable_floating_ui_module_withdraws_the_response(browser, serve):
     """A failed lazy module cannot leave a hidden live composer holding focus."""
-    url = serve(FEATURE_GALLERY)
+    url = serve(LONG_PAGE)
     page = browser.new_page(viewport={"width": 1280, "height": 800})
     watched(page)
     page.route("**/vendor/floating-ui.esm.js", lambda route: route.abort())
@@ -2706,7 +2771,7 @@ def test_an_unavailable_floating_ui_module_withdraws_the_response(browser, serve
     wait_until_ready(page)
 
     with page.expect_event("pageerror") as raised:
-        page.locator("#bg-react-ok").click(modifiers=["Alt"])
+        page.locator("#p3").click(modifiers=["Alt"])
     assert "Failed to fetch dynamically imported module" in str(raised.value)
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     expect(page.locator(".lf-composer")).to_be_hidden()
@@ -2720,7 +2785,7 @@ def test_an_unavailable_floating_ui_module_withdraws_the_response(browser, serve
 
 def test_an_unavailable_floating_ui_module_closes_the_thread_card(browser, serve):
     """A card that cannot be placed closes rather than standing open and unseen."""
-    url = serve(FEATURE_GALLERY)
+    url = serve(LONG_PAGE, anchored=[("p1", "Paragraph 1.")])
     page = browser.new_page(viewport={"width": 1440, "height": 900})
     watched(page)
     page.route("**/vendor/floating-ui.esm.js", lambda route: route.abort())
@@ -2844,8 +2909,9 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
 def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serve):
     """Sequence order is judged again after the lazy Markdown import. A newer POST
     response can enter that await before an older held poll; when the shared import
-    finishes, the older continuation must not repaint the log backwards. A composer
-    starts that import as it mounts, so the module is held from navigation onward."""
+    finishes, the older continuation must not repaint the log backwards. The test
+    starts that import before either state arrives, as an editor that is shown does,
+    and holds it."""
     marked = []
     page = open_page(
         primed(
@@ -2858,6 +2924,10 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
     )
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
+    page.evaluate(
+        "() => { window.__lfRuntimeImport('/runtime/markdown.js')"
+        ".then((markdown) => markdown.loadMarkdown()); }"
+    )
     holding(page, marked, 1, "the Markdown module")
     assert len(marked) == 1
 
@@ -3094,7 +3164,7 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     second = first.fetch().json()
     with page.expect_request("**/api/state*"):
         first.fulfill(json=second)
-    expect(text).to_have_text(re.compile(r"^Agent is working — second"))
+    expect(text).to_have_text(re.compile(r"^\s*Agent is working — second"))
     assert len(held) == 2
 
     trailing = held[1]
@@ -3104,7 +3174,7 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     third = trailing.fetch().json()
     trailing.fulfill(json=third)
     told(page)
-    expect(text).to_have_text(re.compile(r"^Agent is working — third"))
+    expect(text).to_have_text(re.compile(r"^\s*Agent is working — third"))
 
 
 def test_a_state_read_timing_out_during_its_body_is_offline(browser, serve):
@@ -3552,8 +3622,8 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     expect(page.locator(".lf-status-queues")).to_have_text("Tasks: 2")
     expect(text).to_have_text(
         re.compile(
-            r"^Claude is working — revising the plan \(.+\)\. 1 response owed on updates awaiting delivery\."
-            r" Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
+            r"^\s*Claude is working — revising the plan \(.+\)\. 1 response owed on updates awaiting delivery\."
+            r" Waiting on Claude: 1 reply, 1 to-do \(Work on the page\)\.\s*$"
         )
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -3573,8 +3643,8 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     told(page)
     expect(text).to_have_text(
         re.compile(
-            r"^Claude is working — revising the plan \(.+\)\. "
-            r"1 response owed on queued updates\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
+            r"^\s*Claude is working — revising the plan \(.+\)\. "
+            r"1 response owed on queued updates\. Waiting on Claude: 1 reply, 1 to-do \(Work on the page\)\.\s*$"
         )
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -3590,7 +3660,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     expect(summary).to_have_text("Claude working — picked up your comment")
     expect(text).to_have_text(
         re.compile(
-            r"^Claude picked up your comment and hasn't said what it's doing yet"
+            r"^\s*Claude picked up your comment and hasn't said what it's doing yet"
         )
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -3615,8 +3685,8 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         # work declaration continues to describe what the agent is doing overall.
         expect(text).to_have_text(
             re.compile(
-                r"^Claude is working — revising the plan \(.+\)\. "
-                r"1 response owed on updates awaiting delivery\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
+                r"^\s*Claude is working — revising the plan \(.+\)\. "
+                r"1 response owed on updates awaiting delivery\. Waiting on Claude: 1 reply, 1 to-do \(Work on the page\)\.\s*$"
             )
         )
         expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -3634,8 +3704,8 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         expect(summary).to_have_text("Claude using a tool — revising the plan")
         expect(text).to_have_text(
             re.compile(
-                r"^Claude is using a tool — revising the plan \(.+\) · "
-                r"Running the tests\. 1 response owed on updates awaiting delivery\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
+                r"^\s*Claude is using a tool — revising the plan \(.+\) · "
+                r"Running the tests\. 1 response owed on updates awaiting delivery\. Waiting on Claude: 1 reply, 1 to-do \(Work on the page\)\.\s*$"
             )
         )
         expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -3659,7 +3729,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         declare("working", "revising the plan", quiet_for=20 * 60)
         expect(text).to_have_text(
             "Claude last checked in 20m ago: revising the plan. Your updates are saved."
-            " Waiting on Claude: 1 reply, 1 task (Work on the page)."
+            " Waiting on Claude: 1 reply, 1 to-do (Work on the page)."
         )
         expect(dot).to_have_class(re.compile(r"\baway\b"))
 
@@ -3675,7 +3745,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         declare("working", "revising the plan", quiet_for=6 * 60, turn_ended=5 * 60)
         expect(text).to_have_text(
             "Claude’s turn ended 5m ago: revising the plan."
-            " Your updates are saved. Waiting on Claude: 1 reply, 1 task (Work on the page)."
+            " Your updates are saved. Waiting on Claude: 1 reply, 1 to-do (Work on the page)."
         )
         expect(dot).to_have_class(re.compile(r"\baway\b"))
 
@@ -3688,7 +3758,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         declare("working", "revising the plan", quiet_for=5 * 60, turn_ended=5 * 60)
         expect(text).to_have_text(
             "Claude’s turn ended 5m ago: revising the plan."
-            " Your updates are saved. Waiting on Claude: 1 reply, 1 task (Work on the page)."
+            " Your updates are saved. Waiting on Claude: 1 reply, 1 to-do (Work on the page)."
         )
 
         # A turn that has only just ended still holds it. An agent that ends its turn
@@ -3696,7 +3766,9 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         # or the user, and with no margin the page would report every such gap as
         # an abandonment and take it back again.
         declare("working", "revising the plan", quiet_for=60, turn_ended=30)
-        expect(text).to_have_text(re.compile(r"^Claude is working — revising the plan"))
+        expect(text).to_have_text(
+            re.compile(r"^\s*Claude is working — revising the plan")
+        )
         expect(dot).to_have_class(re.compile(r"\bworking\b"))
 
         # And a status written after the turn closed carries the claim past the ending
@@ -3704,7 +3776,9 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         # the closed turn's to answer for, and the rope above is what judges it from
         # there.
         declare("working", "revising the plan", quiet_for=60, turn_ended=5 * 60)
-        expect(text).to_have_text(re.compile(r"^Claude is working — revising the plan"))
+        expect(text).to_have_text(
+            re.compile(r"^\s*Claude is working — revising the plan")
+        )
 
         # What the page wants back, in the agent's words, where the user arrives.
         # The whole line is the tooltip too: it is the first thing on the row to be
@@ -3735,7 +3809,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     declare("working", "running the migration", quiet_for=6 * 60, turn_ended=5 * 60)
     expect(text).to_have_text(
         "Claude isn't watching right now. Your updates are saved."
-        " It picks them up next turn. Waiting on Claude: 1 reply, 1 task (Work on the page)."
+        " It picks them up next turn. Waiting on Claude: 1 reply, 1 to-do (Work on the page)."
     )
     expect(dot).to_have_class(re.compile(r"\baway\b"))
 
@@ -3756,7 +3830,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     expect(text).to_have_text(
         "Claude’s turn ended 5m ago. Your updates are saved."
         " Nothing is answering them, so nudge it in the terminal."
-        " Waiting on Claude: 2 replies, 1 task (Work on the page)."
+        " Waiting on Claude: 2 replies, 1 to-do (Work on the page)."
     )
     expect(summary).to_have_text("Nudge Claude in terminal")
     expect(dot).to_have_class(re.compile(r"\baway\b"))
@@ -3764,33 +3838,37 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     # Claude's own status gets a far longer rope: the same silence is just a long turn.
     # No turn has closed under this claim, so the rope is the whole of what judges it.
     declare("working", "running the migration", quiet_for=10 * 60)
-    expect(text).to_have_text(re.compile(r"^Claude is working — running the migration"))
+    expect(text).to_have_text(
+        re.compile(r"^\s*Claude is working — running the migration")
+    )
 
     # A dead session needs no timeout at all — the owning pid is simply gone, so the
     # claim it left has nothing behind it however lately it was written.
     declare("working", "running the migration", session_pid=dead_pid)
     expect(text).to_have_text(
-        UNHELD + " Waiting on Claude: 2 replies, 1 task (Work on the page)."
+        UNHELD + " Waiting on Claude: 2 replies, 1 to-do (Work on the page)."
     )
     expect(summary).to_have_text("No session")
     # Grey, not the amber a session falling behind wears: nobody is on the line, which
     # is a page's reading arrangement rather than something for the user to chase.
-    expect(dot).to_have_class(re.compile(r"^lf-dot\s*$"))
+    assert dot.evaluate("dot => [...dot.classList]") == ["lf-dot"]
 
     # Nothing ever claimed the page — a server started outside an agent harness. There is
     # no pid to ask after, so a claim made moments ago is evidence and still stands.
     declare("working", "running the migration", claimed=False)
-    expect(text).to_have_text(re.compile(r"^Agent is working — running the migration"))
+    expect(text).to_have_text(
+        re.compile(r"^\s*Agent is working — running the migration")
+    )
 
     # Once that claim goes quiet there is nothing left holding the page, and an hour of
     # silence on a page that stands for weeks is not a fault to report.
     declare("working", "running the migration", quiet_for=60 * 60, claimed=False)
     expect(text).to_have_text(
-        UNHELD + " Waiting on Agent: 2 replies, 1 task (Work on the page)."
+        UNHELD + " Waiting on Agent: 2 replies, 1 to-do (Work on the page)."
     )
 
     declare("working", "revising the plan", agent="Codex")
-    expect(text).to_have_text(re.compile(r"^Codex is working — revising the plan"))
+    expect(text).to_have_text(re.compile(r"^\s*Codex is working — revising the plan"))
 
     declare("idle")
     expect(text).to_have_text("Page closed. Waiting on Claude: 2 replies.")
@@ -3819,7 +3897,7 @@ def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
 
     claim("running the migration")
     expect(text).to_have_text(
-        re.compile(r"^Claude is working — running the migration \(just now\)\.")
+        re.compile(r"^\s*Claude is working — running the migration \(just now\)\.")
     )
 
     # An hour fast. A fixed time rather than an installed clock, so the page's own
@@ -3829,7 +3907,7 @@ def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
     # clock moved: an unchanged sentence would pass on the render before it.
     claim("waiting on the shard")
     expect(text).to_have_text(
-        re.compile(r"^Claude is working — waiting on the shard \(just now\)\.")
+        re.compile(r"^\s*Claude is working — waiting on the shard \(just now\)\.")
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
 
@@ -3896,7 +3974,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(other_workflow).to_have_text("Sent")
     expect(page.locator(".lf-status-detail")).to_have_text(
         "Claude picked up your comment and hasn't said what it's doing yet"
-        " (just now). 1 response owed on updates awaiting delivery. Waiting on Claude: 2 replies, 1 task"
+        " (just now). 1 response owed on updates awaiting delivery. Waiting on Claude: 2 replies, 1 to-do"
         " (Work on the page)."
     )
     expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
@@ -3916,8 +3994,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         " (just now). 1 response owed on updates awaiting delivery. Waiting on Claude: 2 replies."
     )
 
-    with service_model.PageTransaction(d) as transaction:
-        transaction.close_turn("s")
+    cleanup_model.close_session_turn("s")
     told(page)
     expect(held_workflow).to_have_text("Turn ended")
     expect(held_thread).not_to_have_attribute(
@@ -3931,8 +4008,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         "Nothing is answering them, so nudge it in the terminal."
         " Waiting on Claude: 2 replies."
     )
-    with service_model.PageTransaction(d) as transaction:
-        transaction.open_turn("s")
+    cleanup_model.open_session_turn("s")
 
     def start(item, line):
         started = CliRunner().invoke(
@@ -4009,7 +4085,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     working(d, "drafting v2")
     told(page)
     expect(page.locator(".lf-status-detail")).to_have_text(
-        re.compile(r"^Claude is working — drafting v2")
+        re.compile(r"^\s*Claude is working — drafting v2")
     )
     expect(held_workflow).to_have_count(1)
     expect(held_workflow).to_have_attribute(
@@ -4038,8 +4114,22 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     )
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
 
-    # Once the answer has settled the input, renewed work is a task on the thread,
-    # shown in the compact card. It does not invent an unasked message workflow.
+    # Once the answer has settled the input, renewed work is promised in a new
+    # thread reply rather than opened without a message.
+    promised = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            str(d),
+            held,
+            "--text",
+            "I'll re-run it against the rolling deploy.",
+            "--todo",
+            "Re-run against the rolling deploy",
+        ],
+    )
+    assert promised.exit_code == 0, promised.output
     working(d, "re-running it against the rolling deploy", subject=held)
     told(page)
     expect(held_workflow).to_have_count(0)
@@ -4071,9 +4161,9 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     record_claim(d, id="s", pid=dead_pid)
     told(page)
     expect(page.locator(".lf-status-detail")).to_have_text(
-        re.compile(r"^No session holds this page\.")
+        re.compile(r"^\s*No session holds this page\.")
     )
-    expect(held_thread.locator(".lf-thread-status")).to_have_text("Task open")
+    expect(held_thread.locator(".lf-thread-status")).to_have_text("To-do open")
     expect(workflows).to_have_count(1)
 
 
@@ -4106,7 +4196,7 @@ def test_feature_gallery_workflow_and_banner_share_agent_activity(browser, serve
     # The gallery's own queues end the disclosure, after the activity it shares.
     expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(
-            r"^Claude is working — Writing the page \(just now\)\. Waiting on you"
+            r"^\s*Claude is working — Writing the page \(just now\)\. Waiting on you"
         )
     )
 
@@ -4116,7 +4206,7 @@ def test_feature_gallery_workflow_and_banner_share_agent_activity(browser, serve
     expect(workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(
-            r"^Claude picked up your comment and hasn't said what it's doing yet"
+            r"^\s*Claude picked up your comment and hasn't said what it's doing yet"
             r" \(just now\)\. Waiting on you"
         )
     )
@@ -4137,7 +4227,7 @@ def test_ended_pickup_preserves_the_declared_invitation_in_banner_and_leaves(
     with live_watcher(page_dir, page):
         with service_model.PageTransaction(page_dir) as transaction:
             delivery_model.record_pickup(transaction, [comment])
-            transaction.close_turn(claim["id"])
+            cleanup_model.close_session_turn(claim["id"])
         result = CliRunner().invoke(
             cli_model.cli,
             ["status", str(page_dir), "waiting", "pick a storage engine"],
@@ -4335,7 +4425,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
     # The page's own line is as fresh as it was, which is the whole case: this is one
     # claim going quiet beside a live one, not a page that has gone quiet all over.
     expect(page.locator(".lf-status-detail")).to_have_text(
-        re.compile(r"^Agent is working — rerunning the failing shard")
+        re.compile(r"^\s*Agent is working — rerunning the failing shard")
     )
     expect(work_line).to_have_text("Update stale")
     expect(work_line).to_have_attribute(
@@ -4366,7 +4456,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
         )
     )
     expect(page.locator(".lf-status-detail")).to_have_text(
-        re.compile(r"^Claude is working — rerunning the failing shard")
+        re.compile(r"^\s*Claude is working — rerunning the failing shard")
     )
     expect(work_line).to_have_text("Update stale")
     expect(work_line.locator("time")).to_have_count(0)
@@ -5676,10 +5766,9 @@ export default class extends HTMLElement {
     )
     thread_model.post_reply(
         serve.page_dir,
-        "question",
+        {"to": "question", "for": "question"},
         "Frozen feed.",
         '<lf-object-feed id="thread-feed" source="shared"></lf-object-feed>',
-        for_event="question",
     )
     data_model.cmd_data_set(serve.page_dir, "shared", ["same bytes"])
     page = open_page(browser, url)
@@ -6352,17 +6441,14 @@ def test_data_readiness_does_not_wait_for_an_unrelated_widget_region(browser, se
           const unrelated = attachApplicationPresentation(
             'widget:unrelated:render', document.body,
           );
-          let release;
-          const held = unrelated.present(
-            'held', new Promise(resolve => { release = resolve; }),
-          );
+          const held = unrelated.present('held');
           let ready = false;
           const data = notifyDataSubscribers().then(() => { ready = true; });
           await Promise.resolve();
           await new Promise(resolve => setTimeout(resolve, 0));
           const beforeRelease = ready;
-          release();
-          await Promise.all([held, data]);
+          held.resolve();
+          await Promise.all([held.ready, data]);
           unrelated.disconnect();
           return beforeRelease;
         }"""

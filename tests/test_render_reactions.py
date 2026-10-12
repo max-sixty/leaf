@@ -28,7 +28,6 @@ from render_cases_widgets import (
     PART_DIAGRAM_PAGE,
 )
 from render_harness import (
-    FEATURE_GALLERY,
     RELEASE_FOCUS,
     ROOT,
     accessible_details,
@@ -49,7 +48,7 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 MARGIN_RESPONSES = '[data-lf-margin-entry-owner="responses"]'
 
@@ -325,13 +324,31 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     assert painted(page, []) == {"washed": "", "glyphs": [], "projected": 0}
 
 
-def test_e_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, serve):
+# A passage carrying the user's standing reaction, and its neighbour without one.
+REACTED_PAGE = leaf_page(
+    "reacted",
+    """
+<h1 id="title">Front desk</h1>
+<p id="react-ok"><strong>Keep.</strong> The spare key is with reception.</p>
+<p id="react-no"><strong>Change.</strong> This sample claims Tuesday follows Thursday.</p>
+""",
+)
+KEEP_REACTION = {
+    "kind": "comment",
+    "author": "user",
+    "revision": 1,
+    "token": "keep",
+    "anchor": {"section": "react-ok"},
+}
+
+
+def test_e_immediately_opens_a_passages_reactions_and_digit_chooses(browser, serve):
     """The shortcut unfolds the comment's reactions before digits become live."""
-    page = open_page(browser, serve(FEATURE_GALLERY))
-    settled = page.locator('[data-lf-margin-for="bg-react-ok"]').get_by_role(
+    page = open_page(browser, serve(REACTED_PAGE, events=(KEEP_REACTION,)))
+    settled = page.locator('[data-lf-margin-for="react-ok"]').get_by_role(
         "button", name="keep reaction actions", exact=True
     )
-    with sending(page, "the withdrawal the gallery opens on"):
+    with sending(page, "the withdrawal the page opens on"):
         settled.click()
         page.locator('[aria-label="Remove keep reaction"]:visible').click()
     # The withdrawal applied, and not merely delivered, before the raise below stands its
@@ -340,7 +357,7 @@ def test_e_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, se
     # is exactly what disarms the response mode the digit below is pressed into: the
     # press then reaches nothing, and the read finds the withdrawal still last in the log.
     told(page)
-    select_paragraph(page, "#bg-react-ok")
+    select_paragraph(page, "#react-ok")
     page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("e")
 
@@ -356,7 +373,7 @@ def test_e_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, se
         page.keyboard.press("2")
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["kind"] == "comment" and sent["token"] == "change"
-    assert sent["anchor"]["section"] == "bg-react-ok"
+    assert sent["anchor"]["section"] == "react-ok"
 
 
 def test_comment_reaction_digits_stop_at_nine_for_a_larger_vocabulary(browser, serve):
@@ -503,7 +520,7 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve, s
     face = """node => {
       const style = getComputedStyle(node);
       return {fill: style.backgroundColor, border: style.borderTopColor,
-              shadow: style.boxShadow};
+              outline: style.outlineStyle, ring: style.outlineColor};
     }"""
     page.mouse.move(0, 0)
     resting_face = reaction.evaluate(face)
@@ -514,7 +531,8 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve, s
         page.keyboard.press("ArrowRight")
         focused = surface.locator(f'[data-token="{token}"]')
         expect(focused).to_be_focused()
-        assert focused.evaluate(face)["shadow"] != resting_face["shadow"]
+        assert focused.evaluate(face)["outline"] == "solid"
+        assert focused.evaluate(face)["ring"] != resting_face["ring"]
     expect(page.locator(".lf-walk-position")).to_have_text("Response 7 of 7")
     page.keyboard.press("ArrowRight")
     expect(surface.get_by_role("button", name="Suggest", exact=True)).to_be_focused()
@@ -578,8 +596,9 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve, s
 
 def test_a_target_hint_opens_comment_and_a_token_seats_only_its_glyph(browser, serve):
     """Keyboard target choosing opens Comment. Choosing a token puts an
-    element anchor in the log, which paints a glyph seated at the element's first line
-    and nothing on the element itself: a contour is for a moment, not a standing fact."""
+    element anchor in the log, which paints a glyph seated at the element's first line.
+    The returned focus rings the element until focus leaves; the reaction adds no
+    standing contour to it."""
     page = open_page(browser, serve(TARGETS_PAGE))
     page.keyboard.type(hint_code(page, "#prose", 3))
     bar = page.locator(".lf-fab-bar")
@@ -593,6 +612,10 @@ def test_a_target_hint_opens_comment_and_a_token_seats_only_its_glyph(browser, s
     assert sent["token"] == "prioritize" and sent["anchor"] == {"section": "prose"}
     shown = painted(page, [["prose", "prioritize"]])
     assert shown["projected"] == 0 and shown["washed"] == "", shown
+    expect(page.locator("#prose")).to_be_focused()
+    expect(page.locator("#prose")).to_have_attribute("data-lf-focus", "")
+    expect(page.locator("#prose")).to_have_css("outline-style", "solid")
+    page.evaluate(RELEASE_FOCUS)
     expect(page.locator("#prose")).to_have_css("outline-style", "none")
 
 
@@ -783,10 +806,7 @@ def test_the_fold_a_put_down_takes_back_does_not_take_the_users_focus(browser, s
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])
 def test_a_focused_response_choice_wears_the_layer_s_band(browser, serve, scheme):
-    """The response bar casts its focus ring as a shadow, and cast it at a quarter of
-    the accent: a faint 2px halo, all but invisible in dark, where every other control
-    the keyboard stands on wears the solid band. The shadow is the band's own token,
-    ink and all, so the two carriers cannot drift apart."""
+    """The response choice shares the comment field's solid accent focus ring."""
     page = open_page(browser, serve(PANEL_PAGE), color_scheme=scheme)
     select_paragraph(page, "#how-cap")
     expect(page.locator(".lf-fab-bar")).to_be_visible()
@@ -806,11 +826,15 @@ def test_a_focused_response_choice_wears_the_layer_s_band(browser, serve, scheme
       ink.remove();
       const band = getComputedStyle(document.documentElement)
         .getPropertyValue('--focus-ring-w').trim();
-      return {shadow: getComputedStyle(node).boxShadow, accent, band};
+      const style = getComputedStyle(node);
+      return {outline: style.outlineStyle, color: style.outlineColor,
+              width: style.outlineWidth, accent, band};
     }""")
-    assert ring["shadow"].startswith(f"{ring['accent']} 0px 0px 0px {ring['band']}"), (
-        ring
-    )
+    assert (ring["outline"], ring["color"], ring["width"]) == (
+        "solid",
+        ring["accent"],
+        ring["band"],
+    ), ring
 
 
 def test_the_response_choices_stay_reachable_beside_the_panel(browser, serve):
@@ -1422,7 +1446,7 @@ graph LR
     expect(start).to_have_class(re.compile(r"\blf-pending\b"))
     expect(page.locator("#flow")).not_to_have_class(re.compile(r"\blf-pending\b"))
     page.keyboard.press("Escape")
-    expect(control).to_be_focused()
+    expect(start).to_be_focused()
 
 
 def test_a_visual_fallback_yields_to_stable_targets_inside_the_picture(browser, serve):
@@ -1640,20 +1664,18 @@ def test_a_declared_visual_part_can_raise_the_same_bar_from_the_keyboard(
     assert "comment" in line and "other responses" in line
     assert "unselect" not in line
 
+    # Escape hands the user back to the part itself, not the proxy they pressed:
+    # focused, a proxy's face stands under the banner, away from the drawing.
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
-    expect(control).to_be_focused()
+    expect(start).to_be_focused()
 
 
 @pytest.mark.parametrize("entry", ["keyboard", "aim"])
-@pytest.mark.parametrize("proxy_hidden", [False, True])
-def test_one_semantic_visual_target_gets_one_keyboard_proxy(
-    browser, serve, proxy_hidden, entry
-):
+def test_one_semantic_visual_target_gets_one_keyboard_proxy(browser, serve, entry):
     """Sibling anonymous pictures under one authored item are one durable target.
-    Keyboard and pointer entry share that proxy as their Escape parent, falling
-    back to the visible subject when the proxy is hidden."""
+    Proxy and pointer entry share that item as their Escape parent."""
     page_markup = leaf_page(
         "picture gallery",
         """
@@ -1676,10 +1698,8 @@ def test_one_semantic_visual_target_gets_one_keyboard_proxy(
     else:
         page.locator("#gallery svg").first.click(modifiers=["Alt"])
     expect(page.locator(".lf-fab-bar")).to_be_visible()
-    if proxy_hidden:
-        control.evaluate("node => node.hidden = true")
     page.keyboard.press("Escape")
-    expect(page.locator("#gallery") if proxy_hidden else control).to_be_focused()
+    expect(page.locator("#gallery")).to_be_focused()
 
 
 def landed(page):
@@ -1734,11 +1754,13 @@ def test_a_drawing_names_its_proxies_and_keeps_its_place_among_the_page(browser,
     )
 
 
-def test_a_bar_re_placed_by_its_own_controls_still_hands_back_the_proxy(browser, serve):
+def test_a_bar_re_placed_by_its_own_controls_still_hands_back_its_subject(
+    browser, serve
+):
     """Opening the bar's other responses re-places it on the anchor already standing. That
     is the same gesture continuing, not a fresh one that stood the user nowhere, so the
-    way out still ends on the proxy the bar was opened from — as it does for a user who
-    goes straight back out."""
+    way out still ends on the bar's subject — as it does for a user who goes straight
+    back out."""
     page_markup = leaf_page(
         "picture gallery",
         """
@@ -1764,7 +1786,7 @@ def test_a_bar_re_placed_by_its_own_controls_still_hands_back_the_proxy(browser,
 
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
-    assert landed(page) == "lf-visual-action", landed(page)
+    assert landed(page) == "gallery", landed(page)
 
 
 def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser, serve):
@@ -1839,9 +1861,8 @@ def test_a_visual_proxy_keeps_user_standing_across_provider_updates(browser, ser
     page.mouse.up()
     expect(page.locator(".lf-fab-input")).to_be_focused()
     page.keyboard.press("Escape")
-    assert page.evaluate(
-        "() => document.activeElement === window.lfRetainedVisualControl"
-    )
+    expect(page.locator('#flow g[data-id="S"]')).to_be_focused()
+    page.evaluate("() => window.lfRetainedVisualControl.focus()")
 
     page.evaluate(
         """() => {
@@ -2021,10 +2042,14 @@ def test_dragging_a_diagram_label_keeps_the_passage_and_plain_click_dismisses_it
     )
 
     expect(page.locator(".lf-fab-bar")).to_be_visible()
-    assert "Start request" in pending_text(page)
+    # Mermaid may wrap the label across lines. The drag targets one visual line,
+    # so the browser's native selection is the passage this gesture must keep.
+    selected = " ".join(page.evaluate("() => getSelection().toString()").split())
+    assert selected
+    assert selected in pending_text(page)
     expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
     expect(page.locator(".lf-fab-bar")).to_have_attribute(
-        "aria-label", re.compile("Start request")
+        "aria-label", re.compile(re.escape(selected))
     )
 
     # Repeating the same drag still counts as a selection gesture even though the final
@@ -2037,9 +2062,10 @@ def test_dragging_a_diagram_label_keeps_the_passage_and_plain_click_dismisses_it
     )
     # The repeated drag remains a native selection and restores its response surface.
     page.wait_for_function(
-        "() => [...(CSS.highlights.get('lf-pending') ?? [])].some(r => r.toString().includes('Start request'))"
+        "text => [...(CSS.highlights.get('lf-pending') ?? [])].some(r => r.toString().includes(text))",
+        arg=selected,
     )
-    assert "Start request" in pending_text(page)
+    assert selected in pending_text(page)
     expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
 
     # Plain click keeps its native meaning: it collapses the selection and the response
@@ -2091,22 +2117,23 @@ def test_the_response_surface_preserves_a_backward_drag(browser, serve):
 
 @pytest.mark.parametrize("entry", ["keyboard", "aim"])
 def test_a_reaction_returns_focus_to_the_visual_target(browser, serve, entry):
-    """A completed action returns to the current proxy for its target, regardless
-    of keyboard or pointer entry, instead of remaining in a hidden action bar."""
+    """A completed action returns to its target, regardless of keyboard or pointer
+    entry, instead of remaining in a hidden action bar."""
     page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     control = page.get_by_role("button", name="Respond to Start request")
+    part = page.locator('#flow g[data-id="S"]')
     if entry == "keyboard":
         control.focus()
         page.keyboard.press("Enter")
     else:
-        page.locator('#flow g[data-id="S"]').click(modifiers=["Alt"])
+        part.click(modifiers=["Alt"])
     expect(page.locator(".lf-fab-input")).to_be_focused()
     page.keyboard.press("Tab")
     page.keyboard.press("1")
     round_trip(page)
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
-    expect(control).to_be_focused()
-    control.evaluate("node => { window.lfReturnedVisualControl = node; }")
+    expect(part).to_be_focused()
+    part.evaluate("node => { window.lfReturnedVisualTarget = node; }")
     page.evaluate(
         """() => new Promise(resolve => {
           document.dispatchEvent(new CustomEvent('lf-layout'));
@@ -2114,8 +2141,8 @@ def test_a_reaction_returns_focus_to_the_visual_target(browser, serve, entry):
         })"""
     )
     assert page.evaluate(
-        """() => window.lfReturnedVisualControl.isConnected &&
-          document.activeElement === window.lfReturnedVisualControl"""
+        """() => window.lfReturnedVisualTarget.isConnected &&
+          window.lfReturnedVisualTarget.matches(':focus')"""
     )
 
 
@@ -2614,7 +2641,7 @@ def _thread(page_dir):
             "agent": "Claude",
             "parent": root,
             "text": "Forty is what the slowest device we ship on can hold.",
-            "question": True,
+            "ask": True,
         },
     )
     return root, reply["id"]
@@ -2737,11 +2764,7 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 0")
 
     thread_model.post_reply(
-        serve.page_dir,
-        reaction["id"],
-        "Which part — the case, or the answer?",
-        "",
-        for_event=None,
+        serve.page_dir, {"to": reaction["id"]}, "Which part — the case, or the answer?"
     )
     told(page)
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 1")
@@ -2780,17 +2803,14 @@ def test_a_reply_s_reactions_keep_their_keys_in_a_covering_threads_panel(
     what stands inside it. The reaction mode stood nowhere, so every one of its rows fell
     below the panel's floor: an arrow reached no row, read as a stray key, and closed the
     list the user was walking. The open list is where the mode stands."""
-    page = open_page(browser, serve(FEATURE_GALLERY))
+    url = serve(PANEL_PAGE)
+    _, reply = _thread(serve.page_dir)
+    page = open_page(browser, url)
     resized(page, 390, 844)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    # The reply strip that shows is in the panel; the page's own strips stand under it.
-    page.evaluate(
-        """() => [...document.querySelectorAll('.lf-react-strip.lf-open')]
-          .findLast((strip) => strip.checkVisibility())
-          .setAttribute('data-test-strip', '')"""
-    )
-    strip = page.locator(".lf-react-strip[data-test-strip]")
+    page.locator(".lf-thread-summary").click()
+    strip = page.locator(f'.lf-msg[data-mid="{reply}"] .lf-react-strip')
     strip.locator(".lf-react-trigger").click()
     choices = strip.locator(".lf-react-palette > .lf-react")
     expect(choices.nth(0)).to_be_focused()

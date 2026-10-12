@@ -19,6 +19,7 @@ import sys
 import tempfile
 import threading
 import time
+from collections.abc import Mapping
 from contextlib import ExitStack
 from dataclasses import replace
 from functools import partial
@@ -43,12 +44,12 @@ from leaf.codex import (
 from leaf.delivery import read_delivery, stream_reply_target
 from leaf.harness import EmbeddedHarness
 from leaf.hosting import LeafHTTPServer
-from leaf.http import PageEndpoint, scope_page_urls
-from leaf.layer import foreign_runtime
+from leaf.http import PageEndpoint, PostRoute, scope_page_urls
+from leaf.layer import incompatible_layer
 from leaf.leases import release_lease, take_lease, waiter_lease_path
 from leaf.page_memory import Slot, memo
 from leaf.refusals import Refused
-from leaf.registry.storage import layer_metadata
+from leaf.registry.storage import layer_metadata, load_registry
 from leaf.revision_delivery import Delivery
 from leaf.revisioning import activate_source
 from leaf.schema import PAGE_ROUTE_DIRS, VENDORED_FILES
@@ -109,7 +110,6 @@ PAGE_RESOURCE = re.compile(
     rf"^/(?:{'|'.join(PAGE_ROUTE_DIRS)})(?:/|$)"
     rf"|^/(?:{'|'.join(map(re.escape, VENDORED_FILES))})$"
 )
-AGENT_EVENT_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 # A healthy App Server stream is quiet between items, so a running turn says nothing
 # for stretches — through a model request, or a `leaf` command that renders a page.
 # Past this bound the silence is no longer a turn working, and since the subscription
@@ -129,8 +129,7 @@ FAULT_DETAIL_LIMIT = 500
 # Every failure a harness receipt reports, and the words the user gets for it. A code
 # and its wording are one fact told to two audiences — `failure` is what the deployment
 # verifier and the page read, the text is what the user reads — so they are declared
-# together, here, rather than the codes living at the door that validates them and the
-# words at whichever boundary gave up. The voice is the harness's, not the agent's: a
+# together, here, rather than split across the boundaries that give up. The voice is the harness's, not the agent's: a
 # receipt written in the agent's first person is indistinguishable from an answer,
 # which is the failure this whole path exists to make visible.
 FAILURE_RECEIPTS = {
@@ -146,11 +145,10 @@ FAILURE_RECEIPTS = {
     ),
 }
 # The one code the container writes from its own reading of a turn it followed. The
-# rest reach the log through the Worker's door, which takes them and refuses this one,
-# so that a receipt claiming a turn was observed comes only from the code that observed
-# it.
+# rest arrive from the Worker, whose type for the codes it sends leaves this one out
+# (`worker/src/agent.ts`), so that a receipt claiming a turn was observed comes only
+# from the code that observed it.
 CONTAINER_FAILURE = "turn_failed"
-WORKER_FAILURES = tuple(code for code in FAILURE_RECEIPTS if code != CONTAINER_FAILURE)
 AGENT_START_PATH = "/_leaf/agent/start"
 AGENT_FAIL_PATH = "/_leaf/agent/fail"
 STARTUP_REPORT_PATH = "/api/performance"
@@ -244,11 +242,11 @@ class _Binding(Slot):
 
 def page_binding(page_dir: Path) -> tuple[dict, dict | None]:
     """Read immutable delivery metadata once while this process keeps the page
-    (`leaf.page_memory`), refusing a page another Leaf's runtime vendored."""
+    (`leaf.page_memory`), refusing a page vendored at another protocol."""
 
     def bind() -> tuple[dict, dict | None]:
         identity = layer_metadata(page_dir)
-        if refusal := foreign_runtime(page_dir, identity):
+        if refusal := incompatible_layer(page_dir, load_registry(page_dir)):
             raise RuntimeError(refusal)
         return identity, preview_metadata(page_dir)
 
@@ -908,18 +906,11 @@ class WebsiteCodexHarness:
         *,
         expected: dict | None,
     ) -> None:
-        """Close one observed provider turn without inventing a Leaf response."""
-        status = turn.get("status")
-        if status != "completed":
-            error = turn.get("error") or {}
-            detail = error.get("message") if isinstance(error, dict) else None
-            print(
-                f"Codex turn {turn.get('id')} ended {status or 'without a status'}"
-                + (f": {detail}" if detail else ""),
-                file=sys.stderr,
-                flush=True,
-            )
+        """Close one observed provider turn without inventing a Leaf response.
 
+        How the turn ended is already on the record: `turn_stream_completed` carries
+        its status and fault before this runs.
+        """
         with PageTransaction(page_dir) as page:
             activation = activate_source(page_dir, transaction=page)
             with flocked(session_lock_path(thread_id)):
@@ -1253,10 +1244,10 @@ class WebsiteCodexHarness:
                 )
         # Every class, because this only records and re-raises: the caller still meets
         # the exception it would have met, and a start that fails in a class nobody
-        # listed is exactly the one worth having a record of. The three it used to name
-        # left out the connection's own — `websockets` raises `WebSocketException`,
-        # which descends from `Exception` alone — so a refused handshake or a socket
-        # dropped mid-request went unrecorded.
+        # listed is exactly the one worth having a record of. The connection's own
+        # failures are among them: `websockets` raises `WebSocketException`, which
+        # descends from `Exception` alone, for a refused handshake or a socket dropped
+        # mid-request.
         except Exception as error:
             log_agent(
                 "container_start_failed",
@@ -1295,31 +1286,6 @@ class WebsiteCodexHarness:
         """
         with self.lock:
             return write_failure_receipt(page_dir, event_id, failure)
-
-
-def _agent_event(posted: dict) -> str:
-    """Validate the one user move a Worker request names."""
-    if set(posted) != {"event"}:
-        raise ValueError("agent request fields must be ['event']")
-    event_id = posted["event"]
-    if not isinstance(event_id, str) or not AGENT_EVENT_ID.fullmatch(event_id):
-        raise ValueError("agent event must be a Leaf event id")
-    return event_id
-
-
-def _agent_failure(posted: dict) -> tuple[str, str]:
-    """Validate a Worker failure before admitting its harness-authored receipt.
-
-    The Worker names the failure, not the words for it: the wording is a user-facing
-    presentation of a code this module already declares, and two copies of it either
-    side of an HTTP hop is one copy too many.
-    """
-    if set(posted) != {"event", "failure"}:
-        raise ValueError("agent failure requires event and failure")
-    failure = posted["failure"]
-    if failure not in WORKER_FAILURES:
-        raise ValueError(f"agent failure must be one of {list(WORKER_FAILURES)}")
-    return _agent_event({"event": posted["event"]}), failure
 
 
 # One published page as the router reads it: its URL root ("" for the site root), its
@@ -1426,42 +1392,41 @@ class WebsitePageEndpoint(PageEndpoint):
             return f"{page['assets']}/revisions/{name}"
         return super()._sample_asset_root(revision)
 
-    def _post(self) -> Response:
-        path = self.path
-        if path == STARTUP_REPORT_PATH:
-            # Every document the runtime delivers with a release carries the public
-            # startup beacon, and the deployed site answers it at the edge, where the
-            # observability record belongs. This adapter has no Worker in front of it,
-            # so it owes the browser the same "recorded, nothing to read back" answer
-            # the edge gives — otherwise every page served here loads with a 404 in its
-            # console (`skills/leaf/assets/runtime/bootstrap.js`, `observePublicStartup`).
-            return self._content(204, "application/json", b"")
-        if path not in {AGENT_START_PATH, AGENT_FAIL_PATH}:
-            return super()._post()
-        if self.posted_error:
-            return self._json({"error": self.posted_error}, 400)
-        try:
-            if path == AGENT_FAIL_PATH:
-                event_id, failure = _agent_failure(self.posted)
-            else:
-                event_id = _agent_event(self.posted)
-        except ValueError as error:
-            return self._json({"error": str(error)}, 400)
-        if path == AGENT_START_PATH:
-            thread_id = self.agent_harness.attach(self.page_dir, event_id)
-            if thread_id is None:
-                return self._json({"status": "settled"})
-            return self._json({"status": "started", "thread": thread_id})
+    def _acknowledge_startup_report(self) -> Response:
+        # Every document the runtime delivers with a release carries the public
+        # startup beacon, and the deployed site answers it at the edge, where the
+        # observability record belongs. This adapter has no Worker in front of it,
+        # so it owes the browser the same "recorded, nothing to read back" answer
+        # the edge gives — otherwise every page served here loads with a 404 in its
+        # console (`skills/leaf/assets/runtime/bootstrap.js`, `observePublicStartup`).
+        return self._content(204, "application/json", b"")
 
+    # The two routes below answer only the Worker, which refuses every `/_leaf/` path
+    # from outside and sends the event its own admission returned, so they read its
+    # body as given.
+    def _start_agent(self) -> Response:
+        thread_id = self.agent_harness.attach(self.page_dir, self.posted["event"])
+        if thread_id is None:
+            return self._json({"status": "settled"})
+        return self._json({"status": "started", "thread": thread_id})
+
+    def _fail_agent(self) -> Response:
         try:
             accepted = self.agent_harness.failure_receipt(
-                self.page_dir, event_id, failure
+                self.page_dir, self.posted["event"], self.posted["failure"]
             )
         except Refused as error:
-            return self._json({"error": str(error)}, 400)
+            return self._refuse(str(error))
         if accepted is None:
             return self._json({"status": "settled"})
         return self._json({"status": "appended", "event": accepted["id"]})
+
+    POST_ROUTES: Mapping[str, PostRoute] = {
+        **PageEndpoint.POST_ROUTES,
+        STARTUP_REPORT_PATH: PostRoute(_acknowledge_startup_report),
+        AGENT_START_PATH: PostRoute(_start_agent, (PageEndpoint._body_gate,)),
+        AGENT_FAIL_PATH: PostRoute(_fail_agent, (PageEndpoint._body_gate,)),
+    }
 
     def _select_page(self) -> Response | None:
         if self.method == "GET" and self.path == "/health":
@@ -1470,9 +1435,6 @@ class WebsitePageEndpoint(PageEndpoint):
         if selected is None:
             return self._not_found()
         page_dir, page_root, inside, kind = selected
-        if not (page_dir / "events.jsonl").is_file():
-            return self._not_found()
-
         identity, preview = page_binding(page_dir)
         self.page_dir = page_dir
         self.layer_identity = identity
@@ -1525,8 +1487,8 @@ def close_on_signal(agent_harness: WebsiteCodexHarness) -> None:
     is in a session of its own, so nothing else reaps it: inside a container that is
     invisible, because the container takes every process away with it, but
     `leaf-dev journey website-adapter` runs this adapter on a developer's machine and
-    stops it exactly this way. Three App Servers were found alive there, fifteen
-    hours and 95MB of resident memory each after the runs that started them.
+    stops it exactly this way, where an unreaped App Server would outlive the run
+    that started it and keep its memory.
 
     The handler runs at the re-raise, once serving has ended, and then dies of the
     signal it was sent rather than turning it into an ordinary return.

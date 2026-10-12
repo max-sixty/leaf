@@ -61,6 +61,7 @@ import {
   commands,
   keeps,
   paintKeys,
+  plainPress,
   relabel,
   scopedMediaUrl,
   selectableOffer,
@@ -90,10 +91,8 @@ export default class extends HTMLElement {
   #frameLabels = new Map();
   #captions = new Map();
   #openers = new Map();
-  #settleDifference;
-  difference = new Promise((resolve) => {
-    this.#settleDifference = resolve;
-  });
+  #difference = Promise.withResolvers();
+  difference = this.#difference.promise;
 
   static observedAttributes = ["alt"];
 
@@ -341,7 +340,7 @@ export default class extends HTMLElement {
     const registered = this.register(shots);
     present(registered);
     void registered.then(() => this.#requestComparison());
-    this.#settleDifference(
+    this.#difference.resolve(
       registered.then((aligned) =>
         aligned
           ? afterPresentation(() => inTurn(() => this.#markDifference(shots)))
@@ -420,15 +419,7 @@ export default class extends HTMLElement {
       });
       comparison.addEventListener("click", (event) => {
         const onHandle = handleOf(event);
-        if (
-          !dragged &&
-          !onHandle &&
-          !event.altKey &&
-          !event.ctrlKey &&
-          !event.metaKey &&
-          !event.shiftKey
-        )
-          this.#show(this.#nextState());
+        if (!dragged && !onHandle && plainPress(event)) this.#show(this.#nextState());
       });
       commands(comparison, "On a screenshot divider", [
         {

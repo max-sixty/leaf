@@ -56,26 +56,36 @@ def catalog_sources() -> list[Path]:
             attrs = dict(attrs)
             if tag != "a" or "example-link" not in attrs.get("class", "").split():
                 return
-            match = re.fullmatch(r"/examples/([a-z0-9-]+)/", attrs["href"])
-            if match is None:
-                raise ValueError(
-                    f"catalog entry must name an example route: {attrs['href']}"
-                )
-            source = ROOT / "examples" / f"{match.group(1)}.html"
-            if not source.is_file() or source in self.sources:
-                raise ValueError(f"catalog example is missing or repeated: {source}")
-            self.sources.append(source)
+            name = attrs["href"].removeprefix("/examples/").strip("/")
+            self.sources.append(ROOT / "examples" / f"{name}.html")
 
     catalog = Catalog()
     catalog.feed((ROOT / "docs" / "examples.html").read_text(encoding="utf-8"))
-    if not catalog.sources:
-        raise ValueError("the examples catalog is empty")
     return catalog.sources
+
+
+# An authored source's companions, named beside it whether or not it has each
+# (examples/AGENTS.md): its seeded history, its data values, and its page-owned files.
+def seed_log(source: Path) -> Path:
+    return source.with_suffix(".jsonl")
+
+
+def data_file(source: Path) -> Path:
+    return source.with_suffix(".data.json")
+
+
+def page_files(source: Path) -> Path:
+    return source.with_suffix(".page")
 
 
 # A prior version ships under the source directory's versions/, so a builder's
 # top-level `*.html` glob never reads one as a page of its own.
 PRIOR_VERSION = re.compile(r"\.v([1-9][0-9]*)$")
+
+
+def prior_version_files(source: Path) -> list[Path]:
+    """The files under `versions/` named as one source's earlier versions, unchecked."""
+    return list((source.parent / "versions").glob(f"{source.stem}.v*.html"))
 
 
 def example_versions(source: Path) -> list[Path]:
@@ -88,7 +98,7 @@ def example_versions(source: Path) -> list[Path]:
     marks, and a thread opened against the document before the revision.
     """
     priors = sorted(
-        (source.parent / "versions").glob(f"{source.stem}.v*.html"),
+        prior_version_files(source),
         key=lambda path: int(PRIOR_VERSION.search(path.stem).group(1)),
     )
     # The published number is the position in this list, so a gap in the file names
@@ -145,7 +155,7 @@ def captured_value(file: Path, spec: dict, *, runtime: Path = ROOT):
 
 def data_companion(source: Path) -> dict:
     """The example's `.data.json` companion, or nothing when it has none."""
-    companion = source.with_suffix(".data.json")
+    companion = data_file(source)
     if not companion.exists():
         return {}
     return json.loads(companion.read_text(encoding="utf-8"))

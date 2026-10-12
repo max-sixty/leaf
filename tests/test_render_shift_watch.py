@@ -1032,10 +1032,10 @@ def test_nested_shadow_regions_keep_enclosing_guarantees_at_source_cap(
         consume_browser_errors(page, "moved without input")
 
 
-@pytest.mark.nightly
+@pytest.mark.main
 @pytest.mark.watch_shifts
-def test_a_nightly_page_watches_typing_and_unasked_shifts(browser):
-    """Nightly opt-in uses the same sensor: growing a field is allowed, carrying it
+def test_a_marked_page_watches_typing_and_unasked_shifts(browser):
+    """A marked tier's opt-in uses the same sensor: growing a field is allowed, carrying it
     without input is reported, and typing that carries it is reported too."""
     page = field_page(browser, "grow")
     page.locator("#field").fill("a")

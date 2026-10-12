@@ -31,7 +31,7 @@ export function createDelivery({
   applyAcceptedState,
   settleRejected,
   settlementChanged,
-  reportApplicationError,
+  refusedWords,
 }) {
   let draining = false;
 
@@ -44,8 +44,7 @@ export function createDelivery({
       await retryPause();
     };
     for (;;) {
-      ledger.nameParent(entry);
-      if (!ledger.nameUndo(entry)) return { accepted: null };
+      if (!ledger.nameEvents(entry)) return { accepted: null };
       const { event } = entry;
       if (entry.admitted) return { accepted: entry.admitted };
       const sent = await Promise.race([
@@ -124,21 +123,38 @@ export function createDelivery({
         if (!entry) break;
         const { accepted, application, refusal, state } = await deliver(entry);
         if (accepted) ledger.accept(entry, accepted);
+        // What the refusal took down with this gesture, such as a reply to its message.
+        let dependents = [];
         try {
           if (!accepted) {
-            await settleRejected(entry, state);
+            dependents = await settleRejected(entry, state);
           }
           settlementChanged(entry, accepted);
         } catch (error) {
-          reportApplicationError(error);
+          reportCarried(error, "event settlement");
         } finally {
           if (application) void application.finally(() => entry.resolve(accepted));
           else {
             entry.resolve(accepted);
             // Answer listeners restore their draft and other rejected mechanical state.
-            // Present feedback at this script's checkpoint, after those listeners,
-            // so its geometry reads the foreground the user will actually see.
-            if (refusal) afterScript(() => notice(refusal));
+            // Each sender registered them on its answer when it sent, so a reaction
+            // registered now runs after every one of them (promise reactions run in
+            // registration order): the notice reads where the words of every refused
+            // gesture ended up, and says so where that is out of view. It is presented
+            // at that script's checkpoint, so its geometry reads the foreground the
+            // user will see.
+            if (refusal) {
+              const refused = [
+                { attempt: entry.event.attempt, answer: entry.answer },
+                ...dependents,
+              ];
+              void Promise.all(refused.map(({ answer }) => answer)).then(() =>
+                afterScript(() => {
+                  const kept = refusedWords(refused.map(({ attempt }) => attempt));
+                  notice(kept ? `${refusal}. ${kept}` : refusal);
+                }),
+              );
+            }
           }
         }
       }

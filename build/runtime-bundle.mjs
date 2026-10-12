@@ -1,4 +1,4 @@
-/** Build the browser graph once, shared by website and prepared installations.
+/** Build the browser graph once, shared by website delivery and its prepared installation.
  *
  * Entry URLs are delivery boundaries; every other private module can move into
  * shared chunks. Both paths keep vendor modules native, at their public URL however
@@ -184,11 +184,7 @@ export async function bundleRuntime(layerRoot, entries, outputRoot, assetRoot = 
 /** Prepared install output is relocatable; package modules need no build. */
 export async function bundleDistribution(layerRoot, outputRoot) {
   layerRoot = await realpath(layerRoot);
-  await bundleRuntime(
-    layerRoot,
-    [...runtimeEntries, "runtime/annotation-overlay/index.js"],
-    outputRoot,
-  );
+  await bundleRuntime(layerRoot, runtimeEntries, outputRoot);
   await mkdir(join(outputRoot, "runtime"), { recursive: true });
   for (const path of [
     GENERATION,

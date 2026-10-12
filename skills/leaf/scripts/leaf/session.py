@@ -60,14 +60,14 @@ def cmd_waiting(page_dir: Path, detail: str) -> tuple[dict, list[dict]]:
     (`tasks.put_down`), and return the declaration, with the updates still owed an
     answer, which the page goes on showing over it."""
     from .revisioning import activate_source
-    from .served_state.work import live_work
+    from .served_state.context import read_page
     from .tasks import put_down
 
     with PageTransaction(page_dir) as page:
         activate_source(page_dir, transaction=page)
         put_down(page)
         status = page.set_status("waiting", detail)
-        return status, live_work(page_dir, page.events).obligations
+        return status, read_page(page_dir, page.events).work.obligations
 
 
 def cmd_idle(page_dir: Path, detail: str) -> dict:
@@ -84,12 +84,12 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
     The check and the transition share the log lock, so an event arriving
     or an acknowledgement advancing the cursor orders against them."""
     from .activity import blocking_obligations, unanswered
-    from .served_state.work import live_work
+    from .served_state.context import read_page
     from .tasks import put_down
 
     with PageTransaction(page_dir) as page:
         events = page.events
-        work = live_work(page_dir, events)
+        work = read_page(page_dir, events).work
         state = {**work.presence, "activity": work.activity}
         claim = page.active_claim
         harness = claim_harness(claim) if claim is not None else None
@@ -119,7 +119,7 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
         if tasks := work.durable.log.owed:
             named = "; ".join(f"{task['id']} ({task['title']})" for task in tasks)
             raise Refused(
-                f"{len(tasks)} open task{'s' if len(tasks) != 1 else ''}: {named}. "
+                f"{len(tasks)} open to-do{'s' if len(tasks) != 1 else ''}: {named}. "
                 "End each before idling with "
                 '`leaf task end <page> <id> done "<where the result is>"`, or '
                 '`dropped "<why>"`.'
@@ -343,9 +343,9 @@ class Watch:
         watch_state = page.watch_state(self.harness)
         status = observed if watch_state == "lost" else page.status
         live = status["state"] != "idle"
-        batch = (
-            unacknowledged(page.events, page.cursor) if watch_state != "lost" else []
-        )
+        from .delivery import deliverable
+
+        batch = deliverable(page) if watch_state != "lost" else []
         service = read_json(page_dir / SERVICE_FILE)
         enabled = bool(service and service["enabled"])
         key, now, revive = str(page_dir), time.time(), False
@@ -608,11 +608,11 @@ def wake_inputs(page: PageTransaction, batch: list[dict]) -> list[dict]:
     reports, errors, reactions and widget actions) remains
     transport input, independent of whether it carries a response obligation.
     """
-    from .served_state.work import live_work
+    from .served_state.context import read_page
 
     agent_inputs = {
         item["input"]
-        for item in live_work(page.page_dir, page.events).durable.workflows
+        for item in read_page(page.page_dir, page.events).work.durable.workflows
         if item["next_actor"] == "agent"
     }
     pending = []
@@ -651,7 +651,7 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
             return True
         claim = reading.transaction.active_claim
         return (
-            (claim is not None and claim.get("turn_closed") is not None)
+            (claim is not None and claim["turn_closed"] is not None)
             or any(
                 datetime.fromisoformat(event["ts"]).timestamp() >= began
                 for event in pending
@@ -677,10 +677,12 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
             watch.await_news(mark)
     finally:
         watch.release()
+    from .delivery import deliverable
+
     # Input admitted while this watch held the lease was not nudged, so now the
     # lease is gone, any such input is nudged as admission would have.
     for page_dir in owned_pages(harness.session):
         with contextlib.suppress(FileNotFoundError), PageTransaction(page_dir) as page:
-            if wake_inputs(page, unacknowledged(page.events, page.cursor)):
+            if wake_inputs(page, deliverable(page)):
                 nudge_unwatched(page)
     return None

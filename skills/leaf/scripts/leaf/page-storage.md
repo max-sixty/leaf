@@ -116,7 +116,9 @@ other page files and the external state listed below.
 - `files.json` — explicit local text-file grants, written by `leaf file bind PAGE
   ID PATH` as `{ "bindings": { "ID": "/absolute/canonical/path" } }`.
   `file_bindings.py` owns the grants and current-file reads and writes. Browser
-  requests name only a binding, never a path. These files remain their own authority:
+  requests name only a binding, never a path. The page's reading stamps each bound
+  file and the state answer carries those stamps under `files`, so a tab hears a
+  write from outside Leaf without reading the file on a timer. These files remain their own authority:
   editing is mechanical browser state, outside document revisions and event history.
   The API reads current UTF-8 text up to 256 KiB and saves against a revision of its
   path and exact bytes, preserving LF or CRLF and file permission bits. Mixed line endings,
@@ -184,7 +186,7 @@ other page files and the external state listed below.
   page-server writers retain the payload's path and leave discovery intact.
   Scans ignore claims for missing pages; fresh page initialization clears
   the prior claim under the page lock. [session-lifetime.md](session-lifetime.md) owns
-  claimant identity, release, harness, and lifetime.
+  claimant identity, harness, and lifetime.
 
 - `<state-home>/rows/<page-key>.json` — disposable delivery output of a serving
   page's own canonical activity. `server_rows.py` owns the record, producer and
@@ -202,7 +204,7 @@ document or keeps its widgets (`revision_artifact.py`).
 
 `leaf page state` is an on-demand reading of these authorities. Its
 `layer` object, shared with `/api/state`, reports the vendored generation,
-fingerprint, kernel runtime identity, packages, and producer;
+fingerprint, server identity, packages, and producer;
 `source` names `index.html`, whether that candidate is live, and any validation
 error. `active.file` names the immutable revision the live root actually
 shows when one exists; `data` names the contract file, the value directory, and any source whose
@@ -231,8 +233,8 @@ contract, source id and revision, or to the `error` a failing value reads as;
 contracts with a deferred record field expose the manifest plus the value file and
 its revision for their payload. The reading's `content_source` names the thread and
 vocabulary file. A widget on the page names itself: the reading is its `widget`
-element, the `state` and `reports` standing on it, the explicit open `tasks` on it,
-the canonical `questions` sourced by it, and the `workflows` it is the subject of, with
+element, the `state` and `reports` standing on it, the open `todos` on it,
+the canonical `asks` sourced by it, and the `workflows` it is the subject of, with
 their `activity` obligations. Page ids
 and event ids share one address space, which is why `page check` refuses an authored
 id shaped like an event id. Default `page state` thread entries stay compact. Raw

@@ -45,9 +45,9 @@ from render_cases_navigation import (
     source_revision,
 )
 from render_harness import (
-    FEATURE_GALLERY,
     LONG_PAGE,
     RELEASE_FOCUS,
+    REPLY_HOST_PAGE,
     CutOff,
     _traffic,
     _until,
@@ -75,6 +75,7 @@ from render_harness import (
     sending,
     shortcut_bar_text,
     stamp_page,
+    stored_draft,
     stored_draft_settled,
     stored_draft_text,
     take_browser_errors,
@@ -329,13 +330,17 @@ What should we do next?</lf-test-task></lf-test-plan>
 
 
 @pytest.mark.parametrize("installation", ["in-place", "fresh"])
-def test_gallery_automatic_revision_keeps_the_empty_reply_focused(
+def test_an_automatic_revision_keeps_the_empty_panel_reply_focused(
     browser, serve, installation
 ):
-    page = open_page(browser, live_url(serve(FEATURE_GALLERY)))
+    """A revision, installed in place or as a fresh document, leaves the Threads
+    panel's empty reply box focused and empty."""
+    url = live_url(serve(REPLY_HOST_PAGE))
+    root = panel_comment(serve.page_dir, "Should reads fall back?", author="agent")
+    page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    thread = page.locator('.lf-thread[data-id="72e031c5bf0d485ba9054628e09869d4"]')
+    thread = page.locator(f'.lf-thread[data-id="{root}"]')
     thread.locator(":scope > .lf-thread-summary").click()
     editor = thread.locator(".lf-thread-reply leaf-text")
     editor.click()
@@ -347,16 +352,15 @@ def test_gallery_automatic_revision_keeps_the_empty_reply_focused(
             "content"
         )
     )
-    revised = FEATURE_GALLERY.read_text().replace(
-        "To carry unfinished words to another item",
-        "To move unfinished words to another item",
+    revised = REPLY_HOST_PAGE.replace(
+        "with a signed-cookie fallback", "with a session-cookie fallback"
     )
     if installation == "fresh":
         revised = revised.replace(
             "</head>",
-            '<script type="module">window.galleryRevision = 2;</script></head>',
+            '<script type="module">window.pageRevision = 2;</script></head>',
         )
-    stamp_page(serve.page_dir, revised, "Revise the gallery beside its empty reply")
+    stamp_page(serve.page_dir, revised, "Revise the page beside its empty reply")
     wait_for_revision(page, revision + 1)
     assert (page.evaluate("performance.timeOrigin") != birth) == (
         installation == "fresh"
@@ -365,7 +369,7 @@ def test_gallery_automatic_revision_keeps_the_empty_reply_focused(
     assert editor.evaluate("el => el.value") == ""
 
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 def choose_comment_target(page, selector):
@@ -1131,16 +1135,18 @@ def test_a_rendered_continuation_click_edits_the_exact_source_position(browser, 
         draft_control(page, "cancel", f"continuation-{i}").click()
 
 
-def test_a_draft_forwards_edit_save_and_cancel_without_consuming_native_digits(
+def test_a_draft_in_an_ask_takes_no_digits_and_answers_from_its_controls(
     browser, serve
 ):
-    """Ask aliases name the current draft action while its shared editor owns typing."""
+    """A draft lends its Ask no digits, so a digit typed while standing on the Ask
+    or in the editor is not a command; the user Tabs to Edit and saves with
+    Mod+Enter."""
     original = "Keep **this** source editable."
     page = open_page(
         browser,
         serve(
             leaf_page(
-                "Draft contextual commands",
+                "Draft in an Ask",
                 '<h1>Release note</h1><lf-ask id="note-decision">'
                 "<h2>How should the note read?</h2>"
                 f'<lf-draft id="note" needed><pre>{original}</pre></lf-draft></lf-ask>',
@@ -1149,64 +1155,26 @@ def test_a_draft_forwards_edit_save_and_cancel_without_consuming_native_digits(
     )
     question = page.locator("#note-decision")
     editor = page.locator("#note leaf-text")
-    hints = question.locator(".lf-draft-action .lf-key-badge")
-
-    def return_to_question():
-        question.evaluate(
-            """async element => {
-              const {focusDestination} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-              focusDestination(element, 'move');
-            }"""
-        )
-        expect(question).to_be_focused()
+    edit = draft_control(page, "edit", "note")
 
     page.keyboard.press("q")
     expect(question).to_be_focused()
-    expect(draft_control(page, "edit", "note")).to_have_attribute(
-        "aria-keyshortcuts", "1"
-    )
-    expect(hints).to_have_count(0)
+    expect(edit).not_to_have_attribute("aria-keyshortcuts", re.compile(r"\d"))
     page.keyboard.press("1")
+    rendered(page)
+    expect(editor).to_have_count(0)
+    page.keyboard.press("Tab")
+    expect(edit).to_be_focused()
+    page.keyboard.press("Enter")
     expect(editor).to_be_focused()
     write(editor, "Keep **these** digits: ")
-    page.keyboard.type("123")
-    saved = "Keep **these** digits: 123"
+    page.keyboard.type("12")
+    saved = "Keep **these** digits: 12"
     expect(editor).to_have_js_property("value", saved)
-    expect(editor).to_be_focused()
-    rendered(page)
-    assert "1" not in hints.all_text_contents()
-    assert "2" not in hints.all_text_contents()
-
-    return_to_question()
-    expect(hints).to_have_count(0)
-    for action, key in [("save", "1"), ("cancel", "2")]:
-        expect(draft_control(page, action, "note")).to_have_attribute(
-            "aria-keyshortcuts", re.compile(rf"(?:^| ){key}(?: |$)")
-        )
-    page.keyboard.press("?")
-    page.keyboard.press("?")
-    for command_id, title in [("draft.save", "Save"), ("draft.cancel", "Cancel")]:
-        command = page.locator(
-            f'.lf-command-reference-command[data-lf-command="{command_id}"]'
-        )
-        expect(command).to_have_text(title)
-        expect(command).to_have_attribute("data-lf-available", "true")
-    page.keyboard.press("Escape")
-    expect(question).to_be_focused()
-    page.keyboard.press("1")
+    page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     expect(editor).to_have_count(0)
-    expect(page.locator("#note .lf-draft-body")).to_have_text("Keep these digits: 123")
-
-    # The answered Ask remains an association while the source offers another edit.
-    return_to_question()
-    page.keyboard.press("1")
-    expect(editor).to_be_focused()
-    write(editor, "Discard these later words.")
-    return_to_question()
-    page.keyboard.press("2")
-    expect(editor).to_have_count(0)
-    expect(page.locator("#note .lf-draft-body")).to_have_text("Keep these digits: 123")
+    expect(page.locator("#note .lf-draft-body")).to_have_text("Keep these digits: 12")
     edits = [
         event
         for event in events_model.read_events(serve.page_dir)
@@ -1631,8 +1599,8 @@ def test_a_comment_being_typed_reaches_the_pages_other_tabs(browser, serve, one_
     other's box live, and a send there empties it — the distinction the store's own
     vocabulary carries, an emptied box being a value and a settled draft a tombstone.
     The Send button is read with the value, since a mirrored draft the box cannot send
-    is words arriving dead. The other tab's general box stays in its shut card, which
-    holds the words all the same."""
+    is words arriving dead. The other tab's general box joins its card when the card
+    first opens and stays there, so its shut card holds the later words all the same."""
     url = serve(LONG_PAGE, comments=1)
     first = open_page(browser, url, context=one_user)
     second = open_page(browser, url, context=one_user)
@@ -1642,10 +1610,11 @@ def test_a_comment_being_typed_reaches_the_pages_other_tabs(browser, serve, one_
 
     typed = "The page is missing the migration step."
     write(page_comment(first), typed)
-    expect(second.locator(".lf-general leaf-text")).to_have_js_property("value", typed)
+    expect(page_comment(second)).to_have_js_property("value", typed)
     expect(second.locator(".lf-general .lf-compose-submit")).to_have_attribute(
         "aria-disabled", "false"
     )
+    second.keyboard.press("Escape")
 
     # The tab doing the typing is the one tab the store says nothing to, which is what
     # leaves the caret where the user put it: writing .value on a focused box sends
@@ -1768,7 +1737,10 @@ def test_a_refused_selection_comment_leaves_the_words_on_their_passage(
                 "final": True,
             },
         )
-    expect(page.locator(".lf-notice")).to_contain_text("Couldn't send")
+    # The words went back to a box out of view, so the refusal says where they are.
+    expect(page.locator(".lf-notice")).to_have_text(
+        "Couldn't send — refused before append. Draft kept — g i resumes writing"
+    )
 
     # Their passage still holds their draft, so opening it again finds the words.
     page.locator("h1").click()
@@ -1781,6 +1753,83 @@ def test_a_refused_selection_comment_leaves_the_words_on_their_passage(
         for event in events_model.read_events(serve.page_dir)
         if event.get("text") == words
     ]
+    consume_browser_errors(page, "400")
+
+
+def test_a_refused_selection_comment_reopens_its_words_while_the_send_owns_intent(
+    held_events, serve
+):
+    """A refusal that lands while the user is still where the send left them puts the
+    words back in front of them, in the box on their passage, as the page comment card
+    does. Left in the store alone, they read as lost: the thread the send drew goes
+    away, and nothing on screen says the sentence still exists."""
+    browser, held = held_events
+    page = open_page(browser, serve(LONG_PAGE))
+    words = "The selection comment the server will refuse."
+    compose(page, "#p3", words)
+    page.keyboard.press("Enter")
+    holding(page, held, 1, "the selection comment")
+    expect(page.locator(".lf-fab-input")).not_to_be_visible()
+
+    attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        held.pop(0).fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator(".lf-fab-input")).to_have_js_property("value", words)
+    # The box is back with the words, so the refusal names no address for them.
+    expect(page.locator(".lf-notice")).to_have_text(
+        "Couldn't send — refused before append"
+    )
+    consume_browser_errors(page, "400")
+
+
+def test_a_refused_selection_comment_written_past_is_where_resume_writing_goes(
+    held_events, serve
+):
+    """The user has gone on to write somewhere else when the refusal lands. Their
+    refused words go back to the passage's box, which is out of view, so the notice says
+    they are kept and Resume writing takes the user to them, rather than to the box they
+    can already see."""
+    browser, held = held_events
+    page = open_page(browser, serve(LONG_PAGE))
+    words = "The selection comment the server will refuse."
+    compose(page, "#p3", words)
+    page.keyboard.press("Enter")
+    holding(page, held, 1, "the selection comment")
+    later = "A page comment written while the first was in flight."
+    write(page_comment(page), later)
+
+    attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        held.pop(0).fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+    expect(page.locator(".lf-notice")).to_have_text(
+        "Couldn't send — refused before append. Draft kept — g i resumes writing"
+    )
+    expect(page.locator(".lf-fab-input")).not_to_be_visible()
+
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-page-comment-card")).not_to_be_visible()
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator(".lf-fab-input")).to_have_js_property("value", words)
+    assert stored_draft_text(page, "general") == later
     consume_browser_errors(page, "400")
 
 
@@ -1820,8 +1869,162 @@ def test_a_reply_behind_a_refused_parent_is_withdrawn_rather_than_sent(
     assert not [
         route for route in held if "pending:" in (route.request.post_data or "")
     ], "a gesture reached the wire naming a thread the log never took"
-    # The reply's draft keys by its thread's stable name, which is the parent's attempt.
-    assert stored_draft_text(page, f"reply:{attempt}") == words
+    # The thread went with its parent, so the reply's words wait in the parent's draft.
+    assert stored_draft_text(page, f"reply:{attempt}") is None
+    assert (
+        page.evaluate(
+            "([read, ctx]) => read(ctx)?.held ?? null",
+            [stored_draft(page), "general"],
+        )
+        == words
+    )
+    consume_browser_errors(page, "400")
+
+
+@pytest.mark.parametrize("reply_sent", [True, False], ids=["sent", "unsent"])
+@pytest.mark.parametrize("edited", [False, True], ids=["as-sent", "edited"])
+def test_a_reply_under_a_refused_parent_comes_back_with_it(
+    held_events, serve, reply_sent, edited
+):
+    """A refusal takes down the thread a comment opened, and the box under it: a reply
+    written there, sent behind the comment or not, keys by the comment's attempt, which
+    the refusal withdraws and an edit of the comment replaces. The words go to the
+    comment's own draft instead, so the notice says where they wait, Resume writing
+    leads to that draft, and the thread its next send opens, edited or not, has the
+    reply back in its box."""
+    browser, held = held_events
+    page = open_page(browser, serve(LONG_PAGE))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    parent = "The parent the server will refuse."
+    write(page_comment(page), parent)
+    page.locator(".lf-general .lf-compose-submit").click()
+    holding(page, held, 1, "the parent send")
+
+    card = page.locator('.lf-thread[data-id^="pending:"]')
+    expect(card).to_have_count(1)
+    reply = "A reply written while the parent was in flight."
+    write(card.locator("leaf-text").first, reply)
+    if reply_sent:
+        card.get_by_role("button", name="Send", exact=True).click()
+    # The user goes back to the page comment box, so the parent's words return in view.
+    box = page_comment(page)
+
+    attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        held.pop(0).fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+    expect(box).to_have_js_property("value", parent)
+    expect(page.locator(".lf-notice")).to_have_text(
+        "Couldn't send — refused before append. "
+        "Reply kept — it returns when its comment sends"
+    )
+    expect(card).to_have_count(0)
+
+    # Resume writing leads to the comment, the one place that brings the reply back.
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-page-comment-card")).to_be_hidden()
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(box).to_be_focused()
+    expect(box).to_have_js_property("value", parent)
+    text = parent
+    if edited:
+        page.keyboard.press("ControlOrMeta+End")
+        page.keyboard.type(" Edited.")
+        text = parent + " Edited."
+
+    page.locator(".lf-general .lf-compose-submit").click()
+    holding(page, held, 1, "the parent sent again")
+    assert (held[0].request.post_data_json["attempt"] == attempt) is not edited
+    held.pop(0).continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    sent = next(
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("text") == text
+    )
+    thread = page.locator(f'.lf-thread[data-id="{sent["id"]}"]')
+    expect(thread.locator("leaf-text").first).to_have_js_property("value", reply)
+    # An unsent reply's box goes down with the thread; the notice says where its words
+    # went, which is what the guard's report is about.
+    consume_browser_errors(
+        page,
+        "400",
+        *(
+            []
+            if reply_sent
+            else [f'typed words left the screen without a key or press: "{reply}"']
+        ),
+    )
+
+
+def test_a_refused_comments_reply_travels_with_it_to_another_passage(
+    held_events, serve
+):
+    """The reply a refusal hands back is part of the comment's draft, so whatever moves
+    the draft moves the reply: carried with Alt-click to another passage and sent from
+    there, the comment's new thread has the reply back in its box."""
+    browser, held = held_events
+    page = open_page(browser, serve(LONG_PAGE))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    parent = "The anchored parent the server will refuse."
+    compose(page, "#p3", parent)
+    page.keyboard.press("Enter")
+    holding(page, held, 1, "the anchored parent")
+    card = page.locator('.lf-threads .lf-thread[data-id^="pending:"]')
+    expect(card).to_have_count(1)
+    reply = "A reply under the anchored parent."
+    write(card.locator("leaf-text").first, reply)
+    card.get_by_role("button", name="Send", exact=True).click()
+
+    attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        held.pop(0).fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+    expect(page.locator(".lf-notice")).to_contain_text(
+        "Reply kept — it returns when its comment sends"
+    )
+
+    page.locator("h1").click()
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", parent)
+    page.locator("#p5").scroll_into_view_if_needed()
+    page.locator("#p5").click(modifiers=["Alt"])
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", parent)
+    page.keyboard.press("Enter")
+    holding(page, held, 1, "the parent sent from its new passage")
+    held.pop(0).continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    sent = next(
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("text") == parent
+    )
+    assert sent["anchor"]["section"] == "p5"
+    thread = page.locator(f'.lf-thread[data-id="{sent["id"]}"]')
+    expect(thread.locator("leaf-text").first).to_have_js_property("value", reply)
     consume_browser_errors(page, "400")
 
 
@@ -1866,7 +2069,11 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
     expect(page.locator(".lf-threads")).to_be_focused()
     expect(box).not_to_be_focused()
     expect(box).to_have_js_property("value", words)
-    expect(page.locator(".lf-notice")).to_contain_text("Couldn't send")
+    # The card the box stands in closed with the send, so the words are back out of
+    # view, and the refusal names the address that opens it again.
+    expect(page.locator(".lf-notice")).to_have_text(
+        "Couldn't send — refused before append. Draft kept — g i resumes writing"
+    )
     assert stored_draft_text(page, "general") == words
     assert not [
         event
@@ -2433,9 +2640,7 @@ def test_failed_settlement_keeps_the_base_for_a_chained_nondurable_edit(
     first = "The first nondurable comment on that branch."
     second = "The chained nondurable comment keeps the same base."
     write(page_comment(shared), predecessor)
-    expect(local.locator(".lf-general leaf-text")).to_have_js_property(
-        "value", predecessor
-    )
+    expect(page_comment(local)).to_have_js_property("value", predecessor)
     local.evaluate(
         """([draft, first, second]) => {
           const set = Storage.prototype.setItem;
@@ -3184,7 +3389,7 @@ def test_an_unsent_draft_outlives_the_tab_it_was_typed_in(browser, serve, one_us
     page.close()
 
     again = open_page(browser, url, context=one_user)
-    expect(again.locator(".lf-general leaf-text")).to_have_js_property("value", typed)
+    expect(page_comment(again)).to_have_js_property("value", typed)
 
 
 def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, serve):
@@ -5410,6 +5615,8 @@ def editing_read(editor):
         "general",
         "first-message",
         "edit",
+        # A document edit opened and selected in, with no words changed, so no draft.
+        "edit-unchanged",
         "option",
     ],
 )
@@ -5421,7 +5628,7 @@ def test_executable_revision_preserves_each_editor_identity(browser, serve, kind
         editor = page_comment(page)
     elif kind == "first-message":
         editor = page.locator("#seat-root > .lf-thread-seat > .lf-say leaf-text")
-    elif kind == "edit":
+    elif kind in {"edit", "edit-unchanged"}:
         page.locator("#draft-root .lf-draft-body").click()
         editor = page.locator("#draft-root leaf-text")
     elif kind == "option":
@@ -5445,7 +5652,8 @@ def test_executable_revision_preserves_each_editor_identity(browser, serve, kind
     words = "Kept words with a selected span."
     if kind == "authored":
         words = "\n".join([words] * 200)
-    write(editor, words)
+    if kind != "edit-unchanged":
+        write(editor, words)
     editor.evaluate("el=>el.setSelectionRange(5,10,'backward')")
     before = editing_read(editor)
     if kind == "authored":
@@ -6026,7 +6234,8 @@ def test_resume_writing_keeps_editor_identity_caret_and_sent_conversation(
     held[0].continue_()
     page.unroute("**/api/state")
     wait_until_ready(page)
-    expect(box).not_to_be_focused()
+    # The composer stays shut, so its box is not on the page to hold focus.
+    expect(page.locator("leaf-text:focus")).to_have_count(0)
     page.keyboard.press("g")
     page.keyboard.press("i")
     expect(box).to_be_focused()
@@ -6284,7 +6493,8 @@ def test_document_edit_enter_adds_a_line_and_modified_enter_saves_exact_source(
     assert not [
         e for e in events_model.read_events(serve.page_dir) if e.get("action") == "edit"
     ]
-    editor.press("ControlOrMeta+Enter")
+    with sending(page, "the exact source edit"):
+        editor.press("ControlOrMeta+Enter")
     expect(editor).to_have_count(0)
     expect(draft.locator(".lf-draft-body > p")).to_have_count(2)
     expect(draft.locator(".lf-draft-body strong")).to_have_text("paragraph")
@@ -6376,7 +6586,6 @@ def test_a_draft_button_keeps_its_target_when_pointerdown_focuses_it(
         )
         == before
     )
-    expect(draft.locator("button .lf-key-badge")).to_have_count(0)
     page.mouse.up()
     if action == "edit":
         expect(draft.locator("leaf-text")).to_be_focused()

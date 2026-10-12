@@ -7,8 +7,12 @@ import {
 } from "/runtime/widget-api.js";
 import {
   ADDRESSABLE,
+  commandDeclarationsWithin,
+  commandRoutes,
+  pageDocument,
   unrevealedVisualParts,
   upFrom,
+  userScrollport,
   visualPartProblems,
 } from "/runtime/check-api.js";
 import { at as locate } from "./locate.js";
@@ -53,7 +57,7 @@ const renderedAt = (element) => {
 // properties. Resolve each value through a temporary custom property in the element's
 // live cascade, then let the browser validate the resulting tokens for that property.
 export function invalidPaints() {
-  if (!document.querySelector("main")) return [];
+  if (!pageDocument()) return [];
   const properties = [
     "color",
     "fill",
@@ -195,21 +199,21 @@ export function undeclaredAttrs(declarations) {
 }
 
 // The two sides of the settlement contract, compared on the rendered page. The mark —
-// data-lf-state on a holder — is the layer's paint of a logged decision (projection
-// reconciliation in leaf.js), and the anchor pass retires slots by it, so whatever it
-// says, the page's
-// reading obeys. What can still go wrong is a family's, and both failures render
-// perfectly: a module that writes the mark where the log decided nothing silences words
-// the user can still see and select, and a settled slot can show its words anyway — a
-// later layer's rule outranking the default hide, a module re-showing what it folded —
-// leaving the user selecting words no comment can anchor to, with the refusal
-// arriving later, at `leaf thread open`, nowhere near the mistake. So the expected outcome
-// comes from the file's reading (`decisions`, folded over this version's log), never
-// from the page, and the page answers only for what it shows.
+// data-lf-state on a holder — is the layer's paint of a logged decision
+// (`projection/presentation.js`, `paintSettlements`) for CSS to style; the anchor pass
+// retires slots by the application's reading of the same decision, never by the mark.
+// What can still go wrong is a family's, and both failures render perfectly: a module
+// that writes the mark where the log decided nothing styles words as settled that the
+// page still reads, and a settled slot can show its words anyway — a later layer's
+// rule outranking the default hide, a module re-showing what it folded — leaving the
+// user selecting words no comment can anchor to, with the refusal arriving later, at
+// `leaf thread open`, nowhere near the mistake. So the expected outcome comes from the
+// file's reading (`decisions`, folded over this version's log), never from the page,
+// and the page answers only for what it shows.
 //
 // The words walk is textNodesUnder's `unsilenced` reading, on purpose: the anchor
-// pass's `says` already skips a marked holder's slots, so asking it whether
-// the retired words are gone would let the mark answer for the screen. What it keeps
+// pass's `says` already skips a settled holder's slots, so asking it whether the
+// retired words are gone would let the decision answer for the screen. What it keeps
 // of that reading is the boundary — declared shadow roots, the same trees replay's
 // elementById marks across, which is why the holders are found through OPEN_ROOTS
 // too — and the chrome test: a declared label is the page's words, so a
@@ -257,8 +261,7 @@ export function retiredSlots(holders) {
       found.push(
         `${at} wears data-lf-state=${JSON.stringify(mark)} where the ` +
           `log records ${log} — the mark is the layer's paint of a logged ` +
-          `decision, and the anchor pass retires slots by it, so a module may ` +
-          `say only what the log decided`,
+          `decision, so a module may say only what the log decided`,
       );
       continue;
     }
@@ -394,7 +397,7 @@ const WRITTEN_IN = `input, select, ${TEXT_BOX}`;
 const asksVerticalScroll = (box) => {
   const style = box.getAttribute("style");
   box.style.setProperty("overflow-x", "visible", "important");
-  const asked = /auto|scroll/.test(getComputedStyle(box).overflowY);
+  const asked = userScrollport(getComputedStyle(box).overflowY);
   if (style === null) box.removeAttribute("style");
   else box.setAttribute("style", style);
   return asked;
@@ -423,7 +426,7 @@ const overflowsVertically = (box) => box.scrollHeight > box.clientHeight + ROUND
 // out. This writes the page, so only a page nothing reads again, such as the report's
 // page of worked examples, is read this way.
 export function heldScrollers(tags) {
-  const main = document.querySelector("main");
+  const main = pageDocument();
   if (!main) return [];
   const own = new Set(tags);
   const found = [];
@@ -437,7 +440,7 @@ export function heldScrollers(tags) {
         continue;
       const style = getComputedStyle(box);
       if (
-        !/auto|scroll/.test(style.overflowY) ||
+        !userScrollport(style.overflowY) ||
         /^(inline|contents|none)$/.test(style.display) ||
         style.getPropertyValue("--lf-holds-height").trim() === "1" ||
         !shown(box)
@@ -464,5 +467,37 @@ export function heldScrollers(tags) {
           height: box.clientHeight,
         });
     }
+  return found;
+}
+
+// Each command in one of `tags`' widgets that declares context keys and no
+// `bindingBadge`. Context keys are the widget's aliases for pressing a control from
+// elsewhere, as a Question forwards its digits; a key the page never shows works only
+// for a user who already knows it (module-authoring.md, "Commands and keyboard
+// routes"). A route without its own `bindingBadge` takes its row's. The reading is the
+// declaration, not the keys reachable now, so a command whose keys depend on state is
+// read the same in every state. A command belongs to the nearest Leaf widget holding
+// the element that declared it, as a box does in `heldScrollers`, so a dependency's
+// widget nested in one of `tags`' answers for its own commands.
+export function unshownContextKeys(tags) {
+  const own = new Set(tags);
+  const found = [];
+  const seen = new Set();
+  for (const { source, scope } of commandDeclarationsWithin(document.body)) {
+    let owner = source;
+    while (owner && !owner.localName.startsWith("lf-")) owner = upFrom(owner);
+    if (!owner || !own.has(owner.localName)) continue;
+    for (const row of scope.rows)
+      for (const command of [row, ...commandRoutes(row)]) {
+        if (command.contextKeys === undefined) continue;
+        const badge =
+          command.bindingBadge !== undefined ? command.bindingBadge : row.bindingBadge;
+        if (badge !== undefined) continue;
+        const key = `${owner.localName}#${owner.id}#${command.id}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        found.push({ tag: owner.localName, id: owner.id, command: command.id });
+      }
+  }
   return found;
 }

@@ -1,6 +1,7 @@
 """Shared fixtures, and the address the suite starts a leaf process at."""
 
 import contextlib
+import functools
 import inspect
 import os
 import re
@@ -21,7 +22,7 @@ from leaf import layer as layer_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf.render_gate import browser as browser_model
-from leaf_dev import LEAF_COMMAND
+from leaf_dev import LEAF_COMMAND, cost_tiers
 from leaf_dev.browser import LINUX_FONTCONFIG, require_linux_fonts
 from leaf_dev.page_fixtures import package_selection_args
 from playwright.sync_api import sync_playwright
@@ -39,18 +40,13 @@ __all__ = ["LEAF_COMMAND"]
 signal.signal(signal.SIGINT, signal.default_int_handler)
 # Domain test modules import their assertions explicitly. Register only the modules
 # that own fixtures once for the complete suite.
-pytest_plugins = (
-    "interact_support",
-    "render_harness",
-    "render_cases_layout",
-    "render_cases_navigation",
-)
+pytest_plugins = ("interact_support", "render_harness")
 
 
 # The layer a page carries is the same bytes in every fixture, and the file it
 # is made of is what a copy costs: an initialized page is 195 files, 158 of them
 # runtime modules, and the suite wants one page per test. Measured when a page
-# was 146, copying them all made a complete nightly run 2,272 pages and 393,473
+# was 146, copying them all made a complete run 2,272 pages and 393,473
 # directory entries, which is the number a filesystem event watcher charges for
 # — hard links share the bytes but not the entry. So the layer is written once
 # per shape and lent, and only what a test actually changed is put back. A
@@ -260,15 +256,21 @@ def initialized_page(_page_pool, tmp_path):
 
 def pytest_addoption(parser):
     parser.addoption(
+        "--run-main",
+        action="store_true",
+        default=False,
+        help="Also run the `main` tier, as a push to main does",
+    )
+    parser.addoption(
         "--run-nightly",
         action="store_true",
         default=False,
-        help="Also run the complete browser and published-site integration suites",
+        help="Run every tier, as the daily schedule and a manual dispatch do",
     )
     parser.addoption(
-        "--nightly-changed-since",
+        "--changed-since",
         metavar="REF",
-        help="Also run the nightly-marked tests whose own lines changed since REF",
+        help="Also run the `main` and `nightly` tests whose own lines changed since REF",
     )
 
 
@@ -283,13 +285,63 @@ def pytest_runtest_call(item):
     return result
 
 
+# A test's tier says when CI runs it; `cost_tiers.TIERS` names those after the first.
+# A test in the first, None, runs in every selection: a pull request, `wt merge`, and
+# broad discovery. A `main` test can land without running and runs on each push to
+# main (`--run-main`); a `nightly` one runs only in the daily schedule and a manual
+# dispatch (`--run-nightly`), which run every tier.
+
+
+def tier(item):
+    """The latest tier a test is marked with, or None for an unmarked test. A test
+    with both marks, such as a `nightly` test in a `main` module, is in the later."""
+    return cost_tiers.later(
+        *(t for t in cost_tiers.TIERS if item.get_closest_marker(t))
+    )
+
+
+def run_tier(item):
+    """The tier CI runs a test in: the later of its marked tier and the tier its
+    measured cost puts it in (`leaf_dev.cost_tiers`), or every run for a test marked
+    `landing`, whatever either says."""
+    if item.get_closest_marker("landing"):
+        return None
+    return cost_tiers.later(
+        tier(item), _recorded_tiers().get(cost_tiers.recorded_id(item))
+    )
+
+
+@functools.cache
+def _recorded_tiers():
+    return cost_tiers.recorded()
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_makereport(item, call):
+    """Each test's junit report carries the id `leaf-dev cost-tiers` records it by."""
+    report = yield
+    if call.when == "teardown":
+        report.user_properties.append(
+            (cost_tiers.PROPERTY, cost_tiers.recorded_id(item))
+        )
+    return report
+
+
 def pytest_collection_modifyitems(config, items):
-    """Broad discovery stays cheap; explicit selections run what they name.
+    """Broad discovery runs the tests whose `run_tier` is the first and the tiers its
+    flags reach; explicit selections run what they name.
 
     A change that moves a browser behaviour usually edits the test that holds it, so both
-    landing gates add the nightly tests whose own lines the change touches
-    (`--nightly-changed-since`): those run before it lands, and CI's `test` job runs
-    the rest on main after."""
+    landing gates add the tests of either later tier whose own lines the change
+    touches (`--changed-since`): those run before it lands, and CI's `test` job runs
+    the rest of each tier when that tier's event comes.
+
+    Selecting by the code a change touches would catch more, but this design makes
+    that map coarse. Browser tests reach code through a served page, not imports, so
+    the map would have to come from recorded Python and Chrome coverage. Nearly every
+    browser test loads the same runtime and server, so a change there, about half of
+    recent commits, would select close to the complete suite, and coverage cannot say
+    which CSS rules a test relied on."""
     selected = (
         config.getoption("keyword")
         or config.getoption("markexpr")
@@ -298,15 +350,17 @@ def pytest_collection_modifyitems(config, items):
     )
     if config.getoption("--run-nightly") or selected:
         return
+    reached = {"main"} if config.getoption("--run-main") else set()
     changed = {}
-    if since := config.getoption("--nightly-changed-since"):
+    if since := config.getoption("--changed-since"):
         changed = _changed_test_lines(config.rootpath, since)
-    kept, nightly = [], []
+    kept, skipped = [], []
     for item in items:
-        skipped = "nightly" in item.keywords and not _touches(item, changed)
-        (nightly if skipped else kept).append(item)
+        tiered = run_tier(item)
+        runs = tiered is None or tiered in reached or _touches(item, changed)
+        (kept if runs else skipped).append(item)
     items[:] = kept
-    config.hook.pytest_deselected(items=nightly)
+    config.hook.pytest_deselected(items=skipped)
 
 
 def _changed_test_lines(root, since):
@@ -321,9 +375,7 @@ def _changed_test_lines(root, since):
         check=False,
     )
     if diff.returncode:
-        raise pytest.UsageError(
-            f"--nightly-changed-since {since}: {diff.stderr.strip()}"
-        )
+        raise pytest.UsageError(f"--changed-since {since}: {diff.stderr.strip()}")
     changed, lines = {}, None
     for line in diff.stdout.splitlines():
         if line.startswith("+++ "):

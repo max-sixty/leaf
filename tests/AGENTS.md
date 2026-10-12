@@ -1,10 +1,8 @@
 # Testing leaf
 
-A test here is evidence about behavior a user depends on. The suite's quality varies:
-agents wrote most of it, and many tests assert the shape the code had when they were
-written rather than that behavior. Under root `AGENTS.md`'s **Stage**, the suite does
-not constrain new code: rewriting or deleting an overfit test is an ordinary part of a
-change, and the commit says which behavior moved.
+Root `AGENTS.md`'s **Stage** says what a test here protects and when to rewrite or
+delete one. Agents wrote most of this suite, and many of its tests assert the shape the
+code had when they were written rather than the behavior a user depends on.
 
 Prove each contract at the lowest boundary that preserves it, and keep a browser test
 only where it proves boundaries working together. Before adding cases or steps, choose
@@ -12,9 +10,17 @@ the smallest set that exposes distinct plausible failures beyond existing covera
 Retain a broad sweep only when its extra samples catch a failure that representative
 states or transitions miss; an investigation's sampling grid is not itself a regression
 requirement. Every run pays for the test's compute, so weigh the additional cost against
-the additional coverage. Each CI `test` job's summary says where its run's time went, by
-file, phase, Playwright call and the suite's own functions; `leaf-dev suite-profile`
-prints the same from the job's `pytest-results-*` artifact. When a high-level browser test is slow, or fails on timing or
+the additional coverage.
+
+Measure the suite's cost in CPU time. It is what a run consumes, it is recorded for
+each test, and the runner time CI bills follows from it through how many workers share
+the runner: CPU a change saves becomes runner time saved once more workers use it. A test's
+time beyond its CPU is waiting, on a fixed delay, a deadline, or other workers' CPU;
+added workers fill those waits only while CPU is spare, so remove a fixed delay rather
+than relying on parallelism to absorb it.
+Each CI `test` job's summary says where its run's CPU and time went, by file, phase,
+Playwright call and the suite's own functions; `leaf-dev suite-profile` prints the same
+from the job's `pytest-results-*` artifact. When a high-level browser test is slow, or fails on timing or
 geometry outside its contract, repair its arrangement or move its contract to the lower
 boundary.
 
@@ -66,26 +72,58 @@ uv run pytest --lf --lfnf=none -x -n0
 uv run pytest --regtest-reset -n0 <node-id>
 ```
 
-Mark a test `nightly` when a pull request can land without it, including any test that
-needs the network; expense alone does not make a test nightly. Broad discovery skips
-nightly tests, and an explicit file, node id, `-k`, `-m`, or `--lf` runs what it
-names. Both landing gates pass `--nightly-changed-since`, which adds the nightly tests
+A test's tier is named for when CI runs it, and a test runs in the later of the tier
+its marks name and the tier its cost names (`run_tier` in `conftest.py`):
+
+- **The first tier** runs in every run, both landing gates and broad discovery
+  included. It holds the tests that cost under three seconds on CI's runner, about what
+  opening a page costs, and those marked `landing`, which pins a test there whatever it
+  costs; `test_smoke.py` is the browser journeys the gates keep.
+- **`main`** runs on each push to main. It holds the tests that cost under eight
+  seconds, and the cheaper ones marked `main`: mark a test `main` when a pull request
+  can land without it whatever it costs, such as a test that needs the network.
+- **`nightly`** runs only in the daily scheduled run and a manual dispatch. It holds
+  every test over eight seconds, and those marked `nightly`, such as a sweep over the
+  whole example corpus.
+
+Cost tiers are the user's choice (2026-10-11), replacing the rule that expense alone
+never took a test out of the landing gates: a suite whose gate grows with every test
+stops a pull request's CI and a local landing from keeping pace with the work. A
+change that wants a test back in an earlier tier makes it cheaper rather than marking
+it: `tests/cost_tiers.json` records each test whose cost puts it past the first tier,
+and `leaf-dev cost-tiers` rewrites it from a daily run's report
+(`dev/leaf_dev/cost_tiers.py`), so a faster test moves earlier at the next refresh. A
+new test runs in its marked tier until a refresh measures it.
+
+Broad discovery skips both later tiers; `--run-main` adds `main` and `--run-nightly`
+runs every tier. An explicit file, node id, `-k`, `-m`, or `--lf` runs what it names.
+Both landing gates pass `--changed-since`, which adds the tests of either later tier
 whose own lines the change edits.
 
-Before handing over, run the tests that hold the behavior you changed, in any file
-and nightly ones included, named by node id or `-k`; find them by reading which tests
+Before handing over, run the tests that hold the behavior you changed, in any file and
+any tier, named by node id or `-k`; find them by reading which tests
 exercise the code the change touches. Run `pnpm run test:runtime` too when the change
-reaches the runtime. A change lands only on a green landing gate, which runs the broad
-selection: a pull request's `test` job, or `wt merge`'s pre-merge. A failure there that
-your selection missed is the gate doing its job; fix it and push. Every other nightly
-test is CI's to report: the `test` job in `ci.yaml` runs the complete suite once main
-moves, and `tend-ci-fix` answers what it fails. That trade is the user's choice
-(2026-10-04): a pull request can land green and break a nightly test it never ran, and
-main can stay red while `tend-ci-fix` repairs it, so a red main is no reason to widen a
-change, its gate, or its test selection. Don't run the broad selection, `--run-nightly`, `-m nightly`, or
-a whole browser file locally outside a landing: each takes minutes to over an hour
-and slows every other session on the machine. To learn what main fails, read that
-job's run, and reproduce a failure it names by node id.
+reaches the runtime. A change lands through a landing gate, which runs the broad
+selection: a pull request's `test` job, or `wt merge`'s pre-merge. A failure there
+that the change causes is the gate doing its job, even one your selection missed; fix
+it and push. A failure it doesn't cause, such as a test main's latest run also fails,
+blocks nothing and calls for no rerun: say so in the pull request and land it. `wt
+merge` refuses on any failure, so such a change lands through a pull request. Every
+other test is CI's to report: the `test` job in `ci.yaml` runs the `main` tier
+once main moves and every tier in the daily run, and `tend-ci-fix` answers what either
+fails. That trade is the user's choice (2026-10-04): a pull request can land green and
+break a test it never ran, and main can stay red while `tend-ci-fix` repairs it,
+so a red main is no reason to widen a change, its gate, or its test selection. One
+push suite always runs while newer commits land, and each new commit replaces the run
+waiting behind it, which GitHub records as cancelled; the daily run has a queue of its
+own. That is the design working: a suite per merge would report each commit slightly
+sooner at up to twenty times the CI usage. Root `AGENTS.md`, "Working on the
+repository", says which runs not to start by hand before landing. To learn what main
+fails, read that job's run, and reproduce a failure it
+names by node id. `tend-ci-fix` sees only that run, so a failure on main that it does
+not show, such as one only macOS reproduces, is left to a local session. Check whether
+a live session, worktree or open pull request already covers it; if none does, start a
+separate session (for example with `/dispatch`) to fix it and land the change.
 
 CLI output and agent-facing text are regtest recordings in
 `tests/_regtest_outputs/`, normalized for temporary paths and generated identities but
@@ -104,6 +142,11 @@ Subprocess tests invoke leaf through `LEAF_COMMAND`, and `bin/leaf` only where t
 launcher itself is the subject.
 
 ## Put each assertion at the boundary that owns it
+
+Each test module's docstring names its subject. A new test goes in the module whose
+docstring names the behavior it protects, not the one the change happened to open;
+where none does, start a module for that subject. Otherwise tests pile up wherever
+a change happened to land, and a module that was split grows back.
 
 File-side fixtures live in `interact_support.py`, browser fixtures in
 `render_harness.py`, reusable browser cases in `render_cases_*.py`.
@@ -135,8 +178,9 @@ calls the probe through `leaf.render_checks.evaluate_probe`.
 
 Where the product already answers a reading's question, such as `shownBand` for the
 band a box shows, consume that answer instead of copying it: `root_overflow` for
-whether the page scrolls sideways, `draft_key` for where a draft is stored, and
-`event_log.read_events` for what the log holds. Page-side code reaches a runtime
+whether the page scrolls sideways, `draft_key` for where a draft is stored,
+`stored_draft` for the record stored there, and `event_log.read_events` for what
+the log holds. Page-side code reaches a runtime
 module through `window.__lfRuntimeImport`; a bare `/runtime/…` import loads a second
 instance that shares none of the page's state.
 
@@ -246,9 +290,10 @@ inside `lfUnwatched`.
 
 A layout shift the "Stability" rule in `skills/leaf/assets/AGENTS.md` forbids is one
 of those problems (`shift_watch.js`): a box that moves on screen without input, and
-typing that carries the field it types in, so every test in the broad selection checks
-both. Surveyed nightly tests opt in with `watch_shifts`; the rest await a fresh survey
-after the widget prepaint fixes (`render_harness.watches_shifts`). The watcher still
+typing that carries the field it types in, so every unmarked test checks both, in
+whichever tier its cost runs it. Surveyed tests marked `main` or `nightly` opt in with
+`watch_shifts`; the rest await a fresh survey after the widget prepaint fixes (`render_harness.watches_shifts`). The
+watcher still
 exempts first presentation, whose remaining defects the widget quality check records
 in `known_widget_findings.py`. Playwright's clicks and keys are input, as is a
 viewport resize; a script's `click()`, a `value` written by script, and the server's
@@ -258,8 +303,8 @@ that window. Fix what moved rather than consuming the report; shift reports have
 per-test allowances.
 
 Typed words leaving the screen without a key or press, which the "Words stay where
-they were typed" rule forbids, is one too (`words_watch.js`), in every test, nightly
-included. A key that typed is editing rather than putting away, and a scroll, a
+they were typed" rule forbids, is one too (`words_watch.js`), in every test of every
+tier. A key that typed is editing rather than putting away, and a scroll, a
 resize, a script, and the server's news are none of them, so a test that closes a box
 must do it the way a user does.
 

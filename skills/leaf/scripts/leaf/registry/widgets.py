@@ -1,7 +1,6 @@
 """Widget structure and interaction contract validation."""
 
 import turbohtml
-from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 
 from leaf.schema import (
@@ -18,7 +17,7 @@ from .contract import (
     state_specs,
     visual_part_attribute,
 )
-from .schema import json_validator, json_value, schema_error_message
+from .schema import check_schema, json_validator, json_value, schema_error_message
 from .state import (
     validate_deciding_verb,
     validate_widget_record_contracts,
@@ -32,7 +31,7 @@ def validate_widget_schemas(declarations: dict, data: dict, path) -> None:
     # pass, so their result cannot depend on which widget happened to be written first.
     for tag, entry in declarations.items():
         try:
-            Draft202012Validator.check_schema(entry)
+            check_schema(entry)
         except SchemaError as error:
             raise RegistryError(
                 f"{path}: <{tag}> is not a valid JSON Schema: {schema_error_message(error)}"
@@ -61,7 +60,7 @@ def validate_widget_schemas(declarations: dict, data: dict, path) -> None:
             if spec.get("record"):
                 continue
             try:
-                Draft202012Validator.check_schema(spec["detail"])
+                check_schema(spec["detail"])
             except SchemaError as error:
                 raise RegistryError(
                     f"{path}: <{tag}> x-state verb `{verb}` has an invalid "
@@ -124,6 +123,10 @@ def _validate_widget_structure(
     if unknown := sorted(set(entry.get("x-owners", [])) - set(declarations)):
         raise RegistryError(
             f"{path}: <{tag}> x-owners names unknown element declarations {json_value(unknown)}"
+        )
+    if unknown := sorted(set(entry.get("x-unique", {}).values()) - set(declarations)):
+        raise RegistryError(
+            f"{path}: <{tag}> x-unique names unknown element declarations {json_value(unknown)}"
         )
     properties = entry.get("properties", {})
     if entry.get("x-initial"):
@@ -411,6 +414,14 @@ def _validate_widget_interactions(
     if awaits and awaits["value"] not in user_verbs:
         raise RegistryError(
             f"{path}: <{tag}> x-awaits value must name a user-written x-state verb"
+        )
+    # A retired Question was asked and has ended, so the flag that retires it has to be
+    # one registration already reads as stopping the widget asking.
+    retired = awaits.get("retired")
+    if retired and awaits.get("when", {}).get(retired) != [False]:
+        raise RegistryError(
+            f"{path}: <{tag}> x-awaits retires with `{retired}`, but its `when` does not "
+            f"require `{retired}` absent"
         )
     # A blanket answer is one decision per Question, taken through the widget's deciding
     # verb, so it names an outcome that verb declares and the verb answers the Question.

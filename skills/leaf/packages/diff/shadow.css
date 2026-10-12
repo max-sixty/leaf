@@ -405,6 +405,23 @@
   .lf-diff-file .lf-diff-metadata::before {
     display: none;
   }
+  :scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary {
+    block-size: auto;
+    min-block-size: var(--lf-diff-head-h);
+    align-items: baseline;
+    white-space: normal;
+  }
+  .lf-diff-head > .lf-diff-path {
+    display: block;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .lf-diff-head .lf-diff-dir[data-folder-hidden] {
+    opacity: 1;
+  }
+  .lf-diff-head wbr {
+    display: inline;
+  }
   .lf-diff-filtered {
     display: block !important;
   }

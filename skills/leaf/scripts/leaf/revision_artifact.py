@@ -208,26 +208,6 @@ class RevisionArtifact:
         return json.loads(self.manifest)["entries"]
 
     @cached_property
-    def page_stylesheets(self) -> dict[str, str]:
-        """The page's own CSS files by path: each stylesheet under `/page/` that the
-        authored document links or imports, and each one those import in turn."""
-        found = {}
-        pending = list(self.entries)
-        while pending:
-            path = pending.pop(0)
-            resource = self.resources.get(path)
-            if (
-                path in found
-                or not path.startswith("/page/")
-                or resource is None
-                or resource.mime != "text/css"
-            ):
-                continue
-            found[path] = resource.data.decode("utf-8")
-            pending.extend(resource.dependencies)
-        return found
-
-    @cached_property
     def implementations(self) -> dict:
         return json.loads(self.manifest)["implementations"]
 
@@ -594,6 +574,14 @@ def _capture_input_stamps(page_dir: Path) -> tuple[tuple[str, tuple], ...]:
     ) + tuple((logical, _path_stamp(path)) for logical, path in PROBE_SOURCES.items())
 
 
+def probe_resources() -> dict[str, Resource]:
+    """This Leaf's browser probe modules, as a capture holds them."""
+    return {
+        logical: Resource(source.read_bytes(), "application/javascript")
+        for logical, source in PROBE_SOURCES.items()
+    }
+
+
 def capture_artifact(
     page_dir: Path,
     document: SourceDocument,
@@ -756,12 +744,7 @@ def _capture_artifact(
     # Live observations and headless checks are browser code too. Capture their
     # source beside the runtime it reads, so a revision and an export have one
     # complete module graph, even when the serving checkout later changes.
-    resources.update(
-        {
-            logical: Resource(source.read_bytes(), "application/javascript")
-            for logical, source in PROBE_SOURCES.items()
-        }
-    )
+    resources.update(probe_resources())
 
     entries = []
     documents = [document]
@@ -920,8 +903,22 @@ def artifact_name(revision: int, artifact: RevisionArtifact) -> str:
     return f"r{revision}-{artifact.digest.removeprefix('sha256:')[:16]}"
 
 
+class Disposable:
+    """Whether Leaf built this page for itself and deletes it, as a sample's child
+    (`samples`), so nothing reads its revisions after a crash and staging and
+    publishing them skip every fsync.
+
+    The builder sets it in the memory it holds for the page's life
+    (`page_memory.memory_of`). A page whose memory never held the mark, or dropped
+    it, is written durably, so losing the mark costs time and never a revision."""
+
+    held = False
+
+
 def stage_artifact(page_dir: Path, revision: int, artifact: RevisionArtifact) -> str:
-    """Make exact immutable inputs durable, without making a revision discoverable."""
+    """Make exact immutable inputs durable, unless the page is `Disposable`, without
+    making a revision discoverable."""
+    durable = not memo(page_dir, Disposable).held
     revisions = page_dir / "revisions"
     revisions.mkdir(exist_ok=True)
     if revision in revision_orders(page_dir):
@@ -940,28 +937,31 @@ def stage_artifact(page_dir: Path, revision: int, artifact: RevisionArtifact) ->
                 ("index.html", artifact.html),
                 ("manifest.json", artifact.manifest),
             ):
-                written.append(_write_durably(staged / relative, data))
+                written.append(_write(staged / relative, data, durable))
             for path, resource in artifact.resources.items():
                 target = staged / ("resources" + path)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 earlier = captured.get(resource.digest)
                 if earlier is None or not _linked(earlier, target):
-                    _write_durably(target, resource.data)
+                    _write(target, resource.data, durable)
                 written.append(target)
-            fsync_parents(written + list(staged.rglob("*")))
+            if durable:
+                fsync_parents(written + list(staged.rglob("*")))
             os.rename(staged, destination)
-            fsync_parents([destination])
+            if durable:
+                fsync_parents([destination])
     elif (destination / "manifest.json").read_bytes() != artifact.manifest:
         raise ArtifactError(f"{destination}: immutable artifact digest collision")
     return name
 
 
-def _write_durably(target: Path, data: bytes) -> Path:
+def _write(target: Path, data: bytes, durable: bool) -> Path:
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("xb") as stream:
         stream.write(data)
-        stream.flush()
-        os.fsync(stream.fileno())
+        if durable:
+            stream.flush()
+            os.fsync(stream.fileno())
     return target
 
 
@@ -1011,7 +1011,8 @@ def publish_artifact(page_dir: Path, name: str, reading: SourceReading) -> Path:
     destination = page_dir / "revisions" / name
     marker = destination.with_name(f"{name}.html")
     os.link(destination / "index.html", marker)
-    fsync_parents([marker])
+    if not memo(page_dir, Disposable).held:
+        fsync_parents([marker])
     marker = marker.absolute()
     memo(page_dir, _Readings).hold(
         marker, file_stamp(marker), RevisionReading(marker, reading)
@@ -1031,19 +1032,16 @@ def write_artifact(
 def read_artifact(page_dir: Path, revision: int) -> RevisionArtifact:
     """Read exact captured inputs, never substituting a mutable page file.
 
-    The page keeps the last few bundle descriptors (`_Artifacts`), until any file they
-    were read from changes."""
+    The page keeps the last few bundle descriptors (`_Artifacts`) by path alone. A
+    revision's name carries its manifest's digest and its marker appears only after
+    its bundle is complete (`write_artifact`), so one path names one bundle for good,
+    and a server answering a page's few hundred resource requests reads none of its
+    files again."""
     path = revision_path(page_dir, revision).absolute()
-    bundle = path.with_suffix("")
-    stamps = (
-        file_stamp(path),
-        file_stamp(bundle),
-        file_stamp(bundle / "manifest.json"),
-    )
     held = memo(page_dir, _Artifacts)
-    if (artifact := held.get(path, stamps)) is None:
-        artifact = _materialize(path, bundle)
-        held.hold(path, stamps, artifact)
+    if (artifact := held.get(path)) is None:
+        artifact = _materialize(path, path.with_suffix(""))
+        held.hold(path, artifact)
     return artifact
 
 
@@ -1058,21 +1056,20 @@ class _Artifacts:
     LIMIT = 4
 
     def __init__(self) -> None:
-        self.held: dict[Path, tuple[tuple, RevisionArtifact]] = {}
+        self.held: dict[Path, RevisionArtifact] = {}
         self.lock = threading.Lock()
 
-    def get(self, path: Path, stamps: tuple) -> RevisionArtifact | None:
+    def get(self, path: Path) -> RevisionArtifact | None:
         with self.lock:
-            held = self.held.pop(path, None)
-            if held is None or held[0] != stamps or None in stamps:
-                return None
-            self.held[path] = held
-            return held[1]
+            artifact = self.held.pop(path, None)
+            if artifact is not None:
+                self.held[path] = artifact
+            return artifact
 
-    def hold(self, path: Path, stamps: tuple, artifact: RevisionArtifact) -> None:
+    def hold(self, path: Path, artifact: RevisionArtifact) -> None:
         with self.lock:
             self.held.pop(path, None)
-            self.held[path] = (stamps, artifact)
+            self.held[path] = artifact
             while len(self.held) > self.LIMIT:
                 self.held.pop(next(iter(self.held)))
 

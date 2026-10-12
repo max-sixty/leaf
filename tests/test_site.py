@@ -20,6 +20,7 @@ import json
 import os
 import re
 import shutil
+import urllib.error
 import urllib.request
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit
@@ -46,6 +47,7 @@ from leaf_dev.leaf_assets import pinned_assets, raw_prefix, specification
 from leaf_dev.page_fixtures import source_packages
 from PIL import Image
 from playwright.sync_api import expect
+from render_cases_interaction import GALLERY_THREAD_TEXT, serve_interaction_gallery
 from render_cases_layout import banner_control
 
 # The suite's own page primitives, so a navigation here waits on what every other
@@ -76,11 +78,11 @@ DEVELOPER_PAGES = tuple(sorted((EXAMPLES / "developer").glob("*.html")))
 # The theme's paper, light and dark, as the browser reports a background.
 PAPER = {"light": "rgb(250, 249, 245)", "dark": "rgb(25, 24, 21)"}
 PHONE = {"width": 390, "height": 844}
-GALLERY_THREAD_TEXT = "Gallery thread: I moved the practice exercise before lunch"
+
 
 # The module-scoped build and host are one shared setup, so they belong to one
 # xdist work unit rather than being rebuilt independently on every worker.
-pytestmark = [pytest.mark.nightly, pytest.mark.xdist_group(name="site")]
+pytestmark = [pytest.mark.main, pytest.mark.xdist_group(name="site")]
 
 
 def sample_address(frame):
@@ -177,7 +179,8 @@ class ReleasedAssetEndpoint(website_server.WebsitePageEndpoint):
     the adapter up alone serves a document whose runtime nothing answers for.
 
     The rewrite is `releaseAssetRoute`'s: the key after the release names the page,
-    and what follows it is that page's own published path under the asset tree.
+    and what follows it is that page's own published path under the asset tree. The
+    delivery headers are `stampDelivery`'s, which the runtime's probes read.
     """
 
     def __init__(self, request, server, *, asset_tree: Path, **bound) -> None:
@@ -207,6 +210,8 @@ class ReleasedAssetEndpoint(website_server.WebsitePageEndpoint):
                 {
                     "Access-Control-Allow-Origin": "*",
                     "Access-Control-Expose-Headers": "*",
+                    "Leaf-Layer": page["layer"],
+                    "Leaf-Release": self.release,
                 }
             )
             return response
@@ -690,9 +695,7 @@ def test_a_nested_page_keeps_one_draft_across_its_version_addresses(
 
     opened(page, f"{url}versions/v1.html")
     expect(page.locator(".lf-version")).to_have_text("Showing v1")
-    expect(
-        page.locator(".lf-page-comment-card .lf-general leaf-text")
-    ).to_have_js_property("value", "Kept across addresses")
+    expect(page_comment(page)).to_have_js_property("value", "Kept across addresses")
 
 
 def test_the_published_notification_example_runs_its_authored_module(
@@ -1145,6 +1148,27 @@ def test_a_link_that_reaches_nothing_stops_the_build(staged_site):
     assert "whats-new.html" in str(stopped.value)
 
 
+@pytest.mark.parametrize(
+    "target", ["/examples/triage-board/events.jsonl", "/_leaf/site.json"]
+)
+def test_a_link_to_a_built_file_the_server_does_not_route_stops_the_build(
+    staged_site, hosted, target
+):
+    """The build holds each page's log and the site's own manifest, but the server
+    routes only a page's document and served resources, so these links 404 live."""
+    assert (staged_site / target.lstrip("/")).is_file()
+    with pytest.raises(urllib.error.HTTPError) as missing:
+        urllib.request.urlopen(f"{hosted}{target}")
+    assert missing.value.code == 404
+    (site_build.product_page(staged_site, "index.html") / "index.html").write_text(
+        f'<a href="{target}">record</a>'
+    )
+
+    with pytest.raises(SystemExit) as stopped:
+        site_build.check_links(staged_site)
+    assert target in str(stopped.value)
+
+
 def test_a_directory_link_with_no_index_stops_the_build(staged_site):
     """What a host answers a directory with is its index, so that is what has to be
     there. An existence check passes on the directory itself and publishes a 404."""
@@ -1342,7 +1366,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
     dispatching its input gesture, so a developer can inspect the transition without
     the demonstration becoming durable page state.
     """
-    url = serve(FEATURE_GALLERY)
+    url = serve_interaction_gallery(serve)
     page_dir = serve.page_dir
     # Let every child present before starting the timed sequence. Otherwise the
     # first replay can finish while open_page still waits for another sample.
@@ -1424,6 +1448,12 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
                 ),
             };
         }"""
+    # A paused animation's time is fixed at the frame its pause commits, so the
+    # reading waits for every pause to stop pending.
+    accept_frame_element.element_handle().content_frame().wait_for_function(
+        """() => document.querySelector('#bg-motion-accept')
+            .getAnimations({subtree: true}).every(animation => !animation.pending)"""
+    )
     frozen = accept.evaluate(paused_suggestion)
     page.wait_for_timeout(800)
     assert accept.evaluate(paused_suggestion) == frozen
@@ -1579,7 +1609,7 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
         ),
     )
     page = open_page(
-        browser, f"{serve(FEATURE_GALLERY)}#bg-interactions", context=context
+        browser, f"{serve_interaction_gallery(serve)}#bg-interactions", context=context
     )
     # The user's own standing intent, written the way a user writes it. It has to
     # survive out here for the frames' silence about it to say anything.
@@ -1666,7 +1696,7 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
 
 
 def test_reduced_motion_leaves_gallery_play_explicit(serve, browser):
-    url = serve(FEATURE_GALLERY)
+    url = serve_interaction_gallery(serve)
     context = browser.new_context(
         reduced_motion="reduce", viewport={"width": 1280, "height": 900}
     )
@@ -1711,7 +1741,7 @@ def test_the_interaction_gallery_reads_where_it_is_now(serve, browser):
     the rest of the page's life. The arrival scroll crosses the gallery out of view and
     back on its own, which is how a loaded machine hands both crossings over together.
     """
-    url = serve(FEATURE_GALLERY)
+    url = serve_interaction_gallery(serve)
     page = open_page(browser, url, init_script=COALESCED_VIEW_RECORDS)
     gallery = page.locator("#bg-interactions")
     status = gallery.locator("[data-interaction-status]")
@@ -1725,7 +1755,7 @@ def test_the_interaction_gallery_reads_where_it_is_now(serve, browser):
 
 def test_interaction_gallery_contains_page_chrome(serve, browser):
     """A replay changes its zoomed-out Leaf document, not the gallery around it."""
-    url = serve(FEATURE_GALLERY)
+    url = serve_interaction_gallery(serve)
     context = browser.new_context(
         reduced_motion="reduce", viewport={"width": 1280, "height": 900}
     )
@@ -1825,7 +1855,7 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
 
 def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
     """A remembered chrome demo cannot replay before its inner Leaf page is ready."""
-    url = serve(FEATURE_GALLERY)
+    url = serve_interaction_gallery(serve)
     context = browser.new_context(reduced_motion="reduce")
     page = open_page(browser, f"{url}#bg-interactions", context=context)
     gallery = page.locator("#bg-interactions")
@@ -1890,7 +1920,7 @@ def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
 
 def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser):
     """A healthy contained page may present after an arbitrarily slow state read."""
-    url = serve(FEATURE_GALLERY)
+    url = serve_interaction_gallery(serve)
     context = browser.new_context(reduced_motion="reduce")
     page = context.new_page()
     held = []
@@ -1939,7 +1969,8 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
         contained_document = contained.locator("html")
         storage = contained_document.evaluate(
             """async () => {
-                const {LIVE_ROOT, PAGE_SCOPE, tabStore, draftStore, userStore} =
+                const {LIVE_ROOT} = await window.__lfRuntimeImport('/runtime/context.js');
+                const {PAGE_SCOPE, tabStore, draftStore, userStore} =
                     await window.__lfRuntimeImport('/runtime/storage.js');
                 for (const [name, store] of Object.entries({tabStore, draftStore, userStore})) {
                     if (!store.set('isolation-test', name) || store.get('isolation-test') !== name)
@@ -2036,7 +2067,7 @@ def test_a_sample_keeps_ephemeral_storage_and_presents_uploaded_media(serve, bro
 
 def test_a_contained_page_retries_a_failed_first_state_read(serve, browser):
     """A sample retries startup state without retaining a live page feed."""
-    url = serve(FEATURE_GALLERY)
+    url = serve_interaction_gallery(serve)
     context = browser.new_context(reduced_motion="reduce")
     page = context.new_page()
     failed = []
@@ -2091,7 +2122,7 @@ def test_a_contained_page_retries_a_failed_first_state_read(serve, browser):
 @pytest.mark.parametrize("document_status", [200, 503])
 def test_gallery_reports_sample_document_without_leaf(serve, browser, document_status):
     """A failed contained page is reported without blocking the other demos."""
-    url = serve(FEATURE_GALLERY)
+    url = serve_interaction_gallery(serve)
     context = browser.new_context(reduced_motion="reduce")
     page = context.new_page()
 
@@ -2239,14 +2270,16 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
         "links => links.map(link => link.getAttribute('href'))"
     ) == ["/examples/", "/#install"]
     expect(page.locator(".sitenote")).to_have_count(0)
-    expect(page.locator(".lf-banner .lf-dot")).to_have_class(re.compile(r"^lf-dot\s*$"))
+    assert page.locator(".lf-banner .lf-dot").evaluate("dot => [...dot.classList]") == [
+        "lf-dot"
+    ]
     state = page.evaluate("() => fetch('api/state').then(r => r.json())")
     assert state["publication"] == {
         "kind": "example",
         "agent": "The agent",
         "install_url": "/#install",
     }
-    assert state["browser"]["tasks"] == []
+    assert state["browser"]["todos"] == []
     assert state["session_alive"] is None
     assert not state["listening"]
     assert not (page_dir / "service.json").exists()

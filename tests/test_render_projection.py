@@ -137,7 +137,7 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 VISUAL_REVIEW_GALLERY = next(
@@ -4032,10 +4032,10 @@ export default class extends HTMLElement {
         # The phase move is the agent's to answer. The Question leaves the user's
         # queue when its condition closes, retaining its withdrawn inventory row.
         expect(
-            page.locator("[data-lf-queue='you'] .lf-queue-row[data-lf-kind='question']")
+            page.locator("[data-lf-queue='you'] .lf-queue-row[data-lf-kind='ask']")
         ).to_have_count(count)
         withdrawn = page.locator(
-            "[data-lf-queue='done'] .lf-queue-row[data-lf-kind='question']"
+            "[data-lf-queue='done'] .lf-queue-row[data-lf-kind='ask']"
         )
         expect(withdrawn).to_have_count(1 - count)
         if not count:
@@ -6408,13 +6408,13 @@ def test_report_words_and_widget_state_wait_together_for_a_drag(browser, serve):
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "2")
 
 
-@pytest.mark.parametrize("holding", ["defer", "preparation", "async"])
+@pytest.mark.parametrize("holding", ["defer", "preparation"])
 def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
     browser, serve, holding
 ):
     """Report prose, coverage, and clocks consume the widget's canonical proof.
 
-    A local editing hold and an asynchronous face/preparation are distinct owners of
+    A local editing hold and an asynchronous preparation are distinct owners of
     completion. Each holds only its widget; report narration cannot jump ahead by
     inferring that the coordinate was committed because its DOM node still exists.
     """
@@ -6469,22 +6469,8 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
             window.__proofResume = controller.defer();
           } else {
             let resolve;
-            const completion = new Promise(done => { resolve = done; });
-            if (holding === 'preparation') {
-              controller.present(completion);
-              window.__proofResume = resolve;
-            } else {
-              const render = owner.renderState.bind(owner);
-              let pendingState;
-              owner.renderState = state => { pendingState = state; };
-              Object.defineProperty(owner, 'updateComplete', {get: () => completion, configurable: true});
-              window.__proofResume = () => {
-                owner.renderState = render;
-                render(pendingState);
-                delete owner.updateComplete;
-                resolve();
-              };
-            }
+            controller.present(new Promise(done => { resolve = done; }));
+            window.__proofResume = resolve;
           }
         }""",
         holding,
@@ -6517,7 +6503,7 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
     )
     expect(row.locator(".lf-doing")).to_have_text("first report")
     expect(page.locator("body")).not_to_have_attribute("data-lf-applied", "2")
-    if holding != "preparation":
+    if holding == "defer":
         expect(row).to_have_attribute("state", "working")
     page.evaluate("window.__proofResume()")
     expect(row).to_have_attribute("state", "idle")
@@ -8028,8 +8014,8 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     folded): the words stay on screen where the user can select what no comment
     can anchor to, and the gate must say so. Then the theme goes back and the
     vendored module marks every trial after the controller publishes: on the undecided
-    spare that is a settlement the log never decided, silencing words the user can
-    still see, and the gate must say that too. Both failures render perfectly, which
+    spare that is a settlement the log never decided, styling as settled words the
+    page still reads, and the gate must say that too. Both failures render perfectly, which
     is why each is put back deliberately."""
     monkeypatch.chdir(tmp_path)
     trial_family(tmp_path)
@@ -9368,8 +9354,8 @@ def test_command_goal_thread_follows_its_declaration_not_talk(
 )
 def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided):
     """An input action discharges the request live; the honoring version removes its
-    authored `needed` condition, so incorporating its state into source cannot turn the input back into
-    a decision."""
+    authored `needed` condition and its Ask, so incorporating its state into source
+    cannot turn the input back into a decision."""
     url = serve(COMMAND_HUB_EXAMPLE)
     d = serve.page_dir
     page = open_page(browser, live_url(url))
@@ -9397,6 +9383,15 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
         COMMAND_HUB_PAGE,
         flags=re.DOTALL,
     )
+    # A draft without `needed` is optional editing, not a Question framed by an Ask.
+    honoring = honoring.replace(
+        '<lf-ask id="decision-ledger-fixture-region">',
+        '<div id="decision-ledger-fixture-region">',
+    ).replace(
+        "</lf-draft>\n              </lf-ask>",
+        "</lf-draft>\n              </div>",
+    )
+    assert '<lf-ask id="decision-ledger-fixture-region">' not in honoring
     stamp_page(d, honoring, "input absorbed")
     wait_for_revision(page, 2)
     # The saved answer remains in the reviewable Question inventory after the source

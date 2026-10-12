@@ -179,11 +179,11 @@ def current_responses(page_dir: Path, events: list[dict]) -> dict[str, dict]:
     the Stop hook name the same operation. An input a newer one in its thread covers
     owns none; the newest carries the thread's one answer.
     """
-    from .served_state.work import live_work
+    from .served_state.context import read_page
 
     return {
         item["input"]: item["answer"]
-        for item in live_work(page_dir, events).obligations
+        for item in read_page(page_dir, events).work.obligations
     }
 
 
@@ -600,9 +600,9 @@ def record_pickup(
         raise ValueError(f"unknown pickup phase {phase!r}")
     claim = page.claim
     if session is None and claim:
-        session = claim.get("id")
-    if phase == "opened" and turn is None and claim and claim.get("id") == session:
-        turn = claim.get("turn")
+        session = claim["id"]
+    if phase == "opened" and turn is None and claim and claim["id"] == session:
+        turn = claim["turn"]
     wanted = [event["id"] for event in events if requires_agent_attention(event)]
     picked = {
         (event_id, event["phase"], event["session"], event["turn"])
@@ -621,7 +621,7 @@ def record_pickup(
         return None
     from .event_contracts import append_admitted
 
-    return append_admitted(
+    record, _ = append_admitted(
         page,
         {
             "kind": "pickup",
@@ -633,10 +633,28 @@ def record_pickup(
             **({"failure": failure} if failure is not None else {}),
         },
     )
+    return record
+
+
+def deliverable(page: PageTransaction) -> list[dict]:
+    """The page's unacknowledged input a session of this Leaf may be handed: none on
+    a page whose log this Leaf may not write (`event_contracts.write_refusal`), where
+    `receive_batch` refuses its receipt. Handed over anyway, it stayed pending, so a
+    watch woke its session on every pass and a Codex watch opened a turn for it each
+    time. It waits for a Leaf that can write the page; the prompt hook names the
+    re-vendor that frees it (`hook_transport.remedies`). A page with nothing pending
+    is answered without loading its layer, since Codex asks after every tool call."""
+    pending = unacknowledged(page.events, page.cursor)
+    if not pending:
+        return []
+    from .event_contracts import write_refusal
+
+    return [] if write_refusal(page.page_dir) else pending
 
 
 class ReceiptRefused(Refused):
-    """Captured input no longer belongs to this receiver or page log."""
+    """Captured input no longer belongs to this receiver or page log, or sits on a
+    page whose log this Leaf may not write."""
 
 
 @contextmanager
@@ -652,8 +670,13 @@ def receive_batch(
     page is still the receiver's (`service.claim_names_session`), even between a
     restart's new generation and its claim, and an old envelope can be confirmed
     after ownership returns to its receiver. A receiver with no session takes
-    receipt only while no session holds the page.
+    receipt only while no session holds the page. Nor does one take it on a page
+    vendored at another protocol (`event_contracts.write_refusal`): its body could
+    record no pickup there, and every transport retires a refused receipt rather
+    than retrying it, leaving the input for a Leaf that can write the page.
     """
+    from .event_contracts import write_refusal
+
     # The page is already locked; keep lifecycle admission valid through pickup
     # and cursor commit. SessionEnd cannot cross between those writes.
     with (
@@ -667,6 +690,8 @@ def receive_batch(
             else page.claim_of(session_id) is None
         ):
             raise ReceiptRefused(f"delivery no longer owns its page: {page.page_dir}")
+        if refusal := write_refusal(page.page_dir):
+            raise ReceiptRefused(refusal)
         expected = {event["seq"]: event["id"] for event in batch["events"]}
         delivered = {event["seq"]: event for event in page.events}
         if not expected or any(
@@ -712,29 +737,36 @@ def receive(payload: dict, session_id: str | None) -> list[Path]:
 
 
 def receive_held(
-    payload: dict, session_id: str, *, deadline: float | None = None
-) -> list[Path]:
-    """Confirm each batch of a delivery its hook handed to `session_id`'s open
-    turn, where the session still holds the batch's page.
+    payload: dict, session_id: str, expected: dict, *, deadline: float | None = None
+) -> bool:
+    """Confirm each batch of a delivery its hook is handing to `session_id`'s open
+    turn, the lifecycle `expected` it planned under, and whether every batch was
+    confirmed.
 
-    The hook has already handed the delivery over, so a page that changed hands
-    or went, or a turn that ended, refuses only its own batch: that input stays
-    pending, and a later delivery carries it. So does a batch whose locks are still
-    held at `deadline`, for a hook that must exit by then for its handover to
-    stand."""
-    pages = []
+    A refusal is the batch's own: a page that changed hands or went, a turn that
+    ended or was replaced, a log this Leaf may not write
+    (`layer.incompatible_layer`), or locks still held at `deadline`, for a hook
+    that must exit by then for its handover to stand. The other batches are still
+    confirmed, and the hook hands the whole delivery to its reader to confirm
+    (`hook_transport.render`)."""
+    confirmed = True
     for batch in payload["batches"]:
         try:
-            pages.append(receive_one(batch, session_id, deadline=deadline))
-        except (FileNotFoundError, ReceiptRefused, TimeoutError):
-            continue
-    return pages
+            receive_one(batch, session_id, deadline=deadline, expected=expected)
+        except (FileNotFoundError, Refused, TimeoutError):
+            confirmed = False
+    return confirmed
 
 
 def receive_one(
-    batch: dict, session_id: str | None, *, deadline: float | None = None
+    batch: dict,
+    session_id: str | None,
+    *,
+    deadline: float | None = None,
+    expected: dict | None = None,
 ) -> Path:
-    """Confirm one consumer-read batch under its current page ownership."""
+    """Confirm one consumer-read batch under its current page ownership, into the
+    session lifecycle `expected` where the caller names one."""
     page_dir = Path(batch["page"])
     with (
         PageTransaction(page_dir, deadline=deadline) as page,
@@ -745,6 +777,8 @@ def receive_one(
             observed = session_record(session_id)
             if observed["turn_closed"] is not None:
                 raise ReceiptRefused("the receiving provider turn has ended")
+            if expected is not None and observed != expected:
+                raise ReceiptRefused("the receiving turn has been replaced")
             # Receipt observes the consumer turn. The explicit acknowledgement
             # boundary can open an unnamed turn; hooks and providers cannot.
             turn = observed["turn"]

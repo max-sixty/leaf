@@ -23,11 +23,18 @@
    out from in front of the user: a card another actor resolves under Open stays where
    it stands, its card holding the resolution behind its notice (held-news.js) and,
    once shown, drawn resolved in the shape it stood in, until its going would move
-   nothing the user sees. A withdrawn root follows the same lifetime rule, but keeps
-   only its measured allocation and a Dismiss notice: its controls disconnect, its
-   semantic membership ends, and a selected allocation holds off fallback disclosure.
-   Dismissal or choosing another card releases it; changing view or leaving the
-   reading releases it under the same geometry and continuity policy as other news. */
+   nothing the user sees. A root another actor withdraws is news too, and one rule
+   (`#keeping`) holds both kinds of card. The withdrawn one keeps only its measured
+   allocation and a Dismiss notice: its controls disconnect, so it holds nothing for
+   the user's words, its semantic membership ends, and a selected allocation holds off
+   fallback disclosure. Dismissal or choosing another card releases it at once, outside
+   the geometry rule (#2387's choice): the allocation has no closed form to shrink to
+   when another card opens. The model builder asks both questions while it builds the
+   reading (thread-list.js), so a kept allocation is a row of that reading, committed
+   and restored with the cards beside it. Rejected: deciding withdrawals by a copy of
+   the rule beside `keeping`, as paint the list spliced into each reading it drew
+   (#2387), which every later change to when a card leaves had to repeat and which
+   committing had to rebuild from the drawn rows. */
 import { html, repeat, ref } from "../../vendor/browser-runtime.js";
 import { holdFocus, onStanding, focusDestination, focused } from "../focus.js";
 import { RetainedFace } from "../retained-face.js";
@@ -38,7 +45,8 @@ import { passOn, retainUserIntent } from "../user-intent.js";
 import { layoutChanged } from "../widget-elements.js";
 import { isFolding } from "./folding.js";
 import { threadKey } from "./model.js";
-import { elementBorderFrame, growthIsSeen, whenNone } from "../geometry.js";
+import { elementBorderFrame } from "../element-frame.js";
+import { growthIsSeen, whenNone } from "../geometry.js";
 import { gesturedOn } from "./held-news.js";
 import { PENDING } from "./identity.js";
 import { readingIsContinuous } from "../reading-continuity.js";
@@ -67,7 +75,6 @@ class ThreadListView extends RetainedFace {
   #restoreFocusAfterPaint = null;
   #generation = 0;
   #rows = [];
-  #committedRows = [];
   #retaining = false;
   #rollbackFocus = null;
   #selection = [];
@@ -75,67 +82,35 @@ class ThreadListView extends RetainedFace {
   #leaving = new Map();
   #dismissed = new Set();
   #withdrawnFocus = null;
+  // The row the list last showed open: a card, or a withdrawn allocation it selects.
+  #shownOpen = null;
 
-  // An absent root is no longer a thread: disconnect its controls and keep only the
-  // allocation the reader stood in. Membership and order come from the complete
-  // committed reading, so refusing a candidate restores the same native cards.
-  #withWithdrawals(rows, intent) {
-    const present = new Set(rows.map((row) => row.key));
-    const prior = this.#committedRows;
-    const chosen = this.#selection.find((key) =>
-      this.#rows.some((row) => row.key === key),
-    );
-    for (let i = prior.length - 1; i >= 0; i--) {
-      const row = prior[i];
-      if (present.has(row.key) || this.#dismissed.has(row.key)) continue;
-      const drawn = this.#rows.find((drawn) => drawn.key === row.key);
-      const node = drawn?.node;
-      if (
-        this.#intent !== intent ||
-        !readingIsContinuous() ||
-        !node?.isConnected ||
-        (row.kind !== "withdrawn" &&
-          (row.kind !== "thread" ||
-            !row.descriptor.visible ||
-            row.descriptor.folding ||
-            gesturedOn(row.descriptor.source))) ||
-        !(row.key === chosen ? this.checkVisibility() : growthIsSeen(node))
-      )
-        continue;
-      const withdrawn =
-        row.kind === "withdrawn"
-          ? row
-          : Object.freeze({
-              kind: "withdrawn",
-              key: row.key,
-              id: row.descriptor.id,
-              topic: row.descriptor.summary.topic,
-              extent: elementBorderFrame(node).height,
-            });
-      const following = prior.slice(i + 1).find((next) => present.has(next.key));
-      const preceding = prior
-        .slice(0, i)
-        .findLast((previous) => present.has(previous.key));
-      const at = following
-        ? rows.findIndex((next) => next.key === following.key)
-        : preceding
-          ? rows.findIndex((previous) => previous.key === preceding.key) + 1
-          : 0;
-      rows.splice(at, 0, withdrawn);
-      present.add(row.key);
-    }
-    return rows.some((row) => row.kind === "withdrawn")
-      ? rows.filter((row) => row.kind !== "empty")
-      : rows;
+  // The allocation the list keeps for committed row `row`, whose root the next reading
+  // no longer has, or null where it goes: an absent root is no longer a thread, so its
+  // controls disconnect and only the room the reader stood in stays, for as long as
+  // `#keeping` holds it as news. The model builder places it (thread-list.js).
+  withdrawal(row, intent) {
+    if (this.#dismissed.has(row.key)) return null;
+    const thread = row.kind === "thread" ? row.descriptor.source : null;
+    if (this.#keeping(row.key, intent, thread, { words: false }) !== "news")
+      return null;
+    return thread
+      ? Object.freeze({
+          kind: "withdrawn",
+          key: row.key,
+          id: row.descriptor.id,
+          topic: row.descriptor.summary.topic,
+          extent: elementBorderFrame(
+            this.#rows.find((drawn) => drawn.key === row.key).node,
+          ).height,
+        })
+      : row;
   }
 
   #visibleRows() {
     const eligible = new Set(
       this.model.rows
-        .filter(
-          (row) =>
-            row.kind === "thread" && row.descriptor.visible && !row.descriptor.folding,
-        )
+        .filter((row) => row.kind === "thread" && row.descriptor.visible)
         .map((row) => row.key),
     );
     return this.#rows.filter((row) => row.kind === "thread" && eligible.has(row.key));
@@ -163,6 +138,7 @@ class ThreadListView extends RetainedFace {
 
   #showExpanded() {
     const chosen = this.#expandedRow();
+    this.#shownOpen = chosen?.key ?? null;
     if (!chosen) return;
     for (const row of this.#visibleRows())
       row.node.toggleAttribute("open", row === chosen);
@@ -210,23 +186,38 @@ class ThreadListView extends RetainedFace {
   // sight asks for the render that lets it go (`#watchKept`), as does its closing when
   // the user opens another card.
   keeping(thread, intent) {
-    const key = threadKey(thread);
-    const view = this.#views.get(`thread:${key}`);
-    if (this.#intent !== intent || !view?.model.visible || view.model.folding)
+    return this.#keeping(`thread:${threadKey(thread)}`, intent, thread);
+  }
+
+  // The one rule for every card the next reading drops, the view's exclusions above and
+  // the log's withdrawals alike (`withdrawal`). `thread` is what the card last
+  // drew, null once its allocation stands committed as withdrawn, when no gesture of
+  // the user's but Dismiss reaches it. A withdrawn root keeps nothing for its words
+  // (`words: false`): its controls disconnect with it, so only news holds its room.
+  #keeping(key, intent, thread, { words = true } = {}) {
+    const row = this.#rows.find((row) => row.key === key);
+    const model = row?.kind === "thread" ? this.#views.get(key).model : null;
+    if (
+      this.#intent !== intent ||
+      !row?.node?.isConnected ||
+      (row.kind !== "withdrawn" && (!model?.visible || model.folding))
+    )
       return null;
     const seen =
       readingIsContinuous() &&
-      (view.node.open ? this.checkVisibility() : growthIsSeen(view.node));
-    const draft = threadHoldsDraft(
-      key,
-      thread.msgs.map(({ id }) => id),
-    );
+      (key === this.#shownOpen ? this.checkVisibility() : growthIsSeen(row.node));
+    const draft =
+      words &&
+      threadHoldsDraft(
+        threadKey(thread),
+        thread.msgs.map(({ id }) => id),
+      );
     // A turn of the user's own on its way, a reply or a rewrite, makes a card news kept
     // theirs: the turn takes the card out as any turn of theirs does (thread-card.js,
     // `#speak`). A reaction, a move or words not yet sent leave it held for the news.
-    const news = view.model.kept
-      ? view.model.kept === "news" && !turnOnItsWay(thread)
-      : !gesturedOn(thread);
+    const news = model?.kept
+      ? model.kept === "news" && !turnOnItsWay(thread)
+      : !thread || !gesturedOn(thread);
     if (news && (seen || draft)) return "news";
     return draft ? "draft" : null;
   }
@@ -354,19 +345,6 @@ class ThreadListView extends RetainedFace {
       const chosen = this.#expandedRow();
       if (chosen) this.#select(chosen.key);
     }
-    this.#committedRows = this.#rows.map((row) =>
-      row.kind === "thread"
-        ? model.rows.find((candidate) => candidate.key === row.key)
-        : row.kind === "withdrawn"
-          ? Object.freeze({
-              kind: row.kind,
-              key: row.key,
-              id: row.id,
-              topic: row.topic,
-              extent: row.extent,
-            })
-          : row,
-    );
     for (const [key, view] of this.#views) {
       if (wanted.has(key)) view.commit();
       else {
@@ -402,15 +380,8 @@ class ThreadListView extends RetainedFace {
     const viewChanged = this.#intent !== this.model.intent;
     const rows = [];
     const wanted = new Set();
-    // Allocations are mechanical paint state. Reconcile them on every attempt,
-    // including a retry after rollback restored a formerly dismissed live card.
-    const allocated = this.#retaining
-      ? this.#committedRows
-      : this.model.count === null
-        ? this.model.rows
-        : this.#withWithdrawals([...this.model.rows], this.model.intent);
     this.#intent = this.model.intent;
-    for (const row of allocated) {
+    for (const row of this.model.rows) {
       if (row.kind !== "thread") {
         if (row.kind === "withdrawn") {
           const previous = this.#rows.find((drawn) => drawn.key === row.key);

@@ -353,10 +353,8 @@ def _render_scheme(
         return probe_failure(error)
     # The served documents every reading below is asked against, read once each
     # (`served` says why they are read from out here rather than fetched inside
-    # the page). The registry alone used to be fetched seven times a scheme, to
-    # answer seven questions about one document. What the readings get now is
-    # data, so most of them are plain synchronous DOM walks with nothing left in
-    # them to await, let alone hang in.
+    # the page). The readings get data rather than fetching it, so most of them
+    # are plain synchronous DOM walks with nothing in them to await or hang in.
     try:
         state = served_here("/api/state").json()
         markup = served_here(urlsplit(url).path).text()

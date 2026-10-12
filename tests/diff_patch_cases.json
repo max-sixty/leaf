@@ -1,0 +1,144 @@
+{
+  "cases": [
+    {
+      "id": "edit",
+      "patch": "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-old\n+new\n",
+      "files": [
+        "app.py"
+      ]
+    },
+    {
+      "id": "added-file",
+      "patch": "diff --git a/new.py b/new.py\nnew file mode 100644\nindex 0000000..1111111\n--- /dev/null\n+++ b/new.py\n@@ -0,0 +1 @@\n+hello\n",
+      "files": [
+        "new.py"
+      ]
+    },
+    {
+      "id": "deleted-file",
+      "patch": "diff --git a/old.py b/old.py\ndeleted file mode 100644\nindex 1111111..0000000\n--- a/old.py\n+++ /dev/null\n@@ -1 +0,0 @@\n-bye\n",
+      "files": [
+        "old.py"
+      ]
+    },
+    {
+      "id": "rename-with-edit",
+      "patch": "diff --git a/old.py b/new.py\nsimilarity index 80%\nrename from old.py\nrename to new.py\n--- a/old.py\n+++ b/new.py\n@@ -1 +1 @@\n-a\n+b\n",
+      "files": [
+        "new.py"
+      ]
+    },
+    {
+      "id": "path-only-rename",
+      "patch": "diff --git a/old-name.js b/new-name.js\nsimilarity index 100%\nrename from old-name.js\nrename to new-name.js\n",
+      "files": [
+        "new-name.js"
+      ]
+    },
+    {
+      "id": "quoted-path-only-rename",
+      "patch": "diff --git \"a/old\\tname.js\" \"b/new\\tname.js\"\nsimilarity index 100%\nrename from \"old\\tname.js\"\nrename to \"new\\tname.js\"\n",
+      "files": [
+        "new\tname.js"
+      ]
+    },
+    {
+      "id": "quoted-edit",
+      "patch": "diff --git \"a/caf\\303\\251.py\" \"b/caf\\303\\251.py\"\n--- \"a/caf\\303\\251.py\"\n+++ \"b/caf\\303\\251.py\"\n@@ -1 +1 @@\n-old\n+new\n",
+      "files": [
+        "café.py"
+      ]
+    },
+    {
+      "id": "letter-escapes-edit",
+      "patch": "diff --git \"a/tab\\there \\\"q\\\".py\" \"b/tab\\there \\\"q\\\".py\"\n--- \"a/tab\\there \\\"q\\\".py\"\n+++ \"b/tab\\there \\\"q\\\".py\"\n@@ -1 +1 @@\n-old\n+new\n",
+      "files": [
+        "tab\there \"q\".py"
+      ]
+    },
+    {
+      "id": "spaced-edit",
+      "patch": "diff --git a/my file.py b/my file.py\n--- a/my file.py\t\n+++ b/my file.py\t\n@@ -1 +1 @@\n-old\n+new\n",
+      "files": [
+        "my file.py"
+      ]
+    },
+    {
+      "id": "two-files",
+      "patch": "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-old\n+new\ndiff --git a/b.py b/b.py\n--- a/b.py\n+++ b/b.py\n@@ -1 +1 @@\n-x\n+y\n",
+      "files": [
+        "app.py",
+        "b.py"
+      ]
+    },
+    {
+      "id": "wrong-count",
+      "patch": "diff --git a/example.js b/example.js\n--- a/example.js\n+++ b/example.js\n@@ -1 +1 @@\n-old\n+new\n+silently-lost\n",
+      "widget": "parsePatchContent: hunk has more lines than expected"
+    },
+    {
+      "id": "missing-hunk",
+      "patch": "diff --git a/example.js b/example.js\n--- a/example.js\n+++ b/example.js\n-old\n+new\n",
+      "manifest": "unexpected metadata",
+      "widget": "unexpected diff metadata for example.js: --- a/example.js"
+    },
+    {
+      "id": "rename-with-missing-hunk",
+      "patch": "diff --git a/old.js b/new.js\nsimilarity index 100%\nrename from old.js\nrename to new.js\n--- a/old.js\n+++ b/new.js\n-before\n+after\n",
+      "widget": "unexpected diff metadata for new.js: --- a/old.js",
+      "manifest": "unexpected metadata"
+    },
+    {
+      "id": "repeated-path",
+      "patch": "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-old\n+new\ndiff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-new\n+newer\n",
+      "widget": "unified diff repeats file path app.py"
+    },
+    {
+      "id": "copy",
+      "patch": "diff --git a/a.py b/b.py\nsimilarity index 100%\ncopy from a.py\ncopy to b.py\n",
+      "files": [
+        "b.py"
+      ]
+    },
+    {
+      "id": "copy-with-edit",
+      "patch": "diff --git a/a.py b/b.py\nsimilarity index 90%\ncopy from a.py\ncopy to b.py\n--- a/a.py\n+++ b/b.py\n@@ -1 +1 @@\n-x\n+y\n",
+      "files": [
+        "b.py"
+      ]
+    },
+    {
+      "id": "binary",
+      "patch": "diff --git a/img.png b/img.png\nindex 1111111..2222222 100644\nBinary files a/img.png and b/img.png differ\n",
+      "files": [
+        "img.png"
+      ]
+    },
+    {
+      "id": "binary-rename",
+      "patch": "diff --git a/a.png b/b.png\nsimilarity index 90%\nrename from a.png\nrename to b.png\nindex 1111111..2222222 100644\nBinary files a/a.png and b/b.png differ\n",
+      "files": [
+        "b.png"
+      ]
+    },
+    {
+      "id": "mode-only",
+      "patch": "diff --git a/run.sh b/run.sh\nold mode 100644\nnew mode 100755\n",
+      "files": [
+        "run.sh"
+      ]
+    },
+    {
+      "id": "empty-added",
+      "patch": "diff --git a/empty.txt b/empty.txt\nnew file mode 100644\nindex 0000000..e69de29\n",
+      "files": [
+        "empty.txt"
+      ]
+    },
+    {
+      "id": "empty",
+      "patch": "",
+      "widget": "empty diff"
+    }
+  ]
+}

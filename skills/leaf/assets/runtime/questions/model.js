@@ -10,19 +10,17 @@ import { readApplication } from "../semantic-state.js";
 import { widgetDeclaration } from "../registry.js";
 import { watchProjection } from "../projection-watch.js";
 
-export const readQuestions = () => readApplication().effective.questions;
+export const readQuestions = () => readApplication().effective.asks;
 
 export const questionEntry = (question) =>
   widgetDeclaration(question?.source.id, "x-awaits");
 // Approval needs an admitted inventory, so its gate never reads unknown as empty: with
 // no admitted reading nothing says which Questions still stand, and this answers null.
 export function approvalBlockingQuestions() {
-  const reading = readQuestions();
-  return reading.phase === "ready"
-    ? reading.unanswered.filter(
-        (question) => question.source.kind === "widget" && question.next_actor !== null,
-      )
-    : null;
+  const { asks: questions, view } = readApplication().effective;
+  if (questions.phase !== "ready" || !view) return null;
+  const blocking = new Set(view.approval_blocking);
+  return questions.all.filter((question) => blocking.has(question.id));
 }
 
 export function watchQuestions(owner, callback) {

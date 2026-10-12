@@ -46,16 +46,19 @@ reaches a module by importing it from this package, never through `sys.path`,
   into a before/after pair in its own run directory under `.tmp/stills/`.
   Repeat `--state NAME` to compare only the states a change touches.
 - `leaf-dev thread-snapshots` owns reviewed message-delivery images in leaf-assets;
-  `thread_snapshots.py` owns capture and acceptance. Its shared journey replaces
-  the former panel/card sent stills. Acceptance alone advances
+  `thread_snapshots.py` owns capture and acceptance. Acceptance alone advances
   `leaf-assets.json`'s `thread_snapshots_revision`; media publication advances
   `revision`, so new demo assets cannot replace a runtime's reviewed expectations.
 - `suite.py` runs a selection of the suite in a checkout and reads each test's
   outcome from pytest's junit report, refusing a selection pytest would not run.
 - `suite_profile.py` is the pytest plugin that gives each test a junit `profile`
-  property, its phases and its time in Playwright's sync API by method and caller, and
-  `leaf-dev suite-profile DIR` reads that report, with the py-spy stacks and process
-  CPU CI records beside it, into where a run's worker time went.
+  property, its phases, the CPU its worker's cgroup used, and its time in Playwright's
+  sync API by method and caller, and `leaf-dev suite-profile DIR` reads that report,
+  with the py-spy stacks and process CPU CI records beside it, into where a run's CPU
+  and worker time went.
+- `leaf-dev cost-tiers DIR` rewrites `tests/cost_tiers.json`, the tier each test's
+  measured cost puts it in, from a daily run's junit report; `cost_tiers.py` owns the
+  limits and the record's format.
 - `leaf-dev flake NODEID...` runs tests from the working tree as 18 copies, six at a
   time, and prints every failure's message, since a load flake never shows serially.
   It snapshots the candidate once; each copy owns its checkout and test output.
@@ -89,12 +92,10 @@ reaches a module by importing it from this package, never through `sys.path`,
 
 ## Website and demo
 
-`leaf-dev distribution --output NEW-DIRECTORY` builds the prepared Git payload.
-`publish-distribution DIRECTORY` advances the `prepared` branch with a verified
-payload from current main, retaining source ancestry and using a normal push.
-The `prepared-install` workflow owns publication. Never merge that generated
-branch into a development branch. Source checkouts remain directly runnable;
-consumer installs and custom packages require no browser compiler.
+`leaf-dev distribution --output NEW-DIRECTORY` builds the installation tree the
+website's container runs, with the browser runtime compiled into one kernel. Source
+checkouts and consumer installs run the source modules directly; neither they nor
+custom packages require a browser compiler.
 
 CI, the root pnpm scripts and `.config/wt.toml` run these. The images they
 write live in `max-sixty/leaf-assets`, so outside `.tmp/` they write only the pin
@@ -126,11 +127,10 @@ in `leaf-assets.json` and the README's image URLs that name it.
 
 ## Journeys
 
-`leaf-dev journey TARGET` runs one user's journey against a real agent: it asks for a
-release that passed its checks to be recorded, and requires a revision and a reply.
-Its `--help` lists the targets, a harness session with this working tree as its
-plugin or the website, and where the user is. `journey.py` owns what the targets
-share: the isolation (a harness session runs under a throwaway home holding only
+`leaf-dev journey TARGET` runs one user's journey against a real agent;
+`/developing-leaf`, "Run the agent journey", says what it checks and when to run it,
+and its `--help` lists the targets and where the user is. `journey.py` owns what the
+targets share: the isolation (a harness session runs under a throwaway home holding only
 the host's login) and its evidence under `.tmp/journey/`; the `Terminal` every wait
 hears a session through; and the `User`. Each comment is timed from the page's log on the server's clock,
 with the agent's work on it split into delivery, model and tool phases. Between

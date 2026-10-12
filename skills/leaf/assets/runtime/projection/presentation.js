@@ -32,7 +32,7 @@ import {
   pageQueryAll,
   renderRetired,
 } from "../passages.js";
-import { isPagePaint, renderQuiet } from "../presentation.js";
+import { isPagePaint, renderQuiet } from "../declared-words.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { keeps } from "../keeps.js";
 

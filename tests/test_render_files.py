@@ -1,6 +1,7 @@
 """File editing stays quiet while saves, external changes and conflicts preserve work."""
 
 import io
+import os
 
 from leaf.file_bindings import bind_file
 from PIL import Image
@@ -114,9 +115,9 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     page.unroute("**/api/files/notes", hold_writes)
     page.clock.resume()
 
-    # An external clean update follows without replacing the editing owner.
+    # An external clean update follows without replacing the editing owner. The
+    # page's news names the write; nothing reads the file on a timer.
     file.write_text("# External\n")
-    page.clock.run_for(2100)
     expect(editor).to_contain_text("External")
     # These words were acknowledged on disk. This explicit external replacement
     # should update the clean editor; it is not an unsaved composition being lost.
@@ -161,19 +162,29 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     page.unroute("**/api/files/notes", hold_writes)
 
     # Keep the compared disk version stable until the reader chooses. A background
-    # read must not occupy the save path and silently swallow that choice.
+    # read must not occupy the save path and silently swallow that choice, even when
+    # the page stamps the file anew.
+    held_reads = []
+
     def hold_reads(route):
         if route.request.method == "POST":
             route.continue_()
+        else:
+            held_reads.append(route)
 
     page.route("**/api/files/notes", hold_reads)
-    page.clock.run_for(2100)
+    with page.expect_response(lambda response: response.url.endswith("/api/state")):
+        os.utime(file)
+    assert not held_reads
     with receipt(failed_draft):
         widget.get_by_role("button", name="Save my version", exact=True).click()
     expect(status).to_have_text("")
     expect(editor).to_be_focused()
     assert file.read_text() == failed_draft
     page.unroute("**/api/files/notes", hold_reads)
+    # The save moved the stamp too; the read that follows it is answered now.
+    for route in held_reads:
+        route.continue_()
     consume_browser_errors(page, "Failed to load resource: net::ERR_FAILED", "409 ")
 
     # Two versions remain available after a stale save. Explicit replacement
@@ -234,6 +245,26 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     expect(status).to_have_text("")
     expect(editor).to_be_focused()
     assert file.read_text() == draft
+
+    # A file that moves again while the reader compares versions is read once they
+    # take the file version, rather than leaving the editor on the compared one.
+    held.clear()
+    page.evaluate("window.heldFileWrites = 0")
+    page.route("**/api/files/notes", hold_writes)
+    with page.expect_request(file_write):
+        replace("# Mine\n")
+        page.clock.run_for(600)
+    page.wait_for_function("window.heldFileWrites === 1")
+    file.write_text("# Compared\n")
+    held[0].continue_()
+    page.clock.run_for(100)
+    use_file = widget.get_by_role("button", name="Use file version", exact=True)
+    expect(use_file).to_be_visible()
+    page.unroute("**/api/files/notes", hold_writes)
+    with page.expect_response(lambda response: response.url.endswith("/api/state")):
+        file.write_text("# Newest\n")
+    use_file.click()
+    expect(editor).to_contain_text("Newest")
     consume_browser_errors(
         page,
         "409 ",
@@ -373,8 +404,9 @@ def test_file_editor_page_navigation_preserves_the_caret_position(
 def test_file_editor_uses_package_typography_and_the_inherited_focus_ring(
     browser, serve, tmp_path
 ):
-    """Provider defaults yield to package CSS and root inputs in a real bound editor."""
-    file = tmp_path / "style.md"
+    """Provider defaults yield to package CSS and root inputs in a real bound editor,
+    which reads a `.markdown` file as Markdown, as `$languages.paths` says."""
+    file = tmp_path / "style.markdown"
     file.write_text("# A real file\n\nEditable words.\n")
     url = serve(
         leaf_page(
@@ -388,6 +420,8 @@ def test_file_editor_uses_package_typography_and_the_inherited_focus_ring(
     widget = page.locator("lf-file-editor")
     editor = widget.get_by_role("textbox", name="File contents", exact=True)
     expect(editor).to_have_attribute("aria-readonly", "false")
+    heading = editor.locator(".cm-line", has_text="A real file").locator("span").first
+    expect(heading).to_have_css("font-weight", "650")
     size = editor.evaluate("node => getComputedStyle(node).fontSize")
     root_size = page.locator("html").evaluate(
         "node => parseFloat(getComputedStyle(node).fontSize)"

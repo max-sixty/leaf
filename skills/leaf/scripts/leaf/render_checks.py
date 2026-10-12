@@ -7,9 +7,13 @@ from .schema import RENDER_CHECKS_DIR
 
 RENDER_VIEWPORT = {"width": 1200, "height": 900}
 
-# The same patience Playwright gives browser waits. Keeping the server request timeout
-# beside it turns a wedged preview into a useful failure rather than an unbounded evaluate.
-SERVED_TIMEOUT_MS = 30_000
+# The bound on one probe or request, sized for an oversubscribed host rather than an idle
+# one: it separates a wedged preview, which it turns into a useful failure rather than
+# an unbounded evaluate, from a machine that has not got there yet. At Playwright's own
+# 30s, browser tests on a host stacked with other sessions' suites timed out in a
+# different place each run and passed alone, and each red run was re-run whole, adding
+# the load that failed it. A longer bound costs only a slower failure for a real hang.
+SERVED_TIMEOUT_MS = 120_000
 # How long a whole page handover may take before the page counts as wedged: the wait,
 # from navigation, for the page to state every readiness fact (`wait_until_ready`).
 # `SERVED_TIMEOUT_MS` bounds one request or one probe, and a handover is all of a
@@ -21,7 +25,7 @@ SERVED_TIMEOUT_MS = 30_000
 # weakens no claim, since the readiness facts say the same whenever they arrive; the
 # deadline only separates a page that never arrives from a machine that has not got
 # there yet.
-HANDOVER_DEADLINE_MS = 90_000
+HANDOVER_DEADLINE_MS = 240_000
 # How often a probe wait re-reads its fact. The waits poll on a timer rather than on
 # animation frames (see `_load_probes`), and most waits are a frame or a settle, so the
 # interval is added to what they wait for: at 16 ms, `one_frame` took about 22 ms where
@@ -75,6 +79,13 @@ def _ensure_driver(page) -> None:
         page.evaluate(DRIVER_SOURCE.read_text(encoding="utf-8"))
 
 
+class ProbesUnlinked(Exception):
+    """The probe modules failed to load with a `SyntaxError`: how a module importing a
+    name the page's runtime lacks fails to link, as on a page another Leaf vendored,
+    and how malformed probe code fails too. Its message is the browser's reason, which
+    tells the two apart (`render-checks/driver.js`)."""
+
+
 def _load_probes(page, timeout_ms: int) -> None:
     """Start the module load and observe its result from a bounded driver wait.
 
@@ -87,19 +98,21 @@ def _load_probes(page, timeout_ms: int) -> None:
     if loaded is None:
         _ensure_driver(page)
         loaded = page.evaluate(_LOAD_PROBES, PROBE_ROUTE)
-    if loaded:
-        return
-    try:
-        # Probe readiness is independent of animation frames. A complete child
-        # document in a closed disclosure or inactive tab still needs inspection,
-        # but browsers suspend its requestAnimationFrame callbacks.
-        page.wait_for_function(
-            _LOAD_PROBES, arg=PROBE_ROUTE, timeout=timeout_ms, polling=PROBE_POLL_MS
-        )
-    except PlaywrightTimeout as error:
-        raise PlaywrightError(
-            f"Leaf browser probes did not load from {PROBE_ROUTE} within {timeout_ms}ms"
-        ) from error
+    if not loaded:
+        try:
+            # Probe readiness is independent of animation frames. A complete child
+            # document in a closed disclosure or inactive tab still needs inspection,
+            # but browsers suspend its requestAnimationFrame callbacks.
+            loaded = page.wait_for_function(
+                _LOAD_PROBES, arg=PROBE_ROUTE, timeout=timeout_ms, polling=PROBE_POLL_MS
+            ).json_value()
+        except PlaywrightTimeout as error:
+            raise PlaywrightError(
+                f"Leaf browser probes did not load from {PROBE_ROUTE} "
+                f"within {timeout_ms}ms"
+            ) from error
+    if isinstance(loaded, dict):
+        raise ProbesUnlinked(loaded["unlinked"])
 
 
 def evaluate_probe(page, name: str, *args):

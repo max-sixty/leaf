@@ -21,7 +21,7 @@ const action = (attempt, extra = {}) => ({
   ...extra,
 });
 const earlier = action("earlier", { id: "e0", seq: 1 });
-const noQuestions = () => ({ all: [], user: [], unanswered: [] });
+const noAsks = () => ({ all: [], user: [], unanswered: [] });
 let taken = 0;
 // A reading whose log holds `events`, each standing and each the user's to take back.
 const reading = (events) => ({
@@ -34,18 +34,23 @@ const reading = (events) => ({
   browser: {
     basis: { through_seq: events.length },
     receipts: events,
+    thread_memberships: {},
+    todos: [],
+    ended_todos: [],
     thread: {
       threads: [],
       projection: { entries: [], actions: [], reports: [], desired: [] },
-      questions: noQuestions(),
+      asks: noAsks(),
     },
     views: {
       1: {
         basis: { revision: 1, through_seq: events.length },
         coverage: [],
         undo: events.map((event) => ({ event })).reverse(),
+        queues: { questions: [], tasks: [], done: [] },
+        approval_blocking: [],
         document: {
-          questions: noQuestions(),
+          asks: noAsks(),
           projection: {
             entries: events.map((event) => ({
               event,
@@ -71,7 +76,10 @@ test("Undo waits while a logged action is unpresented, whichever answer came fir
   applicationState.identify(1);
   applicationState.captureDocument({
     ...applicationState.read().document,
-    registry: { "lf-choice": { "x-state": { decide: { ...spec, writer: "user" } } } },
+    registry: {
+      "lf-choice": { "x-state": { decide: { ...spec, writer: "user" } } },
+      $states: { "lf-choice": { decide: { writer: "user", definition: {} } } },
+    },
     authored: new Map([
       [
         "choice",

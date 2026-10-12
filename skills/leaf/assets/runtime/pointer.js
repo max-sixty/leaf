@@ -32,6 +32,18 @@ export const coarsePointer = matchMedia("(pointer: coarse)");
 export const pressIsKeyboardActivation = (event) =>
   event.type === "click" && !event.detail;
 
+// Whether a press is the plain one a control or link claims for itself: the primary
+// button with no modifier held. Every modifier asks the platform for something else —
+// Cmd- or Ctrl-click opens a link elsewhere and Ctrl-click is the Mac's context menu,
+// Shift extends a selection or opens a window, Alt downloads or aims at the item — so a
+// handler that takes over a press leaves a modified one to the browser.
+export const plainPress = (event) =>
+  event.button === 0 &&
+  !event.altKey &&
+  !event.ctrlKey &&
+  !event.metaKey &&
+  !event.shiftKey;
+
 // An automatic revision activation replaces the document, not the user's pointer.
 // New input wins over a handoff captured by the departing document.
 export function restorePointer(point) {

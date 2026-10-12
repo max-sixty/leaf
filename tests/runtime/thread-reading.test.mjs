@@ -204,7 +204,7 @@ test("attention names the outstanding question rather than the latest message", 
     seq: 2,
   });
   const source = servedThread([question, followup], {
-    attention: { kind: "needs_user", reason: "question", workflow: null },
+    attention: { kind: "needs_user", reason: "ask", workflow: null },
     user_prompt: { message: "question", version: "question" },
   });
   const [thread] = readThreadRecords([source], NO_DOCUMENT, new Map(), []);
@@ -217,7 +217,7 @@ test("attention names the outstanding question rather than the latest message", 
   assert.equal(
     threadAttention({
       ...thread,
-      attention: { kind: "needs_user", reason: "recovery", workflow: "send" },
+      attention: { kind: "needs_user", reason: "resend", workflow: "send" },
       workflows: [
         servedWorkflow({
           id: "send",
@@ -231,7 +231,7 @@ test("attention names the outstanding question rather than the latest message", 
   assert.equal(
     threadAttention({
       ...thread,
-      attention: { kind: "needs_user", reason: "recovery", workflow: "move" },
+      attention: { kind: "needs_user", reason: "resend", workflow: "move" },
       workflows: [
         servedWorkflow({
           id: "move",
@@ -314,7 +314,7 @@ test("narrowing transitions reset what they contradict and counts name each subs
   assert.equal(transition(resolved, "waiting", "user").status, "open");
   assert.equal(transition(DEFAULT_INTENT, "status", "open"), DEFAULT_INTENT);
 
-  const onUser = { kind: "needs_user", reason: "question" };
+  const onUser = { kind: "needs_user", reason: "ask" };
   // A thread the agent has started a move in: the card says Working, so the agent
   // filter lists it.
   const claimed = { kind: "waiting", reason: "workflow", workflow: "working" };

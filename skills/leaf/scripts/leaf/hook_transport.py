@@ -22,44 +22,56 @@ session's transport (`Harness.hook_delivers`): each freezes the input pending on
 the session's pages and hands over its complete envelope inline, or its
 immutable pointer.
 
-The hook confirms an inline envelope itself, as it hands it over, so the user's
-updates read Picked up without waiting on the model; the envelope's `acknowledge`
-is null. Two things could keep inline context from reaching the turn, and the
-hook rules out both before it confirms. A harness discards the output of a hook
-it times out, so the hook confirms only by a deadline well inside its timeout
-(`CONFIRM_WITHIN`): it goes inline only before it, confirms only after
-publishing, and leaves pending any page whose lock is still held at the deadline.
-Stopped before it confirms, it has confirmed nothing, and it never waits on a
-lock past the deadline into the harness's timeout. Claude Code cuts context over a limit to a preview
-(`HOOK_CONTEXT_LIMIT`), so a delivery that large goes as a pointer, and so does
-one the hook was too slow to confirm; the reader's explicit `leaf delivery ack`
-is its receipt, including for pointers Codex's tool hook offers. What remains is a turn that ends
-just after it starts, as an interrupt can; its updates then read Picked up in a
-turn that ended, as an App Server turn's do."""
+The hook confirms an envelope it hands over inline itself, so the user's updates
+read Picked up without waiting on the model; the envelope's `acknowledge` is null,
+and its reader confirms nothing. So it hands an envelope over inline only once it
+has confirmed every batch: an inline envelope it could not confirm would leave its
+input pending, and every later hook and watch would offer it again as new. A
+batch's receipt can still be refused, as when the page changed hands after the plan
+read it, so whatever the hook could not confirm goes as a pointer, whose reader's
+explicit `leaf delivery ack` either confirms it or shows the refusal. A page vendored
+at another protocol, whose log this Leaf may not write
+(`event_contracts.write_refusal`), offers no new input at all (`delivery.deliverable`):
+the hook records no pickup there and names the refusal in the turn's attention, so
+it never fails on a page it cannot write, nor offers input it could never confirm.
+Claude Code cuts context over a limit to a preview (`HOOK_CONTEXT_LIMIT`), so a
+delivery that large goes as a pointer too, unconfirmed, as do pointers Codex's tool
+hook offers.
+
+A harness reads a hook's output only once it exits, and discards it for a hook it
+times out, so the hook confirms only by a deadline well inside its timeout
+(`CONFIRM_WITHIN`) and prints once confirmation is settled. Stopped before it
+confirms, it has confirmed nothing; it never waits on a lock past the deadline
+into the harness's timeout, and a page whose lock is still held then goes
+unconfirmed. What remains is a turn that ends just after it starts, as an
+interrupt can; its updates then read Picked up in a turn that ended, as an App
+Server turn's do."""
 
 import json
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
 from .activity import acknowledged_obligations, turn_obligations, unanswered
 from .delivery import (
     batch_data,
+    deliverable,
     delivery_pointer_prompt,
     freeze_delivery,
     receive_held,
     record_pickup,
 )
+from .event_contracts import write_refusal
 from .harness import Harness, claim_harness
 from .schema import (
     ANSWER_ASK_INSTRUCTION,
     PREVIEW_FILE,
 )
-from .served_state.work import live_work
+from .served_state.context import read_page
 from .service import (
     PageTransaction,
     owned_pages,
-    unacknowledged,
 )
 from .state import flocked, session_lock_path, session_record
 
@@ -92,6 +104,8 @@ class PagePlan:
     Pending and recovery batches, response debt and watcher readiness come from
     one log, cursor, status and ownership snapshot. Planning never records a
     pickup. The caller selects which pending batches its transport can hand over.
+    `unwritable` says why this Leaf may record no pickup there, or is None
+    (`event_contracts.write_refusal`).
     """
 
     page: Path
@@ -106,6 +120,7 @@ class PagePlan:
     acknowledged: list[dict]
     watched: bool
     preview: bool
+    unwritable: str | None
 
 
 def read_plans(session_id: str) -> list[PagePlan]:
@@ -122,14 +137,14 @@ def read_plans(session_id: str) -> list[PagePlan]:
                 # lock over a page projection or taking locks in reverse order.
                 while True:
                     lifecycle = session_record(session_id)
-                    work = live_work(page_dir, page.events)
+                    work = read_page(page_dir, page.events).work
                     state = {**work.presence, "activity": work.activity}
                     claim = page.active_claim
                     if session_record(session_id) == lifecycle:
                         break
                 if claim is None or claim["id"] != session_id:
                     continue
-                pending = unacknowledged(page.events, state["cursor"])
+                pending = deliverable(page)
                 watched = harness.watcher_live(listening=state["listening"])
                 owed = turn_obligations(state, watched=watched)
                 owed_ids = {item["input"] for item in owed}
@@ -157,6 +172,7 @@ def read_plans(session_id: str) -> list[PagePlan]:
                         acknowledged_obligations(state),
                         watched,
                         (page_dir / PREVIEW_FILE).exists(),
+                        write_refusal(page_dir),
                     )
                 )
         except FileNotFoundError:
@@ -200,6 +216,8 @@ def remedies(
     }
     reasons = []
     for plan in plans:
+        if plan.unwritable:
+            reasons.append((plan.unwritable, None))
         if plan.owed:
             reasons.append(
                 (
@@ -239,9 +257,10 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
 
     A later receipt revalidates captured identities independently. This pickup
     likewise checks generation and turn after reacquiring the page transaction.
+    A page this Leaf may not write records none; `remedies` tells the turn why.
     """
     for plan in plans:
-        if not plan.acknowledged:
+        if not plan.acknowledged or plan.unwritable:
             continue
         try:
             with (
@@ -257,7 +276,7 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
                     plan.claim["turn"],
                 ):
                     continue
-                work = live_work(plan.page, page.events)
+                work = read_page(plan.page, page.events).work
                 current = {**work.presence, "activity": work.activity}
                 still_owed = {
                     item["input"] for item in acknowledged_obligations(current)
@@ -303,17 +322,26 @@ CONFIRM_WITHIN = 10.0
 INLINE_DELIVERY = (
     "Leaf has new input for your turn. Read this complete delivery before answering."
 )
+# The words a delivery handed over by pointer opens with, before its read command.
+POINTED_DELIVERY = "Leaf has new input for this turn. Read it with"
+
+
+def hands_delivery(output: str) -> bool:
+    """Whether a hook's output hands the turn a delivery `render` wrote, inline or by
+    pointer: the reading a transcript of hook runs is scored by. The context may sit
+    inside the harness's JSON envelope, so it is found anywhere in the output."""
+    return INLINE_DELIVERY in output or POINTED_DELIVERY in output
 
 
 def render(
-    delivery: dict | None, attention: list[str], *, inline: bool
-) -> tuple[str, bool]:
-    """The hook's context, and whether it hands `delivery` over inline, which
-    confirms it: only where `inline` allows and the whole message fits under
-    `HOOK_CONTEXT_LIMIT`. Otherwise it hands over the pointer its reader's
-    `leaf delivery ack` confirms after complete reading."""
+    delivery: dict | None, attention: list[str], *, confirm: Callable[[], bool]
+) -> str:
+    """The hook's context. It hands `delivery` over inline only where the whole
+    message fits under `HOOK_CONTEXT_LIMIT` and `confirm` then confirms every batch;
+    otherwise it hands over the pointer its reader's `leaf delivery ack` confirms
+    after complete reading."""
     if delivery is None:
-        return "\n".join(attention), False
+        return "\n".join(attention)
     message = "\n".join(
         [
             INLINE_DELIVERY,
@@ -321,21 +349,21 @@ def render(
             *attention,
         ]
     )
-    if inline and len(message.encode("utf-8")) < HOOK_CONTEXT_LIMIT:
-        return message, True
+    if len(message.encode("utf-8")) < HOOK_CONTEXT_LIMIT and confirm():
+        return message
     return "\n".join(
         [
             (
-                "Leaf has new input for this turn. Read it with "
-                f"`leaf delivery read {delivery['id']}` and follow its receipt instruction."
+                f"{POINTED_DELIVERY} `leaf delivery read {delivery['id']}` "
+                "and follow its receipt instruction."
             ),
             *attention,
         ]
-    ), False
+    )
 
 
 def carry_turn(
-    harness: type[Harness],
+    harness: Harness,
     event: str | None,
     sid: str,
     payload: dict,
@@ -345,8 +373,8 @@ def carry_turn(
     reconnect_harness: str | None = None,
 ) -> bool | None:
     """Compose this lifecycle's page input, obligations, and reconnect context
-    into the one hook output its harness reads, and confirm the delivery it
-    hands over inline by `CONFIRM_WITHIN` after `started`, the hook's
+    into the one hook output its harness reads, confirming a delivery it hands
+    over inline by `CONFIRM_WITHIN` after `started`, the hook's
     `time.monotonic()` as it began."""
     expected = session_record(sid) if expected is ... else expected
     plans = read_plans(sid)
@@ -373,9 +401,8 @@ def carry_turn(
     # The message avoids "unattended": a page can be watched and still be owed
     # an answer, and the runtime spends that word on a different fact — a page
     # served to nobody at all.
-    # Each page's own line, then one copy of each protocol they share. Three
-    # pages owing the same thing used to carry three copies of the same
-    # instruction into the turn, which is most of what the message weighed.
+    # Each page's own line, then one copy of each protocol they share, so pages
+    # owing the same thing carry one copy of its instruction into the turn.
     protocols = list(dict.fromkeys(protocol for _, protocol in reasons if protocol))
     attention = (
         [
@@ -406,15 +433,15 @@ def carry_turn(
     with publishing_notices(reconnect_harness, sid, expected) as context:
         if context is None:
             return
-        message, inline = render(
-            delivery,
-            [*context, *attention],
-            inline=time.monotonic() < deadline,
-        )
-        if message:
-            print(
-                json.dumps(harness.hook_context(event, message)),
-                flush=True,
-            )
-    if inline:
-        receive_held(delivery, sid, deadline=deadline)
+    # Receipt takes the page and session locks the notices hold, so it follows them,
+    # and confirms only into the lifecycle they were read under.
+    message = render(
+        delivery,
+        [*context, *attention],
+        confirm=lambda: (
+            time.monotonic() < deadline
+            and receive_held(delivery, sid, expected, deadline=deadline)
+        ),
+    )
+    if message:
+        print(json.dumps(harness.hook_context(event, message)), flush=True)

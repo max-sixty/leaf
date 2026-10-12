@@ -34,7 +34,7 @@ const words = {
   unresolve: "Resolved the thread again",
   action: "Undid your latest update",
   done: "Undid your approval",
-  task_end: "Put the task back on you",
+  todo_end: "Put the to-do back on you",
 };
 
 export function createUndo({ post, stateApplying, unaccountedGesture }) {

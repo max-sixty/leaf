@@ -778,3 +778,25 @@ def test_source_fallback_marks_derive_from_open_registry_content_declarations():
     assert not "data-lf-verbatim" in soup.find(id="source").attrs
     assert soup.find(id="literal").attrs["data-lf-content"] == "data"
     assert "data-lf-verbatim" in soup.find(id="literal").attrs
+
+
+def test_an_authored_override_holds_only_where_it_means_something():
+    """A room or a bound sizes a block in the page's flow; on `main` or `body` it would
+    size the page itself, a column that stops centring or a page held to one screen. A
+    stated height reserves room for a module's drawing; on a table, which no module
+    marks drawn, it would clip the words for good. Each override is inert there."""
+    source = (
+        '<body data-bound="end"><main class="layout-column" data-width="wide" '
+        'data-bound="end">'
+        '<lf-chart id="chart" data-height="240"></lf-chart>'
+        '<table id="table" data-height="80" data-width="wide"><tr><td>A</td></tr>'
+        '</table><ul id="feed" data-bound="end"><li>A</li></ul></main></body>'
+    )
+    delivered = mark_declared(source, {"lf-chart": {"x-height": 400}}, {})
+    soup = SourceDocument(delivered).tree
+    assert soup.find(id="chart").attrs["data-lf-height"] == "240"
+    assert soup.find(id="table").attrs["data-lf-space"] == "wide"
+    assert "data-lf-height" not in soup.find(id="table").attrs
+    assert soup.find(id="feed").attrs["data-lf-bound"] == "end"
+    for page in (soup.find("main"), soup.find("body")):
+        assert not {"data-lf-space", "data-lf-bound"} & set(page.attrs), page.attrs

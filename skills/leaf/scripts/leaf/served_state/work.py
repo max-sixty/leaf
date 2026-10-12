@@ -5,15 +5,10 @@ Delivery and status never need browser serialization, external data, or history.
 A serving context holds this result once; its browser selects the same objects.
 """
 
-from pathlib import Path
 from typing import NamedTuple
 
 from ..activity import canonical_activity, canonical_stream_reply
-from ..files import active_descriptor, list_revisions
-from ..presence import presence_with_activity
 from ..projection import FrozenThreadReading, page_reading
-from ..revision_artifact import read_revision
-from ..state import now_iso
 from ..tasks import TaskReading
 from ..work_reading import WorkReading
 
@@ -74,6 +69,8 @@ def served_workflows(
     first, each stamped with the two thread facts only the frozen thread document
     knows.
 
+    `at_work` is whether the agent is at work on it, at `working` or `replying`
+    whatever its condition, the stage set every surface reads rather than restates.
     `thread` is the thread the workflow stands in: a thread input's own, a widget
     frozen into a message's thread, or null for a page widget. `holds_thread` is
     whether it keeps that thread the agent's turn: every one of the thread's own
@@ -87,11 +84,12 @@ def served_workflows(
     unresolved sends against it."""
     for workflow in workflows:
         thread = thread_reading.subject_thread(workflow["subject"])
+        workflow["at_work"] = at_work(workflow)
         workflow["thread"] = thread
         workflow["holds_thread"] = thread is not None and (
             workflow["subject"]["kind"] == "thread"
             or workflow["answer"] is not None
-            or at_work(workflow)
+            or workflow["at_work"]
         )
     return sorted(workflows, key=_strength, reverse=True)
 
@@ -147,19 +145,3 @@ def work_state(
         else activity["workflows"]
     )
     return WorkState(durable, activity, workflows, reply, present)
-
-
-def live_work(page_dir: Path, events: list, *, now: str | None = None) -> WorkState:
-    """Read work inside the caller's transaction, without preparing a browser response."""
-    active = active_descriptor(page_dir, events)
-    present, stream = presence_with_activity(page_dir, events)
-    return work_state(
-        events,
-        read_revision(page_dir, active["revision"]) if active else None,
-        active["revision"] if active else None,
-        present,
-        now or now_iso(),
-        stream,
-        revisions=list_revisions(page_dir),
-        revision_reader=lambda previous: read_revision(page_dir, previous),
-    )

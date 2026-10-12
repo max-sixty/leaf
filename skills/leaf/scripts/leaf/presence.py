@@ -282,26 +282,25 @@ def presence_with_activity(
         # their posting session too, so a claim another session wrote — the page
         # task's, while a Codex watcher task holds the page — is not declared
         # abandoned because the claimant's turn ended under it.
-        "claim_session": claim.get("id") if claim else None,
+        "claim_session": claim["id"] if claim else None,
         # Opaque identity of the claiming session's current turn on this page.
         # An opened delivery names this value; equality, rather than timestamps,
         # is what says that exact update is in the turn running now.
-        "claim_turn": claim.get("turn") if claim else None,
+        "claim_turn": claim["turn"] if claim else None,
         # When the claiming session's last turn ended, or None while none has.
         # A `working` claim older than this is one that no later turn renewed
         # across the boundary — the same judgment the runtime's grace
         # makes, available at the moment it becomes true instead of a quarter of
-        # an hour after it. Read with .get like the rest of the claim's fields,
-        # since a record written before this existed is still a valid claim.
-        "turn_closed": claim.get("turn_closed") if claim else None,
+        # an hour after it.
+        "turn_closed": claim["turn_closed"] if claim else None,
         # When that turn opened, and whether an open turn of this session's takes
         # new input before it ends (`Harness.turn_takes_input`).
-        "turn_opened": claim.get("turn_opened") if claim else None,
+        "turn_opened": claim["turn_opened"] if claim else None,
         "turn_takes_input": bool(active and claim_harness(active).turn_takes_input()),
         # When a browser last had the page visible (the server bumps viewed.json,
         # throttled, while a visible tab asks for news), or None for a page
-        # nobody has ever viewed — which used to be indistinguishable from one the
-        # user studied and left. Hidden tabs stop their freshness reads, so this records
+        # nobody has ever viewed, which keeps it distinct from one the user studied
+        # and left. Hidden tabs stop their freshness reads, so this records
         # user attention rather than tab lifetime.
         "viewed": _viewed_at(page_dir),
         # Where the claimant is working (claim_page), for the drawer's hover: what
@@ -396,7 +395,7 @@ def nudge_unwatched(page: PageTransaction) -> None:
     if not claim or wait_is_live(page_dir, claim["id"]):
         return
     present, turn = claimant_reading(page_dir, page.events)
-    stamp = claim.get("turn_closed") or claim.get("turn_opened")
+    stamp = claim["turn_closed"] or claim["turn_opened"]
     mark = f"{claim['turn']}@{stamp}"
     if (
         turn.ended is not None

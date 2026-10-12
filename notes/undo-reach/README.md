@@ -47,7 +47,7 @@ Undo is one-way. Nothing puts back what an undo took:
 - The append door's `UndoReading.error` (`events.py`) refuses an undo whose
   target isn't an unwithdrawn gesture of the user's own, so an undo can't name an
   undo. `UNDOABLE_KINDS` (`skills/leaf/scripts/leaf/schema.py`) is resolve,
-  unresolve, action, done, and task_end; an unanswered reaction is also undoable.
+  unresolve, action, done, and todo_end; an unanswered reaction is also undoable.
 - `events.md` states "An undo cannot itself be undone."
 
 ## The candidates
@@ -185,8 +185,8 @@ keep the preview running as their handoff contract requires. Follow `/developing
 fresh page and log; answer pending feedback before restarting.
 
 `bin/leaf page check --render` on the page passes on main's runtime as of
-e2fdf6ee2. It still advises against the `.sim-page` scroller; that scroller is the
-simulated viewport the "What's in view" rule depends on, so it stays.
+e2fdf6ee2. Its `.sim-page` scroller is the simulated viewport the "What's in view"
+rule depends on, so it stays.
 
 ## Next steps
 

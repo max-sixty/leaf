@@ -41,9 +41,11 @@ def write_live_shell(
 ) -> None:
     """Write live documents and browser assets without copying session state.
 
-    The runtime and its API routes remain unchanged. A static host may serve this
-    derived tree while the canonical Leaf server answers those API routes. `head` is
-    the host's own metadata in each document (`Delivery.head`).
+    The runtime and its API routes remain unchanged. Whatever serves this derived
+    tree stamps `Leaf-Layer` and `Leaf-Release` on its page routes and released
+    assets, as the Worker's `stampDelivery` does, since the runtime's startup and
+    layer probes read the delivery identity from those headers alone. `head` is the
+    host's own metadata in each document (`Delivery.head`).
     """
     events = read_events(page_dir)
     active = latest_revision(page_dir)

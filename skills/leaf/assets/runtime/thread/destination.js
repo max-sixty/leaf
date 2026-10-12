@@ -30,6 +30,7 @@
    a visible accompanying preview remains the current conversation. Canonical page
    targets always come from anchor placement, independently of whichever view draws a
    Thread. */
+import { aborted } from "../abort.js";
 import { scrollIntoView } from "../landing-scroll.js";
 import { focusDestination, focused } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
@@ -123,9 +124,7 @@ export function createThreadDestinations({
       opening?.abort();
       const abort = new AbortController();
       opening = abort;
-      const cancelled = new Promise((resolve) =>
-        abort.signal.addEventListener("abort", () => resolve(null), { once: true }),
-      );
+      const cancelled = aborted(abort.signal);
       const whileCurrent = (work) => Promise.race([work, cancelled]);
       const request = {
         message:
@@ -273,9 +272,9 @@ export function createThreadDestinations({
 
   // Where a thread holds the user's draft `context`, with its box ready for the caret:
   // the thread's reply box, or the rewrite of one of its messages, which opens on that
-  // message where the Threads panel lands on it (`message-edit.js`). Landed on the
-  // thread instead, a long one's landing on its latest turn took the view away from a
-  // rewrite it had just opened higher up.
+  // message where a message part lands, the primary reader or else the Threads panel
+  // (`message-edit.js`). Landed on the thread instead, a long one's landing on its
+  // latest turn took the view away from a rewrite it had just opened higher up.
   async function openThreadDraft(context, intent) {
     const name = context.slice(context.indexOf(":") + 1);
     if (context.startsWith("reply:")) {
@@ -284,7 +283,7 @@ export function createThreadDestinations({
     }
     if (!allThreads().some((each) => each.msgs.some(({ id }) => id === name)))
       return null;
-    const landed = await showThread(name, { part: "message", intent });
+    const landed = await openPageThread(name, { part: "message", intent });
     const card = landed && closestAcross(landed, THREAD);
     return card ? openMessageEditIn(card, name) : null;
   }

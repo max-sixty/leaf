@@ -99,16 +99,8 @@
    examines open roots and catches promised words that are absent, clipped, or hidden.
    It also catches a module that replaces declared words after the shared render
    passes. */
+import { knownVocabulary } from "./widget-contexts.js";
 import { registryFor, decisionFor, registry } from "./registry.js";
-// The page's own text blocks: what a user takes in as one unit of prose, and the
-// grain every question about "where in the document is this" is answered at — which
-// passage they are reading, where a walk over Questions starts, what a version diff
-// compares, and which block holds a change the user has to see in context. A plain
-// constant at module scope rather than a member of the passages object, because a
-// consumer built before that object exists is otherwise reduced to holding a thunk for
-// a string that never varies.
-export const TEXT_BLOCK =
-  "p,li,h1,h2,h3,h4,h5,h6,td,th,pre,blockquote,dd,dt,figcaption,summary";
 
 import {
   SAID,
@@ -125,7 +117,8 @@ import {
 } from "./shadow.js";
 
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
-import { COLLAPSE } from "./collapse.js";
+import { readApplication } from "./semantic-state.js";
+import { COLLAPSE, TEXT_BLOCK } from "./passage-facts.js";
 import { textUnits } from "./text-alignment.js";
 import { excerptWords } from "./words.js";
 
@@ -162,17 +155,46 @@ export const verbatimBoundaryIdentity = new WeakMap();
 // Which slots retire is the registry's to say, so this and passages.py's reading of the
 // same page follow one declaration: x-retired-when names the decision that removes the
 // element, x-owners the wrapper the decision is recorded on. Composition stamps that
-// relation, owner by owner, into `$decisions` (Python's `registry.contract.stamp_decisions`),
-// and this reads the containing owner's publication. An older document's slots
-// need not exist in the current runtime's vocabulary.
-function retiredSlot(element) {
-  if (!element.hasAttribute(PAGE_PAINT_ATTRIBUTE.retired)) return false;
-  const owner = upFrom(element);
-  return Boolean(
-    owner &&
-    Object.values(decisionFor(owner)?.retires ?? {}).some((tags) =>
-      tags.includes(element.localName),
-    ),
+// relation, owner by owner, into `$decisions` (Python's `registry.contract.stamp_decisions`).
+// Which outcome stands is the application's reading of the log and this tab's own
+// gestures, so the readings take it from the publisher, as `paintSettlements` does,
+// and never back from the mark that paint leaves: a mark a module wrote where the log
+// decided nothing silences no words.
+//
+// `settlements` is that reading per holder id: its tag, and the tags its standing
+// outcome retires.
+// It is rebuilt once per publication or registry, and `settledKey` names it, so the
+// page reading is forgotten exactly when it changes (`catchUpReading`).
+let settledFrom = [];
+let settled = new Map();
+let settledKey = "[]";
+function settlements() {
+  const { document: shown, effective } = readApplication();
+  const from = [effective.widgets, shown.descriptors, registry.$decisions];
+  if (from.every((input, index) => input === settledFrom[index])) return settled;
+  settledFrom = from;
+  settled = new Map();
+  for (const [id, { state }] of effective.widgets) {
+    const descriptor = shown.descriptors.get(id);
+    const tag = descriptor?.tag;
+    const declarations = descriptor && (knownVocabulary(descriptor.document.revision)?.declarations ?? registry);
+    const decision = declarations?.$decisions?.[tag];
+    const outcome = decision && state[decision.verb]?.detail?.outcome;
+    const retires = outcome ? decision.retires[outcome] : null;
+    if (retires?.length) settled.set(id, { tag, retires });
+  }
+  settledKey = JSON.stringify([...settled]);
+  return settled;
+}
+// A slot its holder's decision took off the page: a child of the holder, in its light
+// tree or its shadow root, whose tag the standing outcome retires. Only this
+// document's holders are settled; a parsed revision's elements share their ids.
+function retiredSlot(el) {
+  const holder = el.parentElement ?? shadowHost(el.parentNode);
+  if (!holder?.id || el.ownerDocument !== document) return false;
+  const settlement = settlements().get(holder.id);
+  return (
+    settlement?.tag === holder.localName && settlement.retires.includes(el.localName)
   );
 }
 
@@ -263,8 +285,6 @@ export const pageWords = (node) => Boolean(node) && !inChrome(node) && !inUi(nod
 // the base parses unupgraded, so everything an upgrade generated goes, a declared label
 // included: the version being compared against has none.
 //
-// Built per walk rather than per node, because the retired half of the wall is read out
-// of the registry each time it is asked for.
 // A text node's parent is an element, and every reading of these nodes says so: the
 // walk asks it of a shadow root's own text and of a slotted node's place, and
 // `authored` of a node it is handed. Written once per reading it was several answers to
@@ -282,7 +302,7 @@ export const pageWords = (node) => Boolean(node) && !inChrome(node) && !inUi(nod
 // being broken, which is the one thing it isn't.
 export const elementOver = (n) => {
   if (n.parentElement) return n.parentElement;
-  const host = shadowHost(Node.prototype.getRootNode.call(n));
+  const host = shadowHost(n.getRootNode());
   const at = host
     ? `<${host.localName}${host.id ? ` id="${host.id}"` : ""}>`
     : "a module";
@@ -360,7 +380,7 @@ const chromeMark = (el) => (el.matches(UI_MARKS) ? !el.matches(SAID) : null);
 // stylesheet a rendered diagram carries inside its <svg>, and a slot the user's
 // decision took off the page, or a native field's default-value markup. Chrome is the rest of what the anchor pass skips and
 // the one part a label yields — it is a look, and a look cannot make a word the
-// runtime's. Retirement is read from each slot's owning publication.
+// runtime's.
 const SILENT_TAGS = new Set(["script", "style", "textarea"]);
 const silences = (el) => SILENT_TAGS.has(el.localName) || retiredSlot(el);
 // A generated element whose words the file cannot model: one the registry does not
@@ -569,7 +589,7 @@ export function closestAcross(node, selector) {
   while (el) {
     const hit = el.closest(selector);
     if (hit) return hit;
-    el = shadowHost(Node.prototype.getRootNode.call(el));
+    el = shadowHost(el.getRootNode());
   }
   return null;
 }
@@ -602,7 +622,8 @@ export const elementById = (id, root = document) => {
 // document of its own, placed in that message's body; everything else is the page's
 // `main`. A widget resolving a reference among its own document's elements searches
 // here, so markup a message quotes neither answers for the page nor reaches into it.
-export const pageDocument = () => document.querySelector("body > main");
+// `doc` is a parsed revision's document, where a version reads its authored `main`.
+export const pageDocument = (doc = document) => doc.querySelector("body > main");
 export const authoredScope = (node) =>
   closestAcross(node, ".lf-msg-body") ?? pageDocument();
 
@@ -654,11 +675,7 @@ export function pageRange(sel) {
   const [composed] = sel.getComposedRanges({ shadowRoots });
   if (!composed) return plain;
   const { startContainer, startOffset, endContainer, endOffset } = composed;
-  if (
-    Node.prototype.getRootNode.call(startContainer) !==
-    Node.prototype.getRootNode.call(endContainer)
-  )
-    return plain;
+  if (startContainer.getRootNode() !== endContainer.getRootNode()) return plain;
   const range = document.createRange();
   range.setStart(startContainer, startOffset);
   range.setEnd(endContainer, endOffset);
@@ -706,8 +723,7 @@ export function programmaticSelection(selection) {
 // the platform's direction for the range inside its declared shadow tree.
 export function selectionBackward(selection, range = pageRange(selection)) {
   if (
-    Node.prototype.getRootNode.call(selection.anchorNode) !==
-    Node.prototype.getRootNode.call(range.commonAncestorContainer)
+    selection.anchorNode.getRootNode() !== range.commonAncestorContainer.getRootNode()
   )
     return programmaticSelection(selection)
       ? writtenBackward
@@ -726,10 +742,7 @@ export function selectionBackward(selection, range = pageRange(selection)) {
 // it. The tree renders where its host stands, so the host is what the question is really
 // about: climb to whichever ancestor shares the range's root, and ask there.
 function coveredBy(range, node) {
-  const n = hostIn(
-    node,
-    Node.prototype.getRootNode.call(range.commonAncestorContainer),
-  );
+  const n = hostIn(node, range.commonAncestorContainer.getRootNode());
   if (!n || !range.intersectsNode(n)) return false;
   // A host represents its shadow words only while the range actually enters it.
   // intersectsNode includes an endpoint at the host's edge, even when no shadow
@@ -987,11 +1000,12 @@ export function neighbourhood(reading, at, want, before) {
     if ([...text].length >= want || (before ? lo === edge : hi === edge)) return text;
   }
 }
-// The reading is a function of the document, so the document is what says when it may
-// change. Everything it is built out of is here: the page's words and their shape, the
-// markers those words are read through, the vocabulary the markers mean something
-// against, and the widget parts the cell walk fences on. The first two a MutationObserver
-// reports; the last two have one door each, below.
+// The reading is a function of the document and the user's settlements, so those are
+// what say when it may change. Everything it is built out of is here: the page's words
+// and their shape, the markers those words are read through, the vocabulary the markers
+// mean something against, the slots the standing decisions retire (`settlements`), and
+// the widget parts the cell walk fences on. The first two a MutationObserver reports;
+// the rest have one door each.
 //
 // Reported is not the same as read. The runtime's chrome lives in the same document —
 // the shortcut bar, the banner, the thread panel, the composer — and repaints on nearly
@@ -1010,7 +1024,6 @@ const READING_MARKERS = [
   "class",
   "data-lf-said",
   "data-lf-gen",
-  PAGE_PAINT_ATTRIBUTE.retired,
   "slot",
   "name",
   "contenteditable",
@@ -1026,6 +1039,7 @@ const WATCH_READING = {
 let reading = null;
 let elementReadings = new WeakMap();
 let readingVocabulary;
+let readingSettled;
 let watcher = null;
 // Whether text standing directly under `over` is in the page's reading. The page's
 // reading is rooted at the body, which is no widget's frame. Anything but an element — a
@@ -1118,8 +1132,11 @@ export function pageText() {
 function catchUpReading() {
   const moved = watchReading().takeRecords().some(changesTheReading);
   const vocabulary = registry.$layer?.generation;
-  if (moved || vocabulary !== readingVocabulary) forgetReading();
+  settlements();
+  if (moved || vocabulary !== readingVocabulary || settledKey !== readingSettled)
+    forgetReading();
   readingVocabulary = vocabulary;
+  readingSettled = settledKey;
 }
 // A reading of one page element's words, kept exactly as long as the page reading: the
 // watcher above is what says either has moved. Margin rows, the Page Map and every

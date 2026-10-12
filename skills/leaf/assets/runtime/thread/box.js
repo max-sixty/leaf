@@ -4,8 +4,8 @@ import { registryFor, matchesWhen } from "../registry.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { loadDraft, saveDraft, sendMessage, watchDraft } from "../drafts.js";
 import { inChrome } from "../passages.js";
-
-import { offer, quoted } from "../widget-elements.js";
+import { offer } from "../widget-elements.js";
+import { quoted } from "../widget-descriptors.js";
 import { notice } from "../notifications.js";
 import { mountFirstMessage } from "./inline.js";
 import { sendLanding } from "./reply-landing.js";

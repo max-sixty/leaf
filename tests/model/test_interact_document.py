@@ -1185,8 +1185,9 @@ def test_check_refuses_noscript_words_the_browser_never_renders(page_dir):
 
 
 def test_check_admits_a_template_whose_words_no_anchor_reaches(page_dir):
-    """A page module may clone a template, so check admits one; the browser keeps
-    its contents out of the tree, so the file reading quotes none of its words."""
+    """A page module may clone a template, so check admits one. The browser and
+    the file parser both keep its contents out of the tree, so no anchor reaches
+    its words."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",

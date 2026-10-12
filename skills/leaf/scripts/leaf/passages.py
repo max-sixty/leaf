@@ -245,11 +245,10 @@ class _OwnedWords:
 # The tags whose text is one block: one space goes between two runs of text in
 # different blocks and none between runs that share one.
 TEXT_BLOCK_TAGS = frozenset(kernel_passages()["blocks"])
-# Text no anchor can reach: executable/style content, native field defaults, and a
-# template's contents, which the browser keeps in a fragment outside the tree until a
-# module clones them. head is outside the browser's tree altogether, which starts at
-# document.body — without it a page's <title> would be quotable and land nowhere.
-UNQUOTABLE_TAGS = {"script", "style", "head", "textarea", "template"}
+# Text no anchor can reach: executable/style content and native field defaults.
+# head is outside the browser's tree altogether, which starts at document.body —
+# without it a page's <title> would be quotable and land nowhere.
+UNQUOTABLE_TAGS = {"script", "style", "head", "textarea"}
 
 
 class _PassageParser:

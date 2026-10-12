@@ -20,15 +20,14 @@ full-height widgets, footers, margin lanes and phone stacking, all to make works
 scroll better, which is not what they are for.
 
 The aim is pages that need little scrolling, composed simply, rather than better
-scrolling inside regions. `page check --render` names each pane or body of a screen
-that runs past its room, so an author trims or splits it (`overflowing_region_advice`).
+scrolling inside regions. page-authoring.md asks an author to trim or split a pane
+whose body runs past its region, and no check enforces it.
 
 A branch that made a side list (`lf-tabs list="side"`) a screen was built and
 abandoned (`screen-workspace-review`, October 2026): it gave the list and the open
 item separate scrollers, routed the reading keys to the item, and stacked queue and
 item on a phone. It bound the workspace's behavior to one widget and spent its
-weight on scrolling, so none of it shipped except the overflow advice and the
-instructions above.
+weight on scrolling, so none of it shipped except the instructions above.
 
 ## Still open
 

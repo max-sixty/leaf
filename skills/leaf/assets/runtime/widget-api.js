@@ -52,7 +52,7 @@ export { indicate } from "./indication.js";
 export { landingInsets, shownParts, shownWindow } from "./geometry.js";
 // Holding the user's place in a scroller whose contents a widget re-renders.
 export { placeKeeper } from "./user-place.js";
-export { inUi, under } from "./shadow.js";
+export { under } from "./shadow.js";
 // Putting the user on an element, saying what moved them there; holding their place,
 // caret included, across a move or re-render of the node they stand on, by key in a
 // list; where they stand and whether it is in a scope; recording where a layer opened
@@ -65,7 +65,6 @@ export {
   focused,
   handBack,
   holdFocus,
-  layerLanding,
   openLayer,
   openerOf,
   rove,
@@ -120,7 +119,6 @@ export {
   paintKeys,
   saying,
 } from "./keyboard/scopes.js";
-export { repaint } from "./repaint.js";
 export {
   afterScript,
   cancelRender,
@@ -148,7 +146,6 @@ export {
   markdownWords,
   markdownSourceOffset,
   paintMarkdown,
-  renderInlineMarkdown,
   renderMarkdown,
 } from "./markdown.js";
 export { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
@@ -167,11 +164,9 @@ export { claimTraversals, pushEntry, replaceEntry } from "./history.js";
 export { removeRuntimeRootStyle, setRuntimeRootStyle } from "./root-state.js";
 export {
   compoundReadingRegionId,
-  effectiveScroller,
   preserveReadingRegions,
   readingPosture,
   readingRegion,
-  readingRegionFor,
   registerReadingRegion,
   scrollerFor,
   watchReadingRegionTransitions,

@@ -19,8 +19,10 @@ export const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
 // there. `tabStore` is this window's working state and dies with the tab — the reading
 // position, which panel of a widget stands open, whether design mode is on — because each
 // of those is about the window rather than about the page. `draftStore` is what the user
-// typed and hasn't sent: it outlives the tab, because closing one is the ordinary end of
-// a tab here, and every tab shows one live copy of it (see the draft section below).
+// typed into a composition the log settles (a comment, a reply, an `lf-draft`) and hasn't
+// sent: it outlives the tab, because closing one is the ordinary end of a tab here, and
+// every tab shows one live copy of it (see the draft section below). An edit to a bound
+// file is not one: the file on disk is what tabs share, so its buffer is working state.
 // `userStore` is this user's standing preference across pages, which is the chrome
 // they arrange and expect to find arranged. Anything two tabs must *agree* about is none
 // of the three: it goes in the log.

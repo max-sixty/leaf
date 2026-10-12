@@ -83,6 +83,13 @@ has tried; settle that before building it.
 
 ### Agent and author experience
 
+- **Decide whether `page check` should still refuse an `lf-ask` without a leading
+  heading.** The heading is the Question's title in the Questions panel, the banner
+  and the `q` announcement, which all show an empty title without one, and the
+  `lf-ask` instructions already ask for it. Wait until the other narrow checks
+  removed in October 2026 have been gone a while; if pages written since still
+  carry the heading, remove this check too. It fired in 4 sessions, 2 of them on
+  user pages, between 2026-07-22 and 2026-10-11.
 - **Consider a reminder when revising decided content.** An optional `--force`
   acknowledgment could make an agent pause over an existing decision. Revisions
   currently remain unrestricted; decide whether such a reminder helps before
@@ -184,11 +191,9 @@ and its chrome coordinate.
   newcomer out of view rather than pushing down the card being read. The user sees
   it only in the count; give that arrival a visible route while preserving the
   current reading.
-- **Hold the shipped workspaces to the overflow advice.** `page check --render` still
-  advises that `rust-sort`'s stage pane runs 100px past its region at 720px. Fit it,
-  then make `test_page_fixture_renders` fail on that advice for workspace examples,
-  with `rust-sort`'s source pane the one reader allowed to scroll; today it asserts only
-  the gate's failures ([plan](notes/chrome-and-covers.md)).
+- **Fit `rust-sort`'s stage pane.** At 720px it runs 100px past its region, which
+  `page-authoring.md` asks an author to trim or split
+  ([plan](notes/chrome-and-covers.md)).
 - **Decide whether the desktop bottom bar goes.** Its key hints would move behind `?`
   and its status into the banner; the bar is how a desktop user learns the keys
   without asking, which is the trade to weigh ([plan](notes/chrome-and-covers.md)).

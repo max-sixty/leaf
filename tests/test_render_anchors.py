@@ -5812,7 +5812,12 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     input_.focus()
     write(input_, "Review the whole added line.")
     input_.evaluate("input => input.setSelectionRange(7, 16)")
-    page.evaluate("() => document.querySelector('#patch').threadSurface.update()")
+    page.evaluate(
+        """async () => {
+          const {threadSurface} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          threadSurface(document.querySelector('#patch')).update();
+        }"""
+    )
     expect(input_).to_be_focused()
     assert input_.evaluate("input => [input.selectionStart, input.selectionEnd]") == [
         7,

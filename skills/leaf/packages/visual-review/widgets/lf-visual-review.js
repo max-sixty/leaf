@@ -14,7 +14,6 @@ import {
   countAreas,
   describeDifference,
   compoundReadingRegionId,
-  placeThreads,
   placeKeeper,
   failSoft,
   frameFor,
@@ -44,6 +43,7 @@ import {
   scrollBehavior,
   shownWindow,
   sizeObserver,
+  threadSurface,
   watchData,
   whileConnected,
   widgetController,
@@ -123,7 +123,6 @@ customElements.define(
     #selected = null;
     #snapshot = null;
     #sizes = null;
-    #threadSurface = null;
 
     connectedCallback() {
       if (!once(this)) return;
@@ -132,12 +131,7 @@ customElements.define(
         this.#sizes = sizeObserver(this.#scheduleEvidenceLayout);
         this.#bindEvidence();
         window.addEventListener("resize", this.#scheduleEvidenceLayout, { signal });
-        this.#threadSurface = placeThreads(this, (targets) =>
-          targets.map((target) => this.#threadOutlet(target)),
-        );
         return () => {
-          this.#threadSurface.unregister();
-          this.#threadSurface = null;
           this.#sizes.disconnect();
           this.#sizes = null;
           this.#stopEvidence();
@@ -486,7 +480,7 @@ customElements.define(
             this.#selected = fallback?.id ?? this.#run.cases[0].id;
           this.#paintReview();
           this.#project();
-          this.#threadSurface?.update();
+          threadSurface(this).update();
           this.#scheduleEvidenceLayout();
         });
         restoreFocus?.(() => {
@@ -596,7 +590,7 @@ customElements.define(
       this.#selected = id;
       this.#paintReview();
       const selected = this.#caseEntries.get(id);
-      this.#threadSurface?.update();
+      threadSurface(this).update();
       layoutChanged(this);
       this.#scheduleEvidenceLayout();
       paintKeys();
@@ -893,6 +887,11 @@ customElements.define(
             ],
         { snapshot: this.#snapshot },
       );
+    }
+
+    // x-thread-surface: Leaf asks for one outlet, or null, per target it hands over.
+    threadOutlets(targets) {
+      return targets.map((target) => this.#threadOutlet(target));
     }
 
     #threadOutlet({ anchor, placement }) {

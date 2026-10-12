@@ -46,7 +46,7 @@ import {
   paintKeys,
   projectData,
   projectedDatum,
-  placeThreads,
+  threadSurface,
   readingPaint,
   reserve,
   retainUserIntent,
@@ -812,12 +812,6 @@ customElements.define(
           });
       whileConnected(this, (signal) => {
         this.addEventListener("lf-reveal", this.revealPassage, { signal });
-        this.threadSurface = placeThreads(this, (targets) => {
-          this.beginThreadSurface();
-          const outlets = targets.map((target) => this.threadOutletFor(target));
-          this.endThreadSurface();
-          return outlets;
-        });
         // A page diff's file header pins at `--lf-top`, the top of the page's box that
         // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,
         // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
@@ -835,9 +829,7 @@ customElements.define(
           for (const target of this.threadSizeTargets ?? [])
             threadSizes.unobserve(target);
           this.threadSizeTargets = null;
-          this.threadSurface.unregister();
-          this.threadSurface = null;
-          this.threadOutlets = null;
+          this.threadSeats = null;
           this.threadPairs = null;
         };
       });
@@ -915,7 +907,7 @@ customElements.define(
             ) {
               const row = rename ? renameNode(record) : summaryNode(record, open);
               if (entry)
-                restores.push(replaceFileRendering(entry, row, this.threadOutlets));
+                restores.push(replaceFileRendering(entry, row, this.threadSeats));
               else fresh.push((entry = fileEntry(row)));
             }
             Object.assign(entry, {
@@ -1004,15 +996,23 @@ customElements.define(
       );
     }
 
+    // x-thread-surface: Leaf asks for one outlet, or null, per target it hands over.
+    threadOutlets(targets) {
+      this.beginThreadSurface();
+      const outlets = targets.map((target) => this.threadOutletFor(target));
+      this.endThreadSurface();
+      return outlets;
+    }
+
     beginThreadSurface() {
-      this.threadOutlets ??= new Map();
+      this.threadSeats ??= new Map();
       this.threadPairs ??= new Map();
-      for (const [key, record] of this.threadOutlets) {
+      for (const [key, record] of this.threadSeats) {
         if (
           !record.outlet.isConnected ||
           (record.gutterRow && !record.gutterRow.isConnected)
         ) {
-          this.threadOutlets.delete(key);
+          this.threadSeats.delete(key);
           continue;
         }
         record.active = false;
@@ -1060,11 +1060,11 @@ customElements.define(
       )
         return null;
 
-      let record = this.threadOutlets.get(anchor.datum);
+      let record = this.threadSeats.get(anchor.datum);
       if (record && record.row !== placement.datumElement) {
         record.outlet.remove();
         record.gutterRow?.remove();
-        this.threadOutlets.delete(anchor.datum);
+        this.threadSeats.delete(anchor.datum);
         record = null;
       }
       if (!record) {
@@ -1092,21 +1092,21 @@ customElements.define(
           lineGutter.after(gutterRow);
           record = { active: true, gutterRow, outlet, pair, row };
         }
-        this.threadOutlets.set(anchor.datum, record);
+        this.threadSeats.set(anchor.datum, record);
       }
       record.active = true;
       return record.outlet;
     }
 
     endThreadSurface() {
-      for (const [key, record] of this.threadOutlets ?? []) {
+      for (const [key, record] of this.threadSeats ?? []) {
         if (record.active) continue;
         record.outlet.remove();
         record.gutterRow?.remove();
-        this.threadOutlets.delete(key);
+        this.threadSeats.delete(key);
       }
       const counts = new Map();
-      for (const record of this.threadOutlets?.values() ?? [])
+      for (const record of this.threadSeats?.values() ?? [])
         if (record.pair) counts.set(record.pair, (counts.get(record.pair) ?? 0) + 1);
       const targets = new Set();
       for (const pair of this.threadPairs?.values() ?? []) {
@@ -1180,7 +1180,7 @@ customElements.define(
       }
       const restore =
         rendered &&
-        replaceFileContent(entry, rendered, this.threadPairs, this.threadOutlets);
+        replaceFileContent(entry, rendered, this.threadPairs, this.threadSeats);
       entry.renderKey = renderKey;
       entry.loaded = true;
       entry.details.querySelector("pre")?.toggleAttribute("hidden", false);
@@ -1227,7 +1227,7 @@ customElements.define(
       entry.disclosureNode = entry.details;
       if (!entry.details) return;
       entry.disclose ??= () => {
-        this.threadSurface?.update();
+        threadSurface(this).update();
         if (!entry.details.open || !this.fileEntries?.includes(entry)) return;
         entry.failed = false;
         this.present(this.loadEntry(entry));
@@ -1248,7 +1248,7 @@ customElements.define(
       const label = entry.record.path || "file";
       entry.fileComment = commentButton(
         label,
-        () => this.threadSurface?.open(entry.node, { origin: entry.fileComment }),
+        () => threadSurface(this).open(entry.node, { origin: entry.fileComment }),
         "lf-diff-file-comment",
       );
       entry.node
@@ -1263,7 +1263,7 @@ customElements.define(
         if (line.comment?.parentElement === gutterRow) continue;
         line.comment = commentButton(
           lineLabel(line),
-          () => this.threadSurface?.open(line.node, { origin: line.comment }),
+          () => threadSurface(this).open(line.node, { origin: line.comment }),
           "lf-diff-line-comment",
         );
         // Thousands of lines must not become thousands of Tab stops. The page-level
@@ -1290,7 +1290,7 @@ customElements.define(
       }
       this.refreshDiffTools();
       layoutChanged(this);
-      this.threadSurface?.update();
+      threadSurface(this).update();
     }
 
     clearFilter() {

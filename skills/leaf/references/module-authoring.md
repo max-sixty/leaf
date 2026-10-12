@@ -1354,21 +1354,24 @@ while `phase` is `waiting`, `ready`, or `offline`; activate only a ready collect
 ## Widget-local Thread placement
 
 A widget declares `"x-thread-surface": true` to place Thread UI beside its own
-projected data. Use `placeThreads(owner, render)`. Core hands the callback one ordered
-batch of admitted local targets; return an array of matching outlet Elements or `null`
-in that same order. Each target supplies `{anchor, placement, thread}`;
-`placement.datumElement` is the exact rendered datum, and `thread` is its current Thread
-record or `null` for the active composer. Several targets may share one outlet.
-Here `this.outletFor` stands for the widget's own method, which finds or creates the
-outlet beside the datum (`lf-diff`'s `threadOutletFor` is the worked example):
+projected data. Leaf registers each instance once its module has upgraded it and
+retires it when it leaves the page, so the module neither registers nor unregisters.
+On each reconciliation pass core calls the element's own
+`threadOutlets(targets, {signal, collection})` with one ordered batch of admitted local
+targets; return an array of matching outlet Elements or `null` in that same order.
+Each target supplies `{anchor, placement, thread}`; `placement.datumElement` is the
+exact rendered datum, and `thread` is its current Thread record or `null` for the
+active composer. Several targets may share one outlet. Here `this.outletFor` stands for
+the widget's own method, which finds or creates the outlet beside the datum (`lf-diff`'s
+`threadOutletFor` is the worked example):
 
 ```js
-this.threadSurface = placeThreads(this, (targets) => {
+threadOutlets(targets) {
   this.beginThreadSurface();
   const outlets = targets.map((target) => this.outletFor(target));
   this.endThreadSurface();
   return outlets;
-});
+}
 ```
 
 The batch includes only exact datums belonging to the widget, in current Thread order,
@@ -1389,20 +1392,20 @@ into the panel.
 
 Returning `null` keeps lazy widgets lazy and restores the margin-projection fallback.
 Deliberate thread travel may reveal the datum through `lfRevealDatum`; the ordinary reconciliation pass
-then invokes the consumer again. The registration handle's `update()` invalidates layout-only
-visibility changes, and `unregister()` removes the surface when the widget disconnects.
-A callback may return a Promise for its outlet array. Its second argument supplies
-`{signal, collection}`: the abort signal marks a superseded or unregistered preparation,
+then calls `threadOutlets` again. `threadSurface(this).update()` invalidates layout-only
+visibility changes. `threadOutlets` may return a Promise for its outlet array. Its second argument supplies
+`{signal, collection}`: the abort signal marks a preparation superseded or left behind by a widget that left the page,
 and the immutable complete collection supports retained layout allocations. Returning
 outlets after cancellation cannot claim or move content.
-If a callback throws, Leaf reports a page error, clears that registration's core-owned
-views, and returns its threads to the margin. Other registrations continue, and the
-next ordinary reconciliation retries the consumer. Outlets must remain inside their
+If `threadOutlets` throws, Leaf reports a page error, clears that widget's core-owned
+views, and returns its threads to the margin. Other surfaces continue, and the
+next ordinary reconciliation calls it again. Outlets must remain inside their
 widget after the callback completes; disconnected outlets claim no threads. Core message-rendering
 errors still fail the state application rather than accepting a partial thread.
 
-The registration handle's `open(datum, { origin })` accepts one projected element owned
-by the widget. Core captures its full datum coordinate, including external-data source
+`threadSurface(this).open(datum, { origin })` accepts one projected element owned
+by the widget. Before Leaf has registered the widget, or once it has left the page,
+`update()` does nothing and `open` returns `false`. Core captures its full datum coordinate, including external-data source
 revision, opens the ordinary anchored draft, and seats the response bar in the consumer's
 outlet when the datum still resolves exactly. `origin` is the widget control to which
 Escape may return focus. Widgets do not receive draft, submission, or event APIs.

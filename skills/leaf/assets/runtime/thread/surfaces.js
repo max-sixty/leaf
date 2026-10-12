@@ -1,5 +1,15 @@
 /* Canonical Thread placement into exact widget seats and one page presentation.
 
+   A widget whose tag declares `x-thread-surface` is a seat for as long as it stands
+   upgraded: `watchThreadSurfaces` registers it once its module has defined it and
+   retires it when it leaves, over the same arrival lifetime every element owner holds
+   (`watchArrivals`, arrivals.js), so a move within one batch keeps it. The runtime asks
+   the widget itself for outlets, `owner.threadOutlets(targets, {signal, collection})`,
+   and the widget reaches its registration through `threadSurface(owner)` to say its
+   seats changed (`update()`) or to open a comment on one of its datums
+   (`open(node, {origin})`). The selected page presentation registers explicitly
+   (`placePageThreads`).
+
    A placement claims one Thread's page position, so reconciliation joins the core
    Thread presentation. Both callbacks return outlets for an admitted batch;
    widget seats that survive final validation claim first, then the selected page presentation.
@@ -17,7 +27,8 @@ import { reportPageError } from "../layer-client.js";
 import { aimTargetAt, datumAimTarget } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
 import { closestAcross } from "../passages.js";
-import { registry } from "../registry.js";
+import { tagsDeclaring } from "../registry.js";
+import { watchArrivals } from "../arrivals.js";
 import { renderThreadSurface, clearThreadSurface } from "./inline.js";
 import { allThreads, readThreads } from "./state.js";
 import { threadNames } from "./model.js";
@@ -40,9 +51,43 @@ function update(registration) {
   });
 }
 
-export function placeThreads(owner, render, options) {
-  return register(owner, render, options, "widget");
+export function watchThreadSurfaces(commands) {
+  const tags = tagsDeclaring((entry) => entry["x-thread-surface"] === true);
+  if (!tags.length) return;
+  const offer = watchArrivals(tags.join(","), [], {
+    arrive(owner) {
+      if (registrations.has(owner)) return;
+      // An element standing before its module defined it is upgraded in that define;
+      // the module's own connection has run by the time the definition resolves.
+      if (!owner.matches(":defined")) {
+        customElements.whenDefined(owner.localName).then(() => offer(owner));
+        return;
+      }
+      register(
+        owner,
+        (targets, context) => owner.threadOutlets(targets, context),
+        commands,
+        "widget",
+      );
+    },
+    leave(owner) {
+      registrations.get(owner)?.handle.unregister();
+    },
+  });
 }
+
+// The registered surface of a widget declaring `x-thread-surface`, as the widget reads
+// it: before the runtime has registered it, or after it left, there is nothing to update
+// and nothing it can open.
+export const threadSurface = (owner) =>
+  Object.freeze({
+    update() {
+      const registration = registrations.get(owner);
+      if (registration) update(registration);
+    },
+    open: (node, options) =>
+      registrations.get(owner)?.handle.open(node, options) ?? false,
+  });
 
 // The selected page presentation joins the same outlet and generation lifetime.
 // This owner nominates fallback candidates. Only the final cohort move knows which
@@ -55,10 +100,9 @@ export function placePageThreads(owner, render, options) {
 
 function register(owner, render, { invalidate, composition, reveal }, kind) {
   if (!(owner instanceof Element))
-    throw new TypeError("placeThreads needs an Element owner");
-  if (kind === "widget") requireSurface(owner);
+    throw new TypeError("A Thread presentation needs an Element owner");
   if (registrations.has(owner))
-    throw new Error(`placeThreads(${owner.localName}) registered twice`);
+    throw new Error(`Thread surface ${owner.localName} registered twice`);
   const registration = {
     render,
     owner,
@@ -90,7 +134,7 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
   registrations.set(owner, registration);
   update(registration);
   let active = true;
-  return {
+  registration.handle = {
     read: readThreads,
     reveal(key) {
       if (!active) return false;
@@ -99,7 +143,6 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
     },
     open(node, { origin = null } = {}) {
       if (!active) return false;
-      if (kind === "widget") requireSurface(owner);
       const target = kind === "widget" ? datumAimTarget(node) : aimTargetAt(node);
       if (
         !target ||
@@ -108,7 +151,7 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
       )
         throw new TypeError(
           kind === "widget"
-            ? `placeThreads(${owner.localName}) can open only its own projected datum`
+            ? `Thread surface ${owner.localName} can open only its own projected datum`
             : "The page Thread presentation needs an addressable source target",
         );
       composition.open(target, { origin });
@@ -123,13 +166,7 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
       update(registration);
     },
   };
-}
-
-function requireSurface(owner) {
-  if (registry[owner.localName]?.["x-thread-surface"] !== true)
-    throw new Error(
-      `placeThreads(${owner.localName}) requires x-thread-surface: true to place Threads`,
-    );
+  return registration.handle;
 }
 
 function clearOutlets(outlets) {
@@ -161,7 +198,7 @@ function validateOutlets({ owner }, byOutlet) {
     if (!outlet.isConnected) byOutlet.delete(outlet);
     else if (!under(outlet, owner))
       throw new Error(
-        `placeThreads(${owner.localName}) returned an outlet outside its presentation owner`,
+        `Thread surface ${owner.localName} returned an outlet outside its presentation owner`,
       );
   }
 }

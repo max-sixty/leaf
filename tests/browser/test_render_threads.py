@@ -20,6 +20,7 @@ from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import leases as leases_model
+from leaf import media as media_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import thread as thread_model
@@ -2886,13 +2887,21 @@ def test_original_image_link_has_a_standalone_target(browser, serve):
     expect(page.locator("#image")).to_be_focused()
 
 
+# A diagram that states no size of its own, only a shape, as Mermaid writes one.
+DIAGRAM_SVG = (
+    b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">'
+    b'<rect width="400" height="200" fill="#cde"/></svg>'
+)
+DIAGRAM = media_model.media_name(DIAGRAM_SVG, ".svg")
+
+
 @pytest.mark.parametrize("offline", [False, True])
 def test_linked_images_zoom_and_return_to_the_report(browser, serve, tmp_path, offline):
     """An authored image link inspects in place, including in the offline artifact."""
     url = serve(
         leaf_page(
             "Screenshot report",
-            """
+            f"""
       <h1>Screenshot report</h1>
       <figure id="screenshot"><a href="/media/051bee487bfb5d13.png">
         <img src="/media/051bee487bfb5d13.png" width="1800" height="746"
@@ -2900,9 +2909,12 @@ def test_linked_images_zoom_and_return_to_the_report(browser, serve, tmp_path, o
         <figcaption>Release output after the fix.</figcaption></figure>
       <p><a id="other" href="#context"><img src="/media/051bee487bfb5d13.png"
         alt="Go to the context"></a></p>
+      <figure id="diagram"><a href="/media/{DIAGRAM}">
+        <img src="/media/{DIAGRAM}" alt="Release flow"></a></figure>
       <section id="context"><h2>Context</h2><p>The release passed.</p></section>
     """,
-        )
+        ),
+        media={f"media/{DIAGRAM}": DIAGRAM_SVG},
     )
     if offline:
         out = tmp_path / "image-report.html"
@@ -2928,6 +2940,19 @@ def test_linked_images_zoom_and_return_to_the_report(browser, serve, tmp_path, o
         page.unroute("**/photoswipe.esm.js")
         page.keyboard.press("Escape")
         expect(viewer).to_be_hidden()
+    # The diagram fills the room it fits in, not the browser's 300x150 stand-in.
+    resized(page, 1440, 500)
+    page.locator("#diagram a").click()
+    fitted = viewer.locator("img.pswp__img")
+    expect(fitted).to_be_visible()
+    room = viewer.locator(".lf-media-viewer-stage").evaluate(
+        """stage => { const inset = getComputedStyle(stage);
+          return stage.clientHeight - parseFloat(inset.paddingTop)
+            - parseFloat(inset.paddingBottom); }"""
+    )
+    assert fitted.bounding_box()["height"] == pytest.approx(room, abs=1)
+    page.keyboard.press("Escape")
+    expect(viewer).to_be_hidden()
     for width in (1440, 390):
         resized(page, width, 900)
         image_link = page.locator("#screenshot a")

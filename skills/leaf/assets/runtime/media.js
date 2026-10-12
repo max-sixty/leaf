@@ -16,8 +16,9 @@
    the same canonical `/media/…` text without rewriting durable content. The viewer's
    native dialog remains a retained chrome node. Its fitted image appears synchronously
    while the manipulation module loads, in the stage's content box, which PhotoSwipe
-   then fits the same image to, so the handover moves nothing. A queued close from an
-   earlier opening leaves a reopened viewer's image and focus intact. */
+   then fits the same image to at the size that image reads, so the handover moves
+   nothing. A queued close from an earlier opening leaves a reopened viewer's image
+   and focus intact. */
 
 import { html, render } from "../vendor/browser-runtime.js";
 import { offlineInteractive, pageUrl, runtimeResource } from "./context.js";
@@ -203,11 +204,16 @@ const open = (url, alt, from) => {
     ([PhotoSwipe]) => {
       // A delayed load belongs only to the image the reader still has open.
       if (attempt !== opening || !mediaViewer.open) return;
+      // The fitted image never exceeds a size the file states, so a larger box means
+      // it states none (an SVG with only a viewBox), and the box is its size.
+      const fitted = image.getBoundingClientRect();
+      const [width, height] =
+        fitted.width > image.naturalWidth + 0.5
+          ? [fitted.width, fitted.height]
+          : [image.naturalWidth, image.naturalHeight];
       render(null, stage);
       const current = new PhotoSwipe({
-        dataSource: [
-          { src: url, width: image.naturalWidth, height: image.naturalHeight, alt },
-        ],
+        dataSource: [{ src: url, width, height, alt }],
         appendToEl: mediaViewer,
         paddingFn: (viewport) => {
           const box = stage.getBoundingClientRect();

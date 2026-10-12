@@ -40,6 +40,7 @@ from interact_support import (
     _status,
     append_carried_log_record,
     append_command,
+    asks_on_user,
     available_loopback_port,
     check,
     consume_pending_input,
@@ -56,7 +57,6 @@ from interact_support import (
     page_packages,
     page_state,
     publish,
-    questions_on_you,
     queue_board_registry,
     record_claim,
     release_codex_command,
@@ -533,7 +533,7 @@ def test_terminal_harness_failure_keeps_exact_user_recovery_without_stop_obligat
     [thread] = state["browser"]["thread"]["threads"]
     assert thread["attention"] == {
         "kind": "needs_user",
-        "reason": "recovery",
+        "reason": "resend",
         "workflow": source["id"],
     }
 
@@ -668,7 +668,7 @@ def test_unrelated_agent_update_does_not_clear_a_standing_user_ask(page_dir):
             "author": "agent",
             "parent": root["id"],
             "responds": root["id"],
-            "question": True,
+            "ask": True,
             "text": "Which option?",
         },
     )
@@ -687,7 +687,7 @@ def test_unrelated_agent_update_does_not_clear_a_standing_user_ask(page_dir):
     assert thread["user_prompt"]["message"] == question["id"]
     assert thread["attention"] == {
         "kind": "needs_user",
-        "reason": "question",
+        "reason": "ask",
         "workflow": None,
     }
 
@@ -801,7 +801,7 @@ def test_frozen_widget_workflow_contributes_to_its_thread_attention(page_dir):
     [thread] = state["browser"]["thread"]["threads"]
     assert thread["attention"] == {
         "kind": "needs_user",
-        "reason": "recovery",
+        "reason": "resend",
         "workflow": answered["id"],
     }
 
@@ -1029,9 +1029,9 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
     )
     assert threads[0]["attention"] == {
         "kind": "waiting",
-        "reason": "task",
+        "reason": "todo",
         "workflow": None,
-        "task": {"id": "t1", "title": "Rebuild", "line": None},
+        "todo": {"id": "t1", "title": "Rebuild", "line": None},
     }
 
 
@@ -2093,7 +2093,7 @@ def test_a_start_is_one_log_record_read_at_the_banner_and_the_move(
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "why?"}
     )
-    assert "neither an open task of yours nor an update you owe an answer to" in (
+    assert "neither an open to-do of yours nor an update you owe an answer to" in (
         _start(page_dir, "nope", "reading the traces").output
     )
     assert _start(page_dir, "c1", "").exit_code != 0
@@ -2233,7 +2233,7 @@ def test_a_widget_task_outlives_its_seat_and_its_widget(page_dir):
     (page_dir / "index.html").write_text(without_seat)
     changed = stamp(page_dir, "Changed presentation")
     assert changed.exit_code == 0, changed.output
-    assert [item["id"] for item in state_json(page_dir)["tasks"]] == [task["id"]]
+    assert [item["id"] for item in state_json(page_dir)["todos"]] == [task["id"]]
 
     # Removing the subject itself would remove the margin entry. Publication refuses
     # that silent loss until the version names the task it completes.
@@ -2247,13 +2247,13 @@ def test_a_widget_task_outlives_its_seat_and_its_widget(page_dir):
     (page_dir / "index.html").write_text(without_target)
     dropped = stamp(page_dir, "Removed")
     assert dropped.exit_code == 0, dropped.output
-    assert [item["id"] for item in state_json(page_dir)["tasks"]] == [task["id"]]
+    assert [item["id"] for item in state_json(page_dir)["todos"]] == [task["id"]]
     (page_dir / "index.html").write_text(
         without_target.replace("<title>t</title>", "<title>t · completed</title>")
     )
     finished = stamp(page_dir, "Removed", completes=("rollout-card",))
     assert finished.exit_code == 0, finished.output
-    assert state_json(page_dir)["tasks"] == []
+    assert state_json(page_dir)["todos"] == []
 
 
 def test_a_delivery_and_its_codex_records_go_once_their_pages_do(
@@ -2712,7 +2712,7 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
     voice = {"author": "agent", "agent": "Agent", "session": "session-1"}
     events = [
         {
-            "kind": "task",
+            "kind": "todo",
             "id": "t1",
             "owner": "agent",
             "seq": 1,
@@ -5893,7 +5893,7 @@ def test_revendoring_can_change_x_work_while_the_target_holds_a_task(page_dir):
     assert result.exit_code == 0, result.output
     registry = json.loads((page_dir / "registry.json").read_text())
     assert "x-work" not in registry["lf-card"]
-    [task] = state_json(page_dir)["tasks"]
+    [task] = state_json(page_dir)["todos"]
     assert task["subject"] == {"kind": "widget", "id": "rollout-card"}
 
 
@@ -6287,7 +6287,7 @@ def test_delivery_distinguishes_thread_obligations_from_closing_answered_work(pa
             question["id"],
             "--text",
             "Checking the change.",
-            "--task",
+            "--todo",
             "Check the change",
         ],
     )
@@ -7183,7 +7183,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
         },
     )
     selecting = state_json(page_dir)
-    assert [ask["widget"] for ask in questions_on_you(selecting)] == ["regions"]
+    assert [ask["widget"] for ask in asks_on_user(selecting)] == ["regions"]
     assert selecting["activity"]["obligations"] == []
     assert selecting["workflows"] == []
     assert service_model.unacknowledged(events_model.read_events(page_dir), 0) == []
@@ -7202,7 +7202,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
         },
     )
     completed = state_json(page_dir)
-    assert questions_on_you(completed) == []
+    assert asks_on_user(completed) == []
     assert completed["activity"]["obligations"] == [answered["id"]]
     cleanup_model.prompt_turn("s1")
     receive_through(page_dir, last_deliverable_seq(page_dir))
@@ -7217,7 +7217,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
         {"kind": "undo", "author": "user", "undoes": answered["id"]},
     )
     resumed = state_json(page_dir)
-    assert [ask["widget"] for ask in questions_on_you(resumed)] == ["regions"]
+    assert [ask["widget"] for ask in asks_on_user(resumed)] == ["regions"]
     assert resumed["activity"]["obligations"] == []
     answered = append_command(
         page_dir,
@@ -8494,7 +8494,7 @@ def test_wait_preserves_the_work_in_hand_on_mid_work_output(page_dir, capsys):
     _, _, shown = delivered(capsys)
     assert [event["id"] for event in shown] == ["c1"]
     assert status_path.read_bytes() == before
-    [task] = page_state(page_dir)["browser"]["tasks"]
+    [task] = page_state(page_dir)["browser"]["todos"]
     assert task["running"]["text"] == "running the browser suite"
 
 
@@ -13949,7 +13949,7 @@ def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, ca
     assert closed
     assert presence_model.presence(claimed, events)["turn_closed"] == closed
     # And what the agent said it was doing is untouched by the observation of it.
-    [task] = page_state(claimed)["browser"]["tasks"]
+    [task] = page_state(claimed)["browser"]["todos"]
     assert task["running"]["text"] == "reading the reconnect traces"
 
     # Re-entry after a block stands the guard down before it would speak; the stamp is
@@ -18038,7 +18038,7 @@ def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared
         },
     )
     ticked = state_json(claimed)
-    assert [ask["widget"] for ask in questions_on_you(ticked)] == ["choice"]
+    assert [ask["widget"] for ask in asks_on_user(ticked)] == ["choice"]
     assert ticked["workflows"] == []
     assert ticked["activity"]["counts"]["total"] == 0
     assert ticked["activity"]["counts"]["pending"] == 0
@@ -18058,7 +18058,7 @@ def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared
         },
     )
     finished = state_json(claimed)
-    assert questions_on_you(finished) == []
+    assert asks_on_user(finished) == []
     [workflow] = owed(finished)
     assert workflow["answer"] == {"kind": "markup", "action": done["id"]}
     delivery = delivery_through(claimed, done["seq"])
@@ -18158,11 +18158,11 @@ def test_a_queue_in_a_thread_owes_nothing_until_it_is_finished(page_dir):
     sort("card-a", "i")
     sorting = state_json(page_dir)
     assert sorting["workflows"] == []
-    assert [ask["widget"] for ask in questions_on_you(sorting)] == ["triage"]
+    assert [ask["widget"] for ask in asks_on_user(sorting)] == ["triage"]
 
     sort("card-b", "r")
     finished = state_json(page_dir)
-    assert questions_on_you(finished) == []
+    assert asks_on_user(finished) == []
     assert sorted(item["coordinate"][1] for item in owed(finished)) == [
         "card-a",
         "card-b",
@@ -20323,7 +20323,7 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
             selected_ref,
             "--text",
             "Which store owns it?",
-            "--question",
+            "--ask",
             "--detach",
         ],
     )
@@ -20331,7 +20331,7 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
     record = json.loads(questioned.output)
     assert record["parent"] == asked["id"]
     assert record["responds"] == selected["id"]
-    assert record["question"] is True
+    assert record["ask"] is True
     assert record["anchor"] is None
 
 
@@ -20617,7 +20617,7 @@ def test_provider_response_commits_full_content_before_reconnect(
     )
     markup = '<lf-options id="provider-choice" choose><lf-option id="provider-yes"><strong>Yes</strong></lf-option></lf-options>'
     flags = {
-        "question": ["--question", "--title", "Storage choice", "--section", "plan"],
+        "question": ["--ask", "--title", "Storage choice", "--section", "plan"],
         "markup": [
             "--done",
             "--markup",
@@ -20654,7 +20654,7 @@ def test_provider_response_commits_full_content_before_reconnect(
         "Storage choice",
     )
     if rich == "question":
-        assert reply["question"] is True
+        assert reply["ask"] is True
         assert reply["anchor"]["section"] == "plan"
     else:
         assert reply["markup"] == markup
@@ -20682,7 +20682,7 @@ def test_history_recovery_and_author_retry_survive_owner_process_restart(
     comment, target, delivery_id, _stream = _reserved_author_response(page_dir)
     identity = {"session": "worker-1", "agent": "Indexer"}
     thread_model.post_response(
-        target["ref"], "Worker question?", question=True, identity=identity
+        target["ref"], "Worker question?", ask=True, identity=identity
     )
     payload = delivery_model.read_delivery(delivery_id)
     before = cleanup_model.session_record("codex-thread")
@@ -20730,7 +20730,7 @@ def test_history_recovery_and_author_retry_survive_owner_process_restart(
     [answer] = thread_model.successful_replies(
         events_model.read_events(page_dir), comment["id"]
     )
-    assert (answer["text"], answer["session"], answer["agent"], answer["question"]) == (
+    assert (answer["text"], answer["session"], answer["agent"], answer["ask"]) == (
         "Worker question?",
         "worker-1",
         "Indexer",
@@ -20738,7 +20738,7 @@ def test_history_recovery_and_author_retry_survive_owner_process_restart(
     ), errors
     assert (
         thread_model.post_response(
-            target["ref"], "Worker question?", question=True, identity=identity
+            target["ref"], "Worker question?", ask=True, identity=identity
         )
         == answer
     )
@@ -20752,7 +20752,7 @@ def test_explicit_answer_survives_a_provider_ending_without_final_text(
     answer = thread_model.post_response(
         target["ref"],
         "My question?",
-        question=True,
+        ask=True,
         identity={"session": "codex-thread", "agent": "Codex"},
     )
     assert stream.finish(ending) is None
@@ -20762,9 +20762,9 @@ def test_explicit_answer_survives_a_provider_ending_without_final_text(
     assert comment["id"] not in delivery_model.current_responses(
         page_dir, events_model.read_events(page_dir)
     )
-    assert thread_model.post_response(target["ref"], "Retry", question=True) == answer
+    assert thread_model.post_response(target["ref"], "Retry", ask=True) == answer
     with pytest.raises(Refused, match="different declaration"):
-        thread_model.post_response(target["ref"], "Retry", task="Promise it")
+        thread_model.post_response(target["ref"], "Retry", todo="Promise it")
 
 
 def test_addressed_progress_is_one_atomic_message_and_work_start(page_dir):
@@ -20841,7 +20841,7 @@ def test_committed_answer_survives_a_newer_displayed_reply(page_dir):
     comment, target, _delivery_id, old = _reserved_author_response(page_dir)
     identity = {"session": "codex-thread", "agent": "Codex"}
     thread_model.post_response(
-        target["ref"], "Older question?", question=True, identity=identity
+        target["ref"], "Older question?", ask=True, identity=identity
     )
     newer = append_command(
         page_dir,
@@ -20863,7 +20863,7 @@ def test_committed_answer_survives_a_newer_displayed_reply(page_dir):
         for event in events_model.read_events(page_dir)
         if event["kind"] == "reply"
     ]
-    assert (reply["responds"], reply["text"], reply["question"]) == (
+    assert (reply["responds"], reply["text"], reply["ask"]) == (
         comment["id"],
         "Older question?",
         True,
@@ -20940,13 +20940,13 @@ def test_explicit_reply_refusal_reaches_its_author_before_commit(page_dir, inval
     assert files_model.latest_revision(page_dir) == before_revision
     (page_dir / "index.html").write_text(source)
     answer = thread_model.post_response(
-        target["ref"], "Corrected question?", question=True, identity=identity
+        target["ref"], "Corrected question?", ask=True, identity=identity
     )
     assert stream.finish("completed", "Provider final") is None
     assert thread_model.successful_replies(
         events_model.read_events(page_dir), comment["id"]
     ) == [answer]
-    assert answer["question"] is True
+    assert answer["ask"] is True
 
 
 def test_markup_obligation_cannot_be_discharged_by_reply_or_reply_failure(page_dir):
@@ -21105,7 +21105,7 @@ def test_old_provider_final_yields_to_new_reservation_for_same_input(page_dir, s
     )
     identity = {"session": "codex-thread", "agent": "Codex"}
     thread_model.post_response(
-        new_target["ref"], "New owner's question?", question=True, identity=identity
+        new_target["ref"], "New owner's question?", ask=True, identity=identity
     )
     if settled:
         append_command(
@@ -21129,7 +21129,7 @@ def test_old_provider_final_yields_to_new_reservation_for_same_input(page_dir, s
         for event in events_model.read_events(page_dir)
         if event["kind"] == "reply"
     ]
-    assert (answer["responds"], answer["text"], answer["question"]) == (
+    assert (answer["responds"], answer["text"], answer["ask"]) == (
         comment["id"],
         "New owner's question?",
         True,

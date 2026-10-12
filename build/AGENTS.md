@@ -57,10 +57,10 @@ pins the rest of each closure.
 a comment behind for each item it removes (lit/lit#5298), so a list the chrome redraws
 grows for as long as the page is open. `browser/build.mjs` backports lit/lit#5218
 to that pin so optional `ref(undefined)` survives disconnection and reconnection.
-The build also routes lit-html's keyed and child-part insertions and root marker
-through `runtime/dom-move.js`, preserving native state where the browser supports
-it and bypassing named form properties. It adapts the published modules in memory
-and fails if a locked seam changes.
+The build also routes lit-html's keyed and child-part insertions through
+`runtime/dom-move.js`, which keeps the user's place across a move and native state
+where the browser supports it. It adapts the published modules in memory and fails
+if a locked seam changes.
 Lift it to a release
 that carries lit/lit#5299; the closed-surface journey of
 `test_page_fixture_renders` fails while the leak stands.

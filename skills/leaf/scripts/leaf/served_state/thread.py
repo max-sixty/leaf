@@ -165,10 +165,10 @@ def browser_thread(
             "projection": browser_projection(
                 reading.projection, scope="thread", within={}, floors={}
             ),
-            "questions": work.questions,
+            "asks": work.questions,
             "threads": rendered_threads,
             # Standing approvals across every stamp, for Threads' event timeline.
-            # Current-version approval state lives only in its Question.
+            # Current-version approval state lives only in its ask.
             "approval_history": work.approvals,
         },
         reading,

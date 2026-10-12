@@ -2595,6 +2595,8 @@
   "test_one_semantic_visual_target_gets_one_keyboard_proxy[False-keyboard]": "main",
   "test_one_semantic_visual_target_gets_one_keyboard_proxy[True-aim]": "main",
   "test_one_semantic_visual_target_gets_one_keyboard_proxy[True-keyboard]": "main",
+  "test_one_semantic_visual_target_gets_one_keyboard_proxy[aim]": "main",
+  "test_one_semantic_visual_target_gets_one_keyboard_proxy[keyboard]": "main",
   "test_plain_clicks_stay_native_and_explicit_gestures_comment_on_visuals": "main",
   "test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded": "main",
   "test_reactions_keep_all_six_buttons_on_an_occupied_target[1440-click]": "main",

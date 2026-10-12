@@ -4442,6 +4442,16 @@ def test_the_number_hint_names_only_versions_that_still_exist(browser, serve):
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "note" and event["version"] == 1
     )
+    # An interrupted publication is repaired when state is read. Model an
+    # unavailable older revision whose note has no recoverable publication.
+    log = serve.page_dir / "events.jsonl"
+    events = events_model.read_events(serve.page_dir)
+    for event in events:
+        if event.get("revision") == first["revision"]:
+            event.pop("publication", None)
+    log.write_text(
+        "".join(json.dumps(event) + "\n" for event in events), encoding="utf-8"
+    )
     files_model.revision_path(serve.page_dir, first["revision"]).unlink()
     page = open_page(browser, url.replace("v1.html", "v3.html"))
 

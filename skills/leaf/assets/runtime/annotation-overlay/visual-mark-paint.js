@@ -7,10 +7,10 @@
  * layout, resize, source replacement and target changes rebuild the mark. Importing this
  * module creates no layer, overlays or scheduled work. */
 
-import { cancelRender, nextRender } from "/runtime/rendering.js";
-import { el } from "/runtime/widget-elements.js";
-import { keeps } from "/runtime/keeps.js";
-import { inChrome } from "/runtime/passages.js";
+import { cancelRender, nextRender } from "../rendering.js";
+import { el } from "../widget-elements.js";
+import { keeps } from "../keeps.js";
+import { inChrome } from "../passages.js";
 import {
   SVG_NS,
   dropStand,
@@ -19,7 +19,7 @@ import {
   paintStand,
   placement,
   standOver,
-} from "/runtime/target-paint-geometry.js";
+} from "../target-paint-geometry.js";
 
 const PROJECTED = "lf-projected-mark";
 const STATE_CLASSES = {

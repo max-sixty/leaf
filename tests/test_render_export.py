@@ -1161,30 +1161,26 @@ def test_a_preview_relinquishes_a_service_another_session_claims(
 # ---------- export: the page as one file ----------
 
 OFFLINE_WIDGET = """\
-import { LitElement, html, widgetController } from "/runtime/widget-api.js";
+import { html, render, widgetController } from "/runtime/widget-api.js";
 
-customElements.define("lf-offline-test", class extends LitElement {
+customElements.define("lf-offline-test", class extends HTMLElement {
   controller = widgetController(this);
   reading = this.controller.read();
   local = 0;
   stop = null;
 
-  createRenderRoot() {
-    return this.shadowRoot ?? this.attachShadow({mode: "open"});
-  }
-
   connectedCallback() {
-    super.connectedCallback();
+    if (!this.shadowRoot) this.attachShadow({mode: "open"});
     this.stop ??= this.controller.subscribe(reading => {
       this.reading = reading;
-      this.requestUpdate();
+      this.paint();
     });
+    this.paint();
   }
 
   disconnectedCallback() {
     this.stop?.();
     this.stop = null;
-    super.disconnectedCallback();
   }
 
   choose() {
@@ -1193,13 +1189,13 @@ customElements.define("lf-offline-test", class extends LitElement {
     });
   }
 
-  render() {
+  paint() {
     const choice = this.reading.state.choose?.value ?? this.getAttribute("choice");
     const action = this.reading.actions.choose;
     const unavailable = action.unavailable;
-    return html`
+    render(html`
       <style>#local { color: rgb(12, 34, 56); }</style>
-      <button id="local" @click=${() => { this.local += 1; this.requestUpdate(); }}>
+      <button id="local" @click=${() => { this.local += 1; this.paint(); }}>
         Increment locally
       </button>
       <output id="local-value">${this.local}</output>
@@ -1208,7 +1204,7 @@ customElements.define("lf-offline-test", class extends LitElement {
       </button>
       <output id="choice">${choice}</output>
       ${unavailable ? html`<p id="unavailable">${unavailable}</p>` : null}
-    `;
+    `, this.shadowRoot, {host: this});
   }
 });
 """

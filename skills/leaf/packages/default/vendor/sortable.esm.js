@@ -1,4 +1,4 @@
-import {move as leafMove} from "/runtime/dom-move.js";
+import {move as leafMove} from "/runtime/widget-api.js";
 /**!
  * Sortable 1.15.7
  * @author	RubaXa   <trash@rubaxa.org>

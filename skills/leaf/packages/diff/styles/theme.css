@@ -243,6 +243,12 @@
   .lf-call-group:not([open]) > .lf-call-group-body {
     display: block;
   }
+
+  /* A group's call is cut to its line on screen; paper wraps it whole. */
+  .lf-call-group-summary .lf-call-body {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
 }
 
 @container (max-width: 34rem) {

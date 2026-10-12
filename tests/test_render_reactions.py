@@ -1410,7 +1410,7 @@ graph LR
     expect(start).to_have_class(re.compile(r"\blf-pending\b"))
     expect(page.locator("#flow")).not_to_have_class(re.compile(r"\blf-pending\b"))
     page.keyboard.press("Escape")
-    expect(control).to_be_focused()
+    expect(start).to_be_focused()
 
 
 def test_a_visual_fallback_yields_to_stable_targets_inside_the_picture(browser, serve):
@@ -1628,21 +1628,18 @@ def test_a_declared_visual_part_can_raise_the_same_bar_from_the_keyboard(
     assert "comment" in line and "other responses" in line
     assert "unselect" not in line
 
+    # Escape hands the user back to the part itself, not the proxy they pressed:
+    # focused, a proxy's face stands under the banner, away from the drawing.
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
-    expect(control).to_be_focused()
+    expect(start).to_be_focused()
 
 
-@pytest.mark.parametrize(
-    ("proxy_hidden", "entry"), [(False, "keyboard"), (True, "aim")]
-)
-def test_one_semantic_visual_target_gets_one_keyboard_proxy(
-    browser, serve, proxy_hidden, entry
-):
+@pytest.mark.parametrize("entry", ["keyboard", "aim"])
+def test_one_semantic_visual_target_gets_one_keyboard_proxy(browser, serve, entry):
     """Sibling anonymous pictures under one authored item are one durable target.
-    Keyboard and pointer entry share that proxy as their Escape parent, falling
-    back to the visible subject when the proxy is hidden."""
+    Proxy and pointer entry share that item as their Escape parent."""
     page_markup = leaf_page(
         "picture gallery",
         """
@@ -1665,10 +1662,8 @@ def test_one_semantic_visual_target_gets_one_keyboard_proxy(
     else:
         page.locator("#gallery svg").first.click(modifiers=["Alt"])
     expect(page.locator(".lf-fab-bar")).to_be_visible()
-    if proxy_hidden:
-        control.evaluate("node => node.hidden = true")
     page.keyboard.press("Escape")
-    expect(page.locator("#gallery") if proxy_hidden else control).to_be_focused()
+    expect(page.locator("#gallery")).to_be_focused()
 
 
 def landed(page):
@@ -1723,11 +1718,13 @@ def test_a_drawing_names_its_proxies_and_keeps_its_place_among_the_page(browser,
     )
 
 
-def test_a_bar_re_placed_by_its_own_controls_still_hands_back_the_proxy(browser, serve):
+def test_a_bar_re_placed_by_its_own_controls_still_hands_back_its_subject(
+    browser, serve
+):
     """Opening the bar's other responses re-places it on the anchor already standing. That
     is the same gesture continuing, not a fresh one that stood the user nowhere, so the
-    way out still ends on the proxy the bar was opened from — as it does for a user who
-    goes straight back out."""
+    way out still ends on the bar's subject — as it does for a user who goes straight
+    back out."""
     page_markup = leaf_page(
         "picture gallery",
         """
@@ -1753,7 +1750,7 @@ def test_a_bar_re_placed_by_its_own_controls_still_hands_back_the_proxy(browser,
 
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
-    assert landed(page) == "lf-visual-action", landed(page)
+    assert landed(page) == "gallery", landed(page)
 
 
 def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser, serve):
@@ -1828,9 +1825,8 @@ def test_a_visual_proxy_keeps_user_standing_across_provider_updates(browser, ser
     page.mouse.up()
     expect(page.locator(".lf-fab-input")).to_be_focused()
     page.keyboard.press("Escape")
-    assert page.evaluate(
-        "() => document.activeElement === window.lfRetainedVisualControl"
-    )
+    expect(page.locator('#flow g[data-id="S"]')).to_be_focused()
+    page.evaluate("() => window.lfRetainedVisualControl.focus()")
 
     page.evaluate(
         """() => {
@@ -2085,22 +2081,23 @@ def test_the_response_surface_preserves_a_backward_drag(browser, serve):
 
 @pytest.mark.parametrize("entry", ["keyboard", "aim"])
 def test_a_reaction_returns_focus_to_the_visual_target(browser, serve, entry):
-    """A completed action returns to the current proxy for its target, regardless
-    of keyboard or pointer entry, instead of remaining in a hidden action bar."""
+    """A completed action returns to its target, regardless of keyboard or pointer
+    entry, instead of remaining in a hidden action bar."""
     page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     control = page.get_by_role("button", name="Respond to Start request")
+    part = page.locator('#flow g[data-id="S"]')
     if entry == "keyboard":
         control.focus()
         page.keyboard.press("Enter")
     else:
-        page.locator('#flow g[data-id="S"]').click(modifiers=["Alt"])
+        part.click(modifiers=["Alt"])
     expect(page.locator(".lf-fab-input")).to_be_focused()
     page.keyboard.press("Tab")
     page.keyboard.press("1")
     round_trip(page)
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
-    expect(control).to_be_focused()
-    control.evaluate("node => { window.lfReturnedVisualControl = node; }")
+    expect(part).to_be_focused()
+    part.evaluate("node => { window.lfReturnedVisualTarget = node; }")
     page.evaluate(
         """() => new Promise(resolve => {
           document.dispatchEvent(new CustomEvent('lf-layout'));
@@ -2108,8 +2105,8 @@ def test_a_reaction_returns_focus_to_the_visual_target(browser, serve, entry):
         })"""
     )
     assert page.evaluate(
-        """() => window.lfReturnedVisualControl.isConnected &&
-          document.activeElement === window.lfReturnedVisualControl"""
+        """() => window.lfReturnedVisualTarget.isConnected &&
+          window.lfReturnedVisualTarget.matches(':focus')"""
     )
 
 
@@ -2609,7 +2606,7 @@ def _thread(page_dir):
             "agent": "Claude",
             "parent": root,
             "text": "Forty is what the slowest device we ship on can hold.",
-            "question": True,
+            "ask": True,
         },
     )
     return root, reply["id"]

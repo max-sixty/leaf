@@ -362,7 +362,7 @@ def instructions(
 )
 def state(dir: str, target: str | None, after: int | None, limit: int | None) -> None:
     """Fold the log onto the active revision and print the result as one JSON
-    object: the active revision's file, standing state, reports, open Questions,
+    object: the active revision's file, standing state, reports, the Questions and Tasks lists,
     thread summaries, versions, presence, and bound data. Read the active
     revision's HTML beside it for the document.
 
@@ -370,7 +370,7 @@ def state(dir: str, target: str | None, after: int | None, limit: int | None) ->
     one, names its thread: the reading is that thread with a page of its messages,
     their frozen markup, and the state on its widgets, paged by --after and
     --limit. A widget on the page names itself: its element, the actions and reports
-    standing on it, its Questions, and its workflows."""
+    standing on it, its asks and to-dos, and its workflows."""
     from leaf.agent_state import cmd_page_state
 
     if target is None and (after is not None or limit is not None):
@@ -394,7 +394,7 @@ def state(dir: str, target: str | None, after: int | None, limit: int | None) ->
     "--completes",
     multiple=True,
     metavar="WIDGET",
-    help="a widget whose open tasks this version completes (repeatable)",
+    help="a widget whose open to-dos this version completes (repeatable)",
 )
 def stamp(
     dir: str,
@@ -406,8 +406,8 @@ def stamp(
     """Stamp PAGE/index.html with a changelog.
 
     Checks the exact source first, then records it as the next public version. Repeat
-    --completes for each widget whose open tasks this version completes, which ends
-    them done, citing the version. A task otherwise remains open, including when a
+    --completes for each widget whose open to-dos this version completes, which ends
+    them done, citing the version. A to-do otherwise remains open, including when a
     revision removes its widget. --from-directory replaces index.html and the
     complete page/ tree atomically with stamping; --if-source is the authored-input
     digest read through leaf.publishing, refusing a competing edit.
@@ -868,7 +868,7 @@ def status(dir: str, state: str, detail: str) -> None:
     Use waiting with DETAIL naming the answer you want from the user; waiting
     without DETAIL invites text comments. Either puts down every item you started
     before it. Use idle when finished; unacknowledged input, unanswered user updates
-    and open tasks prevent it. Work in hand is no status: name it with
+    and open to-dos prevent it. Work in hand is no status: name it with
     `leaf task start`.
     """
     from leaf.activity import unanswered
@@ -971,14 +971,14 @@ def _reply_options(command):
             "--markup", default="", help="frozen HTML fragment after the text"
         ),
         click.option(
-            "--question",
+            "--ask",
             is_flag=True,
-            help="the reply asks the user a question, which waits on them",
+            help="the reply asks the user something, which waits on them as an ask",
         ),
         click.option(
-            "--task",
+            "--todo",
             metavar="TITLE",
-            help="the reply promises work it doesn't deliver; opens that task on the "
+            help="the reply promises work it doesn't deliver; opens that to-do on the "
             "thread, ended by `leaf task end` with the reply's id",
         ),
         click.option(
@@ -1011,8 +1011,8 @@ def response_reply(
     """Answer the exact REFERENCE printed in a delivery's answer.ref.
 
     An answer says what it leaves the thread with: --done when it delivers what the
-    message asked for, --question when it asks the user something back, or --task
-    TITLE when it promises work it doesn't deliver, which stays on you as a task.
+    message asked for, --ask when it asks the user something back, or --todo
+    TITLE when it promises work it doesn't deliver, which stays on you as a to-do.
     Progress (--ephemeral) and failure receipts (--failure) take none of them.
 
     Text, frozen HTML, titles and anchor moves share this command.
@@ -1028,8 +1028,8 @@ def response_reply(
         flag
         for flag, given in (
             ("--done", done),
-            ("--question", options["question"]),
-            ("--task", options["task"] is not None),
+            ("--ask", options["ask"]),
+            ("--todo", options["todo"] is not None),
         )
         if given
     ]
@@ -1044,7 +1044,7 @@ def response_reply(
     if not declared and answers:
         raise click.UsageError(
             "say what the answer leaves: --done when it delivers what was asked, "
-            "--question when it asks the user something back, or --task TITLE when "
+            "--ask when it asks the user something back, or --todo TITLE when "
             "it promises work it doesn't deliver"
         )
     if attempt is not None:
@@ -1107,23 +1107,23 @@ def thread_resolve(dir: str, thread: str) -> None:
     _print_records(cmd_resolve(resolve_dir(dir), thread))
 
 
-@cli.group(short_help="Open, start, or end tasks on the page, yours or the user's.")
+@cli.group(short_help="Open or end to-dos, and take your Tasks in hand.")
 def task() -> None:
     """Show the work you owe on the page, the item you have in hand, and what you
     put on the user.
 
     An item on your queue is a user update you owe an answer, named by the update's
-    event id, or a task you opened. `leaf task start` takes one in hand for this
-    turn, with the line the banner shows. A task stays on your queue through
+    event id, or a to-do you opened. `leaf task start` takes one in hand for this
+    turn, with the line the banner shows. A to-do stays on your Tasks through
     replies, resolutions, versions and the end of the session that opened it;
-    `leaf task end`, or a stamp that `--completes` its widget, ends it. A task you
-    open `--on user` is on the user's queue instead, until they press its Done or you
+    `leaf task end`, or a stamp that `--completes` its widget, ends it. A to-do you
+    open `--on user` is on the user's Questions instead, until they press its Done or you
     end it. Every write prints the record it appended, one JSON line, as `page events`
     prints it.
     """
 
 
-@task.command("open", short_help="Take on work, or put a task on the user.")
+@task.command("open", short_help="Open a to-do, yours or the user's.")
 @click.argument("dir", metavar="PAGE")
 @click.argument("subject", metavar="SUBJECT")
 @click.argument("title", metavar="TITLE")
@@ -1133,47 +1133,47 @@ def task() -> None:
     type=click.Choice(["agent", "user"]),
     default="agent",
     show_default=True,
-    help="Whose queue the task is on: yours, or the user's.",
+    help="Whose list the to-do is on: your Tasks, or the user's Questions.",
 )
 def task_open(dir: str, subject: str, title: str, owner: str) -> None:
-    """Open a task titled TITLE on SUBJECT: a page widget, which for your own task
+    """Open a to-do titled TITLE on SUBJECT: a page widget, which for your own to-do
     must declare x-work or hold an unsettled update; any other element of the page by
     its id, such as a section; or `page` for the page as a whole. With `--on user`
-    the task is on the user: it ends at their Done, and you can end it too. Its id is
+    the to-do is on the user: it ends at their Done, and you can end it too. Its id is
     the printed record's `id`. In a thread, the reply that promises work opens it
-    (`--task`), and one that asks the user is their Question (`--question`)."""
+    (`--todo`), and one that asks the user is their ask (`--ask`)."""
     from leaf.tasks import cmd_open
 
     _print_records(cmd_open(resolve_dir(dir), subject, title, owner))
 
 
 @task.command(
-    "start", short_help="Start work on an update or task, with the banner's line."
+    "start", short_help="Start work on an update or to-do, with the banner's line."
 )
 @click.argument("dir", metavar="PAGE")
 @click.argument("item", metavar="ID")
 @click.argument("text", metavar="LINE")
 def task_start(dir: str, item: str, text: str) -> None:
     """Take ID in hand for this turn: the event id of a user update you owe, as its
-    delivery names it, or an open task's id. LINE names the work and its subject in
-    one sentence; it reads Working beside the update or task and in the banner. Your
-    answer to the update, or the task's end, ends it; left in hand after your turn
+    delivery names it, or an open to-do's id. LINE names the work and its subject in
+    one sentence; it reads Working beside the update or to-do and in the banner. Your
+    answer to the update, or the to-do's end, ends it; left in hand after your turn
     ends, it reads stalled until you answer it or start it again."""
     from leaf.tasks import cmd_start
 
     _print_records(cmd_start(resolve_dir(dir), item, text))
 
 
-@task.command("end", short_help="End a task: done, failed, or dropped.")
+@task.command("end", short_help="End a to-do: done, failed, or dropped.")
 @click.argument("dir", metavar="PAGE")
-@click.argument("task_id", metavar="TASK")
+@click.argument("task_id", metavar="TODO")
 @click.argument("outcome", type=click.Choice(["done", "failed", "dropped"]))
 @click.argument("detail", metavar="[DETAIL]", required=False)
 def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> None:
-    """End TASK with OUTCOME. DETAIL says where the result is, such as the
-    version or reply holding it, or why there is none. TASK may be an explicit task
-    on either side. A prose Question id (`reply:<message-id>`)
-    withdraws that request without creating a user answer. Widget Questions end
+    """End TODO with OUTCOME. DETAIL says where the result is, such as the
+    version or reply holding it, or why there is none. TODO may be a to-do on
+    either side. A prose ask's id (`reply:<message-id>`)
+    withdraws that request without creating a user answer. Widget asks end
     through their declared state or an authored withdrawal."""
     from leaf.tasks import cmd_end
 

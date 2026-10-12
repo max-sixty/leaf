@@ -163,10 +163,25 @@ test("owner frames coalesce calls and keep pending work through a same-batch mov
 test("departure cancels queued rendering and reconnection accepts fresh work", async () => {
   const owner = document.createElement("section");
   document.body.append(owner);
+  // Only this frame's own job: the runtime queues other work on any mutation, such as
+  // focus.js refreshing its paint.
   const phases = [];
-  const stop = observeQueuedWork((phase) => phases.push(phase));
+  const own = new Set();
+  let scheduling = false;
+  const stop = observeQueuedWork((phase, job) => {
+    if (scheduling && phase === "enqueue") own.add(job);
+    if (own.has(job)) phases.push(phase);
+  });
   let paints = 0;
-  const schedule = frameFor(owner, () => paints++);
+  const frame = frameFor(owner, () => paints++);
+  const schedule = () => {
+    scheduling = true;
+    try {
+      frame();
+    } finally {
+      scheduling = false;
+    }
+  };
   try {
     schedule();
     await mutate(() => owner.remove());

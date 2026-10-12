@@ -913,18 +913,18 @@ def state_json(d):
     return json.loads(result.output)
 
 
-def questions_on_you(state):
-    """Widget requests on the user's queue, retaining source and prompt identity."""
+def asks_on_user(state):
+    """Widget asks on the user's Questions, retaining source and prompt identity."""
     return [
         {
             "id": item["id"],
-            "tag": item["question"]["source"]["tag"],
-            "widget": item["question"]["source"]["id"],
-            "widget_tag": item["question"]["source"]["tag"],
+            "tag": item["ask"]["source"]["tag"],
+            "widget": item["ask"]["source"]["id"],
+            "widget_tag": item["ask"]["source"]["tag"],
             "thread": item["thread"],
         }
-        for item in state["queues"]["on_you"]
-        if item["kind"] == "question" and item["question"]["source"]["kind"] == "widget"
+        for item in state["queues"]["questions"]
+        if item["kind"] == "ask" and item["ask"]["source"]["kind"] == "widget"
     ]
 
 
@@ -1495,7 +1495,7 @@ def declare_work(page_dir, line, *, item=None, ts=None, **voice):
             or append_carried_log_record(
                 page_dir,
                 {
-                    "kind": "task",
+                    "kind": "todo",
                     "author": "agent",
                     "owner": "agent",
                     "subject": {"kind": "page"},
@@ -1527,9 +1527,9 @@ def end_work(page_dir):
             append_carried_log_record(
                 page_dir,
                 {
-                    "kind": "task_end",
+                    "kind": "todo_end",
                     "author": "agent",
-                    "task": task["id"],
+                    "todo": task["id"],
                     "outcome": "done",
                 },
             )

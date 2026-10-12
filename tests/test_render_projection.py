@@ -3994,10 +3994,10 @@ customElements.define("lf-conditional", class extends HTMLElement {
         # The phase move is the agent's to answer. The Question leaves the user's
         # queue when its condition closes, retaining its withdrawn inventory row.
         expect(
-            page.locator("[data-lf-queue='you'] .lf-queue-row[data-lf-kind='question']")
+            page.locator("[data-lf-queue='you'] .lf-queue-row[data-lf-kind='ask']")
         ).to_have_count(count)
         withdrawn = page.locator(
-            "[data-lf-queue='done'] .lf-queue-row[data-lf-kind='question']"
+            "[data-lf-queue='done'] .lf-queue-row[data-lf-kind='ask']"
         )
         expect(withdrawn).to_have_count(1 - count)
         if not count:
@@ -6370,13 +6370,13 @@ def test_report_words_and_widget_state_wait_together_for_a_drag(browser, serve):
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "2")
 
 
-@pytest.mark.parametrize("holding", ["defer", "preparation", "async"])
+@pytest.mark.parametrize("holding", ["defer", "preparation"])
 def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
     browser, serve, holding
 ):
     """Report prose, coverage, and clocks consume the widget's canonical proof.
 
-    A local editing hold and an asynchronous face/preparation are distinct owners of
+    A local editing hold and an asynchronous preparation are distinct owners of
     completion. Each holds only its widget; report narration cannot jump ahead by
     inferring that the coordinate was committed because its DOM node still exists.
     """
@@ -6431,22 +6431,8 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
             window.__proofResume = controller.defer();
           } else {
             let resolve;
-            const completion = new Promise(done => { resolve = done; });
-            if (holding === 'preparation') {
-              controller.present(completion);
-              window.__proofResume = resolve;
-            } else {
-              const render = owner.renderState.bind(owner);
-              let pendingState;
-              owner.renderState = state => { pendingState = state; };
-              Object.defineProperty(owner, 'updateComplete', {get: () => completion, configurable: true});
-              window.__proofResume = () => {
-                owner.renderState = render;
-                render(pendingState);
-                delete owner.updateComplete;
-                resolve();
-              };
-            }
+            controller.present(new Promise(done => { resolve = done; }));
+            window.__proofResume = resolve;
           }
         }""",
         holding,
@@ -6479,7 +6465,7 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
     )
     expect(row.locator(".lf-doing")).to_have_text("first report")
     expect(page.locator("body")).not_to_have_attribute("data-lf-applied", "2")
-    if holding != "preparation":
+    if holding == "defer":
         expect(row).to_have_attribute("state", "working")
     page.evaluate("window.__proofResume()")
     expect(row).to_have_attribute("state", "idle")

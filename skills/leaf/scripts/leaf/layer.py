@@ -320,9 +320,8 @@ def kernel_runtime_paths() -> set[str]:
     """
     manifest = PLUGIN_ROOT / "leaf-distribution.json"
     paths = {
-        path.relative_to(root / "runtime").as_posix()
-        for root in (ASSETS, DEFAULT_PACKAGE)
-        for path in (root / "runtime").rglob("*.js")
+        path.relative_to(ASSETS / "runtime").as_posix()
+        for path in (ASSETS / "runtime").rglob("*.js")
     }
     if manifest.is_file():
         paths.update(json.loads(manifest.read_text())["runtime_paths"])
@@ -572,7 +571,7 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
         "/runtime/widget-api.js"
     }
     for root in roots:
-        if root.resolve() in {ASSETS.resolve(), DEFAULT_PACKAGE.resolve()}:
+        if root.resolve() == ASSETS.resolve():
             continue
         replacements = [
             f"runtime/{path.relative_to(root / 'runtime').as_posix()}"

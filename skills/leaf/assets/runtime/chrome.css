@@ -50,6 +50,12 @@ html[data-lf-floating-chrome] .lf-chrome {
     display: flex;
     flex-direction: column;
   }
+  .lf-fp-card {
+    margin-inline: auto;
+  }
+  .lf-floating-panel[data-rest=mark]:not([data-open]) .lf-fp-inner {
+    align-self: center;
+  }
   :where(.lf-floating-panel) :is(button, input) {
     font: inherit;
     color: inherit;

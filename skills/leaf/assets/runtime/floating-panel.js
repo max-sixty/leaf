@@ -161,6 +161,12 @@ export function createFloatingPanel({
       save: (text) => {
         saveDraft(ctx, text);
         tellDraft(ctx, text);
+        // Words arriving in an empty field, or the last of them going, re-seat the row.
+        const worded = Boolean(text.trim());
+        if (worded !== held.worded) {
+          held.worded = worded;
+          paint();
+        }
       },
       send: (_text, raw, owns) => {
         const handle = sendMessage(ctx, owns, (attempt) =>
@@ -184,7 +190,7 @@ export function createFloatingPanel({
         ? null
         : () => ({ where: input, input: () => input, open: writeOnPage }),
     });
-    held = { ctx, box, input, sync, stop };
+    held = { ctx, box, input, sync, stop, worded: Boolean(input.value.trim()) };
     editors.set(ctx, held);
     return held;
   }
@@ -322,7 +328,9 @@ export function createFloatingPanel({
     }
     const changed =
       (before ? routeKey(before) : null) !== (after ? routeKey(after) : null);
-    leaving = changed && before && after ? before : null;
+    // The view going away fades where it stood, closing included, so the box shrinking
+    // under it never shows an empty ground.
+    leaving = changed && before ? before : null;
     paint();
     if (reading) void present({ release: true });
     if (!changed || reducedMotion() || !pagePresented()) {
@@ -337,7 +345,12 @@ export function createFloatingPanel({
         { opacity: 0, transform: "translateY(6px)" },
         { opacity: 1, transform: "none" },
       ],
-      { duration: FADE_MS, delay: OUT_MS, easing: EASE, fill: "backwards" },
+      {
+        duration: FADE_MS,
+        delay: leaving ? OUT_MS : 0,
+        easing: EASE,
+        fill: "backwards",
+      },
     );
     const gone = stage.querySelector(".lf-fp-view[data-leaving]");
     const fade = gone?.animate([{ opacity: 1 }, { opacity: 0 }], {
@@ -868,10 +881,27 @@ export function createFloatingPanel({
   }
 
   // ---------- paint ----------
+  // Folding to the leaf and unfolding again change the box's width; the box tweens
+  // between the two about its centre, on the same curve as its height, so the row
+  // and the leaf read as one box narrowing rather than one control swapped for another.
+  let morph = null;
+  function morphWidth(change) {
+    const from = card.getBoundingClientRect().width;
+    morph?.cancel();
+    change();
+    const to = card.getBoundingClientRect().width;
+    if (reducedMotion() || !pagePresented() || Math.abs(to - from) < 0.5) return;
+    morph = card.animate([{ width: `${from}px` }, { width: `${to}px` }], {
+      duration: RESIZE_MS,
+      easing: EASE,
+    });
+  }
   function setRest(rest) {
-    prefs().set("rest", rest);
-    trail = [];
-    paint();
+    morphWidth(() => {
+      prefs().set("rest", rest);
+      trail = [];
+      paint();
+    });
     if (rest === "mark") focusDestination(leaf, "move");
   }
 
@@ -1028,9 +1058,12 @@ export function createFloatingPanel({
     // While the user writes, the field takes the row and what waits moves up beside
     // where the words go, as the prototype seats it: the field grows into the room the
     // counts leave, so the field the user pressed stays where it was.
-    const home = showTo ? to : row;
-    if (quick.parentNode !== home) move(home, quick, showTo ? toActions : null);
-    keeps(host, "data-writing", showTo ? "" : null);
+    // The first word typed makes that room, not the press that put the caret there, so
+    // a click into the field moves nothing.
+    const up = Boolean(thread) || holds;
+    const home = up ? to : row;
+    if (quick.parentNode !== home) move(home, quick, up ? toActions : null);
+    keeps(host, "data-writing", up ? "" : null);
 
     // Each count keeps its room whether or not anything waits, so a count arriving or
     // leaving moves nothing beside it (AGENTS.md, "Generated interface first appears in
@@ -1130,11 +1163,12 @@ export function createFloatingPanel({
 
   // ---------- gestures ----------
   leaf.addEventListener("click", () => {
-    if (prefs().rest === "mark") {
-      prefs().set("rest", "row");
-      paint();
-    }
-    open({ view: "menu" });
+    if (prefs().rest === "mark")
+      morphWidth(() => {
+        prefs().set("rest", "row");
+        open({ view: "menu" });
+      });
+    else open({ view: "menu" });
   });
   const showPeek = (on) => keeps(peek, "data-shown", on && !trail.length ? "" : null);
   leaf.addEventListener("pointerenter", () => showPeek(true));

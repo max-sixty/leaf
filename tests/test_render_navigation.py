@@ -723,7 +723,7 @@ def test_a_split_drag_keeps_a_panes_reading(engine, request, serve):
       }
     }""")
     page_at_rest(page)
-    # WebKit's restores leave the passage about 5px off, as they do on main; a lost
+    # WebKit's restores leave the passage about 5px off; a lost
     # reading leaves it lines away.
     assert page.evaluate(landmark) == pytest.approx(before, abs=8)
 

@@ -85,6 +85,7 @@ import {
   onUserInput,
   focused,
   closeLayer,
+  inputCount,
 } from "./focus.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { focusedInView } from "./user-place.js";
@@ -1728,8 +1729,8 @@ export function createVersionController({
       if (!shownRegionBounds(region)) continue;
       const reading = capturePlace(region, blocks);
       if (readingPosture(region) === "bounded" || region.id === active?.id) {
-        regionViews.set(region.id, reading);
-        view.regions[region.id] = reading;
+        keepReading(region.id, reading);
+        view.regions[region.id] = regionViews.get(region.id);
       }
     }
     return view;
@@ -1793,6 +1794,17 @@ export function createVersionController({
   // or none where the reader's line stood in the page's own words.
   const regionViews = new Map();
   let pageReader = null;
+  // A restore is the runtime's move, not the user's. What it restored stays the region's
+  // reading until the user next acts, so a restore the scroller's range cut short, as a
+  // pane already at its top cannot lower its words, neither records the place it reached
+  // nor hands that place to the next shift: narrowing again returns the words the user
+  // read. A restore that landed would record the same reading.
+  const restoredReadings = new Map();
+  const keepReading = (id, reading) => {
+    if (restoredReadings.get(id) === inputCount()) return;
+    restoredReadings.delete(id);
+    regionViews.set(id, reading);
+  };
   const dropGoneRegions = () => {
     const standing = new Set(readingRegions().map(({ id }) => id));
     for (const id of regionViews.keys()) if (!standing.has(id)) regionViews.delete(id);
@@ -1816,7 +1828,7 @@ export function createVersionController({
         active && effectiveScroller(active) === pageScroller ? active.id : null;
     for (const region of shown)
       if (readingPosture(region) === "bounded" || region.id === active?.id)
-        regionViews.set(region.id, capturePlace(region, textBlocks(region.body)));
+        keepReading(region.id, capturePlace(region, textBlocks(region.body)));
   }
   let recordQueued = false;
   const scrolled = new Set();
@@ -1885,7 +1897,10 @@ export function createVersionController({
       if (owner && !under(box, owner)) continue;
       if (!reading || restored.has(box)) continue;
       if (!hasLandmark(reading) && !rawOffsetFits(reading, box)) continue;
+      if (!currentIntent()) return;
       restorePlace(reading, region, currentIntent);
+      regionViews.set(region.id, reading);
+      restoredReadings.set(region.id, inputCount());
       restored.add(box);
     }
   }
@@ -1959,7 +1974,7 @@ export function createVersionController({
       const blocks = textBlocks();
       for (const region of regions)
         if (shownRegionBounds(region))
-          regionViews.set(region.id, capturePlace(region, blocks));
+          keepReading(region.id, capturePlace(region, blocks));
       compositionChanges.set(owner, {
         currentIntent: retainUserIntent(),
         regions: regions.map(({ id }) => id),

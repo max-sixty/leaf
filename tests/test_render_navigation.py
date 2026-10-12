@@ -674,6 +674,54 @@ def test_workspace_posture_changes_keep_each_panes_reading(browser, serve):
     expect(page.locator("#right-subject")).to_be_focused()
 
 
+def test_a_restore_cut_short_by_a_pane_keeps_the_readers_place_for_the_return(
+    browser, serve
+):
+    """Narrow, the reader reads a pane's first line low in the window, below a header
+    that wraps to many lines. Widened, the pane scrolls on its own and starts higher, and
+    at its top it cannot lower that line to where it stood. That is the runtime's move,
+    not the reader's, so narrowing again returns the line to where they left it."""
+    source = READING_REGIONS_PAGE.replace(
+        "<header><h1>Reading workspace</h1></header>",
+        "<header><h1>Reading workspace</h1><p>"
+        + " ".join(
+            ["A header long enough to wrap to many lines at a phone's width."] * 12
+        )
+        + "</p></header>",
+    )
+    page = open_page(browser, serve(source))
+    left = page.locator("#left-reading")
+    resized(page, 520, 900)
+    pane_posture(page, left, "flow")
+    rendered(page)
+    below = """async () => {
+      const {landingBand} = await window.__lfRuntimeImport('/runtime/geometry.js');
+      return document.getElementById('left-start').getBoundingClientRect().top
+        - landingBand(document.scrollingElement).top;
+    }"""
+    page.evaluate("document.scrollingElement.scrollTo(0, 0)")
+    rendered(page)
+    # The reader scrolls the page a little with the wheel over the pane, which names it
+    # as where they read.
+    box = page.locator("#left-start").bounding_box()
+    page.mouse.move(box["x"] + 10, box["y"] + 5)
+    page.mouse.wheel(0, 60)
+    page.wait_for_function("document.scrollingElement.scrollTop > 0")
+    scroll_settled(page)
+    rendered(page)
+    read = page.evaluate(below)
+
+    resized(page, 1200, 900)
+    pane_posture(page, left, "bounded")
+    rendered(page)
+    assert page.evaluate(below) < read - 40, "the pane should start higher, cut short"
+
+    resized(page, 520, 900)
+    pane_posture(page, left, "flow")
+    rendered(page)
+    assert page.evaluate(below) == pytest.approx(read, abs=2)
+
+
 def test_a_tall_local_comment_survives_its_panes_posture_and_return(browser, serve):
     source = READING_REGIONS_PAGE.replace(
         '<footer><button id="left-foot">',

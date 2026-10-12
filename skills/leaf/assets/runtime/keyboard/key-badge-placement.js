@@ -22,7 +22,13 @@
 import { closestAcross, elementFromPointAcross, inChrome } from "../passages.js";
 import { PRESSES } from "../control-selectors.js";
 import { bottomChromeBoxes } from "./shortcut-bar.js";
-import { bannerFoot, shownParts, shownRect, startsAt } from "../geometry.js";
+import {
+  bannerFoot,
+  layoutWindow,
+  shownParts,
+  shownRect,
+  startsAt,
+} from "../geometry.js";
 import { clamp, intersect, overlaps } from "../rect.js";
 import { renderedUnder } from "../shadow.js";
 
@@ -45,7 +51,7 @@ const rect = (left, top, right, bottom, sourceTop = top) =>
 export function keyBadgePlacement() {
   const clips = new Map();
   const covered = bannerFoot();
-  const room = { left: 0, top: covered, right: innerWidth, bottom: innerHeight };
+  const room = { ...layoutWindow(), top: covered };
   const chrome = bottomChromeBoxes();
   const kept = [...chrome];
 
@@ -151,8 +157,8 @@ export function keyBadgePlacement() {
             .map((part) => intersect(part, box));
     return (aims.length ? aims : [box]).some((aim) => {
       const onTop = elementFromPointAcross(
-        clamp((aim.left + aim.right) / 2, 0, innerWidth - 1),
-        clamp((aim.top + aim.bottom) / 2, covered, innerHeight - 1),
+        clamp((aim.left + aim.right) / 2, 0, room.right - 1),
+        clamp((aim.top + aim.bottom) / 2, covered, room.bottom - 1),
       );
       if (!member) return !inChrome(onTop);
       return exposure === "self"
@@ -200,8 +206,7 @@ export function keyBadgePlacement() {
   // chip with no room is hidden rather than removed, so a pass that changes nothing
   // writes nothing.
   function paint(seats, chips) {
-    const right = document.documentElement.clientWidth;
-    const bottom = document.documentElement.clientHeight;
+    const { right, bottom } = layoutWindow();
     const measured = chips.map(({ chip, owner, corner }) => {
       const seat = seats.seat(owner);
       if (chip.parentElement !== seat) seat.replaceChildren(chip);

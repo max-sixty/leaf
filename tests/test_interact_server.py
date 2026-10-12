@@ -31,6 +31,7 @@ from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from interact_support import (
     COMPOSITE_TIMEOUT,
+    FLOW_PAGE,
     PAGE,
     STATED_TIMEOUT,
     TOKEN,
@@ -970,7 +971,7 @@ def test_the_browser_media_door_refuses_untrusted_or_unbounded_bytes(server, pag
 
 
 def test_a_visual_comment_must_name_an_authored_part(server, page_dir):
-    parted = PAGE.replace(
+    parted = FLOW_PAGE.replace(
         '<lf-diagram id="flow">',
         '<lf-diagram id="flow" parts="node:A node:B">',
     )
@@ -1083,6 +1084,7 @@ def test_the_door_takes_a_passage_anchor_the_runtime_already_resolved(server, pa
     side collapses away. So the door does not read a served page's anchor back off
     the file: a re-capture there refused a quote whose only sin was a line break, and
     every comment made on a tab's own name."""
+    (page_dir / "index.html").write_text(FLOW_PAGE)
     publish(page_dir)
     passage = "The cutoff lives in"
     for name, quote in {
@@ -3091,7 +3093,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
     board = registry["lf-board"]["x-example"]
     publish(page_dir, version=1)
     (page_dir / "index.html").write_text(
-        PAGE.replace("</section>", board + "\n</section>")
+        FLOW_PAGE.replace("</section>", board + "\n</section>")
     )
     publish(page_dir, version=2)
 
@@ -5812,11 +5814,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     # list. Untitled, so the title falls back to the directory's name.
     scratch = tmp_path / "scratch"
     claimed_url = neighbour_page(scratch)
-    record_claim(
-        scratch,
-        released="2026-01-01T00:00:00-08:00",
-        turn_opened="2026-01-01T00:00:00-08:00",
-    )
+    record_claim(scratch, turn_opened="2026-01-01T00:00:00-08:00")
 
     for directory in (pages / "live", malformed, scratch):
         server_rows_model.RowPublisher(directory, "fixture-server").refresh()

@@ -442,8 +442,7 @@ def name_admitted_thread(
         # the claim under before it removes the log, so a request that outlives
         # its session leaves no log behind.
         with PageTransaction(page_dir) as page:
-            claim = page.claim
-            if claim is None or claim["id"] != session_id or claim["released"]:
+            if page.claim_of(session_id) is None:
                 return
             with log.open("a") as output:
                 output.write(

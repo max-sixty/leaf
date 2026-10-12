@@ -12,7 +12,8 @@
  * `focusedInView`) is the live place while that gesture still holds focus in this
  * region. Focus on the reading surface itself keeps its passage as the place. The
  * destination's DOM identity stays local; serialized places and replaced elements use
- * the ordinary passage reading. A restore jumps rather than glides.
+ * the ordinary passage reading. A restore jumps rather than glides. It keeps the
+ * reader's current disclosures and views: a landmark they concealed supplies no geometry.
  *
  * Whoever remembers a place owns when to take it and where to keep it: version
  * continuity (version.js) across revisions and reading-region shifts, a root tab set
@@ -36,6 +37,7 @@ import {
   cut,
   inChrome,
   pageBlocks,
+  pageDocument,
   pageText,
   quoteFrom,
   rangeOf,
@@ -57,7 +59,6 @@ import { renderedParent, under, upFrom } from "./shadow.js";
 import { retainUserIntent } from "./user-intent.js";
 import { recentPlaceInput, focused } from "./focus.js";
 import { focusedInView } from "./user-place.js";
-import { reveal } from "./widget-elements.js";
 import { scrollIntoReadingBand } from "./landing-scroll.js";
 import { union } from "./rect.js";
 
@@ -88,13 +89,23 @@ const HEADING = "h1, h2, h3, h4, h5, h6";
 // declared shadow root renders authored words at its host's place in reading order, and
 // those words are pointable and resolvable through the same reading, so version
 // continuity must be able to choose the same blocks as landmarks.
-export const textBlocks = (root = document.querySelector("body > main")) =>
+export const textBlocks = (root = pageDocument()) =>
   pageBlocks().filter((block) => under(block, root));
 
 // Source blocks include concealed words, since an anchor can reveal them. A reading
 // place instead requires words the browser draws. Ask the text's own parent, rather
 // than its block: display: contents still draws text, and a child can restore visibility
 // inside a concealed block. Skipped subtrees are left alone before asking for any boxes.
+const drawsLandmark = (parent) => {
+  if (!parent || skipped(parent) || getComputedStyle(parent).visibility !== "visible")
+    return false;
+  // Text in display: contents has no parent box to ask. Its first boxed ancestor
+  // supplies the browser's opacity/display reading; visibility belongs to the text
+  // parent, since its children may override that ancestor.
+  let box = parent;
+  while (box && getComputedStyle(box).display === "contents") box = renderedParent(box);
+  return Boolean(box?.checkVisibility({ opacityProperty: true }));
+};
 const blockWords = new WeakMap();
 function* renderedBlocks(blocks) {
   const reading = pageText();
@@ -117,19 +128,7 @@ function* renderedBlocks(blocks) {
     for (const segment of words.get(block)) {
       const { node, start, end } = segment;
       const parent = renderedParent(node);
-      if (!drawn.has(parent)) {
-        let visible = false;
-        if (!skipped(parent) && getComputedStyle(parent).visibility === "visible") {
-          // Text in display: contents has no parent box to ask. Its first boxed
-          // ancestor supplies the browser's opacity/display reading; visibility
-          // belongs to the text parent, since its children may override that ancestor.
-          let box = parent;
-          while (box && getComputedStyle(box).display === "contents")
-            box = renderedParent(box);
-          visible = Boolean(box?.checkVisibility({ opacityProperty: true }));
-        }
-        drawn.set(parent, visible);
-      }
+      if (!drawn.has(parent)) drawn.set(parent, drawsLandmark(parent));
       if (!drawn.get(parent)) {
         run = null;
         continue;
@@ -236,7 +235,7 @@ export function capturePlace(region = null, blocks = textBlocks()) {
     block?.matches(HEADING) ? top + Math.max(0, -blockTop) : top;
   const view = { y: box.scrollTop, scroller: scrollerIdentity(box) };
   const standing = focusedInView();
-  const body = region?.body ?? document.querySelector("body > main");
+  const body = region?.body ?? pageDocument();
   const standingBody = readingRegionFor(standing)?.body ?? body;
   if (
     recentPlaceInput() === "focus" &&
@@ -311,8 +310,7 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
   const box = region ? effectiveScroller(region) : pageScroller;
   const destination = focusedPlace(view);
   const standing =
-    destination &&
-    under(destination, region?.body ?? document.querySelector("body > main"))
+    destination && under(destination, region?.body ?? pageDocument())
       ? destination
       : null;
   // Within one scroller, live focus is the reading place. Across a handover,
@@ -323,18 +321,23 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
     } else {
       const boxTop = landingBand(box).top;
       const segments = targetSegments(view.quote && resolveAnchor(view));
-      if (segments.length) {
-        reveal(segments[0].node.parentElement, currentIntent);
+      // Restoration keeps the reader's disclosures and chosen views: a landmark
+      // the user has since concealed supplies no geometry, and nothing reopens
+      // it. Explicit navigation reveals a destination before restoring a place.
+      if (
+        segments.length &&
+        segments.every(({ node }) => drawsLandmark(renderedParent(node)))
+      ) {
         moveScrollerBy(
           box,
           rangeOf(segments).getBoundingClientRect().top - boxTop - view.quoteTop,
         );
       } else if (!standing) {
-        // An unresolved passage leaves live focus as the precise destination;
-        // section and raw-offset fallbacks belong to readings without one.
-        const section = targetElement(resolveAnchor({ section: view.section }));
+        // An unresolved or concealed passage leaves live focus as the precise
+        // destination; section and raw-offset fallbacks belong to readings without one.
+        const found = targetElement(resolveAnchor({ section: view.section }));
+        const section = found && drawsLandmark(found) ? found : null;
         if (section) {
-          reveal(section, currentIntent);
           // A section containing the scroller cannot align its contents by its
           // outer rectangle. Keep the old offset only in the same scrollport.
           if (under(box, section))

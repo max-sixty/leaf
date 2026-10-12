@@ -217,6 +217,12 @@ export function newSessionId(random: Uint8Array): string {
   return Array.from(random, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+// A support handle, not a credential: project a random identity into a short numeric
+// space without disclosing it. No server door accepts this handle as identity.
+export function sessionReference(sessionId: string): string {
+  return (BigInt(`0x${sessionId}`) % 1_000_000_000_000n).toString().padStart(12, "0");
+}
+
 export function sessionCookie(sessionId: string, secure: boolean): string {
   if (!SESSION_ID.test(sessionId)) throw new Error("invalid Leaf website session id");
   const name = secure ? SESSION_COOKIE : HTTP_SESSION_COOKIE;

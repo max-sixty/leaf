@@ -3029,7 +3029,7 @@ def test_public_queue_commands_recheck_membership_and_restore_refusals(browser, 
         "api.queueItemKey(api.readQueues().onYou.find(item => item.id === 'proofread'))"
     )
     assert page.evaluate(
-        "api.queueActions.done(api.queueItemKey(api.readQueues().onYou.find(item => item.ends === 'widget'))) === null"
+        "api.queueActions.done(api.queueItemKey(api.readQueues().onYou.find(item => item.question?.source.kind === 'widget'))) === null"
     )
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -3277,7 +3277,7 @@ def test_queue_ask_arrival_selects_the_primary_reader(browser, serve):
         "async () => { window.api = await window.__lfRuntimeImport('/runtime/widget-api.js'); }"
     )
     assert page.evaluate(
-        "async () => { const item = api.readQueues().onYou.find(item => item.ends === 'widget'); return await api.queueActions.open(api.queueItemKey(item)); }"
+        "async () => { const item = api.readQueues().onYou.find(item => item.question?.source.kind === 'widget'); return await api.queueActions.open(api.queueItemKey(item)); }"
     )
     expect(workspace.locator("lf-option#email")).to_be_visible()
     assert page.evaluate(

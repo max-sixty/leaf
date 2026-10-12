@@ -34,6 +34,7 @@ from leaf.served_state.context import read_page
 from leaf.served_state.page import read_served_page
 from leaf.service import PageTransaction
 from leaf.session import cmd_waiting
+from leaf.state import session_record
 from leaf.tasks import cmd_start
 from leaf.thread import post_reply
 from leaf.vendoring import cmd_init
@@ -239,7 +240,7 @@ class DemoWaiter:
             payload = {}
         elif hooked:
             payload = freeze_delivery(pending_batches(harness.session))
-            receive_held(payload, harness.session)
+            receive_held(payload, harness.session, session_record(harness.session))
         else:
             payload = json.loads(stdout)
         batches = payload.get("batches", [])

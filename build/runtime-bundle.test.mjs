@@ -26,7 +26,7 @@ test("prepared kernels preserve native packages, shared state, and stampable gen
     "runtime/layer-generation.js":
       'export const layerGeneration = "__LEAF_LAYER_GENERATION__";',
     "runtime/annotation-overlay/index.js":
-      'import { state } from "/runtime/state.js"; export { state }; state.annotations = true; export const vendor = () => import("../../vendor/example.js");',
+      'import { state } from "../state.js"; export { state }; state.annotations = true; export const vendor = () => import("../../vendor/example.js");',
     "runtime/bootstrap.js": "(() => { window.boot = true; })();",
     "runtime/prepaint.js": "(() => { window.paint = true; })();",
     "runtime/offline-delivery.js": "(() => { window.offline = true; })();",
@@ -86,10 +86,6 @@ test("prepared kernels preserve native packages, shared state, and stampable gen
       /import\("\/widgets\/custom.js"\)/,
     );
     assert.match(
-      await readFile(join(output, "runtime/annotation-overlay/index.js"), "utf8"),
-      /import\("\/vendor\/example.js"\)/,
-    );
-    assert.match(
       await readFile(join(output, "runtime/layer-client.js"), "utf8"),
       /from"\/runtime\/layer-generation.js"/,
     );
@@ -113,6 +109,8 @@ test("prepared kernels preserve native packages, shared state, and stampable gen
     // The framework shares the runtime's one state instance and the page's one Lit.
     assert.equal(javascript.join("\n").split("clicks:0").length - 1, 1);
     assert.match(javascript.join("\n"), /from"\/vendor\/lit\.js"/);
+    // A lazily imported kernel module is a chunk, and its vendor import stays native.
+    assert.match(javascript.join("\n"), /import\("\/vendor\/example\.js"\)/);
     assert.doesNotMatch(javascript.join("\n"), /browser-runtime/);
   } finally {
     await rm(temporary, { recursive: true });

@@ -48,13 +48,8 @@
    Visibility reads `shownParts`, not the target's raw client rect: a project may set
    `display: contents` while its rendered descendants remain usable, and a collapsed
    target has no rendered part to offer. */
-import { TAB_STOP } from "/runtime/control-selectors.js";
-import {
-  afterScript,
-  cancelRender,
-  nextRender,
-  sizeObserver,
-} from "/runtime/rendering.js";
+import { TAB_STOP } from "../control-selectors.js";
+import { afterScript, cancelRender, nextRender, sizeObserver } from "../rendering.js";
 import {
   shellRight,
   shownBand,
@@ -62,7 +57,7 @@ import {
   shownParts,
   shownWindow,
   skipped,
-} from "/runtime/geometry.js";
+} from "../geometry.js";
 import {
   renderedChildren,
   renderedParent,
@@ -70,32 +65,32 @@ import {
   shadowHost,
   under,
   upFrom,
-} from "/runtime/shadow.js";
-import { scrollerFor } from "/runtime/reading-regions.js";
-import { boundedBlockOf } from "/runtime/bounds.js";
-import { pageScroller } from "/runtime/scrolling.js";
-import { pageDocument } from "/runtime/passages.js";
+} from "../shadow.js";
+import { scrollerFor } from "../reading-regions.js";
+import { boundedBlockOf } from "../bounds.js";
+import { pageScroller } from "../scrolling.js";
+import { pageDocument } from "../passages.js";
 import { arrivals, packRows, rowPosture, seatRows } from "./margin-placement.js";
-import { overlaps } from "/runtime/rect.js";
-import { pointBand } from "/runtime/pointed-place.js";
+import { overlaps } from "../rect.js";
+import { pointBand } from "../pointed-place.js";
 import {
   followScroll,
   scrollFollows,
   scrollMotions,
   scrolledBy,
   scrollsContent,
-} from "/runtime/scroll-motion.js";
-import { residencyStarted } from "/runtime/content-layout.js";
-import { keeps, layoutPx } from "/runtime/keeps.js";
-import { declarationFor } from "/runtime/registry.js";
-import { LAYOUT } from "/runtime/widget-elements.js";
-import { inChrome } from "/runtime/passages.js";
+} from "../scroll-motion.js";
+import { residencyStarted } from "../content-layout.js";
+import { keeps, layoutPx } from "../keeps.js";
+import { declarationFor } from "../registry.js";
+import { LAYOUT } from "../widget-elements.js";
+import { inChrome } from "../passages.js";
 import {
   anchorReading,
   carriedAnchor,
   nameAnchor,
   scrollsWith,
-} from "/runtime/css-anchors.js";
+} from "../css-anchors.js";
 
 const rows = new Map();
 // A contents target's first shown part can leave while its declaration remains.

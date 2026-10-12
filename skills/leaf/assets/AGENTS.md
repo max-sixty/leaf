@@ -316,7 +316,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Threads | `thread/`, `thread-panel.js` |
 | Annotation inventory and controls | `annotation-inventory.js`, `annotation-view.js`, `contributions.js`, `contribution-controls.js`, `inline-contributions.js` |
 | Annotation records and Page Map | `margin-model.js`, `margin-map-model.js`, `page-map-dialog.js`, `pointed-place.js` |
-| Physical annotation presentation | `../../packages/default/runtime/annotation-overlay/` |
+| Physical annotation presentation | `annotation-overlay/` |
 | Passages and target identity | `passages.js`, `passage-facts.js`, `text-alignment.js`, `anchor-coordinate.js`, `resolved-target.js`, `anchor-resolution.js`, `addressable-names.js` |
 | Anchor placement, decoration and travel | `anchor-placement.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `target-paint-geometry.js`, `visual-parts.js`, `indication.js` |
 | Banner and approvals | `banner*.js` |
@@ -330,13 +330,13 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Elements a paint belongs to while they stand, and the stages they stand in | `arrivals.js` |
 | Utilities | `icons.js`, `markdown.js`, `syntax.js`, `motion.js`, `color-scheme.js`, `storage.js`, `interaction-log.js` |
 
-The executable body declaration `data-annotations` selects the default physical
-renderer or page-owned presentation. `leaf.js` imports the default package's
-`runtime/annotation-overlay/index.js` only for overlay presentation; core owners
-cannot reach that graph. Core retains target readings, inventory, native controls,
-Thread/composer lifetimes and active/draft drawing ink. The selected package owns
-pins, contextual floating placement, posted drawing paint, marks and annotation
-visibility. Page-owned views consume the same owners through `widget-api.js`.
+The executable body declaration `data-annotations` selects the physical overlay
+or page-owned presentation. `leaf.js` imports `runtime/annotation-overlay/index.js`
+only for overlay presentation; no other owner can reach that graph. Core retains
+target readings, inventory, native controls, Thread/composer lifetimes and
+active/draft drawing ink. The overlay owns pins, contextual floating placement,
+posted drawing paint, marks and annotation visibility. Page-owned views consume the
+same owners through `widget-api.js`.
 
 `runtime/rendering.js` runs every rendering callback in one pass per frame; schedule
 through its `nextRender`, `nextFrame`, `cancelRender`, and `sizeObserver`, since
@@ -413,8 +413,8 @@ unresolved local work into the one reading every component selects from:
 | when a document-wide renderer paints | the publication that opened the epoch, in the order `runtime/semantic-state.js` declares |
 | where each thread's passage lands | `anchor-placement.js`'s resolution of its anchor in this version |
 | the row inside a target a comment stands by | `pointed-place.js`'s points, written only by anchor placement's pass (`placePoints`) into its placement record; presentation only |
-| the side and line a comment's box and its thread card stand by | `../packages/default/runtime/annotation-overlay/comment-placement.js` (`commentSide`), for both surfaces |
-| whether a margin row stands in the rail or as a pin, and its seat | `../packages/default/runtime/annotation-overlay/margin-layout.js`, through `margin-placement.js`'s folds |
+| the side and line a comment's box and its thread card stand by | `annotation-overlay/comment-placement.js` (`commentSide`), for both surfaces |
+| whether a margin row stands in the rail or as a pin, and its seat | `annotation-overlay/margin-layout.js`, through `margin-placement.js`'s folds |
 | geometry readings: what a scroller shows, what a surface hides, what sticky headers stand over, how much of the window the page shows, where a change of size moves what is seen | `geometry.js` (`visibleBand`, `declareOccluder`, `headerInset`, `shownWindow`, `seenRect`, `motionBand`), so being on screen, and moving what is, each have one answer |
 
 Do not add a second cache, pending map, widget-specific replay list, or DOM

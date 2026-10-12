@@ -1782,68 +1782,69 @@ def test_a_user_arrives_at_what_they_left_rather_than_watching_it_arrive(
     assert [e for e in errors if not render_gate_scheme.resize_observer_error(e)] == []
 
 
-def test_a_transient_resize_notice_gets_a_complete_confirmation(browser, serve):
-    """The notice can arrive on the rendering turn after the gate's last probe. A
-    navigation-only confirmation would call the attempt clean, and an immediate close
-    would never hear it; the confirmation is the whole four-render gate."""
-    pages = []
+def test_a_resize_notice_is_pardoned_only_by_a_complete_clean_confirmation(monkeypatch):
+    """The retry policy over whole attempts (`render_version`): a notice is ignored
+    only when a later complete attempt is clean, ordinary failures from both attempts
+    stand once each, and an incomplete confirmation pardons nothing. Advice is the
+    first attempt's. What an attempt hears is the browser's half, read by
+    `test_a_recurring_resize_notice_fails_the_render_gate`."""
+    notice = "[light] window error: ResizeObserver loop completed"
+    error = "[light] console: ordinary error from first attempt"
 
-    def prepare(page):
-        if len(pages) < 4:  # every page in the first complete attempt
-            resize_notice_after_last_probe(page)
-        pages.append(page)
+    def attempt(failures=(), notices=(), complete=True, advice=()):
+        reading = render_gate_model.RenderReading(list(failures), list(advice), [], [])
+        return reading, list(notices), complete
 
-    failures = render_gate_model.render_version(
-        primed(browser.unwatched, prepare), serve(LONG_PAGE)
-    ).failures
-
-    assert failures == []
-    assert len(pages) == 8, "the complete gate was not confirmed once"
-
-
-def test_an_ordinary_error_survives_a_successful_resize_confirmation(browser, serve):
-    pages = []
-
-    def prepare(page):
-        if not pages:
-            page.add_init_script(
-                "addEventListener('DOMContentLoaded', () => "
-                "console.error('ordinary error from first attempt'), {once: true});"
-            )
-        if len(pages) < 4:
-            resize_notice_after_last_probe(page)
-        pages.append(page)
-
-    failures = render_gate_model.render_version(
-        primed(browser.unwatched, prepare), serve(LONG_PAGE)
-    ).failures
-
-    assert len(pages) == 8
-    assert sum("ordinary error from first attempt" in f for f in failures) == 1
-
-
-def test_a_console_warning_fails_the_render_gate(browser, serve):
-    def prepare(page):
-        page.add_init_script(
-            "addEventListener('DOMContentLoaded', () => "
-            "console.warn('authored warning'), {once: true});"
+    def policy(*attempts):
+        left = list(attempts)
+        monkeypatch.setattr(
+            render_gate_model,
+            "_render_version_attempt",
+            lambda browser, url, served_timeout_ms=None: left.pop(0),
         )
+        reading = render_gate_model.render_version(None, "http://page")
+        assert not left, f"{len(left)} attempts were never made"
+        return reading
 
-    failures = render_gate_model.render_version(
-        primed(browser.unwatched, prepare), serve(LONG_PAGE)
-    ).failures
-
-    warnings = [
-        failure for failure in failures if "warning: authored warning" in failure
+    # A notice once, under load, and a clean confirmation: nothing to report.
+    transient = policy(attempt(notices=[notice], advice=["first"]), attempt())
+    assert (transient.failures, transient.advice) == ([], ["first"])
+    # The confirmation pardons the notice and nothing else, and says it once.
+    assert policy(
+        attempt([error], [notice]), attempt([error, "[dark] console: later"])
+    ).failures == [error, "[dark] console: later"]
+    # On every rendering, which is a layout feedback loop.
+    assert policy(attempt(notices=[notice]), attempt(notices=[notice])).failures == [
+        f"{notice} (recurred on the confirming render attempt)"
     ]
-    assert len(warnings) == 2, failures
+    # A confirmation that did not finish cannot say the notice was transient.
+    assert policy(
+        attempt([error], [notice]), attempt(["probe failed"], complete=False)
+    ).failures == [
+        error,
+        "probe failed",
+        f"{notice} (the confirming render attempt did not complete)",
+    ]
+    # Nor can an attempt that did not finish ask for one.
+    assert policy(attempt([error], [notice], complete=False)).failures == [
+        error,
+        notice,
+    ]
 
 
 def test_a_recurring_resize_notice_fails_the_render_gate(browser, serve):
+    """A notice the page raises on the rendering turn after the gate's last probe, in
+    every attempt, is heard and confirmed by a second whole four-render attempt, and
+    the gate reports it once as recurring. A console warning beside it fails the gate
+    once per scheme however many attempts heard it."""
     pages = []
 
     def prepare(page):
         resize_notice_after_last_probe(page)
+        page.add_init_script(
+            "addEventListener('DOMContentLoaded', () => "
+            "console.warn('authored warning'), {once: true});"
+        )
         pages.append(page)
 
     failures = render_gate_model.render_version(
@@ -1859,37 +1860,10 @@ def test_a_recurring_resize_notice_fails_the_render_gate(browser, serve):
     assert len(recurring) == 1, failures
     assert recurring[0].startswith("[light]"), recurring
     assert all("ResizeObserver loop" in failure for failure in recurring)
-
-
-def test_an_ordinary_error_survives_an_incomplete_resize_confirmation(browser, serve):
-    pages = []
-
-    def prepare(page):
-        number = len(pages)
-        if number == 0:
-            page.add_init_script(
-                "addEventListener('DOMContentLoaded', () => "
-                "console.error('ordinary error from first attempt'), {once: true});"
-            )
-        if number < 4:  # every page in the first complete attempt
-            resize_notice_after_last_probe(page)
-        else:  # every confirming page
-            page.route("**/checks/index.js", lambda route: route.abort())
-        pages.append(page)
-
-    failures = render_gate_model.render_version(
-        primed(browser.unwatched, prepare), serve(LONG_PAGE)
-    ).failures
-
-    assert any(
-        "ordinary error from first attempt" in failure for failure in failures
-    ), failures
-    assert any("browser probe module failed" in failure for failure in failures), (
-        failures
-    )
-    assert any(
-        "confirming render attempt did not complete" in failure for failure in failures
-    ), failures
+    warnings = [
+        failure for failure in failures if "warning: authored warning" in failure
+    ]
+    assert len(warnings) == 2, failures
 
 
 def test_page_navigation_classifies_only_its_resize_notices(browser, serve):

@@ -184,7 +184,7 @@ page to make room for its growth (`comment-placement.js`), though one a scroll c
 the words typed into it (`off-flow.js`). Only a field in flow, which cannot move apart
 from the page, keeps its controls in view as a browser keeps a caret in view
 (`reply-landing.js`). The
-suite's browser fixture watches ordinary tests and nightly tests marked `watch_shifts`
+suite's browser fixture watches unmarked tests and marked ones that opt in with `watch_shifts`
 for a protected box moving on screen without input, news landing just after a press included,
 or typing carrying its field (`tests/shift_watch.js`).
 

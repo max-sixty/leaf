@@ -31,7 +31,7 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 def test_an_add_field_reconnects_to_its_shared_draft(browser, serve, one_user):

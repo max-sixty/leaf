@@ -86,7 +86,7 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 # Where focus given to the Threads list lands while it shows a thread: the title of the

@@ -74,7 +74,7 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 def test_the_runtime_does_not_replace_a_pages_keyframes(browser, serve):

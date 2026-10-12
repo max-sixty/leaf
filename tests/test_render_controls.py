@@ -115,7 +115,7 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 @pytest.mark.parametrize("touch", [False, True])

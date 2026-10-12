@@ -118,7 +118,7 @@ DRAG_HELD = (
     "'/runtime/widget-elements.js')).dragHeld()"
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 VISUAL_ACTION_TIMING = """

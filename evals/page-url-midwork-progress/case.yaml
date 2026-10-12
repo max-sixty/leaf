@@ -1,5 +1,7 @@
 # Sibling of the 2026-10-01 repeated-link complaint. Against 78f9fc8cd,
 # the old instructions repeated the URL in 2/2 runs; the repair omitted it in 2/2.
+# Reworded by #2329 (updates to progress messages); at 3fe3eb0af it passed 1/1 on
+# Claude Code.
 description: page-url-midwork-progress
 metadata:
   purpose: 'Handoff: a progress message while checks run does not repeat the page URL.'

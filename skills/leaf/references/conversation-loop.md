@@ -260,7 +260,9 @@ decision this page needs.
 
 An answer in chat or another surface still settles the real question. Incorporate
 it and retire its page ask in a revision (`authoring-revisions.md`), or end
-the user's to-do with `leaf task end`. Withdraw a prose ask that no longer
-applies with `leaf task end <page> reply:<message-id> dropped "<why>"`; this records
-withdrawal, not a user answer. Keep finished requests off the user's Questions;
-answered and withdrawn ask records remain available in the complete reading.
+the user's to-do with `leaf task end`. Retire a prose ask the user answered there
+with `leaf task end <page> reply:<message-id> done "<where the answer is>"`, which
+records it answered elsewhere, and one that no longer applies with `dropped
+"<why>"`, which records it withdrawn; neither invents the user's answer. Keep
+finished requests off the user's Questions; answered and withdrawn ask records
+remain available in the complete reading.

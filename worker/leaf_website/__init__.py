@@ -106,7 +106,7 @@ if TYPE_CHECKING:
 PORT = 8080
 # The model every hosted task runs on, and the one its threads are titled with.
 HOSTED_MODEL = "gpt-5.6-luna"
-WEBSITE_AGENT = "The agent"
+WEBSITE_AGENT = "Agent"
 WEBSITE_AGENT_SESSION = "leaf-website-agent"
 
 
@@ -1426,9 +1426,10 @@ class WebsitePageEndpoint(PageEndpoint):
         # console (`skills/leaf/assets/runtime/bootstrap.js`, `observePublicStartup`).
         return self._content(204, "application/json", b"")
 
-    # The two routes below answer only the Worker, which refuses every `/_leaf/` path
-    # from outside and sends the event its own admission returned, so they read its
-    # body as given.
+    # The two routes below are for the Worker, which refuses every `/_leaf/` path from
+    # outside and sends the event its own admission returned. The container's own agent
+    # can reach them too, but what it posts lands in this visitor's page, which it can
+    # already write, so they read the body as given.
     def _start_agent(self) -> Response:
         thread_id = self.agent_harness.attach(self.page_dir, self.posted["event"])
         if thread_id is None:

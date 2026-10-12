@@ -376,8 +376,7 @@ def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_p
         ('import "/runtime/events.js";', "public layer entry point"),
         ('import "./data.json";', "JavaScript MIME"),
         ('import "./escape.js";', "symlink"),
-        ('import "./data\\u002ejson";', "unescaped string literals"),
-        ("export const = ;", "invalid JavaScript"),
+        ('import "./data\\u002ejson";', "dependency must be a local URL"),
     ]:
         (authored / "app.js").write_text(source)
         refused = revisioning_model.activate_source(page_dir)
@@ -2451,25 +2450,17 @@ DIFF_PATCH_CASES = json.loads(
 
 @pytest.mark.parametrize(
     "case",
-    [case for case in DIFF_PATCH_CASES if "files" in case or "manifest" in case],
+    [case for case in DIFF_PATCH_CASES if "files" in case],
     ids=lambda case: case["id"],
 )
 def test_the_manifest_reads_the_diff_patch_table(case):
-    """What lf-diff can present has two readers in two languages: the widget parses a
+    """A patch lf-diff accepts has two readers in two languages: the widget parses a
     patch text in the browser, and `patch_manifest.py` builds the file manifest from a
-    Git patch. `diff_patch_cases.json` is the one statement of that rule both are held
-    to; `test_render_anchors.py` reads it for the widget.
-
-    A row with `files` is a Git patch both readers accept, naming those paths. A row
-    with a `manifest` message is one the contract excludes, which the manifest refuses
-    before it is stored. A row with only a `widget` message is malformed, and the
-    manifest's reading of it is left unpinned: the widget refuses what it stores."""
-    if "files" in case:
-        files = patch_manifest(case["patch"])["files"]
-        assert [file["path"] for file in files] == case["files"]
-    else:
-        with pytest.raises(ValueError, match=re.escape(case["manifest"])):
-            patch_manifest(case["patch"])
+    Git patch. Both read the paths of each `files` row of `diff_patch_cases.json`
+    alike; `test_render_anchors.py` reads it for the widget, which alone refuses the
+    rest."""
+    files = patch_manifest(case["patch"])["files"]
+    assert [file["path"] for file in files] == case["files"]
 
 
 def test_data_set_reads_a_structured_value_from_a_file(page_dir, tmp_path):
@@ -4178,9 +4169,9 @@ def test_revisions_change_decision_words_labels_and_defaults_without_retracting(
 def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir):
     """An action admitted by an earlier Leaf keeps standing, and keeps its Question
     answered, under a Leaf that records the same operation's definition with other
-    fields. Before #2329 the definition carried `update`, the flag that became
-    `report`; matching every recorded field dropped each decision on a page that
-    Leaf version had served."""
+    fields. Before #2329 the definition carried `update`, the verb flag now
+    named `text`; matching every recorded field dropped each decision on a page
+    that Leaf version had served."""
     source = page_dir / "index.html"
     source.write_text(
         PAGE.replace(
@@ -4207,7 +4198,7 @@ def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir)
         event = json.loads(line)
         if event["id"] == picked["id"]:
             recorded = event["meaning"]["state"]
-            recorded["update"] = recorded.pop("report", False)
+            recorded["update"] = False
         earlier.append(json.dumps(event))
     log.write_text("\n".join(earlier) + "\n")
 

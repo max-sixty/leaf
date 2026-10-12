@@ -104,6 +104,27 @@ const browserGlobals = Object.fromEntries(
 
 const RENDERING_MESSAGE =
   "Use nextRender, nextFrame, cancelRender, or sizeObserver (runtime/rendering.js) so the settled reading counts it.";
+const RENDERING_NAMES = [
+  "requestAnimationFrame",
+  "cancelAnimationFrame",
+  "ResizeObserver",
+];
+const RENDERING_PROPERTIES = ["window", "globalThis"].flatMap((object) =>
+  RENDERING_NAMES.map((property) => ({ object, property, message: RENDERING_MESSAGE })),
+);
+const HISTORY_PROPERTIES = ["pushState", "replaceState"].map((property) => ({
+  object: "history",
+  property,
+  message:
+    "Add and rename history entries through runtime/history.js (pushEntry, replaceEntry), which owns traversal among them.",
+}));
+const ID_PROPERTIES = [
+  {
+    property: "randomUUID",
+    message:
+      "Mint ids with runtime/ids.js: crypto.randomUUID is absent outside a secure context, such as a page `leaf --host` serves over plain HTTP.",
+  },
+];
 
 const entryBoundary = {
   "no-restricted-imports": [
@@ -558,6 +579,56 @@ const placementsRule = {
   },
 };
 
+// Whether a node is an open native layer, or stands in one, is asked of shadow-tree.js
+// (`nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding`), and which are open of keyboard/layer-stack.js
+// (`nativeLayers`). A selector naming the open state answers it again, and the copies
+// drift: a `dialog[open]` read once counted the auxiliary envelope, a nonmodal dialog
+// that is always open, as a layer. A reader that also wants a nonmodal dialog asks the
+// dialog's own `open`. The rule reads the selector a `matches`, `closest` or
+// `querySelector(All)` call is given; the option names the owner.
+const OPEN_LAYER_SELECTOR = /:popover-open|:modal\b|dialog\[open\]/u;
+const SELECTOR_METHODS = new Set([
+  "matches",
+  "closest",
+  "querySelector",
+  "querySelectorAll",
+]);
+export const openLayersRule = {
+  meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
+  create(context) {
+    const file = path
+      .relative(standingRepoRoot, context.filename ?? context.getFilename())
+      .split(path.sep)
+      .join("/");
+    if ((context.options[0] ?? []).includes(file)) return {};
+    return {
+      CallExpression(node) {
+        const { callee } = node;
+        const [selector] = node.arguments;
+        if (
+          callee.type !== "MemberExpression" ||
+          callee.computed ||
+          !SELECTOR_METHODS.has(callee.property.name) ||
+          !selector
+        )
+          return;
+        const text =
+          selector.type === "Literal"
+            ? selector.value
+            : selector.type === "TemplateLiteral"
+              ? selector.quasis.map((quasi) => quasi.value.cooked).join("")
+              : null;
+        if (typeof text === "string" && OPEN_LAYER_SELECTOR.test(text))
+          context.report({
+            node,
+            message:
+              "Ask shadow-tree.js whether a node is an open layer or stands in one (nativeLayerKind, isNativeLayer, nativeLayerHolding) rather than selecting the open state.",
+          });
+      },
+    };
+  },
+};
+
 // A node that already stands somewhere moves through `move(parent, node, before)`
 // (runtime/dom-move.js), or `setChildren` beside it, which keeps the user's focus, caret
 // and native state in it; a plain insertion takes the node out first, which blurs it.
@@ -844,6 +915,7 @@ const architecturePlugin = {
     "semantic-store-ownership": semanticStoreOwnershipRule,
     "standing-listeners": standingListenersRule,
     placements: placementsRule,
+    "open-layers": openLayersRule,
     moves: movesRule,
     "layer-returns": layerReturnsRule,
     "root-state-ownership": {
@@ -1350,17 +1422,7 @@ export default [
     rules: {
       "no-restricted-globals": [
         "error",
-        ...["requestAnimationFrame", "cancelAnimationFrame", "ResizeObserver"].map(
-          (name) => ({ name, message: RENDERING_MESSAGE }),
-        ),
-      ],
-      "no-restricted-properties": [
-        "error",
-        ...["window", "globalThis"].flatMap((object) =>
-          ["requestAnimationFrame", "cancelAnimationFrame", "ResizeObserver"].map(
-            (property) => ({ object, property, message: RENDERING_MESSAGE }),
-          ),
-        ),
+        ...RENDERING_NAMES.map((name) => ({ name, message: RENDERING_MESSAGE })),
       ],
     },
   },
@@ -1373,7 +1435,7 @@ export default [
         "error",
         {
           // The owner of every focus event.
-          "skills/leaf/assets/runtime/focus.js": ["focusin", "focusout"],
+          "skills/leaf/assets/runtime/focus.js": ["focus", "focusin", "focusout"],
           // Records the raw events of a session for the interaction log, the one
           // exception that is not one element's or one subtree's own question: it is a
           // recorder of events, and reads no standing from them.
@@ -1398,6 +1460,13 @@ export default [
           "skills/leaf/assets/runtime/composing/text-field.js",
           // The shared CodeMirror adapter places its own native editor.
           "skills/leaf/assets/runtime/editor-view.js",
+        ],
+      ],
+      "architecture/open-layers": [
+        "error",
+        [
+          // The owner.
+          "skills/leaf/assets/runtime/shadow-tree.js",
         ],
       ],
       "architecture/layer-returns": [
@@ -1517,31 +1586,32 @@ export default [
     languageOptions: { sourceType: "script" },
   },
   {
+    // Properties the layer and its packages reach only through their owner. A file
+    // takes a rule's options from the last block matching it, not a merge of every
+    // block's, so all of them stand in this one list, and the history owners' block
+    // below repeats the others.
+    files: ["skills/leaf/assets/**/*.js", "skills/leaf/packages/*/**/*.js"],
+    ignores: ["skills/leaf/assets/vendor/**", "skills/leaf/packages/*/vendor/**"],
+    rules: {
+      "no-restricted-properties": [
+        "error",
+        ...RENDERING_PROPERTIES,
+        ...HISTORY_PROPERTIES,
+        ...ID_PROPERTIES,
+      ],
+    },
+  },
+  {
     // runtime/history.js owns this document's session history: a Back to an entry the
     // page added returns to the place it was left at only because that owner takes the
     // traversal. The prepaint bootstrap runs before any module, and only cleans marks
     // off the address the document arrived at.
-    files: ["skills/leaf/assets/**/*.js", "skills/leaf/packages/**/*.js"],
-    ignores: [
+    files: [
       "skills/leaf/assets/runtime/history.js",
       "skills/leaf/assets/runtime/bootstrap.js",
     ],
     rules: {
-      "no-restricted-properties": [
-        "error",
-        {
-          object: "history",
-          property: "pushState",
-          message:
-            "Add and rename history entries through runtime/history.js (pushEntry, replaceEntry), which owns traversal among them.",
-        },
-        {
-          object: "history",
-          property: "replaceState",
-          message:
-            "Add and rename history entries through runtime/history.js (pushEntry, replaceEntry), which owns traversal among them.",
-        },
-      ],
+      "no-restricted-properties": ["error", ...RENDERING_PROPERTIES, ...ID_PROPERTIES],
     },
   },
   {

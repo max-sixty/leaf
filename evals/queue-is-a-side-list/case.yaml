@@ -3,19 +3,26 @@
 # tickets as `section` elements, after which the guide named `lf-tab`. The prompt
 # gained the user's wish to take the tickets by outcome when `lf-tab` gained `group`.
 # Two runs on each harness: base grouped 0 of 4 (no `group` existed), the change 4 of
-# 4, each ordering escalate, fix, close.
+# 4, each ordering escalate, fix, close. The `row` metric came from an authoring eval
+# where rows read "sev 1 · 9 h · suggested: fix" under a "Severity 1" heading and never
+# said what the ticket was; the prompt stopped naming the row's contents then. Three
+# Claude Code runs on each arm: base wrote no `summary` in any, and one run's rows said
+# only id, severity and age; the change wrote problem-first summaries without the
+# group in 2 of 3 and put the problem in the label in the third. Reading those samples
+# as rows, base passes 2 of 3 and the change 3 of 3.
 description: queue-is-a-side-list
 metadata:
   purpose: 'A queue whose items open one at a time beside it is one `lf-tabs list="side"`: its list is
     the queue, each item a tab, and the page writes no script to select, hide or mark an item.
-    Items the user takes by kind carry that kind as their tab''s `group`.'
+    Items the user takes by kind carry that kind as their tab''s `group`, and each row
+    says what its item is about without its summary repeating the group.'
   tags:
   - layout
 vars:
   prompt: |
     Five customer escalations came in overnight. Write a Leaf page where the user works
-    through them one at a time: the queue down one side, each row saying enough to scan
-    it (severity, age, the suggested outcome), and the ticket they pick open beside it
+    through them one at a time: the queue down one side, each row saying enough to pick
+    the ticket without opening it, and the ticket they pick open beside it
     with what they need to decide it and a choice of refund, fix, escalate or close. They
     will go through all five in one sitting on a laptop, taking every escalation first,
     then the fixes, then the close.
@@ -30,12 +37,6 @@ vars:
     The page directory is not reachable from here, so reply with the complete
     `index.html`, rather than writing a file.
 assert:
-- type: regex
-  metric: side-list
-  value: <lf-tabs\b[^>]*\blist="side"
-- type: regex
-  metric: grouped
-  value: <lf-tab\b[^>]*\bgroup="
 - type: llm-rubric
   metric: judgment
   value: |
@@ -47,3 +48,11 @@ assert:
     Each ticket's `lf-tab` carries its suggested outcome as `group`, and the tickets
     sharing an outcome stand next to each other, the escalations before the fixes and
     the fixes before the close.
+- type: llm-rubric
+  metric: row
+  value: |
+    Read each `lf-tab`'s `label` and `summary` together as its row in the queue. Pass
+    only if every row says, in a few words, what its ticket is about, such as the
+    problem the customer reports; where the label does not say it, the summary says it
+    first, before attributes such as severity and age; and no `summary` repeats its
+    tab's `group`. Fail if a row names only the ticket and such attributes.

@@ -65,7 +65,9 @@ a visible error box naming the widget, with `source` beneath it when given, and 
 the failure as the page's error, which `page check` fails on. In a container a template
 renders, the box is a template value, so the next `render` there replaces it. On a
 widget with a shadow stage the box stands in the stage, and the next `shadowStage` call
-replaces it.
+replaces it. `reportFailure(element, error)` sends that report alone, for a part the
+widget shows failed its own way while the rest stands, such as a diff file whose patch
+it cannot draw.
 
 ## Connection lifetimes
 
@@ -460,7 +462,8 @@ surfaces keep their own lifetimes.
 
 `dispatch({kind: "action", verb, detail, attempt?})` and
 `dispatch({kind: "undo", target})` return `null` when the newest reading refuses the
-command, otherwise `{reading, delivery}`. The returned reading already holds the
+command, otherwise `{reading, delivery}`; an action whose verb is not one of the
+reading's `actions` throws. The returned reading already holds the
 optimistic result; `delivery` later yields the admitted event or `null`, and a refusal
 restores authoritative state. Undo targets only a stable `id` or `attempt` from the
 current entry's candidates. The server remains final admission for every command.
@@ -847,7 +850,8 @@ opening's automatic focus, so place the intended arrival with `focusDestination`
 popover keeps its `source` when Leaf re-seats it, as it does when a panel starts or stops
 covering the page. Close a native dialog or popover with `closeNativeLayer(layer)`,
 which inside a sample keeps the platform's return from taking focus from the containing
-page.
+page. `isNativeLayer(node)` asks whether a popover is open or a dialog stands modal; lint
+refuses a selector that asks it again.
 
 A layer closes with `closeLayer(close, land)`. `close` hides it, and `land`, a function,
 puts a user who stood in it where the close takes them, usually
@@ -1221,10 +1225,13 @@ array per line for a widget that numbers its lines. `lang` is one of the registr
 `highlightBlocks(root)` colours each `pre > code` block in `root`, `root` included, whose
 `language-…` class names a language, as Leaf colours authored code.
 
-Leaf adds a Copy button to each `pre > code` block in the page document itself. For a code
-block a widget draws in its shadow stage, `copyCodeBlock(pre, source)` returns the Copy
-button, which copies `source()` when pressed; call it once the styled block is connected,
-and append the button beside the `pre`.
+Leaf adds a Copy button to each `pre > code` block in the page document itself. For any
+other block of source text a widget draws, such as code in its shadow stage,
+`copyBlock(block, source, noun)` returns a Copy button standing at the block's top right,
+which copies `source()` when pressed; `noun`, such as `"code"`, names what it copies.
+Call it once the styled block is connected, and append the button as a child of the
+widget. The button shows while a pointer is over the widget or focus is inside it, which
+a tap on the block gives a finger, and Enter on the block copies too.
 
 ### Text alignment
 
@@ -1233,8 +1240,7 @@ and append the button beside the `pre`.
 and `delete` runs join to `before`, and the `same` and `insert` runs to `after`; a very
 large rewritten middle comes back as one delete and one insert. To align a rewritten
 paragraph by sentences instead, pass an `Intl.Segmenter` with `granularity: "sentence"` as
-the third argument. `alignedNodes(runs)` renders the runs as a `<span>`, `<del>` or `<ins>`
-each.
+the third argument.
 
 ### Image comparison
 
@@ -1302,7 +1308,8 @@ Each record contains:
   message: null,
   prompt: {text: "When should this ship?", target: "release-context"},
   answer: {value: ["release-later"], event: null},
-  status: "answered", // open | answered | withdrawn
+  status: "answered", // open | answered | answered_elsewhere | withdrawn
+  end: null,          // a prose ask the agent ended: {detail, event}
   next_actor: null,   // user | agent | null
 }
 ```
@@ -1315,8 +1322,11 @@ Each record contains:
   wrapper contributes the ask's heading and arrival target without changing its identity
   or answer owner; `lf-ask` is one such wrapper.
 - A prose ask has `source.kind === "reply"` and its agent message's id as `source.id`. Its
-  answer holds the settling user message or reaction and its event reference. A message
-  carrying a widget ask does not also pose a prose ask.
+  answer holds the settling user message or reaction and its event reference. When the
+  agent ends it with `leaf task end` instead, `answer` stays `null`, `status` is
+  `answered_elsewhere` for `done` and `withdrawn` for `dropped`, and `end.detail` says
+  where the answer is or why it no longer applies. A message carrying a widget ask does
+  not also pose a prose ask.
 - An approval ask has `source.kind === "approval"`, `source.version` naming the stamped
   version, and id `approval:v<version>`. Its answer is `null` until that version's approval
   settles it with typed `answer.value === true`; Undo reopens it. Its arrival reaches the
@@ -1336,10 +1346,25 @@ page-wide.
 widget family's `answerWords` ("Declared widget state"). It may return empty words and owns
 no answer state. Display words are not canonical answer data.
 
+`asksIn(region, asks = readQuestions().all)` selects the asks a region of the page holds:
+each widget ask, not withdrawn, whose source element is `region` or stands under it. It is
+the rule a side-list `lf-tabs` row and `lf-tally` read, so a page module that marks or
+counts asks per card, section or item reads the same set: filter what it returns by
+`status` for answered and open, or pass `readQuestions().user` for the asks waiting on the
+user.
+
 `questionActions.open(id)` resolves the current ask and follows its arrival, including to
 earlier prose prompts and completed asks, and resolves to `false` when that ask is
-unavailable. Answering uses the source's declared command; asks expose no separate answer
-API.
+unavailable. `questionActions.next({within, dir})` steps to the next ask waiting on the
+user inside the element `within`, or the previous with `dir: -1`, as `q` steps through
+Questions: from the one the user stands on, else from their place in document order,
+coming round at either end. From outside the region it counts from the ask the user last
+went to when that ask is in the region, so Tab from an ask to a control above it and
+Enter steps on; otherwise from the first of the region's asks in sight, the next if it
+waits and the one after if it is answered; and with none in sight it enters at the
+region's edge. It resolves to whether it arrived. A control that calls it keeps focus where the user stands on a press
+(`mousedown` default prevented), so a second press steps on. Answering uses the source's
+declared command; asks expose no separate answer API.
 
 `readQueues()` and `watchQueues(owner, callback)` supply the immutable
 `{phase, questions, tasks, done}` that the Questions panel and `q` navigation use. Ask rows
@@ -1355,7 +1380,7 @@ panel uses.
 Leaf's arrival, and resolves to `false` for an unavailable row. `queueActions.done(key)`
 returns an admission promise only for a current to-do on `questions`, one the agent opened
 on the user, and `null` otherwise. A widget ask ends through its widget, a prose ask through
-a reply or settling reaction, and an approval ask through its version's banner approval.
+a reply, a settling reaction or the agent's `leaf task end`, and an approval ask through its version's banner approval.
 Done removes its to-do optimistically, a duplicate cannot send again, and a refusal restores
 the admitted reading; the server stays final. Collections keep their shape while `phase` is
 `waiting`, `ready` or `offline`; activate only a ready collection.

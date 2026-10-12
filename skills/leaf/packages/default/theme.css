@@ -606,11 +606,14 @@
 }
 
 /* skills/leaf/packages/default/styles/options.css */
+@property --lf-options-across { syntax: "<integer>"; inherits: false; initial-value: 0; }
+@property --lf-option-line { syntax: "<length>"; inherits: true; initial-value: 0px; }
 :scope:is(lf-options) {
   display: block;
   margin: 14px 0;
   --lf-joined: 0;
   --lf-option-font: var(--t-4)/1.6 var(--serif);
+  --lf-option-line: 1lh;
   container-type: inline-size;
 }
 :scope:is(lf-options):not(:has(> lf-option > strong)) {
@@ -636,6 +639,9 @@
     border: 1px solid var(--rule);
     border-radius: var(--r);
     background: var(--card);
+  }
+  :scope:is(lf-options):has(> lf-option > strong) > .lf-another {
+    border: 1px solid transparent;
   }
 }
 @container not (style(--lf-density: working) and (width >= 30rem)) {
@@ -705,9 +711,11 @@
 @media screen {
   :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > lf-option {
     cursor: pointer;
-    transition: box-shadow .12s ease, transform .12s ease;
   }
   @container style(--lf-joined: 0) {
+    :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > lf-option {
+      transition: box-shadow .12s ease, transform .12s ease;
+    }
     :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > strong) > lf-option:hover {
       transform: translateY(-1px);
       --lf-lift: 0 3px 10px var(--shade);
@@ -725,17 +733,24 @@
 @media screen {
   :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > strong) {
     --lf-card-state-room: 80px;
+    --lf-card-state-height: 22px;
     & > :is(lf-option, .lf-another) {
       padding-inline-start: var(--sp-3);
     }
     & > lf-option {
       padding-bottom: var(--sp-3);
     }
+    & > .lf-another:not([hidden]) {
+      padding-block: var(--sp-3);
+    }
+    & > .lf-another > .lf-compose-field {
+      min-height: var(--lf-card-state-height);
+    }
     & > lf-option::before {
       content: "";
       float: inline-end;
       width: var(--lf-card-state-room);
-      height: 22px;
+      height: var(--lf-card-state-height);
       pointer-events: none;
     }
     & > lf-option > .lf-pick {
@@ -779,10 +794,11 @@
       inset-inline-start: auto;
       inset-inline-end: var(--lf-option-add-badge-inset);
       top: auto;
-      bottom: var(--lf-option-add-badge-inset);
+      bottom: var(--lf-option-add-badge-end);
       margin: 0;
     }
     & > .lf-another {
+      --lf-option-add-seat-end: calc(var(--sp-3) + (var(--lf-option-line) - var(--lf-option-action-size)) / 2);
       --lf-option-action-room: calc(var(--lf-option-write-badge-inset) + var(--lf-key-badge-size) + var(--sp-2));
     }
     & > .lf-another:has(.lf-compose-submit:not([data-lf-empty])) > .lf-key-badge {
@@ -899,15 +915,10 @@
     border: 1px solid var(--border-2);
     border-radius: var(--r);
     overflow: clip;
-    --lf-add-cell-height: 32px;
+    --lf-add-cell-height: calc(var(--lf-option-line) + 2 * 5px);
     --lf-done-cell-height: 32px;
     &:has(> lf-option > strong) {
-      --lf-add-cell-height: 44px;
-    }
-    &:where([data-lf-interactive] *)::after {
-      content: "";
-      display: block;
-      height: var(--lf-missing-cells, 0px);
+      --lf-add-cell-height: calc(max(var(--lf-option-line), var(--lf-card-state-height)) + 2 * var(--sp-3));
     }
     &:not(:where(.lf-chrome *)):not(:has(> .lf-another)) {
       --lf-missing-cells: var(--lf-add-cell-height);
@@ -918,8 +929,14 @@
     }
     &:where([data-lf-interactive] *):not(:where(.lf-chrome *)):not(:has(> .lf-another)),
     &:where([data-lf-interactive] *)[multiple]:not(:has(> lf-options-done)) {
-      & > :is(lf-option, .lf-another, lf-options-done):last-child {
-        border-bottom: 1px solid var(--rule);
+      &::after {
+        content: "";
+        display: block;
+        position: relative;
+        grid-column: 1 / -1;
+        height: var(--lf-missing-cells);
+        background: var(--card);
+        box-shadow: var(--lf-cell-rule);
       }
     }
     & > .lf-another {
@@ -933,13 +950,15 @@
     & > * {
       margin-block: 0;
     }
+    & > :not(lf-option) {
+      grid-column: 1 / -1;
+    }
     & .lf-btn[data-lf-focus] {
       outline-offset: calc(-1 * var(--focus-ring-w));
     }
-    & > :not(:last-child) {
-      border-bottom: 1px solid var(--rule);
-    }
-    & > lf-option {
+    --lf-cell-rule: 0 0 0 1px var(--rule);
+    & > * {
+      box-shadow: var(--lf-cell-rule);
       --fill: var(--card);
       background-color: var(--fill);
     }
@@ -956,6 +975,31 @@
       outline: none;
     }
   }
+  @container style(--lf-options-across: 1) {
+    :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *):has(> lf-option > strong) {
+      --lf-option-count: 99;
+      &:has(> lf-option:nth-of-type(1):last-of-type) {
+        --lf-option-count: 1;
+      }
+      &:has(> lf-option:nth-of-type(2):last-of-type) {
+        --lf-option-count: 2;
+      }
+      &:has(> lf-option:nth-of-type(3):last-of-type) {
+        --lf-option-count: 3;
+      }
+      &:has(> lf-option:nth-of-type(4):last-of-type) {
+        --lf-option-count: 4;
+      }
+      &:has(> lf-option:nth-of-type(5):last-of-type) {
+        --lf-option-count: 5;
+      }
+      &:has(> lf-option:nth-of-type(6):last-of-type) {
+        --lf-option-count: 6;
+      }
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, max(14rem, 100% / var(--lf-option-count))), 1fr));
+      max-inline-size: none;
+    }
+  }
   :is(:scope, :scope *)[data-lf-question]:has(lf-options[choose]:not(:where([data-lf-exhibit]) *) [data-lf-focus]) {
     --lf-question-ring: none;
   }
@@ -963,16 +1007,20 @@
     outline: var(--focus-ring);
     --lf-focus-ring: options-row;
     outline-offset: calc(-1 * var(--focus-ring-w));
+    z-index: 1;
   }
   :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > .lf-another:has(leaf-text[data-lf-focus]) {
     outline: var(--focus-ring);
     --lf-focus-ring: options-row;
     outline-offset: calc(-1 * var(--focus-ring-w));
+    z-index: 1;
   }
   .lf-another {
     --lf-option-action-size: max(28px, var(--aim-floor));
     --lf-option-add-seat-inset: var(--sp-1);
+    --lf-option-add-seat-end: var(--lf-option-add-seat-inset);
     --lf-option-add-badge-inset: calc(var(--lf-option-add-seat-inset) + (var(--lf-option-action-size) - var(--lf-key-badge-size)) / 2);
+    --lf-option-add-badge-end: calc(var(--lf-option-add-seat-end) + (var(--lf-option-action-size) - var(--lf-key-badge-size)) / 2);
     --lf-option-write-badge-inset: calc(var(--lf-option-add-seat-inset) + var(--lf-option-action-size) + var(--sp-2));
     --lf-option-action-room: calc(var(--lf-option-add-seat-inset) + var(--lf-option-action-size) + var(--sp-2));
     position: relative;
@@ -1009,15 +1057,17 @@
     background: transparent;
     color: inherit;
     font: var(--lf-option-font);
+    line-height: var(--lf-option-line);
     resize: none;
   }
   .lf-another .lf-compose-placeholder {
     font: var(--lf-option-font);
+    line-height: var(--lf-option-line);
   }
   .lf-another .lf-compose-submit {
     --lf-icon-action-hit: var(--lf-option-action-size);
     inset-inline-end: var(--lf-option-add-seat-inset);
-    inset-block-end: var(--lf-option-add-seat-inset);
+    inset-block-end: var(--lf-option-add-seat-end);
   }
   .lf-another .lf-compose-submit[data-lf-empty]:not([data-lf-focus]) {
     visibility: hidden;
@@ -1558,7 +1608,12 @@
     flex: none;
     color: var(--ok-ink);
   }
-  :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer:not([data-lf-answered]) {
+  :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer[data-lf-asks=open]::before {
+    content: "○" / "";
+    font-weight: 400;
+    color: var(--muted);
+  }
+  :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer:not([data-lf-asks]) {
     visibility: hidden;
   }
   :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer-words {
@@ -1891,6 +1946,54 @@
   :scope:is(lf-tabs)[list=side] > lf-tab[group]::before {
     content: attr(group) " · " attr(label);
   }
+}
+
+/* skills/leaf/packages/default/styles/tally.css */
+:scope:is(lf-tally) {
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: middle;
+}
+:scope:is(lf-tally) .lf-tally-face {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-2);
+  max-width: 100%;
+}
+:scope:is(lf-tally):not([data-lf-ready]) .lf-tally-face {
+  visibility: hidden;
+}
+:scope:is(lf-tally):not([next]) .lf-tally-next {
+  display: none;
+}
+:scope:is(lf-tally) .lf-tally-count {
+  display: inline-grid;
+  font-family: var(--sans);
+  font-size: var(--t-6);
+  line-height: var(--chip-lh);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  padding: var(--chip-pad);
+  border-radius: var(--chip-r);
+  background: var(--chip);
+  color: var(--ink-2);
+}
+:scope:is(lf-tally) .lf-tally-count > * {
+  grid-area: 1 / 1;
+  justify-self: center;
+}
+:scope:is(lf-tally) .lf-tally-room {
+  visibility: hidden;
+}
+:scope:is(lf-tally)[data-lf-done] .lf-tally-count {
+  background: var(--ok-tint);
+  color: var(--ok-ink);
+}
+:scope:is(lf-tally) .lf-tally-next {
+  font-size: var(--t-6);
+  padding-block: 0;
+  min-height: var(--aim-floor);
 }
 
 /* skills/leaf/packages/default/styles/toc.css */
@@ -2363,53 +2466,8 @@
 :scope:is(lf-ask) {
   display: block;
 }
-@property --lf-ask-track { syntax: "<integer>"; inherits: false; initial-value: 0; }
 :scope:is(lf-ask):has(> :is(h1, h2, h3, h4, h5, h6):first-child ~ :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options:last-child) {
-  container: lf-ask / inline-size;
-  --lf-ask-track: 1;
-  & > :is(h1, h2, h3, h4, h5, h6):first-child {
-    margin-block-start: 0;
-  }
-}
-@container lf-ask (width >= 0) {
-  @container style(--lf-ask-track: 1) {
-    :scope:is(lf-ask) > lf-options {
-      margin-block-end: 0;
-    }
-  }
-}
-@container lf-ask (width >= 50rem) {
-  @container style(--lf-ask-track: 1) {
-    :scope:is(lf-ask) > :not(:first-child, lf-options):nth-child(n) {
-      float: inline-start;
-      clear: inline-start;
-      inline-size: calc(100% - 16rem - var(--sp-4));
-      min-inline-size: 0;
-      margin-block-end: 0;
-      --lf-room: 100%;
-      --lf-free-l: 0px;
-      --lf-free-r: 0px;
-    }
-    :scope:is(lf-ask) > :nth-child(2) {
-      margin-block-start: 0;
-    }
-    :scope:is(lf-ask) > lf-options {
-      inline-size: 16rem;
-      margin-block-start: 0;
-      margin-inline-start: auto;
-      position: sticky;
-      top: calc(var(--lf-top) + var(--sp-3));
-      --lf-head-inset: var(--sp-3);
-    }
-    :scope:is(lf-ask)::after {
-      content: "";
-      display: block;
-      clear: both;
-    }
-  }
-}
-:where(:scope:is(lf-ask):has(> :is(h1, h2, h3, h4, h5, h6):first-child ~ :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options:last-child)) {
-  margin-block-start: var(--sp-4);
+  --lf-options-across: 1;
 }
 @container style(--lf-full-height: 1) {
   :scope:is(lf-ask) {
@@ -2821,7 +2879,7 @@
 }
 .lf-draft-edit.lf-ui {
   display: block;
-  width: 100%;
+  width: auto;
   padding: 0;
   border: 0;
   background: none;
@@ -2844,6 +2902,9 @@
       display: grid;
       grid-template-rows: minmax(min-content, auto) minmax(max(32px, var(--aim-floor)), auto);
       gap: 8px;
+    }
+    :scope:is(lf-draft) > .lf-draft-edit {
+      margin-right: calc(var(--lf-code-copy-size) + var(--lf-code-copy-inset) + 6px - 14px - 1px);
     }
   }
   :scope:is(lf-draft):has(.lf-draft-edit) {
@@ -2881,29 +2942,6 @@
   .lf-draft-status:empty {
     display: none;
   }
-  .lf-draft-history {
-    flex: 1;
-    min-width: 0;
-    margin: 0;
-    padding: 0;
-    border: 0;
-    --lf-block-frame: 1;
-    font: inherit;
-    color: var(--ink-2);
-  }
-  .lf-draft-history[hidden] {
-    display: none;
-  }
-  .lf-draft-history > summary {
-    width: max-content;
-    max-width: 100%;
-    cursor: pointer;
-    padding-block: 5px;
-    color: var(--muted);
-  }
-  .lf-draft-history > summary:hover {
-    color: var(--ink-2);
-  }
 }
 @media (forced-colors: active) {
   :scope:is(lf-draft):has(.lf-draft-edit[data-lf-focus]) {
@@ -2911,46 +2949,6 @@
     outline-offset: -5px;
     box-shadow: none;
   }
-}
-.lf-draft-current {
-  margin: 10px 0;
-}
-.lf-draft-current > strong {
-  display: block;
-  margin-bottom: 4px;
-}
-.lf-draft-revisions {
-  margin: 0;
-  padding-left: 20px;
-}
-.lf-draft-revisions > li {
-  margin: 8px 0;
-  padding-left: 3px;
-}
-.lf-draft-revision-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 3px;
-}
-.lf-draft-delta,
-.lf-draft-snapshot {
-  white-space: pre-wrap;
-  color: var(--ink-2);
-}
-.lf-draft-delta del {
-  background: var(--del-tint);
-  color: var(--danger-ink);
-}
-.lf-draft-delta ins {
-  background: var(--add-tint);
-  color: var(--ok-ink);
-  text-decoration: none;
-}
-.lf-draft-restore {
-  flex: none;
-  font-size: var(--t-6);
 }
 
 /* skills/leaf/packages/default/styles/theme.css */

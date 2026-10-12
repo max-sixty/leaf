@@ -147,13 +147,7 @@
   <body class="site-page">
     <main class="layout-column">
       <header id="top">
-        <nav class="sitenav" aria-label="Site">
-          <a class="brand" href="/">leaf</a>
-          <a href="/examples/">Examples</a>
-          <a href="/how-it-works/" aria-current="page">How it works</a>
-          <a href="/extending/">Extending</a>
-          <a href="https://github.com/max-sixty/leaf">GitHub</a>
-        </nav>
+        <nav class="sitenav" aria-label="Site"></nav>
         <p class="eyebrow">how it works</p>
         <h1>How leaf works</h1>
       </header>
@@ -1301,8 +1295,10 @@ flowchart LR
               <li id="updates-written-question">
                 <strong><code>leaf response reply … --ask</code></strong> A prose ask
                 for the user, which stays open until they reply or settle it with a
-                reaction. The thread reads <em>On you to answer</em>, and the ask joins
-                the user's Questions, in the Questions panel.
+                reaction, or the agent ends it with <code>leaf task end</code>: as
+                answered elsewhere when the user answered in chat, or as withdrawn. The
+                thread reads <em>On you to answer</em>, and the ask joins the user's
+                Questions, in the Questions panel.
               </li>
               <li id="updates-written-on-you">
                 <strong><code>leaf task open … --on user</code></strong> Something the

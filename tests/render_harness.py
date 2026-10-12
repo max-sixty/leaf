@@ -2109,7 +2109,7 @@ def suggestion_owner(suggestion_id: str) -> str:
 
 
 def draft_control(scope, key: str, draft_id: str, *, visible=True):
-    """A draft's local command button (edit, save, cancel, close or retry)."""
+    """A draft's local command button (edit, save, cancel or retry)."""
     action = "save" if key == "retry" else key
     return scope.locator(
         f'lf-draft[id="{draft_id}"] [data-lf-draft-action="{action}"]'
@@ -2237,6 +2237,14 @@ def fills_the_window(page, block, fills):
         }""",
         arg=[block.element_handle(), fills],
     )
+
+
+# An async page expression for the top of the page scroller's landing band, below the
+# banner and anything else covering its top edge: where a reading place is measured from.
+LANDING_TOP = (
+    "(await window.__lfRuntimeImport('/runtime/geometry.js'))"
+    ".landingBand(document.scrollingElement).top"
+)
 
 
 def resized(page, width, height):

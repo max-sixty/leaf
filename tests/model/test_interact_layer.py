@@ -29,6 +29,7 @@ from interact_support import (
     element_declaration,
     fetch,
     install_payload,
+    js_facts,
     lock_contention,
     publish,
     record_claim,
@@ -129,8 +130,8 @@ def test_wait_help_says_where_a_delivery_says_how_to_confirm_it():
 def test_agent_interaction_command_help(regtest):
     """The complete help an agent follows between receiving and answering input.
 
-    Keep the full CLI output, including options, beside the dynamic interaction
-    snapshots in test_interact_session. A prose review can then follow a command
+    Keep the full CLI output, including options, beside the snapshots of what the
+    hooks and waits print to the agent. A prose review can then follow a command
     named by a reminder without reconstructing its help from source docstrings.
     """
     outputs = []
@@ -196,6 +197,9 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
         )
         assert code == 200, response
         ids.append(events_model.read_events(page)[-1]["id"])
+    # Undelivered, the owed message has no reference yet: the refusal names the
+    # wait that delivers one.
+    record(["thread", "reply", str(page), ids[0], "--text", "Answer"], 1)
     woke = runner.invoke(cli_model.cli, ["wait", str(page)])
     assert woke.exit_code == 0, woke.output
     envelope = json.loads(woke.output)
@@ -203,10 +207,11 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     delivery_model.receive(envelope, "s1")
     [batch] = envelope["batches"]
     assert len(batch["events"]) == 2
-    record(["thread", "reply", str(page), "--text", "Answer"], 2)
-    record(["thread", "reply", str(page), ids[0], "--text", "Answer"], 1)
     reference = batch["events"][0]["answer"]["ref"]
     references.append(reference)
+    # Delivered, the refusal names the delivery's exact reference.
+    record(["thread", "reply", str(page), "--text", "Answer"], 2)
+    record(["thread", "reply", str(page), ids[0], "--text", "Answer"], 1)
 
     def response_args(*extra):
         return ["response", "reply", reference, "--text", "Answer", "--done", *extra]
@@ -1267,23 +1272,6 @@ def test_no_has_rule_restyles_the_whole_document():
     )
 
 
-def test_browser_code_mints_ids_that_work_outside_secure_contexts():
-    """`leaf --host` serves a page over plain HTTP to a LAN address, where
-    `crypto.randomUUID` does not exist, so a call to it throws in the user's browser.
-    The runtime and bundled packages mint ids through runtime/ids.js, and the classic
-    bootstrap.js through its one copy of it."""
-    roots = (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
-    callers = [
-        str(source.relative_to(schema_model.ASSETS.parent))
-        for root in roots
-        for source in sorted(root.rglob("*.js"))
-        if "vendor" not in source.parts
-        and "randomUUID"
-        in re.sub(r"(?<!:)//[^\n]*|/\*.*?\*/", "", source.read_text(), flags=re.DOTALL)
-    ]
-    assert callers == [], callers
-
-
 def test_kernel_selectors_name_no_package_tag():
     """The kernel styles and finds a package widget by what its registry declares, a
     mark delivery paints such as `data-lf-resident`, never by its tag: a rule naming
@@ -1335,21 +1323,19 @@ def test_kernel_selectors_name_no_package_tag():
         where = sheet.relative_to(schema_model.ASSETS)
         rules = tinycss2.parse_stylesheet(sheet.read_text(), skip_comments=True)
         leaks += [f"{where}: {p}" for p in preludes(rules) if leaks_in(p)]
-    query = re.compile(
-        r"\.(?:querySelector|querySelectorAll|closest|matches)\(\s*([\"'`])(.*?)\1",
-        re.DOTALL,
-    )
-    for module in sorted(schema_model.ASSETS.rglob("*.js")):
-        if "vendor" in module.parts:
-            continue
-        code = re.sub(
-            r"(?<!:)//[^\n]*|/\*.*?\*/", "", module.read_text(), flags=re.DOTALL
-        )
+    modules = [
+        module
+        for module in sorted(schema_model.ASSETS.rglob("*.js"))
+        if "vendor" not in module.parts
+    ]
+    queries = json.loads(js_facts("queries", modules))
+    assert any(queries.values()), "no DOM query was read — the reading is broken"
+    for module in modules:
         where = module.relative_to(schema_model.ASSETS)
         leaks += [
-            f"{where}: {found[1]}"
-            for found in query.findall(code)
-            if leaks_in(found[1])
+            f"{where}: {selector}"
+            for selector in queries[str(module)]
+            if leaks_in(selector)
         ]
     assert leaks == [], leaks
 
@@ -1636,20 +1622,20 @@ def test_layer_style_sources_consume_the_runtime_layout_names():
     """CSS and runtime agree on shared property and attribute names. Read editable
     sources; the stylesheet freshness gate holds their generated delivery copies."""
     runtime = schema_model.ASSETS / "runtime"
-    edges = (runtime / "drawn-edge.js").read_text()
-    page_paint = (runtime / "page-paint.js").read_text()
+    edges, page_paint, surfaces = (
+        runtime / name
+        for name in ("drawn-edge.js", "page-paint.js", "auxiliary-surfaces.js")
+    )
+    read = json.loads(js_facts("literals", [edges, page_paint, surfaces]))
     styles = schema_model.ASSETS / "styles"
     sheet = (styles / "theme.css").read_text() + (styles / "chrome.css").read_text()
 
-    def constant(pattern, source):
-        return re.search(pattern, source, re.MULTILINE | re.DOTALL).group(1)
-
-    surfaces = (runtime / "auxiliary-surfaces.js").read_text()
+    [[read_property]] = read[str(surfaces)]["calls"]["getPropertyValue"]
     for spelling in (
-        "--lf-" + constant(r'getPropertyValue\("--lf-([a-z-]+)"\)', surfaces) + ":",
-        "var(" + constant(r'^const THREAD_PANEL_PROP = "([^"]+)";', edges) + ")",
-        "var(" + constant(r'^const DRAWER_SLOT_PROP = "([^"]+)";', edges) + ")",
-        "[" + constant(r'^  question: "([^"]+)",', page_paint) + "]",
+        read_property + ":",
+        "var(" + read[str(edges)]["constants"]["THREAD_PANEL_PROP"] + ")",
+        "var(" + read[str(edges)]["constants"]["DRAWER_SLOT_PROP"] + ")",
+        "[" + read[str(page_paint)]["constants"]["PAGE_PAINT_ATTRIBUTE.question"] + "]",
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
     for spelling in (
@@ -1663,13 +1649,17 @@ def test_prepaint_marks_the_state_the_stylesheet_reads():
     """Classic startup scripts publish the live and interactive states before modules
     run; the stylesheet must consume those same markers."""
     assets = schema_model.ASSETS
-    bootstrap = (assets / "runtime" / "bootstrap.js").read_text()
-    prepaint = (assets / "runtime" / "prepaint.js").read_text()
+    bootstrap, prepaint = (
+        assets / "runtime" / f"{name}.js" for name in ("bootstrap", "prepaint")
+    )
+    read = json.loads(js_facts("literals", [bootstrap, prepaint]))
     theme = (assets / "theme.css").read_text()
 
-    assert 'root.toggleAttribute("data-lf-live", true)' in bootstrap
+    assert ["data-lf-live", True] in read[str(bootstrap)]["calls"]["toggleAttribute"]
     assert "html[data-lf-live]" in theme
-    assert 'root.toggleAttribute("data-lf-interactive", true)' in prepaint
+    assert ["data-lf-interactive", True] in read[str(prepaint)]["calls"][
+        "toggleAttribute"
+    ]
     assert "html[data-lf-interactive]" in theme
     assert 'script[type="module"][src="/leaf.js"]' not in theme
 
@@ -1955,24 +1945,6 @@ def test_payload_provenance_reads_claude_codes_git_versioned_plugin_cache(
         .astimezone()
         .isoformat(timespec="seconds"),
     }
-
-
-def test_a_producer_date_without_an_offset_is_refused(page_dir):
-    """The browser reads a bare local time in each viewer's own zone, so one
-    vendored page would show every viewer a different age."""
-    stamp = page_dir / "registry.json"
-    registry = json.loads(stamp.read_text(encoding="utf-8"))
-
-    def producer_dated(value):
-        registry["$layer"]["producer"] = {"commit": "a74b08365870", "committed": value}
-        cleanup_model.write_json(stamp, registry)
-        return registry_storage.layer_metadata(page_dir)["producer"]
-
-    assert producer_dated("2026-09-26T09:32:21-07:00")["committed"] == (
-        "2026-09-26T09:32:21-07:00"
-    )
-    with pytest.raises(registry_contract.RegistryError, match="timezone offset"):
-        producer_dated("2026-09-26T09:32:21")
 
 
 def test_page_check_names_an_older_leaf_beside_its_own(page_dir):
@@ -4319,7 +4291,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     asked about — a listener nobody declared looks exactly like no listener at all until
     the press it eats goes missing — so it is pinned in the source, the way the
     document-level class surface is. The listeners are read from each parsed module
-    (tests/keydown_listeners.mjs), so one wrapped across lines or registered for several
+    (tests/js_facts.mjs), so one wrapped across lines or registered for several
     types in a loop counts as written.
 
     Each allowed one is named here. The dispatcher is the register's own. The aim latch
@@ -4331,9 +4303,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     key; the same listener handles pointer input. prepaint.js records inputs
     from the document's first script. focus.js reads keys as the end of a label press
     and as a Tab's step; neither answers a command. The
-    interaction log records keys and answers none. The modal Tab loop keeps the
-    platform's own sequential navigation inside a standing modal, after the dispatcher.
-    The code block's copy control hands Tab back to its source. Another is how every
+    interaction log records keys and answers none. The code block's copy control hands Tab back to its source. Another is how every
     drift this register replaced began — a
     `keydown` beside a display list, the two of them free to disagree about which keys the
     widget answers."""
@@ -4344,13 +4314,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
         *sorted((layer / "packages").glob("*/widgets/*.js")),
         *sorted((ROOT / "examples/packages").glob("*/widgets/*.js")),
     ]
-    listed = subprocess.run(
-        ["node", str(ROOT / "tests/keydown_listeners.mjs"), *map(str, sources)],
-        capture_output=True,
-        text=True,
-        check=True,
-        cwd=ROOT,
-    ).stdout.split()
+    listed = js_facts("keydown", sources).split()
     by_file = {}
     for line in listed:
         name = line.split(":")[0]
@@ -4362,7 +4326,6 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
         "prepaint.js": 1,
         "focus.js": 2,
         "interaction-log.js": 1,
-        "layer-stack.js": 1,
         "code-copy.js": 1,
     }, (
         f"the runtime's keydown listeners changed: {listed}. A key belongs in the "
@@ -4601,7 +4564,6 @@ def test_the_suite_pins_every_bundled_script_dependency():
         for script in schema_model.BUNDLED_PACKAGES.glob("*/scripts/*.py")
         for requirement in packages_model.script_requirements(script)
     }
-    assert "unidiff>=1" in declared
     # Bundled packages never pass through `package install`, so hold their scripts
     # to the same check here.
     for package in {

@@ -168,8 +168,6 @@ customElements.define(
 
     registerInstructionProvider(provider) {
       if (!this.#ready) throw new Error("playground is not ready");
-      if (typeof provider !== "function")
-        throw new Error("instruction provider must be a function");
       if (this.#instructionProvider)
         throw new Error("playground already has an instruction provider");
       this.#instructionProvider = provider;
@@ -379,7 +377,7 @@ customElements.define(
         return;
       }
       const instruction = this.#instructionProvider(this.values);
-      if (typeof instruction !== "string" || !instruction.trim())
+      if (!instruction.trim())
         throw new Error("instruction provider must return non-empty text");
       this.#output.renderInstruction(instruction.trim());
     }

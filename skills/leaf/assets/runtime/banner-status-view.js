@@ -93,11 +93,6 @@ class BannerStatusView extends HTMLElement {
   }
 
   present(model) {
-    if (
-      !Object.isFrozen(model) ||
-      (model.publication && !Object.isFrozen(model.publication))
-    )
-      throw new Error("Banner status presentation models must be immutable");
     this.#model = model;
     this.#paint();
     render(model.queues, this.#queues);

@@ -37,8 +37,17 @@
  * A contribution whose seat differs by face names one per face (`{ desk, phone }`). The
  * face is the window's, the stylesheet-owned --lf-banner-face that also dresses
  * the banner, so the partition changes only when the window crosses that width.
+ *
+ * Each contribution also says what it is as one line of a menu (`row`): its `label`,
+ * a terse `value` such as a count, the `group` of controls it belongs with, and the
+ * `press` that acts as the control would, given the standing the presentation held
+ * when the user opened it (`readStanding`). The floating panel (floating-panel.js) draws
+ * the run from these rows rather than from the native nodes, so a control appears
+ * there without the panel naming it. `bannerRows` reads the run's rows in order, and
+ * `watchBannerRows` calls back after each change to which stand.
  */
 import { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
+import { isNativeLayer } from "./shadow-tree.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { setChildLists } from "./dom-children.js";
 import { el } from "./widget-elements.js";
@@ -94,6 +103,9 @@ overflowBtn.setAttribute("popovertarget", overflowMenu.id);
 overflowBtn.append(iconElement("more", "lf-action-icon"));
 
 const SEATS = ["row", "menu", "gesture"];
+// What a row is about, which decides where a menu built from rows puts it: on the menu
+// itself (`page`), or behind its Navigate, Annotations or About entry.
+const ROW_GROUPS = Object.freeze(["page", "navigate", "annotate", "about"]);
 // The render-blocking theme decides posture once, before the banner arrives.
 const bannerFace = () =>
   getComputedStyle(document.documentElement)
@@ -133,7 +145,7 @@ const currentMenuSeats = () =>
 // The door's name says what its dot stands for: each urgent control behind it names
 // its news.
 function paintDoor() {
-  const open = overflowMenu.matches(":popover-open");
+  const open = isNativeLayer(overflowMenu);
   const news = [
     ...new Set(
       menu.filter((entry) => entry.urgent && visible(entry)).map((e) => e.urgent),
@@ -155,6 +167,29 @@ function placeRuns() {
     [overflowMenu, menu.map((entry) => entry.control)],
   ]);
   paintDoor();
+  for (const listener of rowListeners) listener();
+}
+
+const rowListeners = new Set();
+const rowOf = (entry) => {
+  const read = (value) => (typeof value === "function" ? value() : value);
+  return Object.freeze({
+    key: entry.key,
+    label: read(entry.row.label),
+    value: read(entry.row.value) ?? "",
+    group: entry.row.group,
+    urgent: entry.urgent,
+    gesture: seatOf(entry) === "gesture",
+    disabled: entry.focusTarget.matches(":disabled, [aria-disabled='true']"),
+    press: entry.row.press ?? (() => entry.focusTarget.click()),
+  });
+};
+/** The run's rows standing now, in the run's order, each read as it reads now. */
+export const bannerRows = () => ordered().filter(onOffer).map(rowOf);
+/** Call `listener` after each change to the run; returns the way to stop. */
+export function watchBannerRows(listener) {
+  rowListeners.add(listener);
+  return () => rowListeners.delete(listener);
 }
 
 placeRuns();
@@ -162,10 +197,12 @@ placeRuns();
 // More temporarily borrows the reader's focus. Context-preserving commands return
 // that browser checkpoint before acting; it never becomes a remembered page target.
 let opener = null;
-function holdOpener(node = deepFocus()) {
-  if (node === overflowBtn || overflowMenu.contains(node)) return;
+// Where the reader stands: the node, its caret, and the words selected. Another
+// presentation of these controls holds it when it opens and hands it to a row's press
+// (`row.press(held)`), as More does.
+export function readStanding(node = deepFocus()) {
   const selection = getSelection();
-  opener = {
+  return {
     node,
     caret: readCaret(node),
     ends:
@@ -176,6 +213,10 @@ function holdOpener(node = deepFocus()) {
           ]
         : null,
   };
+}
+function holdOpener(node = deepFocus()) {
+  if (node === overflowBtn || overflowMenu.contains(node)) return;
+  opener = readStanding(node);
 }
 overflowBtn.addEventListener("pointerdown", () => holdOpener());
 // A key's way onto More holds the place it left. Arriving from nowhere leaves the
@@ -292,6 +333,7 @@ export function registerBannerControl({
   present = true,
   offered = !conditional,
   urgent = null,
+  row: menuRow,
 }) {
   const seats = typeof seat === "string" ? [seat] : [seat?.desk, seat?.phone];
   if (
@@ -302,6 +344,10 @@ export function registerBannerControl({
   )
     throw new TypeError(
       "A banner control needs a key, native control, numeric rank, and row, menu, or gesture seat, or one for each of desk and phone",
+    );
+  if (!menuRow?.label || !ROW_GROUPS.includes(menuRow.group))
+    throw new TypeError(
+      `Banner control ${key} needs a row: a label and one of the groups ${ROW_GROUPS.join(", ")}`,
     );
   const byKey = [...controls.values()].find((entry) => entry.key === key);
   if (byKey && byKey.control !== control)
@@ -321,6 +367,7 @@ export function registerBannerControl({
       present: Boolean(present),
       offered: Boolean(offered),
       urgent,
+      row: menuRow,
     }),
   );
   seatControls();
@@ -417,7 +464,7 @@ function focusAfterRemoval(entry, wasInMenu) {
 // answers the layer's shared disclosure route: `reveal` walks the ancestors of what a
 // caller means to show, and this is the only one that can open for a menu control.
 function revealMenuControl(control) {
-  if (!overflowMenu.matches(":popover-open")) {
+  if (!isNativeLayer(overflowMenu)) {
     showNativeLayer(overflowMenu);
     return;
   }
@@ -454,7 +501,7 @@ export function bannerControlDoor(control = overflowBtn) {
 // hands the user back to the door, and the user stands on the control.
 export function returnToBannerControl(control) {
   if (overflowMenu.contains(control)) {
-    if (!overflowMenu.matches(":popover-open")) focusDestination(overflowBtn, "return");
+    if (!isNativeLayer(overflowMenu)) focusDestination(overflowBtn, "return");
     revealMenuControl(control);
   }
   const destination = bannerControlDoor(control);
@@ -462,5 +509,5 @@ export function returnToBannerControl(control) {
 }
 
 export function dismissBannerControls() {
-  if (overflowMenu.matches(":popover-open")) closeNativeLayer(overflowMenu);
+  if (isNativeLayer(overflowMenu)) closeNativeLayer(overflowMenu);
 }

@@ -480,9 +480,13 @@ export function mountApplication(dependencies) {
   const mountThreadViews = (owner, render) =>
     registerMirrorConsumer(owner, render, { commands: inlineView });
 
-  const registerThreadPresentation = (owner, { render, reveal }) => {
-    const reader = createPrimaryReader(owner, render, inlineView, () =>
-      threadPresenter.present(),
+  const registerThreadPresentation = (owner, { render, reveal, replyBox = null }) => {
+    const reader = createPrimaryReader(
+      owner,
+      render,
+      inlineView,
+      () => threadPresenter.present(),
+      replyBox,
     );
     const detachDestination = threadDestinations.register(owner, reveal, reader);
     let detachPresentation;
@@ -554,6 +558,8 @@ export function mountApplication(dependencies) {
         readQuestions().all,
       );
     },
+    // The Questions walk within one region (queue-walk.js), the walk an `lf-tally` steps.
+    nextQuestion: (options) => dependencies.nextQuestionWithin(options),
     startFeed: feed.startFeed,
     wireInput: dependencies.wireInput,
   };
@@ -589,6 +595,7 @@ export const threadActions = Object.freeze({
 });
 export const questionActions = Object.freeze({
   open: (...args) => app().openQuestion(...args),
+  next: (...args) => app().nextQuestion(...args),
 });
 export const queueActions = Object.freeze({
   open: (...args) => app().queueActions.open(...args),

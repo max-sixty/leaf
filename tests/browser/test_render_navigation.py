@@ -485,7 +485,9 @@ def test_the_thread_panel_and_a_page_thread_carry_names(browser, serve):
     page = open_page(browser, serve(READING_REGIONS_PAGE))
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.get_by_role("dialog", name="Threads", exact=True)).to_be_visible()
+    dialog = page.get_by_role("dialog", name="Threads", exact=True)
+    expect(dialog).to_have_attribute("open", "")
+    expect(dialog.locator(".lf-thread-panel")).to_be_visible()
     page.keyboard.press("Escape")
 
     page.keyboard.press("/")
@@ -3595,6 +3597,81 @@ def test_the_questions_panels_next_question_walks_as_q_does(browser, serve):
     expect(panel.locator("[data-lf-queue='you'] .lf-queue-row")).to_have_count(0)
     expect(panel).to_have_class(re.compile(r"\bopen\b"))
     expect(button).to_be_hidden()
+
+
+def test_a_tally_counts_its_regions_asks_and_walks_them(browser, serve):
+    """An `lf-tally` counts the asks its region holds, by the rule a queue row's mark
+    reads, and leaves out one outside it. Its Next question is `q` within the region: a
+    press keeps the user standing where they are and steps on, coming round at the end,
+    and the walk announces its place among the region's asks. Reached by Shift+Tab from
+    an ask, through the queue's own rows, Enter counts from that ask, so the keyboard
+    steps on too. An answer leaves the count once the log admits it; with none left the
+    tally says so and Next question is disabled."""
+
+    def item(key, label):
+        return (
+            f'<lf-tab id="t-{key}" label="{label}"><lf-ask id="{key}-decision">'
+            f'<h2>Pick the {key}</h2><lf-options id="{key}" choose>'
+            f'<lf-option id="{key}-a">Alpha</lf-option>'
+            f'<lf-option id="{key}-b">Beta</lf-option></lf-options></lf-ask></lf-tab>'
+        )
+
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "A tallied queue",
+                '<header><h1>Queue</h1><p><lf-tally id="left" for="queue" next>'
+                "</lf-tally></p></header>"
+                '<lf-ask id="outside-decision"><h2>Outside</h2>'
+                '<lf-options id="outside" choose><lf-option id="outside-a">Out</lf-option>'
+                "</lf-options></lf-ask>"
+                '<lf-tabs id="queue" list="side">'
+                + item("first", "First")
+                + item("second", "Second")
+                + "</lf-tabs>",
+            )
+        ),
+    )
+    words = page.locator("#left .lf-tally-words")
+    button = page.locator("#left").get_by_role("button", name="Next question")
+    position = page.locator(".lf-walk-position")
+    first, second = page.locator("#first-decision"), page.locator("#second-decision")
+    expect(words).to_have_text("2 of 2 to answer")
+    box = page.locator("#left").bounding_box()
+
+    def back_to_the_tally():
+        for _ in range(30):
+            if button.evaluate("button => button === document.activeElement"):
+                return
+            page.keyboard.press("Shift+Tab")
+        raise AssertionError("Shift+Tab never reached Next question")
+
+    button.click()
+    expect(first).to_be_focused()
+    expect(position).to_have_text("1 of 2 waiting on you here · Ask")
+    button.click()
+    expect(second).to_be_focused()
+    expect(position).to_have_text("2 of 2 waiting on you here · Ask")
+    back_to_the_tally()
+    page.keyboard.press("Enter")
+    expect(first).to_be_focused()
+    back_to_the_tally()
+    page.keyboard.press("Enter")
+    expect(second).to_be_focused()
+
+    with sending(page, "the answer to the second decision"):
+        page.locator("#second-decision .lf-pick").first.click()
+    round_trip(page)
+    expect(words).to_have_text("1 of 2 to answer")
+    button.click()
+    expect(first).to_be_focused()
+    with sending(page, "the answer to the first decision"):
+        page.locator("#first-decision .lf-pick").first.click()
+    round_trip(page)
+    expect(words).to_have_text("All 2 answered")
+    expect(button).to_be_disabled()
+    assert page.locator("#left").bounding_box() == box
 
 
 def test_the_arrows_walk_the_thread_titles_in_the_threads_panel(browser, serve):
@@ -7152,11 +7229,12 @@ def test_only_controls_and_boxes_with_something_out_of_sight_take_a_tab_stop(
 
 
 def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
-    """The reference has a visible close control and keeps Tab inside the surface.
+    """The reference has a visible close control and keeps Tab off the page behind it.
 
-    It claims the keyboard while open, so letting native Tab fall through to the page
-    behind it makes the visible scope and the focus scope disagree. Forward and reverse
-    Tab use the same registered walk, while Escape closes and restores the opener."""
+    It claims the keyboard while open, so Tab falling through to the page behind it
+    would make the visible scope and the focus scope disagree. As a native modal it
+    leaves Tab to the browser, which walks the reference and its own interface, while
+    Escape closes and restores the opener."""
     page = open_page(browser, serve(CONTROL_LABEL_PAGE))
     page.evaluate(
         """async () => {
@@ -7200,7 +7278,6 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
     for command in [
         "test.projected-only",
         "response.reaction.choose",
-        "response.tab",
         "response.move",
         "response.activate",
         "response.close",
@@ -7216,13 +7293,16 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
         help_el.locator('tr[data-lf-command="response.reaction.choose"] kbd')
     ).to_have_text("1–6")
 
+    # Tab is the browser's in the modal: it walks the reference and out to the browser's
+    # own interface on its way round, never onto the page beneath.
     seen = set()
     for _ in range(6):
         page.keyboard.press("Tab")
         active = page.evaluate(
             """() => {
               const e = document.activeElement;
-              return {inside: document.querySelector('.lf-command-reference').contains(e),
+              return {inside: e === document.body
+                        || document.querySelector('.lf-command-reference').contains(e),
                       name: e.getAttribute('aria-label') || e.className || e.tagName};
             }"""
         )
@@ -7232,7 +7312,8 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
 
     page.keyboard.press("Shift+Tab")
     assert page.evaluate(
-        "() => document.querySelector('.lf-command-reference').contains(document.activeElement)"
+        "() => document.activeElement === document.body"
+        "   || document.querySelector('.lf-command-reference').contains(document.activeElement)"
     )
     page.keyboard.press("Escape")
     expect(help_el).to_be_hidden()
@@ -8458,6 +8539,31 @@ def test_a_native_modal_escapes_inherited_inertness_for_its_commands(browser, se
     page.keyboard.press("v")
     assert control.get_attribute("data-runs") == "1"
     dialog.evaluate("dialog => dialog.close()")
+
+
+def test_a_dialog_shown_as_a_popover_stands_as_a_popover(browser, serve):
+    """A dialog opened with `showPopover` is a popover layer, and the page behind it stays live.
+
+    Chromium reports it `:popover-open` and not `:modal`. Read as modal, it would make the
+    dispatcher drop the page's key scopes behind it."""
+    page = open_page(browser, serve(LONG_PAGE))
+    kinds = page.evaluate("""() => {
+      const layers = document[Symbol.for('leaf.nativeLayers')];
+      const asPopover = document.createElement('dialog');
+      asPopover.popover = 'manual';
+      asPopover.textContent = 'A dialog shown as a popover';
+      const asModal = document.createElement('dialog');
+      asModal.textContent = 'A dialog shown modally';
+      document.querySelector('main').append(asPopover, asModal);
+      asPopover.showPopover();
+      const popover = layers().map((layer) => layer.kind);
+      asPopover.hidePopover();
+      asModal.showModal();
+      const modal = layers().map((layer) => layer.kind);
+      asModal.close();
+      return {popover, modal};
+    }""")
+    assert kinds == {"popover": ["popover"], "modal": ["modal"]}
 
 
 def test_the_key_line_says_what_a_press_will_do(browser, serve):
@@ -10507,6 +10613,9 @@ def test_an_ask_under_the_open_panel_is_shown_beside_it_or_by_clearing_it(
     evidence = (
         "<figure><p>The hedge shelters the feeders.</p></figure>" if side_track else ""
     )
+    options_style = (
+        "<style>#spot { width: 40%; margin-left: 60%; }</style>" if side_track else ""
+    )
     url = serve(
         leaf_page(
             "Under the panel",
@@ -10521,6 +10630,7 @@ def test_an_ask_under_the_open_panel_is_shown_beside_it_or_by_clearing_it(
 </lf-options></lf-ask>
 <section id="below">{filler}</section>
 """,
+            head=options_style,
         )
     )
     append_carried_log_record(
@@ -13304,11 +13414,10 @@ def test_r_resolves_a_thread_from_wherever_the_user_stands_in_it(browser, serve)
 def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve):
     """One press is one action: the rung is the innermost scope in reach that binds
     Escape, and the dispatcher runs that one and no other. The draft editor's Esc used
-    to be two — the edit cancelled and the runtime's ladder closed the panel behind it
-    — and the cancel discarded the user's words against the never-lose-text norm. Each
-    control kept that by hand once and the stack keeps it now, so this is the test that
-    says the structure holds. The editor closes keeping the edit, the panel stands, and
-    a grabbed card's Esc cancels the move and nothing else."""
+    to be two — the edit cancelled and the runtime's ladder closed the panel behind it.
+    Each control kept that by hand once and the stack keeps it now, so this is the test
+    that says the structure holds. The editor's Esc cancels the edit and the panel
+    stands, and a grabbed card's Esc cancels the move and nothing else."""
     html = BOARD_PAGE.replace(
         "</main>", '<lf-draft id="plan"><pre>Ship it.</pre></lf-draft></main>'
     )
@@ -13331,12 +13440,7 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
     page.keyboard.press("Escape")
     expect(ta).to_have_count(0)  # the editor closed…
     expect(page.locator(".lf-thread-panel")).to_be_visible()  # …and only the editor
-    # The edit was set aside, not discarded: reopening resumes it.
-    draft_control(page, "edit", "plan").click()
-    expect(page.locator("lf-draft leaf-text")).to_have_js_property(
-        "value", "Ship it — but louder."
-    )
-    page.keyboard.press("Escape")
+    expect(page.locator("lf-draft .lf-draft-body")).to_have_text("Ship it.")
 
     # A grabbed card: Esc cancels the move, and the panel it would have closed stands.
     grip = page.locator("#card-heater .lf-grip")

@@ -23,7 +23,12 @@ from .file_changes import (
 )
 from .files import file_stamp, read_json
 from .harness import Harness, claim_harness, session_harness
-from .leases import release_lease, take_lease, waiter_lease_path
+from .leases import (
+    end_if_terminated,
+    release_lease,
+    take_lease,
+    waiter_lease_path,
+)
 from .locations import path_location, paths_same
 from .machine import state_home
 from .presence import nudge_unwatched
@@ -111,7 +116,7 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
         )
         if owed:
             raise Refused(
-                f"{unanswered(owed, 'acknowledged')}; answer before idling. "
+                f"{unanswered(owed, page_dir, 'acknowledged')}; answer before idling. "
                 + ANSWER_ASK_INSTRUCTION
             )
         # A task is work the agent still owes, which closing the page would leave
@@ -278,6 +283,9 @@ class Watch:
             if self.reading() != before:
                 return True
             remaining = deadline - time.monotonic()
+            # A stop whose raise a finalizer discarded ends the watch here, since
+            # nothing would interrupt the wait (`release_on_termination`).
+            end_if_terminated()
             if remaining <= 0 or not self.changes.wait(generation, remaining):
                 return False
             # Native APIs may coalesce diagnostics with their parent directory,

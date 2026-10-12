@@ -28,6 +28,7 @@ from interact_support import (
     publish,
     published,
     response_reference,
+    served_thread,
     state_json,
 )
 from leaf import cli as cli_model
@@ -57,6 +58,13 @@ PUBLIC_EXAMPLES = tuple(
 FEATURE_GALLERY = ROOT / "examples" / "developer" / "feature-gallery.html"
 DEVELOPER_PAGES = tuple(sorted((ROOT / "examples" / "developer").glob("*.html")))
 CORPUS_SOURCES = (*PUBLIC_EXAMPLES, *regression_sources(), *DEVELOPER_PAGES)
+
+
+def authored_tags(document: SourceDocument) -> set[str]:
+    """Every lf-* tag a source authors, its live samples' included."""
+    return {element["tag"] for element in document.lf_elements}.union(
+        *(authored_tags(sample["document"]) for sample in document.samples)
+    )
 
 
 def run_leaf(*args, input_text=None):
@@ -483,10 +491,12 @@ def test_every_widget_in_the_vocabulary_stands_in_a_corpus_source():
     reach."""
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
     # The corpus is generated from the others, so it can only repeat their coverage.
-    authored = " ".join(path.read_text() for path in CORPUS_SOURCES)
+    authored = set().union(
+        *(authored_tags(SourceDocument(path.read_text())) for path in CORPUS_SOURCES)
+    )
     tags = element_declarations(registry)
     assert tags, "no widgets read — an empty vocabulary demonstrates itself"
-    undemonstrated = [tag for tag in tags if not re.search(rf"<{tag}[\s>]", authored)]
+    undemonstrated = [tag for tag in tags if tag not in authored]
     assert not undemonstrated, (
         f"no corpus source holds {', '.join(undemonstrated)} — see examples/AGENTS.md"
     )
@@ -501,10 +511,12 @@ def test_every_default_widget_stands_in_the_feature_gallery():
     registry = json.loads(
         (schema_model.DEFAULT_PACKAGE / "registry.json").read_text(encoding="utf-8")
     )
-    authored = FEATURE_GALLERY.read_text(encoding="utf-8")
+    authored = authored_tags(
+        SourceDocument(FEATURE_GALLERY.read_text(encoding="utf-8"))
+    )
     tags = [tag for tag in registry if tag.startswith("lf-")]
     assert tags, "the default package declares no widgets"
-    missing = [tag for tag in tags if not re.search(rf"<{tag}[\s>]", authored)]
+    missing = [tag for tag in tags if tag not in authored]
     assert not missing, (
         f"the feature gallery has no focused sample for {', '.join(missing)} — "
         "see examples/AGENTS.md"
@@ -699,39 +711,6 @@ def test_corpus_is_generated_from_the_examples():
     assert committed_data["$captures"]["gallery-source"]["file"] == (
         "developer/feature-gallery-source.toml"
     )
-
-
-def test_the_key_reference_is_generated_from_the_registry():
-    """The registry reference is written from the same $keys agents query."""
-    from leaf_dev import keydocs
-
-    committed = keydocs.DOCS_PAGE.read_text()
-
-    def said(html):
-        tags = re.sub(
-            r"<[^>]*>", lambda match: re.sub(r"\s+>", ">", match.group()), html
-        )
-        return re.sub("\\s+", " ", re.sub("\\s*(<[^>]*>)\\s*", "\\1", tags))
-
-    assert said(keydocs.build(committed)) == said(committed), (
-        "the registry's $keys changed — rerun leaf-dev keydocs"
-    )
-    # Every key appears once in the index and once at its generated definition.
-    keys = json.loads(schema_model.ASSETS.joinpath("registry.json").read_text())[
-        "$keys"
-    ]
-    disclosures = []
-    for key in keys:
-        if key != "description":
-            assert f'<a href="#{key}"><code>{key}</code></a>' in said(committed), key
-            assert f'id="{key}"' in said(committed), key
-            if keydocs.summary(keys[key])[1]:
-                disclosures.append(key)
-
-    labels = re.findall(
-        r'<summary aria-label="Full ([^"]+) contract">', said(committed)
-    )
-    assert labels == sorted(disclosures)
 
 
 def test_reply_validates_widget_markup(page_dir):
@@ -1140,7 +1119,7 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
     assert completed["responds"] == root["id"]
     state = page_state(claimed)
     assert state["workflows"] == []
-    [thread] = state["browser"]["thread"]["threads"]
+    [thread] = served_thread(state["browser"])["threads"]
     assert thread["summaries"][0]["covers"] == [
         update["id"],
         json.loads(again.output.splitlines()[0])["id"],

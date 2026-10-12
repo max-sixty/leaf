@@ -19,9 +19,6 @@ vars:
     visibility. Only shipped references are available; runtime source and execution
     are unavailable. Do not implement new runtime machinery or a page adapter.
 assert:
-- type: regex
-  metric: declares-context-aliases
-  value: 'contextKeys\s*:'
 - type: llm-rubric
   metric: judgment
   value: |

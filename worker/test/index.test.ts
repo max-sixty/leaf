@@ -1577,7 +1577,7 @@ describe("website page agent", () => {
     expect(session.interceptHttps).toBe(true);
     expect(session.allowedHosts).toEqual(["api.openai.com"]);
     expect(session.envVars).toMatchObject({
-      LEAF_AGENT: "The agent",
+      LEAF_AGENT: "Agent",
       OPENAI_API_KEY: "leaf-outbound-proxy",
       CODEX_CA_CERTIFICATE: "/etc/cloudflare/certs/cloudflare-containers-ca.crt",
     });

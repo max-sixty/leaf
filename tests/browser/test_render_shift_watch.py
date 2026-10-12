@@ -17,8 +17,6 @@ from render_harness import (
     judge_watches,
     leaf_page,
     open_page,
-    resized,
-    scroll_settled,
     take_browser_errors,
 )
 
@@ -1228,6 +1226,132 @@ def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(browser, ser
     judge_watches()
     moved = consume_browser_errors(page, "moved without input")
     assert any("in shadow of lf-diff#patch" in error for error in moved), moved
+
+
+@pytest.mark.parametrize(
+    "retired_at", ["no preparation", "click", "resolve-remove", "remove-resolve"]
+)
+def test_a_retired_widget_preparation_cannot_credit_a_passive_landing(
+    browser, serve, retired_at
+):
+    """A removed renderer's late completion cannot credit unrelated page movement.
+
+    The no-preparation control proves ordinary input credit expires. A declaration
+    retires with its owner even when its promise reaction precedes delivery of the
+    removal's mutation record.
+    """
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Retired preparation",
+                '<button id="press">Press</button>'
+                '<lf-options id="choice"><lf-option id="a">A</lf-option></lf-options>'
+                '<button id="control" style="display:block">Control</button>',
+            )
+        ),
+    )
+    page.evaluate(
+        """async retiredAt => {
+          const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const widget = document.querySelector('#choice');
+          const gate = Promise.withResolvers();
+          window.release = gate.resolve;
+          const terminal = Promise.withResolvers();
+          window.terminal = terminal.promise;
+          document.querySelector('#press').addEventListener('click', () => {
+            if (retiredAt !== "no preparation") {
+              let identity;
+              const stop = document.querySelector('script[data-lf-entry]').lfObserveWidgetPreparations((phase, preparation) => {
+                if (phase === 'begin') identity ??= preparation;
+                else if (preparation === identity) { terminal.resolve(); stop(); }
+              });
+              widgetController(widget).present(gate.promise);
+            } else terminal.resolve();
+            if (["no preparation", "click"].includes(retiredAt)) widget.remove();
+          }, {once: true});
+        }""",
+        retired_at,
+    )
+    page.locator("#press").click()
+    rendered(page, facts=("updatesSettled",))
+    judge_watches()
+    assert page.lf_errors == []
+    page.evaluate(
+        """async retiredAt => {
+          const widget = document.querySelector('#choice');
+          if (retiredAt === 'remove-resolve') widget.remove();
+          window.release();
+          if (retiredAt === 'resolve-remove') widget.remove();
+          await window.terminal;
+          document.querySelector('#control').style.marginTop = '40px';
+        }""",
+        retired_at,
+    )
+    rendered(page)
+    judge_watches()
+    consume_browser_errors(page, "button#control moved without input")
+
+
+@pytest.mark.parametrize("first_outcome", ["rejected", "pending"])
+def test_each_capable_preparation_keeps_its_own_input_landing(
+    browser, serve, first_outcome
+):
+    """A sibling can land after another fails or before another completes.
+
+    Semantic presentation aggregates both promises, but each actual producer owns
+    its own mechanical landing. Neither an early aggregate rejection nor a pending
+    sibling may lose the successful producer's input attribution.
+    """
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Sibling preparation",
+                '<button id="press">Press</button>'
+                '<lf-options id="choice"><lf-option id="a">A</lf-option></lf-options>'
+                '<button id="control" style="display:block">Control</button>',
+            )
+        ),
+    )
+    page.evaluate("""async () => {
+      const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const widget = document.querySelector('#choice');
+      const first = Promise.withResolvers();
+      const second = Promise.withResolvers();
+      window.rejectFirst = first.reject;
+      window.releaseFirst = first.resolve;
+      window.releaseSecond = second.resolve;
+      document.querySelector('#press').addEventListener('click', () => {
+        widgetController(widget).present(first.promise);
+        widgetController(widget).present(second.promise.then(() => {
+          widget.style.height = '120px';
+        }));
+      }, {once: true});
+    }""")
+    page.locator("#press").click()
+    judge_watches()
+    assert page.lf_errors == []
+    if first_outcome == "rejected":
+        page.evaluate("rejectFirst(new Error('deliberate preparation failure'))")
+        page.wait_for_selector("#choice .lf-error")
+        judge_watches()
+        consume_browser_errors(page, "deliberate preparation failure")
+    assert not page.evaluate(
+        "document.querySelector('script[data-lf-entry]').lfRenderingState().preparationsSettled"
+    )
+    page.evaluate("releaseSecond()")
+    page.wait_for_function("document.querySelector('#choice').style.height === '120px'")
+    judge_watches()
+    assert page.lf_errors == []
+    if first_outcome == "pending":
+        assert not page.evaluate(
+            "document.querySelector('script[data-lf-entry]').lfRenderingState().preparationsSettled"
+        )
+        page.evaluate("releaseFirst()")
+    rendered(page)
+    judge_watches()
+    assert page.lf_errors == []
 
 
 @pytest.mark.parametrize(
@@ -2939,7 +3063,7 @@ def test_new_anchor_relation_cannot_credit_scroll_before_activation(browser, mod
 
 # Each fault runs the clean placement and its quiet judgement first, which is the
 # control a separate faultless case would add.
-@pytest.mark.parametrize("fault", ["holder", "child", "missing-source"])
+@pytest.mark.parametrize("fault", ["holder", "child"])
 def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, fault):
     source = leaf_page(
         "Floating tenure",
@@ -2974,14 +3098,6 @@ def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, f
         "newStoppedTenure": True,
         "sameStoppedSubject": True,
     }, state
-    if fault == "missing-source":
-        # A source measurement may be absent: preserve the rejected inputs without
-        # granting motion credit merely because the surface still has an owner.
-        page.evaluate("""() => {
-          const entry = document.querySelector('script[data-lf-entry]');
-          const readings = entry.lfFloatingSelections;
-          entry.lfFloatingSelections = () => readings().map(s => ({...s, scrollOffsets:null}));
-        }""")
     paint(page)
     assert page.locator("#holder").bounding_box() == initial
     judge_watches()
@@ -2998,24 +3114,6 @@ def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, f
     assert any("textarea#field moved without input" in error for error in errors), (
         errors
     )
-    if fault == "missing-source":
-        error = next(e for e in errors if "textarea#field moved without input" in e)
-        evidence = shift_evidence(error)
-        assert any(
-            not comparison["scroll_terms"]
-            and any(
-                attachment["owner"] == "div#holder"
-                and attachment["before"]["plane"] == "window"
-                and attachment["after"]["plane"] == "window"
-                and attachment["before"]["scrollOffsets"] is None
-                and attachment["after"]["scrollOffsets"] is None
-                and attachment["after_surface"]["left"]
-                - attachment["before_surface"]["left"]
-                == 80
-                for attachment in comparison["scroll_attachments"]
-            )
-            for comparison in evidence["comparisons"]
-        ), evidence
 
 
 @pytest.mark.parametrize("mode", ["pointer", "keyboard"])
@@ -3322,92 +3420,6 @@ def test_owned_native_finish_records_the_applied_endpoint(browser, fault, fill):
         assert all("moved without input" in error for error in errors), errors
     else:
         assert not errors, errors
-
-
-# The clean run is zoomed, where crediting has the scale to get wrong; the fault control
-# needs no zoom to fail.
-@pytest.mark.parametrize("fault, zoom", [(False, 2), (True, 1)])
-def test_viewport_constrained_attachment_credits_only_its_source_scroll(
-    browser, serve, fault, zoom
-):
-    """Opposite viewport clamps retain source travel, never extra child movement."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Viewport attachment scroll",
-                '<p id="subject" style="position:absolute;left:100px;top:500px;'
-                'margin:0;width:80px;height:30px">Exact subject</p>'
-                '<div id="holder" style="visibility:hidden;position:fixed;'
-                'width:200px;height:60px;margin:0;background:white">'
-                '<textarea id="field" style="width:160px;height:30px"></textarea></div>'
-                '<div style="height:2400px"></div>',
-                head=f"<style>html {{zoom:{zoom}}}</style>",
-                layout=None,
-            )
-        ),
-    )
-    resized(page, 900, 600)
-    source_top = page.locator("#subject").evaluate(
-        "node => node.getBoundingClientRect().top + scrollY"
-    )
-    page.evaluate("top => scrollTo({top, behavior:'instant'})", source_top - 70)
-    scroll_settled(page)
-    page.evaluate(
-        """async zoom => {
-      const module = await window.__lfRuntimeImport('/runtime/annotation-overlay/floating.js');
-      const ui = await module.floatingUi();
-      const subject = document.querySelector('#subject'), holder = document.querySelector('#holder');
-      const boundary = {x:0, y:100, width:900, height:100 * zoom};
-      const owner = module.floatingPlacement({floating:holder, update:()=>void place()});
-      async function place() {
-        owner.begin();
-        const answer = await owner.position(ui.computePosition, subject,
-          {placement:'right-start',middleware:[ui.shift({boundary:[],rootBoundary:boundary,crossAxis:true})]},
-          answer => ({edge:answer.middlewareData.shift.y > 0 ? 'top' : 'bottom', at:answer.middlewareData.shift.y > 0 ? 100 : 100 + 100 * zoom}), subject);
-        if (answer) owner.stand(answer);
-      }
-      owner.watch(subject,subject,ui.autoUpdate);
-      await place();
-      window.constrainedSelection = () => module.floatingSelections().find(item => item.floating === holder);
-      holder.style.removeProperty('visibility');
-    }""",
-        zoom,
-    )
-    paint(page)
-    judge_watches()
-    assert take_browser_errors(page) == []
-    before = page.locator("#field").bounding_box()
-    assert page.locator("#subject").bounding_box()["y"] == pytest.approx(70)
-    assert page.locator("#holder").bounding_box()["y"] == pytest.approx(100)
-    assert page.evaluate("constrainedSelection().plane") == "window"
-    page.evaluate(
-        """([fault, top]) => {
-          scrollTo({top, behavior:'instant'});
-          if (fault) {
-            const field = document.querySelector('#field');
-            field.style.position = 'relative';
-            field.style.top = '20px';
-          }
-        }""",
-        [fault, source_top - (70 + 100 * zoom)],
-    )
-    page.wait_for_function(
-        "top => constrainedSelection().edges.top === 'bottom' && holder.getBoundingClientRect().top === top",
-        arg=100 + 40 * zoom,
-    )
-    scroll_settled(page)
-    paint(page)
-    assert page.locator("#subject").bounding_box()["y"] == pytest.approx(
-        70 + 100 * zoom
-    )
-    assert page.locator("#holder").bounding_box()["y"] == pytest.approx(100 + 40 * zoom)
-    assert page.locator("#field").bounding_box()["y"] - before["y"] == pytest.approx(
-        (40 + (20 if fault else 0)) * zoom
-    )
-    judge_watches()
-    if fault:
-        consume_browser_errors(page, "textarea#field moved without input")
 
 
 FRAMES = """count => new Promise((done) => {

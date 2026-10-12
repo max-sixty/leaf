@@ -246,13 +246,13 @@ than a new split per row whose edges land somewhere new each time.
 
 "Contents navigation" sets where the overview's outline goes at each width.
 
-A track shorter than the window can stay in view while the body scrolls beside it:
-give the `aside` `align-self: stretch`, so it runs the body's height, and the block it
-holds `position: sticky; top: var(--lf-top)`, which keeps that block just below Leaf's
-banner and any page tab strip. The block sticks only inside the track, so wherever the two stack, for either
-reason, the track is only as tall as what it holds and nothing sticks over the body; no
-width is needed. Leave a taller track in flow, since sticking it would hide its end
-until the page ends.
+To keep the track in view while the body scrolls beside it, put everything the track
+holds in one block, as the `div` in the example above does. While the track stands
+beside the body, the Layout sticks that block just below Leaf's banner and any page tab
+strip, and a block taller than the window scrolls on its own, so its end stays
+reachable. Where the two stack, the block scrolls with the page, and a track of several
+blocks always does. Write no `position`, `top`, height or overflow for the track or the
+blocks in it.
 
 Draw each region the same way, as a `section.panel` with a short heading, and keep a
 `.callout` with a status tone (`warn`, `danger`, `ok`) for the one thing the reader must
@@ -264,10 +264,12 @@ glance.
 `<main class="layout-workspace">` is a screen: it fills the window's height below the
 banner, and the reader moves through it, choosing what its regions show, rather than
 scrolling it. Its `header` and `footer` take what they hold, and its one body between
-them takes the rest. The header is one row, the title with the page's state beside it
-as `.tag` chips, so the regions keep the window: write no lede, eyebrow or legend there,
-and put what a lede would say at the top of the region it is about, or in a footer of a
-line or two. The body is one `lf-pane`, a
+them takes the rest. The header is one row, the title with the page's state beside it,
+so the regions keep the window: `.tag` chips for what you state, such as how the items
+divide, and an `lf-tally` for how many of the page's asks are left, which the page
+counts as the user answers. Write no lede, eyebrow or legend there, and put what a
+lede would say at the top of the region it is about, or in a footer of a line or two.
+The body is one `lf-pane`, a
 widget that composes its own regions, or the page's own grid of panes, such as a run's
 log beside the chart it explains, which the page's `<style>` places:
 
@@ -295,12 +297,16 @@ A workspace usually takes it, and so can a dense pane or table on a column page.
 
 A queue whose items open one at a time beside it, such as tickets, cases or findings to
 decide, is one `lf-tabs list="side"` as the body: its list is the queue and each item an
-`lf-tab`, so one opens beside the list and a link or an ask opens its own, and a row
-whose item's asks are all answered shows a check, with the picked answer beside it
-where the item holds one ask. Write no script to select, hide or mark an item; the tab
-set does all three. Where the items fall into kinds the user works through in turn,
-such as merge, close and FYI, give each `lf-tab` its kind as `group` and keep each
-kind's items together: the list sets each run under a heading of its group.
+`lf-tab`, so one opens beside the list and a link or an ask opens its own, and each
+row marks its item's asks: open until they are all answered, then a check, with the
+picked answer beside it where the item holds one ask. Write no script to select, hide
+or mark an item; the tab set does all three. Say how much of the queue is left with an
+`lf-tally` naming it in the header, with `next` for a control to the next open ask: it
+counts the asks as the user answers them, where a count written into a chip or the
+prose is wrong after the first answer. Where the items fall into kinds the user works
+through in turn, such as merge, close and FYI, give each `lf-tab` its kind as `group`
+and keep each kind's items together: the list sets each run under a heading of its
+group.
 
 The page itself does not scroll; a region does, where what it holds runs past it. Each
 pane's body scrolls on its own, and a widget that fills the body, such as a playground's
@@ -341,7 +347,10 @@ either takes its columns' natural width up to that room: one that fits where it 
 starts where the text around it starts, and a wider one grows evenly about the prose
 axis, or to the right where a sidebar stands in the left margin. A block in a list item
 or another indented block takes its room from the column, so it stands where the same
-block in the page's flow would, however deep the indent.
+block in the page's flow would, however deep the indent. A block the page places
+itself, as an item of its own grid or flex row, in an inline block, or inside one,
+keeps to the box it is given, since the room beside that box is the page's: a table
+there scrolls its columns inside it.
 An `lf-ask` or a callout keeps the column: a block of its own that declares a width
 breaks out of it on a column page, and widens it in a wider flow.
 Use these names on the semantic block itself, including a native `table`, `lf-code`, or
@@ -417,15 +426,18 @@ A page deciding, planning, or reviewing one of these draws it too. A table or li
 rows name places, sizes, or connections is a drawing written out.
 
 Show a visible subject with an image instead of describing its appearance: an
-interface with a screenshot, and a visual change with an `lf-shot` before-and-after
-capture. A proposal or a mechanism has nothing to capture yet, so draw it. A process
-that unfolds over time is a diagram that moves: draw it in a page module from its
-state and the moment, with controls to pause and scrub, so every moment stays
-readable and its parts stay commentable. For fixed recordings and screen captures,
+interface with a screenshot, cropped or marked where the point sits so the eye lands
+there, and a visual change with an `lf-shot` before-and-after capture. A proposal or
+a mechanism has nothing to capture yet, so draw it. A process that unfolds over time
+is a diagram that moves: draw it in a page module from its state and the moment,
+with controls to pause and scrub, so every moment stays readable and its parts stay
+commentable. For fixed recordings and screen captures,
 follow `authoring-evidence.md`, "Source files and media". When the shape of numbers is
 the point — a trend, ranking, groups on one scale, or series moving together —
 lead with an `lf-chart`, even if the numbers compare the same dimensions across
-items. Put a table below it in `<details>` when readers also need exact values.
+items. The chart labels the values the page's argument cites (`lf-chart`'s
+instructions); put the rest in a table below it in `<details>` when readers also
+need exact values.
 Use a table for value lookup, mixed units that cannot share an axis, or comparisons
 with text-heavy cells; use native sections for a few alternatives read as wholes,
 and `lf-options` when the user must choose among them. A headline measurement is
@@ -491,11 +503,12 @@ page composition can choose their layout.
 
 Keep content within its allocated column, visual surface, or pane. The theme scrolls a `<pre>` or a table
 that runs wider than its container and fits an image or SVG to it, so none of them needs a
-width. A table that scrolls has every column at its longest unbreakable run, and
-the browser gate refuses one that scrolls with a cell in it wrapped: put an
-identifier in `<code>`, where it breaks inside its cell, rather than bare, where
-it holds its column and squeezes the prose beside it, and keep the columns to
-what the measure holds. Widgets whose element declaration requests wider space size
+width. A table that scrolls has every column at its longest unbreakable run, so prose
+that wraps in it wraps a word a line while the reader also scrolls sideways. The
+browser gate advises on each width from a 360px phone up where a table scrolls with a
+cell in it wrapped: put an identifier in `<code>`, where it breaks inside its cell,
+rather than bare, where it holds its column and squeezes the prose beside it, and keep
+the columns to what the measure holds at the narrowest width the page's readers use. Widgets whose element declaration requests wider space size
 themselves within the page's available room. Preserve the meaningful detail in a diagram
 or comparison rather than shrinking its source solely to fit the prose column.
 
@@ -531,6 +544,13 @@ awaits server admission, or while the version menu is open.
 Page modules follow `references/module-authoring.md`, "What a behavior module owes". In
 particular, its `once()`, `quoted()`, `offer()`, `layoutChanged()`, and durable-state
 rules keep authored controls correct after reconnection and thread quoting.
+
+A page module that shows the state of the asks in each card, section or item of its
+own layout reads them from Leaf rather than keeping a copy: `watchQuestions()` with
+`asksIn(region)` selects each region's asks, answered or open, by the rule `lf-tabs`
+rows and `lf-tally` read, and `questionActions.next({within})` steps to the next one
+waiting on the user (`references/module-authoring.md`, "Reading asks and obligation
+queues").
 
 `leaf page check` runs a page's own code, a script or a page widget the
 document places, once in the host's browser, and a page with a data widget such as a
@@ -766,12 +786,12 @@ and summaries arriving too late on a phone. Fix problems the page controls, then
 check again.
 
 Before handoff, give a subagent only the user's request and the labeled saved
-screens. Have it report anything it cannot follow or must guess; fix those
-findings. The reader needs none of your research or notes, since the user has
-not seen them either. In your own reading, check that headings state their
-findings, claims have evidence, decisions have controls, drawings add
-information, and visible prose is needed by the user. Draw any subject the page
-currently explains only in words when a picture would convey it.
+screens. Have it report anything it cannot follow, must guess, or has to picture
+from a description; fix those findings. The reader needs none of your research or
+notes, since the user has not seen them either. In your own reading, check that
+headings state their findings, claims have evidence, decisions have controls,
+drawings add information, and visible prose is needed by the user. Draw any subject
+the page currently explains only in words when a picture would convey it.
 
 For a page with contents, start at its opening at desktop and phone widths and
 jump to a later section without first scrolling through the article to find the

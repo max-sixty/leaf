@@ -44,6 +44,7 @@ from render_cases_navigation import (
     source_revision,
 )
 from render_harness import (
+    LANDING_TOP,
     LONG_PAGE,
     RELEASE_FOCUS,
     REPLY_HOST_PAGE,
@@ -478,6 +479,59 @@ def test_a_script_scroll_moves_a_held_page(browser, serve, move):
     assert 0 <= after <= line + 60, (line, after)
 
 
+def test_a_bounded_box_holds_its_place_while_its_layout_settles(browser, serve):
+    """A box that scrolls on its own holds the place a width change restored in it, as
+    the page does: content above the reader that a widget draws a frame later is put
+    back behind them, with no anchoring of the browser's to do it, as in Safari."""
+    lines = "".join(
+        f'<p id="line-{n}">Line {n} of the bounded log.</p>' for n in range(80)
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Held box",
+                '<h1>Held box</h1><section id="log" style="height: 400px;'
+                f' overflow: auto; overflow-anchor: none"><div id="late"></div>{lines}'
+                "</section>" + "<p>After the log.</p>" * 40,
+            )
+        ),
+    )
+    resized(page, 1200, 800)
+    rendered(page)
+    page.evaluate("""async () => {
+      const {registerReadingRegion} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const body = document.getElementById('log');
+      registerReadingRegion({id: body.id, host: body, body});
+    }""")
+    rendered(page)
+    box = page.locator("#log").bounding_box()
+    page.mouse.move(box["x"] + 40, box["y"] + 100)
+    page.mouse.wheel(0, 900)
+    scroll_settled(page)
+    rendered(page)
+    reading = """(id) => {
+      const top = document.getElementById('log').getBoundingClientRect().top;
+      const line = id ? document.getElementById(id) : [...document.querySelectorAll(
+        '#log p')].find((p) => p.getBoundingClientRect().top >= top - 1);
+      return {id: line.id, below: line.getBoundingClientRect().top - top};
+    }"""
+    read = page.evaluate(reading, None)
+    page.evaluate(
+        """() => addEventListener('resize', async () => {
+          for (let n = 0; n < 2; n++) await new Promise(requestAnimationFrame);
+          document.getElementById('late').style.height = '200px';
+        }, {once: true})"""
+    )
+    resized(page, 700, 800)
+    rendered(page)
+    scroll_settled(page)
+    rendered(page)
+    assert page.evaluate(reading, read["id"])["below"] == pytest.approx(
+        read["below"], abs=2
+    )
+
+
 def test_a_script_scroll_as_content_grows_above_ends_the_hold(browser, serve):
     """Long after a width change restored the gallery's place, one frame grows content
     above the reader, which anchoring answers, and a script scrolls on. The box and its
@@ -584,11 +638,47 @@ def test_a_page_that_never_settles_lets_the_held_place_go_after_a_while(browser,
     assert page.evaluate(heading) < held - 300, "the held place came back"
 
 
+def edge_word(blocks):
+    """A page expression `(step, band)` for the first word of the `blocks` (a selector)
+    whose line stands at or below the landing band, written down on 'take' and found
+    again on any other step: how far below the band it stands, and how far into its
+    paragraph it is."""
+    return (
+        """(step, band) => {
+  const range = document.createRange();
+  const top = (text, at, length) => {
+    range.setStart(text, at);
+    range.setEnd(text, at + length);
+    const rect = range.getClientRects()[0];
+    return rect && {top: rect.top, middle: (rect.top + rect.bottom) / 2};
+  };
+  const blocks = [...document.querySelectorAll(BLOCKS)];
+  if (step === 'take') {
+    for (const [block, p] of blocks.entries())
+      for (const text of [...p.childNodes].filter((n) => n.nodeType === 3))
+        for (const word of text.data.matchAll(/\\S+/g)) {
+          const at = top(text, word.index, word[0].length);
+          if (at && at.middle >= band) {
+            window.__edgeWord = {block, node: [...p.childNodes].indexOf(text),
+              at: word.index, length: word[0].length};
+            return {below: at.top - band,
+              within: at.top - p.getBoundingClientRect().top};
+          }
+        }
+    return null;
+  }
+  const {block, node, at, length} = window.__edgeWord;
+  return {below: top(blocks[block].childNodes[node], at, length).top - band};
+}"""
+    ).replace("BLOCKS", repr(blocks))
+
+
 def test_paging_down_from_a_landed_section_keeps_the_paged_passage(browser, serve):
     """A fragment lands on a section and focuses it; the reader pages down through it.
     Focus on a section the reader reads through names the passage they paged to, not
     the section, so a width change keeps that passage where they read it, without the
-    browser's anchoring to hold it."""
+    browser's anchoring to hold it: the line at the landing edge, though the paragraph
+    holding it starts above the edge and rewraps above that line."""
     opening = "".join(
         f"<p>Opening paragraph {n}, words enough to rewrap as the window changes.</p>"
         for n in range(10)
@@ -619,21 +709,255 @@ def test_paging_down_from_a_landed_section_keeps_the_paged_passage(browser, serv
     page.wait_for_function("document.scrollingElement.scrollTop > 0")
     scroll_settled(page)
     rendered(page)
-    place = """async (step) => {
-      const rp = await window.__lfRuntimeImport('/runtime/reading-place.js');
-      const {landingBand} = await window.__lfRuntimeImport('/runtime/geometry.js');
-      if (step === 'take') window.__paged = rp.capturePlace();
-      const words = window.__paged.quote.slice(0, 40);
-      const block = [...document.querySelectorAll('main p')]
-        .find(p => p.textContent.includes(words));
-      return block.getBoundingClientRect().top
-        - landingBand(document.scrollingElement).top;
-    }"""
+    place = f"async (step) => ({edge_word('main p')})(step, {LANDING_TOP})"
     read = page.evaluate(place, "take")
+    assert read["within"] > 0, "the page should stop partway into a paragraph"
     for width in (1200, 390):
         resized(page, width, 800)
         rendered(page)
-        assert page.evaluate(place, "read") == pytest.approx(read, abs=4), width
+        assert page.evaluate(place, "read")["below"] == pytest.approx(
+            read["below"], abs=4
+        ), width
+
+
+# Shapes of what stands at the landing edge in the column the reader scrolls. Each
+# names where the pointer rests while the reader scrolls (none: it has not moved over
+# the page, as when they read by keyboard), how far to scroll, and a reading
+# `(step, band)` of where what they read stands, which may stray by `tolerance`. A
+# figure taller than the window draws no text on screen, so what the reader sees is
+# the part of it at the edge: how far through its height the edge cuts. With its
+# caption on screen below it, the figure the edge cuts is still what they see. A box
+# that scrolls on its own, scrolled partway, stands at the edge as a figure does: its
+# words move with its own scroll, not the page's. Two columns stack as the window
+# narrows; the reader scrolls the right one. A nav of short labels stands beside the
+# text and stacks above it: the reader reads the text, whether the pointer rests on the
+# nav or nowhere. A wide exhibit lower on screen reaches into the margin the pointer
+# rests in, while the reader's paragraph stands at the edge.
+TWO_COLUMNS = (
+    "<style>.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem }"
+    " @media (width < 900px) { .cols { grid-template-columns: 1fr } }</style>"
+    "<div class='cols'><div>"
+    + "".join(
+        f"<p>Left column note {n}, a passage long enough to quote.</p>"
+        for n in range(30)
+    )
+    + "</div><div id='right'>"
+    + "".join(
+        f"<p id='r{n}'>Right column passage {n}, which the reader is reading now.</p>"
+        for n in range(30)
+    )
+    + "</div></div>"
+)
+NAV_BESIDE_TEXT = (
+    "<style>.split { display: grid; grid-template-columns: 220px 1fr; gap: 2rem }"
+    " @media (width < 900px) { .split { grid-template-columns: 1fr } }</style>"
+    "<div class='split'><nav><ul>"
+    + "".join(f"<li id='n{n}'>Part {n}</li>" for n in range(80))
+    + "</ul></nav><div>"
+    + "".join(
+        "<p id='t{n}'>{words}</p>".format(
+            n=n, words=" ".join(f"t{n}w{i}" for i in range(40))
+        )
+        for n in range(60)
+    )
+    + "</div></div>"
+)
+
+
+def landed_at(target, below):
+    """A page expression for the scroll that puts `target`'s top `below` the band."""
+    return f"""async () => document.querySelector({target!r}).getBoundingClientRect().top
+      - ({LANDING_TOP}) - {below}"""
+
+
+def top_below(target):
+    """A reading of how far below the band `target`'s top stands."""
+    return f"""(step, band) =>
+      document.querySelector({target!r}).getBoundingClientRect().top - band"""
+
+
+FIGURE_ABOVE_CAPTION = {
+    "content": "".join(
+        "<p>" + " ".join(f"p{n}w{i}" for i in range(150)) + "</p>" for n in range(6)
+    )
+    + '<svg id="edge" viewBox="0 0 100 120" style="display:block;width:100%;'
+    'height:auto">'
+    + "".join(
+        f'<rect x="0" y="{n * 10}" width="100" height="10"'
+        f' fill="hsl({n * 12} 60% 60%)"/>'
+        for n in range(12)
+    )
+    + "</svg><p>Figure 1. "
+    + " ".join(f"c{i}" for i in range(30))
+    + "</p>",
+    "pointer": "#edge",
+    "distance": f"""async () => {{
+      const box = document.getElementById('edge').getBoundingClientRect();
+      return box.top - ({LANDING_TOP}) + 0.4 * box.height;
+    }}""",
+    "reading": """(step, band) => {
+      const box = document.getElementById('edge').getBoundingClientRect();
+      return (band - box.top) / box.height;
+    }""",
+    "tolerance": 0.01,
+}
+
+
+EDGE_SHAPES = {
+    "figure": {
+        "content": "".join(
+            "<p>" + " ".join(f"p{n}w{i}" for i in range(150)) + "</p>"
+            for n in range(12)
+        )
+        + '<svg id="edge" viewBox="0 0 100 300" style="display:block;width:100%;'
+        'height:auto">'
+        + "".join(
+            f'<rect x="0" y="{n * 10}" width="100" height="10"'
+            f' fill="hsl({n * 12} 60% 60%)"/>'
+            for n in range(30)
+        )
+        + "</svg>",
+        "pointer": "#edge",
+        "distance": f"""async () => {{
+          const box = document.getElementById('edge').getBoundingClientRect();
+          return box.top - ({LANDING_TOP}) + 0.4 * box.height;
+        }}""",
+        "reading": """(step, band) => {
+          const box = document.getElementById('edge').getBoundingClientRect();
+          return (band - box.top) / box.height;
+        }""",
+        "tolerance": 0.01,
+    },
+    "figure-above-caption": FIGURE_ABOVE_CAPTION,
+    # The same figure read from a narrow window, the column at the window's edge, with
+    # the pointer nowhere over the page.
+    "figure-above-caption-from-narrow": {
+        **FIGURE_ABOVE_CAPTION,
+        "pointer": None,
+        "start": 600,
+    },
+    "box-clipping-what-hangs-past-it": {
+        "content": '<div id="article" style="overflow: hidden; position: relative">'
+        + "".join(
+            "<p>" + " ".join(f"a{n}w{i}" for i in range(120)) + "</p>"
+            for n in range(10)
+        )
+        + "<img alt='' style='display: block; height: 40px; width: 40px;"
+        " margin-bottom: -12px' src='data:image/svg+xml,"
+        "%3Csvg xmlns=%22http://www.w3.org/2000/svg%22/%3E'></div>",
+        "pointer": "#article",
+        "distance": landed_at("#article p:nth-of-type(5)", -60),
+        "reading": f"(step, band) => ({edge_word('#article p')})(step, band).below",
+        "tolerance": 3,
+    },
+    "box-scrolling-alone": {
+        "content": "".join(
+            "<p>" + " ".join(f"p{n}w{i}" for i in range(60)) + "</p>" for n in range(6)
+        )
+        + '<div id="inner" tabindex="0" style="height: 420px; overflow: auto">'
+        + "".join(
+            "<p>" + " ".join(f"i{n}w{i}" for i in range(40)) + "</p>" for n in range(30)
+        )
+        + "</div><p>"
+        + " ".join(f"a{i}" for i in range(60))
+        + "</p>",
+        "setup": "document.getElementById('inner').scrollTop = 900",
+        "pointer": None,
+        "distance": landed_at("#inner", -200),
+        "reading": """(step, band) => {
+          const box = document.getElementById('inner').getBoundingClientRect();
+          return band - box.top;
+        }""",
+        "tolerance": 3,
+    },
+    "right-column": {
+        "content": TWO_COLUMNS,
+        "pointer": "#r10",
+        "distance": landed_at("#r10", 5),
+        "reading": top_below("#r10"),
+        "tolerance": 3,
+    },
+    "nav-under-pointer": {
+        "content": NAV_BESIDE_TEXT,
+        "pointer": "#n3",
+        "distance": landed_at("#t12", 5),
+        "reading": f"(step, band) => ({edge_word('.split > div p')})(step, band).below",
+        "tolerance": 3,
+    },
+    "nav-with-no-pointer": {
+        "content": NAV_BESIDE_TEXT,
+        "pointer": None,
+        "distance": landed_at("#t12", 5),
+        "reading": f"(step, band) => ({edge_word('.split > div p')})(step, band).below",
+        "tolerance": 3,
+    },
+    "wide-exhibit-in-margin": {
+        "content": "".join(
+            "<p>" + " ".join(f"o{n}w{i}" for i in range(60)) + "</p>" for n in range(6)
+        )
+        + '<p id="long">'
+        + " ".join(f"w{i}" for i in range(200))
+        + '</p><div data-width="wide"><p id="wide">'
+        + " ".join(f"x{i}" for i in range(80))
+        + "</p></div>",
+        "pointer": "#wide",
+        "distance": landed_at("#long", -150),
+        "reading": f"(step, band) => ({edge_word('#long')})(step, band).below",
+        "tolerance": 3,
+    },
+}
+
+
+@pytest.mark.parametrize("shape", list(EDGE_SHAPES))
+def test_a_width_change_keeps_what_stands_at_the_landing_edge(browser, serve, shape):
+    """The reader scrolls until what they read stands at the landing edge: 40% of the
+    way into a figure, taller than the window or with its caption below it; partway
+    into a box that scrolls on its own; a paragraph of the right column of two; a
+    paragraph of the text beside a nav of short labels; or a line partway into a
+    paragraph while the pointer rests in a margin that only a wide exhibit lower on
+    screen reaches. As the window narrows and widens, the figure scales and columns
+    stack, and at each width the reader still sees what they saw at the edge: the same
+    part of the figure or the box, not its top where it stood, the caption below it, a
+    line inside the box, nor the old offset; and the line or paragraph they read, not
+    the left column's, the nav's, or the exhibit's, which a reading in document order
+    or under the pointer alone would take."""
+    case = EDGE_SHAPES[shape]
+    filler = "".join(
+        f"<p>Filler paragraph {n} keeps the page long enough to scroll freely.</p>"
+        for n in range(40)
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "What stands at the edge", f"<h1>Edge</h1>{case['content']}{filler}"
+            )
+        ),
+    )
+    resized(page, case.get("start", 1200), 800)
+    rendered(page)
+    if "setup" in case:
+        page.evaluate(case["setup"])
+    distance = page.evaluate(case["distance"])
+    if case["pointer"]:
+        box = page.locator(case["pointer"]).bounding_box()
+        page.mouse.move(box["x"] + 10, 400)
+        page.mouse.wheel(0, distance)
+    else:
+        page.evaluate(f"document.scrollingElement.scrollBy(0, {distance})")
+    scroll_settled(page)
+    rendered(page)
+
+    def now(step):
+        return page.evaluate(
+            f"async (step) => ({case['reading']})(step, {LANDING_TOP})", step
+        )
+
+    read = now("take")
+    for width in (600, 1200, 800, 1200):
+        resized(page, width, 800)
+        rendered(page)
+        assert now("read") == pytest.approx(read, abs=case["tolerance"]), width
 
 
 @pytest.mark.parametrize("bounded", [False, True])
@@ -1621,15 +1945,11 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
     told(page)
     expect(page.locator("#col-done #card-x")).to_have_count(1)
     expect(editor).to_have_js_property("value", "Local unsent words.")
-    expect(draft.locator(".lf-draft-history")).to_have_count(0)
 
     page.route("**/api/state*", refuse)
     page.keyboard.press("Escape")
     ticked(page)
     expect(draft.locator(".lf-draft-body")).to_have_text("Foreign committed words.")
-    expect(draft.locator(".lf-draft-history > summary")).to_have_text(
-        "Changes · 2 edits"
-    )
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "3")
 
 
@@ -4705,20 +5025,18 @@ def test_a_composer_on_one_passage_is_one_box_in_every_tab(browser, serve, one_u
     assert said == [sent], "one box, and so one comment however many tabs showed it"
 
 
-def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, serve):
-    """One disclosure answers both deferred draft decisions. It compares this version's
-    authored body with the standing body, retains every absolute edit in log order,
-    and walks back by posting another ordinary edit. A second tab proves restore is
-    durable replay rather than local history state; copy mode proves the local history
-    does not survive without its handlers.
+def test_text_alignment_keeps_every_character_and_action_history_is_read_only(
+    browser, serve
+):
+    """The text aligner may choose where an ambiguous repeated word aligns, but never
+    loses or invents a character: same+delete is the old text, same+insert the new one.
+    Unicode, whitespace and repetition are where a character or regex diff quietly
+    breaks. Every granularity, because the unit is the caller's and the contract is
+    not: an inline version comparison starts with sentences and refines a local edit by
+    word. Its words come from Intl.Segmenter, so it is read in the browser.
 
-    The comparison is drawn by the text aligner, which is allowed to choose where an
-    ambiguous repeated word aligns, but never to lose or invent a character: same+delete
-    is the old text, same+insert the new one. Unicode, whitespace and repetition are
-    where a character or regex diff quietly breaks. Both granularities, because the unit
-    is the caller's and the contract is not: a draft's history aligns by word, while an
-    inline version comparison starts with sentences and refines a local edit by word.
-    Its words come from Intl.Segmenter, so it is read in the browser."""
+    A draft's saved edits reach a widget as its action history, in log order, and a
+    widget cannot rewrite that history by mutating what it read."""
     url = serve(JOURNEY_V1)
     page = open_page(browser, url)
     cases = [
@@ -4788,59 +5106,16 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
         draft.locator(".lf-draft-body").dblclick()
         write(draft.locator("leaf-text"), text)
         draft_control(page, "save", "draft-ops").click()
-        round_trip(page)  # the history is drawn from the log, not the box
-        expect(draft.locator(".lf-draft-history > summary")).to_have_text(
-            f"Changes · {index} {'edit' if index == 1 else 'edits'}"
-        )
-
-    # The disclosure is the platform's to work and the register says so, naming the
-    # press where the user is standing on it and reading which way it goes off the
-    # state they can already see.
-    history = draft.locator(".lf-draft-history > summary")
-    history.focus()
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("show the history")
-    history.click()
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("hide the history")
-
-    current_deleted = "".join(draft.locator(".lf-draft-current del").all_inner_texts())
-    current_inserted = "".join(draft.locator(".lf-draft-current ins").all_inner_texts())
-    assert "before" in current_deleted and "deploying" in current_deleted
-    assert "afterthebackup" in re.sub(r"\s+", "", current_inserted)
-    labels = draft.locator(".lf-draft-revision-head strong").all_inner_texts()
-    assert labels == ["Version text", "Edit 1 · v1", "Edit 2 · v1"]
-    # Adjacent recorded edits are aligned too, rather than rendered as two unrelated
-    # snapshots. The first has no knowable predecessor on a later pinned version.
-    second_delta = draft.locator(".lf-draft-revisions > li").nth(2)
-    second_deleted = "".join(second_delta.locator("del").all_inner_texts())
-    second_inserted = "".join(second_delta.locator("ins").all_inner_texts())
-    assert "before" in second_deleted and "deploying" in second_deleted
-    assert "afterthebackup" in re.sub(r"\s+", "", second_inserted)
-    # Comparisons preserve source whitespace; template indentation is visible here.
-    comparison = second_delta.locator(".lf-draft-delta").text_content()
-    assert comparison == comparison.strip()
-
-    draft.get_by_role("button", name="Restore edit 1 · v1").focus()
-    page.keyboard.press("Enter")
-    round_trip(page)
-    expect(draft.locator(".lf-draft-body")).to_have_text(edits[0])
-    expect(draft.locator(".lf-draft-history > summary")).to_have_text(
-        "Changes · 3 edits"
-    )
-    expect(draft.locator(".lf-draft-history > summary")).to_be_focused()
-    expect(draft.locator(".lf-draft-history")).to_have_attribute("open", "")
-    expect(draft).to_have_attribute("data-lf-user-override", "1")
+        round_trip(page)
+        expect(draft.locator(".lf-draft-body")).to_have_text(text)
 
     events = [
         event
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "action"
     ]
-    assert [event["detail"]["value"] for event in events] == [
-        edits[0],
-        edits[1],
-        edits[0],
-    ]
-    assert [event["action"] for event in events] == ["edit", "edit", "edit"]
+    assert [event["detail"]["value"] for event in events] == edits
+    assert [event["action"] for event in events] == ["edit", "edit"]
 
     sequence = page.evaluate(
         """async () => {
@@ -4853,15 +5128,8 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
             .map(event => [event.seq, event.detail.value]);
         }"""
     )
-    assert [text for _, text in sequence] == [edits[0], edits[1], edits[0]]
+    assert [text for _, text in sequence] == edits
     assert [seq for seq, _ in sequence] == sorted(seq for seq, _ in sequence)
-
-    # The handover URL, since the key it carries has left this tab's address.
-    other = open_page(browser, url)
-    expect(other.locator("#draft-ops .lf-draft-body")).to_have_text(edits[0])
-    expect(other.locator("#draft-ops .lf-draft-history > summary")).to_have_text(
-        "Changes · 3 edits"
-    )
 
 
 def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
@@ -4886,8 +5154,8 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
         )
 
     old = open_page(browser, url, pin=True)
-    expect(old.locator("#draft-ops .lf-draft-history > summary")).to_have_text(
-        "Changes · 1 edit"
+    expect(old.locator("#draft-ops .lf-draft-body")).to_have_text(
+        "First recorded body."
     )
     old_sequence = old.evaluate(
         """async () => (await window.__lfRuntimeImport('/runtime/widget-api.js'))
@@ -4897,8 +5165,8 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
     assert old_sequence == [1]
 
     latest = open_page(browser, url.replace("v1.html", "v2.html"), pin=True)
-    expect(latest.locator("#draft-ops .lf-draft-history > summary")).to_have_text(
-        "Changes · 2 edits"
+    expect(latest.locator("#draft-ops .lf-draft-body")).to_have_text(
+        "Second recorded body."
     )
     latest_sequence = latest.evaluate(
         """async () => (await window.__lfRuntimeImport('/runtime/widget-api.js'))
@@ -6018,7 +6286,6 @@ def test_first_draft_save_and_refusal_keep_the_local_editor_controls(browser, se
         ),
     )
     draft = page.locator("#first-draft")
-    expect(draft.locator(".lf-draft-history")).to_have_count(0)
     draft_control(page, "edit", "first-draft").click()
     write(draft.locator("leaf-text"), "Changed words.")
     before = page.locator("#following").bounding_box()
@@ -6034,15 +6301,17 @@ def test_first_draft_save_and_refusal_keep_the_local_editor_controls(browser, se
     expect(draft.locator(".lf-draft-body")).to_have_text("Original words.")
     expect(draft_control(page, "retry", "first-draft")).to_be_visible()
     expect(draft_control(page, "cancel", "first-draft")).to_be_visible()
-    expect(draft.locator(".lf-draft-history")).to_have_count(0)
     assert page.locator("#following").bounding_box() == before
     consume_browser_errors(page, "400")
 
 
-def test_draft_controls_survive_hiding_annotations_and_close_keeps_source(
-    browser, serve
-):
-    """Editing operations stay in their box while the annotation layer is hidden."""
+def test_draft_controls_survive_hiding_annotations_and_escape_discards(browser, serve):
+    """Editing operations stay in their box while the annotation layer is hidden.
+
+    The footer offers Save and Cancel, and Escape cancels as the button does, so a
+    closed box holds no unsent words. The box's Copy control copies the Markdown source
+    the box shows, the open editor's while it stands."""
+    context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
     page = open_page(
         browser,
         serve(
@@ -6052,6 +6321,7 @@ def test_draft_controls_survive_hiding_annotations_and_close_keeps_source(
                 '<lf-draft id="local"><pre>Saved **source**.</pre></lf-draft>',
             )
         ),
+        context=context,
     )
     draft = page.locator("#local")
     edit = draft_control(page, "edit", "local")
@@ -6064,15 +6334,47 @@ def test_draft_controls_survive_hiding_annotations_and_close_keeps_source(
     expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
     expect(draft_control(page, "save", "local")).to_be_visible()
     expect(draft_control(page, "cancel", "local")).to_be_visible()
-    draft_control(page, "close", "local").click()
+    expect(draft.locator("[data-lf-draft-action]:visible")).to_have_count(2)
+    copy = draft.get_by_role("button", name="Copy Markdown")
+    copy.click()
+    assert page.evaluate("navigator.clipboard.readText()") == "Unsent `source`."
+    draft_control(page, "save", "local").focus()
+    page.keyboard.press("Escape")
     expect(editor).to_have_count(0)
     expect(edit).to_be_focused()
     edit.press("Enter")
-    expect(editor).to_have_js_property("value", "Unsent `source`.")
+    expect(editor).to_have_js_property("value", "Saved **source**.")
+    write(editor, "Changed again.")
     draft_control(page, "cancel", "local").click()
     expect(edit).to_be_focused()
     edit.click()
     expect(editor).to_have_js_property("value", "Saved **source**.")
+    page.keyboard.press("Escape")
+    copy.click()
+    assert page.evaluate("navigator.clipboard.readText()") == "Saved **source**."
+
+
+def test_an_open_edit_back_to_the_authored_text_survives_reload(browser, serve):
+    """An open editor's words come back on reload whenever they differ from the
+    standing text, words that walk a saved edit back to the authored text included."""
+    url = serve(
+        leaf_page(
+            "Walk back",
+            '<h1>Walk back</h1><lf-draft id="walk"><pre>Authored words.</pre></lf-draft>',
+        )
+    )
+    page = open_page(browser, url)
+    draft = page.locator("#walk")
+    draft_control(page, "edit", "walk").click()
+    write(draft.locator("leaf-text"), "Saved words.")
+    draft_control(page, "save", "walk").click()
+    round_trip(page)
+    draft_control(page, "edit", "walk").click()
+    write(draft.locator("leaf-text"), "Authored words.")
+    page.reload()
+    wait_until_ready(page)
+    expect(draft.locator("leaf-text")).to_have_js_property("value", "Authored words.")
+    expect(draft.locator(".lf-draft-body")).to_have_text("Saved words.")
 
 
 def test_resume_writing_is_a_touch_action_and_does_not_steal_hint_addresses(
@@ -6149,7 +6451,6 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
     write(edit, "Last edit")
     page.keyboard.press("Home")
     page.keyboard.press("ArrowRight")
-    page.keyboard.press("Escape")
     page.locator("#fold > summary").click()
     if hidden_tab:
         page.get_by_role("tab", name="Reading", exact=True).click()
@@ -6202,7 +6503,6 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
     expect(edit).to_be_focused()
     edit.press("ControlOrMeta+a")
     edit.press("Backspace")
-    page.keyboard.press("Escape")
     if hidden_tab:
         page.get_by_role("tab", name="Reading", exact=True).click()
     page.locator("#elsewhere").click()
@@ -6358,13 +6658,12 @@ def test_a_draft_button_keeps_its_target_when_pointerdown_focuses_it(browser, se
         ),
     )
     draft = page.locator("#note")
-    # Save keeps its words; cancel and close discard theirs.
+    # Save keeps its words; cancel discards theirs.
     saved = "Keep this note."
     for action, edge in (
         ("edit", "left"),
         ("save", "right"),
         ("cancel", "left"),
-        ("close", "right"),
     ):
         if action != "edit":
             draft_control(page, "edit", "note").click()

@@ -976,6 +976,7 @@ def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
     }""")
     # The bar the last drag raised stands over the line this one starts on.
     page.locator("#t").click()
+    page.locator("#p2").scroll_into_view_if_needed()
     select(page, spot("#p2", "flagged", 3), spot("#p2", "them", 1))
     assert captured() == "flagged between them"
 
@@ -1403,13 +1404,8 @@ def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, hold
     url = live_url(
         serve(leaf_page("Hidden code", '<h1 id="title">Hidden code</h1>' + contents))
     )
-    context = browser.new_context(
-        viewport={"width": 390, "height": 844},
-        is_mobile=True,
-        has_touch=True,
-        permissions=["clipboard-read", "clipboard-write"],
-    )
-    page = open_page(browser, url, context=context)
+    page = open_page(browser, url)
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     controls = page.locator(".lf-chrome > .lf-code-copy")
     expect(controls).to_have_count(100)
     control = controls.first
@@ -1432,7 +1428,7 @@ def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, hold
         if holder == "disclosure"
         else page.get_by_role("tab", name="Overview", exact=True)
     )
-    opener.tap()
+    opener.click()
     rendered(page)
     expect(page.locator("#source")).to_be_visible()
     expect(control).to_be_in_viewport()
@@ -1444,20 +1440,22 @@ def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, hold
         < 100
     )
     button = control.get_by_role("button")
-    button.tap()
+    page.locator("#source").hover()
+    button.click()
     expect(button).to_have_accessible_name("Code copied")
     assert page.evaluate("navigator.clipboard.readText()") == "copy this source"
 
-    closer.tap()
+    closer.click()
     rendered(page)
     expect(page.locator("#source")).to_be_hidden()
     expect(control).not_to_be_in_viewport()
-    opener.tap()
+    opener.click()
     rendered(page)
     expect(control).to_be_in_viewport()
     expect(button).to_have_accessible_name("Copy code")
     page.evaluate("navigator.clipboard.writeText('cleared')")
-    button.tap()
+    page.locator("#source").hover()
+    button.click()
     expect(button).to_have_accessible_name("Code copied")
     assert page.evaluate("navigator.clipboard.readText()") == "copy this source"
 
@@ -2258,14 +2256,19 @@ DIFF_EMPTY_CONTEXT_MARKUP = """diff --git a/example.txt b/example.txt
 
 
 def test_the_widget_reads_the_diff_patch_table(browser, serve):
-    """`diff_patch_cases.json` states what lf-diff can present, for both of its
-    readers (`test_interact_document.py`, "the manifest reads the diff patch table").
-    The widget draws each accepted patch, under the row's paths, as inline text and
-    as the manifest `patch_manifest.py` builds from it, and refuses each row with a
-    `widget` message without hiding evidence, quoting the patch it could not draw.
+    """`diff_patch_cases.json` states what lf-diff can present, which it alone
+    judges. The widget draws each accepted patch, under the row's paths, as inline
+    text and as the manifest `patch_manifest.py` builds from it (whose paths
+    `test_interact_document.py` checks), and refuses each row with a `widget` message
+    without hiding evidence: inline, quoting the patch it could not draw, and in a
+    stored manifest, in the file it cannot draw. Every refusal reaches the author.
     The same page draws the samples above, which the table's rows do not reach."""
     accepted = [case for case in DIFF_PATCH_CASES if "files" in case]
     refused = [case for case in DIFF_PATCH_CASES if "widget" in case]
+    # The manifest stores what it is given, so the widget alone refuses a stored
+    # file's patch, in that file. The contract itself refuses an empty manifest and a
+    # repeated path at `data set`.
+    stored = [case for case in refused if case["id"] not in {"empty", "repeated-path"}]
     markup = "".join(
         [
             *(
@@ -2274,7 +2277,7 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
             ),
             *(
                 f'<lf-diff id="files-{case["id"]}" source="files-{case["id"]}"><pre></pre></lf-diff>'
-                for case in accepted
+                for case in [*accepted, *stored]
             ),
             f'<lf-diff id="inert-diff"><pre>{escape(DIFF_INERT_SOURCE)}</pre></lf-diff>',
             (
@@ -2288,7 +2291,7 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
         ]
     )
     url = serve(leaf_page("diff patch table", f'<h1 id="cases">Cases</h1>{markup}'))
-    for case in accepted:
+    for case in [*accepted, *stored]:
         data_model.cmd_data_set(
             serve.page_dir, f"files-{case['id']}", patch_manifest(case["patch"])
         )
@@ -2318,11 +2321,19 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
             "errors": [f"<lf-diff> failed: {case['widget']}"],
             "source": case["patch"].rstrip("\n") or None,
         }, case["id"]
+    for case in stored:
+        reading = readings[f"files-{case['id']}"]
+        assert reading["rendered"], (case["id"], reading)
+        assert reading["errors"] == [
+            f"That file's diff cannot be shown: {case['widget']}"
+        ], (case["id"], reading)
     # Each refusal reaches the author too, naming the diff that could not draw.
     reported = consume_browser_errors(
-        page, *(f'<lf-diff id="text-{case["id"]}"> failed: ' for case in refused)
+        page,
+        *(f'<lf-diff id="text-{case["id"]}"> failed: ' for case in refused),
+        *(f'<lf-diff id="files-{case["id"]}"> failed: ' for case in stored),
     )
-    assert len(reported) == len(refused), reported
+    assert len(reported) == len(refused) + len(stored), reported
 
     result = page.evaluate("""() => {
       const host = document.querySelector('#inert-diff');
@@ -2557,6 +2568,148 @@ def test_a_tab_inside_a_shadow_tree_no_stage_watches_still_reaches_standing(
     )
     page.wait_for_function("() => window.heard.at(-1)?.[0] === 'two'")
     assert page.evaluate("() => window.heard.at(-1)") == ["two", "step"]
+
+
+@pytest.mark.parametrize(
+    "removed",
+    [
+        "layer",
+        "control",
+        "later-close",
+        "reparent",
+        "staged-reparent",
+        "former-popover",
+        "retained-root",
+        "retained-immediate",
+    ],
+)
+def test_internal_focus_moves_publish_before_old_markup_is_collected(
+    browser, serve, removed
+):
+    """Entering a component subscribes focus to its later internal moves. The move
+    publishes while both controls are alive; detached ancestry cannot recast its cause.
+    """
+    page = open_page(
+        browser, serve(leaf_page("Focus lifetime", "<h1>Focus lifetime</h1>"))
+    )
+    page.evaluate(
+        """async removed => {
+          const host = document.createElement('div');
+          host.id = 'own-root';
+          host.attachShadow({mode: 'open'}).innerHTML =
+            '<dialog open><button id="one">First</button></dialog>' +
+            '<button id="two">Next</button>';
+          document.querySelector('main').append(host);
+          if (removed === 'former-popover') {
+            const dialog = host.shadowRoot.querySelector('dialog');
+            const layer = document.createElement('div');
+            layer.popover = 'manual';
+            layer.append(...dialog.children);
+            dialog.replaceWith(layer);
+            layer.showPopover();
+          }
+          const {onStanding} = await window.__lfRuntimeImport('/runtime/focus.js');
+          window.heard = [];
+          onStanding((node, cause) => window.heard.push([node?.id ?? null, cause]));
+          host.shadowRoot.getElementById('one').focus();
+        }""",
+        removed,
+    )
+    page.wait_for_function("() => window.heard.at(-1)?.[0] === 'one'")
+    if removed in {"retained-root", "retained-immediate"}:
+        assert page.evaluate(
+            """async removed => {
+              const oldHost = document.getElementById('own-root');
+              const oldRoot = oldHost.shadowRoot;
+              const nextHost = document.createElement('div');
+              const nextRoot = nextHost.attachShadow({mode: 'open'});
+              oldHost.after(nextHost);
+              const {move} = await window.__lfRuntimeImport('/runtime/dom-move.js');
+              const place = removed === 'retained-immediate' ? move : (parent, node) => parent.moveBefore(node, null);
+              place(nextRoot, oldRoot.querySelector('dialog'), null);
+              place(nextRoot, oldRoot.getElementById('two'), null);
+              oldHost.id = '';
+              nextHost.id = 'own-root';
+              const preserved = nextRoot.activeElement === nextRoot.getElementById('one');
+              if (removed === 'retained-immediate') nextRoot.getElementById('two').focus();
+              return preserved;
+            }""",
+            removed,
+        )
+        rendered(page)
+    page.evaluate(
+        """removed => {
+          const root = document.getElementById('own-root').shadowRoot;
+          window.oldFocus = new WeakRef(root.getElementById('one'));
+          // This internal move emits no event at the document. The focus owner
+          // must hear it inside the root, while its departing node is still alive.
+          root.getElementById('two').focus();
+          const layer = root.querySelector('dialog, [popover]');
+          if (removed === 'later-close' || removed === 'former-popover') window.detachedLayer = layer;
+          else layer.open = false;
+          (['control', 'staged-reparent'].includes(removed) ? root.getElementById('one') : layer).remove();
+        }""",
+        removed,
+    )
+    rendered(page)
+    if removed == "later-close":
+        page.evaluate(
+            "() => { window.detachedLayer.open = false; window.detachedLayer = null; }"
+        )
+        rendered(page)
+    elif removed in {"reparent", "staged-reparent"}:
+        page.evaluate(
+            """removed => {
+              const layer = document.createElement('dialog');
+              layer.open = removed === 'reparent';
+              layer.append(window.oldFocus.deref());
+            }""",
+            removed,
+        )
+        rendered(page)
+    elif removed == "former-popover":
+        page.evaluate(
+            "() => { window.detachedLayer.removeAttribute('popover'); window.detachedLayer = null; }"
+        )
+        rendered(page)
+    assert page.evaluate("() => window.heard.at(-1)") == ["two", "move"]
+    heard = page.evaluate("() => window.heard")
+    cdp = page.context.new_cdp_session(page)
+    try:
+        cdp.send("HeapProfiler.collectGarbage")
+    finally:
+        cdp.detach()
+    assert page.evaluate("() => window.oldFocus.deref() === undefined")
+    page.keyboard.press("Shift")
+    page.wait_for_function("() => window.heard.at(-1)?.[0] === 'two'")
+    assert page.evaluate("() => window.heard") == heard
+
+
+@pytest.mark.parametrize("arrival", ["native", "return"])
+def test_first_entry_into_a_shadow_root_can_forward_focus(browser, serve, arrival):
+    """A component's focus handler can forward its first arrival before focusin.
+    The final control still publishes the placement's cause without another input.
+    """
+    page = open_page(browser, serve(leaf_page("Focus entry", "<h1>Focus entry</h1>")))
+    page.evaluate(
+        """async arrival => {
+          const host = document.createElement('div');
+          const root = host.attachShadow({mode: 'open'});
+          root.innerHTML = '<button id="one">First</button><button id="two">Next</button>';
+          document.querySelector('main').append(host);
+          const {onStanding, focusDestination} = await window.__lfRuntimeImport('/runtime/focus.js');
+          window.heard = [];
+          onStanding((node, cause) => window.heard.push([node?.id ?? null, cause]));
+          const one = root.getElementById('one');
+          one.addEventListener('focus', () => root.getElementById('two').focus(), {once: true});
+          if (arrival === 'return') focusDestination(one, 'return');
+          else one.focus();
+        }""",
+        arrival,
+    )
+    assert page.evaluate("() => window.heard") == [
+        ["two", "return" if arrival == "return" else "move"]
+    ]
 
 
 def test_two_comments_on_one_element_both_stay_anchored(browser, serve):

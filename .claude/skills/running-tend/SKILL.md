@@ -34,9 +34,10 @@ A diff that settles its symptom without reaching the underlying issue is an
 architectural seam, not polish: name the issue, and withhold approval unless the
 change meets the deferral condition in **Fix the underlying issue**.
 
-Hold any fix for a red test to **Reading a red suite**: one that gives up the
-intent of the change that broke the test, or moves the interface beyond it,
-without the issue that section requires is a regression on the claimed path.
+Hold any fix for a red test to **Reading a red suite**: one that moves the
+interface beyond what the change that broke the test meant to, or gives up that
+change's intent without the issue the section requires, is a regression on the
+claimed path.
 
 ## Review test selection
 
@@ -76,16 +77,17 @@ When the test itself is wrong, validate the intended behavior with corrected or
 replacement checks. Justify removing a test that protects no user behavior
 rather than claiming the removed test passed.
 
-A repair that reverts the change, gives up any of its intent, or moves the
-interface beyond it needs an issue, so the change can return deliberately; so
-does a repair chosen where the evidence left the choice uncertain. Address the
-issue to the change's author; when a bot wrote it, to the person who requested
-or merged it, or to the repository's maintainer where no person did. Link the
-originating and repair pull requests, and say what the change intended, what
-conflicted, what the repair gave up and what remains uncertain. Mark the issue as awaiting that person's judgment and leave it open
-until they settle it; subsequent Tend runs must not decide on their behalf. The
-repair's description names each behavior it moved. Proceed under **Fix every
-failure in a red run** rather than waiting for that judgment.
+A repair that reverts the change or gives up any of its intent needs an issue,
+so the change can return deliberately; so does a repair chosen where the
+evidence left the choice uncertain. Address the issue to the change's author;
+when a bot wrote it, to the person who requested or merged it, or to the
+repository's maintainer where no person did. Link the originating and repair
+pull requests, and say what the change intended, what conflicted, what the
+repair gave up and what remains uncertain. Mark the issue as awaiting that
+person's judgment and leave it open until they settle it; subsequent Tend runs
+must not decide on their behalf. The repair's description names each behavior
+it moved. Proceed under **Fix every failure in a red run** rather than waiting
+for that judgment.
 
 Read the failing test's record in main's earlier runs that ran it before choosing a
 fix (a `nightly` test runs only in the daily scheduled run, `gh run list -w ci -e

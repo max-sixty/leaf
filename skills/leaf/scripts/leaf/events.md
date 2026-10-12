@@ -22,11 +22,11 @@ an id is unique within its page and is not a global identifier. The kinds:
 | `done` | user | the banner, only on a page declaring `<meta name="lf-review" content="sign-off">` | `version`, the stamp approved | approval of the declared sign-off; a page that asks nothing gets no terminal control |
 | `action` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`; server-stamped `meaning` | the user edited the document through the widget |
 | `report` | agent or worker | `leaf page report` | `widget`, `action`, `detail`; server-stamped `meaning` (as for `action`, validated by an `x-state` verb declaring `writer: "agent"`) | provisional state that stands until a stamped revision answers it |
-| `pickup` | page | the delivery transport; a harness failure receipt | `events`, `phase` (`queued`, `opened`, or `failed`), `session`, `turn`; `failure` (when `failed`) | the named attention-bearing inputs reached the durable Codex queue or entered an exact agent turn, or the harness gave up on them with no answer coming; includes page errors and reports; idempotent per event, phase, session, and turn; never a work claim |
+| `pickup` | page | the delivery transport; a harness failure receipt | `events`, `phase` (`queued`, `opened`, or `failed`), `session`, `turn`; `failure` (when `failed`); `refs`, the `answer.ref` the receipt's delivery gave each input it owes an answer, with the claim that delivery was captured under (when it carried any) | the named attention-bearing inputs reached the durable Codex queue or entered an exact agent turn, or the harness gave up on them with no answer coming; includes page errors and reports; idempotent per event, phase, session, and turn; never a work claim |
 | `note` | agent | `leaf page stamp` | `version`, `revision`, changelog `text`, `restated`, `settles` (`report` ids it answered, and `todo` ids its `--completes` ends) | one public version mapped to an immutable revision, naming the decisions it took back, the reports it answered and the widget to-dos it completed |
 | `error` | page | the runtime | `text` | the page reported a failure in front of the user; heard like a report, never counted against the user |
 | `todo` | agent | `leaf task open`, or a reply's `todo` (`leaf response reply --todo`) | `owner` (`agent`, or `user` with `--on user`); `subject`: `{kind: thread, id}` (a reply's to-do only, on the reply's thread), `{kind: widget, id}` (a live page widget, which for the agent's own to-do declares `x-work` or holds an unsettled action), `{kind: element, id}` (any other element of the page), or `{kind: page}`; `title`; server-stamped `revision` on a widget to-do | the agent takes on work it owes there, or puts a to-do on the user; the agent's stands through replies, resolutions, versions and session ends, and the user's until their Done (`tasks.py`) |
-| `todo_end` | agent or user | `leaf task end`, `POST /api/event` from a to-do's Done | `todo`, an open to-do id, or for an agent withdrawal a prose ask id (`reply:<message-id>`); `outcome` (`done`, `failed`, or `dropped`; the user's is `done`); optional `detail` from the agent | ends explicit work; the user can end only a to-do opened on them. For a prose ask, the agent withdraws the request without creating an answer, whatever the outcome. Widget asks end through their declared widget state or an authored withdrawal |
+| `todo_end` | agent or user | `leaf task end`, `POST /api/event` from a to-do's Done | `todo`, an open to-do id, or for an agent withdrawal a prose ask id (`reply:<message-id>`); `outcome` (`done`, `failed`, or `dropped`; the user's is `done`); optional `detail` from the agent | ends explicit work; the user can end only a to-do opened on them. For a prose ask, the agent's `done` records it answered elsewhere and `dropped` records it withdrawn, neither creating an answer; `failed` is refused. Widget asks end through their declared widget state or an authored withdrawal |
 | `start` | agent | `leaf task start`; addressed progress carries the same declaration in its reply | `item`, an update the agent owes (its event id) or an open to-do; the banner's `text`; `turn`, the claimant turn that wrote it, when the poster holds the page | takes the item in hand: an update reads Working and a to-do runs, until the update is answered, the to-do ends, or a `put_down` follows; the newest start on an item replaces the one before |
 | `put_down` | agent | `leaf status waiting` and `leaf status idle`, when a start stands | | ends every start before it: the updates they named go back to their delivery stage and the to-dos stay open with nothing running (`tasks.item_starts`) |
 | `undo` | user | `POST /api/event` | `undoes` | withdraws one gesture of the user's own (`UNDOABLE_KINDS`: resolve, unresolve, action, done, todo_end) |
@@ -216,9 +216,9 @@ differently.
 Recorded effects own their payload schema (`registry.contract.detail_schema`):
 `detail.value` carries a body's string, an attribute set's ids, or the scalar
 attribute's own schema. Positions require `{unit, value, rank}` for the moved
-item, destination and rank key. `report: true` on an agent verb adds required
-nonempty `detail.text`. Custom verbs without a record keep their declared detail
-schema. All payloads are closed objects.
+item, destination and rank key. `text: true` on an agent verb requires each report
+to carry non-empty `detail.text`. Custom verbs without a record keep their declared
+detail schema. All payloads are closed objects.
 
 Dependency identities come from the fold unit and the attribute-set and position
 record values, each a nonempty string the payload schema requires, and a position's
@@ -315,11 +315,14 @@ A user turn answers every question before it; a reaction whose token declares
 become current again. Neither answer resolves the thread. `questions.thread_questions`
 owns recognition, content identity, answer and withdrawal for every prose question,
 including an agent opening comment. An agent `todo_end` naming an open prose
-ask withdraws that request; its outcome is no user answer.
+ask retires that request, `done` as answered elsewhere and `dropped` as withdrawn;
+neither outcome is a user answer.
 
 `work_reading.WorkReading.all_questions` combines page widgets, frozen widgets and
 prose into one canonical inventory. Every record carries stable `id`, `source`,
-`thread`, `message`, `prompt`, `answer`, `status` and `next_actor`. A frozen widget's
+`thread`, `message`, `prompt`, `answer`, `status`, `end` and `next_actor`;
+`questions` owns the statuses, and `end` holds the agent `todo_end` that retired a
+prose ask, its detail and event reference, or `null`. A frozen widget's
 `message` names the exact message whose markup owns it, independently of the thread's
 root; a prose ask names its source message. Page widgets and approval have no
 owning message and carry `null`. Widget identities are

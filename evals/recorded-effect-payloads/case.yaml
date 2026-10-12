@@ -2,6 +2,8 @@
 # the public instructions let an author use the effect-owned payload without
 # recreating a schema or field mapping. The candidate passed and the baseline
 # failed in one Codex sample per arm; this is diagnostic, not a reliability estimate.
+# Reworded by #2329 (`update: true` to `report: true`); at 3fe3eb0af it passed
+# 1/1 on Claude Code.
 description: recorded-effect-payloads
 metadata:
   purpose: Package authors declare recorded effects once and send their validated payloads.
@@ -33,7 +35,7 @@ assert:
     omit record.value and record.rank field mappings. The note's edit declaration
     uses unit:"widget" and record:{kind:"body"}; its detail is
     {"value":"Corrected note"}. The check's finish declaration uses writer:"agent",
-    unit:"widget", record:{kind:"value",attr:"status"}, report:true; its detail is
+    unit:"widget", record:{kind:"value",attr:"status"}, text:true; its detail is
     {"value":"done","text":"Checks passed"}. The board's move declaration uses
     unit:"unit" and record:{kind:"position",within:"lf-lane"}; its detail is
     {"unit":"card-1","value":"archive","rank":"v"}. Equivalent key ordering

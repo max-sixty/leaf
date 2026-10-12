@@ -41,10 +41,11 @@ from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.revision_artifact import read_artifact
 from leaf.structure import SourceDocument
+from leaf_dev import docs
 from leaf_dev import site as site_build
 from leaf_dev.example_data import catalog_sources, data_operations, example_versions
 from leaf_dev.leaf_assets import pinned_assets
-from leaf_dev.page_fixtures import source_packages
+from leaf_dev.page_fixtures import authored_markup, source_packages
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_layout import banner_control
@@ -119,11 +120,15 @@ def pages_under(directory):
     return pages
 
 
+def heading(source: str) -> str:
+    """The words of the h1 an authored source carries, as the parser reads them."""
+    return " ".join(SourceDocument(source).tree.select_one("h1").text.split())
+
+
 def example_title(stem: str) -> str:
     """The h1 an example's own source carries, so a retitled example cannot strand a
     test on its old words."""
-    source = (EXAMPLES / f"{stem}.html").read_text(encoding="utf-8")
-    return re.search(r"<h1>(.*?)</h1>", source, re.DOTALL).group(1).strip()
+    return heading((EXAMPLES / f"{stem}.html").read_text(encoding="utf-8"))
 
 
 def authored_examples():
@@ -345,9 +350,7 @@ def test_product_pages_are_published_as_complete_page_records(site):
     assert {source.name for source in sources} == set(site_build.PRODUCT_ROUTES)
     for source in sources:
         page = site_build.product_page(site, source.name)
-        expected = source.read_text()
-        if source.name == "examples.html":
-            expected = site_build.catalog_markup(expected)
+        expected = authored_markup(source)
         assert (page / "index.html").read_text() == expected, source.name
         for name in (
             *schema_model.VENDORED_FILES,
@@ -388,7 +391,7 @@ def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
     """The edge gets served Leaf documents and browser assets, never session state."""
     assets = site_build.asset_site(site)
     pinned = pinned_assets()
-    root_media = SourceDocument((ROOT / "docs" / "index.html").read_text()).media_refs
+    root_media = SourceDocument(authored_markup(DOCS / "index.html")).media_refs
     root_media.add(media_url(pinned / site_build.SOCIAL_CARD))
     product_media = {
         Path(media_url(source)).name: source
@@ -1068,11 +1071,10 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
         wait_until_ready(page)
         assert page.evaluate("document.compatMode") == "CSS1Compat", name
         source = (DOCS / name).read_text(encoding="utf-8")
-        expected_title = re.search(r"<title>(.*?)</title>", source, re.DOTALL)
-        expected_h1 = re.search(r"<h1>(.*?)</h1>", source, re.DOTALL)
-        assert expected_title and expected_h1
-        assert page.title() == expected_title.group(1).strip(), name
-        expect(page.locator("h1")).to_have_text(expected_h1.group(1).strip())
+        expected_title = SourceDocument(source).title.strip()
+        assert expected_title
+        assert page.title() == expected_title, name
+        expect(page.locator("h1")).to_have_text(heading(source))
         expect(page.locator(".lf-chrome")).to_have_count(1)
         expect(page.locator("script[data-lf-server]")).to_have_count(1)
         expect(page.locator('link[rel="stylesheet"]')).to_have_count(1)
@@ -1084,7 +1086,7 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
         state = page.evaluate("() => fetch('api/state').then(r => r.json())")
         assert state["publication"] == {
             "kind": "product",
-            "agent": "The agent",
+            "agent": "Agent",
             "install_url": "/#install",
         }
         if name == "how-it-works.html":
@@ -1190,7 +1192,7 @@ def test_an_invalid_product_document_stops_the_build(tmp_path, monkeypatch):
             "</head>", '<base href="https://evil.example/"></head>'
         )
     )
-    monkeypatch.setattr(site_build, "DOCS", staged_docs)
+    monkeypatch.setattr(docs, "DOCS", staged_docs)
 
     with pytest.raises(SystemExit) as stopped:
         site_build.build(tmp_path / "invalid-site", site_build.checkout_leaf())
@@ -1385,12 +1387,12 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
             f"Showing v{newest}"
         )
         expect(page.locator(".lf-status-text")).to_have_text(
-            "This is an example on the Leaf website. The agent replies and "
+            "This is an example on the Leaf website. Agent replies and "
             "revises this private copy. Other examples Install Leaf"
         )
         if source == FEATURE_GALLERY:
             samples = page.locator("#bg-interactions lf-sample")
-            expect(samples).to_have_count(4)
+            expect(samples).to_have_count(3)
             for sample in samples.all():
                 sample.evaluate("async sample => { await sample.ready; }")
         if source.stem in framed:
@@ -1502,7 +1504,7 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
     page_dir, url = served_example("triage-board")
     page = open_page(browser, url)
     expect(page.locator(".lf-banner .lf-status-text")).to_have_text(
-        "This is an example on the Leaf website. The agent replies and revises "
+        "This is an example on the Leaf website. Agent replies and revises "
         "this private copy. Other examples Install Leaf"
     )
     assert page.locator(".lf-banner .lf-status-text a").evaluate_all(
@@ -1515,7 +1517,7 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
     state = page.evaluate("() => fetch('api/state').then(r => r.json())")
     assert state["publication"] == {
         "kind": "example",
-        "agent": "The agent",
+        "agent": "Agent",
         "install_url": "/#install",
     }
     assert state["browser"]["todos"] == []

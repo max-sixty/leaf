@@ -40,6 +40,7 @@ from render_cases_interaction import (
     LIVE_KEYS_V1,
     LIVE_KEYS_V2,
     LIVE_KEYS_V3,
+    LIVE_READING,
     LIVE_V1,
     LIVE_V2,
     LIVE_V3,
@@ -79,6 +80,7 @@ from render_cases_navigation import (
 from render_harness import (
     CORPUS_SOURCES,
     EXAMPLE_PACKAGES,
+    LANDING_TOP,
     RELEASE_FOCUS,
     REPLY_HOST_PAGE,
     SAMPLE_MARKUP,
@@ -1762,12 +1764,27 @@ def test_live_news_keeps_the_reading_draft_and_resting_target(browser, serve):
     assert reading.bounding_box()["y"] > place["y"] + 100
 
 
-@pytest.mark.watch_shifts
-def test_live_revision_keeps_the_visible_semantic_reading(browser, serve):
+@pytest.mark.parametrize(
+    "where",
+    [
+        pytest.param("above", marks=pytest.mark.watch_shifts),
+        # Unwatched: the revision rewrites the words of the text node the reader reads,
+        # and the watch compares that node's lines by their order, so every line below
+        # the rewrite reads as moved, though each holds other words than it did.
+        "inside",
+        pytest.param("figure", marks=pytest.mark.watch_shifts),
+    ],
+)
+def test_live_revision_keeps_the_visible_semantic_reading(browser, serve, where):
     """A content revision keeps the reader on a page that still asks for approval.
 
     Native scroll anchoring is disabled by this page's layout, so it cannot conceal
-    a broken semantic carry when five paragraphs arrive above the reader.
+    a broken semantic carry when five paragraphs arrive above the reader. Where the
+    reader stands partway into a long paragraph, its start under the banner, and the
+    revision also lengthens words of it above their line, the line they read stays
+    where it was, not the paragraph's opening line. Where a figure taller than the
+    window fills it, with no words on screen, the part of the figure at the edge stays
+    there, not the old scroll offset, which now names the arriving paragraphs.
     """
     anchoring = "<style>html { overflow-anchor: none; }</style>"
     first = LIVE_V1.replace(
@@ -1775,27 +1792,73 @@ def test_live_revision_keeps_the_visible_semantic_reading(browser, serve):
         '<meta name="lf-review" content="sign-off">' + anchoring + "</head>",
     )
     second = LIVE_V2.replace("</head>", anchoring + "</head>")
+    if where == "inside":
+        words = " ".join(f"w{n:04d}" for n in range(1, 500))
+        first = first.replace(LIVE_READING, words)
+        second = second.replace(LIVE_READING, words).replace(
+            " w0005 ", " " + "a longer phrase standing where one word stood " * 6
+        )
+    if where == "figure":
+        figure = (
+            '<svg id="live-reading" viewBox="0 0 100 300"'
+            ' style="display:block;width:100%;height:auto">'
+            + "".join(
+                f'<rect x="0" y="{n * 10}" width="100" height="10"'
+                f' fill="hsl({n * 12} 60% 60%)"/>'
+                for n in range(30)
+            )
+            + "</svg>"
+        )
+        paragraph = f'<p id="live-reading">{LIVE_READING}</p>'
+        first = first.replace(paragraph, figure)
+        second = second.replace(paragraph, figure)
     page = open_page(browser, live_url(serve(first)))
     resized(page, 1200, 900)
     reading = page.locator("#live-reading")
     reading.scroll_into_view_if_needed()
     page.evaluate(
-        """() => document.scrollingElement.scrollBy({
-          top: document.getElementById('live-reading').getBoundingClientRect().top - 140,
-          behavior: 'instant'
-        })"""
+        """(where) => {
+          const box = document.getElementById('live-reading').getBoundingClientRect();
+          document.scrollingElement.scrollBy({
+            top: box.top - {above: 140, inside: -300, figure: -0.4 * box.height}[where],
+            behavior: 'instant'
+          });
+        }""",
+        where,
     )
     scroll_settled(page)
     expect(reading).to_be_in_viewport()
-    before = reading.evaluate("node => node.getBoundingClientRect().top")
+    # The first word at or below the landing band, and where it stands; in a figure,
+    # how far through its height the band cuts it.
+    word_at_band = f"""async (word) => {{
+      const band = {LANDING_TOP};
+      const reading = document.getElementById('live-reading');
+      if (reading.localName === 'svg') {{
+        const box = reading.getBoundingClientRect();
+        return {{top: (band - box.top) / box.height}};
+      }}
+      const text = reading.firstChild;
+      const range = document.createRange();
+      for (const match of text.data.matchAll(/\\S+/g)) {{
+        if (word && match[0] !== word) continue;
+        range.setStart(text, match.index);
+        range.setEnd(text, match.index + match[0].length);
+        const rect = range.getClientRects()[0];
+        if (word || (rect.top + rect.bottom) / 2 >= band)
+          return {{word: match[0], top: rect.top}};
+      }}
+    }}"""
+    before = page.evaluate(word_at_band, None)
     page.wait_for_timeout(600)
     (serve.page_dir / "index.html").write_text(second)
     told(page)
     expect(page).to_have_title("Live second")
     expect(page.locator("#live-new-4")).to_contain_text("New finding 4")
     rendered(page)
-    after = reading.evaluate("node => node.getBoundingClientRect().top")
-    assert after == pytest.approx(before, abs=4), (before, after)
+    after = page.evaluate(word_at_band, before.get("word"))
+    assert after["top"] == pytest.approx(
+        before["top"], abs=0.01 if where == "figure" else 4
+    ), (before, after)
 
 
 def test_a_revision_keeps_the_paragraph_under_a_focused_stuck_tab(browser, serve):
@@ -2725,22 +2788,50 @@ def test_a_revision_inside_one_tab_keeps_the_tab_set_and_every_other_tab(
     expect(page.locator("#tp-notes")).to_be_visible()
 
 
-def test_a_revision_releases_the_served_markup_it_removes(browser, serve):
+@pytest.mark.parametrize("departure", ["focused", "link", "selection"])
+def test_a_revision_releases_the_served_markup_it_removes(browser, serve, departure):
     """Markup the page was served with leaves memory once a revision removes it. The
     served baseline's source copy routes each copied node to the live node it came
     from, so holding that copy past the revision that replaced it kept every served
     node alive for the rest of the session. A host painted before modules run is
-    included, since the first-paint coordinator copies it separately."""
+    included, since the first-paint coordinator copies it separately. Neither the
+    dropped focus, before another input, nor a fragment trip's history checkpoint
+    may keep removed markup alive."""
     first = leaf_page(
         "Served",
         '<h1>Served</h1><section id="served"><h2>Served section</h2>'
-        '<lf-activity id="served-feed"></lf-activity><p>Served words.</p></section>',
+        '<lf-activity id="served-feed"></lf-activity><p>Served words, and'
+        ' <a id="served-link" href="#destination">a link in them</a>.</p>'
+        '<p id="served-selection">A passage with a saved caret.</p></section>'
+        '<div style="height:1600px"></div>'
+        '<h2 id="destination">Destination</h2>'
+        '<lf-ask id="question"><h2>A decision?</h2>'
+        '<lf-options id="answer" choose><lf-option id="yes">Yes</lf-option>'
+        "</lf-options></lf-ask>",
     )
     second = leaf_page("Revised", "<h1>Revised</h1><p>Revised words.</p>")
     page = open_page(browser, live_url(serve(first)))
+    page.locator("#served-link").focus()
+    page.keyboard.press("Shift")
+    entries = page.evaluate("history.length")
+    if departure == "link":
+        page.locator("#served-link").click()
+        expect(page.locator("#destination")).to_be_focused()
+    elif departure == "selection":
+        page.locator("#served-selection").click()
+        assert (
+            page.evaluate("getSelection().anchorNode.parentElement.id")
+            == "served-selection"
+        )
+        page.keyboard.press("q")
+        expect(page.locator("#question")).to_be_focused()
+    if departure != "focused":
+        assert page.evaluate("history.length") == entries + 1
+        scroll_settled(page)
+    rendered(page)
     page.evaluate(
         """() => {
-          window.__held = ['served', 'served-feed'].map(
+          window.__held = ['served', 'served-feed', 'served-link', 'served-selection'].map(
             (id) => new WeakRef(document.getElementById(id)));
           // The control: a removed node nothing else holds, so a collection that
           // clears it has run.
@@ -2752,6 +2843,7 @@ def test_a_revision_releases_the_served_markup_it_removes(browser, serve):
     )
     stamp_page(serve.page_dir, second, "remove the served section")
     wait_for_revision(page, 2)
+    rendered(page)
     cdp = page.context.new_cdp_session(page)
     try:
         cdp.send("HeapProfiler.collectGarbage")
@@ -4072,13 +4164,13 @@ def test_a_revision_gives_values_to_controls_the_user_never_touched(browser, ser
 def test_a_revision_that_rewrites_a_draft_leaves_the_user_where_they_stand(
     browser, serve
 ):
-    """A draft's unsent edit comes back with it, and does not take the user with it.
+    """A draft's open editor comes back with it, and does not take the user with it.
 
-    Escape sets a draft's edit aside rather than discarding it, and the draft reads the
-    edit back from its own store whenever it connects — which a revision rewriting the
-    draft makes it do. Getting the words back is right. The editor taking the focus is
-    not, when the user had put the edit away and gone to stand on something else: the
-    revision is news, and news with no gesture behind it moves nobody.
+    The draft reads an open editor's words back from its own store whenever it
+    connects — which a revision rewriting the draft makes it do. Getting the words back
+    is right. The editor taking the focus is not, when the user had left the editor
+    open and gone to stand on something else: the revision is news, and news with no
+    gesture behind it moves nobody.
     """
     draft = '<lf-draft id="plan"><pre>Ship it.</pre></lf-draft>'
     first = LIVE_KEYS_V1.replace('<p id="lk-para">', draft + '\n<p id="lk-para">')
@@ -4091,9 +4183,7 @@ def test_a_revision_that_rewrites_a_draft_leaves_the_user_where_they_stand(
     editor = page.locator("lf-draft leaf-text")
     expect(editor).to_be_focused()
     write(editor, "Ship it, but louder.")
-    page.keyboard.press("Escape")
-    expect(editor).to_have_count(0)
-    # The user goes and stands on the question instead.
+    # The user leaves the editor open and goes to stand on the question instead.
     pick = page.locator("#lk-one .lf-pick")
     pick.focus()
     expect(pick).to_be_focused()
@@ -6531,8 +6621,9 @@ def test_live_revision_drafts_wait_for_the_complete_controller_publication(
     revised.locator(".lf-draft-body").click()
     editor = revised.get_by_role("textbox", name="Edit revised-draft")
     write(editor, "The user's unsent replacement.\n")
-    editor.press("Escape")
-    expect(editor).to_have_count(0)
+    # The user leaves the editor open and steps back to the page.
+    page.locator("h1").click()
+    expect(editor).not_to_be_focused()
     assert take_browser_errors(page) == []
 
     stamp_page(serve.page_dir, second, "replace and insert drafts")

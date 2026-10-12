@@ -70,6 +70,8 @@ export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
 // Making an element's children a list, moving only what is out of place.
 export { setChildLists, setChildren, setRenderedChildren } from "./dom-children.js";
 export { readQuestions, watchQuestions } from "./questions/model.js";
+// The asks a region of the page holds, by the rule every count and walk of them reads.
+export { asksIn } from "./questions/place.js";
 export { comparisonChanges, watchComparison } from "./version.js";
 export { questionWords } from "./questions/answer.js";
 export {
@@ -102,6 +104,7 @@ export { HeldReading } from "./thread/held-news.js";
 export { wireInput } from "./application.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
 export { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
+export { isNativeLayer } from "./shadow-tree.js";
 export { HOLDS_WORD } from "./held-word.js";
 // `rowArrows(node)` is the `[back, ahead]` arrow pair along a row, in its text direction.
 export { PRESS, labelOf, rowArrows } from "./keyboard/bindings.js";
@@ -166,7 +169,7 @@ export {
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
 export { announce, notice } from "./notifications.js";
-export { alignText, alignedNodes } from "./text-alignment.js";
+export { alignText } from "./text-alignment.js";
 export { inChrome, says, wrote } from "./passages.js";
 export {
   ago,
@@ -201,7 +204,7 @@ export {
 export { PAGE_INTERFACE, PRESENTATION, afterPresentation } from "./presentation.js";
 export { quietWord } from "./declared-words.js";
 export { projectData } from "./application.js";
-export { copyCodeBlock } from "./code-copy.js";
+export { copyBlock } from "./code-copy.js";
 export { retainUserIntent } from "./user-intent.js";
 // Whether a press is the plain one a control claims: the primary button, no modifier.
 export { plainPress } from "./pointer.js";
@@ -215,7 +218,7 @@ export {
   syntax,
   tokenLines,
 } from "./syntax.js";
-export { bodyText, dataBody, failSoft, once } from "./widget-upgrade.js";
+export { bodyText, dataBody, failSoft, once, reportFailure } from "./widget-upgrade.js";
 export { saidAt, reportSequence, watchHistory, watchReports } from "./reports.js";
 export {
   HIDDEN,

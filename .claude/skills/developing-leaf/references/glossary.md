@@ -182,9 +182,10 @@ the document's height.
 | **Tasks** | The agent's list, everything waiting on the agent (`queues.tasks`): answers it owes, work in hand, and its own to-dos. The banner ends with its count, and the Questions panel shows it as its Tasks section. A message the user sends counts among Tasks as an answer the agent owes before any to-do exists |
 | **Ask** | One core record of a request for the user's input, with its typed answer and its lifecycle. A widget ask has identity `widget:<source-id>`; a prose ask, from a reply sent with `--ask`, has `reply:<agent-message-id>`; an approval ask, `approval:v<version>`, tracks a stamped version's sign-off. Widget state owns a widget ask's values, and the conversation owns a prose ask's settlement. An optional `lf-ask` frames one or more asks with prompt context without changing their identity. An ask is distinct from a to-do and from a resend |
 | **To-do** | Explicit work owed until it ends (`todo` in the protocol), by the agent or by the user. An ask is a separate record, not a to-do |
+| **Tally** | `lf-tally`: how many of the asks a region holds (`asksIn`) are still open, “7 of 8 to answer”, with an optional Next question that walks the region's asks waiting on the user |
 | **Resend** | An update the user has to send again, which stays on Questions until they do |
 | **Done** | The control with which the user ends a to-do the agent put on them; it writes `todo_end`. A widget may also name its own answer-submission control Done |
-| **Done fold** | The Questions panel's third list, below Questions and Tasks: asks answered or withdrawn and to-dos ended |
+| **Done fold** | The Questions panel's third list, below Questions and Tasks: asks answered, here or elsewhere, or withdrawn, and to-dos ended |
 | **Trip** | One travel to a destination (a thread's passage, an ask, a datum, or the element a followed fragment link names): it clears the auxiliary surface hiding the destination, then stays where the user already has it, or departs and leaves a history entry (`history.js`) |
 | **Journey** | Consecutive trips each leaving from the last one's landing, which share one history entry so Back returns to where the first began; it may mix threads and asks, and is not a walk |
 | **Standing** | Holding a destination or a control inside it: a thread on the page or in the panel, an ask, or authored page content. A panel thread's title and its messages are one destination; chrome controls, margin rows, comment notes, and contents-outline links are apparatus, not destinations |
@@ -248,6 +249,9 @@ These terms name Leaf concepts that no standard term covers, so they stay:
   *top layer*, which the platform keeps but does not expose.
 - **Key badge**: a keycap-shaped label that carries a hint code as well as a binding,
   so *keycap* alone would misname half its uses.
+- **Tally**: a *progress indicator* draws completion as a bar or ring and a *counter*
+  counts anything; a tally counts what is left of one region's asks against their whole
+  and leads to the next, so neither name says what it counts or that it navigates.
 
 **Pin**, **Banner**, **Drawer**, **Toolbar**, and **Picker** keep their ordinary UI
 meanings. Qualify **picker** (the target picker, the version picker) where the reaction

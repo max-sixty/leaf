@@ -3734,7 +3734,7 @@ def test_the_squeeze_reading_follows_words_into_an_open_shadow_root(
 
     squeezed = render_checks_model.evaluate_probe(page, "squeezedTables")
 
-    assert any("<table id=held> scrolls" in finding for finding in squeezed), squeezed
+    assert any("<table id=held> scrolls" in f["text"] for f in squeezed), squeezed
 
 
 def test_every_table_the_theme_sets_honestly_passes_the_gate(browser, serve):
@@ -3772,7 +3772,8 @@ def test_every_table_the_theme_sets_honestly_passes_the_gate(browser, serve):
     # Vacuous otherwise: the gate has to be looking at a page that carries both.
     expect(open_page(browser, url).locator(".lf-mark-note")).to_have_count(2)
 
-    assert render_gate_model.render_version(browser, url).failures == []
+    reading = render_gate_model.render_version(browser, url)
+    assert (reading.failures, reading.advice) == ([], []), reading
 
 
 def test_a_quiet_word_inside_a_scrolling_table_leaves_the_page_its_own_width(

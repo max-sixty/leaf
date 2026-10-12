@@ -1,8 +1,6 @@
 """Vendored registry storage and page lookup."""
 
-import re
 from collections.abc import Collection
-from datetime import datetime
 from pathlib import Path
 
 from leaf.files import file_stamp, latest_revision, read_json
@@ -166,72 +164,27 @@ def layer_packages(page_dir: Path) -> list[str]:
 
 
 def layer_metadata(page_dir: Path) -> dict:
-    """The identity recorded by this page's complete vendored layer."""
+    """The identity recorded by this page's complete vendored layer.
+
+    `page init` writes it, so it is read as written; a layer vendored before this
+    identity existed is one `page init` replaces."""
     path = page_dir / "registry.json"
-    registry = read_registry_declarations(path)
-    layer = (registry or {}).get("$layer", {})
-    generation = layer.get("generation")
-    if not isinstance(generation, str) or not generation:
+    layer = (read_registry_declarations(path) or {}).get("$layer", {})
+    if not (layer.get("generation") and layer.get("fingerprint")):
         raise RegistryError(
-            f"{path}: vendored registry lacks $layer.generation; run `leaf page init`"
+            f"{path}: vendored registry lacks its $layer identity; run `leaf page init`"
         )
-    packages = _layer_packages(layer, path)
-    fingerprint = layer.get("fingerprint")
-    if not (
-        isinstance(fingerprint, str)
-        and re.fullmatch(r"sha256:[0-9a-f]{64}", fingerprint)
-    ):
-        raise RegistryError(f"{path}: $layer.fingerprint must be a SHA-256 identity")
-    # A page vendored before this identity existed reads as having none.
-    identities = {}
-    server = layer.get("server")
-    if server is not None:
-        if not (
-            isinstance(server, str) and re.fullmatch(r"sha256:[0-9a-f]{64}", server)
-        ):
-            raise RegistryError(f"{path}: $layer.server must be a SHA-256 identity")
-        identities["server"] = server
-    producer = layer.get("producer")
-    if producer is not None and not isinstance(producer, dict):
-        raise RegistryError(f"{path}: $layer.producer must be an object")
-    if producer is not None:
-        commit = producer.get("commit")
-        dirty = producer.get("dirty")
-        if commit is not None and not (
-            isinstance(commit, str) and re.fullmatch(r"[0-9a-f]{7,40}", commit)
-        ):
-            raise RegistryError(
-                f"{path}: $layer.producer.commit must be a Git object name"
-            )
-        if dirty is not None and not isinstance(dirty, bool):
-            raise RegistryError(f"{path}: $layer.producer.dirty must be true or false")
-        dates = {
-            kind: producer[kind]
-            for kind in ("committed", "installed")
-            if producer.get(kind) is not None
-        }
-        # An offset is required: without one, each viewer's browser reads the time
-        # in its own zone, and one page shows different ages.
-        for kind, value in dates.items():
-            try:
-                offset = datetime.fromisoformat(value).utcoffset()
-            except (TypeError, ValueError):
-                offset = None
-            if offset is None:
-                raise RegistryError(
-                    f"{path}: $layer.producer.{kind} must be an ISO 8601 date "
-                    "with a timezone offset"
-                )
-        producer = {
-            **({"commit": commit} if commit is not None else {}),
-            **({"dirty": dirty} if dirty is not None else {}),
-            **dates,
-        }
+    producer = {
+        kind: value
+        for kind in ("commit", "dirty", "committed", "installed")
+        if (value := layer.get("producer", {}).get(kind)) is not None
+    }
     return {
-        "generation": generation,
-        "fingerprint": fingerprint,
-        **identities,
-        "packages": packages,
+        "generation": layer["generation"],
+        "fingerprint": layer["fingerprint"],
+        # A page vendored before the server identity existed reads as having none.
+        **({"server": layer["server"]} if "server" in layer else {}),
+        "packages": _layer_packages(layer, path),
         **({"producer": producer} if producer else {}),
     }
 

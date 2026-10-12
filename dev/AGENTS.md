@@ -78,6 +78,8 @@ reaches a module by importing it from this package, never through `sys.path`,
 - `leaf-dev eval [CASE]... --harness claude-code|codex|both` runs the eval catalog
   through Promptfoo on the working tree, and with `--base` the merge base too.
   `evals/README.md` owns the format and how to read the results.
+- `leaf-dev eval-pairs RUN...` judges an authored task's samples across a run's two
+  columns side by side, in both orders.
 - `leaf-dev eval-ui-review` runs the retained internal viewer-review diagnostics;
   `evals/ui-review-detection/README.md` owns their scope, controls and automatic grading.
 

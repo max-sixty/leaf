@@ -43,6 +43,7 @@ from leaf_dev.arms import (
     progress_start,
     read_page_state,
     read_trace,
+    resumed,
     run_agent,
     run_leaf,
     scratch,
@@ -1732,7 +1733,7 @@ def execute_scenario(
     with scratch() as child_work:
         execute(run, child_work)
         traces = run.traces()
-        phases = [trace_scores(t) for t in traces]
+        phases = resumed([trace_scores(t) for t in traces])
         replies = [p["reply"] for p in phases]
         calls = [c for p in phases for c in p["calls"]]
         usable = run.usable()

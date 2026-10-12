@@ -1823,6 +1823,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     min-height: 0;
     overflow: hidden;
     display: grid;
+    grid-template: minmax(0, 1fr) / minmax(0, 1fr);
     place-items: center;
     padding: 16px;
     box-sizing: border-box;

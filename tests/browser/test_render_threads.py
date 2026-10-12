@@ -2909,16 +2909,34 @@ def test_linked_images_zoom_and_return_to_the_report(browser, serve, tmp_path, o
         exporting_model.cmd_export(serve.page_dir, out, None)
         url = out.as_uri()
     page = open_page(browser, url)
+    viewer = page.get_by_role("dialog", name="Image preview")
+    if not offline:
+        # Until PhotoSwipe arrives, the opening draws the fitted image where
+        # PhotoSwipe will, here where the viewport's height binds the fit.
+        held = []
+        page.route("**/photoswipe.esm.js", lambda route: held.append(route))
+        resized(page, 1440, 500)
+        page.locator("#screenshot a").click()
+        interim = viewer.locator(".lf-media-viewer-stage > img")
+        expect(interim).to_have_js_property("complete", True)
+        early = interim.bounding_box()
+        holding(page, held, 1, "the image tools")
+        held.pop().continue_()
+        fitted = viewer.locator("img.pswp__img")
+        expect(fitted).to_be_visible()
+        assert fitted.bounding_box() == pytest.approx(early, abs=1)
+        page.unroute("**/photoswipe.esm.js")
+        page.keyboard.press("Escape")
+        expect(viewer).to_be_hidden()
     for width in (1440, 390):
         resized(page, width, 900)
         image_link = page.locator("#screenshot a")
         image_link.scroll_into_view_if_needed()
-        before = page.evaluate("({url:location.href,scroll:scrollY})")
         # Enter follows the authored link's same inspection route as a tap.
         page.keyboard.press("Tab")
         image_link.focus()
+        before = page.evaluate("({url:location.href,scroll:scrollY})")
         image_link.press("Enter")
-        viewer = page.get_by_role("dialog", name="Image preview")
         expect(viewer).to_be_visible()
         zoom = viewer.get_by_role("button", name="Zoom to actual size", exact=True)
         expect(zoom).to_be_enabled()

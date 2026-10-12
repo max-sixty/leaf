@@ -15,8 +15,9 @@
    release URL shared with a sample. All three resolve
    the same canonical `/media/…` text without rewriting durable content. The viewer's
    native dialog remains a retained chrome node. Its fitted image appears synchronously
-   while the manipulation module loads. A queued close from an earlier opening
-   leaves a reopened viewer's image and focus intact. */
+   while the manipulation module loads, in the stage's content box, which PhotoSwipe
+   then fits the same image to, so the handover moves nothing. A queued close from an
+   earlier opening leaves a reopened viewer's image and focus intact. */
 
 import { html, render } from "../vendor/browser-runtime.js";
 import { offlineInteractive, pageUrl, runtimeResource } from "./context.js";
@@ -208,12 +209,16 @@ const open = (url, alt, from) => {
           { src: url, width: image.naturalWidth, height: image.naturalHeight, alt },
         ],
         appendToEl: mediaViewer,
-        paddingFn: () => ({
-          top: mediaViewer.querySelector(".lf-media-viewer-head").offsetHeight + 16,
-          right: 16,
-          bottom: caption.offsetHeight + 16,
-          left: 16,
-        }),
+        paddingFn: (viewport) => {
+          const box = stage.getBoundingClientRect();
+          const inset = getComputedStyle(stage);
+          return {
+            top: box.top + parseFloat(inset.paddingTop),
+            right: viewport.x - box.right + parseFloat(inset.paddingRight),
+            bottom: viewport.y - box.bottom + parseFloat(inset.paddingBottom),
+            left: box.left + parseFloat(inset.paddingLeft),
+          };
+        },
         secondaryZoomLevel: 1,
         close: false,
         zoom: false,

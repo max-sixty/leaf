@@ -85,6 +85,8 @@ const FADE_MS = 180;
 // The view leaving is gone before the one arriving shows, so the two never read
 // through each other.
 const OUT_MS = 80;
+// The least room a thread opened in the panel takes.
+const THREAD_FLOOR = 280;
 
 // The menu's groups, each opened as a view of the toolbar rows declaring it.
 const GROUPS = Object.freeze({
@@ -182,7 +184,8 @@ export function createFloatingPanel({
   let writing = false;
   // Whether the user is typing, as the row last showed it: Send in the counts' place.
   let typing = false;
-  // The thread the reader lands at the end of, once Leaf has drawn it.
+  // The thread the reader lands at the end of, once Leaf has drawn more than `after`
+  // of its messages: the whole of it on opening, or past the turn the user just sent.
   let landAtEnd = null;
 
   // ---------- one native editor per destination ----------
@@ -243,7 +246,7 @@ export function createFloatingPanel({
         // A page comment starts a thread, keyed by the attempt that sent it, which the
         // panel opens so its reply follows in the same field; a reply lands the reader
         // at the end of their own thread.
-        if (key) landAtEnd = key;
+        if (key) landAtEnd = { key, after: outletOf()?.childElementCount ?? 0 };
         else open({ view: "thread", thread: handle.attempt }, { replace: true });
       },
     });
@@ -323,7 +326,7 @@ export function createFloatingPanel({
   }
   // Opening a thread shows it whole, at its end, where the latest turn is.
   function arriveAt(key) {
-    landAtEnd = threadByKey(key)?.key ?? key;
+    landAtEnd = { key: threadByKey(key)?.key ?? key, after: 0 };
   }
   // Asking to write is asking for the field, so a folded panel unfolds, and the field
   // stands for the page again, with nothing open above it.
@@ -431,7 +434,13 @@ export function createFloatingPanel({
     const view = stage.querySelector(".lf-fp-view:not([data-leaving])");
     if (!view || (top.view === "thread" && !outletOf()?.childElementCount))
       return false;
-    rooms.set(routeKey(top), view.offsetHeight);
+    // A thread keeps room below its messages for the turns that follow, which arrive
+    // there without moving what the reader is reading.
+    const floor =
+      top.view === "thread"
+        ? Math.min(THREAD_FLOOR, Number.parseFloat(getComputedStyle(view).maxHeight))
+        : 0;
+    rooms.set(routeKey(top), Math.max(view.offsetHeight, floor));
     return true;
   }
   function transition(before, { focus = true } = {}) {
@@ -1126,6 +1135,7 @@ export function createFloatingPanel({
     painting = true;
     try {
       paintNow();
+      if (holdRoom()) paintNow();
     } finally {
       painting = false;
     }
@@ -1133,7 +1143,6 @@ export function createFloatingPanel({
       again = false;
       paint();
     }
-    if (holdRoom()) paintNow();
     landReader();
     seatQuestions();
   }
@@ -1148,11 +1157,11 @@ export function createFloatingPanel({
   // A thread the reader opens, or answers, or asks to see the news of, stands at its end.
   function landReader() {
     const top = trail.at(-1);
-    if (!landAtEnd || top?.view !== "thread" || top.thread !== landAtEnd) return;
+    if (!landAtEnd || top?.view !== "thread" || top.thread !== landAtEnd.key) return;
     const view = stage.querySelector(
       '.lf-fp-view[data-view="thread"]:not([data-leaving])',
     );
-    if (!view || !outletOf()?.childElementCount) return;
+    if (!view || (outletOf()?.childElementCount ?? 0) <= landAtEnd.after) return;
     landAtEnd = null;
     view.scrollTop = view.scrollHeight;
   }

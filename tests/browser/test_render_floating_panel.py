@@ -89,6 +89,17 @@ def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve
         page.keyboard.press("ControlOrMeta+Enter")
     reply = events_model.read_events(serve.page_dir)[-1]
     assert (reply["kind"], reply["parent"]) == ("reply", comment["id"])
+    # The reply the user just sent stands in the thread's view, which grew room for it.
+    page.wait_for_function(
+        """() => {
+            const view = document.querySelector('.lf-fp-view[data-view=thread]');
+            const sent = [...view.querySelectorAll('.lf-msg')].find(m =>
+                m.textContent.includes('And the mobile cohort too.'));
+            if (!sent) return false;
+            const v = view.getBoundingClientRect(), r = sent.getBoundingClientRect();
+            return r.top >= v.top - 1 && r.bottom <= v.bottom + 1;
+        }"""
+    )
     # The box empties as the reply leaves, and the counts take Send's place again.
     expect(page.locator(".lf-fp-send")).to_be_hidden()
     expect(page.locator(".lf-fp-questions")).to_be_visible()

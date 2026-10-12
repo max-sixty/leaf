@@ -350,3 +350,11 @@ def test_reveal_opens_the_named_item_though_its_words_show_elsewhere(tmp_path):
         assert view.locator("#t").is_visible()
         reveal(view, "ESC-4110", "Route to Sam", arrangement_plain.settle)
         assert view.locator("#t").is_visible()
+        # A row whose own click draws the button that opens the ticket.
+        view.set_content(
+            '<ul><li onclick="b.hidden=false">ESC-4110 <button id="b" hidden '
+            'onclick="event.stopPropagation(); t.hidden=false">ESC-4110 details'
+            '</button></li></ul><div id="t" hidden>Route to Sam Okafor.</div>'
+        )
+        reveal(view, "ESC-4110", "Route to Sam", arrangement_plain.settle)
+        assert view.locator("#t").is_visible()

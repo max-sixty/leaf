@@ -146,13 +146,26 @@ def reveal(page: Page, target: str, pattern: str, settled=settle) -> str:
     item is opened whether or not they are; a click that hides them is undone,
     since it closed an item that was open. Return `opened` once they are drawn,
     or `hidden`."""
-    openers = page.locator(OPENERS).filter(has_text=target)
-    # The innermost controls: those holding no other control that names the item.
-    innermost = openers.filter(has_not=page.locator(OPENERS).filter(has_text=target))
-    for n in range(min(innermost.count(), 6)):
-        opener = innermost.nth(n)
-        if not opener.is_visible():
-            continue
+    # The innermost drawn controls: those holding no other drawn control naming
+    # the item. A click can draw new ones, so each round reads them again and
+    # takes the first not yet pressed.
+    drawn = page.locator(OPENERS).filter(has_text=target, visible=True)
+    innermost = drawn.filter(has_not=drawn)
+    pressed = []
+    for _ in range(6):
+        opener = next(
+            (
+                found
+                for found in innermost.element_handles()
+                if not any(
+                    page.evaluate("([a, b]) => a === b", [found, p]) for p in pressed
+                )
+            ),
+            None,
+        )
+        if opener is None:
+            break
+        pressed.append(opener)
         if not opener.evaluate(OPEN):
             shown = shows(page, pattern)
             opener.click()

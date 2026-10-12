@@ -311,6 +311,9 @@ interface WireQueues {
   questions: QueueItem[];
   tasks: QueueItem[];
   done: DoneItem[];
+  /** Open asks no one owes now, such as a resolved thread's, which a reopening gives
+   * back. */
+  held: QueueItem[];
 }
 
 export interface SemanticDocument {
@@ -324,7 +327,7 @@ export interface SemanticDocument {
       [name: string]: unknown;
     }
   > & {
-    $reactions?: { tokens: Record<string, {glyph: string}> };
+    $reactions?: { tokens: Record<string, {glyph: string; settles?: boolean}> };
     $states: Record<string, Record<string, StampedState>>;
   };
   authored: AuthoredMap;
@@ -515,24 +518,36 @@ function normalizedQuestions(
   return { all, user: selection("user"), unanswered: selection("unanswered") };
 }
 
-/* Prose sends hand attention to the agent immediately; settlement remains the
- * server's. Earlier suppressed prompts stay in the complete inventory. */
-function questionAttention(questions: WireQuestions, threads: Pick<Thread, "id" | "resolved" | "attention">[]): WireQuestions {
-  const byThread = new Map(threads.map((thread) => [thread.id, thread]));
-  const user = new Set(questions.user.map((question) => question.id));
+/* While a gesture of this tab's is pending in a thread, the user owes the asks in it
+ * that the server read that gesture leaving them (`Thread.owed`, from `after`), and no
+ * others; every other ask stands as admitted. An ask the user owes is open, so one
+ * the gesture reopens, as taking back the reaction that answered it does, stands
+ * unanswered again. */
+function questionAttention(questions: WireQuestions, threads: Pick<Thread, "id" | "owed">[]): WireQuestions {
+  const owing = new Map(threads.flatMap((thread) =>
+    thread.owed ? [[thread.id, new Set(thread.owed)] as const] : []));
+  const pending = (question: QuestionRecord) =>
+    question.thread === null ? undefined : owing.get(question.thread);
   const all = questions.all.map((question): QuestionRecord => {
-    if (question.source.kind !== "reply" || !user.has(question.id)) return question;
-    const thread = question.thread === null ? undefined : byThread.get(question.thread);
-    return thread?.resolved || thread?.attention?.kind === "waiting"
-      ? { ...question, next_actor: thread?.resolved ? null : "agent" }
-      : question;
+    const owed = pending(question);
+    if (!owed) return question;
+    if (owed.has(question.id))
+      return question.next_actor === "user"
+        ? question
+        : { ...question, status: "open", answer: null, next_actor: "user" };
+    return question.next_actor === "user" ? { ...question, next_actor: null } : question;
   });
-  const byId = new Map(all.map((question) => [question.id, question]));
+  const admitted = (kind: "user" | "unanswered") =>
+    new Set(questions[kind].map((question) => question.id));
+  const user = admitted("user");
+  const unanswered = admitted("unanswered");
   return {
     all,
-    user: questions.user.map((question) => byId.get(question.id)!)
-      .filter((question) => question.next_actor === "user"),
-    unanswered: questions.unanswered.map((question) => byId.get(question.id)!),
+    user: all.filter((question) =>
+      pending(question) ? question.next_actor === "user" : user.has(question.id)),
+    unanswered: all.filter((question) =>
+      unanswered.has(question.id) ||
+      (pending(question)?.has(question.id) ?? false)),
   };
 }
 
@@ -575,15 +590,16 @@ function localTasks(
   };
 }
 
-const NO_QUEUES: WireQueues = { questions: [], tasks: [], done: [] };
+const NO_QUEUES: WireQueues = { questions: [], tasks: [], done: [], held: [] };
 
 /* What is on the user (Questions), what is on the agent (Tasks), and what is done:
  * the view's served lists (`served_state.queues`), with this tab's unresolved sends
  * placed against them. A send moves an item the server listed when it changes that
  * item's record: a Done or its undo moves a to-do between its list and done, an
  * approval or its undo moves the approval ask, and prose sent in a thread, or settling
- * it, takes that thread's ask and its resend off the user. It adds only the items it
- * alone implies: the answer a pending send is owed, and the resend a refused one
+ * it, takes that thread's ask and its resend off the user, and one reopening a resolved
+ * thread puts a held ask its record now gives the user back on. It adds only the items
+ * it alone implies: the answer a pending send is owed, and the resend a refused one
  * leaves. A pending send also stands for the response the thread was already owed.
  * Nothing here selects a list again. */
 function localQueues(
@@ -594,6 +610,7 @@ function localQueues(
   asks: WireQuestions,
 ) {
   const record = new Map(asks.all.map((ask) => [ask.id, ask]));
+  const asked = new Map(asks.all.map((ask, at) => [ask.id, at]));
   const open = new Set(todos.open.map((todo) => todo.id));
   const ended = new Set(todos.ended.map((todo) => todo.id));
   const byThread = new Map(threads.map((thread) => [thread.id, thread]));
@@ -671,6 +688,7 @@ function localQueues(
   return {
     questions: [
       ...served.questions.filter(standsOpen).map(current),
+      ...served.held.filter(standsOpen).map(current),
       ...reopenedFor("user").map(asOpen),
       ...threads.flatMap((thread) =>
         retrying(thread.id)
@@ -682,7 +700,11 @@ function localQueues(
           ? resend(workflow.id, workflow.subject, null)
           : [],
       ),
-    ].toSorted((a, b) => questionsRank(a) - questionsRank(b)),
+    ].toSorted(
+      (a, b) =>
+        questionsRank(a) - questionsRank(b) ||
+        (a.kind === "ask" && b.kind === "ask" ? asked.get(a.id)! - asked.get(b.id)! : 0),
+    ),
     tasks: [
       ...served.tasks.filter((item) => item.kind !== "todo" && standsOpen(item)),
       // One answer per thread, as the server lists one for the newest turn owed.
@@ -709,7 +731,8 @@ function localQueues(
   };
 }
 
-// The order the server lists Questions in: asks, to-dos, then resends.
+// The order the server lists Questions in: asks, to-dos, then resends; asks among
+// themselves in the order the view's ask inventory holds them.
 const questionsRank = (item: QueueItem) =>
   item.kind === "ask" ? 0 : item.kind === "todo" ? 1 : 2;
 
@@ -912,22 +935,21 @@ export function createSemanticApplication({
             : [],
     );
     const folded = ready
-      ? foldThreads(state?.browser.thread.threads ?? [], gestures)
+      ? foldThreads(
+          state?.browser.thread.threads ?? [],
+          gestures,
+          (token) => Boolean(document.registry.$reactions?.tokens?.[token]?.settles),
+        )
       : [];
     const widgets = foldWidgetStates(document.authored, projection);
     const admittedQuestions = ready
       ? normalizedQuestions(view, state?.browser.thread, widgets, document, projection, local)
       : NO_QUESTIONS;
     const tasks = ready ? localTasks(state, local) : { open: [], ended: [] };
-    // Thread attention is the server's reading, and three local facts adjust it. A
-    // pending send hands the thread to the agent, which `foldThreads` states. A
-    // structural Question survives prose sent beside it, so the admitted Question inventory puts
-    // back the independent obligation that still stands in that thread. A refused send
-    // hands a thread the server left with the agent back to the user, whose
-    // Retry it is.
-    const owed = new Set(admittedQuestions.user
-      .filter((question) => question.source.kind === "widget")
-      .map((question) => question.thread));
+    // Thread attention is the server's reading, and two local facts adjust it. A
+    // pending gesture takes the attention the server read it leaving (`after`, which
+    // `foldThreads` reads). A refused send hands a thread the server left with the
+    // agent back to the user, whose Retry it is.
     // The thread a gesture stands in. A message stands in the thread that draws it,
     // under its pending id or, once the log has it, its attempt. Until one does, a
     // comment opens the thread its own id names, and a reply joins the thread holding
@@ -992,13 +1014,6 @@ export function createSemanticApplication({
       if (thread) recovery.set(thread, `rejected:${entry.event.attempt}`);
     }
     const obligated = folded.map((thread): Thread => {
-      if (owed.has(thread.id))
-        return thread.attention?.reason === "ask"
-          ? thread
-          : {
-              ...thread,
-              attention: { kind: "needs_user", reason: "ask", workflow: null },
-            };
       const retry = recovery.get(thread.id);
       return retry && thread.attention?.kind !== "needs_user"
         ? {
@@ -1070,7 +1085,7 @@ export function createSemanticApplication({
       markingRead,
       ready,
     );
-    const questions = questionAttention(admittedQuestions, threads);
+    const questions = questionAttention(admittedQuestions, obligated);
     const selectedQueues = localQueues(
       ready ? (view?.queues ?? NO_QUEUES) : NO_QUEUES,
       threads,

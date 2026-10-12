@@ -29,7 +29,9 @@ sampled stacks (`stacks.txt`), for the suite's own Python by function; and `sa`'
 table of CPU by command (`cpu-by-command.txt`), for the browsers and servers no
 Python stack shows. Accounting names a process after the last of its threads to
 exit, so Chrome's processes appear under thread names such as `ThreadPoolForeg`, a
-Python process that watches files as `notify-rs inoti`, and py-spy as `ctrl-c`. CI writes all three and puts this command's output in the job's
+Python process that watches files as `notify-rs inoti`, and py-spy as `ctrl-c`. A table
+totalling well under the cgroups' CPU is flagged as one whose accounting stopped
+mid-run. CI writes all three and puts this command's output in the job's
 summary. The report also lists every test over its tier directory's budget
 (`BUDGETS`) and every journey within the browser budget, the moves tend's weekly pass
 makes.
@@ -187,17 +189,25 @@ def suite_profile(directory: Path, rate: float | None, top: int) -> None:
     py-spy's `stacks.txt` and `sa`'s `cpu-by-command.txt`. CI's `test` job uploads
     all three as its `pytest-results-*` artifact."""
     cases = read_cases(directory / "results.xml")
-    report_cases(cases, top)
+    cpu = report_cases(cases, top)
     if (stacks := directory / "stacks.txt").exists():
         if rate is None:
             raise click.UsageError(
                 "stacks.txt needs --rate, the rate py-spy sampled at"
             )
         report_stacks(stacks, rate, top)
-    if (cpu := directory / "cpu-by-command.txt").exists():
-        lines = cpu.read_text().splitlines()
+    if (accounting := directory / "cpu-by-command.txt").exists():
+        lines = accounting.read_text().splitlines()
         section("CPU by command (sa: calls, real and CPU minutes)")
         click.echo("\n".join(lines[: top + 1]))
+        # Accounting covers the whole machine, missing only what still runs when it
+        # stops, so a total well short of the cgroups' means it stopped mid-run.
+        recorded = 60 * float(re.search(r"([\d.]+)cp", lines[0]).group(1))
+        if cpu is not None and recorded < 0.9 * cpu:
+            click.echo(
+                f"sa recorded {minutes(recorded)} of the workers' cgroups' "
+                f"{minutes(cpu)} CPU-minutes: accounting stopped partway through."
+            )
 
 
 def read_cases(report: Path) -> list[dict]:
@@ -228,7 +238,9 @@ def read_cases(report: Path) -> list[dict]:
     return list(cases.values())
 
 
-def report_cases(cases: list[dict], top: int) -> None:
+def report_cases(cases: list[dict], top: int) -> float | None:
+    """Print the run's tests, phases and files, returning the CPU seconds its tests
+    used, or None for a run whose tests carry no CPU."""
     total = sum(c["seconds"] for c in cases)
     profiled = [c["profile"] for c in cases if c["profile"]]
     phases = {p: sum(prof.get(p, 0) for prof in profiled) for p in PHASES}
@@ -238,11 +250,7 @@ def report_cases(cases: list[dict], top: int) -> None:
     cpu = sum(prof["cpu"] for prof in profiled) if timed else None
     section(
         f"{len(cases)} tests, {minutes(total)} worker-minutes"
-        + (
-            f", {minutes(cpu)} CPU-minutes in the workers' process trees"
-            if timed
-            else ""
-        )
+        + (f", {minutes(cpu)} CPU-minutes in the workers' cgroups" if timed else "")
     )
     if profiled:
         click.echo(
@@ -286,7 +294,7 @@ def report_cases(cases: list[dict], top: int) -> None:
     )
     report_budgets(cases)
     if not profiled:
-        return
+        return cpu
 
     methods, callers = Counter(), Counter()
     counts = Counter()
@@ -309,6 +317,7 @@ def report_cases(cases: list[dict], top: int) -> None:
         ("minutes", "method from caller"),
         [(minutes(s), key) for key, s in callers.most_common(top)],
     )
+    return cpu
 
 
 def report_budgets(cases: list[dict]) -> None:

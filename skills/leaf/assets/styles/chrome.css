@@ -456,6 +456,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     cursor: pointer; }
   :is(.lf-preview, .lf-layer-reference):hover { color: var(--ink); }
   .lf-layer-version { font-family: var(--mono); font-size: inherit; }
+  .lf-layer-line { display: block; overflow: hidden; text-overflow: ellipsis; }
   /* The quiet summary is a native disclosure; complete activity wording remains
      reachable by keyboard and touch without consuming the reading row. The press is only
      as wide as its words, so its ring and its hit box are the sentence's, not the empty
@@ -753,8 +754,14 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   /* A covering auxiliary surface takes the whole window: the banner is one of the inert siblings,
      not an available strip above it. Its shared scrim therefore stands above the banner
      and below the active surface. Chrome-owned targeting and native top-layer dialogs
-     keep their higher planes so a command inside the auxiliary surface can still show its aim. */
-  .lf-auxiliary-envelope { position: absolute; inset: 0 auto auto 0; width: 100vw; height: 100vh;
+     keep their higher planes so a command inside the auxiliary surface can still show its aim.
+     The envelope itself is an empty box at the document's origin, so what it holds
+     positions itself against the window (fixed) or that origin (absolute, by top and
+     left), never by a right or bottom inset, a percentage or a wrapping width that
+     would read the envelope's size. A window-sized transparent box stood over the
+     page's first screen for anything reading the page by hit-testing, so axe measured
+     the contrast of none of the words under it. */
+  .lf-auxiliary-envelope { position: absolute; inset: 0 auto auto 0; width: 0; height: 0;
     max-width: none; max-height: none; margin: 0; padding: 0; border: 0; overflow: visible;
     background: transparent; color: inherit; pointer-events: none; }
   .lf-auxiliary-envelope::backdrop { background: transparent; }

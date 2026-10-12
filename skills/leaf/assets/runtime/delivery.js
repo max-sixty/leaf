@@ -44,8 +44,7 @@ export function createDelivery({
       await retryPause();
     };
     for (;;) {
-      ledger.nameParent(entry);
-      if (!ledger.nameUndo(entry)) return { accepted: null };
+      if (!ledger.nameEvents(entry)) return { accepted: null };
       const { event } = entry;
       if (entry.admitted) return { accepted: entry.admitted };
       const sent = await Promise.race([

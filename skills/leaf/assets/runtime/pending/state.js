@@ -83,12 +83,8 @@ export function createPendingLedger({ newAttempt, enqueue }) {
       return left.length > 0;
     },
     /** @param {DeliveryHandle} entry */
-    nameParent(entry) {
-      applicationState.nameParent(entry.event.attempt);
-    },
-    /** @param {DeliveryHandle} entry */
-    nameUndo(entry) {
-      return applicationState.nameUndo(entry.event.attempt);
+    nameEvents(entry) {
+      return applicationState.nameEvents(entry.event.attempt);
     },
   };
 }

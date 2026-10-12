@@ -29,7 +29,9 @@ import {
   editForAttempt,
   isThreadEvent,
   isTurnEvent,
+  nameAdmitted,
   namesEvent,
+  namesPending,
   turnMessage,
 } from "../../runtime/pending/model.js";
 import { PENDING } from "../../runtime/thread/identity.js";
@@ -1350,46 +1352,28 @@ export function createSemanticApplication({
           ),
       });
     },
-    // A gesture naming a message this tab sent, by its pending id, names it by the id
-    // the log gave it once the log has answered: a reply's `parent`, or the revision an
-    // edit is written over (`base`), as a second rewrite over a first still sending is.
-    nameParent(attempt        ) {
-      const admitted = (pending         ) =>
-        typeof pending === "string" && pending.startsWith(PENDING)
-          ? admittedId(pending.slice(PENDING.length), ...ledgerAndReceipts())
-          : null;
+    // Just before a send, a gesture naming one this tab sent, by its pending id, names
+    // it by the id the log gave it once the log has answered, in every field that names
+    // an event (`nameAdmitted`): a reply's `parent`, the revision an edit is written over
+    // (`base`), as a second rewrite over a first still sending is, an undo's target. A
+    // renamed `parent` is kept as `namedParent`, which still finds the thread the reply
+    // was drawn in. Returns false for a gesture that cannot be sent: an undo still naming
+    // a gesture the log never took, since it would take back nothing the log knows.
+    nameEvents(attempt        ) {
       const item = entry(attempt);
-      const parent = item?.event.parent;
-      const named = admitted(parent);
-      if (named && typeof parent === "string")
-        update(attempt, (item) =>
-          item.event.parent
-            ? {
-                ...item,
-                namedParent: parent,
-                event: { ...item.event, parent: named },
-              }
-            : item,
-        );
-      const base = admitted(item?.event.kind === "edit" ? item.event.base : null);
-      if (base)
-        update(attempt, (item) =>
-          item.event.kind === "edit"
-            ? { ...item, event: { ...item.event, base } }
-            : item,
-        );
-    },
-    nameUndo(attempt        ) {
-      const item = entry(attempt);
-      if (item?.event.kind !== "undo" || !item.undoTarget) return true;
-      const named = admittedId(item.undoTarget, ...ledgerAndReceipts());
-      if (!named) return false;
-      update(attempt, (item) =>
-        item.event.kind === "undo"
-          ? { ...item, event: { ...item.event, undoes: named } }
-          : item,
+      if (!item) return true;
+      const event = nameAdmitted(item.event, (pending) =>
+        admittedId(pending, ...ledgerAndReceipts()),
       );
-      return true;
+      if (event !== item.event)
+        update(attempt, (item) => ({
+          ...item,
+          ...(event.parent !== item.event.parent && typeof item.event.parent === "string"
+            ? { namedParent: item.event.parent }
+            : {}),
+          event,
+        }));
+      return !(event.kind === "undo" && namesPending(event));
     },
   });
 }

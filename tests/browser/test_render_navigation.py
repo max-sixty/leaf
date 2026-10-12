@@ -18,6 +18,7 @@ from render_cases_interaction import (
     SEATED_ASK_LAYER,
     SEATED_ASK_WIDGETS,
     SEATED_QUESTION_PAGE,
+    answered_comment,
     executable_revision,
     live_url,
     panel_comment,
@@ -14395,7 +14396,7 @@ def test_ask_work_keeps_its_discussion_closed_until_requested(
         + "<p>Compare the memory and disk constraints carefully.</p>" * 14,
     )
     url = serve(source)
-    root = panel_comment(
+    root = answered_comment(
         serve.page_dir, "The disk cache costs more.", {"section": "cache-ask"}
     )
     page = open_page(browser, url)
@@ -14436,7 +14437,7 @@ def test_ask_controls_do_not_automatically_open_discussion(browser, serve, famil
     passive = panel_comment(
         serve.page_dir, "Remember the background.", {"section": "passage"}
     )
-    root = panel_comment(
+    root = answered_comment(
         serve.page_dir, "Please compare the alternatives.", {"section": "work"}
     )
     page = open_page(browser, url)
@@ -14496,7 +14497,9 @@ def test_an_ask_and_its_thread_are_one_standing_target(browser, serve):
     panel_comment(
         d, "Budgets are tight.", {"section": "lead", "quote": "latency budgets"}
     )
-    about_ask = panel_comment(d, "The disk cache costs more.", {"section": "cache-ask"})
+    about_ask = answered_comment(
+        d, "The disk cache costs more.", {"section": "cache-ask"}
+    )
     about_task = panel_comment(
         d,
         "Doubling is a lot.",

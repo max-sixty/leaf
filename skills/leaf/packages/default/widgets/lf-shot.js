@@ -10,22 +10,23 @@
  * only puts the user on it.
  * A small expand link beside each rail label inspects that full-size image in the
  * shared media viewer; modified presses keep their native link destination. The
- * rail is one row, reserved before upgrade. Print stacks both frames.
+ * rail reserves its rows before upgrade, with inspection actions below the
+ * endpoints on narrow pairs. Print stacks both frames.
  *
  * Once the page has presented, the widget compares the two images pixel for pixel
  * (`runtime/image-difference.js` owns what counts as a difference) and puts its
- * `describeDifference` between the rail labels. Every pair says when it is identical,
- * only slightly changed, or changed throughout, so a reader of one side of the divider,
- * or of a screenshot of the page, still learns it. With `outlines`, each frame also
+ * `describeDifference` reading in the rail or Changes tooltip. Every pair says when
+ * it is identical, only slightly changed, or changed throughout, so a reader of one
+ * side of the divider, or of a screenshot of the page, still learns it. With `outlines`, each frame also
  * outlines its own regions, what changed and what moved, where they sit in that frame,
- * and the rail counts them. `difference` is that reading, in the images' own pixels,
- * or null for a pair the widget refused; a parent that hides the rail states it from
- * there. With `pixels`, that reading is also a press, so a narrow rail holds no fourth
- * control: it opens the Pixels view over the comparison, the after image greyed with
- * each changed pixel painted through `changedPixels`' mask in the theme's warning
- * colour. The mask is built on the first press, since most readers never open it.
- * Choosing an endpoint leaves the view, and clicking the picture returns to the
- * comparison as it stood.
+ * and Changes toggles them together, with the full count on hover, focus or a held
+ * press. `difference` is that reading, in the images' own pixels, or null for a pair the widget refused;
+ * a parent that hides the rail states it from there. With `pixels`, a separate
+ * Pixels action opens the after image greyed with each changed pixel painted
+ * through `changedPixels`' mask in the theme's warning colour. The mask is built
+ * on the first press, since most readers never open it. Pixels again or clicking
+ * the picture returns to the comparison as it stood; choosing an endpoint leaves
+ * the view.
  * Pairs compare one per frame, so a page of large captures does not hold input for the
  * whole batch.
  *
@@ -50,8 +51,10 @@
  * comparison choice and its focused control. A different image pair is a new shot.
  * Commentary about the change belongs in authored prose around the widget. */
 import {
+  HOLDS_WORD,
   PRESS,
   afterPresentation,
+  announce,
   compareImagePixels,
   compareImages,
   describeDifference,
@@ -95,7 +98,9 @@ export default class extends HTMLElement {
   #chose = false;
   #pixelsShown = false;
   #pixelsView;
-  #reading;
+  #changes;
+  #changesShown = true;
+  #pixelsAction;
   #frames = [];
   #inspection;
   #frameLabels = new Map();
@@ -501,39 +506,55 @@ export default class extends HTMLElement {
       }
       frame.append(marks);
     }
-    const pixels = this.hasAttribute("pixels");
     const kind = differenceKind(reading);
-    const count = pixels
-      ? selectableOffer("button", "lf-shotdelta")
-      : document.createElement("span");
-    count.className ||= "lf-shotdelta";
+    const count = document.createElement("span");
+    count.className = "lf-shotdelta";
     count.dataset.lfShotDelta = kind;
-    // Without outlines a count of areas points at nothing, so the press names its view.
-    relabel(
-      count,
-      pixels && kind === "areas" && !this.hasAttribute("outlines")
-        ? "changed pixels"
-        : describeDifference(reading),
-      { says: false },
-    );
-    this.#reading = count;
-    if (pixels) {
-      count.title = "Show changed pixels";
-      count.addEventListener("click", () => this.#showPixels(shots));
-      commands(count, "On a screenshot", [
+    const description = describeDifference(reading);
+    if (kind !== "areas") relabel(count, description, { says: false });
+    if (this.hasAttribute("outlines") && kind === "areas") {
+      const changes = offer("button", `lf-shotchanges ${HOLDS_WORD}`, "Changes");
+      keeps(changes, "aria-label", "Changes");
+      keeps(changes, "aria-description", description);
+      changes.addEventListener("click", () => {
+        this.#changesShown = !this.#changesShown;
+        this.#pixelsShown = false;
+        this.#paint();
+      });
+      commands(changes, "On a screenshot", [
+        {
+          id: "screenshot.changes",
+          keys: PRESS,
+          title: "toggle change outlines",
+          when: () => this.#controlsEnabled,
+          run: () => changes.click(),
+        },
+      ]);
+      this.#changes = changes;
+      count.append(changes);
+    }
+    if (this.hasAttribute("pixels")) {
+      const pixels = offer("button", "lf-shotpixels-action", "Pixels");
+      pixels.addEventListener("click", () => {
+        if (this.#pixelsShown) {
+          this.#pixelsShown = false;
+          this.#paint();
+        } else this.#showPixels(shots);
+      });
+      commands(pixels, "On a screenshot", [
         {
           id: "screenshot.pixels",
           keys: PRESS,
-          title: "show changed pixels",
+          title: () => pixels.title.toLowerCase(),
           when: () => this.#controlsEnabled,
-          run: () => count.click(),
+          run: () => pixels.click(),
         },
       ]);
-      // The reading stays its name; the press is described.
-      keeps(count, "aria-description", "show changed pixels");
-      keeps(count, "aria-pressed", false);
+      this.#pixelsAction = pixels;
+      count.append(pixels);
     }
     this.#openers.get("before").after(count);
+    this.#paint();
     return reading;
   }
 
@@ -567,9 +588,7 @@ export default class extends HTMLElement {
       nextFrame(() => {
         const { width, height, data } = compareImagePixels(...shots);
         const canvas = new OffscreenCanvas(width, height);
-        canvas
-          .getContext("2d")
-          .putImageData(new ImageData(data, width, height), 0, 0);
+        canvas.getContext("2d").putImageData(new ImageData(data, width, height), 0, 0);
         void canvas
           .convertToBlob({ type: "image/png" })
           .then((blob) =>
@@ -634,7 +653,17 @@ export default class extends HTMLElement {
     // including a comparison that upgrades under it.
     for (const node of [this.#comparison, this.#box])
       node?.toggleAttribute("inert", this.#pixelsShown);
+    keeps(this, "data-lf-shot-changes", this.#changesShown ? null : "off");
+    if (this.#changes) keeps(this.#changes, "aria-pressed", this.#changesShown);
+    if (this.#pixelsAction) {
+      const description = this.#pixelsShown
+        ? "Hide changed pixels"
+        : "Show changed pixels";
+      keeps(this.#pixelsAction, "title", description);
+      keeps(this.#pixelsAction, "aria-description", description);
+    }
     if (chromeState === this.#chromeState) return;
+    const previousChromeState = this.#chromeState;
     this.#chromeState = chromeState;
     this.#box.checked = position > 50;
     keeps(this, "data-lf-shot-view", this.#pixelsShown ? "pixels" : null);
@@ -644,7 +673,8 @@ export default class extends HTMLElement {
         "aria-pressed",
         !this.#pixelsShown && position === (state === "after" ? 100 : 0),
       );
-    if (this.#reading?.role) keeps(this.#reading, "aria-pressed", this.#pixelsShown);
+    if (chromeState === "pixels" || previousChromeState === "pixels")
+      announce(this.#pixelsShown ? "Showing changed pixels" : "Showing comparison");
     paintKeys();
   }
 

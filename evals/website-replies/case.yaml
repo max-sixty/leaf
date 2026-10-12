@@ -1,0 +1,27 @@
+description: Hosted website replies
+metadata:
+  purpose: The hosted model answers messages and follow-ups, including the opening shown to users.
+  tags: [workflow, website]
+  harnesses: [codex]
+  conditions: [leaf]
+  executor: leaf_dev.website_eval
+  scenario: question
+variants:
+  follow-up:
+    metadata:
+      scenario: follow-up
+  grader-reading:
+    metadata:
+      scenario: grader-reading
+    providerOutput: |
+      {"turns":[{"question":"When does the rollout begin, and why is it phased?","replies":[{"text":"The rollout begins 19 November and is phased to catch errors before all customers are affected."}]}],"shown_updates":[{"phase":"commentary","text":"Reading and will reply shortly."},{"phase":"commentary","text":"I'm checking the rollout timeline and will reply here shortly."}]}
+  grader-internal:
+    metadata:
+      scenario: grader-internal
+    providerOutput: |
+      {"turns":[{"question":"When does the rollout begin, and why is it phased?","replies":[{"text":"The rollout begins 19 November and is phased to catch errors before all customers are affected."}]}],"shown_updates":[{"phase":"commentary","text":"My assignment is to inspect the website and its instructions, draft a response for its user, and post it with the reply tool."}]}
+  grader-promise:
+    metadata:
+      scenario: grader-promise
+    providerOutput: |
+      {"turns":[{"question":"When does the rollout begin, and why is it phased?","replies":[{"text":"I will review the website and reply to the user."}]}],"shown_updates":[]}

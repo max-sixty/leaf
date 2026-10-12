@@ -2788,30 +2788,50 @@ def test_a_revision_inside_one_tab_keeps_the_tab_set_and_every_other_tab(
     expect(page.locator("#tp-notes")).to_be_visible()
 
 
-def test_a_revision_releases_the_served_markup_it_removes(browser, serve):
+@pytest.mark.parametrize("departure", ["focused", "link", "selection"])
+def test_a_revision_releases_the_served_markup_it_removes(browser, serve, departure):
     """Markup the page was served with leaves memory once a revision removes it. The
     served baseline's source copy routes each copied node to the live node it came
     from, so holding that copy past the revision that replaced it kept every served
     node alive for the rest of the session. A host painted before modules run is
-    included, since the first-paint coordinator copies it separately. So is a link the
-    reader focused in that section. Focus falls to the body as the revision removes
-    it, and the page keeps it as where the user stood until they act again; their
-    reading place, which names it while focus holds it, outlives the revision until
-    they next scroll, so it holds the node no longer than the document does."""
+    included, since the first-paint coordinator copies it separately. Neither the
+    dropped focus, before another input, nor a fragment trip's history checkpoint
+    may keep removed markup alive."""
     first = leaf_page(
         "Served",
         '<h1>Served</h1><section id="served"><h2>Served section</h2>'
         '<lf-activity id="served-feed"></lf-activity><p>Served words, and'
-        ' <a id="served-link" href="#nowhere">a link in them</a>.</p></section>',
+        ' <a id="served-link" href="#destination">a link in them</a>.</p>'
+        '<p id="served-selection">A passage with a saved caret.</p></section>'
+        '<div style="height:1600px"></div>'
+        '<h2 id="destination">Destination</h2>'
+        '<lf-ask id="question"><h2>A decision?</h2>'
+        '<lf-options id="answer" choose><lf-option id="yes">Yes</lf-option>'
+        "</lf-options></lf-ask>",
     )
     second = leaf_page("Revised", "<h1>Revised</h1><p>Revised words.</p>")
     page = open_page(browser, live_url(serve(first)))
     page.locator("#served-link").focus()
     page.keyboard.press("Shift")
+    entries = page.evaluate("history.length")
+    if departure == "link":
+        page.locator("#served-link").click()
+        expect(page.locator("#destination")).to_be_focused()
+    elif departure == "selection":
+        page.locator("#served-selection").click()
+        assert (
+            page.evaluate("getSelection().anchorNode.parentElement.id")
+            == "served-selection"
+        )
+        page.keyboard.press("q")
+        expect(page.locator("#question")).to_be_focused()
+    if departure != "focused":
+        assert page.evaluate("history.length") == entries + 1
+        scroll_settled(page)
     rendered(page)
     page.evaluate(
         """() => {
-          window.__held = ['served', 'served-feed'].map(
+          window.__held = ['served', 'served-feed', 'served-link', 'served-selection'].map(
             (id) => new WeakRef(document.getElementById(id)));
           // The control: a removed node nothing else holds, so a collection that
           // clears it has run.
@@ -2823,7 +2843,6 @@ def test_a_revision_releases_the_served_markup_it_removes(browser, serve):
     )
     stamp_page(serve.page_dir, second, "remove the served section")
     wait_for_revision(page, 2)
-    page.keyboard.press("Shift")
     rendered(page)
     cdp = page.context.new_cdp_session(page)
     try:
@@ -4145,13 +4164,13 @@ def test_a_revision_gives_values_to_controls_the_user_never_touched(browser, ser
 def test_a_revision_that_rewrites_a_draft_leaves_the_user_where_they_stand(
     browser, serve
 ):
-    """A draft's unsent edit comes back with it, and does not take the user with it.
+    """A draft's open editor comes back with it, and does not take the user with it.
 
-    Escape sets a draft's edit aside rather than discarding it, and the draft reads the
-    edit back from its own store whenever it connects — which a revision rewriting the
-    draft makes it do. Getting the words back is right. The editor taking the focus is
-    not, when the user had put the edit away and gone to stand on something else: the
-    revision is news, and news with no gesture behind it moves nobody.
+    The draft reads an open editor's words back from its own store whenever it
+    connects — which a revision rewriting the draft makes it do. Getting the words back
+    is right. The editor taking the focus is not, when the user had left the editor
+    open and gone to stand on something else: the revision is news, and news with no
+    gesture behind it moves nobody.
     """
     draft = '<lf-draft id="plan"><pre>Ship it.</pre></lf-draft>'
     first = LIVE_KEYS_V1.replace('<p id="lk-para">', draft + '\n<p id="lk-para">')
@@ -4164,9 +4183,7 @@ def test_a_revision_that_rewrites_a_draft_leaves_the_user_where_they_stand(
     editor = page.locator("lf-draft leaf-text")
     expect(editor).to_be_focused()
     write(editor, "Ship it, but louder.")
-    page.keyboard.press("Escape")
-    expect(editor).to_have_count(0)
-    # The user goes and stands on the question instead.
+    # The user leaves the editor open and goes to stand on the question instead.
     pick = page.locator("#lk-one .lf-pick")
     pick.focus()
     expect(pick).to_be_focused()
@@ -6604,8 +6621,9 @@ def test_live_revision_drafts_wait_for_the_complete_controller_publication(
     revised.locator(".lf-draft-body").click()
     editor = revised.get_by_role("textbox", name="Edit revised-draft")
     write(editor, "The user's unsent replacement.\n")
-    editor.press("Escape")
-    expect(editor).to_have_count(0)
+    # The user leaves the editor open and steps back to the page.
+    page.locator("h1").click()
+    expect(editor).not_to_be_focused()
     assert take_browser_errors(page) == []
 
     stamp_page(serve.page_dir, second, "replace and insert drafts")

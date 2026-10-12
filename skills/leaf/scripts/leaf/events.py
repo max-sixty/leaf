@@ -249,7 +249,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     Each thread is keyed by, and carries as ``id``, the id of the comment that
     opened it, its ``root``: the name every Question, workflow, summary, and title
     uses for it. Admission keeps every standing message's parent standing
-    (`event_contracts._parent_error`), so each reply lands in a thread.
+    (`event_contracts._parent_error`), so each reply it admits lands in a thread.
     """
     if withdrawn is None:
         withdrawn = taken_back(events)
@@ -323,8 +323,12 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 message["text"] = e["text"]
             continue
         if e["kind"] == "reply":
+            # Admission keeps a reply's parent standing, but a Leaf older than that
+            # rule could answer a withdrawn message; the reply then stands on nothing
+            # (root `AGENTS.md`, "Stage").
+            if (thread := thread_for.get(e["parent"])) is None:
+                continue
             message = dict(e)
-            thread = thread_for[e["parent"]]
             messages[e["id"]] = message
             thread["msgs"].append(message)
             if thread["title"] is None and "title" in e:
@@ -541,28 +545,6 @@ def seat_root(thread: dict) -> str | None:
     if root.get("about") or not anchor or len(anchor) != 1:
         return None
     return anchor.get("section")
-
-
-def seats_with_agent(threads: dict) -> set[str]:
-    """Widget ids whose own seat holds a thread now waiting on the agent.
-
-    An Question whose own thread is with the agent is not one the user has to
-    deal with, so a Question projection reading their list subtracts these. It is not an
-    answer — the widget's state is untouched — which is why the reading that asks
-    whether a Question is answered passes an empty set instead. The browser receives
-    the Questions this subtraction leaves rather than subtracting again, so the banner's
-    count and `page state` cannot disagree about whose turn it is.
-
-    Whose thread it is does not enter into it: the agent may open one in the seat too,
-    and once the user has answered there the question is with the agent either way.
-
-    Takes the built fold rather than the log, because every caller already holds one:
-    `build_threads` walks the whole log and tests each action against the retraction
-    floors, and a second fold of the same events in the same function is that walk
-    done twice for one answer."""
-    return {
-        seat for t in threads.values() if awaits_agent(t) and (seat := seat_root(t))
-    }
 
 
 def note_settlements(event: dict, kind: str) -> set[str]:

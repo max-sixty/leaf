@@ -2,6 +2,11 @@
 
 ## Biggest current challenges
 
+- **Improve our outputs against a standard HTML output.** Agents given plain
+  HTML wrote pages judges preferred on every configuration and some queues, at a
+  third to a half of Leaf's cost ([comparison](notes/agent-usability-evals.md#authoring-against-plain-html-2026-10-12)).
+  Make Leaf's pages at least as good, and find which widgets and instructions
+  help an author rather than constrain one.
 - **Simplify the harness, host, and CLI workflow.** Make feedback delivery and
   agent wake-up reliable, including Codex's message back into the session and
   Claude Code's potentially overcomplicated state machine.
@@ -67,6 +72,11 @@ has tried; settle that before building it.
   result is hidden. Decide whether a page needs one progress reading across Questions,
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
+- **#28 — Overhaul the floating panel's appearance.** The opt-in floating panel
+  (`?lf-chrome=floating`, off by default) works, but the user doesn't like its
+  aesthetic. It landed so work can continue from `main`. Redesign how it looks
+  before offering it to anyone; [its goal](notes/floating-panel/GOAL.md) holds the
+  spec, the approved prototype, and the departures taken so far.
 
 ### Agent and author experience
 
@@ -94,8 +104,7 @@ has tried; settle that before building it.
   plain HTML's configurations, which put each alert's controls beside its evidence,
   and Leaf's documents, which put decisions on the page.
   [Teach the compositions that prove useful](notes/workspace-followups.md#item-20),
-  starting with per-item controls for configuration and progress through a queue,
-  and say where an owed input's `<answer.ref>` comes from.
+  starting with per-item controls for configuration and progress through a queue.
 - **Keep agent activity intelligible throughout a task.** Run the
   [status evaluations](notes/user-feedback-responsiveness.md) for delivery,
   multi-step work, and delegation. Show the plan as well as the current step;
@@ -588,6 +597,19 @@ Revisit these when their stated trigger becomes real; they are not an active que
   container's Durable Object, and nothing recovers a dispatch whose container
   disappears or outlives the `waitUntil` window. Trigger: a hosted answer lost that
   way.
+- **Start each release's containers on its own image.** The Worker goes live on a
+  release before Cloudflare rolls its image out, so for up to ten minutes after a
+  deploy a session's new container can start on the previous image. The Worker
+  holds requests behind `503 Retry-After` (`rollingOut` in `worker/src/index.ts`),
+  and only event sends retry it, so a sample opened then fails until a reload.
+  Cloudflare's `durable_object` scheduling policy uploads the image map with the
+  Worker version and lets the session pick its image at start
+  ([docs](https://developers.cloudflare.com/containers/configuration/scheduling-policy/)),
+  which removes the window, `rollingOut`, the retry, and `verify-site`'s rollout
+  wait. Moving costs a new container application, a port off the `Container` class
+  (pings, sleep, outbound interception) and `standard-1` in place of `basic`.
+  Trigger: the policy leaves beta, or leaf.page gains visitors a deploy would
+  interrupt.
 - **#27 — Runtime fold tests:** add focused Node tests as rules change; extend
   `tests/runtime/dom.mjs` only when a test needs another module.
 - **Claude Code tool observation:** consider a cheap hook for sessions holding

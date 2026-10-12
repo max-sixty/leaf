@@ -51,16 +51,15 @@ representative desktop viewport.
   when their CSS loads before first paint: adding, removing or moving one keeps every
   block's position, wrapping and size. No rule pads, indents, widens or reflows a block
   to clear a pin, since reserved room would make the page's geometry depend on which
-  markers exist and where. Where a pin covers something the user needs, the answers are
-  `o` (Hide annotations under More on a touch screen) and a better placement
-  (`TODO.md`), never room made for it. The rail sits right of `main` wherever the window
+  markers exist and where. Resting pins use clear space or are withheld, while Page Map
+  retains their threads and actions. The rail sits right of `main` wherever the window
   has room, and seating it there never moves, narrows or indents the column
   (`content-layout.js`). `data-rail` on `body` withholds or reserves it: `"right"` makes
   the shell give up the rail's width, so the page's layout gets narrower
   (`annotation-theme.css`). Otherwise only the left resident and sidenotes move the
   column, through prepaint.js `residency`.
   Checks: `test_a_comment_leaves_its_block_as_the_page_wrote_it` and the shift watch
-  ("Stability"). Owners: the default package's `margin-placement.js` for where a margin
+  ("Stability"). Owners: `runtime/annotation-overlay/margin-placement.js` for where a margin
   row sits and when a pin folds.
 - **Auxiliary surfaces open over the page and never change its geometry.** The
   Questions panel, the thread panel and the Pages drawer take no room from the page;
@@ -414,7 +413,8 @@ keeps its own test says why beside it. Rows marked *lint* are enforced in
 | Whether a place is already shown, and the room a landing needs | `landing-scroll.js` `alreadyShown`, `landingRoom` |
 | Bring something into view without scrolling the page around it | `landing-scroll.js` `scrollIntoView` (*lint*) |
 | Open or close a native modal or popover | `keyboard/layer-stack.js` `showNativeLayer`, `closeNativeLayer` (*lint*) |
-| Which native layers are open, and whether a modal admits a node | `keyboard/layer-stack.js` `nativeLayers`, `nativeModalAdmits` |
+| Whether a node is an open native layer, of which kind, or stands in one as rendered | `shadow-tree.js` `nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding` (*lint*) |
+| Which native layers are open, in opening order, and whether a modal admits a node | `keyboard/layer-stack.js` `nativeLayers`, `nativeModalAdmits` |
 | The element a URL fragment names | `anchor-resolution.js` `fragmentTarget` |
 | The language a file path means | `syntax.js` `langForPath`, from the registry's `$languages` |
 | Paint on the next frame, or watch a size | `rendering.js` `nextRender`, `nextFrame`, `sizeObserver` (*lint*) |
@@ -482,10 +482,9 @@ contains its source, prompt, typed answer, status and next actor. The browser
 selects each widget answer from the same local-inclusive state its controls draw,
 without folding its `x-awaits.answered` completion rule again. A required-version
 approval is another ask source: its local approval or undo updates its contained
-answer and status immediately, with refusal restoring the admitted reading. While a
-reply, rewrite, settlement or settling reaction is unresolved, its thread's attention and the asks
-in it the user owes are what the server read that gesture leaving them (each served
-thread's `after`); a refusal restores the admitted reading. Asks derive their queue rows directly, while to-dos hold
+answer and status immediately, with refusal restoring the admitted reading. A thread
+gesture changes no served thread's attention and no ask until the server's reading of it
+arrives (root `AGENTS.md`, "Responsiveness"). Asks derive their queue rows directly, while to-dos hold
 explicit committed work. Every state read has
 one `through_seq`, and version comparison asks `/api/view` at the sequence
 already applied. A page widget's projection stops at the current revision; a

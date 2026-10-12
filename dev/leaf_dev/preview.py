@@ -22,6 +22,10 @@ preview is serving is refused. The slot is a page directory under
 `LEAF_PREVIEWS_ROOT` (default `.tmp/previews/`), marked by its `preview.json`, with
 its lease at `<slot>.lock` beside it.
 
+A product document is served as builders read it, with the parts other sources own
+composed in (`page_fixtures.authored_markup`), and an edit to one of those owners
+refreshes it like an edit to the document.
+
 While it runs, `watchfiles` reports edits. Initialization decides whether the layer
 actually changed; identical saves leave the browser and server alone. A source or
 `.page/` companion edit is stamped into the live page at the same URL; a layer edit
@@ -67,6 +71,8 @@ from leaf_dev.leaf_assets import CACHE as ASSETS_CACHE
 from leaf_dev.leaf_assets import assets_lock
 from leaf_dev.page_fixtures import (
     DEFAULT_PACKAGES,
+    authored_markup,
+    composition_inputs,
     fixture_history,
     import_referenced_media,
     media_source,
@@ -233,12 +239,21 @@ def copy_media(media: Path, page: Path) -> None:
             )
 
 
+def incoming_files(source: Path) -> dict[str, bytes]:
+    """The authored inputs a preview installs: the markup as builders read it
+    (`authored_markup`), and the source's page-owned files."""
+    return {
+        **authored_files(source, page_files(source)),
+        "index.html": authored_markup(source).encode(),
+    }
+
+
 def refresh_media(source: Path, page: Path, run_leaf) -> None:
     """Supply local and pinned media needed by the complete authored inputs."""
     copy_media(media_source(source), page)
     import_referenced_media(
         page,
-        [source.read_text(encoding="utf-8")],
+        [authored_markup(source)],
         run_leaf,
         source=source,
     )
@@ -428,7 +443,7 @@ def refresh_preview(
             "seeded history changed; restart this claimless preview to rebuild its fixture"
         )
     try:
-        incoming = authored_files(source, page_files(source))
+        incoming = incoming_files(source)
         incoming_digest = authored_digest(incoming)
         source_changed = incoming_digest != state["authored"]
         previous = authored_files(page / "index.html", page / "page")
@@ -550,6 +565,7 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path], seed: dict) -> W
         path.resolve()
         for path in (
             source,
+            *composition_inputs(source),
             companions,
             *companions.rglob("*"),
             *source_manifest_candidates(source),
@@ -699,7 +715,7 @@ def serve_preview(
     # may have revised those while this watcher was absent.
     state = {
         "seed": fixture_seed(source),
-        "authored": authored_digest(authored_files(source, page_files(source))),
+        "authored": authored_digest(incoming_files(source)),
     }
     resumed = user and page.exists()
     if resumed:
@@ -733,7 +749,7 @@ def serve_preview(
                 staged = Path(raw) / "page"
                 prepared_page = prepare_page(
                     staged,
-                    read_fixture(source),
+                    read_fixture(source, runtime=runtime),
                     partial(leaf, launcher, runtime),
                 )
                 mark_preview(source, staged, runtime, user, state["authored"])
@@ -1007,7 +1023,7 @@ def export_preview(
         page = Path(staging) / "page"
         prepared = prepare_page(
             page,
-            read_fixture(source),
+            read_fixture(source, runtime=runtime),
             partial(leaf, launcher, runtime),
         )
         suffix = f"-{slot}" if slot else ""

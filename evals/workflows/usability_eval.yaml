@@ -1,0 +1,551 @@
+# Usability tasks, live user rounds, fixture history, and native Promptfoo grading.
+# Python owns page setup, harness execution, and deterministic evidence readings.
+# Prompts substitute {page} and {work}. Each rounds list posts one batch of user
+# moves: anchor names an element and quote, undoes: previous names the last move,
+# parent: latest names the newest message, and {origin}/{line} describe the served
+# page. Document-bound moves receive the served revision at execution.
+fixtures:
+  reading:
+    stamp: Plan as authored
+    status: Pick a cutover mode
+  resume:
+    initial_stamp: First plan
+    rerun_comment: These rehearsal numbers are from before the mapping change. Rerun it and
+      update the figure.
+    rerun_quote: 4.1 million documents in 3 h 20 min
+    rerun_stamp: Rehearsal rerun after the mapping change; ask how traffic moves
+    rerun_answer: 'Reran it on 18 September after the mapping change: 4.3 million documents
+      in 3 h 05 min. The page shows the new figure.'
+    status: Pick how traffic moves to the new index
+    batch_comment: Batches of 500 saturate the replica's disk queue. Drop to 200 and say why
+      on the page.
+    batch_quote: batches of 500
+    original_date: scheduled for 21 October
+    unsaved_date: scheduled for 3 November
+    invalid_child: <p id="approach-deadline">Decide by Friday.</p>
+  constructs:
+    draft: |
+      Release 4.2 moves card tokenization to the new vault. Merchants need no code changes. Rollout starts 12 November.
+    stamp: Release 4.2 review
+    status: Edit the release note
+  board:
+    stamp: Key rotation board
+    status: Move cards as work changes
+    moves:
+    - unit: card-docs
+      value: col-doing
+      rank: 0i
+    - unit: card-audit
+      value: col-doing
+      rank: 1i
+    - unit: card-rotate
+      value: col-done
+      rank: '1'
+    doing:
+    - card-docs
+    - card-inventory
+    - card-audit
+    - card-alerts
+  package:
+    stamp: September review
+  shared-source:
+    stamp: Parser workers
+  mixed:
+    stamp: Backfill plan
+    status: Pick how the copy runs
+  elided:
+    stamp: Backfill schedule
+    premise: the vacuum job now owns the ops window
+cases:
+  cold-report:
+    inputs:
+      prompts:
+      - |-
+        Write up these findings from yesterday's load test so I can skim them
+        and leave comments before tomorrow's standup. We'll probably drop it after that.
+
+        1. Throughput: the checkout service held 1,850 requests/s at a p99 of 240 ms. The
+           database connection pool saturated at 2,100 requests/s.
+        2. Errors: 0.4% of requests failed, almost all 503s from the inventory service once
+           its thread pool reached 200 threads.
+        3. Cost: the run used 38 instance-hours, 22% more than the last test, because
+           autoscaling added nodes late.
+
+        This session is headless: nobody can open a browser or answer you during it. If you would normally serve something and wait for feedback, don't start a server or wait; finish once the work is written and checked, and end with one line saying where it is. Keep every file you create inside {work}.
+    assert: []
+  cold-decision:
+    inputs:
+      prompts:
+      - |-
+        Show me the options for where to cache product prices, with the
+        evidence, so I can pick one. Last week's measurements:
+
+        - In-process LRU in each pod: 0.2 ms median read; 9% of reads were stale at a 60 s
+          TTL; no new infrastructure.
+        - Shared Redis: 1.1 ms median read; 0.3% stale reads; about $410 a month.
+        - CDN edge cache: 0.05 ms median read, but only for anonymous traffic (68% of
+          requests); a price purge takes up to 90 s to reach every edge.
+
+        We'll run exactly one of these.
+
+        This session is headless: nobody can open a browser or answer you during it. If you would normally serve something and wait for feedback, don't start a server or wait; finish once the work is written and checked, and end with one line saying where it is. Keep every file you create inside {work}.
+    assert:
+    - type: llm-rubric
+      metric: names_gesture
+      value: 'The message tells the user how to make the decision on the page: by picking,
+        choosing or selecting one of its options.'
+      transform: context.metadata.texts?.["reply-1"] ?? ''
+  near-miss:
+    inputs:
+      prompts:
+      - |-
+        Explain the difference between optimistic and pessimistic locking in a
+        relational database. A short answer is fine.
+
+        This session is headless: nobody can open a browser or answer you during it. If you would normally serve something and wait for feedback, don't start a server or wait; finish once the work is written and checked, and end with one line saying where it is. Keep every file you create inside {work}.
+    assert: []
+  reading:
+    inputs:
+      prompts:
+      - |-
+        The directory {page} is a Leaf page I've been working on with an agent.
+        Answer these questions from what the page currently shows me. Reply with one numbered
+        line per question, each a short answer, and nothing else.
+
+        1. On what date does the migration window open?
+        2. Who owns the rollback?
+        3. At which shard did the earlier attempt stop?
+        4. How many write errors did ap-south record in the rehearsal?
+        5. What is max_parallel_copies set to in the copier configuration the page shows?
+        6. Which cutover mode has the user picked?
+        7. Which attempt tab am I looking at right now?
+
+        This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
+      fixture: reading
+    assert:
+    - type: llm-rubric
+      metric: answer_plain
+      value: |-
+        Question 1: On what date does the migration window open?
+        Expected answer: 14 October
+        Pass only if the answer to this question conveys the expected meaning. Equivalent wording is fine; contradicting the expected answer fails, even when its words occur in the reply.
+    - type: llm-rubric
+      metric: answer_collapsed
+      value: |-
+        Question 2: Who owns the rollback?
+        Expected answer: Priya Raman
+        Pass only if the answer to this question conveys the expected meaning. Equivalent wording is fine; contradicting the expected answer fails, even when its words occur in the reply.
+    - type: llm-rubric
+      metric: answer_inactive-tab
+      value: |-
+        Question 3: At which shard did the earlier attempt stop?
+        Expected answer: 37
+        Pass only if the answer to this question conveys the expected meaning. Equivalent wording is fine; contradicting the expected answer fails, even when its words occur in the reply.
+    - type: llm-rubric
+      metric: answer_widget-data
+      value: |-
+        Question 4: How many write errors did ap-south record in the rehearsal?
+        Expected answer: 1284
+        Pass only if the answer to this question conveys the expected meaning. Equivalent wording is fine; contradicting the expected answer fails, even when its words occur in the reply.
+    - type: llm-rubric
+      metric: answer_external-data
+      value: |-
+        Question 5: What is max_parallel_copies set to in the copier configuration the page shows?
+        Expected answer: 6
+        Pass only if the answer to this question conveys the expected meaning. Equivalent wording is fine; contradicting the expected answer fails, even when its words occur in the reply.
+    - type: llm-rubric
+      metric: answer_standing-action
+      value: |-
+        Question 6: Which cutover mode has the user picked?
+        Expected answer: Shard by shard: the user picked it, then picked Dual write, then undid the Dual write pick
+        Pass only if the answer to this question conveys the expected meaning. Equivalent wording is fine; contradicting the expected answer fails, even when its words occur in the reply.
+    - type: llm-rubric
+      metric: answer_view
+      value: |-
+        Question 7: Which attempt tab am I looking at right now?
+        Expected answer: Not recorded: the open tab is the viewer's own browser state, which the page directory does not hold; Current attempt is only the default
+        Pass only if the answer to this question conveys the expected meaning. Equivalent wording is fine; contradicting the expected answer fails, even when its words occur in the reply. For viewer state, acknowledge uncertainty and do not identify a currently open tab.
+  reading-plain:
+    inputs:
+      prompts:
+      - |-
+        The directory {page} is a Leaf page I've been working on with an agent.
+        Answer these questions from what the page currently shows me. Reply with one numbered
+        line per question, each a short answer, and nothing else.
+
+        1. On what date does the migration window open?
+
+        This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
+      fixture: reading-plain
+    assert:
+    - type: llm-rubric
+      metric: answer_plain
+      value: |-
+        Question 1: On what date does the migration window open?
+        Expected answer: 14 October
+        Pass only if the answer to this question conveys the expected meaning. Equivalent wording is fine; contradicting the expected answer fails, even when its words occur in the reply.
+  reading-collapsed:
+    inputs:
+      prompts:
+      - |-
+        The directory {page} is a Leaf page I've been working on with an agent.
+        Answer these questions from what the page currently shows me. Reply with one numbered
+        line per question, each a short answer, and nothing else.
+
+        1. Who owns the rollback?
+
+        This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
+      fixture: reading-collapsed
+    assert:
+    - type: llm-rubric
+      metric: answer_collapsed
+      value: |-
+        Question 1: Who owns the rollback?
+        Expected answer: Priya Raman
+        Pass only if the answer to this question conveys the expected meaning. Equivalent wording is fine; contradicting the expected answer fails, even when its words occur in the reply.
+  reading-inactive-tab:
+    inputs:
+      prompts:
+      - |-
+        The directory {page} is a Leaf page I've been working on with an agent.
+        Answer these questions from what the page currently shows me. Reply with one numbered
+        line per question, each a short answer, and nothing else.
+
+        1. At which shard did the earlier attempt stop?
+
+        This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
+      fixture: reading-inactive-tab
+    assert:
+    - type: llm-rubric
+      metric: answer_inactive-tab
+      value: |-
+        Question 1: At which shard did the earlier attempt stop?
+        Expected answer: 37
+        Pass only if the answer to this question conveys the expected meaning. Equivalent wording is fine; contradicting the expected answer fails, even when its words occur in the reply.
+  reading-widget-data:
+    inputs:
+      prompts:
+      - |-
+        The directory {page} is a Leaf page I've been working on with an agent.
+        Answer these questions from what the page currently shows me. Reply with one numbered
+        line per question, each a short answer, and nothing else.
+
+        1. How many write errors did ap-south record in the rehearsal?
+
+        This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
+      fixture: reading-widget-data
+    assert:
+    - type: llm-rubric
+      metric: answer_widget-data
+      value: |-
+        Question 1: How many write errors did ap-south record in the rehearsal?
+        Expected answer: 1284
+        Pass only if the answer to this question conveys the expected meaning. Equivalent wording is fine; contradicting the expected answer fails, even when its words occur in the reply.
+  reading-external-data:
+    inputs:
+      prompts:
+      - |-
+        The directory {page} is a Leaf page I've been working on with an agent.
+        Answer these questions from what the page currently shows me. Reply with one numbered
+        line per question, each a short answer, and nothing else.
+
+        1. What is max_parallel_copies set to in the copier configuration the page shows?
+
+        This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
+      fixture: reading-external-data
+    assert:
+    - type: llm-rubric
+      metric: answer_external-data
+      value: |-
+        Question 1: What is max_parallel_copies set to in the copier configuration the page shows?
+        Expected answer: 6
+        Pass only if the answer to this question conveys the expected meaning. Equivalent wording is fine; contradicting the expected answer fails, even when its words occur in the reply.
+  reading-standing-action:
+    inputs:
+      prompts:
+      - |-
+        The directory {page} is a Leaf page I've been working on with an agent.
+        Answer these questions from what the page currently shows me. Reply with one numbered
+        line per question, each a short answer, and nothing else.
+
+        1. Which cutover mode has the user picked?
+
+        This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
+      fixture: reading-standing-action
+    assert:
+    - type: llm-rubric
+      metric: answer_standing-action
+      value: |-
+        Question 1: Which cutover mode has the user picked?
+        Expected answer: Shard by shard: the user picked it, then picked Dual write, then undid the Dual write pick
+        Pass only if the answer to this question conveys the expected meaning. Equivalent wording is fine; contradicting the expected answer fails, even when its words occur in the reply.
+  reading-view:
+    inputs:
+      prompts:
+      - |-
+        The directory {page} is a Leaf page I've been working on with an agent.
+        Answer these questions from what the page currently shows me. Reply with one numbered
+        line per question, each a short answer, and nothing else.
+
+        1. Which attempt tab am I looking at right now?
+
+        This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
+      fixture: reading-view
+    assert:
+    - type: llm-rubric
+      metric: answer_view
+      value: |-
+        Question 1: Which attempt tab am I looking at right now?
+        Expected answer: Not recorded: the open tab is the viewer's own browser state, which the page directory does not hold; Current attempt is only the default
+        Pass only if the answer to this question conveys the expected meaning. Equivalent wording is fine; contradicting the expected answer fails, even when its words occur in the reply. For viewer state, acknowledge uncertainty and do not identify a currently open tab.
+  resume:
+    inputs:
+      prompts:
+      - |-
+        Another session was working with me on the Leaf page at {page}, and it has
+        ended. You're picking the page up. Don't change anything yet: first tell me where it
+        stands. Start your reply with these three lines, then add anything else I should
+        know:
+
+        Date: <the cutover date the page shows me now>
+        Approach: <how traffic will move to the new index>
+        Next: <what needs doing next>
+
+        This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
+      - |-
+        Go ahead and do what needs doing next. Check the page and stamp the new version
+        when it's ready. This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
+      fixture: resume
+    assert:
+    - type: llm-rubric
+      metric: date
+      value: The message reports 21 October as the cutover date the page currently shows.
+        Reporting 3 November as the current date fails; mentioning it as an unsaved or proposed
+        change is fine.
+      transform: context.metadata.texts?.["reply-1"] ?? ''
+    - type: llm-rubric
+      metric: approach
+      value: The message says traffic moves to the new index tenant by tenant, in groups of
+        tenants.
+      transform: context.metadata.texts?.["reply-1"] ?? ''
+    - type: llm-rubric
+      metric: next_batch
+      value: Among what needs doing next, the message includes the request to drop the batch
+        size from 500 to 200.
+      transform: context.metadata.texts?.["reply-1"] ?? ''
+    - type: llm-rubric
+      metric: next_pick
+      value: Among what needs doing next, the message includes taking in the user's pick of
+        the tenant-by-tenant approach, such as marking it chosen on the page. Treating how
+        traffic moves as still undecided fails.
+      transform: context.metadata.texts?.["reply-1"] ?? ''
+  constructs:
+    inputs:
+      prompts:
+      - |-
+        The directory {page} is a Leaf page I've been working on with an agent. Before
+        we change it, answer from what the page currently shows me, one numbered line each:
+
+        1. What does the release note say?
+        2. What p95 does the latency sentence state, and what is the latest measurement?
+        3. Which region has the most errors in the chart?
+
+        Don't change anything yet. This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
+      - |-
+        Now update the page: the rollout starts 19 November, not 12 November; the latency
+        sentence should state the latest p95 measurement; and sa-east's error count was
+        miscounted, it is 85. Check the page and stamp the new version. This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
+      fixture: constructs
+    assert:
+    - type: llm-rubric
+      metric: draft_read
+      value: Answer 1, to "What does the release note say?", gives the note as the user edited
+        it, which says merchants need no code changes.
+      transform: context.metadata.texts?.["reply-1"] ?? ''
+    - type: llm-rubric
+      metric: p95_read
+      value: Answer 2, to "What p95 does the latency sentence state, and what is the latest
+        measurement?", says the sentence states 184 ms and the latest measurement is 231 ms.
+      transform: context.metadata.texts?.["reply-1"] ?? ''
+    - type: llm-rubric
+      metric: chart_read
+      value: Answer 3, to "Which region has the most errors in the chart?", is us-east.
+      transform: context.metadata.texts?.["reply-1"] ?? ''
+    - type: llm-rubric
+      metric: draft_date
+      value: The release note gives the rollout start as 19 November and does not say 12 November.
+      transform: context.metadata.texts?.["release-note"] ?? ''
+    - type: llm-rubric
+      metric: draft_kept_user_words
+      value: The release note says merchants need no code changes.
+      transform: context.metadata.texts?.["release-note"] ?? ''
+    - type: llm-rubric
+      metric: chart_85
+      value: In the data this chart plots, sa-east has 85 errors.
+      transform: context.metadata.texts?.["chart"] ?? ''
+  board:
+    inputs:
+      prompts:
+      - |-
+        The directory {page} is a Leaf page I've been working on with an agent. Before
+        we change it, answer from what the page currently shows me, one numbered line each:
+
+        1. List the cards in the Doing column, top to bottom.
+        2. Which column is "Rotate signing keys" in?
+
+        Don't change anything yet. This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
+      - |-
+        Now add a card "Revoke old keys" at the bottom of To do, and rename "Expiry
+        alerts" to "Key expiry alerts". Check the page and stamp the new version. This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
+      fixture: board
+    assert:
+    - type: llm-rubric
+      metric: doing_read
+      value: 'Answer 1, to "List the cards in the Doing column, top to bottom", is Update
+        runbook, Inventory services, Audit key usage, Expiry alerts: those four cards in that
+        order.'
+      transform: context.metadata.texts?.["reply-1"] ?? ''
+    - type: llm-rubric
+      metric: undo_read
+      value: Answer 2, to "Which column is \"Rotate signing keys\" in?", is To do.
+      transform: context.metadata.texts?.["reply-1"] ?? ''
+  package:
+    inputs:
+      prompts:
+      - |-
+        The Leaf page at {page} is a reliability review I'm writing with an agent.
+        It uses our team's `slo` package, which has a widget for error budgets. Add checkout's
+        error budget to the Checkout section: the objective is 99.9% availability over 28 days,
+        and 62% of the budget is spent so far. Check the page and stamp the new version.
+        This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
+      fixture: package
+    assert: []
+  shared-source:
+    inputs:
+      prompts:
+      - |-
+        The directory {page} is a Leaf page I've been working on with an agent. Before
+        we change it, answer from what the page currently shows me, one numbered line each:
+
+        1. Which branch is finch's worktree on, and are its tests passing?
+        2. How many commits ahead of its base is wren's worktree?
+
+        Don't change anything yet. This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
+      - |-
+        finch just pushed a fix: its worktree's head is now 3f0a6be, 7 commits ahead of
+        main, and its tests pass. Update the page to show that. This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
+      fixture: shared-source
+    assert:
+    - type: llm-rubric
+      metric: finch_branch
+      value: Answer 1, to which branch finch's worktree is on and whether its tests pass,
+        gives the branch as finch/cdata-escapes. Giving finch/cdata-escapes-v1 fails.
+      transform: context.metadata.texts?.["reply-1"] ?? ''
+    - type: llm-rubric
+      metric: finch_failing
+      value: Answer 1, to which branch finch's worktree is on and whether its tests pass,
+        says its tests are failing.
+      transform: context.metadata.texts?.["reply-1"] ?? ''
+    - type: llm-rubric
+      metric: wren_ahead
+      value: Answer 2, to how many commits ahead of its base wren's worktree is, is 4.
+      transform: context.metadata.texts?.["reply-1"] ?? ''
+  handoff:
+    inputs:
+      prompts:
+      - |-
+        I've drafted a Leaf page at {page} comparing three ways to run the
+        order-history backfill. Hand it over so I can pick one in my browser and leave
+        comments, and handle what I send you.
+      fixture: handoff
+      rounds:
+      - - kind: comment
+          text: 'Add how long the dry run took: 3 h 10 min.'
+          anchor:
+          - dry-run
+          - finished without errors
+      - - kind: comment
+          text: Which option needs a write freeze, and for how long?
+          anchor:
+          - lede
+          - Pick how the copy runs.
+    assert:
+    - type: llm-rubric
+      metric: detail_names_ask
+      value: 'This status, shown while the page waits on the user, says what it waits for:
+        their choice of how the backfill copy runs.'
+      transform: context.metadata.texts?.["status"] ?? ''
+    - type: llm-rubric
+      metric: gesture_named
+      value: 'The message tells the user how to make the decision on the page: by picking,
+        choosing or selecting one of its options.'
+      transform: context.metadata.texts?.["handover"] ?? ''
+    - type: llm-rubric
+      metric: edit_done
+      value: The paragraph says the dry run took 3 hours 10 minutes.
+      transform: context.metadata.texts?.["dry-run"] ?? ''
+    - type: llm-rubric
+      metric: question_answered
+      value: The answer says the snapshot restore option needs a write freeze, and that the
+        freeze lasts 40 minutes.
+      transform: context.metadata.texts?.["answers"] ?? ''
+  mixed:
+    inputs:
+      prompts:
+      - |-
+        The Leaf page at {page} is one I've been reviewing with another agent
+        session, which has ended. Serve it again so I can keep working on it in my browser,
+        and handle what I send you.
+      fixture: mixed
+      rounds:
+      - - kind: comment
+          text: 'Add how long the dry run took: 3 h 10 min.'
+          anchor:
+          - dry-run
+          - finished without errors
+        - kind: action
+          widget: copy-mode
+          action: choose
+          detail:
+            value:
+            - opt-online
+        - kind: comment
+          token: shorten
+          anchor:
+          - why-now
+          - The reporting team moves its dashboards
+        - kind: action
+          widget: follow-board
+          action: move
+          detail:
+            unit: card-lag-alert
+            value: col-done
+            rank: '1'
+        - kind: undo
+          undoes: previous
+        - kind: error
+          text: 'Uncaught TypeError: replaceAll must be called with a global RegExp ({origin}/:{line})'
+    assert:
+    - type: llm-rubric
+      metric: comment_done
+      value: The paragraph says the dry run took 3 hours 10 minutes.
+      transform: context.metadata.texts?.["dry-run"] ?? ''
+  elided:
+    inputs:
+      prompts:
+      - |-
+        The Leaf page at {page} is one I've been reviewing with another agent
+        session, which has ended. Serve it again so I can keep working on it in my browser,
+        and handle what I send you.
+      fixture: elided
+      rounds:
+      - - kind: reply
+          parent: latest
+          text: Remind me what time the copy starts each night, in UTC? I'm putting it in
+            the on-call calendar.
+    assert:
+    - type: llm-rubric
+      metric: answer_right
+      value: The answer says the copy starts at 22:00 UTC each night. Answering 01:00 UTC
+        fails.
+      transform: context.metadata.texts?.["answers"] ?? ''

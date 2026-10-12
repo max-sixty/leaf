@@ -17,7 +17,11 @@
    without one, the card's minimum width ends at `clear`'s right edge. `margin` is where
    across the page the margin row for it stands,
    or would stand in the rail once its thread is sent (margin-layout.js, `marginSpot`),
-   or nothing where no row stands and its rows would be pins. A caller requesting
+   or nothing where no row stands and its rows would be pins. When local pin seating
+   exhausted a pane, this reading also supplies its chosen external attachment and
+   outer scroller. Both comment surfaces use that boundary, so a small pane does not
+   squeeze an opened thread into an unreadable transcript or carry it with inner scroll.
+   The semantic comment anchor remains the original target. A caller requesting
    window placement without a visible attachment supplies `clear: null` and stands
    at its upper inline edge through the same sizing and placement machinery.
    The editing surface uses this solver for its initial attachment, then retains
@@ -140,44 +144,44 @@ export function commentAttachment({
       scroller: effectiveScroller(element),
     };
   }
-  const context = point ?? passage?.contextNode ?? target;
-  const element = point ?? target;
+  const margin = marginSpot(target, point);
+  const external = margin?.attachment && margin.attachment !== target;
+  const attachment = external ? margin.attachment : target;
+  const context = external ? attachment : (point ?? passage?.contextNode ?? target);
+  const element = external ? attachment : (point ?? target);
   const geometry = floatingGeometry([element, context]);
   const clips = new Map();
   const shown = union(
-    shownParts(target)
+    shownParts(attachment)
       .map((part) => shownRect(part, clips))
       .filter(Boolean),
   );
-  const whole = shownExtent(target) ?? target.getBoundingClientRect();
-  const extent = point ? pointBand(whole, point) : whole;
-  const clear = point ? extent : (shown ?? whole);
-  const region = containingReadingRegionFor(element);
+  const whole = shownExtent(attachment) ?? attachment.getBoundingClientRect();
+  const extent = point && !external ? pointBand(whole, point) : whole;
+  const clear = point && !external ? extent : (shown ?? whole);
+  const region = containingReadingRegionFor(external ? margin.scroller : element);
   return {
     element,
     contextNode: context,
     geometry,
     clear,
     extent,
-    row: (passage?.attachment ?? extent).top,
-    lastRow: passage?.attachment ? passage.attachment.top : extent.bottom,
-    column: passage?.attachment?.left ?? null,
-    margin: marginSpot(target, point),
+    row: (!external && passage?.attachment ? passage.attachment : extent).top,
+    lastRow: !external && passage?.attachment ? passage.attachment.top : extent.bottom,
+    column: !external ? (passage?.attachment?.left ?? null) : null,
+    margin,
     region,
-    scroller: effectiveScroller(region ?? element),
+    scroller: external ? margin.scroller : effectiveScroller(region ?? element),
   };
 }
 
 // The clear box chooses the initial seat; quoted words carry that seat through
 // scrolling on every side, including under or over their stationary scrollport.
-// The physical attachment point accompanies the solver's clear-box proxy; the
-// mechanical selection retains that point with the scroll reading that measured it.
 export function commentReference(place, reference) {
   return {
     contextElement: place.element,
     contextNode: place.contextNode,
     geometry: place.geometry,
-    attachmentPoint: { left: place.column ?? place.extent.left, top: place.row },
     getBoundingClientRect: () => reference,
   };
 }

@@ -1495,7 +1495,7 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     # exactly this reason. The shared contract describes `leaf status`, so what the
     # agent receives has to hand the status to the harness.
     instructions = " ".join(website_server.CODEX_INSTRUCTIONS.split())
-    assert "Leave the page's status to the harness" in instructions
+    assert "Leave status to the harness" in instructions
 
 
 def test_a_timed_out_app_server_is_stopped_before_startup_retries(

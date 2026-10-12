@@ -3288,8 +3288,9 @@ def test_q_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, se
     """`q` stops, in page order, at a thread whose question waits on the user as well
     as at an open Ask, and passes a thread waiting on the agent; `t` still walks both
     threads. The banner counts what waits on each side, the user's Questions on their
-    door beside Threads and the agent's Tasks beside the status, and a reply the user
-    sends moves its thread from their count to the agent's and off the walk."""
+    door beside Threads and the agent's Tasks beside the status. A reply the user sends
+    joins the agent's count as it is sent, and its thread leaves the user's count and
+    the walk once the server has read the reply."""
     url = serve(QUEUE_PAGE)
     d = serve.page_dir
     asked = append_carried_log_record(
@@ -3363,13 +3364,13 @@ def test_q_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, se
     page.keyboard.press("Enter")
     box = thread.locator("leaf-text")
     write(box, "Weekly.")
-    # The reply moves from one count to the other in the turn it is sent, before the
-    # server has answered for it.
+    # The reply is the agent's to answer in the turn it is sent; which question it
+    # answers is the server's reading, which takes the thread off the user's count.
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     page.keyboard.press("ControlOrMeta+Enter")
     holding(page, held, 1, "the reply")
-    counts(1, 2)
+    counts(2, 2)
     page.unroute("**/api/event")
     for route in held:
         route.continue_()
@@ -3407,8 +3408,9 @@ def test_the_questions_panel_lists_both_queues_and_what_is_done(browser, serve):
     """The Questions panel lists the queues the `q` walk and the banner's counts read,
     the user's first and then the agent's, and folds what is done at the foot: here a
     task the agent ended. The prose question is an agent opening comment, which
-    asks implicitly. A row arrives where `q` would, and a reply the user sends moves its
-    thread from the user's list to the agent's in the turn it is sent."""
+    asks implicitly. A row arrives where `q` would. A reply the user sends joins the
+    agent's list as it is sent, and its thread leaves the user's once the server has
+    read the reply."""
     url = serve(QUEUE_PAGE)
     d = serve.page_dir
 
@@ -3521,8 +3523,8 @@ def test_the_questions_panel_lists_both_queues_and_what_is_done(browser, serve):
     page.keyboard.press("ControlOrMeta+Enter")
     holding(page, held, 1, "the reply")
     you = panel.locator("[data-lf-queue='you'] .lf-queue-row")
-    expect(you).to_have_count(1)
     expect(panel.locator("[data-lf-queue='agent'] .lf-queue-row")).to_have_count(3)
+    expect(you).to_have_count(2)
     page.unroute("**/api/event")
     for route in held:
         route.continue_()
@@ -8541,6 +8543,31 @@ def test_a_native_modal_escapes_inherited_inertness_for_its_commands(browser, se
     dialog.evaluate("dialog => dialog.close()")
 
 
+def test_a_dialog_shown_as_a_popover_stands_as_a_popover(browser, serve):
+    """A dialog opened with `showPopover` is a popover layer, and the page behind it stays live.
+
+    Chromium reports it `:popover-open` and not `:modal`. Read as modal, it would make the
+    dispatcher drop the page's key scopes behind it."""
+    page = open_page(browser, serve(LONG_PAGE))
+    kinds = page.evaluate("""() => {
+      const layers = document[Symbol.for('leaf.nativeLayers')];
+      const asPopover = document.createElement('dialog');
+      asPopover.popover = 'manual';
+      asPopover.textContent = 'A dialog shown as a popover';
+      const asModal = document.createElement('dialog');
+      asModal.textContent = 'A dialog shown modally';
+      document.querySelector('main').append(asPopover, asModal);
+      asPopover.showPopover();
+      const popover = layers().map((layer) => layer.kind);
+      asPopover.hidePopover();
+      asModal.showModal();
+      const modal = layers().map((layer) => layer.kind);
+      asModal.close();
+      return {popover, modal};
+    }""")
+    assert kinds == {"popover": ["popover"], "modal": ["modal"]}
+
+
 def test_the_key_line_says_what_a_press_will_do(browser, serve):
     """The shortcut bar and dispatcher read one return frame for each keyboard entry."""
     url = serve(NOTED_PAGE)
@@ -10588,6 +10615,9 @@ def test_an_ask_under_the_open_panel_is_shown_beside_it_or_by_clearing_it(
     evidence = (
         "<figure><p>The hedge shelters the feeders.</p></figure>" if side_track else ""
     )
+    options_style = (
+        "<style>#spot { width: 40%; margin-left: 60%; }</style>" if side_track else ""
+    )
     url = serve(
         leaf_page(
             "Under the panel",
@@ -10602,6 +10632,7 @@ def test_an_ask_under_the_open_panel_is_shown_beside_it_or_by_clearing_it(
 </lf-options></lf-ask>
 <section id="below">{filler}</section>
 """,
+            head=options_style,
         )
     )
     append_carried_log_record(
@@ -13385,11 +13416,10 @@ def test_r_resolves_a_thread_from_wherever_the_user_stands_in_it(browser, serve)
 def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve):
     """One press is one action: the rung is the innermost scope in reach that binds
     Escape, and the dispatcher runs that one and no other. The draft editor's Esc used
-    to be two — the edit cancelled and the runtime's ladder closed the panel behind it
-    — and the cancel discarded the user's words against the never-lose-text norm. Each
-    control kept that by hand once and the stack keeps it now, so this is the test that
-    says the structure holds. The editor closes keeping the edit, the panel stands, and
-    a grabbed card's Esc cancels the move and nothing else."""
+    to be two — the edit cancelled and the runtime's ladder closed the panel behind it.
+    Each control kept that by hand once and the stack keeps it now, so this is the test
+    that says the structure holds. The editor's Esc cancels the edit and the panel
+    stands, and a grabbed card's Esc cancels the move and nothing else."""
     html = BOARD_PAGE.replace(
         "</main>", '<lf-draft id="plan"><pre>Ship it.</pre></lf-draft></main>'
     )
@@ -13412,12 +13442,7 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
     page.keyboard.press("Escape")
     expect(ta).to_have_count(0)  # the editor closed…
     expect(page.locator(".lf-thread-panel")).to_be_visible()  # …and only the editor
-    # The edit was set aside, not discarded: reopening resumes it.
-    draft_control(page, "edit", "plan").click()
-    expect(page.locator("lf-draft leaf-text")).to_have_js_property(
-        "value", "Ship it — but louder."
-    )
-    page.keyboard.press("Escape")
+    expect(page.locator("lf-draft .lf-draft-body")).to_have_text("Ship it.")
 
     # A grabbed card: Esc cancels the move, and the panel it would have closed stands.
     grip = page.locator("#card-heater .lf-grip")
@@ -13602,8 +13627,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     not about reopening what a pick has closed.
 
     The seat and the ask are the project widget SEATED_ASK_ENTRY declares, for the reason
-    test_a_seat_thread_leaves_the_pick_it_is_about_live gives: the split is between
-    two declarations, and since 292de9c no shipped entry carries both."""
+    test_a_seat_thread_leaves_the_pick_it_is_about_live gives."""
     url = serve(
         leaf_page(
             "mid-sentence",

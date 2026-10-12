@@ -399,9 +399,10 @@ are refused. Their fields come from the effect:
 | `value` | `{value}` | The schema of the destination in the widget's `properties`; `record.attr` names that attribute. |
 | `position` | `{unit, value, rank}` | Strings naming the owned element, valid destination container, and rank key; `record.within` names the container tag. |
 
-`report: true` on an agent-written verb adds required nonempty `text` for its news.
-Omit `report` when the verb has no news. The effect determines the complete payload;
-a recorded verb cannot add contextual fields or independent schema refinements.
+`text: true` on an agent-written verb requires each report to carry non-empty
+`detail.text`, the report's news. Omit `text` when the verb has no news. The effect
+determines the complete payload; a recorded verb cannot add contextual fields or
+independent schema refinements.
 
 A verb with no record declares its own closed `detail` JSON Schema. Its `unit` is
 `"widget"` or a required detail field naming the element it changes. This supports
@@ -472,8 +473,8 @@ A verb whose state the agent writes rather than the user declares `"writer": "ag
 beside its `unit` and `record`. A worker posts it with
 `leaf page report`, the page paints it live, and it stands until a version
 answers it; the user has no control for it. It uses `unit: "widget"` and a required
-`attribute` or `value` record. It declares `report: true` when each report also supplies short human-readable
-news in `detail.text`. Every verb has exactly one
+`attribute` or `value` record. It declares `text: true` when each report must also
+carry short human-readable news in `detail.text`. Every verb has exactly one
 writer, so a coordinate never holds a user's action and an agent's report at once.
 The Atlas example's page-owned task `status` is one example. A widget declaring
 such a verb also declares the boolean `overruled` attribute a version keeps its own
@@ -613,9 +614,9 @@ Each source is one JSON publication at `data/<source>.json`, holding its opaque
 `run` receipt, `updated` instant, and complete `value`; `data.json` records its
 contract. Write a value through `leaf data set`, which checks the binding, validates
 the value and replaces the publication atomically. A rejected value leaves it
-untouched. Every reading validates the publication and value against the contract,
-so corrupted data reaches users as that source's error, and `page check` and
-`page state` report it. Tabs hear a new publication as they hear any page change.
+untouched. Every reading validates the value against the contract the source is
+bound to now, so a value that no longer fits it reaches users as that source's error,
+and `page check` and `page state` report it. Tabs hear a new publication as they hear any page change.
 
 A contract that carries media URLs declares `resources`, a list of
 [JMESPath expressions](https://jmespath.org/tutorial.html) selecting each URL string
@@ -642,7 +643,7 @@ to be derived from a file — a text excerpt, a patch split into files — is th
 producer's to build, and a contract that needs more than `jq` says how in its
 producer `instructions`. A package may ship that tool
 as a Python file under `scripts/`, declaring its dependencies in inline script metadata
-(PEP 723) with floors and no cap. `leaf package run NAME SCRIPT [ARGS]...` finds the
+(PEP 723). `leaf package run NAME SCRIPT [ARGS]...` finds the
 package by the name `--package` selects it by, bundled or installed, and runs the
 script with `uv run --script` in the environment its header declares, apart from
 Leaf's own. The script owns stdin, stdout, and the exit status, so the instructions state the
@@ -653,11 +654,10 @@ git diff main... | leaf package run diff patch_manifest.py | leaf data set PAGE 
 ```
 
 `package check` and `package install` refuse a `scripts/*.py` without that header,
-since uv would run it in whatever project the caller's directory reaches, and refuse a
-constraint other than a `>=` floor. A subdirectory of `scripts/` holds helpers and is
-not checked or run. A page never vendors `scripts/`. When a producer upstream of `data set` fails and
-writes nothing, `data set` refuses the empty input and points back at that producer's
-own error.
+since uv would run it in whatever project the caller's directory reaches. A
+subdirectory of `scripts/` holds helpers and is not checked or run. A page never
+vendors `scripts/`. When a producer upstream of `data set` fails and writes nothing,
+`data set` refuses the empty input and points back at that producer's own error.
 
 A revision may replace a source's contract, including its schema, record declaration,
 and resource selectors. `data set` validates against the current binding and replaces
@@ -673,8 +673,9 @@ paint. Do not put credentials or private host state in it.
 A contract whose value holds keyed rows declares `records`: the top-level array field
 and each row's key field. A source replacement is accepted only when every row has a
 non-empty, unique string key. Rows that each carry a large, independently useful
-payload may name that field `deferred`. The source file still holds the complete value,
-and readings validate all of it, but `/api/state` sends each row with that field
+payload may name that field `deferred`; the item schema decides which rows carry it.
+The source file still holds the complete value, and readings validate all of it,
+but `/api/state` sends each row with that field
 omitted; a widget uses `loadDeferred(snapshot, key)` to fetch one row's payload
 using the delivery `watchData` handed it. A request naming a source revision the file
 no longer holds is refused instead of combining a new payload with an old manifest.

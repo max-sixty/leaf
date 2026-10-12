@@ -35,6 +35,7 @@ import {
   semanticNewsNotice,
   semanticNewsReading,
 } from "./semantic-news.js";
+import { renderVersions } from "./version.js";
 
 export function createStateApplication({
   prepareActivation,
@@ -42,7 +43,6 @@ export function createStateApplication({
   notifyDataSubscribers,
   isSignoffDeclared,
   renderStatus,
-  renderVersions,
   stateSignoff,
   renderOthers,
   accountPending,

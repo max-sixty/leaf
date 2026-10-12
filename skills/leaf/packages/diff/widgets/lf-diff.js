@@ -57,7 +57,7 @@ import {
   sizeObserver,
   widgetController,
   watchData,
-  watchOwner,
+  whileConnected,
   scrollIntoView,
   layoutPx,
 } from "/runtime/widget-api.js";
@@ -705,149 +705,140 @@ customElements.define(
     };
 
     connectedCallback() {
-      this.addEventListener("lf-reveal", this.revealPassage);
-      const firstConnection = once(this);
-      if (firstConnection) {
-        watchOwner(this, {
-          disconnect: () => {
-            this.rendering = (this.rendering ?? 0) + 1;
+      if (!once(this)) return;
+      commands(
+        this,
+        "In a diff review",
+        [
+          // The walk leads the scope, because the shortcut bar's shortlist is its first
+          // two live rows and moving is what a user standing on a diff row does
+          // next, where "filter files" is the press for someone who has not started
+          // reading yet. The rest of the scope is one `?`
+          // away in the compact shortcut bar and complete in the reference dialog.
+          //
+          // `]` and `[` are the reviewer's own step, and `}` and `{` the same step one
+          // unit out. Bracket pairs because that is what an editor and a review tool
+          // already spell this walk with, and punctuation spends none of the page's
+          // small alphabet: these live in the diff's own scope and answer only while
+          // the user is standing in it.
+          {
+            id: "diff.next-hunk",
+            keys: ["]"],
+            title: "next hunk",
+            when: () => this.hasHunks(),
+            run: () => this.present(this.stepHunk(false)),
           },
-        });
-      }
-      if (!this.threadSurface)
+          {
+            id: "diff.previous-hunk",
+            keys: ["["],
+            title: "previous hunk",
+            when: () => this.hasHunks(),
+            run: () => this.present(this.stepHunk(true)),
+          },
+          {
+            id: "diff.next-file",
+            keys: ["}"],
+            title: "next file",
+            description: "Go to the next file's header",
+            when: () => this.shownEntries().length > 1,
+            run: () => this.stepFile(false),
+          },
+          {
+            id: "diff.previous-file",
+            keys: ["{"],
+            title: "previous file",
+            description: "Go to the previous file's header",
+            when: () => this.shownEntries().length > 1,
+            run: () => this.stepFile(true),
+          },
+          {
+            id: "diff.search",
+            keys: ["/"],
+            title: "filter files",
+            description: "Filter the files in this diff",
+            run: () => {
+              const search = this.diffTools?.search;
+              if (search) {
+                focusDestination(search, "move");
+                scrollIntoView(search, { block: "nearest" });
+              }
+            },
+          },
+          // The filter is a layer of this widget, so its way out is read off the
+          // filter rather than off the press that put it on: a live query goes
+          // first, from anywhere in the patch, and then the box itself.
+          {
+            id: "diff.search.back",
+            keys: ["Escape"],
+            when: () => {
+              const search = this.diffTools?.search;
+              if (!search) return false;
+              return Boolean(
+                this.matches(":focus-within") &&
+                (search.value || search.matches(":focus-within")),
+              );
+            },
+            title: () => (this.diffTools?.search.value ? "show all files" : "back"),
+            description: () =>
+              this.diffTools?.search.value
+                ? "Show every file again"
+                : "Leave the diff filter",
+            run: () => {
+              const search = this.diffTools?.search;
+              if (search?.value) {
+                this.clearFilter();
+                focusDestination(search, "return");
+                return;
+              }
+              // The box's container is the patch it filters, so that is where it hands
+              // the user back: a blur alone would drop them out of this widget's
+              // scope with no ring anywhere, and the file walk would stop answering.
+              focusDestination(this, "return");
+            },
+          },
+        ],
+        () => Boolean(this.fileEntries?.length),
+      );
+      const bound = this.hasAttribute("source");
+      whileConnected(this, (signal) => {
+        this.addEventListener("lf-reveal", this.revealPassage, { signal });
         this.threadSurface = placeThreads(this, (targets) => {
           this.beginThreadSurface();
           const outlets = targets.map((target) => this.threadOutletFor(target));
           this.endThreadSurface();
           return outlets;
         });
-      // A page diff's file header pins at `--lf-top`, the top of the page's box that
-      // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,
-      // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
-      // the module answers it once with the layer's own predicate and paints the answer.
-      this.toggleAttribute("data-lf-diff-pinned", !inChrome(this));
-      if (!this.diffKeys) {
-        this.diffKeys = commands(
-          this,
-          "In a diff review",
-          [
-            // The walk leads the scope, because the shortcut bar's shortlist is its first
-            // two live rows and moving is what a user standing on a diff row does
-            // next, where "filter files" is the press for someone who has not started
-            // reading yet. The rest of the scope is one `?`
-            // away in the compact shortcut bar and complete in the reference dialog.
-            //
-            // `]` and `[` are the reviewer's own step, and `}` and `{` the same step one
-            // unit out. Bracket pairs because that is what an editor and a review tool
-            // already spell this walk with, and punctuation spends none of the page's
-            // small alphabet: these live in the diff's own scope and answer only while
-            // the user is standing in it.
-            {
-              id: "diff.next-hunk",
-              keys: ["]"],
-              title: "next hunk",
-              when: () => this.hasHunks(),
-              run: () => this.present(this.stepHunk(false)),
-            },
-            {
-              id: "diff.previous-hunk",
-              keys: ["["],
-              title: "previous hunk",
-              when: () => this.hasHunks(),
-              run: () => this.present(this.stepHunk(true)),
-            },
-            {
-              id: "diff.next-file",
-              keys: ["}"],
-              title: "next file",
-              description: "Go to the next file's header",
-              when: () => this.shownEntries().length > 1,
-              run: () => this.stepFile(false),
-            },
-            {
-              id: "diff.previous-file",
-              keys: ["{"],
-              title: "previous file",
-              description: "Go to the previous file's header",
-              when: () => this.shownEntries().length > 1,
-              run: () => this.stepFile(true),
-            },
-            {
-              id: "diff.search",
-              keys: ["/"],
-              title: "filter files",
-              description: "Filter the files in this diff",
-              run: () => {
-                const search = this.diffTools?.search;
-                if (search) {
-                  focusDestination(search, "move");
-                  scrollIntoView(search, { block: "nearest" });
-                }
-              },
-            },
-            // The filter is a layer of this widget, so its way out is read off the
-            // filter rather than off the press that put it on: a live query goes
-            // first, from anywhere in the patch, and then the box itself.
-            {
-              id: "diff.search.back",
-              keys: ["Escape"],
-              when: () => {
-                const search = this.diffTools?.search;
-                if (!search) return false;
-                return Boolean(
-                  this.matches(":focus-within") &&
-                  (search.value || search.matches(":focus-within")),
-                );
-              },
-              title: () => (this.diffTools?.search.value ? "show all files" : "back"),
-              description: () =>
-                this.diffTools?.search.value
-                  ? "Show every file again"
-                  : "Leave the diff filter",
-              run: () => {
-                const search = this.diffTools?.search;
-                if (search?.value) {
-                  this.clearFilter();
-                  focusDestination(search, "return");
-                  return;
-                }
-                // The box's container is the patch it filters, so that is where it hands
-                // the user back: a blur alone would drop them out of this widget's
-                // scope with no ring anywhere, and the file walk would stop answering.
-                focusDestination(this, "return");
-              },
-            },
-          ],
-          () => Boolean(this.fileEntries?.length),
-        );
-      }
-      const bound = this.hasAttribute("source");
-      if (!bound) {
-        if (this.classList.contains("lf-rendered")) return;
-        // Not bodyText: a diff's trailing whitespace is content — a hunk's last line
-        // can be a lone space, the context line for a blank source line — so only the
-        // closing newline is the <pre>'s layout.
-        if (this.inlineSource === undefined)
-          this.inlineSource = dataBody(this).replace(/^\n+/, "").replace(/\n$/, "");
-        this.present((this.sourceRendering = this.render(this.inlineSource)));
-        return;
-      }
-      if (firstConnection)
+        // A page diff's file header pins at `--lf-top`, the top of the page's box that
+        // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,
+        // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
+        // the module answers it once with the layer's own predicate and paints the answer.
+        this.toggleAttribute("data-lf-diff-pinned", !inChrome(this));
+        // An inline patch never changes, so it renders once, and again on a return
+        // only when the departure cut that rendering short: a refusal stands.
+        if (!bound && !this.settled) {
+          // Not bodyText: a diff's trailing whitespace is content — a hunk's last line
+          // can be a lone space, the context line for a blank source line — so only the
+          // closing newline is the <pre>'s layout.
+          this.inlineSource ??= dataBody(this).replace(/^\n+/, "").replace(/\n$/, "");
+          this.present((this.sourceRendering = this.render(this.inlineSource)));
+        }
+        return () => {
+          this.rendering = (this.rendering ?? 0) + 1;
+          for (const target of this.threadSizeTargets ?? [])
+            threadSizes.unobserve(target);
+          this.threadSizeTargets = null;
+          this.threadSurface.unregister();
+          this.threadSurface = null;
+          this.threadOutlets = null;
+          this.threadPairs = null;
+        };
+      });
+      if (bound)
         watchData(this, "document", (snapshot) => {
           const rendering = this.render(snapshot?.value ?? null, snapshot);
           this.sourceRendering = rendering;
           return rendering;
         });
-    }
-
-    disconnectedCallback() {
-      this.removeEventListener("lf-reveal", this.revealPassage);
-      for (const target of this.threadSizeTargets ?? []) threadSizes.unobserve(target);
-      this.threadSizeTargets = null;
-      this.threadSurface?.unregister();
-      this.threadSurface = null;
-      this.threadOutlets = null;
-      this.threadPairs = null;
     }
 
     // `snapshot` is the bound delivery, null when a bound source has no value, and
@@ -948,6 +939,7 @@ customElements.define(
           this.stageFiles();
           this.projectFiles();
           this.classList.toggle("lf-rendered", true);
+          this.settled = true;
           this.filterFiles(this.diffTools.search.value);
           for (const restore of restores) restore?.();
         } finally {
@@ -955,6 +947,7 @@ customElements.define(
         }
       } catch (err) {
         if (rendering !== this.rendering || !this.isConnected) return;
+        this.settled = true;
         this.fileEntries = null;
         this.sharedStyles = null;
         this.diffTools = null;

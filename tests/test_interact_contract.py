@@ -3649,6 +3649,7 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
             "colour",
         ),
         ("lf-option", "x-refers", {"for": {}, "about": {}}, "about"),
+        ("lf-option", "x-unique", {"label": "lf-options"}, "label"),
         ("lf-code", "x-language", "dialect", "dialect"),
         ("lf-column", "x-tone", "shade", "shade"),
     ],
@@ -3656,8 +3657,9 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
 def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(
     page_dir, tag, key, value, missing
 ):
-    """Four keys point at attributes rather than declaring them — the words a widget
-    shows, the ones that name another element, and the two carrying a word its layer
+    """These keys point at attributes rather than declaring them — the words a widget
+    shows, the ones that name another element, the ones no two members of an owner
+    share, and the two carrying a word its layer
     has to know —
     and each is read by a pass that finds the attribute absent and does nothing. That
     is the never-closed vocabulary's own failure mode: no error anywhere, the widget
@@ -3688,10 +3690,20 @@ def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(
             {"via": "$work.widgets", "where": {"role": "imaginary"}},
             "but no declared widget matches",
         ),
+        (
+            {"tag": "lf-ghost", "key": "name"},
+            "names unknown element declaration <lf-ghost>",
+        ),
+        (
+            {"tag": "lf-option", "key": "id"},
+            "names <lf-option> by `id`, which <lf-option> does not declare in x-unique",
+        ),
     ],
 )
 def test_a_typed_reference_names_a_reachable_package_role(page_dir, reference, message):
-    """A bad package relation fails at the registry door, not on every instance."""
+    """A bad package relation fails at the registry door, not on every instance. A
+    keyed relation names its member by a key the member declares unique, so one
+    reference never stands for two members."""
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-option"]["x-refers"]["for"] = reference
 
@@ -4064,7 +4076,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         "resolve": {"kind": "resolve"},
         "unresolve": {"kind": "unresolve"},
         "done": {"kind": "done"},
-        "Done on a task on the user": {"kind": "task_end"},
+        "Done on a to-do on the user": {"kind": "todo_end"},
         "undo": {"kind": "undo"},
         "report": {"kind": "report"},
         "error": {"kind": "error"},

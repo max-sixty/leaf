@@ -158,6 +158,7 @@
           <a href="#x-thread-seat"><code>x-thread-seat</code></a>
           <a href="#x-thread-surface"><code>x-thread-surface</code></a>
           <a href="#x-tone"><code>x-tone</code></a>
+          <a href="#x-unique"><code>x-unique</code></a>
           <a href="#x-upgrade"><code>x-upgrade</code></a>
           <a href="#x-verbatim"><code>x-verbatim</code></a>
           <a href="#x-views"><code>x-views</code></a>
@@ -176,9 +177,9 @@
               <details class="reference-more">
                 <summary aria-label="Full x-awaits contract">Full contract</summary>
                 <p>
-                  Its stable Question id is widget:&lt;source-id&gt;; presentation
-                  context only supplies prompt words and an arrival target. value names
-                  the x-state verb supplying the typed answer: its record value, or its
+                  Its stable ask id is widget:&lt;source-id&gt;; presentation context
+                  only supplies prompt words and an arrival target. value names the
+                  x-state verb supplying the typed answer: its record value, or its
                   standing action detail where it has no record. A verb folding on
                   member units supplies their value mapping. answered independently
                   declares completion; partial values may exist while open, and a
@@ -186,12 +187,12 @@
                   with source, prompt, answer {value, event}, status and next_actor. A
                   source previously registered remains answered or withdrawn when when
                   stops holding; an unrelated instance that never requested input
-                  creates no Question. restated starts a fresh request. A discussion in
-                  its declared thread seat transfers next_actor to agent without
-                  answering the widget. Frozen widgets retain Questions when the
-                  containing thread closes, with no current next actor. Quoted sources
-                  register nothing. all retains the declared bulk answer. Questions and
-                  explicit Tasks are separate records; queues select Questions directly.
+                  creates no ask. restated starts a fresh request. A discussion in its
+                  declared thread seat transfers next_actor to agent without answering
+                  the widget. Frozen widgets retain their asks when the containing
+                  thread closes, with no current next actor. Quoted sources register
+                  nothing. all retains the declared bulk answer. Asks and to-dos are
+                  separate records; the Questions list selects asks directly.
                 </p>
               </details>
             </div>
@@ -258,7 +259,7 @@
             <div class="reference-copy">
               <p>
                 The element displays quoted content: nested widgets are not interactive,
-                and nested Questions do not enter the user's queue. Modules check
+                and nested asks do not enter the user's Questions. Modules check
                 <code>quoted(el)</code> before enabling input. The theme suppresses
                 interactive styling inside quoted content.
               </p>
@@ -503,20 +504,20 @@
             <div class="reference-copy">
               <p>
                 A context region contributes the prompt text from its leading direct
-                heading and the arrival target of nested Questions.
+                heading and the arrival target of nested asks.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-question-context contract">
                   Full contract
                 </summary>
                 <p>
-                  It never replaces a Question identity, changes its answer or
-                  completion, or deduplicates sources. The nearest context is used. Leaf
-                  calls the context a question when referring to its type, unless its
-                  declared x-word module returns another label. lf-ask is one widget
-                  declaring this adapter; standalone question sources need no wrapper. A
-                  context may frame several sources, each retaining its
-                  widget:&lt;source-id&gt; identity.
+                  It never replaces an ask identity, changes its answer or completion,
+                  or deduplicates sources. The nearest context is used. Leaf calls the
+                  context a question when referring to its type, unless its declared
+                  x-word module returns another label. lf-ask is one widget declaring
+                  this adapter; standalone question sources need no wrapper. A context
+                  may frame several sources, each retaining its widget:&lt;source-id&gt;
+                  identity.
                 </p>
               </details>
             </div>
@@ -567,11 +568,19 @@
                   command fills the readings seat it names:
                   <code>page check</code> requires the target in the referrer's own
                   document, and every element there that the predicate selects named by
-                  exactly one referrer. In the browser a declared attribute is what a
-                  module hands <code>navigateToDatum</code> and the experimental
+                  exactly one referrer. A keyed contract <code>{tag, key}</code> names a
+                  member by an attribute rather than an id: the <code>tag</code> element
+                  whose <code>key</code> attribute holds the value, inside the
+                  referrer's own nearest owner of the tag <code>key</code> is unique
+                  within, which <code>tag</code> declares in x-unique (a playground
+                  preset's setting names a control of its own playground by
+                  <code>name</code>); <code>page check</code> and message markup refuse
+                  one naming no such member. In the browser a declared attribute is what
+                  a module hands <code>navigateToDatum</code> and the experimental
                   <code>indicate</code> to reach the named widget, which each resolves
-                  in the owner's own authored document first (its message's markup, for
-                  a widget in a reply) and then in the page.
+                  in that same owner for a keyed contract, and otherwise in the owner's
+                  own authored document first (its message's markup, for a widget in a
+                  reply) and then in the page.
                 </p>
               </details>
             </div>
@@ -666,9 +675,9 @@
                 The default width an element takes in a flow wider than the prose
                 measure: <code>column</code> keeps that measure and starts where the
                 prose does, for an element or idiom whose content is read as lines of
-                text or that frames prose (a Question, <code>.callout</code>), and it
-                widens to the widest allocation among its own blocks;
-                <code>wide</code> takes the vocabulary's shared capped evidence width;
+                text or that frames prose (an ask, <code>.callout</code>), and it widens
+                to the widest allocation among its own blocks; <code>wide</code> takes
+                the vocabulary's shared capped evidence width;
                 <code>available</code> takes all room the page shell can give after
                 enclosing frames, chrome, and actual margin residents.
               </p>
@@ -773,11 +782,11 @@
                   It projects exact-section threads textually from the whole log;
                   Threads keeps the complete interactive view. Thread markup and quoted
                   material take no second view. Where the widget also originates a local
-                  x-awaits Question, the seat is where the user deals with it in words:
-                  the Question leaves their queue while that thread waits on the agent,
-                  rather than being counted a second time under a box they have already
-                  used. It is not an answer — the widget's own state is untouched, so
-                  its controls still work and the Question still reads as unanswered. A
+                  x-awaits ask, the seat is where the user deals with it in words: the
+                  ask leaves their queue while that thread waits on the agent, rather
+                  than being counted a second time under a box they have already used.
+                  It is not an answer — the widget's own state is untouched, so its
+                  controls still work and the ask still reads as unanswered. A
                   <code>hold</code> comment is a seat thread like any other.
                   <code>hold</code> labels a stronger send route whose comment carries
                   <code>holds</code> naming this widget: that route remains available
@@ -822,6 +831,25 @@
                 The attribute that names one of the layer's semantic tints, held to
                 <code>$tones.names</code>, which the theme has a rule for.
               </p>
+            </div>
+          </section>
+          <section class="reference-entry" id="x-unique">
+            <h3><code>x-unique</code></h3>
+            <div class="reference-copy">
+              <p>
+                A map from attributes whose values no two members share within one owner
+                to that owner's tag.
+              </p>
+              <details class="reference-more">
+                <summary aria-label="Full x-unique contract">Full contract</summary>
+                <p>
+                  <code>page check</code> and message markup refuse a member whose value
+                  repeats another's inside the same nearest enclosing owner of that tag,
+                  as two controls of one playground sharing a <code>name</code> or two
+                  choices of one control sharing a <code>value</code>. A keyed x-refers
+                  contract names members by such an attribute, so it always names one.
+                </p>
+              </details>
             </div>
           </section>
           <section class="reference-entry" id="x-upgrade">
@@ -940,7 +968,7 @@
                   Full contract
                 </summary>
                 <p>
-                  It answers the Question without closing the widget's
+                  It answers the ask without closing the widget's
                   <code>resolves</code> thread. A revision may also remove an unanswered
                   proposal directly, whether or not it has retirable slots; historical
                   ids do not veto the edit.
@@ -977,14 +1005,14 @@
             <div class="reference-copy">
               <p>
                 <code>true</code>: this widget is a block prose seat that can admit
-                <code>leaf task open</code> without a pending update, so the task shows
+                <code>leaf task open</code> without a pending update, so the to-do shows
                 as local chrome beside its authored markup.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-work contract">Full contract</summary>
                 <p>
                   Only a block widget whose x-content is markup may declare it. Once
-                  admitted, a page-widget task appears at the page edge through its
+                  admitted, a page-widget to-do appears at the page edge through its
                   target margin entry even if a later layer drops x-work. The
                   declaration is permission for runtime chrome, not a consequence of
                   x-content: markup may itself be an owner gesture or sit in a hidden

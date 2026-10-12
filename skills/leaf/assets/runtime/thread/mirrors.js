@@ -4,6 +4,7 @@
    the original Thread. Optional consumers reconcile their outlets and async
    preparation independently of the core panel, margin, and read presentation. A later reading or
    unregister aborts its predecessor before any DOM from that predecessor commits. */
+import { aborted } from "../abort.js";
 import { randomId } from "../ids.js";
 import { reportPageError } from "../layer-client.js";
 import { under, renderedUnder, shadowHost } from "../shadow.js";
@@ -49,9 +50,7 @@ export function registerMirrorConsumer(owner, render, { commands }) {
     pending?.abort();
     const abort = new AbortController();
     pending = abort;
-    const cancelled = new Promise((resolve) =>
-      abort.signal.addEventListener("abort", resolve, { once: true }),
-    );
+    const cancelled = aborted(abort.signal);
     const collection = readThreads();
     const byKey = new Map(collection.threads.map((thread) => [thread.key, thread]));
     const selected = new Map();
@@ -297,12 +296,7 @@ export function createPrimaryReader(owner, render, commands, update) {
         }),
       );
       if (rendering?.then)
-        return Promise.race([
-          rendering,
-          new Promise((resolve) =>
-            abort.signal.addEventListener("abort", resolve, { once: true }),
-          ),
-        ])
+        return Promise.race([rendering, aborted(abort.signal)])
           .then(finish)
           .finally(() => {
             accepting = false;

@@ -202,12 +202,6 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
     const recent = narrowing.intent.order === "recent";
     const ordered = recent ? inRecentOrder(threads) : inPage;
     const rows = [];
-    if (!threads.length)
-      rows.push(Object.freeze({ kind: "empty", key: "empty", text: emptyText }));
-    else if (!shown.length)
-      rows.push(
-        Object.freeze({ kind: "empty", key: "no-match", text: narrowing.emptyText }),
-      );
     // Walked in the order the user chose above. A thread on its way out still stands
     // between its neighbours while it folds (foldOut), which is why the walk is over the
     // whole list with the resolved ones taken at their own place. A folding thread is
@@ -244,6 +238,37 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
           text: `✓ Approved ${ago(e.ts)}`,
         }),
       );
+    }
+    // A card whose root the log no longer has, withdrawn by another actor, is the other
+    // way a card leaves: the list says whether it keeps the room (thread-list-view.js,
+    // `withdrawal`), by the rule that keeps a card the view stops admitting, and the room
+    // stands where the card stood among the rows it stood beside.
+    const present = new Set(rows.map((row) => row.key));
+    const prior = threadsBox.committed.rows;
+    for (let i = prior.length - 1; i >= 0; i--) {
+      if (present.has(prior[i].key)) continue;
+      const withdrawn = threadsBox.withdrawal(prior[i], narrowing.intent);
+      if (!withdrawn) continue;
+      const following = prior.slice(i + 1).find((next) => present.has(next.key));
+      const preceding = prior
+        .slice(0, i)
+        .findLast((previous) => present.has(previous.key));
+      const at = following
+        ? rows.findIndex((next) => next.key === following.key)
+        : preceding
+          ? rows.findIndex((previous) => previous.key === preceding.key) + 1
+          : 0;
+      rows.splice(at, 0, withdrawn);
+      present.add(withdrawn.key);
+    }
+    // The list says it shows nothing only where no card or kept room stands.
+    if (!rows.some((row) => row.kind === "withdrawn")) {
+      if (!threads.length)
+        rows.unshift(Object.freeze({ kind: "empty", key: "empty", text: emptyText }));
+      else if (!shown.length)
+        rows.unshift(
+          Object.freeze({ kind: "empty", key: "no-match", text: narrowing.emptyText }),
+        );
     }
     return Object.freeze({
       rows: Object.freeze(rows),

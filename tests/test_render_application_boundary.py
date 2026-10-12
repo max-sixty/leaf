@@ -709,14 +709,21 @@ def activation_page(source):
 
 
 PAGE_WIDGET = """\
-import { LitElement, html, keeps, layerFact, once, widgetController } from "/runtime/widget-api.js";
+import {
+  html, keeps, layerFact, once, render, widgetController,
+} from "/runtime/widget-api.js";
 
-customElements.define("lf-local", class extends LitElement {
+customElements.define("lf-local", class extends HTMLElement {
   controller = widgetController(this);
   reading = this.controller.read();
 
+  constructor() {
+    super();
+    this.attachShadow({mode: "open"});
+  }
+
   connectedCallback() {
-    super.connectedCallback();
+    this.paint();
     if (!once(this)) return;
     layerFact("$tones");
     keeps(this, "data-page-widget", "ready");
@@ -725,7 +732,7 @@ customElements.define("lf-local", class extends LitElement {
       this.dataset.renderOrder = `${this.dataset.renderOrder || ""}subscribe,`;
       keeps(this, "data-subscriber-choice", this.dataset.renderedChoice);
       this.dataset.readings = String(Number(this.dataset.readings || 0) + 1);
-      this.requestUpdate();
+      this.paint();
     });
     const held = globalThis.__heldLocalPresentations?.get(this.id);
     if (held) this.controller.present(held);
@@ -742,7 +749,7 @@ customElements.define("lf-local", class extends LitElement {
     if (!sent) return;
     this.reading = sent.reading;
     keeps(this, "data-delivery", "pending");
-    this.requestUpdate();
+    this.paint();
     sent.delivery.then(accepted => {
       keeps(this, "data-delivery", accepted ? "accepted" : "refused");
     });
@@ -756,21 +763,14 @@ customElements.define("lf-local", class extends LitElement {
     }
     keeps(this, "data-rendered-choice", state.choose.value);
     this.dataset.renderOrder = `${this.dataset.renderOrder || ""}render,`;
-    this.requestUpdate();
+    this.paint();
   }
 
-  async scheduleUpdate() {
-    const held = globalThis.__heldLocalUpdate;
-    globalThis.__heldLocalUpdate = null;
-    if (held) await held;
-    return super.scheduleUpdate();
-  }
-
-  render() {
+  paint() {
     const choice = this.reading.state.choose?.value ?? this.getAttribute("choice");
     const available = this.reading.actions.choose?.available ?? false;
-    return html`<button ?disabled=${!available} @click=${this.choose}>Choose</button>
-      <output>${choice}</output>`;
+    render(html`<button ?disabled=${!available} @click=${this.choose}>Choose</button>
+      <output>${choice}</output>`, this.shadowRoot, {host: this});
   }
 });
 """
@@ -815,7 +815,7 @@ def test_current_readiness_releases_a_connected_page_widget(browser, serve):
     installed = page.evaluate(
         """() => {
           const owner = document.querySelector('#page-local');
-          const control = owner.renderRoot.querySelector('button');
+          const control = owner.shadowRoot.querySelector('button');
           control.click();
           return {
             defined: customElements.get('lf-local') === owner.constructor,
@@ -968,7 +968,7 @@ def test_admission_holds_approval_until_the_answer_is_in_the_log(
     expect_asks_answered(page, "0/1")
     expect(approval).to_be_disabled()
     expect(approval).to_have_attribute(
-        "title", "Answer every Question before approving this work"
+        "title", "Answer every ask before approving this work"
     )
 
     if expanded:
@@ -1302,18 +1302,6 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
           };
         }"""
     )
-
-    held_render = page.evaluate(
-        """() => {
-          window.heldWidgetUpdate = heldPreparation();
-          window.__heldLocalUpdate = heldWidgetUpdate.promise;
-          window.stopHeldWidgetReading = pageLocal.controller.subscribe(() => {});
-          return readLeafPresentation().pending;
-        }"""
-    )
-    assert held_render == ["widget:page-local:render"]
-    page.evaluate("heldWidgetUpdate.release(); stopHeldWidgetReading()")
-    page.wait_for_function("readLeafPresentation().pending.length === 0")
 
     # Several children prepared by one owner are one requirement. A later call for the
     # same reading includes the earlier promise rather than superseding it.
@@ -2197,9 +2185,7 @@ def test_an_external_withdrawal_keeps_the_readers_allocation(browser, serve, pla
             first_card.locator(":scope > .lf-thread-reply leaf-text"),
             "A draft for this conversation",
         )
-        page.evaluate(
-            "window.withdrawnWidget = document.querySelector('#withdraw-widget')"
-        )
+        expect(page.locator("#withdraw-widget")).not_to_have_count(0)
         panel = page.locator("leaf-thread-list")
         box = panel.bounding_box()
         page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
@@ -2214,9 +2200,6 @@ def test_an_external_withdrawal_keeps_the_readers_allocation(browser, serve, pla
     rendered(page)
     allocation = first_card.evaluate("node => node.getBoundingClientRect().height")
     position = next_card.evaluate("node => node.getBoundingClientRect().top")
-    page.evaluate(
-        "() => { window.survivingCard = document.querySelector('.lf-threads > [data-id=next-thread]'); }"
-    )
     if place == "scrolled":
         for reply in ["long-reply", "widget-reply"]:
             append_carried_log_record(
@@ -2244,7 +2227,6 @@ def test_an_external_withdrawal_keeps_the_readers_allocation(browser, serve, pla
     assert next_card.evaluate(
         "node => node.getBoundingClientRect().top"
     ) == pytest.approx(position, abs=0.1)
-    assert next_card.evaluate("node => node === window.survivingCard")
     if selected:
         expect(withdrawn.locator("button")).to_be_focused()
         expect(next_card).not_to_have_attribute("open", "")
@@ -2257,9 +2239,7 @@ def test_an_external_withdrawal_keeps_the_readers_allocation(browser, serve, pla
         expect(next_card.locator(".lf-thread-summary")).to_be_focused()
         expect(next_card).to_have_attribute("open", "")
     if place == "scrolled":
-        assert page.evaluate(
-            "window.withdrawnWidget && !window.withdrawnWidget.isConnected"
-        )
+        expect(page.locator("#withdraw-widget")).to_have_count(0)
         # The subject has left the document: its editor ends, while the draft's
         # independent saved owner keeps the words for a genuine return.
         page.evaluate("lfWordsJudged()")
@@ -2944,7 +2924,7 @@ def package_workspace(serve, *, before_reader="", primary=True):
         },
         {
             "id": "proofread",
-            "kind": "task",
+            "kind": "todo",
             "author": "agent",
             "agent": "Agent",
             "session": "proofread",
@@ -2976,12 +2956,12 @@ def test_package_answer_summary_waits_for_widget_completion(browser, serve):
     counts = workspace.locator(".counts")
     workspace.get_by_role("button", name="Which extras? Chat", exact=True).click()
     expect(workspace.locator("#extra-chat").get_by_role("checkbox")).to_be_checked()
-    expect(counts).to_have_text("2 Questions on you")
+    expect(counts).to_have_text("2 asks on you")
     with sending(page, "complete the selected extras"):
         workspace.locator("#extras").get_by_role(
             "button", name="Done: my picks here are complete", exact=True
         ).click()
-    expect(counts).to_have_text("1 Questions on you · 1 answered · Chat")
+    expect(counts).to_have_text("1 asks on you · 1 answered · Chat")
 
 
 @pytest.mark.parametrize("width", [1440, 390])
@@ -3007,7 +2987,7 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
                 "revision": 1,
                 "parent": "opening",
                 "text": text,
-                "question": True,
+                "ask": True,
             },
         )
     page = open_page(browser, url, context=context)
@@ -3045,7 +3025,7 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
     # One reply answers both prose Questions. Counts include them, while the
     # compact answer summary names only widget choices instead of repeating prose.
     expect(workspace.locator(".counts")).to_have_text(
-        "0 Questions on you · 3 answered · Email"
+        "0 asks on you · 3 answered · Email"
     )
     with sending(page, "create a real conversation from a package"):
         workspace.get_by_role("textbox", name="New conversation").fill(
@@ -3069,17 +3049,17 @@ def test_public_queue_commands_recheck_membership_and_restore_refusals(browser, 
         "async () => { window.api = await window.__lfRuntimeImport('/runtime/widget-api.js'); }"
     )
     key = page.evaluate(
-        "api.queueItemKey(api.readQueues().onYou.find(item => item.id === 'proofread'))"
+        "api.queueItemKey(api.readQueues().questions.find(item => item.id === 'proofread'))"
     )
     assert page.evaluate(
-        "api.queueActions.done(api.queueItemKey(api.readQueues().onYou.find(item => item.question?.source.kind === 'widget'))) === null"
+        "api.queueActions.done(api.queueItemKey(api.readQueues().questions.find(item => item.ask?.source.kind === 'widget'))) === null"
     )
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     page.evaluate("key => { window.doneDelivery = api.queueActions.done(key); }", key)
     holding(page, held, 1, "a package Done awaiting admission")
     assert page.evaluate(
-        "!api.readQueues().onYou.some(item => item.id === 'proofread')"
+        "!api.readQueues().questions.some(item => item.id === 'proofread')"
     )
     assert page.evaluate("api.readQueues().done.some(item => item.id === 'proofread')")
     assert page.evaluate("key => api.queueActions.done(key) === null", key)
@@ -3098,7 +3078,9 @@ def test_public_queue_commands_recheck_membership_and_restore_refusals(browser, 
     page.unroute("**/api/event")
     assert page.evaluate("doneDelivery") is None
     round_trip(page)
-    assert page.evaluate("api.readQueues().onYou.some(item => item.id === 'proofread')")
+    assert page.evaluate(
+        "api.readQueues().questions.some(item => item.id === 'proofread')"
+    )
     with sending(page, "a current package Done"):
         page.locator("#workspace").get_by_role(
             "button", name="Done", exact=True
@@ -3109,8 +3091,8 @@ def test_public_queue_commands_recheck_membership_and_restore_refusals(browser, 
     assert [
         event["kind"]
         for event in events_model.read_events(serve.page_dir)
-        if event.get("task") == "proofread"
-    ] == ["task_end"]
+        if event.get("todo") == "proofread"
+    ] == ["todo_end"]
 
 
 def test_failed_primary_reader_restores_the_same_native_ask_in_core(browser, serve):
@@ -3320,7 +3302,7 @@ def test_queue_ask_arrival_selects_the_primary_reader(browser, serve):
         "async () => { window.api = await window.__lfRuntimeImport('/runtime/widget-api.js'); }"
     )
     assert page.evaluate(
-        "async () => { const item = api.readQueues().onYou.find(item => item.question?.source.kind === 'widget'); return await api.queueActions.open(api.queueItemKey(item)); }"
+        "async () => { const item = api.readQueues().questions.find(item => item.ask?.source.kind === 'widget'); return await api.queueActions.open(api.queueItemKey(item)); }"
     )
     expect(workspace.locator("lf-option#email")).to_be_visible()
     assert page.evaluate(

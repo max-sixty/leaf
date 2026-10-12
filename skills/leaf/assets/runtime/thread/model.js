@@ -242,7 +242,7 @@ export function foldThreads(threads, gestures) {
       thread.resolved = null;
       // A question asked since still waits on the user: new words for an older message
       // answer none (`events.exchange`), so the user stays first, as the log will say.
-      if (thread.attention?.reason !== "question") thread.attention = sending(gesture);
+      if (thread.attention?.reason !== "ask") thread.attention = sending(gesture);
     } else if (gesture.kind === "resolve" || gesture.kind === "unresolve") {
       const thread =
         byName.get(gesture.parent) ??

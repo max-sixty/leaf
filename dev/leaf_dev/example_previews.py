@@ -100,9 +100,7 @@ def bootstrap_assets(target: Path) -> Path:
     stills exist."""
     shutil.copytree(pinned_assets(), target)
     previews = target / "examples"
-    fallback = next(iter(sorted(previews.glob("example-*.jpg"))), None)
-    if fallback is None:
-        raise RuntimeError("the pinned asset revision contains no catalog preview")
+    fallback = min(previews.glob("example-*.jpg"))
     for source in catalog_sources():
         preview = previews / f"example-{source.stem}.jpg"
         if not preview.is_file():

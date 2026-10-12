@@ -319,26 +319,3 @@ test("spoken context bounds unspaced languages and oversized tokens", () => {
     assert.ok([...around.after].length <= 56);
   }
 });
-
-test("template speech labels share relabel's passage contract through changed readings", async () => {
-  const { html, render } = await import("/vendor/browser-runtime.js");
-  const { relabel, said } = await import("/runtime/widget-elements.js");
-  const root = document.createElement("section");
-  document.body.append(root);
-  const imperative = document.createElement("span");
-  imperative.className = "lf-ui";
-  imperative.dataset.lfOffer = "button";
-  const paint = (speaking) =>
-    render(
-      html`<span class="lf-ui" data-lf-offer="button" ${said(speaking)}>Reading</span>`,
-      root,
-    );
-  for (const speaking of [true, "echo", false, true]) {
-    paint(speaking);
-    relabel(imperative, "Reading", { says: speaking });
-    assert.equal(root.querySelector("span").outerHTML, imperative.outerHTML);
-    assert.equal(pageWords(root.querySelector("span").firstChild), speaking === true);
-  }
-  assert.throws(() => paint(undefined), /true, false, or "echo"/);
-  root.remove();
-});

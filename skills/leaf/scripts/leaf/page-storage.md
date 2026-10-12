@@ -204,7 +204,7 @@ document or keeps its widgets (`revision_artifact.py`).
 
 `leaf page state` is an on-demand reading of these authorities. Its
 `layer` object, shared with `/api/state`, reports the vendored generation,
-fingerprint, kernel runtime identity, packages, and producer;
+fingerprint, server identity, packages, and producer;
 `source` names `index.html`, whether that candidate is live, and any validation
 error. `active.file` names the immutable revision the live root actually
 shows when one exists; `data` names the contract file, the value directory, and any source whose
@@ -233,8 +233,8 @@ contract, source id and revision, or to the `error` a failing value reads as;
 contracts with a deferred record field expose the manifest plus the value file and
 its revision for their payload. The reading's `content_source` names the thread and
 vocabulary file. A widget on the page names itself: the reading is its `widget`
-element, the `state` and `reports` standing on it, the explicit open `tasks` on it,
-the canonical `questions` sourced by it, and the `workflows` it is the subject of, with
+element, the `state` and `reports` standing on it, the open `todos` on it,
+the canonical `asks` sourced by it, and the `workflows` it is the subject of, with
 their `activity` obligations. Page ids
 and event ids share one address space, which is why `page check` refuses an authored
 id shaped like an event id. Default `page state` thread entries stay compact. Raw

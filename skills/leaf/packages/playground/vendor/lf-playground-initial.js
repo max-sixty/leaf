@@ -18,13 +18,9 @@
     const choicesByName = /* @__PURE__ */ new Map();
     for (const control of controls) {
       const name = control.getAttribute("name"), kind = control.getAttribute("kind");
-      if (controlByName.has(name)) throw new Error(`repeated playground control ${name}`);
       const choices = own(control, "lf-playground-choice");
       if (kind === "choice" !== Boolean(choices.length))
         throw new Error(`control ${name} needs choices only for kind choice`);
-      const choicesValues = choices.map((choice) => choice.getAttribute("value"));
-      if (new Set(choicesValues).size !== choicesValues.length)
-        throw new Error(`control ${name} repeats a choice`);
       choicesByName.set(name, choices);
       controlByName.set(name, control);
     }
@@ -117,10 +113,6 @@
         const next = {};
         for (const setting of settings) {
           const name = setting.getAttribute("for");
-          if (!controlByName.has(name))
-            throw new Error(`preset names unknown control ${name}`);
-          if (Object.hasOwn(next, name))
-            throw new Error(`preset repeats control ${name}`);
           next[name] = parse(controlByName.get(name), setting.getAttribute("value"));
         }
         return [preset, Object.freeze(next)];
@@ -277,9 +269,8 @@
     };
     const renderValues = (next) => {
       for (const slot of output.querySelectorAll("lf-playground-value")) {
-        const name = slot.getAttribute("for"), control = controlByName.get(name);
-        if (!control) throw new Error(`output names unknown control ${name}`);
-        text(slot, formatted(control, next[name]));
+        const name = slot.getAttribute("for");
+        text(slot, formatted(controlByName.get(name), next[name]));
       }
     };
     const paintPresets = (next) => {

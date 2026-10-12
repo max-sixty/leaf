@@ -1890,49 +1890,45 @@ def test_the_render_gate_rejects_an_upgrade_that_defines_no_element(
 def test_the_render_gate_requires_a_declared_threads_host(
     browser, serve, tmp_path, monkeypatch
 ):
-    """A thread declaration whose module omits its host fails visibly.
-
-    A project widget supplies the declaration and its matching host. The bug-back then
-    removes only its threadBox placement; a fresh browser context prevents the
-    clean load's module cache from answering for the changed file."""
+    """A thread declaration whose module omits its host fails visibly, beside the same
+    declaration whose module places it and passes. Both are project widgets; only the
+    second's starter module leaves out the threadBox placement."""
     monkeypatch.chdir(tmp_path)
     package = tmp_path / ".leaf"
-    add_test_widget(package, "lf-callout", upgrade=True)
+    for tag in ("lf-callout", "lf-unseated"):
+        add_test_widget(package, tag, upgrade=True)
     registry_path = package / "registry.json"
     registry = json.loads(registry_path.read_text())
     registry["lf-callout"]["x-thread-seat"] = {"when": {"id": ["custom-note"]}}
+    registry["lf-unseated"]["x-thread-seat"] = {"when": {"id": ["unseated-note"]}}
     registry_path.write_text(json.dumps(registry, indent=2))
     module = package / "widgets" / "lf-callout.js"
     source = module.read_text()
     runtime_import = 'import { once } from "/runtime/widget-api.js";'
-    assert source.count(runtime_import) == 1
-    source = source.replace(
-        runtime_import,
-        'import { threadBox, once } from "/runtime/widget-api.js";',
-    )
     once = "      if (!once(this)) return;\n"
-    placement = '      if (once(this)) this.append(threadBox(this, "Question"));\n'
-    assert source.count(once) == 1
-    source = source.replace(
-        once,
-        placement,
+    assert source.count(runtime_import) == 1 and source.count(once) == 1
+    module.write_text(
+        source.replace(
+            runtime_import, 'import { threadBox, once } from "/runtime/widget-api.js";'
+        ).replace(
+            once, '      if (once(this)) this.append(threadBox(this, "Question"));\n'
+        )
     )
-    module.write_text(source)
-
-    url = serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    assert render_gate_model.render_version(browser, url).failures == []
-
-    source = module.read_text()
-    assert source.count(placement) == 1
-    module.write_text(source.replace(placement, ""))
+    page = CUSTOM_WIDGET_PAGE.replace(
+        "</main>",
+        '<lf-unseated id="unseated-note"><strong>Heads up</strong> No seat.'
+        "</lf-unseated>\n</main>",
+    )
 
     failures = render_gate_model.render_version(
-        browser, serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+        browser, serve(page, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     ).failures
+
     assert (
-        "[light] <lf-callout id='custom-note'> declares x-thread-seat but rendered 0 "
+        "[light] <lf-unseated id='unseated-note'> declares x-thread-seat but rendered 0 "
         "matching hosts; its module must place exactly one threadBox"
     ) in failures
+    assert not [f for f in failures if "custom-note" in f], failures
 
 
 def test_the_render_gate_requires_a_visual_parts_provider(
@@ -2389,89 +2385,6 @@ classDiagram
     )
 
 
-def test_the_render_gate_rejects_an_unresolved_svg_paint_token(
-    browser, serve, tmp_path, monkeypatch
-):
-    """The browser must resolve generated paint against the page's live cascade.
-
-    A missing custom property is valid CSS syntax, so a generated SVG silently
-    falls back to black. The same contract covers widgets frozen into
-    an agent's reply, which render in the thread panel outside main. A fallback is the
-    control: it names an absent property but resolves to a shipped color in both schemes.
-    The native SVG is the other control: a gradient reference is valid paint even though
-    it is not a color.
-    """
-    monkeypatch.chdir(tmp_path)
-    package = tmp_path / ".leaf"
-    add_test_widget(package, "lf-paint", upgrade=True)
-    (package / "widgets" / "lf-paint.js").write_text("""
-import { once } from "/runtime/widget-api.js";
-customElements.define("lf-paint", class extends HTMLElement {
-  connectedCallback() {
-    if (!once(this)) return;
-    this.innerHTML = `<svg width="160" height="80" viewBox="0 0 160 80">
-      <rect data-id="missing" width="70" height="70" fill="var(--accent-glow)" />
-      <rect x="80" width="70" height="70" fill="var(--diagram-safe)" />
-    </svg>`;
-  }
-});
-""")
-    page = leaf_page(
-        "diagram paint",
-        """
-<h1 id="title">Diagram paint</h1>
-<lf-paint id="flow"></lf-paint>
-<svg id="gradient" width="20" height="20" viewBox="0 0 20 20">
-  <defs><linearGradient id="blue"><stop stop-color="var(--accent)" /></linearGradient></defs>
-  <rect width="20" height="20" fill="var(--diagram-gradient)" />
-</svg>
-""",
-        head="""<style>:root {
-  --diagram-safe: var(--not-defined, var(--ok-tint));
-  --diagram-gradient: url(#blue) var(--accent);
-}</style>""",
-    )
-
-    url = serve(page, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "id": "c-paint",
-            "author": "user",
-            "revision": 1,
-            "text": "Show the same diagram in your reply.",
-        },
-    )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "parent": "c-paint",
-            "revision": 1,
-            "text": "Here it is:",
-            "markup": '<lf-paint id="sent"></lf-paint>',
-        },
-    )
-
-    failures = render_gate_model.render_version(browser, url).failures
-    unresolved = [f for f in failures if "does not resolve to valid fill" in f]
-
-    assert len(unresolved) == 4, failures
-    for diagram in ("flow", "sent"):
-        expected = (
-            f"<lf-paint id='{diagram}'> renders fill='var(--accent-glow)' on <rect> "
-            "for data-id='missing'"
-        )
-        assert sum(expected in failure for failure in unresolved) == 2, unresolved
-    assert not any(
-        token in failure
-        for failure in failures
-        for token in ("--diagram-safe", "--diagram-gradient")
-    ), failures
-
-
 def _author_lying_callout(tmp_path):
     add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
@@ -2804,74 +2717,194 @@ def test_the_render_gate_checks_undeclared_shadow_roots_inside_thread_chrome(
     ]
 
 
-def test_anonymous_verbatim_owners_keep_distinct_page_and_reply_provenance(
+def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
     browser, serve, tmp_path, monkeypatch
 ):
+    """Three contracts the gate holds for a widget wherever it stands, the page or an
+    agent's reply in the thread panel, on one page with one reply apiece.
+
+    Anonymous verbatim owners keep distinct page and reply provenance: of two id-less
+    `lf-anon` in each place, the second, which replaces its words, is named by its
+    occurrence on the page and in the reply event.
+
+    A verbatim wrapper owns its prose and the order of its children, not the
+    rendering of the nested widgets it holds: `lf-shell` changing a passive span or
+    reordering its pieces is reported, its pieces drawing generated descendants is
+    not, and neither is a bare pane.
+
+    Generated paint must resolve against the page's live cascade. A missing custom
+    property is valid CSS syntax, so a generated SVG silently falls back to black, in
+    `lf-paint` on the page and frozen into a reply alike. A fallback is the control: it
+    names an absent property but resolves to a shipped color in both schemes. The
+    native SVG is the other control: a gradient reference is valid paint even though
+    it is not a color."""
     monkeypatch.chdir(tmp_path)
-    add_test_widget(tmp_path / ".leaf", "lf-shell", upgrade=True)
-    registry_path = tmp_path / ".leaf" / "registry.json"
+    package = tmp_path / ".leaf"
+    for tag in ("lf-anon", "lf-shell", "lf-paint"):
+        add_test_widget(package, tag, upgrade=True)
+    registry_path = package / "registry.json"
     declarations = json.loads(registry_path.read_text())
-    declarations["lf-shell"]["properties"]["mode"] = {
+    declarations["lf-anon"]["properties"]["mode"] = {
         "type": "string",
         "enum": ["replace"],
     }
-    declarations["lf-shell"]["required"] = []
+    declarations["lf-anon"]["required"] = []
+    declarations["lf-shell"]["properties"]["mode"] = {
+        "type": "string",
+        "enum": ["prose", "order"],
+    }
+    declarations["lf-piece"] = {
+        "description": "An anonymous nested upgraded piece.",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": False,
+        "x-content": "markup",
+        "x-upgrade": True,
+        "x-example": "<lf-piece>Example</lf-piece>",
+    }
     registry_path.write_text(json.dumps(declarations, indent=2))
-    (tmp_path / ".leaf" / "widgets" / "lf-shell.js").write_text(
-        'import { once } from "/runtime/widget-api.js";\n'
-        'customElements.define("lf-shell", class extends HTMLElement {\n'
-        "  connectedCallback() {\n"
-        "    if (!once(this)) return;\n"
-        '    if (this.getAttribute("mode") === "replace")\n'
-        '      this.textContent = "Replacement words.";\n'
-        "  }\n"
-        "});\n"
-    )
-    page = leaf_page(
-        "anonymous verbatim provenance",
+    modules = {
+        "lf-anon": (
+            "  connectedCallback() {\n"
+            "    if (!once(this)) return;\n"
+            '    if (this.getAttribute("mode") === "replace")\n'
+            '      this.textContent = "Replacement words.";\n'
+            "  }\n"
+        ),
+        "lf-piece": (
+            "  connectedCallback() {\n"
+            "    if (!once(this)) return;\n"
+            '    const generated = document.createElement("span");\n'
+            '    generated.dataset.lfGen = "1";\n'
+            '    generated.textContent = " generated descendant";\n'
+            "    this.append(generated);\n"
+            "  }\n"
+        ),
+        "lf-shell": (
+            "  connectedCallback() {\n"
+            "    if (!once(this)) return;\n"
+            '    if (this.getAttribute("mode") === "prose")\n'
+            '      this.querySelector("span").textContent = "changed passive prose";\n'
+            '    if (this.getAttribute("mode") === "order") {\n'
+            '      const pieces = this.querySelectorAll("lf-piece");\n'
+            "      pieces[0].before(pieces[1]);\n"
+            "    }\n"
+            "  }\n"
+        ),
+        "lf-paint": (
+            "  connectedCallback() {\n"
+            "    if (!once(this)) return;\n"
+            '    this.innerHTML = `<svg width="160" height="80" viewBox="0 0 160 80">\n'
+            '      <rect data-id="missing" width="70" height="70" fill="var(--accent-glow)" />\n'
+            '      <rect x="80" width="70" height="70" fill="var(--diagram-safe)" />\n'
+            "    </svg>`;\n"
+            "  }\n"
+        ),
+    }
+    for tag, body in modules.items():
+        (package / "widgets" / f"{tag}.js").write_text(
+            'import { once } from "/runtime/widget-api.js";\n'
+            f'customElements.define("{tag}", class extends HTMLElement {{\n'
+            + body
+            + "});\n"
+        )
+    source = leaf_page(
+        "widgets in the page and in replies",
         """
-<h1>Anonymous owners</h1>
-<lf-shell>First page owner.</lf-shell>
-<lf-shell mode="replace">Second page owner.</lf-shell>
+<h1 id="title">Widgets in the page and in replies</h1>
+<lf-anon>First page owner.</lf-anon>
+<lf-anon mode="replace">Second page owner.</lf-anon>
+<lf-shell id="honest-shell">Before <span>passive prose</span>
+  <lf-piece>First child.</lf-piece>
+  <lf-piece>Second child.</lf-piece> After
+</lf-shell>
+<lf-shell id="prose-shell" mode="prose">Before <span>passive prose</span>
+  <lf-piece>First child.</lf-piece>
+  <lf-piece>Second child.</lf-piece> After
+</lf-shell>
+<lf-shell id="order-shell" mode="order">Before <span>passive prose</span>
+  <lf-piece>First child.</lf-piece>
+  <lf-piece>Second child.</lf-piece> After
+</lf-shell>
+<lf-pane id="bare-pane" label="Decision"><p>Pane body.</p></lf-pane>
+<lf-paint id="flow"></lf-paint>
+<svg id="gradient" width="20" height="20" viewBox="0 0 20 20">
+  <defs><linearGradient id="blue"><stop stop-color="var(--accent)" /></linearGradient></defs>
+  <rect width="20" height="20" fill="var(--diagram-gradient)" />
+</svg>
 """,
+        head="""<style>:root {
+  --diagram-safe: var(--not-defined, var(--ok-tint));
+  --diagram-gradient: url(#blue) var(--accent);
+}</style>""",
     )
-    url = serve(page, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "id": "c-anonymous",
-            "author": "user",
-            "revision": 1,
-            "text": "Show both owners in your reply.",
-        },
-    )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "id": "r-anonymous",
-            "author": "agent",
-            "parent": "c-anonymous",
-            "revision": 1,
-            "text": "Here they are:",
-            "markup": (
-                "<lf-shell>First reply owner.</lf-shell>"
-                '<lf-shell mode="replace">Second reply owner.</lf-shell>'
-            ),
-        },
-    )
+    url = serve(source, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+    replies = {
+        "r-anonymous": (
+            "<lf-anon>First reply owner.</lf-anon>"
+            '<lf-anon mode="replace">Second reply owner.</lf-anon>'
+        ),
+        "r-wrapper": (
+            '<lf-shell id="reply-shell">Reply before '
+            "<lf-piece>reply child</lf-piece> reply after</lf-shell>"
+        ),
+        "r-paint": '<lf-paint id="sent"></lf-paint>',
+    }
+    for reply, markup in replies.items():
+        comment = f"c-{reply.removeprefix('r-')}"
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "id": comment,
+                "author": "user",
+                "revision": 1,
+                "text": "Show it in your reply.",
+            },
+        )
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "id": reply,
+                "author": "agent",
+                "parent": comment,
+                "revision": 1,
+                "text": "Here it is:",
+                "markup": markup,
+            },
+        )
 
     failures = render_gate_model.render_version(browser, url).failures
 
     dishonest = [failure for failure in failures if "x-verbatim" in failure]
-    assert len(dishonest) == 4, failures
-    assert sum("[light]" in failure for failure in dishonest) == 2, dishonest
-    assert sum("[dark]" in failure for failure in dishonest) == 2, dishonest
-    assert sum("page occurrence 2" in failure for failure in dishonest) == 2, dishonest
+    anonymous = [failure for failure in dishonest if "lf-anon" in failure]
+    assert len(anonymous) == 4, failures
+    assert sum("[light]" in failure for failure in anonymous) == 2, anonymous
+    assert sum("[dark]" in failure for failure in anonymous) == 2, anonymous
+    assert sum("page occurrence 2" in failure for failure in anonymous) == 2, anonymous
     assert (
-        sum("event r-anonymous occurrence 2" in failure for failure in dishonest) == 2
-    ), dishonest
+        sum("event r-anonymous occurrence 2" in failure for failure in anonymous) == 2
+    ), anonymous
+    wrapped = [failure for failure in dishonest if "lf-anon" not in failure]
+    assert len(wrapped) == 4, failures
+    assert all("honest-shell" not in failure for failure in wrapped)
+    assert sum("prose-shell" in failure for failure in wrapped) == 2
+    assert sum("order-shell" in failure for failure in wrapped) == 2
+
+    unresolved = [f for f in failures if "does not resolve to valid fill" in f]
+    assert len(unresolved) == 4, failures
+    for diagram in ("flow", "sent"):
+        expected = (
+            f"<lf-paint id='{diagram}'> renders fill='var(--accent-glow)' on <rect> "
+            "for data-id='missing'"
+        )
+        assert sum(expected in failure for failure in unresolved) == 2, unresolved
+    assert not any(
+        token in failure
+        for failure in failures
+        for token in ("--diagram-safe", "--diagram-gradient")
+    ), failures
 
 
 def _author_stateful_verbatim_widget(tmp_path):
@@ -3003,105 +3036,6 @@ def test_widget_state_excuses_only_the_verbatim_prose_it_projects(
         "<lf-shell id='shell'>",
     ):
         assert sum(owner in failure for failure in dishonest) == 2, dishonest
-
-
-def test_verbatim_wrapper_owns_prose_and_order_but_not_nested_widget_rendering(
-    browser, serve, tmp_path, monkeypatch
-):
-    monkeypatch.chdir(tmp_path)
-    add_test_widget(tmp_path / ".leaf", "lf-shell", upgrade=True)
-    registry_path = tmp_path / ".leaf" / "registry.json"
-    declarations = json.loads(registry_path.read_text())
-    declarations["lf-shell"]["properties"]["mode"] = {
-        "type": "string",
-        "enum": ["prose", "order"],
-    }
-    declarations["lf-piece"] = {
-        "description": "An anonymous nested upgraded piece.",
-        "type": "object",
-        "properties": {},
-        "additionalProperties": False,
-        "x-content": "markup",
-        "x-upgrade": True,
-        "x-example": "<lf-piece>Example</lf-piece>",
-    }
-    registry_path.write_text(json.dumps(declarations, indent=2))
-    (tmp_path / ".leaf" / "widgets" / "lf-piece.js").write_text(
-        'import { once } from "/runtime/widget-api.js";\n'
-        'customElements.define("lf-piece", class extends HTMLElement {\n'
-        "  connectedCallback() {\n"
-        "    if (!once(this)) return;\n"
-        '    const generated = document.createElement("span");\n'
-        '    generated.dataset.lfGen = "1";\n'
-        '    generated.textContent = " generated descendant";\n'
-        "    this.append(generated);\n"
-        "  }\n"
-        "});\n"
-    )
-    page = leaf_page(
-        "compositional verbatim",
-        """
-<h1>Wrapper contract</h1>
-<lf-shell id="honest-shell">Before <span>passive prose</span>
-  <lf-piece>First child.</lf-piece>
-  <lf-piece>Second child.</lf-piece> After
-</lf-shell>
-<lf-shell id="prose-shell" mode="prose">Before <span>passive prose</span>
-  <lf-piece>First child.</lf-piece>
-  <lf-piece>Second child.</lf-piece> After
-</lf-shell>
-<lf-shell id="order-shell" mode="order">Before <span>passive prose</span>
-  <lf-piece>First child.</lf-piece>
-  <lf-piece>Second child.</lf-piece> After
-</lf-shell>
-<lf-pane id="bare-pane" label="Decision"><p>Pane body.</p></lf-pane>
-""",
-    )
-    (tmp_path / ".leaf" / "widgets" / "lf-shell.js").write_text(
-        'import { once } from "/runtime/widget-api.js";\n'
-        'customElements.define("lf-shell", class extends HTMLElement {\n'
-        "  connectedCallback() {\n"
-        "    if (!once(this)) return;\n"
-        '    if (this.getAttribute("mode") === "prose")\n'
-        '      this.querySelector("span").textContent = "changed passive prose";\n'
-        '    if (this.getAttribute("mode") === "order") {\n'
-        '      const pieces = this.querySelectorAll("lf-piece");\n'
-        "      pieces[0].before(pieces[1]);\n"
-        "    }\n"
-        "  }\n"
-        "});\n"
-    )
-    url = serve(page, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "id": "c-wrapper",
-            "author": "user",
-            "revision": 1,
-            "text": "Show the wrapper in your reply.",
-        },
-    )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "parent": "c-wrapper",
-            "revision": 1,
-            "text": "Here it is:",
-            "markup": (
-                '<lf-shell id="reply-shell">Reply before '
-                "<lf-piece>reply child</lf-piece> reply after</lf-shell>"
-            ),
-        },
-    )
-    failures = render_gate_model.render_version(browser, url).failures
-    dishonest = [failure for failure in failures if "x-verbatim" in failure]
-    assert len(dishonest) == 4, failures
-    assert all("honest-shell" not in failure for failure in dishonest)
-    assert sum("prose-shell" in failure for failure in dishonest) == 2
-    assert sum("order-shell" in failure for failure in dishonest) == 2
 
 
 # The page's longest scroller, the one its reader spends the scroll in.

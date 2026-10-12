@@ -13,11 +13,11 @@ const filename = fileURLToPath(
 );
 
 // How many times the rule reports on `code`.
-function reports(code) {
+function reports(code, file = filename) {
   let count = 0;
   const visitors = movesRule.create({
-    filename,
-    options: [],
+    filename: file,
+    options: [["skills/leaf/assets/runtime/dom-move.js"]],
     sourceCode: { getText: (node) => code.slice(node.start, node.end) },
     report: () => (count += 1),
   });
@@ -59,4 +59,11 @@ test("placing a new node, or one the condition does not place, is admitted", () 
     "if (bar.parentNode !== outlet) later(() => outlet.append(bar));",
   ])
     assert.equal(reports(code), 0, code);
+});
+
+test("the mover itself may call the platform's movers", () => {
+  const mover = fileURLToPath(
+    new URL("../../skills/leaf/assets/runtime/dom-move.js", import.meta.url),
+  );
+  assert.equal(reports("parent.moveBefore(node, before);", mover), 0);
 });

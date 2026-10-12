@@ -10484,7 +10484,7 @@ def test_unfocused_editor_move_leaves_later_selection_alone(browser, serve):
       const field = document.querySelector('#first leaf-text');
       field.blur();
       const unfocused = !field.matches(':focus');
-      document.querySelector('#second').append(field);
+      document.querySelector('#second').moveBefore(field, null);
       return [field.selectionStart, unfocused];
     }""")
     assert held == [4, True]

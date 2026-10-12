@@ -568,7 +568,7 @@ const placementsRule = {
 // a sibling, or whether something contains it): a node that may stand elsewhere already.
 // The option names the files that may still call the platform's movers.
 const MOVE_MESSAGE =
-  "Place a node that may already stand somewhere with move(parent, node, before) (runtime/dom-move.js) or setChildren: a plain insertion blurs it and drops its caret.";
+  "Place a node that may already stand somewhere with move(parent, node, before) or setChildren (runtime/dom-move.js, dom-children.js; widget-api.js in a package): a plain insertion blurs it and drops its caret.";
 const MADE = new Set([
   "createElement",
   "createElementNS",

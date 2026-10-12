@@ -64,10 +64,15 @@
  * every font property it has, weight, slant, variants and stretch among them. Any declared value beats an inherited one,
  * so a rule that weighs nothing is enough to stop that, and it leaves every rule that
  * sets these on purpose winning: at a class's weight it took the pane header's 600 off
- * each playground's presets. */
+ * each playground's presets.
+ *
+ * A native control the page writes without either class takes the type from that
+ * weightless rule too, so a page that styles it anywhere still wins. Left to the
+ * browser it drew 13.33px Arial beside the page's own type (#2559). */
 :where(:root) :is(.lf-ui-face, .button, .field) { font-family: var(--sans); font-size: var(--t-5);
     line-height: var(--lf-ui-lh); color: var(--ink); }
-:where(:root .lf-ui-face, :root .button, :root .field) { font: var(--t-5) / var(--lf-ui-lh) var(--sans);
+:where(:root .lf-ui-face, :root .button, :root .field,
+    :root main :is(button, input, select, textarea)) { font: var(--t-5) / var(--lf-ui-lh) var(--sans);
     font-feature-settings: normal; font-variation-settings: normal;
     letter-spacing: normal; word-spacing: normal; text-transform: none; }
 /* Words for a user listening, silent on screen: real text, the one thing every

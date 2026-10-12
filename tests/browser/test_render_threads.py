@@ -2504,15 +2504,22 @@ def test_a_poll_accounted_settlement_repaints_before_its_post_response(
 
 def test_a_sent_page_comment_closes_and_a_refusal_restores_its_draft(browser, serve):
     """Long comments and attachments leave no empty card after Send. Refusal restores
-    the editor and its media while the send still owns the user's intent."""
+    the editor and its media while the send still owns the user's intent. The card
+    hangs from the banner, so an attachment joins below the words, leaving them put."""
     page = open_page(browser, serve(LONG_PAGE))
     card = page.locator(".lf-page-comment-card")
     box = page_comment(page)
     send = card.locator(".lf-compose-submit")
     draft = "\n".join(f"Page comment line {n}" for n in range(14))
     write(box, draft)
+    field = card.locator(".lf-compose-field")
+    written = field.bounding_box()
     paste_image(box, (example_media() / "051bee487bfb5d13.png").read_bytes())
     expect(card.locator(".lf-composer-media img")).to_be_visible()
+    shelf = card.locator(".lf-composer-media").bounding_box()
+    attached = field.bounding_box()
+    assert attached["y"] == written["y"], "the attachment moved the words"
+    assert shelf["y"] >= attached["y"] + attached["height"], "the shelf is not below"
     held = []
 
     def hold(route):
@@ -4113,7 +4120,7 @@ def test_walking_to_a_thread_shows_the_replies_it_held(
     user walks away and back to that thread with t/T. The walk away closes the card and
     the walk back opens it, and an opening moves every card after it anyway, so the card
     opens with what it held, landed where the newest reply shows. Pressing onto the
-    thread the user already stands in, at the end of the list, moves them nowhere, so
+    thread the user already stands in, the only one the walk has, moves them nowhere, so
     its news stays held; leaving the thread with Shift+Tab and walking back onto its
     card, which stood open throughout ("return"), arrives there, and shows it, as a
     press on its title from there does ("pressed"). One reply fits with the root;
@@ -4124,9 +4131,11 @@ def test_walking_to_a_thread_shows_the_replies_it_held(
     the later publication keeps the choice it sent."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Keep the discussion here.")
-    other = panel_comment(serve.page_dir, "A thread to walk to. " * 30)
-    for n in range(12):
-        panel_comment(serve.page_dir, f"A later thread {n}. " * 8)
+    other = None
+    if walk != "onto":
+        other = panel_comment(serve.page_dir, "A thread to walk to. " * 30)
+        for n in range(12):
+            panel_comment(serve.page_dir, f"A later thread {n}. " * 8)
     context = browser.new_context(
         viewport={"width": 800, "height": 900}, reduced_motion="reduce"
     )
@@ -4136,7 +4145,7 @@ def test_walking_to_a_thread_shows_the_replies_it_held(
     order = page.locator(".lf-threads > .lf-thread").evaluate_all(
         "cards => cards.map(card => card.dataset.id)"
     )
-    assert order[:2] == [root, other]
+    assert order[:2] == ([root, other] if other else [root])
     thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
     summary = thread.locator(".lf-thread-summary")
     if thread.get_attribute("open") is None:

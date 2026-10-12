@@ -178,7 +178,10 @@ has tried; settle that before building it.
   refuses a covered seat (`underOccluder`, `geometry.js`). The two routes weighed
   before were laying the page out in the width a panel leaves, which reverses
   "auxiliary surfaces never change the page's geometry", and Leaf owning Tab beside a
-  panel.
+  panel. The redesign also gives a thread's header controls a box no wider than they
+  are: `.lf-thread-controls` stands transparent over the first message's author and
+  time, so axe reads no contrast for those words, and the chrome's axe sweep cannot
+  hold the overlap check the feature gallery's does (`overlapped_words`).
 
 ### Layout
 

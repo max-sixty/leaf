@@ -9268,9 +9268,9 @@ def test_an_ask_arrival_reveals_its_pin_while_annotations_are_hidden(browser, se
     expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
     expect(pin).to_be_hidden()
 
-    # The passage follows both Asks: forward navigation clamps to the last one.
+    # The passage follows both Asks, so a step back lands on the last one.
     page.locator("#gap").click()
-    page.keyboard.press("q")
+    page.keyboard.press("Shift+q")
     expect(page.locator("#sug-card")).to_be_focused()
     rendered(page)
     expect(pin).to_be_visible()

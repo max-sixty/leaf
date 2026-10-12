@@ -42,6 +42,8 @@
  * Filmstrip frames retain the latest same-page saved checkpoint and its exact
  * comment identity. Saved elements has one stable disclosure; reading restoration
  * respects its current closure, while explicit destination navigation opens it.
+ * The reader's press on it restores that checkpoint's reading; a navigation that
+ * opens it lands on its destination instead.
  */
 import {
   commands,
@@ -516,13 +518,18 @@ customElements.define(
         );
     }
 
-    #treeToggled() {
-      this.#draw();
-      if (this.#tree.value.open)
-        restorePlace(
-          this.#treePlaces.get(this.#treeScope),
-          readingRegion(compoundReadingRegionId(this, "saved-elements")),
-        );
+    // The reader's own press reopens the tree at its reading for this checkpoint. Every
+    // other opening has a destination of its own: a Moment or a thread lands on its row,
+    // and find-in-page on its match. A restore on the toggle event, which arrives a frame
+    // later, would undo such a landing or cut its smooth motion short.
+    #pressTreeSummary(event) {
+      event.preventDefault();
+      const tree = this.#tree.value;
+      if (!tree.toggleAttribute("open")) return;
+      restorePlace(
+        this.#treePlaces.get(this.#treeScope),
+        readingRegion(compoundReadingRegionId(this, "saved-elements")),
+      );
     }
 
     #id(kind, value) {
@@ -1105,16 +1112,22 @@ customElements.define(
       if (!travel) return;
       await this.#pendingPicture?.ready;
       if (!mayArrive() || this.#chosenBookmark !== bookmark) return;
-      const target = this.#targets.get(id);
-      const destination = target?.node
-        ? this.#inventory.find((part) => part.id === id)?.element
-        : this.#pictureId
-          ? this.#stage.value
-          : null;
-      const shown = destination?.getBoundingClientRect();
-      const view = target?.node ? shown : this.#viewport.value.getBoundingClientRect();
-      if (destination && !(view.top >= 0 && view.bottom <= innerHeight))
-        scrollIntoReadingBand(destination, destination, "center", scrollBehavior());
+      // A saved element's row stands in the tree's own scroll box, which can hide it
+      // inside the window. A nearest landing reveals it there and the tree in the page,
+      // and moves nothing that already shows it.
+      if (this.#targets.get(id)?.node) {
+        const row = this.#inventory.find((part) => part.id === id)?.element;
+        if (row) scrollIntoReadingBand(row, row, "nearest", scrollBehavior());
+        return;
+      }
+      const view = this.#viewport.value.getBoundingClientRect();
+      if (this.#pictureId && !(view.top >= 0 && view.bottom <= innerHeight))
+        scrollIntoReadingBand(
+          this.#stage.value,
+          this.#stage.value,
+          "center",
+          scrollBehavior(),
+        );
     }
 
     #stream() {
@@ -2023,9 +2036,11 @@ customElements.define(
                   class="lf-trace-tree"
                   ${ref(this.#tree)}
                   @scroll=${() => this.#rememberTreePlace()}
-                  @toggle=${() => this.#treeToggled()}
+                  @toggle=${() => this.#draw()}
                 >
-                  <summary>Saved elements</summary>
+                  <summary @click=${(event) => this.#pressTreeSummary(event)}>
+                    Saved elements
+                  </summary>
                   <p class="lf-trace-tree-clock">
                     ${
                       tree

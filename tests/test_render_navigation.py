@@ -5126,7 +5126,8 @@ def test_c_lands_where_its_badge_is_and_in_the_card_on_screen(browser, serve, ro
 
     badged = page.locator("leaf-text[placeholder$=' c']")
     card = page.locator(".lf-margin-preview")
-    if not card.is_visible():
+    if route == CARD_ROUTES["walk, let go"]:
+        expect(card).to_be_hidden()
         expect(badged).to_have_count(0)
         expect(page.locator(".lf-page-comment")).to_have_attribute(
             "title", "Comment on the page (c)"
@@ -5136,6 +5137,7 @@ def test_c_lands_where_its_badge_is_and_in_the_card_on_screen(browser, serve, ro
         expect(page.locator(".lf-page-comment-card leaf-text")).to_be_focused()
         return
 
+    expect(card).to_be_visible()
     expect(badged).to_have_count(1)
     box = badged.element_handle()
     assert box.evaluate("box => Boolean(box.closest('.lf-margin-preview'))")

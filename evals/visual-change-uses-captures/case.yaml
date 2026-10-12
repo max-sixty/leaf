@@ -25,11 +25,12 @@ vars:
     The page directory is not reachable from here, so reply with the HTML fragment
     rather than writing a file.
 assert:
-- type: regex
-  metric: pair-in-one-lf-shot
-  value: <lf-shot\b(?=[^>]*\bbefore=["'][^"']*save-before\.png)(?=[^>]*\bafter=["'][^"']*save-after\.png)
-  transform: output.toLowerCase()
-- type: not-regex
-  metric: draws-nothing
-  value: <svg\b|<lf-diagram\b
-  transform: output.toLowerCase()
+- type: llm-rubric
+  metric: captures-not-drawings
+  value: |
+    Pass only if the finding shows the change through its captures, one `lf-shot`
+    taking `/media/save-before.png` as `before` and `/media/save-after.png` as
+    `after`, and draws nothing beside them. Fail if the fragment adds an inline
+    `<svg>`, an `lf-diagram`, or an HTML mockup of the button or form, or if the
+    before and after captures appear only as separate images, never together in
+    one `lf-shot`. Showing one capture again on its own elsewhere is fine.

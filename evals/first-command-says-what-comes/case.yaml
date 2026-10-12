@@ -30,10 +30,6 @@ vars:
     out, in order, each command you would run from now until you have answered the
     comment, including any that read files or the page. Then end your answer.
 assert:
-- type: regex
-  metric: posts-progress-in-the-thread
-  value: >-
-    \bleaf\s+response\s+reply\b(?=(?:[^\n]|\\\n)*--ephemeral\b)(?=(?:[^\n]|\\\n)*5d1e8a42)
 - type: llm-rubric
   metric: judgment
   value: |

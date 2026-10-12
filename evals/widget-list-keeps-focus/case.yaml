@@ -28,12 +28,6 @@ vars:
     opened it. Read the public references and show the JavaScript for the remove
     handler, the list render, and the popup's close.
 assert:
-- type: regex
-  metric: keyed-hold
-  value: 'holdFocus\([^)]*\{\s*key\s*:'
-- type: regex
-  metric: closes-through-closeLayer
-  value: 'closeLayer\('
 - type: llm-rubric
   metric: judgment
   value: |

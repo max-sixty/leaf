@@ -77,6 +77,7 @@
     "public/assets/scene.svg": "9c53d69b80a275cf737a99744d03a4a7196f34d5caf13c3c04590a5fb4e2c40e"
   },
   "dependency": {
+    "commit": "a8ed7fffe91978a92cb1764e7305e80e59312ea8",
     "path": "skills/leaf/packages/playwright/vendor/timeline.esm.js",
     "sha256": "68578b4653af1c9f03e100eb9a09a263f5c8015846fc7cf60b51721bf217a546"
   }

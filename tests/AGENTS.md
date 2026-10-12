@@ -66,14 +66,36 @@ uv run pytest --lf --lfnf=none -x -n0
 uv run pytest --regtest-reset -n0 <node-id>
 ```
 
-Mark a test `nightly` when a pull request can land without it, including any test that
-needs the network; expense alone does not make a test nightly. Broad discovery skips
-nightly tests, and an explicit file, node id, `-k`, `-m`, or `--lf` runs what it
-names. Both landing gates pass `--nightly-changed-since`, which adds the nightly tests
+A test's tier is named for when CI runs it, and a test runs in the later of the tier
+its marks name and the tier its cost names (`run_tier` in `conftest.py`):
+
+- **The first tier** runs in every run, both landing gates and broad discovery
+  included. It holds the tests that cost under three seconds on CI's runner, about what
+  opening a page costs, and those marked `landing`, which pins a test there whatever it
+  costs; `test_smoke.py` is the browser journeys the gates keep.
+- **`main`** runs on each push to main. It holds the tests that cost under eight
+  seconds, and the cheaper ones marked `main`: mark a test `main` when a pull request
+  can land without it whatever it costs, such as a test that needs the network.
+- **`nightly`** runs only in the daily scheduled run and a manual dispatch. It holds
+  every test over eight seconds, and those marked `nightly`, such as a sweep over the
+  whole example corpus.
+
+Cost tiers are the user's choice (2026-10-11), replacing the rule that expense alone
+never took a test out of the landing gates: a suite whose gate grows with every test
+stops a pull request's CI and a local landing from keeping pace with the work. A
+change that wants a test back in an earlier tier makes it cheaper rather than marking
+it: `tests/cost_tiers.json` records each test whose cost puts it past the first tier,
+and `leaf-dev cost-tiers` rewrites it from a daily run's report
+(`dev/leaf_dev/cost_tiers.py`), so a faster test moves earlier at the next refresh. A
+new test runs in its marked tier until a refresh measures it.
+
+Broad discovery skips both later tiers; `--run-main` adds `main` and `--run-nightly`
+runs every tier. An explicit file, node id, `-k`, `-m`, or `--lf` runs what it names.
+Both landing gates pass `--changed-since`, which adds the tests of either later tier
 whose own lines the change edits.
 
 Before handing over, run the tests that hold the behavior you changed, in any file and
-nightly ones included, named by node id or `-k`; find them by reading which tests
+any tier, named by node id or `-k`; find them by reading which tests
 exercise the code the change touches. Run `pnpm run test:runtime` too when the change
 reaches the runtime. A change lands through a landing gate, which runs the broad
 selection: a pull request's `test` job, or `wt merge`'s pre-merge. A failure there
@@ -81,16 +103,17 @@ that the change causes is the gate doing its job, even one your selection missed
 it and push. A failure it doesn't cause, such as a test main's latest run also fails,
 blocks nothing and calls for no rerun: say so in the pull request and land it. `wt
 merge` refuses on any failure, so such a change lands through a pull request. Every
-other nightly test is CI's to report: the `test` job in `ci.yaml` runs the complete suite
-once main moves, and `tend-ci-fix` answers what it fails. That trade is the user's
-choice (2026-10-04): a pull request can land green and break a nightly test it never
-ran, and main can stay red while `tend-ci-fix` repairs it, so a red main is no reason
-to widen a change, its gate, or its test selection. One complete suite always runs
-while newer commits land, and each new commit replaces the run waiting behind it,
-which GitHub records as cancelled. That is the design working: a suite per merge would
-report each commit slightly sooner at up to twenty times the CI usage. Root
-`AGENTS.md`, "Working on the repository", says which runs not to start by hand
-before landing. To learn what main fails, read that job's run, and reproduce a failure it
+other test is CI's to report: the `test` job in `ci.yaml` runs the `main` tier
+once main moves and every tier in the daily run, and `tend-ci-fix` answers what either
+fails. That trade is the user's choice (2026-10-04): a pull request can land green and
+break a test it never ran, and main can stay red while `tend-ci-fix` repairs it,
+so a red main is no reason to widen a change, its gate, or its test selection. One
+push suite always runs while newer commits land, and each new commit replaces the run
+waiting behind it, which GitHub records as cancelled; the daily run has a queue of its
+own. That is the design working: a suite per merge would report each commit slightly
+sooner at up to twenty times the CI usage. Root `AGENTS.md`, "Working on the
+repository", says which runs not to start by hand before landing. To learn what main
+fails, read that job's run, and reproduce a failure it
 names by node id. `tend-ci-fix` sees only that run, so a failure on main that it does
 not show, such as one only macOS reproduces, is left to a local session. Check whether
 a live session, worktree or open pull request already covers it; if none does, start a
@@ -261,9 +284,10 @@ inside `lfUnwatched`.
 
 A layout shift the "Stability" rule in `skills/leaf/assets/AGENTS.md` forbids is one
 of those problems (`shift_watch.js`): a box that moves on screen without input, and
-typing that carries the field it types in, so every test in the broad selection checks
-both. Surveyed nightly tests opt in with `watch_shifts`; the rest await a fresh survey
-after the widget prepaint fixes (`render_harness.watches_shifts`). The watcher still
+typing that carries the field it types in, so every unmarked test checks both, in
+whichever tier its cost runs it. Surveyed tests marked `main` or `nightly` opt in with
+`watch_shifts`; the rest await a fresh survey after the widget prepaint fixes (`render_harness.watches_shifts`). The
+watcher still
 exempts first presentation, whose remaining defects the widget quality check records
 in `known_widget_findings.py`. Playwright's clicks and keys are input, as is a
 viewport resize; a script's `click()`, a `value` written by script, and the server's
@@ -273,8 +297,8 @@ that window. Fix what moved rather than consuming the report; shift reports have
 per-test allowances.
 
 Typed words leaving the screen without a key or press, which the "Words stay where
-they were typed" rule forbids, is one too (`words_watch.js`), in every test, nightly
-included. A key that typed is editing rather than putting away, and a scroll, a
+they were typed" rule forbids, is one too (`words_watch.js`), in every test of every
+tier. A key that typed is editing rather than putting away, and a scroll, a
 resize, a script, and the server's news are none of them, so a test that closes a box
 must do it the way a user does.
 

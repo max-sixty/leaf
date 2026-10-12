@@ -165,26 +165,13 @@ merge base beside it (`dev/AGENTS.md`).
 
 When a complex interaction depends on a sequence of inputs or changes over time,
 show a recorded journey with a timeline so the user can inspect intermediate
-states and motion. Review the final exported recording through playback or decoded
-frames at their recorded times, including its loop boundary; select the interval
-that shows the behavior being reviewed. Use that same probe with
-`--record .tmp/recordings/NAME`; its `--help` owns the recording flags.
-Its Playwright trace has an action timeline, a screenshot
-filmstrip, DOM snapshots, console and network; its WebM shows the actual frames.
-`--journey FILE` drives the page with Playwright's full API, including
-assertions. Omit `--actions` from timing-sensitive reproductions. A failed journey
-keeps its recording and exits unsuccessfully. Keep the page and context open until
-the recorder finalizes: Playwright cannot save screencast video after its page
-closes. Serve the trace
-without opening a desktop browser with:
-
-```bash
-uv run leaf-dev trace-server \
-  .tmp/recordings/NAME/worktree/trace.zip
-```
-
-The command prints the viewer URL and stays running. Link that URL in the review
-page; open a desktop browser only when the user asks to watch.
+states and motion. Use that same probe with `--record .tmp/recordings/NAME`, driving
+the input from a `--journey` file where `--do` steps are not enough; its `--help`
+owns the recording flags and how to serve the trace without opening a desktop
+browser. Review the final exported recording through playback or decoded frames at
+their recorded times, including its loop boundary; select the interval that shows
+the behavior being reviewed. Link the trace viewer's URL in the review page; open a
+desktop browser only when the user asks to watch.
 
 Show the trace on the Leaf page in `lf-trace`, as
 `skills/leaf/references/authoring-evidence.md`, "Source files and media", says,
@@ -197,9 +184,9 @@ effects; they do not prove a change to the content the user came to inspect.
 Review the successful expectation's After checkpoint; returning from the input
 alone does not prove an asynchronous update finished. Native tracing groups name
 those operations without adding captures.
-Add `--checkpoint-images` alongside `--record` when the review needs native PNG images
-at those checkpoints. Taking them adds capture work and briefly hides the live
-caret, so omit it when ordinary motion and caret behavior are the evidence.
+Add `--checkpoint-images` when the review needs native PNG images at those
+checkpoints, and leave it off when ordinary motion and caret behavior are the
+evidence.
 
 `uv run leaf-dev stills` compares HEAD with the merge base with `main` and crops
 each changed catalogue state into a before/after pair. Commit first, since it
@@ -423,9 +410,9 @@ Review captured Mac images before accepting an intentional change;
 `dev/leaf_dev/thread_snapshots.py` owns capture and acceptance.
 
 A pull request's `test` job and the local pre-merge `tests` run the broad selection
-and the nightly tests the branch edits; the rest of the nightly-marked tests run
-once main moves, and `tend-ci-fix` answers them when they fail (`tests/AGENTS.md`,
-"Run what the change needs").
+and the later-tier tests the branch edits; the rest of the `main` tier runs once main
+moves, the `nightly` tier in the daily run, and `tend-ci-fix` answers them when they
+fail (`tests/AGENTS.md`, "Run what the change needs").
 `wt merge` checks the rebased tree and lands it; `✗ Can't push to local main branch`
 is a fast-forward failure.
 

@@ -9,6 +9,7 @@ import { keys } from "./keyboard/scopes.js";
 import { setRuntimeRootStyle } from "./root-state.js";
 import { keeps, keepsHidden } from "./keeps.js";
 import { focusDestination } from "./focus.js";
+import { layoutWindow } from "./geometry.js";
 
 // The step an arrow takes, in the column's own gutter: the smallest move that shows in a
 // page of prose.
@@ -45,7 +46,7 @@ export function drawnEdge({ side, noun, defaultWidth, min, prop, key, when, land
   // leaves decides that, the same way on either side (auxiliary-surfaces.js,
   // `standsBeside`), so a user drawing a region past a usable page gets the region they
   // drew, covering the page, rather than an edge that stops short of their hand.
-  const cap = () => document.documentElement.clientWidth;
+  const cap = () => layoutWindow().right;
   // The floor gives way to the cap and not the other way about: a window too narrow for
   // the floor is still the window, and a region wider than the one it stands in has put
   // its own controls off the screen. Asked in two places and written once — of a width the
@@ -138,7 +139,7 @@ export function drawnEdge({ side, noun, defaultWidth, min, prop, key, when, land
       // between the two — read off the window rather than off the region, which is the box
       // this is about to resize.
       const at = event.clientX - activeResize.grab;
-      set(side === "right" ? document.documentElement.clientWidth - at : at);
+      set(side === "right" ? layoutWindow().right - at : at);
     });
     // Resizing is not an outside press on the page's open composer. Keep native
     // pointer focus, but consume the compatibility press in its gesture owner.

@@ -7,8 +7,12 @@ import {
 } from "/runtime/widget-api.js";
 import {
   ADDRESSABLE,
+  commandDeclarationsWithin,
+  commandRoutes,
+  pageDocument,
   unrevealedVisualParts,
   upFrom,
+  userScrollport,
   visualPartProblems,
 } from "/runtime/check-api.js";
 import { at as locate } from "./locate.js";
@@ -53,7 +57,7 @@ const renderedAt = (element) => {
 // properties. Resolve each value through a temporary custom property in the element's
 // live cascade, then let the browser validate the resulting tokens for that property.
 export function invalidPaints() {
-  if (!document.querySelector("main")) return [];
+  if (!pageDocument()) return [];
   const properties = [
     "color",
     "fill",
@@ -394,7 +398,7 @@ const WRITTEN_IN = `input, select, ${TEXT_BOX}`;
 const asksVerticalScroll = (box) => {
   const style = box.getAttribute("style");
   box.style.setProperty("overflow-x", "visible", "important");
-  const asked = /auto|scroll/.test(getComputedStyle(box).overflowY);
+  const asked = userScrollport(getComputedStyle(box).overflowY);
   if (style === null) box.removeAttribute("style");
   else box.setAttribute("style", style);
   return asked;
@@ -423,7 +427,7 @@ const overflowsVertically = (box) => box.scrollHeight > box.clientHeight + ROUND
 // out. This writes the page, so only a page nothing reads again, such as the report's
 // page of worked examples, is read this way.
 export function heldScrollers(tags) {
-  const main = document.querySelector("main");
+  const main = pageDocument();
   if (!main) return [];
   const own = new Set(tags);
   const found = [];
@@ -437,7 +441,7 @@ export function heldScrollers(tags) {
         continue;
       const style = getComputedStyle(box);
       if (
-        !/auto|scroll/.test(style.overflowY) ||
+        !userScrollport(style.overflowY) ||
         /^(inline|contents|none)$/.test(style.display) ||
         style.getPropertyValue("--lf-holds-height").trim() === "1" ||
         !shown(box)
@@ -464,5 +468,37 @@ export function heldScrollers(tags) {
           height: box.clientHeight,
         });
     }
+  return found;
+}
+
+// Each command in one of `tags`' widgets that declares context keys and no
+// `bindingBadge`. Context keys are the widget's aliases for pressing a control from
+// elsewhere, as a Question forwards its digits; a key the page never shows works only
+// for a user who already knows it (module-authoring.md, "Commands and keyboard
+// routes"). A route without its own `bindingBadge` takes its row's. The reading is the
+// declaration, not the keys reachable now, so a command whose keys depend on state is
+// read the same in every state. A command belongs to the nearest Leaf widget holding
+// the element that declared it, as a box does in `heldScrollers`, so a dependency's
+// widget nested in one of `tags`' answers for its own commands.
+export function unshownContextKeys(tags) {
+  const own = new Set(tags);
+  const found = [];
+  const seen = new Set();
+  for (const { source, scope } of commandDeclarationsWithin(document.body)) {
+    let owner = source;
+    while (owner && !owner.localName.startsWith("lf-")) owner = upFrom(owner);
+    if (!owner || !own.has(owner.localName)) continue;
+    for (const row of scope.rows)
+      for (const command of [row, ...commandRoutes(row)]) {
+        if (command.contextKeys === undefined) continue;
+        const badge =
+          command.bindingBadge !== undefined ? command.bindingBadge : row.bindingBadge;
+        if (badge !== undefined) continue;
+        const key = `${owner.localName}#${owner.id}#${command.id}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        found.push({ tag: owner.localName, id: owner.id, command: command.id });
+      }
+  }
   return found;
 }

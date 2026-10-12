@@ -1253,10 +1253,10 @@ class WebsiteCodexHarness:
                 )
         # Every class, because this only records and re-raises: the caller still meets
         # the exception it would have met, and a start that fails in a class nobody
-        # listed is exactly the one worth having a record of. The three it used to name
-        # left out the connection's own — `websockets` raises `WebSocketException`,
-        # which descends from `Exception` alone — so a refused handshake or a socket
-        # dropped mid-request went unrecorded.
+        # listed is exactly the one worth having a record of. The connection's own
+        # failures are among them: `websockets` raises `WebSocketException`, which
+        # descends from `Exception` alone, for a refused handshake or a socket dropped
+        # mid-request.
         except Exception as error:
             log_agent(
                 "container_start_failed",
@@ -1525,8 +1525,8 @@ def close_on_signal(agent_harness: WebsiteCodexHarness) -> None:
     is in a session of its own, so nothing else reaps it: inside a container that is
     invisible, because the container takes every process away with it, but
     `leaf-dev journey website-adapter` runs this adapter on a developer's machine and
-    stops it exactly this way. Three App Servers were found alive there, fifteen
-    hours and 95MB of resident memory each after the runs that started them.
+    stops it exactly this way, where an unreaped App Server would outlive the run
+    that started it and keep its memory.
 
     The handler runs at the re-raise, once serving has ended, and then dies of the
     signal it was sent rather than turning it into an ordinary return.

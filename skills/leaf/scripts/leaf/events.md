@@ -154,8 +154,9 @@ and the transcript.
 ## Admission
 
 `event_contracts.append_admitted` admits every writer's event under the page
-transaction's lease. It returns an accepted retry without repeating the gesture;
-otherwise it reads the named revision's vocabulary and checks the command against
+transaction's lease. It returns the record an accepted `attempt` already carried
+without repeating the gesture, and refuses an attempt the log holds for another
+command (HTTP 409); otherwise it reads the named revision's vocabulary and checks the command against
 its kernel record schema before kind-specific gates consume the fields, allocates the
 event's unique identity, and runs its gates against the page
 and standing log, derives server-owned
@@ -166,17 +167,20 @@ it may land either side of the append; the HTTP transport's one fault boundary
 (`http.PageEndpoint._answer`) records it and answers HTTP 500 without `final`, so
 the browser retries the same attempt.
 
-Transports own only their input boundary: which kinds and fields they accept and
-how they answer retries. Both writers share recorded-effect applicability: selected
+Transports own only their input boundary: which kinds and fields they accept.
+`thread.post_reply` matches its own `attempt` before the door, by kind and response
+address rather than the whole payload, so a CLI retry with reworded text returns
+the first reply. Both writers share recorded-effect applicability: selected
 ids must belong to the recording widget, and a position must name an owned unit,
 an admissible destination, and a valid rank in the named revision. Reports name
 page widgets; user actions may also name widgets in frozen thread markup.
 
 Browser POSTs are commands. The append transaction stamps the accepted event with
-server-owned `meaning`; callers cannot send it, and retry identity
-compares the original command fields rather than this enrichment. The fixed
+server-owned `meaning`; callers cannot send it. Attempt identity compares every
+field but those the server assigns: the append envelope, the `derived` fields,
+`author`, and `publication` (`event_log._attempt_payload`). The fixed
 `$events.ownership` declaration names `derived` fields that admission alone supplies
-and `browser_discard` fields removed before browser validation and attempt identity.
+and `browser_discard` fields browser ingress removes before validation.
 Ownership describes the running kernel's fixed transport boundary; event kinds
 and meaning remain captured per revision.
 Generated browser command types exclude both groups; layers cannot change ownership.

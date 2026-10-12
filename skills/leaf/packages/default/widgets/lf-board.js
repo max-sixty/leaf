@@ -444,8 +444,7 @@ customElements.define(
     }
 
     // The one writer of "no card is held", so the grip's rows change back here and nowhere
-    // else — a drop and a cancel each used to restate it, and a third way out would have
-    // had to remember.
+    // else: a drop, a cancel, and any later way out of a grab all end through it.
     #release() {
       this.#grabbed.card.classList.remove("lf-lift");
       this.#grabbed = null;

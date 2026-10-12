@@ -165,8 +165,8 @@ product decisions its module embodies and the alternatives they rejected; a chan
 that reverses one rewrites that record and says so in its commit. A workflow for one
 kind of task goes in `/developing-leaf`.
 
-Describe a set in prose by what its members share, such as "an entry named after a
-key in `vendor.py`'s `BUILDS`", so a new member needs no edit. Where the prose must
+Describe a set in prose by what its members share, such as "a directory under
+`build/` named after a row of `vendor.mjs`'s `bundles`", so a new member needs no edit. Where the prose must
 list them, a test holds the list to the machine's copy (`tests/AGENTS.md`, "Put
 each assertion at the boundary that owns it").
 
@@ -338,9 +338,9 @@ Before handing over, run the tests that hold the behavior the change touches, an
 `pnpm run test:runtime` when it reaches the runtime (`tests/AGENTS.md`, "Run what the
 change needs"). A pull request's `test` job and `wt merge`'s pre-merge run the broad
 selection, `uv run pytest tests`, at landing, and report any failure your selection
-missed. Don't run it by hand before then, nor a whole browser test file or the whole
-nightly tier (`--run-nightly`, `-m nightly`): each takes minutes to over an hour and
-slows every session on the shared host, however idle it looks. A change to code most
+missed. Don't run it by hand before then, nor a whole browser test file or a whole
+later tier (`--run-main`, `--run-nightly`, `-m main`, `-m nightly`): each takes minutes
+to over an hour and slows every session on the shared host, however idle it looks. A change to code most
 of the suite runs through still hands over on the tests that exercise what it
 changed, and leaves finding the rest to the gate. Before widening your own selection
 or raising its parallelism, check current CPU use, memory pressure, and other running
@@ -351,12 +351,10 @@ Two TypeScript trees, `worker/src/` and `build/browser/`, and the JavaScript loc
 every committed bundle is built from have gates the suite and pre-commit do not reach.
 Both landing paths run all of them: a pull request in its `test` job, and `wt merge`
 in the pre-merge blocks of `.config/wt.toml`. `package.json` owns their shared Node
-gate list in `check` and their earlier bundle rebuild in `check:bundles`;
-`pnpm run check:bundles` and `pnpm run check` run them without landing, the bundle
-check on a committed tree, since it fails on any uncommitted change. The website's
-delivery checks — the site build, the Worker's dry-run deploy, and
-`leaf-dev verify-site website-worker` — run on a pull request and in `publish-site`
-before it deploys, not in `wt merge`.
+gate list in `check`, which compares every committed bundle with a rebuild;
+`pnpm run check` runs them without landing. The website's delivery checks — the site
+build, the Worker's dry-run deploy, and `leaf-dev verify-site website-worker` — run
+on a pull request and in `publish-site` before it deploys, not in `wt merge`.
 
 For a change that can alter browser startup, compare base and candidate at the
 boundary it affects: served previews for a runtime change, and

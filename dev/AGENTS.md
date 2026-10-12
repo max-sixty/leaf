@@ -55,6 +55,9 @@ reaches a module by importing it from this package, never through `sys.path`,
   property, its phases and its time in Playwright's sync API by method and caller, and
   `leaf-dev suite-profile DIR` reads that report, with the py-spy stacks and process
   CPU CI records beside it, into where a run's worker time went.
+- `leaf-dev cost-tiers DIR` rewrites `tests/cost_tiers.json`, the tier each test's
+  measured cost puts it in, from a daily run's junit report; `cost_tiers.py` owns the
+  limits and the record's format.
 - `leaf-dev flake NODEID...` runs tests from the working tree as 18 copies, six at a
   time, and prints every failure's message, since a load flake never shows serially.
   It snapshots the candidate once; each copy owns its checkout and test output.
@@ -125,11 +128,10 @@ in `leaf-assets.json` and the README's image URLs that name it.
 
 ## Journeys
 
-`leaf-dev journey TARGET` runs one user's journey against a real agent: it asks for a
-release that passed its checks to be recorded, and requires a revision and a reply.
-Its `--help` lists the targets, a harness session with this working tree as its
-plugin or the website, and where the user is. `journey.py` owns what the targets
-share: the isolation (a harness session runs under a throwaway home holding only
+`leaf-dev journey TARGET` runs one user's journey against a real agent;
+`/developing-leaf`, "Run the agent journey", says what it checks and when to run it,
+and its `--help` lists the targets and where the user is. `journey.py` owns what the
+targets share: the isolation (a harness session runs under a throwaway home holding only
 the host's login) and its evidence under `.tmp/journey/`; the `Terminal` every wait
 hears a session through; and the `User`. Each comment is timed from the page's log on the server's clock,
 with the agent's work on it split into delivery, model and tool phases. Between

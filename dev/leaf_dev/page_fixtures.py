@@ -14,6 +14,7 @@ import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol
 
 import click
 from leaf.event_log import read_events
@@ -89,8 +90,13 @@ def example_media() -> Path:
 
 
 def media_source(source: Path) -> Path:
+    """A page's own `media/`, else its layer's. A page in this checkout with no layer
+    of its own, such as a test fixture, shares the example catalog's media, as it
+    shares its packages; a page outside the checkout keeps only its own."""
     media = source.parent / "media"
     manifest = source_manifest(source)
+    if manifest is None and source.resolve().is_relative_to(ROOT):
+        manifest = DEFAULT_PACKAGES
     if media.is_dir() or manifest is None:
         return media
     return layer_media(manifest) or media
@@ -162,10 +168,18 @@ def package_selection_args(packages) -> list[str]:
     ]
 
 
+class LeafRunner(Protocol):
+    """Runs one leaf command to completion and fails if it does. Preparation reads
+    nothing it returns; each caller's runner keeps its own environment, working
+    directory and failure report."""
+
+    def __call__(self, *args: str, input_text: str | None = None) -> object: ...
+
+
 def import_referenced_media(
     page: Path,
     documents: list[str],
-    run_leaf: Callable,
+    run_leaf: LeafRunner,
     *,
     source: Path,
     assets: Path | None = None,
@@ -208,7 +222,7 @@ def import_referenced_media(
         )
 
 
-def _seed_data(fixture: PageFixture, page: Path, run_leaf: Callable) -> None:
+def _seed_data(fixture: PageFixture, page: Path, run_leaf: LeafRunner) -> None:
     for operation in fixture.data:
         run_leaf(
             "data",
@@ -236,7 +250,7 @@ def _acknowledge_seed(fixture: PageFixture, page: Path) -> None:
 def prepare_page(
     page: Path,
     fixture: PageFixture,
-    run_leaf: Callable,
+    run_leaf: LeafRunner,
     *,
     initialize: bool = True,
     seed_log: bool = True,

@@ -184,7 +184,7 @@ other page files and the external state listed below.
   page-server writers retain the payload's path and leave discovery intact.
   Scans ignore claims for missing pages; fresh page initialization clears
   the prior claim under the page lock. [session-lifetime.md](session-lifetime.md) owns
-  claimant identity, release, harness, and lifetime.
+  claimant identity, harness, and lifetime.
 
 - `<state-home>/rows/<page-key>.json` — disposable delivery output of a serving
   page's own canonical activity. `server_rows.py` owns the record, producer and

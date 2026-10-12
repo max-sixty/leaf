@@ -64,6 +64,14 @@ test("trace review requires its widget when negation is omitted", async () => {
     ),
     true,
   );
+  assert.equal(
+    await check(
+      "playwright-trace-review",
+      "uses-imported-trace",
+      '<lf-trace id="release" source="release-journey"><lf-trace-bookmark label="API visible" target="trace-0000000000000000000000000000000000000000000000000000000000000000-phase-api-after"></lf-trace-bookmark></lf-trace>',
+    ),
+    true,
+  );
   for (const invalid of [
     "no HTML here",
     '<lf-trace data-id="release" data-source="release-journey"></lf-trace>',

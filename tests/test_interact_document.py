@@ -12,6 +12,7 @@ import shutil
 import signal
 import subprocess
 import threading
+import traceback
 import weakref
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
@@ -21,6 +22,7 @@ import pytest
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from interact_support import (
+    FLOW_PAGE,
     OPTIONS,
     PAGE,
     SHIPPED_PACKAGES,
@@ -66,6 +68,7 @@ from leaf import publishing as publishing_model
 from leaf import revision_artifact as artifact_model
 from leaf import revision_delivery as revision_delivery_model
 from leaf import revisioning as revisioning_model
+from leaf import samples as samples_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
@@ -251,6 +254,65 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
     assert historical.resources["/leaf.js"].data == artifact.resources["/leaf.js"].data
 
 
+def test_a_revision_keeps_its_bytes_when_a_layer_file_is_edited_in_place(page_dir):
+    """A page's layer files are the user's to edit, in place if their editor does,
+    so a revision holds its own copy of each and never shares one's inode."""
+    first = revisioning_model.activate_source(page_dir)
+    assert first.error is None, first.error
+    captured = (
+        files_model.revision_path(page_dir, first.revision).with_suffix("")
+        / "resources"
+    )
+    for layer_file in ("leaf.js", "theme.css", "runtime/layer-generation.js"):
+        assert (captured / layer_file).stat().st_ino != (
+            page_dir / layer_file
+        ).stat().st_ino, layer_file
+    theme = (captured / "theme.css").read_bytes()
+    with (page_dir / "theme.css").open("r+b") as stream:
+        stream.write(b"/* edited in place */")
+    assert (captured / "theme.css").read_bytes() == theme
+
+
+def test_a_sample_child_stages_its_revision_without_fsync(page_dir, monkeypatch):
+    """A sample's child is Leaf's own and deleted on release, so nothing reads its
+    revision after a crash and staging it pays for no fsync, while a page's own
+    revision is still made durable."""
+    template = (
+        '<template id="practice" data-sample><h1>Practice</h1>'
+        "<p>Child text.</p></template>"
+    )
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", template + "</main>"))
+    synced = []
+    fsync = os.fsync
+
+    def recording(descriptor):
+        if any(
+            frame.filename.endswith("revision_artifact.py")
+            for frame in traceback.extract_stack()
+        ):
+            synced.append(descriptor)
+        return fsync(descriptor)
+
+    monkeypatch.setattr(os, "fsync", recording)
+    parent = revisioning_model.activate_source(page_dir)
+    assert parent.error is None, parent.error
+    assert synced, "a page's own revision is made durable"
+
+    synced.clear()
+    artifact = artifact_model.read_artifact(page_dir, parent.revision)
+    document = artifact_model.read_revision(page_dir, parent.revision).document
+    samples = samples_model.Samples()
+    identity = samples.create(
+        page_dir, artifact, document, [], {"sources": {}}, "practice", False, None
+    )
+    try:
+        child = samples.pages[identity].directory
+        assert files_model.latest_revision(child) == 1
+        assert synced == []
+    finally:
+        samples.close()
+
+
 def test_the_captured_executable_digest_separates_code_from_content(page_dir):
     """What a standing document cannot take on in place, and nothing else.
 
@@ -396,7 +458,7 @@ def test_the_captured_widget_digests_say_which_widgets_a_user_may_keep(page_dir)
     owns every widget's children. Digested from the parsed tree, so two revisions of one
     widget differ where the author changed it and nowhere else.
     """
-    document = PAGE
+    document = FLOW_PAGE
 
     def activate():
         (page_dir / "index.html").write_text(document)
@@ -511,12 +573,7 @@ def test_an_interrupted_capture_never_publishes_a_partial_revision(
     )
 
 
-def test_artifact_cache_refuses_a_replaced_immutable_manifest(page_dir):
-    activated = revisioning_model.activate_source(page_dir)
-    assert activated.error is None and activated.revision == 1
-    revision = files_model.latest_revision(page_dir)
-    first = artifact_model.read_artifact(page_dir, revision)
-    assert artifact_model.read_artifact(page_dir, revision) is first
+def _replace_manifest(page_dir, revision):
     manifest_path = (
         files_model.revision_path(page_dir, revision).with_suffix("") / "manifest.json"
     )
@@ -526,8 +583,27 @@ def test_artifact_cache_refuses_a_replaced_immutable_manifest(page_dir):
         [(manifest_path, json.dumps(manifest, sort_keys=True).encode(), False)]
     )
 
+
+def test_artifact_read_refuses_a_replaced_immutable_manifest(page_dir):
+    activated = revisioning_model.activate_source(page_dir)
+    assert activated.error is None and activated.revision == 1
+    revision = files_model.latest_revision(page_dir)
+    _replace_manifest(page_dir, revision)
+
     with pytest.raises(artifact_model.ArtifactError, match="manifest digest"):
         artifact_model.read_artifact(page_dir, revision)
+
+
+def test_artifact_cache_holds_a_bundle_by_its_content_addressed_path(page_dir):
+    """A revision's name carries its manifest's digest, so a held bundle is read
+    once; a later change to its files is not reread."""
+    activated = revisioning_model.activate_source(page_dir)
+    assert activated.error is None and activated.revision == 1
+    revision = files_model.latest_revision(page_dir)
+    first = artifact_model.read_artifact(page_dir, revision)
+    _replace_manifest(page_dir, revision)
+
+    assert artifact_model.read_artifact(page_dir, revision) is first
 
 
 def test_stylesheet_dependencies_obey_the_same_capture_boundary(page_dir):
@@ -2321,7 +2397,7 @@ def test_response_address_survives_its_delivery_turn_closing(page_dir):
             session=claim["id"],
             turn=claim["turn"],
         )
-        page.close_turn(claim["id"], claim["turn"])
+        cleanup_model.close_session_turn(claim["id"], claim["turn"])
 
     result = CliRunner().invoke(
         cli_model.cli,
@@ -2873,10 +2949,10 @@ def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_d
         path = page_dir / "index.html"
         path.write_text(
             path.read_text().replace(
-                '<lf-diagram id="flow">',
+                "</section>",
                 '<lf-board id="rollout"><lf-column id="now" label="Now">'
                 '<lf-card id="rollout-card"><strong>Ship</strong></lf-card>'
-                '</lf-column></lf-board><lf-diagram id="flow">',
+                "</lf-column></lf-board></section>",
             )
         )
 
@@ -5614,7 +5690,7 @@ def test_transition_attributes_do_not_require_earned_or_first_version_retraction
 def test_revisions_drop_anchored_sections_and_relocate_lost_visual_parts(page_dir):
     source = page_dir / "index.html"
     source.write_text(
-        PAGE.replace(
+        FLOW_PAGE.replace(
             '<lf-diagram id="flow">', '<lf-diagram id="flow" parts="node:A node:B">'
         )
     )
@@ -5635,7 +5711,7 @@ def test_revisions_drop_anchored_sections_and_relocate_lost_visual_parts(page_di
     assert stamp(page_dir, "revise drawing").exit_code == 0
     [thread] = state_json(page_dir)["threads"]
     assert thread["anchor"] == {"section": "flow"}
-    source.write_text(PAGE.replace('id="flow"', 'id="new-flow"'))
+    source.write_text(FLOW_PAGE.replace('id="flow"', 'id="new-flow"'))
     assert stamp(page_dir, "replace drawing").exit_code == 0
     [thread] = state_json(page_dir)["threads"]
     assert thread["anchor"] is None

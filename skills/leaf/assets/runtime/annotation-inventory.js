@@ -16,7 +16,7 @@ import { standingPoint } from "./pointed-place.js";
 import { ago } from "./presence.js";
 import { runtime } from "./context.js";
 import { elementById, inChrome } from "./passages.js";
-import { addressableLabel, addressableWord } from "./anchor-resolution.js";
+import { addressableLabel, addressableWord } from "./addressable-names.js";
 import { threadList } from "./thread/state.js";
 import { threadKey } from "./thread/model.js";
 import { projectionOrigins } from "./projection/model.js";

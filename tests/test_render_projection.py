@@ -137,7 +137,7 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 VISUAL_REVIEW_GALLERY = next(

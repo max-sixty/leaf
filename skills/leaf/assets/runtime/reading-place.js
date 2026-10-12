@@ -37,6 +37,7 @@ import {
   cut,
   inChrome,
   pageBlocks,
+  pageDocument,
   pageText,
   quoteFrom,
   rangeOf,
@@ -88,7 +89,7 @@ const HEADING = "h1, h2, h3, h4, h5, h6";
 // declared shadow root renders authored words at its host's place in reading order, and
 // those words are pointable and resolvable through the same reading, so version
 // continuity must be able to choose the same blocks as landmarks.
-export const textBlocks = (root = document.querySelector("body > main")) =>
+export const textBlocks = (root = pageDocument()) =>
   pageBlocks().filter((block) => under(block, root));
 
 // Source blocks include concealed words, since an anchor can reveal them. A reading
@@ -234,7 +235,7 @@ export function capturePlace(region = null, blocks = textBlocks()) {
     block?.matches(HEADING) ? top + Math.max(0, -blockTop) : top;
   const view = { y: box.scrollTop, scroller: scrollerIdentity(box) };
   const standing = focusedInView();
-  const body = region?.body ?? document.querySelector("body > main");
+  const body = region?.body ?? pageDocument();
   const standingBody = readingRegionFor(standing)?.body ?? body;
   if (
     recentPlaceInput() === "focus" &&
@@ -309,8 +310,7 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
   const box = region ? effectiveScroller(region) : pageScroller;
   const destination = focusedPlace(view);
   const standing =
-    destination &&
-    under(destination, region?.body ?? document.querySelector("body > main"))
+    destination && under(destination, region?.body ?? pageDocument())
       ? destination
       : null;
   // Within one scroller, live focus is the reading place. Across a handover,

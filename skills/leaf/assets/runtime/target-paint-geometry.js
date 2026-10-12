@@ -16,7 +16,7 @@ import {
   nameAnchor,
   scrollsWith,
 } from "./css-anchors.js";
-import { paintClips, shownBox } from "./geometry.js";
+import { nearObserver, nearWindow, paintClips, shownBox } from "./geometry.js";
 import { hasArea, intersect } from "./rect.js";
 import { atLayoutPrecision, keeps, layoutPx } from "./keeps.js";
 import {
@@ -424,9 +424,7 @@ export function standOver(stand, placed, borderRadius) {
 // anchors-visible`); unanchored, it stands uncut in its target's layers. A box with no
 // target stands where the window holds it.
 //
-// Only a box whose target stands within a screen of being shown, the scrollers around
-// it included (`scrollMargin`), is in the document. A box out of it costs no layout,
-// where boxes hidden beside the anchored ones made every layout pass revisit them all.
+// Only a box whose target is near (geometry.js, `nearWindow`) is in the document.
 // `onNear` hears where that changed, once the boxes come near are seated.
 //
 // `place` takes every box of the set, in paint order, each `{ node, target, rect }`:
@@ -448,21 +446,18 @@ export function paintSet(root, { onNear = () => {} } = {}) {
   const watched = new Map(); // target → the box watched for it
   const watching = new Map(); // box → the targets it is watched for
   const nearBy = (target) => !target || near.has(target);
-  const view = new IntersectionObserver(
-    (records) => {
-      const moved = new Set();
-      for (const { target: box, isIntersecting } of records)
-        for (const target of watching.get(box) ?? []) {
-          if (isIntersecting) near.add(target);
-          else near.delete(target);
-          moved.add(target);
-        }
-      for (const stand of stands.values())
-        if (stand.members.some(({ target }) => moved.has(target))) seat(stand);
-      onNear();
-    },
-    { rootMargin: "100%", scrollMargin: "600px" },
-  );
+  const view = nearObserver((records) => {
+    const moved = new Set();
+    for (const { target: box, isIntersecting } of records)
+      for (const target of watching.get(box) ?? []) {
+        if (isIntersecting) near.add(target);
+        else near.delete(target);
+        moved.add(target);
+      }
+    for (const stand of stands.values())
+      if (stand.members.some(({ target }) => moved.has(target))) seat(stand);
+    onNear();
+  });
 
   // A stand's key: the frames that cut it, each band from its holder's corner, which no
   // scroll moves, and the plane it stands in. A stand in motion layers follows its one
@@ -547,13 +542,7 @@ export function paintSet(root, { onNear = () => {} } = {}) {
           view.observe(box);
         }
         watching.get(box).add(target);
-        if (
-          bottom > -innerHeight &&
-          top < 2 * innerHeight &&
-          right > -innerWidth &&
-          left < 2 * innerWidth
-        )
-          near.add(target);
+        if (nearWindow(target, clips)) near.add(target);
       }
       const carriedBy =
         anchor === undefined

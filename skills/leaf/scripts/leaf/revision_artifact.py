@@ -886,8 +886,22 @@ def artifact_name(revision: int, artifact: RevisionArtifact) -> str:
     return f"r{revision}-{artifact.digest.removeprefix('sha256:')[:16]}"
 
 
+class Disposable:
+    """Whether Leaf built this page for itself and deletes it, as a sample's child
+    (`samples`), so nothing reads its revisions after a crash and staging and
+    publishing them skip every fsync.
+
+    The builder sets it in the memory it holds for the page's life
+    (`page_memory.memory_of`). A page whose memory never held the mark, or dropped
+    it, is written durably, so losing the mark costs time and never a revision."""
+
+    held = False
+
+
 def stage_artifact(page_dir: Path, revision: int, artifact: RevisionArtifact) -> str:
-    """Make exact immutable inputs durable, without making a revision discoverable."""
+    """Make exact immutable inputs durable, unless the page is `Disposable`, without
+    making a revision discoverable."""
+    durable = not memo(page_dir, Disposable).held
     revisions = page_dir / "revisions"
     revisions.mkdir(exist_ok=True)
     if revision in list_revisions(page_dir):
@@ -906,28 +920,31 @@ def stage_artifact(page_dir: Path, revision: int, artifact: RevisionArtifact) ->
                 ("index.html", artifact.html),
                 ("manifest.json", artifact.manifest),
             ):
-                written.append(_write_durably(staged / relative, data))
+                written.append(_write(staged / relative, data, durable))
             for path, resource in artifact.resources.items():
                 target = staged / ("resources" + path)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 earlier = captured.get(resource.digest)
                 if earlier is None or not _linked(earlier, target):
-                    _write_durably(target, resource.data)
+                    _write(target, resource.data, durable)
                 written.append(target)
-            fsync_parents(written + list(staged.rglob("*")))
+            if durable:
+                fsync_parents(written + list(staged.rglob("*")))
             os.rename(staged, destination)
-            fsync_parents([destination])
+            if durable:
+                fsync_parents([destination])
     elif (destination / "manifest.json").read_bytes() != artifact.manifest:
         raise ArtifactError(f"{destination}: immutable artifact digest collision")
     return name
 
 
-def _write_durably(target: Path, data: bytes) -> Path:
+def _write(target: Path, data: bytes, durable: bool) -> Path:
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("xb") as stream:
         stream.write(data)
-        stream.flush()
-        os.fsync(stream.fileno())
+        if durable:
+            stream.flush()
+            os.fsync(stream.fileno())
     return target
 
 
@@ -977,7 +994,8 @@ def publish_artifact(page_dir: Path, name: str, reading: SourceReading) -> Path:
     destination = page_dir / "revisions" / name
     marker = destination.with_name(f"{name}.html")
     os.link(destination / "index.html", marker)
-    fsync_parents([marker])
+    if not memo(page_dir, Disposable).held:
+        fsync_parents([marker])
     marker = marker.absolute()
     memo(page_dir, _Readings).hold(
         marker, file_stamp(marker), RevisionReading(marker, reading)

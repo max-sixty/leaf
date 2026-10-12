@@ -927,6 +927,88 @@ def test_a_sample_in_a_native_modal_escapes_inherited_inertness(browser, serve):
     _read_by_the_sample(page, child)
 
 
+def test_a_same_origin_frame_under_the_containing_banner_cannot_acknowledge(
+    browser, serve
+):
+    """A Leaf page framed by its own origin is read through what the containing page
+    shows of the frame, which that page's banner stands over like its own content."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Framed reading",
+                '<h1>Containing page</h1><div id="frame-gap"></div>',
+                head="<style>#frame-gap { height: 2000px; }"
+                " #framed-reader { display: block; width: 100%; height: 500px;"
+                " border: 0; margin-bottom: 2000px; }</style>",
+            ),
+            events=[
+                {
+                    "id": SAMPLE_READER,
+                    "kind": "comment",
+                    "author": "agent",
+                    "agent": "Agent",
+                    "revision": 1,
+                    "text": "A framed answer for the user.",
+                }
+            ],
+        ),
+    )
+    # Below the first screen, the framed page opens its first unread message unseen.
+    page.locator("#frame-gap").evaluate(
+        """async (gap, url) => {
+            const frame = document.createElement('iframe');
+            frame.id = 'framed-reader';
+            frame.src = url;
+            const loaded = new Promise(resolve =>
+                frame.addEventListener('load', resolve, {once: true}));
+            gap.after(frame);
+            await loaded;
+        }""",
+        page.url,
+    )
+    frame = page.locator("#framed-reader")
+    child = frame.element_handle().content_frame()
+    wait_until_ready(child)
+    child.lf_traffic = Traffic(child)
+    child.locator(".lf-threads-toggle").focus()
+    page.evaluate("scrollTo(0, 0)")
+    _open_first_unread(page, child)
+    _still_unread(page, child)
+
+    # Scrolled until the message stands under the containing page's banner, where the
+    # framed page's own window shows it whole.
+    body = _message_body(child).evaluate(
+        "body => { const box = body.getBoundingClientRect();"
+        " return {top: box.top, height: box.height}; }"
+    )
+    foot = page.locator("#lf-banner").evaluate(
+        "banner => banner.getBoundingClientRect().bottom"
+    )
+    assert body["height"] < foot
+    frame.evaluate(
+        "(frame, at) => scrollBy(0, frame.getBoundingClientRect().top - at)",
+        (foot - body["height"]) / 2 - body["top"],
+    )
+    assert _message_body(child).evaluate(
+        "body => { const box = body.getBoundingClientRect();"
+        " const frame = frameElement.getBoundingClientRect();"
+        " return frame.top + box.top >= 0 && frame.top + box.bottom <= parent"
+        ".document.getElementById('lf-banner').getBoundingClientRect().bottom; }"
+    ), "the message does not stand under the containing banner"
+    _still_unread(page, child)
+
+    # Scrolled on until the frame stands below the banner, it shows the message.
+    frame.evaluate(
+        "(frame, foot) => scrollBy(0, frame.getBoundingClientRect().top - foot)", foot
+    )
+    expect(child.locator(".lf-first-unread")).to_be_hidden()
+    round_trip(child)
+    assert _read_events(serve.page_dir)[-1]["messages"] == [
+        {"message": SAMPLE_READER, "version": SAMPLE_READER}
+    ]
+
+
 def _box_height(locator):
     return locator.evaluate("node => node.getBoundingClientRect().height")
 

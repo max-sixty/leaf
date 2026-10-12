@@ -19,7 +19,6 @@ from leaf.schema import (
 )
 
 from .contract import RegistryError, is_element_name, stamp_decisions
-from .kernel import kernel_event_kinds, kernel_event_ownership
 from .schema import (
     json_validator,
     json_value,
@@ -131,17 +130,6 @@ def _valid_clauses(clauses) -> bool:
             except SchemaError:
                 return False
     return True
-
-
-def validate_event_contracts(events: dict, path) -> None:
-    for key, expected in (
-        ("kinds", kernel_event_kinds()),
-        ("ownership", kernel_event_ownership()),
-    ):
-        if events.get(key) != expected:
-            raise RegistryError(
-                f"{path}: $events.{key} must equal Leaf's fixed transport contract"
-            )
 
 
 def validate_layer_declarations(

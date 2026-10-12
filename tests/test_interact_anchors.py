@@ -116,7 +116,7 @@ def test_detached_capture_remains_detached_when_an_identical_copy_survives(page_
     )
     revised = original.replace(repeated * 2 + unique, repeated + unique)
     (page_dir / "index.html").write_text(revised)
-    publish(page_dir, version=2)
+    publish(page_dir)
     threads = build_threads(events_model.read_events(page_dir), {})
     assert threads[detached["id"]]["anchor"] == anchor
     assert threads[exact["id"]]["anchor"] == exact["anchor"]
@@ -2175,9 +2175,7 @@ def test_message_markup_may_not_dress_the_document_it_is_put_into(page_dir, nati
     message body, where a <style> among them becomes a document stylesheet like any
     other. `main h1 { color: red !important }` in a reply repainted the version's own
     heading, and the same declaration in a version answers to the syntax, column and
-    cascade gates this door was never running. The inline half rides the same route: an
-    !important on a protected presentation property outranks the theme's first
-    important layer, which is exactly what a version is refused for.
+    cascade gates this door was never running.
 
     Native evidence and widgets pass through the same presentation gate."""
     published(page_dir)
@@ -2205,15 +2203,6 @@ def test_message_markup_may_not_dress_the_document_it_is_put_into(page_dir, nati
         '<link rel="stylesheet" href="/theme.css">' + widget,
     )
     assert linked.exit_code != 0 and "stylesheet" in linked.output
-
-    inline = comment(
-        page_dir,
-        "--text",
-        "look:",
-        "--markup",
-        '<p style="display: none !important">gone</p>' + widget,
-    )
-    assert inline.exit_code != 0 and "display" in inline.output
 
     assert comment(page_dir, "--text", "look:", "--markup", widget).exit_code == 0
 

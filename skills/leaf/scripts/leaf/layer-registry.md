@@ -45,35 +45,32 @@ records its identities under `$layer`:
   identity and its age in its low-frequency banner controls; a press copies the full
   layer diagnostics. A harness can ask its running payload for the same source identity
   and date with `leaf --version`.
+- `protocol` is the number of the contract between the page and any Leaf that serves
+  it or writes its log (`layer.PROTOCOL`, whose comment says when to bump it). Every
+  page server — durable, temporary, the gate's ephemeral one, and the website's — and
+  the one append door compare it with their own when they bind the page or admit an
+  event (`layer.incompatible_layer`), and refuse a page vendored at another number,
+  naming `leaf page init`. Any other Leaf at the same number serves and writes the
+  page, so a plugin update leaves open pages working: event admission validates a
+  kernel record against the running Leaf's own `$events` (`registry.kernel`), which
+  no layer can change, so a field a newer Leaf writes passes on a page an older one
+  vendored. Breaking changes are the deliberate exception, and a page vendored before
+  the number existed records none and is refused once.
 - `runtime` is the SHA-256 identity of the kernel runtime modules the payload vendored
   from, read from its own `assets/runtime/` rather than recomposed from the page's
-  selections. A page's server runs the Leaf that started it against the runtime the
-  page carries, and the render gate serves its probe modules from the Leaf running the
-  command against the same runtime, so every page server — durable, temporary, and the
-  gate's ephemeral one — compares this identity with its own payload's when it binds
-  the page (`http.page_endpoint`, `layer.foreign_runtime`) and refuses a page carrying
-  another Leaf's runtime, naming `leaf page init`. Served across the two, the page
-  would break in the browser on every read: a renamed field in the state the server
-  sends, or an export the page's runtime does not have. `fingerprint` cannot answer
-  that question, because a package selection recorded beside it resolves against the
-  project `page init` ran in and cannot be recomposed anywhere else. A page vendored
-  before this identity existed records none and is refused the same way; `page init`
-  records it again. The identity covers `assets/runtime/` alone: a contract change
-  made only in the Python server, the boot `leaf.js`, the theme, or a package's
-  widgets passes it. A checkout whose runtime modules were edited refuses every page
-  vendored before the edit until each is re-vendored.
+  selections. The render gate serves its probe modules from the Leaf running the
+  command, and they import the page's runtime modules by name, so the gate alone
+  requires this exact identity (`layer.foreign_runtime`) and refuses another, naming
+  `leaf page init`. `fingerprint` cannot answer that question, because a package
+  selection recorded beside it resolves against the project `page init` ran in and
+  cannot be recomposed anywhere else.
 - `server` is the SHA-256 identity of the payload's Python serving code,
   `pyproject.toml`, and `uv.lock`. It excludes the interpreter version because a site
   builds pages on one Python release and serves them from a container on another.
   Initialization reads these inputs whether invoked directly or by a preview,
   so a server-only edit requires a new generation
   even when the installed browser files are unchanged. This identity decides
-  re-vendoring. Event admission checks both identities when the installed
-  registry is readable, before validating a new command, and names `leaf page
-  init` when either belongs to another Leaf. A broken or missing candidate
-  registry does not displace an active revision's captured vocabulary. An
-  already admitted attempt remains readable as the same event. The runtime
-  identity also owns the server's bind check.
+  re-vendoring, never whether a page may be served or written.
 
 HTTP responses also identify the serving incarnation in `Leaf-Server`. Every
 document that runs the runtime, served or exported, carries an inline prepaint that

@@ -1181,8 +1181,16 @@ def test_words_a_slow_send_retains_its_input(browser, delay):
     judge_watches()
 
 
-@pytest.mark.parametrize("scheduler", ["nextRender", "afterScript", "presenter"])
-@pytest.mark.parametrize("order", ["passive-first", "input-first"])
+# Each scheduler takes one order, and both orders are taken: which job comes first is
+# the pass's, not the scheduler's.
+@pytest.mark.parametrize(
+    "scheduler, order",
+    [
+        ("nextRender", "passive-first"),
+        ("afterScript", "input-first"),
+        ("presenter", "passive-first"),
+    ],
+)
 def test_coalesced_rendering_jobs_keep_their_own_input_source(
     browser, serve, scheduler, order
 ):

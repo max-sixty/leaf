@@ -805,7 +805,7 @@ def test_selection_hints_do_not_name_page_content_behind_a_covering_panel(
     browser, serve
 ):
     """A covering panel removes the inert document from page-target picker."""
-    page = open_page(browser, serve(ROOT / "examples" / "corpus.html"))
+    page = open_page(browser, serve(TARGETS_PAGE))
     resized(page, 400, 900)
     page.keyboard.press("s")
     expect(page.locator(".lf-target-picker-hint")).not_to_have_count(0)
@@ -819,7 +819,6 @@ def test_selection_hints_do_not_name_page_content_behind_a_covering_panel(
     )
     page.keyboard.press("s")
     assert page.locator(".lf-target-picker-hint").count() == 0, (
-        "page target selection crossed the covering auxiliary surface boundary"
         "page target picker crossed the covering auxiliary surface boundary"
     )
 

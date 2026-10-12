@@ -103,15 +103,15 @@ back in the same batch has not left and keeps its resources. A connecting elemen
 revision replaces hands its replacement a registration only one element may hold, such
 as `registerThreadPresentation` or `registerReadingRegion`.
 
-Every subscription in this reference pauses while its owner is away: a
-`widgetController` subscription, `watchData`, and the page readings ("Page readings").
-On a return, a subscription calls its callback again, and the controller its
-`renderState`, only when its reading changed while the owner was away or when a
-callback's returned promise had not settled before the owner left. A callback that
-throws or rejects is reported once, as a page error naming the element, and its
-subscription stays: the next changed reading calls it again. So return the promise of
-any paint that finishes later, abandon unfinished work on departure, keep finished
-nodes where they are, and have `start` restore whatever its cleanup cleared.
+A `widgetController` subscription, `watchData`, `watchComparison` and the page readings
+("Page readings") pause while their owner is away. On a return, a subscription calls
+its callback again, and the controller its `renderState`, only when its reading changed
+while the owner was away or when a callback's returned promise had not settled before
+the owner left. A callback that throws or rejects is reported once, as a page error
+naming the element, and its subscription stays: the next changed reading calls it again.
+So return the promise of any paint that finishes later, abandon unfinished work on
+departure, keep finished nodes where they are, and have `start` restore whatever its
+cleanup cleared.
 
 `readingPaint(element, draw)` gives a reading of the module's own the same rule. Build it
 once, before `whileConnected`. The returned `paint(key, ...args)` calls `draw(...args)`
@@ -271,7 +271,8 @@ stops or its owner leaves.
 
 `afterScript(callback)` runs a callback once, at the microtask checkpoint that ends the
 current script, for a paint two steps of one script would otherwise invalidate twice.
-Asked again before it runs, it still runs once.
+Asked again with the same function before it runs, it still runs once, so pass a function
+the module keeps rather than a new arrow at each call.
 
 Observe size with `sizeObserver(callback)` in place of `new ResizeObserver`, so the
 page reads as unsettled while sizes change. Pass `{counted: false}` for boxes that move
@@ -933,15 +934,19 @@ every tab of the page shares them. The widget keeps the draft under a context st
 unique on the page, such as `option:` and its id. `loadDraft(ctx)` reads the words to seed
 the box, or `null` where none stand. `saveDraft(ctx, text, payload)` records an edit, from
 `save`, with an optional `payload` the send needs, such as the choice the words go with.
-`watchDraft(ctx, callback)` calls `callback(text, payload)` when another tab or view
-changes the draft, such as to `sync.load()` the words, and returns a function that stops
-it; register it in `whileConnected`. `sendDraft(ctx, owns, send)` sends, from `send`:
-while the stored draft is the one the box shows and `owns()` returns true, it calls
-`send(attempt, payload)`, which dispatches and returns the delivery promise, and it
-resolves to that delivery's result, or `null` when it sent nothing. One `attempt` stands
-for one edit of the words, so a resend after a reload names the same attempt. The box
-empties as the send goes, the draft settles once the log accepts it, and a refusal gives
-the words back to the box. `clearDraft(ctx)` drops the draft, as Cancel does. `lf-options`' box
+`watchDraft(ctx, callback, {input: box})` calls `callback(text, payload)` whenever the
+draft changes other than by an edit in this box: another tab or view changing it, a send
+emptying it (`text` is `null`), or a refusal giving the words back. The callback puts
+the words in the box with `sync.load(text ?? "")`. `watchDraft` returns a function that
+stops it; register it in `whileConnected`. `input` names the box the draft is written
+in, so a live revision gives the user's caret back to the box that replaces it.
+`sendDraft(ctx, owns, send)` sends, from `send`: while the stored draft is the one the
+box shows and `owns()` returns true, it calls `send(attempt, payload)`, which dispatches
+and returns the delivery promise, and it resolves to that delivery's result, or `null`
+when it sent nothing. One `attempt` stands for one edit of the words, so a resend after a
+reload names the same attempt. The draft empties as the send goes and settles once the
+log accepts it, and a refusal gives the words back; the box follows both through
+`watchDraft`. `clearDraft(ctx)` drops the draft, as Cancel does. `lf-options`' box
 for adding an option (`lf-options-addition.js`) is the worked example.
 
 For a CodeMirror editor, import `LeafEditorView` and use it in place of the dependency's
@@ -1008,8 +1013,8 @@ checkpoint's elements, replaces its body's contents inside
 `showReadingSubject(id, subject, render)`, and Leaf returns the reader to their place in
 each subject. `watchReadingRegionTransitions(listener)` hears these changes, and returns
 a function that stops it: `{phase: "shift", shifted}` whenever a shown region's scroller
-or width changes, the window's height changes, or the page's width or banner moves (an
-entry with no region); `before` and `after` around `preserveReadingRegions`; and
+or width changes, the window's height changes, or the page's width changes (an entry with
+no region); `before` and `after` around `preserveReadingRegions`; and
 `leaving` and `showing` around `showReadingSubject`.
 
 ### Holding the reader's place
@@ -1229,13 +1234,14 @@ each.
 
 `compareImages(a, b)` compares two decoded images, such as an `HTMLImageElement` or an
 `ImageBitmap` at natural size, which must not taint a canvas. It resolves to
-`{width, height, changed, throughout, regions}`: the number of pixels that differ, whether
-they differ over most of the image, and outlines `{x, y, width, height, side, kind}` drawn
-on the `before` image (`a`) or the `after` image (`b`) around content that `changed` or
-`moved`. `differenceKind(reading)` classifies a reading as `identical`, `throughout`,
-`slight` or `areas`; `describeDifference(reading)` words it for the reader, and
-`countAreas(regions)` counts the changed and moved areas, each once. The comparison is
-experimental; `lf-shot` is the worked example.
+`{width, height, changed, throughout, regions}`: the size compared, the larger of the two
+images on each axis; the number of pixels that differ; whether they differ over most of
+the image; and outlines `{x, y, width, height, side, kind}` drawn on the `before` image
+(`a`) or the `after` image (`b`) around content that `changed` or `moved`.
+`differenceKind(reading)` classifies a reading as `identical`, `throughout`, `slight` or
+`areas`; `describeDifference(reading)` words it for the reader, and `countAreas(regions)`
+counts the changed and moved areas, each once. The comparison is experimental; `lf-shot`
+is the worked example.
 
 ### Media URLs
 

@@ -22,7 +22,6 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from .detached import Handshake, StartRefused, starting_detached
-from .files import read_json
 from .harness import Harness, claim_harness, harness_argument, session_harness
 from .leases import end_if_terminated, page_locked, release_lease, take_lease
 from .refusals import Refused
@@ -33,6 +32,7 @@ from .server import (
     loopback_note,
     page_access,
     page_url,
+    read_service,
     running_server,
     stop_when_service_ends,
 )
@@ -382,7 +382,7 @@ def startup_note(page_dir: Path) -> str:
     from .registry.storage import layer_metadata
 
     layer = layer_metadata(page_dir)
-    service = read_json(page_dir / SERVICE_FILE) or {}
+    service = read_service(page_dir) or {}
     # An older live service has no trustworthy runtime identity. Naming this
     # command's payload instead would make the exact stale-server case this note
     # exists to expose look current merely because a newer client inspected it.
@@ -529,7 +529,7 @@ def cmd_serve(
         with delivery, page_locked(page_dir):
             if acquire and not persistent and harness is not None:
                 prepared_claim = prepared_claim or prepare_claim(harness, page_dir)
-            previous_service = service = read_json(page_dir / SERVICE_FILE)
+            previous_service = service = read_service(page_dir)
             with PageTransaction(page_dir) as page:
                 claimed = (
                     bool(not persistent and harness is not None)
@@ -770,8 +770,13 @@ def cmd_stop(
                 return stopped
             # The server may release its lease immediately after we disable it.
             stopped = stopped or running_server(page_dir) is not None
-            service = read_json(page_dir / SERVICE_FILE)
-            if service and first:
+            service = read_service(page_dir)
+            if service is None:
+                # A record this version cannot read names no service it could
+                # disable. Discarding it is what stops a server an older Leaf
+                # started over it, which exits once its record is gone.
+                (page_dir / SERVICE_FILE).unlink(missing_ok=True)
+            elif first:
                 disabled = {
                     **{
                         key: value for key, value in service.items() if key != "restart"
@@ -781,7 +786,7 @@ def cmd_stop(
                 }
                 if disabled != service:
                     write_json(page_dir / SERVICE_FILE, disabled)
-            elif service and service["enabled"]:
+            elif service["enabled"]:
                 write_json(page_dir / SERVICE_FILE, {**service, "enabled": False})
             first = False
             lease = take_lease(page_dir / SERVER_LOCK)
@@ -826,7 +831,7 @@ def restarting_server(page_dir: Path):
     this block reads the mark, so one a killed restart leaves behind is inert: the
     next start or stop writes a record without it.
     """
-    service = read_json(page_dir / SERVICE_FILE)
+    service = read_service(page_dir)
     if not service or not service["enabled"]:
         yield
         return
@@ -852,7 +857,7 @@ def restarting_server(page_dir: Path):
         )
         raise
     with page_locked(page_dir):
-        service = read_json(page_dir / SERVICE_FILE)
+        service = read_service(page_dir)
         resumed = bool(service and service.get("restart") == mark)
         if resumed:
             del service["restart"]

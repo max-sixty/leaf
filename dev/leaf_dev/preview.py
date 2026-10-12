@@ -405,12 +405,12 @@ class PreviewService:
         A `--user` service still enabled but down is not ended. That is a server
         that died, or one `page init` re-vendored but could not start again (the
         recorded port was taken), and the watcher tries it again."""
-        from leaf.files import read_json
+        from leaf.server import read_service
         from leaf.service import claim_is_active, page_claim, same_claim
 
         if not self.user:
             return not self.running
-        service = read_json(self.page / "service.json")
+        service = read_service(self.page)
         if not service or not service["enabled"]:
             return True
         claim = page_claim(self.page)

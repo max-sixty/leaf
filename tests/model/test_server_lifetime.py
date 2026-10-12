@@ -18,6 +18,7 @@ import pytest
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from interact_support import (
+    HELD_LEASES,
     STATED_TIMEOUT,
     append_carried_log_record,
     available_loopback_port,
@@ -545,6 +546,21 @@ def test_server_run_persistent_refuses_to_adopt_a_session_server(page_dir):
     )
     assert result.exit_code != 0
     assert "server stop" in result.output
+
+
+def test_a_service_record_this_version_cannot_read_is_no_service(page_dir):
+    """An older Leaf recorded a persistent serve as `"lifetime": "standing"`. This
+    version reads that record as absent rather than as a session server, so a
+    persistent start is not refused as one, and an explicit stop discards the
+    record, which is what ends a server an older Leaf runs over it."""
+    serving(page_dir, 1, "standing")
+    assert server_model.read_service(page_dir) is None
+    assert server_model.running_server(page_dir) is None
+    assert hosting_model._reuse_server(page_dir, None, persistent=True) is None
+    leases_model.release_lease(HELD_LEASES.pop())
+
+    assert hosting_model.cmd_stop(page_dir) is False
+    assert not (page_dir / "service.json").exists()
 
 
 def test_a_persistent_server_outlives_a_session_that_picks_the_page_up(

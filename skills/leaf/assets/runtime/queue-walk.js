@@ -298,8 +298,9 @@ export function createQueueWalk({
       return shownFor;
     }
     shownFor =
-      readQueues().questions.find((item) => item.id === shownFor?.id && item.offers.done) ??
-      null;
+      readQueues().questions.find(
+        (item) => item.id === shownFor?.id && item.offers.done,
+      ) ?? null;
     return shownFor;
   }
 
@@ -338,15 +339,13 @@ export function createQueueWalk({
         id: "queue.next",
         binding: "q",
         title: "Next question",
-        description:
-          "Next ask, thread, to-do or resend waiting on you",
+        description: "Next ask, thread, to-do or resend waiting on you",
       },
       {
         id: "queue.previous",
         binding: "Shift+q",
         title: "Previous question",
-        description:
-          "Previous ask, thread, to-do or resend waiting on you",
+        description: "Previous ask, thread, to-do or resend waiting on you",
       },
     ],
     title: "Questions",

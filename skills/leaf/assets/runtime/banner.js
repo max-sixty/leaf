@@ -321,7 +321,9 @@ function queueWords() {
     items.length ? `Waiting on ${whom}: ${queueKinds(items).join(", ")}.` : "";
   return {
     summary: tasks.length ? `Tasks: ${tasks.length}` : "",
-    explanation: [named(questions, "you"), named(tasks, agent)].filter(Boolean).join(" "),
+    explanation: [named(questions, "you"), named(tasks, agent)]
+      .filter(Boolean)
+      .join(" "),
     // The widest the count usually reaches, under ten, which its box keeps; more
     // widens it once (banner-status-view.js).
     widest: "Tasks: 9",

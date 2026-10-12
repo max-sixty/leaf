@@ -206,8 +206,8 @@ flowchart TD
               <li id="architecture-reading">
                 <strong>One reading of the page.</strong> From the directory and the
                 session's records, Leaf's Python code derives current component state,
-                threads, asks, which updates still need an answer, and what the
-                banner says, all from one consistent snapshot.
+                threads, asks, which updates still need an answer, and what the banner
+                says, all from one consistent snapshot.
                 <code>leaf page state</code> prints a selection of the reading the
                 browser receives.
               </li>
@@ -375,13 +375,13 @@ leaf response reply &lt;answer.ref&gt; --done --text "The importer policy is upd
 leaf status ./review waiting "Does the revised policy match the workload?"</code></pre>
               <p id="answers-kinds">
                 A comment receives a thread reply. A page can also pose an
-                <em>ask</em> through a decision widget, such as a choice between
-                queue policies. Each ask contains its prompt, typed answer, and
-                lifecycle. The widget owns its value; a standalone decision widget also
-                creates an ask. An optional <code>lf-ask</code> supplies context
-                around it. The agent records that decision in a stamped revision. The
-                browser fetches the updated HTML and current state, so the user sees the
-                result on the same page.
+                <em>ask</em> through a decision widget, such as a choice between queue
+                policies. Each ask contains its prompt, typed answer, and lifecycle. The
+                widget owns its value; a standalone decision widget also creates an ask.
+                An optional <code>lf-ask</code> supplies context around it. The agent
+                records that decision in a stamped revision. The browser fetches the
+                updated HTML and current state, so the user sees the result on the same
+                page.
               </p>
               <details id="decision-example">
                 <summary>Example: answer a page choice</summary>
@@ -423,13 +423,13 @@ leaf page stamp ./review --text "Queue policy: drop oldest"</code></pre>
                 </p>
                 <p id="answer-kinds-details">
                   A user comment requires a reply in its thread. A decision on a page
-                  ask requires a stamped revision. If the ask's component
-                  declares a record form, the revised HTML uses it to show the decision,
-                  such as the chosen option. An ask embedded in a thread message
-                  receives a thread reply, because that message's HTML is fixed.
-                  Resolving a thread or moving a card can require no answer; the agent
-                  still receives the event. A multi-select ask submits the choice
-                  when the user presses Done.
+                  ask requires a stamped revision. If the ask's component declares a
+                  record form, the revised HTML uses it to show the decision, such as
+                  the chosen option. An ask embedded in a thread message receives a
+                  thread reply, because that message's HTML is fixed. Resolving a thread
+                  or moving a card can require no answer; the agent still receives the
+                  event. A multi-select ask submits the choice when the user presses
+                  Done.
                 </p>
                 <p id="delivery-envelope">
                   A delivery is one JSON document, whose <code>format</code> field names
@@ -596,12 +596,12 @@ leaf page stamp ./review --text "Queue policy: drop oldest"</code></pre>
                   without sending them to an agent session.
                 </p>
                 <p id="widget-completion">
-                  A start names the update or to-do the agent is handling in this turn. A
-                  reply or stamped decision answers an update and ends its start. Work
+                  A start names the update or to-do the agent is handling in this turn.
+                  A reply or stamped decision answers an update and ends its start. Work
                   that outlasts the turn gets a to-do, which remains open through
                   replies, thread resolution, unrelated revisions, and the end of its
-                  session. Work no update requested also gets a to-do. The agent opens it
-                  on a thread, a work-bearing widget, or the page as a whole, then
+                  session. Work no update requested also gets a to-do. The agent opens
+                  it on a thread, a work-bearing widget, or the page as a whole, then
                   starts it using the id printed by <code>leaf task open</code>:
                 </p>
                 <pre
@@ -1193,14 +1193,14 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
             </table>
             <p id="stages-owed">
               A comment, or a reply in a thread, needs a reply in that thread. An answer
-              to a page-widget ask needs a version whose markup records it.
-              Resolving a thread, editing a draft, and moving a card need no answer,
-              though the agent still reads them with the rest of the delivery. The label
-              on a draft edit or a card move clears once a version records or replaces
-              the change; in a widget inside a thread message, it clears once the agent
-              next writes in that thread or the thread is resolved. In an ask with a
-              Done button, a pick has no label until the user presses Done, because the
-              ask is not answered until then.
+              to a page-widget ask needs a version whose markup records it. Resolving a
+              thread, editing a draft, and moving a card need no answer, though the
+              agent still reads them with the rest of the delivery. The label on a draft
+              edit or a card move clears once a version records or replaces the change;
+              in a widget inside a thread message, it clears once the agent next writes
+              in that thread or the thread is resolved. In an ask with a Done button, a
+              pick has no label until the user presses Done, because the ask is not
+              answered until then.
             </p>
           </section>
 
@@ -1299,15 +1299,15 @@ flowchart LR
                 first reply promised.
               </li>
               <li id="updates-written-question">
-                <strong><code>leaf response reply … --ask</code></strong> A prose
-                ask for the user, which stays open until they reply or settle it
-                with a reaction. The thread reads <em>On you to answer</em>, and the
-                ask joins the user's Questions, in the Questions panel.
+                <strong><code>leaf response reply … --ask</code></strong> A prose ask
+                for the user, which stays open until they reply or settle it with a
+                reaction. The thread reads <em>On you to answer</em>, and the ask joins
+                the user's Questions, in the Questions panel.
               </li>
               <li id="updates-written-on-you">
                 <strong><code>leaf task open … --on user</code></strong> Something the
-                agent needs the user to do that no ask or widget answers, such as
-                trying a build, as a to-do under the user's Questions, where
+                agent needs the user to do that no ask or widget answers, such as trying
+                a build, as a to-do under the user's Questions, where
                 <code>q</code> reaches it. Its <em>Done</em>, on its row or
                 <kbd>x</kbd> where <code>q</code> lands, ends it and tells the agent. An
                 ask in a thread has no Done: the user's reply answers it.
@@ -1448,8 +1448,7 @@ flowchart TD
                   <td>Claude working — picked up your comment</td>
                   <td>
                     The agent's running turn picked up the user's comment, or their
-                    answer to an ask, and the agent has not yet said what it is
-                    doing.
+                    answer to an ask, and the agent has not yet said what it is doing.
                   </td>
                 </tr>
                 <tr id="updates-reading-steps">
@@ -1589,9 +1588,9 @@ flowchart TD
               <code>&lt;meta name="lf-review" content="sign-off"&gt;</code>. A stamped
               version with this declaration offers an approval control in the banner.
               The version's sign-off is itself an ask. Its approval control becomes
-              available after every widget ask on the page and in unresolved
-              threads is answered or withdrawn. Prose asks and widgets in resolved
-              threads do not block approval. Undo reopens the approval ask.
+              available after every widget ask on the page and in unresolved threads is
+              answered or withdrawn. Prose asks and widgets in resolved threads do not
+              block approval. Undo reopens the approval ask.
             </p>
           </section>
 
@@ -2667,12 +2666,12 @@ flowchart TD
               thread panels, and Questions panel. An ask contains a request for user
               input, its answer, and its lifecycle; widgets own their typed answer
               values. The Questions panel lists what each side has to act on. The user's
-              Questions hold widget and prose asks, stamped-version sign-off, and
-              to-dos the agent put on them. The agent’s Tasks hold unanswered
-              updates and its open to-dos. The banner's Questions door, beside Threads,
-              counts the user's, and the Tasks count after the status counts the
-              agent's; either opens the panel. Opening these controls preserves the
-              page's text wrapping and reading position.
+              Questions hold widget and prose asks, stamped-version sign-off, and to-dos
+              the agent put on them. The agent’s Tasks hold unanswered updates and its
+              open to-dos. The banner's Questions door, beside Threads, counts the
+              user's, and the Tasks count after the status counts the agent's; either
+              opens the panel. Opening these controls preserves the page's text wrapping
+              and reading position.
             </p>
             <p id="chrome-bars">
               The banner and bottom bar have fixed heights, and the page scrolls between
@@ -3446,13 +3445,13 @@ flowchart TD
                 behind it inaccessible until it closes.
               </p>
               <p id="navigation-comment-return">
-                <kbd>q</kbd>, <kbd>c</kbd>, <kbd>Escape</kbd> returns focus to the
-                ask, with its option keys available again. A second Escape lets go
-                of the ask. Commenting from an option or by aiming at the same
-                ask follows the same return route. A visual comment returns to its
-                current response proxy, by keyboard or pointer entry. A comment on the
-                whole page returns to its banner control; closing a comment on selected
-                words clears the selection.
+                <kbd>q</kbd>, <kbd>c</kbd>, <kbd>Escape</kbd> returns focus to the ask,
+                with its option keys available again. A second Escape lets go of the
+                ask. Commenting from an option or by aiming at the same ask follows the
+                same return route. A visual comment returns to its current response
+                proxy, by keyboard or pointer entry. A comment on the whole page returns
+                to its banner control; closing a comment on selected words clears the
+                selection.
               </p>
               <p id="navigation-panel-exchange">
                 Opening Pages or Questions in place of another auxiliary surface
@@ -3474,16 +3473,15 @@ flowchart TD
               <summary>The Questions walk can leave the panel's filtered list</summary>
               <p id="navigation-queue-rule">
                 <kbd>q</kbd> walks work waiting on the user, including open asks,
-                version sign-off, to-dos, and updates to send again. It can clear
-                a thread filter that hides its destination, or open a closed tab or
-                disclosure. A single-choice ask ends when answered; a
-                multiple-choice ask waits for Done. A later <kbd>q</kbd> press
-                walks the remaining work.
+                version sign-off, to-dos, and updates to send again. It can clear a
+                thread filter that hides its destination, or open a closed tab or
+                disclosure. A single-choice ask ends when answered; a multiple-choice
+                ask waits for Done. A later <kbd>q</kbd> press walks the remaining work.
               </p>
               <p id="navigation-tab-rule">
                 A tab strip's arrows select neighbouring tabs and wrap at its ends; Tab
-                leaves the strip for its contents. Thread and Questions walks stop at their
-                ends. These are different kinds of movement, with their available
+                leaves the strip for its contents. Thread and Questions walks stop at
+                their ends. These are different kinds of movement, with their available
                 commands shown in the bottom bar.
               </p>
             </details>
@@ -3773,18 +3771,18 @@ flowchart LR
             <p id="browser-one-reading">
               The runtime combines the three inputs in one place. Whenever one of them
               changes, it computes a complete, read-only reading of current state: each
-              component's state, each thread and whose turn it is, the open asks,
-              and the Questions panel's lists. Components, threads and Leaf's controls
-              draw from that reading. None of them keeps its own copy of state or reads
-              state back from the page.
+              component's state, each thread and whose turn it is, the open asks, and
+              the Questions panel's lists. Components, threads and Leaf's controls draw
+              from that reading. None of them keeps its own copy of state or reads state
+              back from the page.
             </p>
             <p id="browser-server-folds">
               The server does most of the computation, as
               <a href="#data-fold">Current state</a>
               describes. Each reading it sends names the recorded actions still in
-              effect for the revision the tab shows, along with the threads, asks
-              and agent activity. The browser applies those actions to the authored
-              initial values and adds only the updates it is still sending.
+              effect for the revision the tab shows, along with the threads, asks and
+              agent activity. The browser applies those actions to the authored initial
+              values and adds only the updates it is still sending.
             </p>
           </section>
 
@@ -3850,15 +3848,15 @@ flowchart LR
               in.
             </p>
             <p id="browser-updates-asks">
-              Which widget asks are open, answered or withdrawn depends on the
-              whole log, so only the server computes it. Answering one changes its
-              component, and the answer the Questions panel shows, at once. The ask
-              leaves the user's list when the tab adopts the state reading in the
-              server's answer to that update, a moment later. Approving a version and
-              replying to an ask in a thread take effect at once. Whose turn a
-              thread is also comes from the server, with two local adjustments: a
-              comment the tab is still sending passes the turn to the agent, and a
-              refused one passes it back to the user.
+              Which widget asks are open, answered or withdrawn depends on the whole
+              log, so only the server computes it. Answering one changes its component,
+              and the answer the Questions panel shows, at once. The ask leaves the
+              user's list when the tab adopts the state reading in the server's answer
+              to that update, a moment later. Approving a version and replying to an ask
+              in a thread take effect at once. Whose turn a thread is also comes from
+              the server, with two local adjustments: a comment the tab is still sending
+              passes the turn to the agent, and a refused one passes it back to the
+              user.
             </p>
           </section>
 
@@ -3867,11 +3865,11 @@ flowchart LR
             <p id="browser-drawing-proof">
               Computing current state and drawing it are separate steps. Each part of
               the page that draws state registers with the runtime: every component, the
-              threads, the ask view, the Questions panel, and the marks Leaf adds
-              to authored elements, such as whether the user or the agent set a value
-              and whether an ask is settled. Each new reading of current state is
-              numbered, and each part reports when it has drawn the newest number. Leaf
-              calls this record
+              threads, the ask view, the Questions panel, and the marks Leaf adds to
+              authored elements, such as whether the user or the agent set a value and
+              whether an ask is settled. Each new reading of current state is numbered,
+              and each part reports when it has drawn the newest number. Leaf calls this
+              record
               <em>presentation proof</em>. It is kept apart from current state, so a
               slow or failed drawing never changes what the state is.
             </p>

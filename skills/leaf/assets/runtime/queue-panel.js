@@ -211,9 +211,7 @@ export function createQueuePanel({ actions, next, announce }) {
     // row standing at it.
     const at =
       noun === "ask" ||
-      (item.kind === "resend" &&
-        item.subject.kind === "widget" &&
-        item.thread === null)
+      (item.kind === "resend" && item.subject.kind === "widget" && item.thread === null)
         ? item.kind === "ask"
           ? item.ask.id
           : item.subject.id

@@ -514,9 +514,7 @@ def _approval_error(view, event: dict, events: list, registry: dict):
     )
     if unanswered:
         identities = ", ".join(question["id"] for question in unanswered)
-        return (
-            f"v{event['version']} still has unanswered widget asks: {identities}"
-        )
+        return f"v{event['version']} still has unanswered widget asks: {identities}"
     return None
 
 

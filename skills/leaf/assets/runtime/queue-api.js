@@ -31,7 +31,9 @@ export function createQueueActions({ post, arrive }) {
     },
     done(key) {
       const reading = readQueues();
-      const item = reading.questions.find((candidate) => queueItemKey(candidate) === key);
+      const item = reading.questions.find(
+        (candidate) => queueItemKey(candidate) === key,
+      );
       if (!item?.offers.done) return null;
       const delivery = post({ kind: "todo_end", todo: item.id, outcome: "done" });
       announce("Done");

@@ -344,26 +344,21 @@ export function mountApplication(dependencies) {
       }),
     read,
   });
-  const registerThreadPanel = ({ controller, threadsBox, view, required = false }) => {
-    let registration;
-    registration = threadPresenter.registerPanel({
+  const registerThreadPanel = ({ controller, threadsBox, view }) =>
+    threadPresenter.registerPanel({
       controller,
       threadsBox,
-      required,
       view: {
         ...view,
         card: {
           ...cardView,
-          nativeAuthored: (message) =>
-            required && !threadPresenter.primaryOwnsMessage(message),
+          nativeAuthored: (message) => !threadPresenter.primaryOwnsMessage(message),
           travel: { ...cardView.travel, ...view.travel },
         },
         placedAt: dependencies.anchorPlacement.placedAt,
-        repaintThread: required ? refreshThread : () => registration.update(),
+        repaintThread: refreshThread,
       },
     });
-    return registration;
-  };
 
   const accountPending = (receipts) => {
     const left = ledger.present(receipts);

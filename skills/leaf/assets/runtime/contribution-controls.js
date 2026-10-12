@@ -227,7 +227,7 @@ function syncAgentDescriptionBase(control, description, title) {
   paintAgentDescription(control);
 }
 
-export function syncContributionAgentWorkflow(control, receipt) {
+function syncContributionAgentWorkflow(control, receipt) {
   const workflowStage = receipt?.stage ?? null;
   const stage = workflowStage === "replying" ? "working" : workflowStage;
   const paintedStage =
@@ -257,7 +257,7 @@ export function syncContributionSelection(control, selected) {
 // carrier that stops waiting loses it rather than keeping a stale colour. Only the
 // user's turn is named, because that is the one a page has to point at; a thread with
 // the agent already says so through pickup and work.
-export function syncContributionTurn(control, awaitsUser) {
+function syncContributionTurn(control, awaitsUser) {
   keeps(control, "data-lf-turn", awaitsUser ? "user" : null);
 }
 
@@ -370,21 +370,23 @@ export const contributionHost = elementDirective(
   },
 );
 
-// Items and entry hosts share receipt paint, independently of entry semantics.
+// A control's receipts are seat state, not entry semantics: the seat that shows a
+// control paints what its projection chose, on every pass, so a control keeps no
+// receipt from the seat or the projection it last stood in. Retained controls call
+// it directly; templates bind `${contributionReceipts(receipt, awaitsUser)}`.
+export function presentContributionReceipts(control, receipt, awaitsUser) {
+  syncContributionAgentWorkflow(control, receipt);
+  syncContributionTurn(control, awaitsUser);
+}
 export const contributionReceipts = elementDirective(
   "contributionReceipts",
-  (control, receipt, awaitsUser) => {
-    syncContributionAgentWorkflow(control, receipt);
-    syncContributionTurn(control, awaitsUser);
-  },
+  presentContributionReceipts,
 );
 
 export function presentContributionEntry(control, offered, options = {}) {
   const record = presentContributionHost(control, offered, options);
   if (Object.hasOwn(options, "selected"))
     syncContributionSelection(control, options.selected);
-  if (Object.hasOwn(options, "awaitsUser"))
-    syncContributionTurn(control, options.awaitsUser);
   control.classList.toggle("lf-margin-entry", true);
   const priorClasses = contributorClasses.get(control) ?? [];
   const nextClasses = record.className?.split(/\s+/).filter(Boolean) ?? [];
@@ -415,8 +417,6 @@ export function presentContributionEntry(control, offered, options = {}) {
       }`,
     control,
   );
-  if (record.workflowReceipt !== undefined)
-    syncContributionAgentWorkflow(control, record.workflowReceipt);
   return control;
 }
 

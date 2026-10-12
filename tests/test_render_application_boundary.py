@@ -1226,11 +1226,68 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
     page.locator("#package-a").click()
     round_trip(page)
     assert page.evaluate("Number(pageLocal.dataset.readings)") == readings
+    # Another widget's action leaves this one's reading as it was, so its return draws
+    # nothing again.
     page.evaluate("document.querySelector('main').append(pageLocal)")
-    expect(page.locator("#page-local")).to_have_attribute(
-        "data-readings", str(readings + 1)
-    )
+    rendered(page)
+    assert page.evaluate("Number(pageLocal.dataset.readings)") == readings
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
+
+
+def test_a_returning_controller_widget_draws_again_only_a_changed_reading(
+    browser, serve
+):
+    """A controller-driven widget follows the return rule data and projection watchers
+    follow: a render that failed stands across a departure and return, so the author
+    is told once, and a return draws nothing again while the reading is unchanged."""
+    source = LIVE_V1.replace(
+        "</main>", '<lf-local id="page-local" choice="idle"></lf-local></main>'
+    )
+    page = open_page(
+        browser,
+        live_url(
+            serve(
+                source,
+                page_files={
+                    "registry.json": json.dumps(PAGE_DECLARATION),
+                    "widgets/lf-local.js": PAGE_WIDGET,
+                },
+            )
+        ),
+    )
+    expect(page.locator("#page-local")).to_have_attribute("data-page-widget", "ready")
+    leave_and_return = """async () => {
+      const settle = () => new Promise((resolve) => setTimeout(resolve));
+      const {readApplicationPresentation} =
+        await window.__lfRuntimeImport('/runtime/semantic-state.js');
+      const owner = document.querySelector('#page-local');
+      const parent = owner.parentNode;
+      const readings = Number(owner.dataset.readings);
+      owner.remove();
+      await settle();
+      parent.append(owner);
+      await settle();
+      return {
+        drawn: Number(owner.dataset.readings) - readings,
+        failed: Number(globalThis.__failedLocalRenders || 0),
+        pending: readApplicationPresentation().pending,
+      };
+    }"""
+    assert page.evaluate(leave_and_return) == {"drawn": 0, "failed": 0, "pending": []}
+
+    # Resuming a deferral draws the same reading again, and this draw fails.
+    page.evaluate(
+        "globalThis.__failLocalRender = true; "
+        "document.querySelector('#page-local').controller.defer()(); true"
+    )
+    expect(page.locator("#page-local .lf-error")).to_have_text(
+        "<lf-local> failed: <lf-local> renderState threw: deliberate render failure"
+    )
+    assert page.evaluate(leave_and_return) == {"drawn": 0, "failed": 1, "pending": []}
+    errors = take_browser_errors(page)
+    assert [error.splitlines()[0] for error in errors] == [
+        "leaf: Presentation failed: <lf-local> renderState threw: deliberate render failure"
+    ]
 
 
 @pytest.mark.parametrize("lifetime", ["light", "shadow-child", "shadow-host"])

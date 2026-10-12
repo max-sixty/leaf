@@ -6,7 +6,6 @@ from copy import deepcopy
 import jmespath
 import turbohtml
 from jmespath.exceptions import JMESPathError
-from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 
 from leaf.schema import DECLARED_MARKS, EXTENSION_SCHEMA, LAYER_FACTS_SCHEMA
@@ -173,7 +172,7 @@ def validate_layer_declarations(registry: dict, path) -> None:
                 + ", ".join(sorted(marks))
             )
         for key in set(entry) - {"description"}:
-            if not Draft202012Validator(EXTENSION_SCHEMA["properties"][key]).is_valid(
+            if not json_validator(EXTENSION_SCHEMA["properties"][key]).is_valid(
                 entry[key]
             ):
                 raise RegistryError(

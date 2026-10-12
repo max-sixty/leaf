@@ -7,6 +7,7 @@
  * weakly retained binding restores that observation when the control returns. */
 import { nearObserver, nearWindow, scrollContainer, shownParts } from "./geometry.js";
 import { hostIn, renderedParent } from "./shadow.js";
+import { nativeLayerHolding } from "./keyboard/layer-stack.js";
 import { scrollsContent } from "./scroll-motion.js";
 import { watchArrivals } from "./arrivals.js";
 import { keeps } from "./keeps.js";
@@ -70,14 +71,6 @@ export function scrollsWith(node, box) {
   return true;
 }
 
-// Whether `node` stands in the top layer as rendered, where no anchor it holds reaches a
-// box outside it: a box slotted into a popover is in it.
-export function inTopLayer(node) {
-  for (let at = node; at; at = renderedParent(at))
-    if (at instanceof Element && at.matches(":popover-open, dialog:modal")) return true;
-  return false;
-}
-
 // What `scroller`'s own scroll carries as it carries what the scroller holds, for a box
 // anchored to it to move with that scroll in the frame that scrolls: a child with a box
 // of its own, in flow, where that scroll moves it, the one nearest `near`, one of the
@@ -87,7 +80,7 @@ export function inTopLayer(node) {
 // these is, or where the scroller lies inside a shadow tree or the top layer, whose
 // anchors a box in the chrome cannot reach.
 export function carriedAnchor(scroller, near = null) {
-  if (scroller.getRootNode() !== document || inTopLayer(scroller)) return null;
+  if (scroller.getRootNode() !== document || nativeLayerHolding(scroller)) return null;
   const carried = (node) =>
     node instanceof Element &&
     !/^(br|wbr)$/.test(node.localName) &&

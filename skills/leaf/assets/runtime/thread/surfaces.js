@@ -233,6 +233,7 @@ export function renderSurfaces(collection, placements, commands) {
       const cancelled = aborted(abort.signal);
       registration.cancelRender = () => abort.abort();
       let compositionOutlet = null;
+      const committed = [];
       try {
         const byKey = new Map(collection.threads.map((thread) => [thread.key, thread]));
         const targets = new Map();
@@ -272,6 +273,7 @@ export function renderSurfaces(collection, placements, commands) {
         const rendering = render(Object.freeze(batch), {
           signal: abort.signal,
           collection,
+          onCommit: (run) => committed.push(run),
         });
         const outlets = rendering?.then
           ? await Promise.race([rendering, cancelled])
@@ -310,11 +312,16 @@ export function renderSurfaces(collection, placements, commands) {
         if (registration.kind === "page") throw error;
         // A failed widget can yield to the selected page phase. Clearing its prior
         // seats belongs to the same eventual commit as that fallback.
-        plans.push({ registration, byOutlet: new Map(), compositionOutlet: null });
+        plans.push({
+          registration,
+          byOutlet: new Map(),
+          compositionOutlet: null,
+          committed: [],
+        });
         reportFailure(registration, error);
         continue;
       }
-      plans.push({ registration, byOutlet, compositionOutlet });
+      plans.push({ registration, byOutlet, compositionOutlet, committed });
     }
     return current() ? plans : null;
   }
@@ -426,6 +433,16 @@ export function renderSurfaces(collection, placements, commands) {
       }
       throw error;
     }
+    // Only now has the composer left every outlet a widget stopped returning, so the
+    // widget can take those outlets down without taking the user's editor with them.
+    for (const { registration, committed } of plans)
+      for (const run of committed) {
+        try {
+          run();
+        } catch (error) {
+          reportFailure(registration, error);
+        }
+      }
   }
 }
 

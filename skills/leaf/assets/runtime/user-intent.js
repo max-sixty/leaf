@@ -36,6 +36,9 @@ const displaced = (source, at) => {
 // reveals; capturing again after a wait gives stale work a newer gesture's authority.
 // Document arrival names count zero: its work began before any module loaded,
 // so a reader already using that document owns it even before this call runs.
+// The source is held weakly: an intent can be kept long after its gesture, as a reading
+// place keeps one, and a source the document has since dropped can neither hold focus
+// nor be what focus was carried from, so it answers nothing a held node would.
 export function retainUserIntent({
   source = focused(),
   available = () => true,
@@ -43,14 +46,16 @@ export function retainUserIntent({
   since = inputCount(),
 } = {}) {
   const retained = since;
+  let held = source instanceof Node ? new WeakRef(source) : null;
   const current = () => {
     const at = focused();
+    const from = held?.deref();
     const withinSource =
-      source === document.body ? at === document.body : source?.contains(at);
+      from === document.body ? at === document.body : from?.contains(at);
     return (
       available() &&
       retained === inputCount() &&
-      (at === document.body || at === fallback || withinSource || displaced(source, at))
+      (at === document.body || at === fallback || withinSource || displaced(from, at))
     );
   };
   // The surface the work belongs to still stands, whoever holds focus.
@@ -63,7 +68,8 @@ export function retainUserIntent({
     if (!available() || retained !== inputCount()) return false;
     const moved = current();
     if (moved) move();
-    source = focused();
+    const at = focused();
+    held = at ? new WeakRef(at) : null;
     return moved && current();
   };
   return current;

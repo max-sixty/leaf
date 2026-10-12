@@ -32,8 +32,8 @@ rendered the page, the measure of its repair iterations. The user agent and the
 readers spend too; that is the harness's, recorded apart.
 
 The sample's output is what a judge needs: the user's request, the later messages,
-and each version's screenshots by width, written to `shots`, the one directory its
-judge may read. Before screenshotting a version that carries the comment, the
+the author's answer to the comment, and each version's screenshots by width,
+written to `shots`, the one directory its judge may read. Before screenshotting a version that carries the comment, the
 capture opens the commented item (`Scenario.reveal`), so the judge sees the change.
 `rubrics` are the Promptfoo `agent-rubric` assertions the judge grades from it;
 `eval-pairs` is the quality score, judging a pair's final versions side by side.
@@ -44,12 +44,13 @@ import re
 import shutil
 import tempfile
 from dataclasses import dataclass, field
-from html import unescape
 from pathlib import Path
 
+import turbohtml
 from leaf.delivery import opened_input_ids
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
+from leaf.passages import SourceReading
 from leaf.render_checks import rendered
 from leaf.schema import MESSAGE_KINDS
 from leaf.service import requires_agent_attention
@@ -583,9 +584,8 @@ def answers_in_phase(run: Run, phase: int) -> list[str]:
     ]
 
 
-READING = """{situation} For each item below, give exactly one of its listed values,
-or "undecided" where nothing says. Reply with only JSON mapping each item to its
-value.
+READING = """{situation} For each item below, give one of its listed values, or
+"undecided" where nothing says.
 
 {items}"""
 
@@ -596,25 +596,28 @@ def items(decision: Decision) -> str:
     )
 
 
-def matches(decision: Decision, reading) -> dict[str, bool]:
+def reading_schema(decision: Decision) -> str:
+    """The reader's answer, which the harness's structured output holds to each
+    item's listed values."""
+    return json.dumps(
+        {
+            "type": "object",
+            "properties": {
+                item: {"type": "string", "enum": [*values, "undecided"]}
+                for item, values in decision.values.items()
+            },
+            "required": list(decision.values),
+            "additionalProperties": False,
+        }
+    )
+
+
+def matches(decision: Decision, reading: dict | None) -> dict[str, bool]:
     """Each item, and whether the reading gives its chosen value."""
-
-    def plain(value) -> str:
-        return " ".join(str(value).lower().split())
-
-    reading = reading if isinstance(reading, dict) else {}
     return {
-        item: plain(reading.get(item, "")) == plain(chosen)
+        item: reading is not None and reading[item] == chosen
         for item, chosen in decision.chosen.items()
     }
-
-
-def reply_json(trace: list[dict]) -> dict | None:
-    match = re.search(r"\{.*\}", trace_result(trace).get("result", ""), re.DOTALL)
-    try:
-        return json.loads(match[0]) if match else None
-    except json.JSONDecodeError:
-        return None
 
 
 def read_applied(run: Run, reply: str) -> dict:
@@ -651,12 +654,14 @@ def read_applied(run: Run, reply: str) -> dict:
             prompt,
             "--tools",
             "Read",
+            "--json-schema",
+            reading_schema(decision),
             out=evidence / "stream.jsonl",
             err=evidence / "err.txt",
             dirs=[evidence],
             model=MODELS["judge"],
         )
-    reading = reply_json(trace)
+    reading = trace_result(trace).get("structured_output")
     return {
         "reading": reading,
         "items": matches(decision, reading),
@@ -685,6 +690,8 @@ def read_decision(run: Run) -> dict:
         trace = run_agent(
             work,
             prompt,
+            "--json-schema",
+            reading_schema(decision),
             out=destination / "stream.jsonl",
             err=destination / "err.txt",
             dirs=[run.payload, page],
@@ -694,7 +701,7 @@ def read_decision(run: Run) -> dict:
             },
             harness=run.harness,
         )
-    reading = reply_json(trace)
+    reading = trace_result(trace).get("structured_output")
     return {
         "completed": completed(trace),
         "page_unchanged": source_before == (page / "index.html").read_bytes()
@@ -810,15 +817,14 @@ def authored_lines(page: Path, condition: str) -> dict[str, int]:
         elif file.suffix in (".js", ".mjs"):
             counts["script_lines"] += lines(file.read_text())
         elif file.suffix == ".html":
-            html = file.read_text()
-            for tag, key in (("style", "css_lines"), ("script", "script_lines")):
-                counts[key] += sum(
-                    lines(body)
-                    for body in re.findall(
-                        rf"<{tag}\b[^>]*>(.*?)</{tag}>", html, re.DOTALL | re.IGNORECASE
-                    )
-                )
-            counts["style_attributes"] += len(re.findall(r"\sstyle=", html))
+            # The parsed tree, template contents included, so a live sample's code
+            # counts as the author's too.
+            tree = turbohtml.parse(file.read_text())
+            counts["css_lines"] += sum(lines(e.text) for e in tree.select("style"))
+            counts["script_lines"] += sum(
+                lines(e.text) for e in tree.select("script:not([src])")
+            )
+            counts["style_attributes"] += len(tree.select("[style]"))
     return counts
 
 
@@ -851,9 +857,12 @@ def tool_work(trace: list[dict], page: Path) -> dict[str, int]:
 
 
 def comment_applied(run: Run, page: Path) -> bool:
-    """Whether the authored files carry the fact only the comment supplied."""
+    """Whether the authored files carry the fact only the comment supplied: what an
+    HTML file says (`SourceReading`), any other file whole."""
     text = " ".join(
-        unescape(re.sub(r"<[^>]+>", " ", f.read_text()))
+        SourceReading(SourceDocument(f.read_text()), {}).passages.text
+        if f.suffix == ".html"
+        else f.read_text()
         for f in authored_files(page, run.condition)
     )
     return (
@@ -862,18 +871,19 @@ def comment_applied(run: Run, page: Path) -> bool:
     )
 
 
-def comment_answered(run: Run, reply: str) -> bool:
-    """Whether the answer tells the user the comment's fact is in: on the comment's
-    thread in Leaf, in the chat where it was asked in HTML."""
-    if run.leaf_condition:
-        thread = run.recorded("comment").get("event")
-        answers = (
-            successful_replies(read_events(run.authored_page), thread) if thread else []
-        )
-        reply = " ".join(
-            f"{answer.get('title', '')} {answer['text']}" for answer in answers
-        )
-    return re.search(CASES[run.subject].comment.applied, reply) is not None
+def comment_answer(run: Run, reply: str) -> str:
+    """What the author told the user about their comment, where it was asked: its
+    replies on the comment's thread in Leaf, its chat reply in HTML. The judge reads
+    it (`rubrics`, "comment-answered")."""
+    if not run.leaf_condition:
+        return reply
+    thread = run.recorded("comment").get("event")
+    answers = (
+        successful_replies(read_events(run.authored_page), thread) if thread else []
+    )
+    return "\n\n".join(
+        f"{answer.get('title', '')}\n{answer['text']}".strip() for answer in answers
+    )
 
 
 def phase_traces(trace: list[dict]) -> dict[int, list[dict]]:
@@ -922,9 +932,11 @@ def later_messages(subject: str, first: str = "version 1") -> list[str]:
     return lines
 
 
-def brief(subject: str, captures: dict[int, dict[str, list[str]]]) -> str:
-    """What the judge reads: the request, the later messages, each version's
-    screenshots."""
+def brief(
+    subject: str, captures: dict[int, dict[str, list[str]]], answer: str = ""
+) -> str:
+    """What the judge reads: the request, the later messages, the author's `answer`
+    to the comment, and each version's screenshots."""
     lines = [
         f"<request>\n{(TASKS / subject / 'request.md').read_text()}</request>",
         "",
@@ -932,6 +944,12 @@ def brief(subject: str, captures: dict[int, dict[str, list[str]]]) -> str:
         "",
         "Each message after the request produced the next version.",
     ]
+    if CASES[subject].comment:
+        lines += [
+            "",
+            "The author answered the comment:",
+            f"<answer>\n{answer or '(no answer)'}\n</answer>",
+        ]
     for phase in phases(subject):
         lines += ["", f"Version {phase} screenshots:", *listing(captures[phase])]
     return "\n".join(lines)
@@ -970,6 +988,19 @@ def rubrics(scenario: str) -> list[dict]:
             + "Pass only if version 2 follows the standing width preference the "
             "output quotes.",
         },
+        *(
+            [
+                {
+                    "type": "agent-rubric",
+                    "metric": "comment-answered",
+                    "value": "Pass only if the author's answer to the user's comment, "
+                    "which the output quotes, tells the user that the change the "
+                    "comment asked for is made.",
+                }
+            ]
+            if CASES[scenario].comment
+            else []
+        ),
     ]
 
 
@@ -988,7 +1019,7 @@ def expected_checks(case: str, *, condition="leaf") -> list[str]:
         ),
         *(["handed-over"] if leaf else []),
         *(["comment-delivered"] if leaf and scenario.comment else []),
-        *(["comment-applied", "comment-answered"] if scenario.comment else []),
+        *(["comment-applied"] if scenario.comment else []),
         *(["decision-made", "decision-applied"] if scenario.decision else []),
         *(
             [
@@ -1066,6 +1097,7 @@ def execute_scenario(
                     checks["decision-reader-page-unchanged"] = reader["page_unchanged"]
             diagnostics["decision"] = decision
         captures = capture(run)
+        answer = ""
         for phase in order:
             summary = session[phase]
             checks[f"phase-{phase}-completed"] = summary["completed"]
@@ -1087,7 +1119,7 @@ def execute_scenario(
                 }
                 if phase == 3:
                     checks["comment-applied"] = comment_applied(run, page)
-                    checks["comment-answered"] = comment_answered(run, summary["reply"])
+                    answer = comment_answer(run, summary["reply"])
             diagnostics["phases"][phase] = row
     checks["completed"] = all(checks[f"phase-{phase}-completed"] for phase in order)
     authoring = [session[p]["cost_usd"] for p in order]
@@ -1096,7 +1128,7 @@ def execute_scenario(
         "harness": observed_sum(harness_costs),
     }
     return {
-        "output": brief(case, captures),
+        "output": brief(case, captures, answer),
         "metadata": {"checks": checks, "diagnostics": diagnostics},
         **(
             {"cost": cost}

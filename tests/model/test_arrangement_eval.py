@@ -39,7 +39,17 @@ def test_pairwise_counts_only_a_winner_both_orders_name(tmp_path, monkeypatch):
             brief = (out.parent / "brief.md").read_text()
             a = brief.split("Page A:")[1].split("Page B:")[0]
             winner = prefer(a)
-            return [{"type": "result", "result": json.dumps({"overall": winner})}]
+            schema = json.loads(args[args.index("--json-schema") + 1])
+            verdict = {
+                **dict.fromkeys(eval_pairs.ASPECTS, "tie"),
+                "overall": winner,
+                "margin": "clear",
+                "defects_A": [],
+                "defects_B": [],
+                "reason": "",
+            }
+            assert set(verdict) == set(schema["required"])
+            return [{"type": "result", "structured_output": verdict}]
 
         return model
 
@@ -103,13 +113,24 @@ def test_each_decision_chooses_among_its_own_values():
 
 
 def test_applying_a_decision_reads_every_item_and_names_its_route():
-    """Only a reading that gives every item its chosen value counts as applied, in
-    any case and spacing; the request to apply carries the page's copy or the
-    user's words only where the page did not take the decision."""
-    from leaf_dev.arrangement_eval import CASES, apply_message, matches
+    """Only a reading that gives every item its chosen value counts as applied,
+    and the reader is held to each item's listed values; the request to apply
+    carries the page's copy or the user's words only where the page did not take
+    the decision."""
+    import json
+
+    from leaf_dev.arrangement_eval import (
+        CASES,
+        apply_message,
+        matches,
+        reading_schema,
+    )
 
     decision = CASES["configuration"].decision
-    exact = {item: f"  {value.upper()} " for item, value in decision.chosen.items()}
+    schema = json.loads(reading_schema(decision))
+    assert schema["required"] == list(decision.values)
+    assert "undecided" in schema["properties"]["webhook-backlog routing"]["enum"]
+    exact = dict(decision.chosen)
     assert all(matches(decision, exact).values())
     off = {**exact, "webhook-backlog routing": "off"}
     assert not matches(decision, off)["webhook-backlog routing"]

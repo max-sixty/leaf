@@ -117,15 +117,18 @@ A complete task instead names `metadata.executor`, a `leaf_dev` module, and
 through resumed phases or live user rounds, and returns a boolean per deterministic check; its
 `expected_checks` declares the check names, which become one assertion each, so a
 check that never ran fails rather than disappearing. An executor may also declare
-`rubrics`: text `llm-rubric` or screenshot `agent-rubric` assertions. Reading
-answers use the text judge. A screenshot executor lists captures beside the request
+`rubrics`: text `llm-rubric` or screenshot `agent-rubric` assertions. A
+deterministic check reads a fact the page or the trace states; anything said in
+prose, a reply or a passage on the page, goes to the text judge. A text rubric's
+`transform` can hand the judge one entry of the response's `metadata.texts`, such
+as one phase's reply or one paragraph, in place of the whole output. A screenshot executor lists captures beside the request
 they answer and writes them to the supplied `shots` directory, the only place its
 judge may read. `metadata.conditions` and `metadata.harnesses` restrict where it runs.
 
 | Executor | Runs |
 | --- | --- |
-| `arrangement_eval` | Runs a page task the way its user would, in one live session per sample. The author builds the page from `request.md`; the user then asks in chat for the 900px preference, comments on a passage, and makes the page's decision in a browser before asking for it to be applied. Leaf runs as the installed plugin: its agent serves and hands over the page, the comment is posted from a browser selection on that page, and the hook delivers it. HTML gets the comment in chat, and pastes what its page offered to copy, or types the decision. A user agent (`eval_user.py`) makes the decision through the page's own controls; a reader checks the applied result against what was chosen, and on Leaf a fresh reader also reports the decision from the page's state. Screenshots each version on a laptop, at 900px with tall and short windows, and on a phone, with the commented item open once a version carries the comment, and records each phase's time, tokens, cost, authored CSS and script lines, and how often it wrote and rendered the page. |
-| `usability_eval` | Seeded pages read, resumed and revised, and live handoffs where the harness posts user moves through the served page. Reading answers use semantic rubrics; script repairs exercise the affected control. Fixtures are in `usability/fixtures/`. |
+| `arrangement_eval` | Runs a page task the way its user would, in one live session per sample. The author builds the page from `request.md`; the user then asks in chat for the 900px preference, comments on a passage, and makes the page's decision in a browser before asking for it to be applied. Leaf runs as the installed plugin: its agent serves and hands over the page, the comment is posted from a browser selection on that page, and the hook delivers it. HTML gets the comment in chat, and pastes what its page offered to copy, or types the decision. A user agent (`eval_user.py`) makes the decision through the page's own controls; the judge reads the author's answer to the comment, a reader checks the applied result against what was chosen, and on Leaf a fresh reader also reports the decision from the page's state. Screenshots each version on a laptop, at 900px with tall and short windows, and on a phone, with the commented item open once a version carries the comment, and records each phase's time, tokens, cost, authored CSS and script lines, and how often it wrote and rendered the page. |
+| `usability_eval` | Seeded pages read, resumed and revised, and live handoffs where the harness posts user moves through the served page. Checks read Leaf's page state and its parse of the markup; answers and edited prose go to the text judge; script repairs exercise the affected control. Fixtures are in `usability/fixtures/`. |
 | `delivery_eval` | Comments posted between turns and mid-turn, each of which must be picked up, started and answered. |
 | `reader_eval` | Calibrates the screenshot judge: `dashboard/reader-seeded` and `reader-clean` each show it one triage board, with a seeded count defect or the correct count, and ask both whether the count matches the cards. |
 

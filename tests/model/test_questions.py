@@ -6,6 +6,7 @@ from pathlib import Path
 
 import model_folds as model
 import pytest
+from interact_support import served_thread
 from leaf import questions as questions_model
 from leaf.gesture_words import element_name
 from leaf.passages import SourceReading
@@ -85,7 +86,7 @@ def test_questions_name_their_exact_owning_message_without_conflating_thread_ide
     state = model.reading(document, events)
     inventory = {
         question["id"]: (question["thread"], question["message"])
-        for question in [*questions(state)["all"], *state["thread"]["asks"]["all"]]
+        for question in [*questions(state)["all"], *served_thread(state)["asks"]["all"]]
     }
     assert inventory == {
         "widget:choice": (None, None),
@@ -154,6 +155,93 @@ def test_pinned_document_uses_unrequested_intermediate_history_for_registration(
     for revision in (3, 4):
         [question] = questions(state, revision)["all"]
         assert (question["id"], question["status"]) == ("widget:choice", "withdrawn")
+
+
+def test_a_pinned_view_reads_its_frozen_threads_under_its_own_registry():
+    """A revision captured its thread widgets under its own registry, so a view
+    pinned to it classifies their decisions there. A decision whose operation that
+    registry defines otherwise is none in that view: the ask it answers stays open
+    and the thread the user's, while the active view reads it answered and the
+    thread waiting on the agent to pick it up."""
+
+    def registry(attr):
+        layer = deepcopy(model.model_layer())
+        layer["lf-value-question"] = {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "active": {"type": "boolean"},
+                "value": {"type": "boolean"},
+                "chosen": {"type": "boolean"},
+            },
+            "required": ["id"],
+            "additionalProperties": False,
+            "x-content": "none",
+            "x-awaits": {
+                "when": {"active": [True]},
+                "value": "set",
+                "answered": {"set": {}},
+            },
+            "x-state": {
+                "set": {"unit": "widget", "record": {"kind": "value", "attr": attr}}
+            },
+        }
+        return layer
+
+    earlier, later = registry("value"), registry("chosen")
+    document = model.leaf_page("Value", '<p id="p">Notes.</p>')
+    events = model.served_reading(
+        document,
+        [
+            {
+                "kind": "comment",
+                "author": "agent",
+                "text": "Ship it?",
+                "markup": '<lf-value-question id="typed" active></lf-value-question>',
+            },
+            {
+                "kind": "action",
+                "widget": "typed",
+                "action": "set",
+                "detail": {"value": True},
+            },
+        ],
+        registry=later,
+    )["events"]
+    parsed = SourceDocument(document)
+    state, _ = browser_state(
+        {1: SourceReading(parsed, earlier), 2: SourceReading(parsed, later)},
+        events,
+        2,
+        model.UNCLAIMED,
+        {"revision": 2, "version": 2},
+        {1, 2},
+        model.NOW,
+    )
+
+    def read(revision):
+        view = state["views"][str(revision)]
+        [thread] = view["thread"]["threads"]
+        [ask] = view["thread"]["asks"]["all"]
+        return (
+            [entry["event"]["id"] for entry in view["thread"]["projection"]["entries"]],
+            (ask["id"], ask["status"]),
+            thread["attention"],
+            [item["id"] for item in view["queues"]["questions"]],
+        )
+
+    assert read(2) == (
+        [events[1]["id"]],
+        ("widget:typed", "answered"),
+        {"kind": "waiting", "reason": "workflow", "workflow": events[1]["id"]},
+        [],
+    )
+    assert read(1) == (
+        [],
+        ("widget:typed", "open"),
+        {"kind": "needs_user", "reason": "ask", "workflow": None},
+        ["widget:typed"],
+    )
 
 
 @pytest.mark.parametrize("value", [False, 0])
@@ -234,7 +322,7 @@ def test_display_only_widget_does_not_suppress_a_prose_question():
         ],
     )
     assert [
-        question["source"]["kind"] for question in state["thread"]["asks"]["all"]
+        question["source"]["kind"] for question in served_thread(state)["asks"]["all"]
     ] == ["reply"]
 
 

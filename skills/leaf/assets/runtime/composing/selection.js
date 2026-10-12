@@ -334,15 +334,10 @@ export function createSelectionComposer({
     responseOptionButtons().filter((control) => control.classList.contains("lf-react"));
 
   function stepResponseOptions(binding) {
-    const options = responseOptionButtons();
-    const tabbing = binding === "Tab" || binding === "Shift+Tab";
-    const field = composerOpen && fabInput.checkVisibility() ? fabInput : null;
-    const choices = tabbing && field ? [field, ...options] : options;
+    const choices = responseOptionButtons();
     if (!choices.length) return;
     const at = choices.indexOf(focused());
-    const backward = ["Shift+Tab", rowArrows(choices[0])[0], "ArrowUp"].includes(
-      binding,
-    );
+    const backward = [rowArrows(choices[0])[0], "ArrowUp"].includes(binding);
     const next =
       at < 0
         ? backward
@@ -790,8 +785,9 @@ export function createSelectionComposer({
   // The other-responses disclosure. Its choices apply only while focus is inside them, so
   // they stand ahead of neither the field's exact send command nor native text entry. The
   // same rows are declared twice on purpose: once as a page scope, which answers while the
-  // field itself holds focus, and once on the disclosure element, where Tab and the arrows
-  // move into and out of the choices themselves.
+  // field itself holds focus, and once on the disclosure element, where the arrows move
+  // through the choices themselves. Tab is the browser's: it walks the field and the
+  // choices in their order and on out of the bar, which closes them.
   const RESPONSE_OPTIONS_TITLE = "With other responses open";
   const RESPONSE_REACTION = {
     id: "response.reaction.choose",
@@ -811,14 +807,6 @@ export function createSelectionComposer({
     title: "react",
     when: () => !takesLetters(focused()) && responseReactionButtons().length > 0,
     run: (binding) => responseReactionButtons()[+binding - 1]?.click(),
-  };
-  const RESPONSE_TAB = {
-    id: "response.tab",
-    keys: ["Tab", "Shift+Tab"],
-    description: "Move between the comment and other responses",
-    title: "move",
-    repeat: true,
-    run: stepResponseOptions,
   };
   const RESPONSE_MOVE = {
     id: "response.move",
@@ -854,7 +842,6 @@ export function createSelectionComposer({
   };
   const responseOptionRows = () => [
     RESPONSE_REACTION,
-    RESPONSE_TAB,
     RESPONSE_MOVE,
     RESPONSE_ACTIVATE,
     RESPONSE_CLOSE,

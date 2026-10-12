@@ -12,7 +12,6 @@ Verdicts go to `pairs.json` in the first run's directory.
 """
 
 import json
-import re
 import tempfile
 from collections import defaultdict
 from pathlib import Path
@@ -49,11 +48,24 @@ Compare A and B on:
   of that passage would find it
 - applied: the final page records the decisions the user made, as they made them
 
-Reply with only JSON:
-{{"evidence": "A"|"B"|"tie", "decisions": ..., "width": ..., "phone": ...,
-"comment": ..., "applied": ..., "overall": "A"|"B"|"tie",
-"margin": "slight"|"clear"|"strong",
-"defects_A": ["..."], "defects_B": ["..."], "reason": "two or three sentences"}}"""
+Name the better page on each, and overall with its margin; list each page's
+defects; give your reason in two or three sentences."""
+
+WINNER = {"type": "string", "enum": ["A", "B", "tie"]}
+DEFECTS = {"type": "array", "items": {"type": "string"}}
+# The verdict's shape, which the judge's structured output holds it to.
+VERDICT = {
+    "type": "object",
+    "properties": {
+        **dict.fromkeys((*ASPECTS, "overall"), WINNER),
+        "margin": {"type": "string", "enum": ["slight", "clear", "strong"]},
+        "defects_A": DEFECTS,
+        "defects_B": DEFECTS,
+        "reason": {"type": "string"},
+    },
+    "required": [*ASPECTS, "overall", "margin", "defects_A", "defects_B", "reason"],
+    "additionalProperties": False,
+}
 
 
 def samples(runs: list[Path]) -> dict[str, dict[str, list[dict]]]:
@@ -129,28 +141,26 @@ def judge(subject: str, a: dict, b: dict, evidence: Path) -> dict | None:
             JUDGE.format(brief=evidence / "brief.md", reachable=REACHABLE),
             "--tools",
             "Read",
+            "--json-schema",
+            json.dumps(VERDICT),
             out=evidence / "stream.jsonl",
             err=evidence / "err.txt",
             dirs=[evidence, a["shots"], b["shots"]],
         )
-    match = re.search(r"\{.*\}", trace_result(trace).get("result", ""), re.DOTALL)
-    try:
-        return json.loads(match[0]) if match else None
-    except json.JSONDecodeError:
-        return None
+    return trace_result(trace).get("structured_output")
 
 
 def by_column(verdict: dict | None, columns: dict[str, str]) -> dict | None:
-    """A verdict's winners named by column rather than position, or None for a
-    reply that names no overall winner."""
-    if verdict is None or verdict.get("overall") not in ("A", "B", "tie"):
+    """A verdict's winners named by column rather than position, or None where the
+    judge gave no verdict."""
+    if verdict is None:
         return None
     named = {**columns, "tie": "tie"}
     return {
-        **{key: named.get(verdict.get(key)) for key in (*ASPECTS, "overall")},
-        "margin": verdict.get("margin"),
-        "defects": {columns[p]: verdict.get(f"defects_{p}") for p in ("A", "B")},
-        "reason": verdict.get("reason"),
+        **{key: named[verdict[key]] for key in (*ASPECTS, "overall")},
+        "margin": verdict["margin"],
+        "defects": {columns[p]: verdict[f"defects_{p}"] for p in ("A", "B")},
+        "reason": verdict["reason"],
     }
 
 

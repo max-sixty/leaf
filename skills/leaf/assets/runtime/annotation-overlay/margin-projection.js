@@ -124,6 +124,7 @@ import { paintTrace } from "../target-paint.js";
 
 import { allThreads } from "../thread/state.js";
 import { threadNames } from "../thread/model.js";
+import { carryingReply } from "../thread/focus.js";
 
 import { claimed, revealHeld } from "../thread/surfaces.js";
 
@@ -1231,12 +1232,15 @@ export function createMarginProjection({
   // Closing the card hands a user who stood in it on (focus.js, `closeLayer`). A close
   // aimed at the card itself, its Close or its Escape, hands them back to the margin
   // entry it hangs from (`landOnEntry`); any other, a mode or a rerender, lets them go.
+  // A reply the thread pass is carrying to where its thread now stands is that pass's to
+  // land (thread/focus.js, `carryingReply`), so the close places no one.
   const landOnEntry = layerLanding((button) =>
     handBack(button, ...(button?.lfEntry ? mapControlPlaces(button.lfEntry) : [])),
   );
   function closePreview(land = letGo) {
     const button = card.selection()?.control;
-    const heldInside = preview.contains(focused());
+    const at = focused();
+    const heldInside = preview.contains(at) && !carryingReply(at);
     closeLayer(() => card.close(), heldInside && (() => land(button)));
     paintKeys();
   }

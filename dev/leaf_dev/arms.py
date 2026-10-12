@@ -150,7 +150,7 @@ def serving(arm: Path, state: Path, page: Path):
         start_new_session=True,
     )
     try:
-        yield re.search(r"https?://[^\s\"]+", server.stdout.readline())[0]
+        yield json.loads(server.stdout.readline())["url"]
     finally:
         # A loaded host can take longer than this to wind a server down; its page is
         # scratch, so a server still running then is killed rather than failing the run.

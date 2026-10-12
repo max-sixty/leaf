@@ -36,10 +36,10 @@
    `data-lf-over-covering` for the stylesheet to raise it over the scrim and the
    surface. The thread panel carries its own foot, and the band yields to it instead.
 
-   Native modality owns background pointer and programmatic-focus exclusion. The modal
-   Tab loop (layer-stack.js) holds the covering surface rather than the whole envelope,
-   and this owner suppresses native opening focus while a restored sample has no
-   document focus. Boundary focus returns to the retained surface, so delegated focus
+   Native modality owns background pointer, programmatic-focus and Tab exclusion: Tab
+   walks the covering surface and the foreground standing live over the scrim with it,
+   in the browser's own order. This owner suppresses native opening focus while a
+   restored sample has no document focus. Boundary focus returns to the retained surface, so delegated focus
    keeps its reading position. Explicit navigation still enters the surface's declared
    destination. Entering the covering boundary dismisses pre-existing popovers outside
    the surface, before the envelope's descendants are re-seated over the new floor.
@@ -122,10 +122,7 @@ export function createAuxiliarySurfaces({
         if (changedPosture || !envelope.open) {
           transitionNativeAncestor(envelope, () => {
             if (envelope.open) closeNativeLayer(envelope);
-            showNativeLayer(envelope, {
-              modal: Boolean(next),
-              holds: () => active?.surface,
-            });
+            showNativeLayer(envelope, { modal: Boolean(next) });
           });
         }
         band.toggleAttribute("data-lf-over-covering", Boolean(next?.underBand));

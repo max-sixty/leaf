@@ -36,15 +36,15 @@ Options:
 Usage: leaf page state [OPTIONS] PAGE [ID]
 
   Fold the log onto the active revision and print the result as one JSON object:
-  the active revision's file, standing state, reports, open Questions, thread
-  summaries, versions, presence, and bound data. Read the active revision's HTML
-  beside it for the document.
+  the active revision's file, standing state, reports, the Questions and Tasks
+  lists, thread summaries, versions, presence, and bound data. Read the active
+  revision's HTML beside it for the document.
 
   ID narrows the reading to what it names. A message, or a widget frozen into
   one, names its thread: the reading is that thread with a page of its messages,
   their frozen markup, and the state on its widgets, paged by --after and
   --limit. A widget on the page names itself: its element, the actions and
-  reports standing on it, its Questions, and its workflows.
+  reports standing on it, its asks and to-dos, and its workflows.
 
 Options:
   --after SEQ            a thread's history after this sequence (default: from
@@ -78,7 +78,7 @@ Usage: leaf status [OPTIONS] PAGE {waiting|idle} [DETAIL]
   Use waiting with DETAIL naming the answer you want from the user; waiting
   without DETAIL invites text comments. Either puts down every item you started
   before it. Use idle when finished; unacknowledged input, unanswered user
-  updates and open tasks prevent it. Work in hand is no status: name it with
+  updates and open to-dos prevent it. Work in hand is no status: name it with
   `leaf task start`.
 
 Options:
@@ -117,9 +117,10 @@ Options:
   --title TEXT   name the thread for the panel unless it has a name: a few
                  words, at most 80 characters
   --ephemeral    one-line progress, without answering
-  --task TITLE   the reply promises work it doesn't deliver; opens that task on
+  --todo TITLE   the reply promises work it doesn't deliver; opens that to-do on
                  the thread, ended by `leaf task end` with the reply's id
-  --question     the reply asks the user a question, which waits on them
+  --ask          the reply asks the user something, which waits on them as an
+                 ask
   --markup TEXT  frozen HTML fragment after the text
   --text TEXT    reply text (default: stdin)
   --detach       remove the thread's page target
@@ -134,10 +135,9 @@ Usage: leaf response reply [OPTIONS] REFERENCE
   Answer the exact REFERENCE printed in a delivery's answer.ref.
 
   An answer says what it leaves the thread with: --done when it delivers what
-  the message asked for, --question when it asks the user something back, or
-  --task TITLE when it promises work it doesn't deliver, which stays on you as a
-  task. Progress (--ephemeral) and failure receipts (--failure) take none of
-  them.
+  the message asked for, --ask when it asks the user something back, or --todo
+  TITLE when it promises work it doesn't deliver, which stays on you as a to-do.
+  Progress (--ephemeral) and failure receipts (--failure) take none of them.
 
   Text, frozen HTML, titles and anchor moves share this command. It validates
   and activates saved page edits, then commits the reply immediately. A
@@ -153,9 +153,10 @@ Options:
   --title TEXT    name the thread for the panel unless it has a name: a few
                   words, at most 80 characters
   --ephemeral     one-line progress, without answering
-  --task TITLE    the reply promises work it doesn't deliver; opens that task on
-                  the thread, ended by `leaf task end` with the reply's id
-  --question      the reply asks the user a question, which waits on them
+  --todo TITLE    the reply promises work it doesn't deliver; opens that to-do
+                  on the thread, ended by `leaf task end` with the reply's id
+  --ask           the reply asks the user something, which waits on them as an
+                  ask
   --markup TEXT   frozen HTML fragment after the text
   --text TEXT     reply text (default: stdin)
   --detach        remove the thread's page target
@@ -226,8 +227,8 @@ Usage: leaf page stamp [OPTIONS] PAGE
   Stamp PAGE/index.html with a changelog.
 
   Checks the exact source first, then records it as the next public version.
-  Repeat --completes for each widget whose open tasks this version completes,
-  which ends them done, citing the version. A task otherwise remains open,
+  Repeat --completes for each widget whose open to-dos this version completes,
+  which ends them done, citing the version. A to-do otherwise remains open,
   including when a revision removes its widget. --from-directory replaces
   index.html and the complete page/ tree atomically with stamping; --if-source
   is the authored-input digest read through leaf.publishing, refusing a
@@ -239,6 +240,6 @@ Options:
                               candidate directory
   --if-source TEXT            expected authored-input digest, required with
                               --from-directory
-  --completes WIDGET          a widget whose open tasks this version completes
+  --completes WIDGET          a widget whose open to-dos this version completes
                               (repeatable)
   --help                      Show this message and exit.

@@ -73,7 +73,7 @@ test("workflow labels retain exact input progress and positive conditions", () =
   );
 });
 
-test("thread attention gives a standing user Question precedence over agent work", () => {
+test("thread attention gives a standing user ask precedence over agent work", () => {
   const work = workflow("a", "working");
   const recovery = workflow("recovery", "sent", {
     condition: { kind: "failed" },
@@ -82,7 +82,7 @@ test("thread attention gives a standing user Question precedence over agent work
   const thread = {
     resolved: null,
     workflows: [recovery, work],
-    attention: { kind: "needs_user", reason: "question", workflow: "recovery" },
+    attention: { kind: "needs_user", reason: "ask", workflow: "recovery" },
   };
   assert.deepEqual(threadAttention(thread), {
     kind: "needs_user",
@@ -92,21 +92,21 @@ test("thread attention gives a standing user Question precedence over agent work
   });
 });
 
-test("a thread an open task holds waits on the agent under the task's title", () => {
-  // The server's reading once the reply settled the comment and the task stood.
+test("a thread an open to-do holds waits on the agent under the to-do's title", () => {
+  // The server's reading once the reply settled the comment and the to-do stood.
   const thread = {
     resolved: null,
     workflows: [],
     attention: {
       kind: "waiting",
-      reason: "task",
+      reason: "todo",
       workflow: null,
-      task: { id: "t1", title: "Rebuild the banner quieter" },
+      todo: { id: "t1", title: "Rebuild the banner quieter" },
     },
   };
   assert.deepEqual(threadAttention(thread), {
     kind: "waiting",
-    label: "Task open",
+    label: "To-do open",
     workflow: null,
     secondary: "Rebuild the banner quieter",
   });
@@ -190,7 +190,7 @@ test("a thread the user is still sending waits on that send", () => {
 test("a local prose answer clears accepted user attention until refusal", () => {
   const thread = servedThread(
     [{ id: "root", kind: "comment", author: "agent", text: "Which one?", ts: "now" }],
-    { attention: { kind: "needs_user", reason: "recovery", workflow: "failed" } },
+    { attention: { kind: "needs_user", reason: "resend", workflow: "failed" } },
   );
   const reply = {
     id: "pending:retry",
@@ -290,7 +290,7 @@ test("a local rewrite leaves a question asked since with the user", () => {
     text: "Which year?",
     ts: "then",
   };
-  const owed = { kind: "needs_user", reason: "question", workflow: null };
+  const owed = { kind: "needs_user", reason: "ask", workflow: null };
   const rewrite = {
     id: "pending:rewrite",
     kind: "edit",

@@ -37,14 +37,14 @@ export function servedReading(name) {
   return structuredClone(RECORDS.readings[name]);
 }
 
-// A Question as a work queue lists it, holding `question`; `changes` set where it
-// stands, for a test whose served reading states its Questions by hand.
-export const servedQuestionItem = (question, changes) =>
-  served("question_item", {
-    id: question.id,
-    thread: question.thread,
-    title: question.prompt.text,
-    question,
+// An ask as Questions lists it, holding `ask`; `changes` set where it stands, for a
+// test whose served reading states its asks by hand.
+export const servedAskItem = (ask, changes) =>
+  served("ask_item", {
+    id: ask.id,
+    thread: ask.thread,
+    title: ask.prompt.text,
+    ask,
     ...changes,
   });
 

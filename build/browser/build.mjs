@@ -124,9 +124,8 @@ function compileModule(text, source) {
  * Build `lit.js` (`build/lit.mjs`), adapting the locked published modules in memory.
  *
  * Backport lit/lit#5218 while 3.3.0 avoids the repeat marker leak (#5298). Route
- * keyed and child-part insertions, and the root marker, through
- * `runtime/dom-move.js`, preserving native state during moves and bypassing named
- * form properties.
+ * keyed and child-part insertions through `runtime/dom-move.js`, which keeps the
+ * user's place and native state across the move.
  */
 async function litModule() {
   const contents = await litNamespace();
@@ -166,15 +165,10 @@ async function litModule() {
         edit: (source) =>
           move +
           seam(
-            seam(
-              source,
-              "this._$AA.parentNode.insertBefore(t,this._$AB)",
-              "leafMove(this._$AA.parentNode,t,this._$AB)",
-              "Lit move",
-            ),
-            "i.insertBefore(l(),t)",
-            "leafMove(i,l(),t)",
-            "Lit root marker",
+            source,
+            "this._$AA.parentNode.insertBefore(t,this._$AB)",
+            "leafMove(this._$AA.parentNode,t,this._$AB)",
+            "Lit move",
           ),
       },
       {

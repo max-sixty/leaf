@@ -19,7 +19,7 @@ numbers without a repeatable feed.
 ## Interactive and visual evidence
 
 Introduce each interaction in the page's own language: say that a board takes a
-drag, an options group takes a click, or a review task's nested Question takes a pick.
+drag, an options group takes a click, or a review task's nested ask takes a pick.
 Do not copy the connective sentence from another page.
 
 Use `lf-diagram` for Mermaid diagrams. It travels in the `diagram` package rather

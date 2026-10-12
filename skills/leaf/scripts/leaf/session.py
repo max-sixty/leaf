@@ -119,7 +119,7 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
         if tasks := work.durable.log.owed:
             named = "; ".join(f"{task['id']} ({task['title']})" for task in tasks)
             raise Refused(
-                f"{len(tasks)} open task{'s' if len(tasks) != 1 else ''}: {named}. "
+                f"{len(tasks)} open to-do{'s' if len(tasks) != 1 else ''}: {named}. "
                 "End each before idling with "
                 '`leaf task end <page> <id> done "<where the result is>"`, or '
                 '`dropped "<why>"`.'

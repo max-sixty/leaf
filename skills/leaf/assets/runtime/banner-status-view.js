@@ -1,8 +1,11 @@
 /* The generated owner of the banner's complete status surface.
  *
  * `banner.js` derives one immutable reading. This synchronous light-DOM Lit view
- * retains the native disclosure while painting the ordinary and publication layouts
- * from one template; no outside code writes or reparents anything inside it.
+ * paints the ordinary and publication layouts from one template; no outside code
+ * writes or reparents anything inside it. The ordinary layout is a native disclosure:
+ * the status is a `popovertarget` button over its explanation, so the browser alone
+ * keeps and announces whether it is open. A publication has no explanation to open,
+ * so its layout renders neither, and removing an open explanation closes it.
  *
  * The agent's Tasks count (`queues`) is the view's second box, which the banner places
  * beside the status rather than inside it, so the banner can give it whichever row
@@ -17,7 +20,6 @@
  * them while it lasts; elsewhere the bottom status shows it (chrome.css,
  * `--lf-notice-seat`).
  */
-import { closeNativeLayer } from "./keyboard/layer-stack.js";
 import {
   html,
   nothing,
@@ -67,7 +69,6 @@ class BannerStatusView extends HTMLElement {
     // Focus the scrollable explanation so keyboard users can reach long details.
     if (event.newState === "open" && document.activeElement === this.#button.value)
       focusDestination(this.#detail.value, "move");
-    this.#paint();
     this.#onToggle?.();
   };
 
@@ -97,8 +98,6 @@ class BannerStatusView extends HTMLElement {
       (model.publication && !Object.isFrozen(model.publication))
     )
       throw new Error("Banner status presentation models must be immutable");
-    if (model.publication && this.#detail.value?.matches(":popover-open"))
-      closeNativeLayer(this.#detail.value);
     this.#model = model;
     this.#paint();
     render(model.queues, this.#queues);
@@ -149,36 +148,32 @@ class BannerStatusView extends HTMLElement {
       : model.summary;
     const status = html`${dot}${words(summary)}`;
     render(
-      html`${
-          publication
-            ? status
-            : html`<button
-                type="button"
-                class="lf-status-button"
-                title=${model.explanation}
-                aria-expanded=${String(Boolean(this.#detail.value?.matches(":popover-open")))}
-                aria-describedby="lf-status-detail"
-                popovertarget="lf-status-detail"
-                ${ref(this.#button)}
-              >
-                ${status}
-              </button>`
-        }
-        <div
-          id="lf-status-detail"
-          class="lf-ui lf-status-detail"
-          tabindex="-1"
-          popover="auto"
-          role="group"
-          aria-label="Page status"
-          @toggle=${this.#toggled}
-          ${ref(this.#detail)}
-        >
-          ${model.explanation}
-        </div>`,
+      publication
+        ? status
+        : html`<button
+              type="button"
+              class="lf-status-button"
+              title=${model.explanation}
+              aria-describedby="lf-status-detail"
+              popovertarget="lf-status-detail"
+              ${ref(this.#button)}
+            >
+              ${status}
+            </button>
+            <div
+              id="lf-status-detail"
+              class="lf-ui lf-status-detail"
+              tabindex="-1"
+              popover="auto"
+              role="group"
+              aria-label="Page status"
+              @toggle=${this.#toggled}
+              ${ref(this.#detail)}
+            >
+              ${model.explanation}
+            </div>`,
       this,
     );
-    this.#detail.value.lfInvoker = this.#button.value ?? null;
   }
 }
 

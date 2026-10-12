@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  contributionControl,
   contributionEntry,
   contributionHost,
   contributionReceipts,
@@ -37,18 +38,16 @@ test("margin workflow paint distinguishes live work from conditioned history", (
   assert.equal(control.hasAttribute("data-lf-agent-workflow"), false);
 });
 
-test("template contribution hosts and receipts paint the retained-host contract in the same turn", async () => {
+test("template contribution hosts paint the retained-host contract and are found on their surface", async () => {
   const { html, render } = await import("/vendor/browser-runtime.js");
   const root = document.createElement("section");
   document.body.append(root);
   const imperative = document.createElement("button");
-  let painted;
+  const source = {};
   const paint = (record, options, receipt, awaitsUser) =>
     render(
       html`<button
-        ${contributionHost(record, options, (control) => {
-          painted = control;
-        })}
+        ${contributionHost(source, "map", record, options)}
         ${contributionReceipts(receipt, awaitsUser)}
       ></button>`,
       root,
@@ -85,8 +84,8 @@ test("template contribution hosts and receipts paint the retained-host contract 
     syncContributionAgentWorkflow(imperative, receipt);
     syncContributionTurn(imperative, awaitsUser);
     const control = root.querySelector("button");
-    assert.equal(painted, control);
     assert.equal(control.outerHTML, imperative.outerHTML);
+    assert.equal(contributionControl(source, "apply", "map"), control);
   }
   root.remove();
 });

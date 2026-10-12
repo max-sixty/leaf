@@ -37,13 +37,15 @@ import { renderedParent, shadowHost, under } from "./shadow.js";
 import { placeOf } from "./standing-target.js";
 import { questionPlace } from "./questions/place.js";
 import { scrollBehavior } from "./motion.js";
-import { comparisonChanges } from "./version.js";
+import {
+  comparisonBase,
+  comparisonChanges,
+  inlineComparison,
+  toggleInlineComparison,
+} from "./version.js";
 
 export function createAnnotationInventory({
   readQuestions,
-  comparisonBase,
-  inlineComparison,
-  toggleInlineComparison,
   placedAt,
   openThread,
   goToQuestion,
@@ -308,7 +310,7 @@ export function createAnnotationInventory({
           unread,
           // Page Map lists each thread on its own row, so the word goes on the row
           // rather than on an aggregate.
-          ...(onUser || thread.attention?.reason === "task"
+          ...(onUser || thread.attention?.reason === "todo"
             ? { mapContext: attention.label }
             : unread
               ? { mapContext: `${unread} unread` }
@@ -322,16 +324,16 @@ export function createAnnotationInventory({
       );
     }
 
-    // Only a widget Question has a place on the page; the rest have no node.
+    // Only a widget ask has a place on the page; the rest have no node.
     for (const question of readQuestions().user) {
       const id = question.id;
       const target = questionPlace(question).node;
       if (!target) continue;
       add(groups, target, {
-        kind: "question",
+        kind: "ask",
         id: `question:${id}`,
-        // The group this row stands in already names the Question; the row says why it is
-        // there, since these are the Questions the user owes.
+        // The group this row stands in already names the ask; the row says why it is
+        // there, since these are the asks the user owes.
         text: "Waiting on you",
         // The marker's own label is the question, which says more than the kind its
         // glyph already shows.
@@ -442,11 +444,11 @@ export function createAnnotationInventory({
       });
     });
 
-    // A task the agent opened on a page widget or element stands beside it, as Working
-    // with the line of the start running on it, or as an open task under its title.
-    // A thread's task is its thread's attention (above); the page's is the banner's. A
-    // task on the user is on their queue instead.
-    for (const task of runtime.browser?.tasks ?? []) {
+    // A to-do the agent opened on a page widget or element stands beside it, as Working
+    // with the line of the start running on it, or as an open to-do under its title.
+    // A thread's to-do is its thread's attention (above); the page's is the banner's. A
+    // to-do on the user is on their Questions instead.
+    for (const task of runtime.browser?.todos ?? []) {
       if (
         task.owner !== "agent" ||
         (task.subject.kind !== "widget" && task.subject.kind !== "element") ||
@@ -456,7 +458,7 @@ export function createAnnotationInventory({
       if (activityAlreadyShown.has(`widget:${task.subject.id}`)) continue;
       const target = elementById(task.subject.id);
       const { running } = task;
-      const label = running ? "Working" : "Task open";
+      const label = running ? "Working" : "To-do open";
       const account = [task.agent, running?.text ?? task.title]
         .filter(Boolean)
         .join(" · ");

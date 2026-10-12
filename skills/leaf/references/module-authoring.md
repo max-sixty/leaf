@@ -1424,12 +1424,13 @@ next ordinary reconciliation calls it again. Outlets must remain inside their
 widget after the callback completes; disconnected outlets claim no threads. Core message-rendering
 errors still fail the state application rather than accepting a partial thread.
 
-`threadSurface(this).open(datum, { origin })` accepts one projected element owned
+`threadSurface(this).open(datum)` accepts one projected element owned
 by the widget. Before Leaf has registered the widget, or once it has left the page,
 `update()` does nothing and `open` returns `false`. Core captures its full datum coordinate, including external-data source
 revision, opens the ordinary anchored draft, and seats the response bar in the consumer's
-outlet when the datum still resolves exactly. `origin` is the widget control to which
-Escape may return focus. Widgets do not receive draft, submission, or event APIs.
+outlet when the datum still resolves exactly. Escape from that draft returns focus to the
+datum element when it can take focus and otherwise to the page, whichever route opened
+it. Widgets do not receive draft, submission, or event APIs.
 
 ## Page annotation presentation
 

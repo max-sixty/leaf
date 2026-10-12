@@ -31,6 +31,7 @@ summary.
 import json
 import os
 import re
+import resource
 import statistics
 import sys
 import time
@@ -112,10 +113,18 @@ _cpu = pytest.StashKey[float]()
 def tree_cpu() -> float:
     """CPU seconds used so far by this process and its live descendants, with the
     children each has reaped. A descendant reaped during a test moves its time into
-    its parent's reaped total, so the difference across the test still holds it."""
-    total = 0.0
-    me = psutil.Process()
-    for process in (me, *me.children(recursive=True)):
+    its parent's reaped total, so the difference across the test still holds it.
+    This process's own totals come from `getrusage`, since psutil reports no reaped
+    children's time on macOS; a live descendant's reaped children are counted only
+    where psutil reports them, on Linux."""
+    total = sum(
+        usage.ru_utime + usage.ru_stime
+        for usage in (
+            resource.getrusage(resource.RUSAGE_SELF),
+            resource.getrusage(resource.RUSAGE_CHILDREN),
+        )
+    )
+    for process in psutil.Process().children(recursive=True):
         try:
             times = process.cpu_times()
         except psutil.NoSuchProcess:  # exited between listing and reading

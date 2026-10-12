@@ -2,7 +2,8 @@
 
 Tasks, frozen thread questions, and exact-input workflows share one event basis.
 Admission constructs it under the sending vocabulary; serving constructs it under
-its active document. Neither adds claim liveness: activity enriches these facts
+its active document, and each view of a pinned revision under that revision's
+(`viewing`). Neither adds claim liveness: activity enriches these facts
 once, and transports select that enriched reading without constructing a browser.
 This object is transaction-scoped and never written to disk.
 """
@@ -26,25 +27,66 @@ class WorkReading:
         *,
         registry_for_revision,
         available_revisions,
+        within=None,
         thread=None,
         log=None,
+        document=None,
     ):
         self.registry_for_revision = registry_for_revision
         self.available_revisions = frozenset(available_revisions)
         self.events = events
         self.registry = registry
         self.page = page
+        # The published page's containment, which every fold of the threads takes,
+        # whichever revision's document this reading reads them beside.
+        self.within = (
+            within if within is not None else page.within if page is not None else {}
+        )
         self.log = log or TaskReading(events)
         self._thread = thread
+        self._document = document
+
+    def supposing(self, gestures: list[dict]) -> "WorkReading":
+        """This reading with `gestures` appended to its log, for asking what they would
+        leave in the threads they stand in. They carry no markup and name no task, so
+        the frozen thread document is this reading's own, and so is the task log
+        unless one takes a message back, which changes what the log has withdrawn.
+        The page document is this reading's own too: what they could change there, a
+        page Ask seated in a thread they reopen, stands in no thread's reading."""
+        events = [*self.events, *gestures]
+        return WorkReading(
+            events,
+            self.registry,
+            self.page,
+            registry_for_revision=self.registry_for_revision,
+            available_revisions=self.available_revisions,
+            within=self.within,
+            thread=self.thread,
+            log=self.log
+            if not any(gesture.get("undoes") for gesture in gestures)
+            else TaskReading(events),
+            document=self.document,
+        )
+
+    def viewing(self, page) -> "WorkReading":
+        """This log read beside another revision's document, as a view pinned to that
+        revision shows it. That revision captured its frozen thread widgets under its
+        own registry, so their decisions, the asks they answer and the attention those
+        asks give a thread are classified under it, as the page's own are. The threads
+        themselves fold as every reading of them does, under the published page's
+        containment (`events.build_threads`)."""
+        if page is self.page:
+            return self
+        return WorkReading(
+            self.events, page.registry, page,
+            registry_for_revision=self.registry_for_revision,
+            available_revisions=self.available_revisions,
+            within=self.within, log=self.log
+        )
 
     @cached_property
     def threads(self) -> dict:
-        threads = build_threads(
-            self.effective_events,
-            self.page.within if self.page is not None else {},
-            withdrawn=self.log.withdrawn,
-        )
-        return threads
+        return build_threads(self.effective_events, self.within, withdrawn=self.log.withdrawn)
 
     @cached_property
     def thread(self):
@@ -125,6 +167,8 @@ class WorkReading:
 
     @cached_property
     def document(self):
+        if self._document is not None:
+            return self._document
         return read_document(self.page, self.threads) if self.page is not None else None
 
     @cached_property

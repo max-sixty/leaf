@@ -12,7 +12,6 @@
    adoption, optional interface installation and the canonical document proof both
    finish before that landing; declining stale focus never retracts accepted truth. */
 import { requireVocabulary } from "./widget-vocabularies.js";
-import { LIVE_ROOT, runtime } from "./context.js";
 import {
   applicationState,
   whenDocumentPresented,
@@ -70,25 +69,17 @@ export function createStateApplication({
 
   async function receiveState(state) {
     if (!sameLayer(state.layer.generation)) return;
-    if (typeof state.taken !== "number")
-      throw new TypeError("state must say when it was taken");
     // Data is ordered by when the server took the reading, even in a crossed older log read.
     const dataChanged = acceptData(state.data, state.taken);
     const notifyChangedData = () => (dataChanged ? notifyDataSubscribers() : undefined);
-    const eventSeq = state.browser?.basis?.through_seq;
-    if (!Number.isInteger(eventSeq) || eventSeq < 0)
-      throw new TypeError("state browser must name its log sequence");
-    const targetRevision = state.active?.revision;
-    if (!Number.isInteger(targetRevision) || targetRevision < 1)
-      throw new TypeError("state active must name a positive revision");
-    if (LIVE_ROOT && runtime.currentRevision === null)
-      throw new TypeError("the live document has no lf-revision marker");
     if (applicationState.overtaken(state)) {
       await notifyChangedData();
       return;
     }
 
-    const threads = state.browser.thread.threads;
+    // Every view holds the same messages, read under its own registry; the active
+    // one is always served.
+    const threads = state.browser.views[state.active.revision].thread.threads;
     const frozenDocuments = [];
     const preparations = [
       prepareActivation(state),

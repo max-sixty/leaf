@@ -109,9 +109,10 @@
  * run — so whatever wraps in a scrolling table wraps at a word a line, beside a
  * name that could not break (an identifier has nowhere to break until the rule
  * at `code` above gives it one) or because there are more columns than the
- * measure holds. `page check --render` refuses a table that scrolls with a
- * cell in it wrapped (SQUEEZED_TABLES) and leaves the third case to a table with
- * nothing left to wrap.
+ * measure holds. `page check --render` advises on a table that scrolls with a
+ * cell in it wrapped at any width from 360px to 1920px (`squeezedTables`,
+ * render-checks/layout.js) and leaves the third case to a table with nothing
+ * left to wrap.
  *
  * Two things the display change could have cost, both measured rather than
  * assumed, and neither charged: Chrome's accessibility tree keeps table,
@@ -128,10 +129,10 @@
 :where(:root, .lf-thread-transcript) table { display: block; overflow-x: auto; container-type: inline-size scroll-state; --lf-top: 0px;
         border-collapse: collapse;
         font: var(--t-5)/1.5 var(--sans); margin: 18px 0; font-variant-numeric: tabular-nums; }
-/* A table's painted grid fills an explicit spatial allocation or a drawn frame.
-   The allocation may belong to the table or a containing block. Without either,
-   the grid keeps its columns' natural width; a frame that only trims draws no edge
-   to fill (`--lf-block-frame: trim`).
+/* A table's painted grid fills a drawn frame, or the allocation of a box holding it,
+   whose start edge the table shares with that box's other blocks. Otherwise the grid
+   keeps its columns' natural width; a frame that only trims draws no edge to fill
+   (`--lf-block-frame: trim`).
 
    The grid is an anonymous box inside the scrolling block, so CSS cannot size it
    directly. An empty caption as wide as the scrollport (100cqi) supplies its minimum;
@@ -139,6 +140,11 @@
    still scrolls. The claim stays on each table, so a nested table asks its own frame. */
 @property --lf-fills-frame { syntax: "<integer>"; inherits: false; initial-value: 0; }
 :where(:root, .lf-thread-transcript) table:where([data-lf-space], [data-lf-space] *) { --lf-fills-frame: 1; }
+/* A table granted room of its own (`data-width`) fills only a drawn frame: elsewhere it
+   keeps its columns' natural width within that room rather than spreading the room
+   between them, and layouts.css sizes its box to them. */
+:where(:root, .lf-thread-transcript) table:where([data-lf-space]:not([data-lf-space="column"])) {
+  --lf-fills-frame: 0; }
 @container style(--lf-block-frame: 1) {
   :where(:root, .lf-thread-transcript) table { --lf-fills-frame: 1; }
 }
@@ -154,7 +160,7 @@
    revision demonstrates and what rem…". It keeps to the part of the table on screen
    (the table is its own inline-size container) and stays there as the columns scroll. */
 :where(:root, .lf-thread-transcript) caption { text-align: left; font-size: var(--t-6); color: var(--muted);
-          margin-bottom: 6px; position: sticky; left: 0; max-inline-size: 100cqi; }
+          margin-bottom: 6px; position: sticky; inset-inline-start: 0; max-inline-size: 100cqi; }
 :where(:root, .lf-thread-transcript) :is(th, td) { text-align: left; padding: 8px 14px; border-bottom: 1px solid var(--rule);
          vertical-align: top; --lf-block-frame: 1; }
 /* The padding is a gutter, and the columns at the two ends have no neighbour to
@@ -181,7 +187,7 @@
      color: var(--muted); font-weight: 600;
      border-bottom-color: var(--border-2); }
 :where(:root, .lf-thread-transcript) th[scope="row"] { font-weight: 600; }
-:where(:root, .lf-thread-transcript) :is(ul, ol) { margin: 10px 0; padding-left: 24px; }
+:where(:root, .lf-thread-transcript) :is(ul, ol) { margin: 10px 0; padding-inline-start: 24px; }
 :where(:root, .lf-thread-transcript) li { margin: 6px 0; }
 :where(:root, .lf-thread-transcript) hr { border: none; border-top: 1px solid var(--rule); margin: 40px 0; }
 

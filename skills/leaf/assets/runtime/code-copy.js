@@ -3,10 +3,20 @@
    their current code on activation; widgets supply their source before rendering
    line numbers, annotations, or other words. CSS anchors keep the control at the
    block's right edge without wrapping authored nodes or moving them on arrival.
-   Widgets connect their final styled block before requesting the control. On touch,
-   entering the source focuses it and hides the overlay, leaving covered words
-   available to read and select. Leaving the source restores the copy control.
-   Enter on a document code block moves keyboard focus to its copy control. */
+   Widgets connect their final styled block before requesting the control.
+   Enter on a code block the user stands on copies it. That press is a register row
+   projected onto the block beside any scope its owner declares, so the shortcut bar, the
+   command reference and `aria-keyshortcuts` name it, and its `touch` words make it the
+   banner's step under a finger (keyboard/AGENTS.md, "Touch routes"). A link or button
+   inside the code keeps its own Enter (`nativeActivationAt`), and a document block's
+   control stays out of the Tab sequence. Focus need not be on the control, so every
+   copy's result also takes the status line.
+   A finger shows no intent before it lands, so a live page never shows the control to
+   one: shown at rest it covered the ends of the first lines, and room made for it would
+   move the page's content (`../AGENTS.md`, "Nothing Leaf draws moves the page's content").
+   Entering the source by touch stands the user on it, and the banner offers its Copy. An
+   export has no banner, so there the control stays shown to a finger and hides while
+   the user stands in the source. */
 import { offer } from "./widget-elements.js";
 import { watchArrivals } from "./arrivals.js";
 import {
@@ -18,11 +28,15 @@ import {
 import { focusDestination, onStanding } from "./focus.js";
 import { upFrom } from "./shadow.js";
 import { chromeRoot } from "./chrome.js";
+import { move } from "./dom-move.js";
 import { claimReachStop, releaseReachStop } from "./reach.js";
+import { commandScope, projectCommandScope } from "./keyboard/scopes.js";
+import { notice } from "./notifications.js";
 
 const controls = new WeakMap();
 const wired = new WeakMap();
-const routes = new WeakMap();
+// The key this module projects its Copy scope under, beside the block's other owners.
+const COPY_SCOPE = Symbol("code copy");
 
 // Focus can reveal and scroll a source before the observer's next task. Its keyboard
 // route must see the control in that same gesture, widgets included.
@@ -42,6 +56,13 @@ function prepareCodeBlock(pre, source) {
     copy.errorLabel = "Unable to copy code";
     copy.tooltip = "none";
     copy.addEventListener("click", () => (copy.value = source()), { capture: true });
+    // Web Awesome announces the result; Leaf puts the same words in its status line.
+    copy.addEventListener("wa-copy", () =>
+      notice(copy.successLabel, { announce: false }),
+    );
+    copy.addEventListener("wa-error", () =>
+      notice(copy.errorLabel, { announce: false }),
+    );
     pre.addEventListener("pointerdown", (event) => {
       if (event.pointerType === "touch" && copy.isConnected)
         focusDestination(pre, "move");
@@ -62,8 +83,29 @@ function positionCodeBlock({ copy, near, anchor }) {
   return copy;
 }
 
+// Declared on each arrival, since leaving withdraws it. A widget renders a new block
+// each time, and the register forgets one that leaves the document.
+function declareCopy(pre, copy) {
+  projectCommandScope(
+    pre,
+    COPY_SCOPE,
+    commandScope("On a code block", [
+      {
+        id: "code.copy",
+        keys: ["Enter"],
+        description: "Copy this block's code to the clipboard",
+        title: "copy code",
+        touch: "Copy code",
+        run: () => copy.shadowRoot.querySelector("button").click(),
+      },
+    ]),
+  );
+}
+
 export function copyCodeBlock(pre, source) {
-  return positionCodeBlock(prepareCodeBlock(pre, source));
+  const copy = positionCodeBlock(prepareCodeBlock(pre, source));
+  declareCopy(pre, copy);
+  return copy;
 }
 
 export function watchCodeBlocks() {
@@ -82,18 +124,13 @@ export function watchCodeBlocks() {
         const copy = positionCodeBlock(pending);
         // Keep the page's authored sibling and child selectors intact. The anchor
         // still positions this control at its source when it lives in chrome.
-        if (copy.parentNode !== chromeRoot) chromeRoot.append(copy);
+        if (copy.parentNode !== chromeRoot) move(chromeRoot, copy, null);
         copy.tabIndex = -1;
-        let route = routes.get(pre);
-        if (!route) routes.set(pre, (route = { keys: false }));
         claimReachStop(pre);
-        if (!pre.hasAttribute("aria-keyshortcuts")) {
-          pre.setAttribute("aria-keyshortcuts", "Enter");
-          route.keys = true;
-        }
         if (!wired.has(pre)) {
           const events = new AbortController();
           wired.set(pre, events);
+          declareCopy(pre, copy);
           const options = { signal: events.signal };
           // Let the browser continue Tab from the source's document position,
           // rather than from this control's later position in chrome.
@@ -101,24 +138,6 @@ export function watchCodeBlocks() {
             "keydown",
             (event) => {
               if (event.key === "Tab") focusDestination(pre, "step");
-            },
-            options,
-          );
-          pre.addEventListener(
-            "keydown",
-            (event) => {
-              if (
-                event.target !== pre ||
-                event.key !== "Enter" ||
-                event.altKey ||
-                event.ctrlKey ||
-                event.metaKey
-              )
-                return;
-              event.preventDefault();
-              refreshAnchorView(copy);
-              const button = copy.shadowRoot?.querySelector("button");
-              if (button) focusDestination(button, "move");
             },
             options,
           );
@@ -152,11 +171,8 @@ export function watchCodeBlocks() {
       if (copy?.matches(".lf-code-copy-hover, .lf-code-copy-focused"))
         copy.classList.remove("lf-code-copy-hover", "lf-code-copy-focused");
       copy?.remove();
-      const route = routes.get(pre);
       releaseReachStop(pre);
-      if (route?.keys && pre.getAttribute("aria-keyshortcuts") === "Enter")
-        pre.removeAttribute("aria-keyshortcuts");
-      routes.delete(pre);
+      projectCommandScope(pre, COPY_SCOPE, null);
     },
   });
 }

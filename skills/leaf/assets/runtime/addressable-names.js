@@ -1,7 +1,8 @@
 /* What the chrome calls an addressable element: the word for its kind
  * (`addressableWord`), the words it says (`addressableSays`), the name the authoring
- * contract gives it (`addressableName`), and the label every surface shows for it away
- * from the page (`addressableLabel`). Each reads authored words through the passage
+ * contract gives it (`addressableName`), the label every surface shows for it away
+ * from the page (`addressableLabel`), and the word and label an anchor on it shows
+ * (`sectionLabel`). Each reads authored words through the passage
  * reader, so generated chrome never names anything. */
 import { isElementName } from "./registry-contract.js";
 import { registryFor } from "./registry.js";
@@ -150,3 +151,9 @@ export function addressableLabel(element) {
     LABEL_WORDS,
   );
 }
+
+// A thread's § coordinate and the visual-action picker both show it.
+export const sectionLabel = (addressable) =>
+  [addressableWord(addressable), addressableLabel(addressable)]
+    .filter(Boolean)
+    .join(" · ");

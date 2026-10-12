@@ -34,18 +34,6 @@ export function sameStateDefinition(recorded, current) {
   );
 }
 
-// The operation is the fields the stamped definition holds, detail aside; a field an
-// earlier Leaf recorded beside them never retracts a decision. registry/contract.py's
-// same_state_operation holds the same rule.
-export function sameStateOperation(recorded, current) {
-  if (!recorded || !current) return false;
-  return Object.entries(current).every(
-    ([key, value]) =>
-      key === "detail" ||
-      (Object.hasOwn(recorded, key) && sameStateDefinition(recorded[key], value)),
-  );
-}
-
 // Registry keys share schema.WIDGET_NAME with Python. Exact custom-element names
 // declare widgets; CSS selectors (including lf-options.selected) declare idioms.
 export const isElementName = (name) => /^lf-[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name);

@@ -15,16 +15,20 @@ an owed update holds the agent's turn is `activity.turn_obligations`'s to say.
 Answers are one of:
 
 - `{"kind": "reply", "to": <message>, "for": <event>}` — a thread message, or an
-  action in an answered Question in frozen thread markup, answered through its exact delivery reference by `leaf response reply`;
-  Final-message custody is independent of the operation: `activity` adds
-  `writer: "turn"` and its attempt while the provider's reply binding stands.
-  Delivery captures the same writer policy ahead of that binding, and emits an
-  exact response reference. Direct commands and provider finals resolve that
-  reference through the same rich reply writer; only the bound attempt may
-  commit while its provider owns the final.
+  action in an answered Question in frozen thread markup. The agent answers it with
+  `leaf response reply <answer.ref>`. While a reply reservation (`delivery`'s
+  header) stands on it, `activity` adds `writer: "turn"` and the reservation's
+  attempt.
 - `{"kind": "markup", "action": <action>}` — a page action that is part of its
   widget's answered Question and the authored markup does not yet record, answered by
-  a stamped version that writes it in.
+  a stamped version that writes it in. A pick of an option the user added is the
+  log's to hold, so the stamped version takes that part in without writing it.
+
+A workflow's `receipt_refs` map each claim its update's deliveries were captured
+under to the newest `answer.ref` a receipt's pickup recorded under it
+(`delivery.record_pickup`); `activity` makes the one under the page's current claim
+the answer's `ref`.
+An update no receipt has carried has none: only its delivery mints one.
 
 Two kinds of update have workflows with no answer of their own. An update a
 newer one in the same thread covers is answered through the newest, whose one
@@ -61,6 +65,7 @@ from .events import (
 from .projection import (
     NO_RECORD,
     PageReading,
+    generated_children,
     recorded_state,
 )
 from .tasks import (
@@ -162,8 +167,13 @@ def page_action_unsettled(
     records it. The version must follow the action in the log and supersede the
     revision it was made on; a note stamped over the very revision the user
     acted on was written before the action reached anyone.
+
+    An option the user added stands in its group from the log, where the user put
+    it, and no version has to write it in. So a pick naming one names an element
+    the markup need not hold: the markup records the authored part of the pick, and
+    a later version's note takes in the part only the log holds.
     """
-    _widget, unit, _verb = coordinate
+    widget, unit, _verb = coordinate
     byid = page.document.by_id
     if unit not in byid:
         return False
@@ -171,15 +181,28 @@ def page_action_unsettled(
     reading = recorded_state(
         coordinate, source, spec, document, document, page.registry, page.projection
     )
-    recorded = reading is not NO_RECORD and reading[0] == reading[1]
-    if owed and reading is not NO_RECORD:
-        return not recorded
     versioned = any(
         event["kind"] == "note"
         and event["seq"] > source["seq"]
         and event["revision"] > source["revision"]
         for event in page.events
     )
+    if reading is NO_RECORD:
+        return not versioned
+    shown, left = reading
+    logged = False
+    if spec["record"]["kind"] == "attribute":
+        added = {
+            child["id"]
+            for child in generated_children(page.projection.desired, set(byid)).get(
+                widget, []
+            )
+        }
+        logged = any(identity in added for identity in left)
+        left = [identity for identity in left if identity not in added]
+    recorded = shown == left
+    if owed:
+        return not recorded or (logged and not versioned)
     return not versioned and not recorded
 
 
@@ -229,11 +252,16 @@ def canonical_workflows(
         for input_id, response in responses.items()
         if response.get("failure")
     }
+    # The newest `answer.ref` receipts recorded for each input (`record_pickup`)
+    # under each claim its deliveries were captured under.
+    refs: dict[str, dict[str | None, str]] = {}
     for event in events:
         if event["kind"] != "pickup":
             continue
         for event_id in event["events"]:
             deliveries.setdefault(event_id, {})[event["phase"]] = event
+        for event_id, ref in event.get("refs", {}).items():
+            refs.setdefault(event_id, {})[ref["claim"]] = ref["ref"]
 
     log = task_reading or TaskReading(events)
     starts = log.starts
@@ -315,6 +343,7 @@ def canonical_workflows(
             "delivery_seq": fallback["seq"] if fallback else None,
             "delivery_session": fallback.get("session") if fallback else None,
             "delivery_turn": fallback.get("turn") if fallback else None,
+            "receipt_refs": refs.get(source["id"], {}),
             "detail": start["text"] if start else None,
             "agent": start.get("agent") if start else None,
             "session": start.get("session") if start else None,
@@ -499,25 +528,37 @@ def canonical_workflows(
                     list(coordinate),
                     unsettled,
                     answer,
+                    settlement is page_action,
                 )
             )
 
     # One receipt per widget and unit, for the user's newest action on it. A tick and
     # the Done press that followed are two verbs on one unit, and each minted a line:
     # the thread showed "✓ Sent · just now" twice under one question. The later action
-    # supersedes the earlier for what the user is owed — that the press landed.
+    # supersedes the earlier for what the user is owed — that the press landed. In
+    # frozen thread markup the reply answering the newest answers them all. On the page
+    # each still settles by its own record: Done hands the tick over rather than
+    # replacing it, so the version that takes in the Done still writes the pick, and the
+    # receipt stands until every action on the unit has settled.
     # Units stay apart: two moved cards, two reviewed files, are two subjects with a
     # margin entry each in the margin.
-    newest: dict[tuple[str, str], dict] = {}
-    for source, target, coordinate, _unsettled, _answer in actions:
+    newest: dict[tuple[str, str], tuple] = {}
+    for action in actions:
+        source, target, coordinate = action[:3]
         key = (target["id"], coordinate[1])
-        if key not in newest or source["seq"] > newest[key]["seq"]:
-            newest[key] = source
+        if key not in newest or source["seq"] > newest[key][0]["seq"]:
+            newest[key] = action
+    pending = {
+        (target["id"], coordinate[1])
+        for source, target, coordinate, unsettled, _answer, on_page in actions
+        if unsettled and (on_page or newest[(target["id"], coordinate[1])][0] is source)
+    }
     # A harness that gave up on an owed action recorded the failure its answer takes — a
     # failed pickup for a page action, a failure reply for a frozen one — which hands
     # the action back to the user until the action settles or a newer action replaces it.
-    for source, target, coordinate, unsettled, answer in actions:
-        if not unsettled or newest[(target["id"], coordinate[1])] is not source:
+    for source, target, coordinate, _unsettled, answer, _on_page in actions:
+        key = (target["id"], coordinate[1])
+        if key not in pending or newest[key][0] is not source:
             continue
         if answer is not None and (
             gave_up := deliveries.get(source["id"], {}).get("failed")

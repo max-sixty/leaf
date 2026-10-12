@@ -15,7 +15,7 @@
   line-height: var(--lf-ui-lh);
   color: var(--ink);
 }
-:where(:root .lf-ui-face, :root .button, :root .field) {
+:where(:root .lf-ui-face, :root .button, :root .field, :root main :is(button, input, select, textarea)) {
   font: var(--t-5) / var(--lf-ui-lh) var(--sans);
   font-feature-settings: normal;
   font-variation-settings: normal;
@@ -50,6 +50,27 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     overflow: hidden;
     clip-path: inset(50%);
     margin-right: 0;
+  }
+}
+.lf-error {
+  border: 1px solid var(--danger);
+  background: var(--danger-tint);
+  color: var(--danger-ink);
+  border-radius: var(--r);
+  padding: 8px 12px;
+  font-family: var(--sans);
+  font-size: var(--t-5);
+  font-variant-numeric: tabular-nums;
+  white-space: normal;
+  --lf-block-frame: 1;
+}
+.lf-error pre {
+  margin: 8px 0 0;
+  white-space: pre;
+}
+@media print {
+  .lf-error pre {
+    white-space: pre-wrap;
   }
 }
 .lf-key-badge {
@@ -606,6 +627,9 @@ button.lf-thread-notice[data-lf-focus] {
 :where(:root, .lf-thread-transcript) table:where([data-lf-space], [data-lf-space] *) {
   --lf-fills-frame: 1;
 }
+:where(:root, .lf-thread-transcript) table:where([data-lf-space]:not([data-lf-space=column])) {
+  --lf-fills-frame: 0;
+}
 @container style(--lf-block-frame: 1) {
   :where(:root, .lf-thread-transcript) table {
     --lf-fills-frame: 1;
@@ -629,7 +653,7 @@ button.lf-thread-notice[data-lf-focus] {
   color: var(--muted);
   margin-bottom: 6px;
   position: sticky;
-  left: 0;
+  inset-inline-start: 0;
   max-inline-size: 100cqi;
 }
 :where(:root, .lf-thread-transcript) :is(th, td) {
@@ -659,7 +683,7 @@ button.lf-thread-notice[data-lf-focus] {
 }
 :where(:root, .lf-thread-transcript) :is(ul, ol) {
   margin: 10px 0;
-  padding-left: 24px;
+  padding-inline-start: 24px;
 }
 :where(:root, .lf-thread-transcript) li {
   margin: 6px 0;
@@ -1710,12 +1734,26 @@ pre:hover + .lf-code-copy,
 .lf-code-copy:is(:hover, [data-lf-focus-within]) {
   opacity: 1;
 }
+@media (pointer: coarse) {
+  :root[data-lf-live] .lf-code-copy {
+    display: none;
+  }
+  :host-context(html[data-lf-live]) .lf-code-copy {
+    display: none;
+  }
+}
 @media (pointer: coarse), (hover: none) {
-  .lf-code-copy {
+  :root:not([data-lf-live]) .lf-code-copy {
     opacity: 1;
   }
-  pre[data-lf-focus] + .lf-code-copy,
-  .lf-code-copy.lf-code-copy-focused {
+  :host-context(html:not([data-lf-live])) .lf-code-copy {
+    opacity: 1;
+  }
+  :root:not([data-lf-live]) :is(pre[data-lf-focus] + .lf-code-copy, .lf-code-copy.lf-code-copy-focused) {
+    opacity: 0;
+    pointer-events: none;
+  }
+  :host-context(html:not([data-lf-live])) :is(pre[data-lf-focus] + .lf-code-copy, .lf-code-copy.lf-code-copy-focused) {
     opacity: 0;
     pointer-events: none;
   }

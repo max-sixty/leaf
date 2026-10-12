@@ -17,7 +17,6 @@ import {
 import {
   stampedState,
   sameStateDefinition,
-  sameStateOperation,
 } from "../../skills/leaf/assets/runtime/registry-contract.js";
 import {
   discussed,
@@ -114,9 +113,14 @@ const SENDING = new Set<GestureState>([
 const DRAWN_LOCALLY = new Set<GestureState>(["sending", "accepted"]);
 // The states `release` retires.
 const RELEASABLE = new Set<GestureState>(["accepted:presented", "refused"]);
-// In an adopted reading that no document pass has presented yet: the semantic root
-// already draws the log's event, and the page may still show what came before it.
-const UNPRESENTED = new Set<GestureState>(["sending:logged", "accepted:logged"]);
+// Gestures still waiting for a document pass: either locally drawn before their
+// receipt is logged, or logged in an adopted reading the page has not presented.
+const UNPRESENTED = new Set<GestureState>([
+  "sending",
+  "accepted",
+  "sending:logged",
+  "accepted:logged",
+]);
 
 /** One unresolved gesture. `admitted` is the log's event for it, known from the
  * POST's answer or from a reading, whichever came first. */
@@ -306,6 +310,9 @@ interface WireQueues {
   questions: QueueItem[];
   tasks: QueueItem[];
   done: DoneItem[];
+  /** Open asks no one owes now, such as a resolved thread's, which a reopening gives
+   * back. */
+  held: QueueItem[];
 }
 
 export interface SemanticDocument {
@@ -319,7 +326,7 @@ export interface SemanticDocument {
       [name: string]: unknown;
     }
   > & {
-    $reactions?: { tokens: Record<string, {glyph: string}> };
+    $reactions?: { tokens: Record<string, {glyph: string; settles?: boolean}> };
     $states: Record<string, Record<string, StampedState>>;
   };
   authored: AuthoredMap;
@@ -366,6 +373,13 @@ interface AuthoritativeState {
           projection: WireProjection;
           asks: WireQuestions;
         };
+        /** The frozen threads as this revision reads them: its registry classifies
+         * their widgets' decisions, and so the asks and attention those give. */
+        thread: {
+          threads: Thread[];
+          projection: WireProjection;
+          asks: WireQuestions;
+        };
         undo: { event: Event }[];
         coverage: Coverage[];
         reports: object[];
@@ -375,12 +389,8 @@ interface AuthoritativeState {
         approval_blocking: string[];
       }
     >;
-    thread: {
-      threads: Thread[];
-      projection: WireProjection;
-      asks: WireQuestions;
-      approval_history: Event[];
-    };
+    /** Standing approvals across every stamp, for Threads' event timeline. */
+    approval_history: Event[];
     receipts: Event[];
     /** Every thread whose history each logged event changes
      * (`thread_context.thread_memberships`). */
@@ -397,27 +407,17 @@ type ServerView = AuthoritativeState["browser"]["views"][string];
 /** A server view with its basis, the transport identity, left off. */
 type PageView = Omit<ServerView, "basis">;
 
-// The server classifies page entries under the shown revision's registry and thread
-// entries under the active revision's. A pinned earlier revision captured its thread
-// widgets under its own registry, so an entry whose operation that registry does not
-// define is one those widgets cannot draw, and it is left out.
-function normalizedProjection(
-  view: PageView | null | undefined,
-  thread: AuthoritativeState["browser"]["thread"] | undefined,
-  document?: Pick<SemanticDocument, "registry" | "descriptors">,
-) {
+// The server classifies a view's page and thread entries alike under that revision's
+// registry, so every entry is one the view's widgets can draw.
+function normalizedProjection(view: PageView | null | undefined) {
   const entries = [];
   const actionIds = [];
   const reportIds = [];
   const desiredIds = [];
-  for (const projection of [view?.document.projection, thread?.projection]) {
+  for (const projection of [view?.document.projection, view?.thread.projection]) {
     if (!projection) continue;
     for (const wire of projection.entries) {
       const e = wire.event;
-      const descriptor = document?.descriptors.get(e.widget);
-      const stamp =
-        document && descriptor && stampedState(document.registry, descriptor.tag, e);
-      if (descriptor && !sameStateOperation(e.meaning?.state, stamp?.definition)) continue;
       const coordinate = stateCoordinate(...wire.coordinate);
       entries.push({
         coordinate,
@@ -457,14 +457,13 @@ const NO_QUESTIONS = {
  * visible before its POST settles the ask. */
 function normalizedQuestions(
   view: PageView | null,
-  threadView: AuthoritativeState["browser"]["thread"] | undefined,
   widgets: ReturnType<typeof foldWidgetStates>,
   document: SemanticDocument,
   projection: ReturnType<typeof foldProjection>,
   local: readonly LedgerEntry[],
 ): WireQuestions {
   const page = view?.document.asks;
-  const thread = threadView?.asks;
+  const thread = view?.thread.asks;
   const all = [...(page?.all ?? []), ...(thread?.all ?? [])].map(
     (question): QuestionRecord => {
       if (question.source.kind === "approval") {
@@ -510,24 +509,36 @@ function normalizedQuestions(
   return { all, user: selection("user"), unanswered: selection("unanswered") };
 }
 
-/* Prose sends hand attention to the agent immediately; settlement remains the
- * server's. Earlier suppressed prompts stay in the complete inventory. */
-function questionAttention(questions: WireQuestions, threads: Pick<Thread, "id" | "resolved" | "attention">[]): WireQuestions {
-  const byThread = new Map(threads.map((thread) => [thread.id, thread]));
-  const user = new Set(questions.user.map((question) => question.id));
+/* While a gesture of this tab's is pending in a thread, the user owes the asks in it
+ * that the server read that gesture leaving them (`Thread.owed`, from `after`), and no
+ * others; every other ask stands as admitted. An ask the user owes is open, so one
+ * the gesture reopens, as taking back the reaction that answered it does, stands
+ * unanswered again. */
+function questionAttention(questions: WireQuestions, threads: Pick<Thread, "id" | "owed">[]): WireQuestions {
+  const owing = new Map(threads.flatMap((thread) =>
+    thread.owed ? [[thread.id, new Set(thread.owed)] as const] : []));
+  const pending = (question: QuestionRecord) =>
+    question.thread === null ? undefined : owing.get(question.thread);
   const all = questions.all.map((question): QuestionRecord => {
-    if (question.source.kind !== "reply" || !user.has(question.id)) return question;
-    const thread = question.thread === null ? undefined : byThread.get(question.thread);
-    return thread?.resolved || thread?.attention?.kind === "waiting"
-      ? { ...question, next_actor: thread?.resolved ? null : "agent" }
-      : question;
+    const owed = pending(question);
+    if (!owed) return question;
+    if (owed.has(question.id))
+      return question.next_actor === "user"
+        ? question
+        : { ...question, status: "open", answer: null, next_actor: "user" };
+    return question.next_actor === "user" ? { ...question, next_actor: null } : question;
   });
-  const byId = new Map(all.map((question) => [question.id, question]));
+  const admitted = (kind: "user" | "unanswered") =>
+    new Set(questions[kind].map((question) => question.id));
+  const user = admitted("user");
+  const unanswered = admitted("unanswered");
   return {
     all,
-    user: questions.user.map((question) => byId.get(question.id)!)
-      .filter((question) => question.next_actor === "user"),
-    unanswered: questions.unanswered.map((question) => byId.get(question.id)!),
+    user: all.filter((question) =>
+      pending(question) ? question.next_actor === "user" : user.has(question.id)),
+    unanswered: all.filter((question) =>
+      unanswered.has(question.id) ||
+      (pending(question)?.has(question.id) ?? false)),
   };
 }
 
@@ -570,15 +581,16 @@ function localTasks(
   };
 }
 
-const NO_QUEUES: WireQueues = { questions: [], tasks: [], done: [] };
+const NO_QUEUES: WireQueues = { questions: [], tasks: [], done: [], held: [] };
 
 /* What is on the user (Questions), what is on the agent (Tasks), and what is done:
  * the view's served lists (`served_state.queues`), with this tab's unresolved sends
  * placed against them. A send moves an item the server listed when it changes that
  * item's record: a Done or its undo moves a to-do between its list and done, an
  * approval or its undo moves the approval ask, and prose sent in a thread, or settling
- * it, takes that thread's ask and its resend off the user. It adds only the items it
- * alone implies: the answer a pending send is owed, and the resend a refused one
+ * it, takes that thread's ask and its resend off the user, and one reopening a resolved
+ * thread puts a held ask its record now gives the user back on. It adds only the items
+ * it alone implies: the answer a pending send is owed, and the resend a refused one
  * leaves. A pending send also stands for the response the thread was already owed.
  * Nothing here selects a list again. */
 function localQueues(
@@ -589,6 +601,7 @@ function localQueues(
   asks: WireQuestions,
 ) {
   const record = new Map(asks.all.map((ask) => [ask.id, ask]));
+  const asked = new Map(asks.all.map((ask, at) => [ask.id, at]));
   const open = new Set(todos.open.map((todo) => todo.id));
   const ended = new Set(todos.ended.map((todo) => todo.id));
   const byThread = new Map(threads.map((thread) => [thread.id, thread]));
@@ -666,6 +679,7 @@ function localQueues(
   return {
     questions: [
       ...served.questions.filter(standsOpen).map(current),
+      ...served.held.filter(standsOpen).map(current),
       ...reopenedFor("user").map(asOpen),
       ...threads.flatMap((thread) =>
         retrying(thread.id)
@@ -677,7 +691,11 @@ function localQueues(
           ? resend(workflow.id, workflow.subject, null)
           : [],
       ),
-    ].toSorted((a, b) => questionsRank(a) - questionsRank(b)),
+    ].toSorted(
+      (a, b) =>
+        questionsRank(a) - questionsRank(b) ||
+        (a.kind === "ask" && b.kind === "ask" ? asked.get(a.id)! - asked.get(b.id)! : 0),
+    ),
     tasks: [
       ...served.tasks.filter((item) => item.kind !== "todo" && standsOpen(item)),
       // One answer per thread, as the server lists one for the newest turn owed.
@@ -704,7 +722,8 @@ function localQueues(
   };
 }
 
-// The order the server lists Questions in: asks, to-dos, then resends.
+// The order the server lists Questions in: asks, to-dos, then resends; asks among
+// themselves in the order the view's ask inventory holds them.
 const questionsRank = (item: QueueItem) =>
   item.kind === "ask" ? 0 : item.kind === "todo" ? 1 : 2;
 
@@ -864,7 +883,7 @@ export function createSemanticApplication({
     const view: PageView | null = served
       ? (({ basis: _basis, ...rest }) => rest)(served)
       : null;
-    const admitted = normalizedProjection(view, state?.browser.thread, document);
+    const admitted = normalizedProjection(view);
     const classifiedIds = new Set(admitted.entries.map(({ e }) => e.id));
     // A revision may reuse a widget/verb with a different operation. Keep its pending
     // delivery, but stop drawing it against that new declaration. This tab wrote a
@@ -907,31 +926,29 @@ export function createSemanticApplication({
             : [],
     );
     const folded = ready
-      ? foldThreads(state?.browser.thread.threads ?? [], gestures)
+      ? foldThreads(
+          view?.thread.threads ?? [],
+          gestures,
+          (token) => Boolean(document.registry.$reactions?.tokens?.[token]?.settles),
+        )
       : [];
     const widgets = foldWidgetStates(document.authored, projection);
     const admittedQuestions = ready
-      ? normalizedQuestions(view, state?.browser.thread, widgets, document, projection, local)
+      ? normalizedQuestions(view, widgets, document, projection, local)
       : NO_QUESTIONS;
     const tasks = ready ? localTasks(state, local) : { open: [], ended: [] };
-    // Thread attention is the server's reading, and three local facts adjust it. A
-    // pending send hands the thread to the agent, which `foldThreads` states. A
-    // structural Question survives prose sent beside it, so the admitted Question inventory puts
-    // back the independent obligation that still stands in that thread. A refused send
-    // hands a thread the server left with the agent back to the user, whose
-    // Retry it is.
-    const owed = new Set(admittedQuestions.user
-      .filter((question) => question.source.kind === "widget")
-      .map((question) => question.thread));
+    // Thread attention is the server's reading, and two local facts adjust it. A
+    // pending gesture takes the attention the server read it leaving (`after`, which
+    // `foldThreads` reads). A refused send hands a thread the server left with the
+    // agent back to the user, whose Retry it is.
     // The thread a gesture stands in. A message stands in the thread that draws it,
     // under its pending id or, once the log has it, its attempt. Until one does, a
     // comment opens the thread its own id names, and a reply joins the thread holding
-    // its parent, which need not be that thread's id: a thread that lost its opening
-    // message is answered at the reply that survived, and a parent no thread holds is a
-    // comment of this tab's that the log refused, whose pending id named its thread. A
-    // rewrite stands in its message's thread, a settlement in the thread it settles, and
-    // an action in the thread whose markup froze its widget; a page widget's action stands in
-    // none.
+    // its parent, or, where no thread holds it, the thread its parent names: a comment
+    // of this tab's that the log refused, whose pending id named its thread. A rewrite
+    // stands in its message's thread, a settlement in the thread it settles, and an
+    // action in the thread whose markup froze its widget; a page widget's action stands
+    // in none.
     const named = threadNames(folded);
     const threadOfEntry = ({ event, thread: drawn, namedParent }: LedgerEntry) => {
       const drawnIn = drawn && named.get(drawn.id)?.id;
@@ -988,13 +1005,6 @@ export function createSemanticApplication({
       if (thread) recovery.set(thread, `rejected:${entry.event.attempt}`);
     }
     const obligated = folded.map((thread): Thread => {
-      if (owed.has(thread.id))
-        return thread.attention?.reason === "ask"
-          ? thread
-          : {
-              ...thread,
-              attention: { kind: "needs_user", reason: "ask", workflow: null },
-            };
       const retry = recovery.get(thread.id);
       return retry && thread.attention?.kind !== "needs_user"
         ? {
@@ -1066,7 +1076,7 @@ export function createSemanticApplication({
       markingRead,
       ready,
     );
-    const questions = questionAttention(admittedQuestions, threads);
+    const questions = questionAttention(admittedQuestions, obligated);
     const selectedQueues = localQueues(
       ready ? (view?.queues ?? NO_QUEUES) : NO_QUEUES,
       threads,
@@ -1092,7 +1102,7 @@ export function createSemanticApplication({
         all: threads,
         // Historical system rows are event narration, never current approval state.
         approvalHistory: [
-          ...(state?.browser.thread.approval_history ?? []),
+          ...(state?.browser.approval_history ?? []),
           ...local.flatMap(({ event, localId, timestamp }) => event.kind === "done"
             ? [{ ...event, id: localId, ts: timestamp }] : []),
         ].filter((event) => !local.some(({ event: gesture }) =>
@@ -1242,12 +1252,9 @@ export function createSemanticApplication({
     // Version comparison receives a server projection already interpreted through the
     // requested revision's registry. Keep that admitted spec on the wire; the current
     // document contract must not reinterpret historical events.
-    projectView(
-      view: AuthoritativeState["browser"]["views"][string],
-      thread: AuthoritativeState["browser"]["thread"],
-    ) {
+    projectView(view: AuthoritativeState["browser"]["views"][string]) {
       return foldProjection({
-        ...normalizedProjection(view, thread),
+        ...normalizedProjection(view),
         pendingEntries: [],
       });
     },
@@ -1522,7 +1529,7 @@ export function createSemanticApplication({
       publish({ unresolved });
       return left;
     },
-    // The entries an adopted reading logs that the page has not yet presented.
+    // The entries no document pass has presented yet.
     unpresented: () =>
       publisher.read().unresolved.filter((item) => UNPRESENTED.has(item.state)),
     // The entries `release` would retire now, in ledger order.

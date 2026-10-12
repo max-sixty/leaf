@@ -1,0 +1,162 @@
+"""The website's prepared install needs no compiler, including for custom packages.
+
+Exercise the actual copied launcher, kernel, render probes and offline document.
+Compiler shims fail every attempted Node/package-manager invocation after preparation.
+"""
+
+import json
+import os
+import subprocess
+
+from interact_support import PAGE
+from leaf_dev import ROOT
+from leaf_dev.arms import environment
+from leaf_dev.distribution import prepare
+from playwright.sync_api import expect
+
+
+def test_prepared_install_authors_custom_packages_and_exports_without_builds(
+    tmp_path, spawn, request
+):
+    install = tmp_path / "install"
+    prepare(install)
+    assert (install / "LICENSE").read_bytes() == (ROOT / "LICENSE").read_bytes()
+    manifest = json.loads((install / "package.json").read_text())
+    assert "devDependencies" not in manifest
+    assert "scripts" not in manifest
+    blocked = tmp_path / "blocked"
+    blocked.mkdir()
+    for name in ("node", "npm", "npx", "pnpm"):
+        shim = blocked / name
+        shim.write_text("#!/bin/sh\necho 'unexpected consumer compiler' >&2\nexit 91\n")
+        shim.chmod(0o755)
+    state = tmp_path / "state"
+    consumer_env = environment(
+        XDG_STATE_HOME=str(state),
+        PATH=f"{blocked}{os.pathsep}{os.environ['PATH']}",
+    )
+
+    def leaf(*args):
+        result = subprocess.run(
+            [str(install / "bin/leaf"), *map(str, args)],
+            cwd=tmp_path,
+            env=consumer_env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        return result.stdout
+
+    leaf("package", "init", "custom", "--widget", "lf-risk-note")
+    custom = tmp_path / "custom"
+    (custom / "runtime/custom-helper.js").write_text(
+        'export { once } from "/runtime/widget-api.js";\n'
+    )
+    widget = custom / "widgets/lf-risk-note.js"
+    widget.write_text(
+        widget.read_text().replace(
+            "/runtime/widget-api.js", "/runtime/custom-helper.js"
+        )
+    )
+    leaf("package", "check", "custom")
+    page_dir = tmp_path / "page"
+    leaf(
+        "page",
+        "init",
+        "--package",
+        "./custom",
+        "--package",
+        "diagram",
+        "--package",
+        "playground",
+        page_dir,
+    )
+    source = PAGE.replace(
+        "<lf-options>", '<lf-options id="plan-options" choose>'
+    ).replace(
+        "<h2>Plan</h2>",
+        '<h2>Plan</h2><lf-risk-note id="risk">Custom package works.</lf-risk-note>',
+    )
+    source = source.replace(
+        "</main>",
+        '<lf-playground id="prepared-playground">'
+        '<lf-playground-control name="label" label="Label" kind="text" '
+        'value="Prepared"></lf-playground-control>'
+        "<lf-playground-preview><p>Native initial drawing works.</p>"
+        "</lf-playground-preview><lf-playground-output>Use "
+        '<lf-playground-value for="label"></lf-playground-value>.'
+        "</lf-playground-output></lf-playground></main>",
+    )
+    (page_dir / "index.html").write_text(source)
+    leaf("page", "check", page_dir, "--render")
+    leaf("page", "stamp", page_dir, "--text", "Prepared installation verified")
+    exported = tmp_path / "export.html"
+    server = spawn(
+        [str(install / "bin/leaf"), "server", "run", "--temporary", str(page_dir)],
+        env=consumer_env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    address = json.loads(server.stdout.readline())["url"]
+    # Acquire the browser after spawn so fixture teardown ends the clients first.
+    browser = request.getfixturevalue("browser")
+    for target in (address, exported.as_uri()):
+        if target != address:
+            leaf("page", "export", page_dir, "--out", exported)
+        tab = browser.new_page()
+        tab.goto(target)
+        expect(tab.locator("body")).to_have_attribute("data-lf-presented", "1")
+        expect(tab.locator("lf-risk-note")).to_have_text("Custom package works.")
+        playground = tab.locator("#prepared-playground")
+        expect(playground.locator("input[type=text]")).to_have_value("Prepared")
+        expect(playground.locator("lf-playground-output")).to_contain_text(
+            "Use Prepared."
+        )
+        assert playground.evaluate(
+            "async host => { "
+            "const { initialRender } = await import(document.querySelector('[data-lf-offline]') "
+            "? 'leaf:/runtime/widget-api.js' : '/runtime/widget-api.js'); "
+            "const drawing = initialRender(host); "
+            "return drawing.output === host.querySelector('lf-playground-output') && "
+            "drawing.inputs.get('label') === host.querySelector('input[type=text]'); }"
+        )
+        choice = tab.locator("#flag-first .lf-pick")
+        if target == address:
+            assert playground.evaluate(
+                "host => { let changes = 0; const readings = []; "
+                "host.addEventListener('lf-playground-change', () => changes++); "
+                "const reset = host.querySelector('.lf-playground-reset'); "
+                "reset.click(); readings.push(changes); "
+                "const parent = host.parentNode, next = host.nextSibling; host.remove(); "
+                "reset.click(); readings.push(changes); parent.insertBefore(host, next); "
+                "reset.click(); readings.push(changes); return readings; }"
+            ) == [1, 1, 2]
+            with tab.expect_response(
+                lambda response: (
+                    response.url.split("?")[0].endswith("/api/event")
+                    and response.request.method == "POST"
+                )
+            ) as admitted:
+                choice.click()
+            assert admitted.value.ok
+            expect(choice).to_have_attribute("aria-checked", "true")
+        else:
+            # A stamped offline version is a read-only historical document.
+            expect(choice).to_have_attribute("aria-disabled", "true")
+            expect(choice).to_have_attribute("aria-checked", "true")
+    # Both source and prepared installations reject the same private override.
+    replacement = custom / "runtime/context.js"
+    replacement.write_text("export const privateState = {};\n")
+    for runtime in (ROOT, install):
+        refused = subprocess.run(
+            [str(runtime / "bin/leaf"), "package", "check", str(custom)],
+            cwd=tmp_path,
+            env=consumer_env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert refused.returncode != 0
+        assert "replaces private kernel modules: runtime/context.js" in refused.stderr

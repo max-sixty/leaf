@@ -255,23 +255,7 @@ export async function upgradeWidgets({ buildReactionBar }) {
     throw new Error(`leaf: registry failed to load (${response.status})`);
   const declarations = await response.json();
   adoptRegistry(declarations);
-  const registryGeneration = registry.$layer?.generation;
-  if (typeof registryGeneration !== "string" || !registryGeneration)
-    throw new Error("leaf: registry lacks $layer.generation");
-  if (!sameLayer(registryGeneration)) return false;
-  if (
-    !registry.$events?.kinds ||
-    !registry.$languages?.names ||
-    !registry.$languages?.paths ||
-    !registry.$tones?.names ||
-    !registry.$reactions?.tokens ||
-    !registry.$decisions ||
-    !registry.$states ||
-    !registry.$marks
-  )
-    throw new Error(
-      "leaf: registry lacks $events, $languages, $tones, $reactions, $decisions, $states or $marks",
-    );
+  if (!sameLayer(registry.$layer.generation)) return false;
   const probe = document.querySelector("script[data-lf-vocabulary-root]").dataset
     .lfVocabularyRoot;
   const pageUrl = offlineInteractive

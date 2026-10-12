@@ -2,31 +2,24 @@
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 import { move } from "./dom-move.js";
 
-const detach = (node) => node.remove();
-
-// Destructive replacement ends any template ownership, including directives. Lit's
-// public RootPart.setConnected(false) disposes that lifetime, but render() has no
-// public reset API. Its pinned, deliberately unminified cache key must be discarded
-// with the markers so either native or template recovery can start afresh. A bounded
-// render stores its cache on renderBefore, a direct child, rather than the container.
-export function replaceChildren(container, ...nodes) {
-  for (const owner of [container, ...container.childNodes]) {
-    const part = owner._$litPart$;
-    if (!part || (owner !== container && part.parentNode !== container)) continue;
-    part.setConnected(false);
-    delete owner._$litPart$;
-  }
-  container.replaceChildren(...nodes);
+// Make `parent`'s children `nodes`, in order, without moving a node already in place.
+export function setChildren(parent, nodes) {
+  setChildLists([[parent, nodes]]);
 }
 
-// Make `parent`'s children `nodes`, in order, without moving a node already in place.
-// Removing stale nodes first leaves each following survivor exactly one place forward.
-// One removed is its caller's to hand on, since only the caller knows what stands in
-// for it.
-export function setChildren(parent, nodes, remove = detach) {
-  const keep = new Set(nodes);
-  for (const child of [...parent.childNodes]) if (!keep.has(child)) remove(child);
-  order(parent, nodes);
+// `setChildren` for several `[parent, nodes]` lists at once, where a node can change
+// lists: it moves straight from the parent it leaves to the one it joins, keeping the
+// user standing in it, where one list at a time would remove it before the next placed
+// it. Ordering walks past a stale node, so no survivor moves for it; once every list is
+// placed, what still stands in a list's parent is a node no list holds, and is removed.
+// Lists are placed in the order given, so name a parent before any list inside it: a
+// node then moves into a parent that is already connected.
+export function setChildLists(lists) {
+  for (const [parent, nodes] of lists) orderChildren(parent, nodes);
+  for (const [parent, nodes] of lists) {
+    const keep = new Set(nodes);
+    for (const child of [...parent.childNodes]) if (!keep.has(child)) child.remove();
+  }
 }
 
 // Order this renderer's children without taking ownership of their siblings.
@@ -307,7 +300,7 @@ function patchChildren(liveParent, beforeParent, afterParent, rules) {
     rules.pairs.set(node, live);
     if (live.parentNode === liveParent) placed.push(live);
   }
-  // `setChildren`'s ordering pass, walking past what the runtime put here. A node
+  // `orderChildren`'s ordering pass, walking past what the runtime put here. A node
   // already standing in its place is left alone, which is the whole point: the common
   // revision moves nothing at all. A kept node the revision moves keeps the user
   // standing in it, as nothing else would: the carry restores only replaced nodes.

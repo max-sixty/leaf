@@ -51,6 +51,7 @@ const browserGlobals = Object.fromEntries(
     "HTMLScriptElement",
     "HTMLSpanElement",
     "Highlight",
+    "ImageData",
     "IntersectionObserver",
     "MessageChannel",
     "MouseEvent",
@@ -103,6 +104,27 @@ const browserGlobals = Object.fromEntries(
 
 const RENDERING_MESSAGE =
   "Use nextRender, nextFrame, cancelRender, or sizeObserver (runtime/rendering.js) so the settled reading counts it.";
+const RENDERING_NAMES = [
+  "requestAnimationFrame",
+  "cancelAnimationFrame",
+  "ResizeObserver",
+];
+const RENDERING_PROPERTIES = ["window", "globalThis"].flatMap((object) =>
+  RENDERING_NAMES.map((property) => ({ object, property, message: RENDERING_MESSAGE })),
+);
+const HISTORY_PROPERTIES = ["pushState", "replaceState"].map((property) => ({
+  object: "history",
+  property,
+  message:
+    "Add and rename history entries through runtime/history.js (pushEntry, replaceEntry), which owns traversal among them.",
+}));
+const ID_PROPERTIES = [
+  {
+    property: "randomUUID",
+    message:
+      "Mint ids with runtime/ids.js: crypto.randomUUID is absent outside a secure context, such as a page `leaf --host` serves over plain HTTP.",
+  },
+];
 
 const entryBoundary = {
   "no-restricted-imports": [
@@ -557,6 +579,123 @@ const placementsRule = {
   },
 };
 
+// A node that already stands somewhere moves through `move(parent, node, before)`
+// (runtime/dom-move.js), or `setChildren` beside it, which keeps the user's focus, caret
+// and native state in it; a plain insertion takes the node out first, which blurs it.
+// Which nodes stand somewhere is not visible in source, so the rule refuses what it can
+// read. `insertBefore` and `moveBefore` are the mover's own calls, refused unless the
+// node is made in the same expression. `append`, `prepend`, `before`, `after`,
+// `appendChild`, `replaceChildren` and `replaceWith` mostly place new nodes, so they are
+// refused only where a condition around them asks where the node stands (its parent or
+// a sibling, or whether something contains it): a node that may stand elsewhere already.
+// The option names the files that may still call the platform's movers.
+const MOVE_MESSAGE =
+  "Place a node that may already stand somewhere with move(parent, node, before) or setChildren (runtime/dom-move.js, dom-children.js; widget-api.js in a package): a plain insertion blurs it and drops its caret.";
+const MADE = new Set([
+  "createElement",
+  "createElementNS",
+  "createTextNode",
+  "createComment",
+  "createDocumentFragment",
+  "cloneNode",
+  "importNode",
+]);
+const INSERTS = new Set([
+  "append",
+  "prepend",
+  "before",
+  "after",
+  "appendChild",
+  "replaceChildren",
+  "replaceWith",
+]);
+const STANDING = new Set([
+  "parentNode",
+  "parentElement",
+  "nextSibling",
+  "previousSibling",
+  "nextElementSibling",
+  "previousElementSibling",
+]);
+export const movesRule = {
+  meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
+  create(context) {
+    const file = path
+      .relative(standingRepoRoot, context.filename ?? context.getFilename())
+      .split(path.sep)
+      .join("/");
+    if ((context.options[0] ?? []).includes(file)) return {};
+    const text = (node) => context.sourceCode.getText(node);
+    const method = (node) =>
+      node.callee.type === "MemberExpression" && !node.callee.computed
+        ? node.callee.property.name
+        : null;
+    const standingOf = (node) =>
+      node.type === "MemberExpression" &&
+      !node.computed &&
+      STANDING.has(node.property.name);
+    // Whether `test` asks where one of `names` stands.
+    const asksWhere = (test, names) => {
+      if (!test || typeof test.type !== "string") return false;
+      if (standingOf(test) && names.has(text(test.object))) return true;
+      if (
+        test.type === "BinaryExpression" &&
+        [test.left, test.right].some((side) => names.has(text(side))) &&
+        [test.left, test.right].some(standingOf)
+      )
+        return true;
+      if (
+        test.type === "CallExpression" &&
+        method(test) === "contains" &&
+        test.arguments.some((argument) => names.has(text(argument)))
+      )
+        return true;
+      return Object.entries(test).some(
+        ([key, value]) =>
+          key !== "parent" &&
+          (Array.isArray(value)
+            ? value.some((each) => asksWhere(each, names))
+            : asksWhere(value, names)),
+      );
+    };
+    // The conditions the call runs under, within its own function.
+    const conditions = function* (node) {
+      for (let at = node; at.parent && !isFunction(at.parent); at = at.parent) {
+        const { parent } = at;
+        if (
+          (parent.type === "IfStatement" || parent.type === "ConditionalExpression") &&
+          parent.test !== at
+        )
+          yield parent.test;
+        else if (parent.type === "LogicalExpression" && parent.right === at)
+          yield parent.left;
+      }
+    };
+    return {
+      CallExpression(node) {
+        const name = method(node);
+        if (name === "insertBefore" || name === "moveBefore") {
+          const [inserted] = node.arguments;
+          if (!(inserted?.type === "CallExpression" && MADE.has(method(inserted))))
+            context.report({ node, message: MOVE_MESSAGE });
+          return;
+        }
+        if (!INSERTS.has(name)) return;
+        const names = new Set(
+          node.arguments
+            .filter((argument) => argument.type !== "SpreadElement")
+            .map(text),
+        );
+        for (const test of conditions(node))
+          if (asksWhere(test, names)) {
+            context.report({ node, message: MOVE_MESSAGE });
+            return;
+          }
+      },
+    };
+  },
+};
+
 // A layer hands the user back as it closes in one act (`closeLayer(close, land)` in
 // focus.js), so the platform's own hand-back and the owner's reach readers once, as where
 // the user ends up. A return made anywhere else is a layer return beside it, which
@@ -726,6 +865,7 @@ const architecturePlugin = {
     "semantic-store-ownership": semanticStoreOwnershipRule,
     "standing-listeners": standingListenersRule,
     placements: placementsRule,
+    moves: movesRule,
     "layer-returns": layerReturnsRule,
     "root-state-ownership": {
       meta: { type: "problem", schema: [] },
@@ -1107,7 +1247,7 @@ export default [
   {
     // Python executes these test expressions and modules inside the browser. Their
     // source is linted here rather than hidden inside Python string literals.
-    files: ["tests/browser/**/*.js"],
+    files: ["tests/page_scripts/**/*.js"],
     languageOptions: { globals: browserGlobals },
     rules: { "no-undef": "error" },
   },
@@ -1231,17 +1371,7 @@ export default [
     rules: {
       "no-restricted-globals": [
         "error",
-        ...["requestAnimationFrame", "cancelAnimationFrame", "ResizeObserver"].map(
-          (name) => ({ name, message: RENDERING_MESSAGE }),
-        ),
-      ],
-      "no-restricted-properties": [
-        "error",
-        ...["window", "globalThis"].flatMap((object) =>
-          ["requestAnimationFrame", "cancelAnimationFrame", "ResizeObserver"].map(
-            (property) => ({ object, property, message: RENDERING_MESSAGE }),
-          ),
-        ),
+        ...RENDERING_NAMES.map((name) => ({ name, message: RENDERING_MESSAGE })),
       ],
     },
   },
@@ -1286,6 +1416,13 @@ export default [
         [
           // The owner of the hand-back and the let-go.
           "skills/leaf/assets/runtime/focus.js",
+        ],
+      ],
+      "architecture/moves": [
+        "error",
+        [
+          // The one mover.
+          "skills/leaf/assets/runtime/dom-move.js",
         ],
       ],
     },
@@ -1391,31 +1528,32 @@ export default [
     languageOptions: { sourceType: "script" },
   },
   {
+    // Properties the layer and its packages reach only through their owner. A file
+    // takes a rule's options from the last block matching it, not a merge of every
+    // block's, so all of them stand in this one list, and the history owners' block
+    // below repeats the others.
+    files: ["skills/leaf/assets/**/*.js", "skills/leaf/packages/*/**/*.js"],
+    ignores: ["skills/leaf/assets/vendor/**", "skills/leaf/packages/*/vendor/**"],
+    rules: {
+      "no-restricted-properties": [
+        "error",
+        ...RENDERING_PROPERTIES,
+        ...HISTORY_PROPERTIES,
+        ...ID_PROPERTIES,
+      ],
+    },
+  },
+  {
     // runtime/history.js owns this document's session history: a Back to an entry the
     // page added returns to the place it was left at only because that owner takes the
     // traversal. The prepaint bootstrap runs before any module, and only cleans marks
     // off the address the document arrived at.
-    files: ["skills/leaf/assets/**/*.js", "skills/leaf/packages/**/*.js"],
-    ignores: [
+    files: [
       "skills/leaf/assets/runtime/history.js",
       "skills/leaf/assets/runtime/bootstrap.js",
     ],
     rules: {
-      "no-restricted-properties": [
-        "error",
-        {
-          object: "history",
-          property: "pushState",
-          message:
-            "Add and rename history entries through runtime/history.js (pushEntry, replaceEntry), which owns traversal among them.",
-        },
-        {
-          object: "history",
-          property: "replaceState",
-          message:
-            "Add and rename history entries through runtime/history.js (pushEntry, replaceEntry), which owns traversal among them.",
-        },
-      ],
+      "no-restricted-properties": ["error", ...RENDERING_PROPERTIES, ...ID_PROPERTIES],
     },
   },
   {

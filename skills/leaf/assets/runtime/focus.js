@@ -65,12 +65,33 @@ import { keeps } from "./keeps.js";
 import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
 import { renderedParent } from "./shadow-tree.js";
 
-// The stops Tab walks inside `root` right now, in document order: the candidates above
-// that are in the order, enabled, and drawn. A modal's own Tab loop reads this.
+// The elements under `node` in the tree as rendered: a host's shadow tree in place of
+// its children, and a slot's assigned elements, or its fallback, in its place. A host
+// its author took out of the order (a negative `tabindex`) takes its whole tree out
+// with it, so Tab skips what it renders.
+function* renderedElements(node) {
+  const children =
+    node.localName === "slot"
+      ? node.assignedElements({ flatten: true })
+      : (node.shadowRoot ?? node).children;
+  for (const child of children) {
+    yield child;
+    if (child.shadowRoot && parseInt(child.getAttribute("tabindex")) < 0) continue;
+    yield* renderedElements(child);
+  }
+}
+const SEQUENTIAL = `${TAB_STOP}, iframe, audio[controls], video[controls]`;
+// The controls inside `root` that take a Tab stop right now, through open shadow trees as
+// rendered: the candidates above and the embedded documents and players Tab enters, in
+// the order, enabled, and drawn. A host that delegates its focus is no stop of its own,
+// since Tab enters its tree. Which of them Tab visits, and in what order, is the
+// browser's; nothing here predicts its walk.
 export const tabStops = (root) =>
-  [...root.querySelectorAll(TAB_STOP)].filter(
+  [...renderedElements(root)].filter(
     (node) =>
+      node.matches(SEQUENTIAL) &&
       node.tabIndex >= 0 &&
+      !node.shadowRoot?.delegatesFocus &&
       !node.matches(":disabled") &&
       !node.inert &&
       node.checkVisibility({ visibilityProperty: true }),
@@ -85,7 +106,7 @@ export const tabStops = (root) =>
 // to. The cause is one of:
 //
 // - `move`: a route taking the user somewhere, whether a key or a press began it;
-// - `step`: standing in for Tab or Shift+Tab, as a modal's own Tab loop does;
+// - `step`: standing in for Tab or Shift+Tab;
 // - `return`: putting the user back where they came from or handing them across, a
 //   closing layer's hand-back, a re-render carrying them to the node that replaced the
 //   one they stood on, a chrome placement moving the box they stand in;
@@ -390,7 +411,7 @@ let stood = null;
 //   for what it lands on; or a placement landing on a control to press it on the user's
 //   behalf (`focusDestination`), which asks the same;
 // - `step`: sequential navigation, Tab or Shift+Tab, whether the browser moves them or
-//   a placement stands in for it, as a modal's Tab loop does;
+//   a placement stands in for it;
 // - `move`: a placement taking them somewhere, or anything else, whether a key or a
 //   press began it (`pressLed` says which);
 // - `drop`: a change hid or removed the node they stood on, and focus fell to the body,
@@ -531,7 +552,9 @@ export const pressLed = () => pressedPath !== null;
 // The Tab the user is pressing, from its keydown until the task that moves them ends.
 let stepping = null;
 // Focus coming out of a dialog or popover that no longer stands is that layer handing it
-// back as it closes, whether the platform or the layer's owner moves it.
+// back as it closes, whether the platform or the layer's owner moves it. A nonmodal
+// dialog closing hands focus back too, so this asks of every dialog rather than of the
+// native layers layer-stack.js holds, which imports this module.
 const leftClosedLayer = (left) => {
   const layer = left?.closest?.("dialog, [popover]");
   return Boolean(layer) && !layer.matches("dialog[open], :popover-open");

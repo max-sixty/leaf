@@ -1,7 +1,6 @@
-/* Keyed synchronous Lit thread seats outside the panel. Descriptors contain
-   values; native first-message and response editors remain explicit capabilities. */
+/* Synchronous thread seats outside the panel. Each seat owns its host children. */
 import { registryFor } from "../registry.js";
-import { render, repeat } from "../../vendor/browser-runtime.js";
+import { setChildren } from "../dom-children.js";
 import { seatRoot } from "./model.js";
 import { ThreadView, threadReading } from "./thread-card.js";
 import { elementById } from "../passages.js";
@@ -80,19 +79,9 @@ class ThreadSeat {
         );
       view.setMarginControls(this.#marginControls);
       view.present(descriptor);
-      return { key: descriptor.key, node: view.node };
+      return view.node;
     });
-    render(
-      [
-        repeat(
-          nodes,
-          (item) => item.key,
-          (item) => item.node,
-        ),
-        foot,
-      ],
-      this.node,
-    );
+    setChildren(this.node, foot ? [...nodes, foot] : nodes);
     // The seat's own box gives way to the thread its message started, and the user stands
     // on that thread, where any send leaves them (`landSent`). Threads the seat held back
     // show with the user's, which is the one they stand on.

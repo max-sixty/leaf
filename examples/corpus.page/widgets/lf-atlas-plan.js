@@ -10,7 +10,6 @@ import {
   readWork,
   render,
   repeat,
-  whileConnected,
   watchReports,
 } from "/runtime/widget-api.js";
 export default class extends HTMLElement {
@@ -23,10 +22,10 @@ export default class extends HTMLElement {
     );
     if (!this.overview) return;
     this.hold = new HeldReading(
+      this,
       () => [this.overview.querySelector(".atlas-stopped")],
       () => this.watching.refresh(),
     );
-    whileConnected(this, () => () => this.hold.dispose());
     this.button = this.overview.querySelector(".atlas-refresh");
     this.button.addEventListener("click", () => {
       this.hold.release();

@@ -4,15 +4,19 @@
  * Allocation captures the owning widget's immutable revision. Reset replaces the
  * allocation, admitting its initial document with a credentialless HEAD before
  * native navigation. A later authored navigation keeps the frame and disables its
- * private port; an ordinary reload reconnects with a fresh presentation promise.
+ * private port; an ordinary reload reconnects.
  * An opaque parent cannot classify a later document which has no Leaf bootstrap.
  * Departed ports cannot settle the replacement's calls.
- * `ready` and calls reject with `AbortError` only when the host's owner cancels
- * them, by destroying the host or resetting its allocation. When the child document
- * departs, through an authored navigation or a reload, they reject with
- * `SampleDepartedError`; a reload then reconnects and announces `loading` with a
- * fresh `ready`, and whatever the owner applied to the departed document it
- * applies again to the new one.
+ * `ready` is the presentation of the sample's next document. When the child
+ * document departs, through an authored navigation or a reload, `ready` becomes one
+ * promise for the document a reload presents next, which announces itself with
+ * `loading`. A call made meanwhile waits on it, and whatever the owner applied to the
+ * departed document it applies again once it resolves. Nothing follows an external
+ * destination, so that wait lasts until the owner resets or destroys the host.
+ * `ready` and calls reject with `AbortError` only when the owner cancels them that
+ * way, and with the next document's failure when it fails to start. A call the
+ * departed document had not answered rejects with `SampleDepartedError`, since
+ * commands belong to one document.
  * A block follows the child's reported height; a window keeps its own viewport.
  * A reading step the child's scroll chain spent goes on from the frame here, as the
  * wheel's scroll chains out of a frame (navigation.js, `stepAlong`).
@@ -46,8 +50,10 @@ import {
   readSampleVisibility,
 } from "./sample-visibility.js";
 import { keeps } from "./keeps.js";
+import { move } from "./dom-move.js";
 import { nextRender, sizeObserver } from "./rendering.js";
 import { recordInteraction } from "./interaction-log.js";
+import { aborted } from "./abort.js";
 
 // A page can carry many samples. Their child documents each import the runtime;
 // presenting them together can exhaust the browser's request pool before any child
@@ -59,20 +65,17 @@ const loadWaiters = [];
 let nextHost = 0;
 async function loadWithinLimit(work, signal) {
   signal.throwIfAborted();
-  if (loadingSamples === MAX_LOADING_SAMPLES)
-    await new Promise((resolve, reject) => {
-      const proceed = () => {
-        signal.removeEventListener("abort", cancel);
-        resolve();
-      };
-      const cancel = () => {
-        loadWaiters.splice(loadWaiters.indexOf(proceed), 1);
-        reject(signal.reason);
-      };
-      signal.addEventListener("abort", cancel, { once: true });
-      loadWaiters.push(proceed);
-    });
-  else loadingSamples++;
+  if (loadingSamples === MAX_LOADING_SAMPLES) {
+    const { promise: turn, resolve: proceed } = Promise.withResolvers();
+    loadWaiters.push(proceed);
+    await Promise.race([turn, aborted(signal)]);
+    // A slot handed over before the abort is this load's to run and release.
+    const waiting = loadWaiters.indexOf(proceed);
+    if (waiting !== -1) {
+      loadWaiters.splice(waiting, 1);
+      throw signal.reason;
+    }
+  } else loadingSamples++;
   let released = false;
   const release = () => {
     if (released) return;
@@ -87,7 +90,7 @@ async function loadWithinLimit(work, signal) {
   }
 }
 
-// The child document left; a reload announces its successor with `loading`.
+// The child document left before answering a call.
 const departure = (message) => new DOMException(message, "SampleDepartedError");
 
 const mounted = new Map();
@@ -109,11 +112,15 @@ const request = (url, body, headers = {}) =>
 
 export function mountSample(frame, { template, window: asWindow = false }) {
   if (!template) throw new Error("a sample needs an authored template id");
+  // A template is declared in its revision's document or in a message's frozen
+  // markup, which the server reads from the log beside the current revision.
   let revision = runtime.currentRevision;
+  let message;
   for (let owner = frame.parentElement; owner; owner = owner.parentElement) {
     const descriptor = widgetDescriptor(owner);
     if (!descriptor) continue;
     if (descriptor.document.kind === "page") revision = descriptor.document.revision;
+    else message = descriptor.document.message;
     break;
   }
   let current = null;
@@ -210,8 +217,10 @@ export function mountSample(frame, { template, window: asWindow = false }) {
     for (const { reject } of pending.values()) reject(reason);
     pending.clear();
   }
-  // Public readiness includes failure retirement. Reset coalesces this same
-  // operation, so a reported failure already permits a fresh allocation.
+  // Public readiness includes failure retirement. Reset coalesces with an
+  // allocation's own operation, so a reported failure already permits a fresh one.
+  // A reload's presentation, or a departure's wait, is not an operation: Reset then
+  // allocates afresh.
   function begin(work) {
     const active = work;
     operation = active;
@@ -226,9 +235,8 @@ export function mountSample(frame, { template, window: asWindow = false }) {
     try {
       return await work;
     } catch (error) {
-      // A departed document leaves the browser's destination in the frame. Reset
-      // and destroy retire allocations themselves.
-      if (error.name !== "AbortError" && error.name !== "SampleDepartedError") {
+      // Reset and destroy retire allocations themselves.
+      if (error.name !== "AbortError") {
         recordFailure(error);
         await retire("failure", error);
       }
@@ -247,6 +255,15 @@ export function mountSample(frame, { template, window: asWindow = false }) {
         reject(error);
       };
     });
+  }
+  // A departed or replaced document's successor presents into the presentation
+  // already pending, so a departure and the reload after it share one `ready`.
+  function awaitNext() {
+    if (presenting) return;
+    host.ready = settle(presentation());
+    // Owners read its outcome from `ready`; a host nobody awaits drops it, as an
+    // operation's does.
+    host.ready.catch(() => {});
   }
   function failure(error) {
     if (presenting) readyReject(error);
@@ -288,9 +305,7 @@ export function mountSample(frame, { template, window: asWindow = false }) {
         hasConnected = true;
         record("connected", { reloading });
         if (reloading) {
-          const previousResolve = readyResolve;
-          const previousReject = readyReject;
-          begin(settle(presentation())).then(previousResolve, previousReject);
+          awaitNext();
           notify("loading");
         }
         visibility();
@@ -300,10 +315,10 @@ export function mountSample(frame, { template, window: asWindow = false }) {
       if (channel !== port) return;
       if (data.type === "departed") {
         record("departed");
-        const error = departure("sample document navigated");
-        disconnect(error);
-        if (presenting) readyReject(error);
-        else begin(Promise.reject(error));
+        disconnect(departure("sample document navigated"));
+        // Reset need not wait for a document that may never come.
+        operation = null;
+        awaitNext();
         notify("departed");
         return;
       }
@@ -407,7 +422,7 @@ export function mountSample(frame, { template, window: asWindow = false }) {
     const next = frame.nextSibling;
     frame.remove();
     frame.removeAttribute("src");
-    parent?.insertBefore(frame, next);
+    if (parent) move(parent, frame, next);
     record("retired", { reason, document: retiringDocument, sample });
     return request(new URL("api/release", previous), {}).catch((error) => {
       recordFailure(error, {
@@ -428,7 +443,7 @@ export function mountSample(frame, { template, window: asWindow = false }) {
         record("allocating");
         const { url, page } = await request(
           pageUrl("api/samples"),
-          { template },
+          { template, message },
           revision ? { "Leaf-View-Revision": String(revision) } : {},
         );
         current = new URL(url, location.href).href;

@@ -71,16 +71,17 @@ report.
 An ordinary document's thread namespace is the thread ids its log holds,
 including a thread whose opening comment the log lost. A sample template's
 namespace comes from its initial history. `sample_content.initial_sample_history`
-constructs its effective events and reserved widget identities once for both static
-validation and allocation. An unavailable captured island contributes no markup,
-while its raw identity remains reserved anywhere its selected thread history carries
-an action that could name it. `data-sample-events` names an inline inert JSON script
-in the captured parent document: its ordinary event commands are admitted against
-the child, including file-side anchor capture and the shared message-markup gate.
-The resulting history defines the child's thread namespace before presentation and
-never writes the parent's log.
+constructs effective events and reserved widget identities once for static validation,
+message admission and allocation. Unavailable captured islands contribute no markup;
+carried actions still reserve their raw widget identities. A template is declared
+in the page document or frozen message markup. `data-sample-events` names an inert
+JSON script in that declaring markup, whose ordinary commands pass through child
+admission, file-side anchor capture and the message-markup gate. The resulting
+history defines the child namespace before presentation and never writes the
+parent log.
 
-Alternatively, `data-sample-threads` selects from the parent's available history.
+Alternatively, `data-sample-threads` selects from the parent page's available history,
+for a message's template as for the page's.
 A first version may name threads whose seed log has not been written yet; a thread
 the log does not hold leaves the child without it rather than refusing the page.
 Corpus generation selects against the shipped log it is composing from, where a
@@ -115,8 +116,7 @@ shadow tree, one in an embedded frame placed at that frame (a widget failing sof
 is a console error, since the page reports it);
 every widget upgraded, painted with values that resolve, and given real space;
 words a user can mark, reach, and select, with the registry's verbatim and shadow
-declarations honored; no sideways scroll, clipped control, squeezed table, or
-misplaced box; space below words and controls for a horizontal overlay scrollbar;
+declarations honored; no sideways scroll, clipped control, or misplaced box; space below words and controls for a horizontal overlay scrollbar;
 and standing state that replays without conflict and idempotently.
 `render_gate/readings.py` is the list. Those readings run
 at a desktop and a phone viewport; once they are done, the loaded desktop page is
@@ -129,9 +129,11 @@ run again there in the light scheme, where each resident has the least room it w
 ever have. It reads, too, how each flex or grid box the page wrote splits its children
 into rows, and the swept widths where that changes.
 At each swept width it also reads, as advice, each drawing whose fit to its box draws
-labels under 10px, and reports each unbroken run of widths where one appears, with its
-reading at the narrowest of them. Swept sideways faults are reported by run the same
-way.
+labels under 10px and each table that scrolls with a cell wrapped, and reports each
+unbroken run of widths where one appears, with its reading at the narrowest of them.
+A squeezed table is advice at every width, the two the gate renders among them: the
+table still scrolls with every word in reach, and the remedy is a choice of
+composition. Swept sideways faults are reported by run the same way.
 
 A version that passes gets screens for the author to read (`render_gate/screens.py`):
 the page's first eight screens down from its top at the desktop viewport, at the

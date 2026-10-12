@@ -38,9 +38,9 @@ import { showHeld } from "./thread/held-news.js";
 import { threadBox as buildThreadBox } from "./thread/box.js";
 import { isMessageEvent } from "./pending/model.js";
 import {
-  placeThreads as registerConsumer,
   placePageThreads as registerPageConsumer,
   renderSurfaces,
+  watchThreadSurfaces as watchSurfaces,
 } from "./thread/surfaces.js";
 import { createStateApplication } from "./state-application.js";
 import { createStateFeed } from "./state-feed.js";
@@ -55,7 +55,8 @@ const app = () => {
 
 export function mountApplication(dependencies) {
   if (application) throw new Error("Leaf application mounted twice");
-  setPresentationFailureReporter(reportPageError);
+  // A renderer's rejection reaches the coordinator after a paint may have reported it.
+  setPresentationFailureReporter(reportCarried);
   const { ledger } = commandDispatch;
   watchPendingTraffic(applicationState.select((root) => root.effective.sending));
   const hasPending = () => ledger.snapshot().length > 0;
@@ -343,26 +344,21 @@ export function mountApplication(dependencies) {
       }),
     read,
   });
-  const registerThreadPanel = ({ controller, threadsBox, view, required = false }) => {
-    let registration;
-    registration = threadPresenter.registerPanel({
+  const registerThreadPanel = ({ controller, threadsBox, view }) =>
+    threadPresenter.registerPanel({
       controller,
       threadsBox,
-      required,
       view: {
         ...view,
         card: {
           ...cardView,
-          nativeAuthored: (message) =>
-            required && !threadPresenter.primaryOwnsMessage(message),
+          nativeAuthored: (message) => !threadPresenter.primaryOwnsMessage(message),
           travel: { ...cardView.travel, ...view.travel },
         },
         placedAt: dependencies.anchorPlacement.placedAt,
-        repaintThread: required ? refreshThread : () => registration.update(),
+        repaintThread: refreshThread,
       },
     });
-    return registration;
-  };
 
   const accountPending = (receipts) => {
     const left = ledger.present(receipts);
@@ -473,8 +469,9 @@ export function mountApplication(dependencies) {
       throw error;
     }
   };
-  const placeThreads = (owner, render) =>
-    registerConsumer(owner, render, threadSurfaceCommands);
+  // The widgets declaring x-thread-surface, registered for as long as they stand, once
+  // the registry that names them has loaded.
+  const watchThreadSurfaces = () => watchSurfaces(threadSurfaceCommands);
   const placePageThreads = (owner, render) => {
     requirePageAnnotations();
     return registerPageConsumer(owner, render, threadSurfaceCommands);
@@ -483,8 +480,6 @@ export function mountApplication(dependencies) {
     registerMirrorConsumer(owner, render, { commands: inlineView });
 
   const registerThreadPresentation = (owner, { render, reveal }) => {
-    if (typeof reveal !== "function")
-      throw new TypeError("A Thread presentation needs a reveal callback");
     const reader = createPrimaryReader(owner, render, inlineView, () =>
       threadPresenter.present(),
     );
@@ -534,7 +529,7 @@ export function mountApplication(dependencies) {
     readAndApply: feed.readAndApply,
     refreshThread,
     presentThread,
-    placeThreads,
+    watchThreadSurfaces,
     placePageThreads,
     consumeAnnotations,
     mountThreadViews,
@@ -577,7 +572,6 @@ export const post = commandDispatch.post;
 export const projectData = (...args) => app().projectData(...args);
 export const readAndApply = (...args) => app().readAndApply(...args);
 export const refreshThread = (...args) => app().refreshThread(...args);
-export const placeThreads = (...args) => app().placeThreads(...args);
 export const placePageThreads = (...args) => app().placePageThreads(...args);
 export const consumeAnnotations = (...args) => app().consumeAnnotations(...args);
 export const mountThreadViews = (...args) => app().mountThreadViews(...args);

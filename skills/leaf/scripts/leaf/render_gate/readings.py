@@ -241,9 +241,6 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     overflow = column["overflow"]
     misplaced = column["misplaced"]
     scrollbars = evaluate_probe(page, "scrollbarClearance")
-    # This experiment writes and removes a temporary wrapping rule. Preserve its
-    # position between the two read-only groups so each reads the same restored page.
-    squeezed = evaluate_probe(page, "squeezedTables")
     reachability = evaluate_probe(page, "reachabilityReading")
     clipped = reachability["clipped"]
     unreachable = reachability["unreachable"]
@@ -270,10 +267,10 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
         # deliberately returns none there. Everywhere else, ask the merged registry
         # for the instances and the module's own marker for the host it placed.
         missing_threads = evaluate_probe(page, "missingThreads", declarations)
-        # Behind the caught-up wait above: a report moves a painted attribute and
-        # the pass that speaks it runs before the stamp, so a reading taken any
-        # earlier asks after a word the page has not been asked to say yet. A page
-        # that never caught up is already reported there and read no further.
+        # Behind the caught-up wait above: a report moves a declared attribute, so
+        # a reading taken any earlier asks after a word the page has not been asked
+        # to say yet. A page that never caught up is already reported there and
+        # read no further.
         if replayed:
             silent = evaluate_probe(page, "silentWords", declarations)
             # Behind the same wait, because reconciliation is one of the two
@@ -350,7 +347,6 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     ]
     found += [f"[{scheme}] {text}" for _key, text in _overflow(overflow, misplaced)]
     found += [f"[{scheme}] {text}" for _key, text in _scrollbars(scrollbars)]
-    found += [f"[{scheme}] {s}" for s in squeezed]
     found += [
         f"[{scheme}] the control .{c['ctrl'].split()[0]}"
         + (f" (#{c['id']})" if c["id"] else "")
@@ -563,6 +559,26 @@ def swept_overflow(readings, viewports) -> list[str]:
 # can draw a page worse than either fixed viewport does. Each item names the widths it
 # spans and what it reads at the narrowest. Which of those widths a page answers for is
 # the author's call, so none of it refuses a version.
+
+
+def squeezed_table_advice(readings) -> list[str]:
+    """Advice naming each table that scrolls sideways with a cell wrapped.
+
+    The sweep is the reading's only home, and it takes in the fixed viewports' widths.
+    Advice rather than a failure because the table still scrolls and every word in it
+    stays in reach: what costs the reader is prose wrapped a word a line beside a
+    scroller, and the remedy (a column fewer, shorter words, an identifier in `<code>`)
+    is a choice of composition only the author can make."""
+    return [
+        f"at {_span(widths)} wide, {text}"
+        for widths, text in _swept(
+            readings,
+            lambda reading: (
+                ((table["place"], "squeezed"), table["text"])
+                for table in reading["squeezed"]
+            ),
+        )
+    ]
 
 
 def shrunk_label_advice(readings) -> list[str]:

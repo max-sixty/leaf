@@ -379,11 +379,14 @@ def _render_scheme(
         )
         if visual_provider_problems:
             # The inventory is the boundary every runtime visual reading trusts. Once
-            # it is invalid, read and presentation errors are consequences of that
-            # same fault and the settled-page probes have no valid page to inspect.
+            # it is invalid, the settled-page probes have no valid page to inspect.
+            # What the console already said stays: another widget's failure is a
+            # fault of its own, and a presentation the inventory broke is one the
+            # user would see.
             page.close()
             return (
                 [
+                    *[f"[{scheme}] console: {error}" for error in errors],
                     *[
                         f"[{scheme}] console: pre-upgrade: {finding}"
                         for finding in pre_upgrade
@@ -395,7 +398,7 @@ def _render_scheme(
                         for problem in visual_provider_problems
                     ],
                 ],
-                [],
+                [f"[{scheme}] console: {notice}" for notice in resize_notices],
                 True,
             )
     except PlaywrightTimeout as e:

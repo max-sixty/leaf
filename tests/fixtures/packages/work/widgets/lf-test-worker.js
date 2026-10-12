@@ -2,7 +2,6 @@
  * of the Atlas example's composition. */
 import {
   ago,
-  clocked,
   html,
   keeps,
   once,
@@ -10,7 +9,6 @@ import {
   render,
   saidAt,
   reportSequence,
-  whileConnected,
   watchReports,
   widgetController,
 } from "/runtime/widget-api.js";
@@ -21,12 +19,8 @@ export default class extends HTMLElement {
     this.line = document.createElement("div");
     this.line.dataset.lfGen = "1";
     this.append(this.line);
-    whileConnected(this, () => {
-      this.paint = clocked(this, () => this.show());
-      return () => this.paint.stop();
-    });
     this.#controller.subscribe(() => {});
-    watchReports(this, () => this.paint());
+    watchReports(this, () => this.show());
   }
   renderState(state) {
     keeps(this, "state", state.state.value);

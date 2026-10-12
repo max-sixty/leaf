@@ -27,6 +27,7 @@
  */
 import {
   commandScope,
+  commandsOn,
   DISCLOSE,
   holdFocus,
   html,
@@ -96,7 +97,6 @@ export default class extends HTMLElement {
   #controller = widgetController(this);
   #body;
   #reading = null;
-  #historySummary = null;
   #editor = null;
   #sending = false;
   #failed = false;
@@ -172,7 +172,7 @@ export default class extends HTMLElement {
       // Recovery chooses the first action face: an unsent editor opens with Save
       // and Cancel, without briefly publishing the resting Edit control.
       this.#recoverEdit(reading);
-      this.#paintAvailability();
+      this.#paintFooter();
       if (this.#editor && !this.#resumeProjection && reading.actions.edit.available)
         this.#resumeProjection = this.#controller.defer();
     });
@@ -280,13 +280,15 @@ export default class extends HTMLElement {
     return this.#footer?.querySelector(`[data-lf-draft-action="${key}"]`) ?? null;
   }
 
+  // The editor and the footer's controls follow one reading of availability.
   #paintFooter() {
     if (!this.#footer) return;
     const editing = Boolean(this.#editor);
     const blocked = !this.#available();
+    if (this.#editor) this.#editor.readOnly = blocked;
     // A restore control disappears when its text becomes the standing text.
     // Surviving controls keep native focus; that completed action returns to history.
-    const history = this.#historySummary?.parentElement;
+    const history = this.#footer.querySelector(":scope > details");
     const restore = history && holdFocus(history);
     render(
       html`${this.#historyView(this.#reading, editing, blocked)}
@@ -309,15 +311,9 @@ export default class extends HTMLElement {
         </div>`,
       this.#footer,
     );
-    this.#declareHistoryKeys();
-    restore?.(this.#historySummary);
+    restore?.(history.querySelector(":scope > summary"));
     paintKeys();
   }
-
-  #paintAvailability = () => {
-    if (this.#editor) this.#editor.readOnly = !this.#available();
-    this.#paintFooter();
-  };
 
   #available() {
     return Boolean(this.#controller.read().actions.edit?.available);
@@ -348,7 +344,16 @@ export default class extends HTMLElement {
       })),
     ];
     return html`<details ${offered("lf-draft-history")} ?hidden=${editing}>
-      <summary>
+      <summary
+        ${commandsOn("On a draft", (summary) => [
+          {
+            id: "draft.history.toggle",
+            keys: () => DISCLOSE(summary),
+            title: () =>
+              `${summary.parentElement.open ? "hide" : "show"} the history`,
+          },
+        ])}
+      >
         Changes · ${actions.length} ${actions.length === 1 ? "edit" : "edits"}
       </summary>
       <section class="lf-draft-current">
@@ -402,20 +407,6 @@ export default class extends HTMLElement {
     return html`<div class="lf-draft-delta">${content}</div>`;
   }
 
-  // The summary is a stable node now; its disclosure line is declared once per node.
-  #declareHistoryKeys() {
-    const summary = this.#footer.querySelector(":scope > details > summary");
-    if (!summary || summary === this.#historySummary) return;
-    this.#historySummary = summary;
-    commands(summary, "On a draft", [
-      {
-        id: "draft.history.toggle",
-        keys: () => DISCLOSE(summary),
-        title: () => `${summary.parentElement.open ? "hide" : "show"} the history`,
-      },
-    ]);
-  }
-
   async #restore(text, label) {
     if (!this.#available()) return;
     if (this.#sending) {
@@ -465,7 +456,7 @@ export default class extends HTMLElement {
     this.#editor = editor;
     commands(editor, this.#commandScope);
     this.#body.after(editor);
-    this.#paintAvailability();
+    this.#paintFooter();
     // A pointer is already on visible words. Opening their editor preserves that
     // place before handing the clicked caret across; the Edit control instead reveals
     // the initial caret at the end of the text. A padding press carries null.

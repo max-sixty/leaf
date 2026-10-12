@@ -54,6 +54,7 @@ import "./text-field.js";
 import { followBoxGrowth, readBoxPlace } from "../thread/reply-landing.js";
 import { focusDestination, focused } from "../focus.js";
 import { whileConnected } from "../arrivals.js";
+import { move } from "../dom-move.js";
 import { applicationState } from "../semantic-state.js";
 
 const inputDrafts = new WeakMap();
@@ -227,6 +228,11 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       // Where the submit control stands: in the field beside the words, or in a group of
       // the caller's that holds it elsewhere, as a rewrite's stands at its message's head.
       submitIn = null,
+      // The attachment shelf stands on the side the box grows toward, so attaching never
+      // moves the words being written. A box held by its top, as the page comment card
+      // hangs from the banner, takes it below the field; one held by its foot, as a
+      // reply pinned to its scroller's foot, above.
+      mediaBelow = false,
     },
   ) {
     const field = document.createElement("div");
@@ -283,7 +289,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     mediaShelf.className = "lf-composer-media";
     mediaShelf.setAttribute("role", "group");
     mediaShelf.setAttribute("aria-label", "Attachments");
-    field.before(mediaShelf);
+    if (mediaBelow) field.after(mediaShelf);
+    else field.before(mediaShelf);
     let attachedMedia = [];
     const draftValue = () => writeAttachedMedia(ta.value, attachedMedia);
     const removeMedia = (index) => {
@@ -411,7 +418,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       if (suffix && !status) {
         keepsText(hintLabel, word);
         keepsText(hintKey, suffix);
-        if (visibleHint.parentNode !== ta) ta.append(visibleHint);
+        if (visibleHint.parentNode !== ta) move(ta, visibleHint, null);
       } else visibleHint.remove();
       const ariaLabel = name();
       if (ariaLabel) keeps(ta, "aria-label", ariaLabel);

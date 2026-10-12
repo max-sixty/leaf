@@ -278,7 +278,6 @@
           "div",
           `notification-demo-feed notification-demo-${format.replace(" ", "-")}`,
         );
-        feed.setAttribute("aria-label", `${name} candidate`);
         figure.append(caption, feed);
         return { figure, feed, metric: caption.lastElementChild };
       }
@@ -813,10 +812,13 @@
         --lf-block-frame: 1;
         box-sizing: border-box;
         min-width: 0;
-        max-width: 100%;
         padding: var(--sp-2);
         border: 1px solid transparent;
         border-radius: var(--r);
+      }
+
+      .code-candidate[data-candidate] {
+        max-width: 100%;
       }
 
       .code-candidate-title,
@@ -2796,9 +2798,13 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
 </lf-tab>
 
 <lf-tab id="corpus-notification-playground" label="Notification">
-<lf-ask id="notification-ask" data-width="available">
+<lf-ask id="notification-ask">
         <h1>Stress-test the deployment notification</h1>
-        <lf-playground id="notification-playground" submit-label="Create notification">
+        <lf-playground
+          id="notification-playground"
+          submit-label="Create notification"
+          data-width="available"
+        >
           <lf-playground-control
             name="events"
             label="Concurrent release events"
@@ -2921,9 +2927,13 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
         Choose which releases to include in the report. Add filters, check the matching
         rows, then ask the agent to build the query.
       </p>
-      <lf-ask id="release-query-ask" data-width="available">
+      <lf-ask id="release-query-ask">
         <h2>Which release query should the agent build?</h2>
-        <lf-playground id="release-query-playground" submit-label="Build query">
+        <lf-playground
+          id="release-query-playground"
+          submit-label="Build query"
+          data-width="available"
+        >
           <lf-playground-control
             name="limit"
             label="Maximum results"
@@ -2958,9 +2968,13 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
         Compare a scrolling code reader with a wrapping one. Adjust their spacing and
         shared width, then choose the treatment to keep.
       </p>
-      <lf-ask id="code-comparison-ask" data-width="available">
+      <lf-ask id="code-comparison-ask">
         <h2>Which code-reader treatment should the agent keep?</h2>
-        <lf-playground id="code-comparison-playground" submit-label="Apply treatment">
+        <lf-playground
+          id="code-comparison-playground"
+          submit-label="Apply treatment"
+          data-width="available"
+        >
           <lf-playground-control
             name="width"
             label="Comparison viewport"
@@ -3044,7 +3058,7 @@ export function releaseLabels(releases) {
           </lf-playground-output>
         </lf-playground>
       </lf-ask>
-      <section id="code-reader-feedback" data-width="available">
+      <section id="code-reader-feedback">
         <h2>Point at the reader element you want changed</h2>
         <p id="code-reader-feedback-guide">
           Turn on Design mode with <kbd>l</kbd> or the More menu, then press the heading
@@ -3053,7 +3067,11 @@ export function releaseLabels(releases) {
           stays beside that element as its treatment changes. Describe a shared change
           in the comment when both readers should inherit it.
         </p>
-        <section id="target-reader-artifact" class="code-candidate">
+        <section
+          id="target-reader-artifact"
+          class="code-candidate"
+          data-width="available"
+        >
           <h3 id="target-reader-heading" class="reader-treatment-title">
             Reader sample
           </h3>
@@ -3947,16 +3965,14 @@ export const summarize = checks =>
               <thead>
                 <tr>
                   <th>Review unit</th>
-                  <th>Files</th>
-                  <th>Change</th>
                   <th>Review focus</th>
                 </tr>
               </thead>
               <tbody>
                 <tr id="pr-focus-safety">
-                  <th scope="row">1 · Git repository layer</th>
-                  <td>4</td>
-                  <td><code>+312 −30</code></td>
+                  <th scope="row">
+                    1 · Git repository layer<br /><code>+312 −30</code> in 4 files
+                  </th>
                   <td>
                     Untracked files enter while the
                     <lf-gloss
@@ -3966,36 +3982,36 @@ export const summarize = checks =>
                   </td>
                 </tr>
                 <tr id="pr-focus-latency">
-                  <th scope="row">2 · Picker runtime</th>
-                  <td>17</td>
-                  <td><code>+823 −466</code></td>
+                  <th scope="row">
+                    2 · Picker runtime<br /><code>+823 −466</code> in 17 files
+                  </th>
                   <td>
                     Off-screen worktrees load on demand without breaking tab or row
                     identity.
                   </td>
                 </tr>
                 <tr>
-                  <th scope="row">3 · Integration tests</th>
-                  <td>8</td>
-                  <td><code>+308 −92</code></td>
+                  <th scope="row">
+                    3 · Integration tests<br /><code>+308 −92</code> in 8 files
+                  </th>
                   <td>Tests observe index bytes and filesystem residue.</td>
                 </tr>
                 <tr>
-                  <th scope="row">4 · Other runtime</th>
-                  <td>6</td>
-                  <td><code>+42 −61</code></td>
+                  <th scope="row">
+                    4 · Other runtime<br /><code>+42 −61</code> in 6 files
+                  </th>
                   <td>Prior diff callers move to the shared abstraction.</td>
                 </tr>
                 <tr>
-                  <th scope="row">5 · Docs and shipped skills</th>
-                  <td>9</td>
-                  <td><code>+69 −42</code></td>
+                  <th scope="row">
+                    5 · Docs and shipped skills<br /><code>+69 −42</code> in 9 files
+                  </th>
                   <td>The Git 2.34 floor is discoverable in every published copy.</td>
                 </tr>
                 <tr>
-                  <th scope="row">6 · Benchmarks</th>
-                  <td>2</td>
-                  <td><code>+13 −10</code></td>
+                  <th scope="row">
+                    6 · Benchmarks<br /><code>+13 −10</code> in 2 files
+                  </th>
                   <td>Prewarm cost moves to selected-row demand.</td>
                 </tr>
               </tbody>
@@ -4236,74 +4252,74 @@ index b856171b57..cfa4f0448e 100644
                 <tr>
                   <th>Claim</th>
                   <th>Evidence</th>
-                  <th>Status</th>
-                  <th>Review reading</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
                   <th scope="row">
+                    <span class="tag ok">passed</span>
                     Unified and subsidiary tabs show the intended changes
                   </th>
                   <td>
                     <code
                       >unified_diff_is_net_change_and_subsidiary_diffs_include_untracked</code
-                    >
-                  </td>
-                  <td><span class="tag ok">passed</span></td>
-                  <td>
+                    ><br />
                     The same test requires the real index to remain byte-identical.
                   </td>
                 </tr>
                 <tr>
                   <th scope="row">
+                    <span class="tag ok">passed</span>
                     Sparse checkouts retain out-of-cone untracked files
                   </th>
                   <td>
                     <code
                       >test_picker_dry_run_includes_untracked_outside_sparse_checkout</code
-                    >
+                    ><br />
+                    Exercises the regression the first review found.
                   </td>
-                  <td><span class="tag ok">passed</span></td>
-                  <td>Exercises the regression the first review found.</td>
                 </tr>
                 <tr>
                   <th scope="row">
+                    <span class="tag ok">passed</span>
                     Worktree-local temp directories leave no index artifacts
                   </th>
                   <td>
                     <code
                       >test_picker_dry_run_tempdir_inside_worktree_has_no_index_artifacts</code
-                    >
+                    ><br />
+                    Also tests glob escaping with a bracketed path.
                   </td>
-                  <td><span class="tag ok">passed</span></td>
-                  <td>Also tests glob escaping with a bracketed path.</td>
                 </tr>
                 <tr>
-                  <th scope="row">Off-screen worktrees are demand-loaded</th>
+                  <th scope="row">
+                    <span class="tag ok">passed</span>
+                    Off-screen worktrees are demand-loaded
+                  </th>
                   <td>
                     <code
                       >initial_precompute_skips_offscreen_worktrees_but_warms_branches</code
-                    >
+                    ><br />
+                    Proves scheduling shape, not selected-row latency.
                   </td>
-                  <td><span class="tag ok">passed</span></td>
-                  <td>Proves scheduling shape, not selected-row latency.</td>
                 </tr>
                 <tr>
-                  <th scope="row">Selected-row demand remains fast</th>
-                  <td>No latency benchmark</td>
-                  <td><span class="tag warn">gap</span></td>
+                  <th scope="row">
+                    <span class="tag warn">gap</span>
+                    Selected-row demand remains fast
+                  </th>
                   <td>
+                    No latency benchmark<br />
                     The correctness test allows up to 60 seconds and cannot answer this.
                   </td>
                 </tr>
                 <tr>
                   <th scope="row">
+                    <span class="tag warn">gap</span>
                     Commit dry-run excludes its own temp index under local TMPDIR
                   </th>
-                  <td>No focused regression in this PR</td>
-                  <td><span class="tag warn">gap</span></td>
                   <td>
+                    No focused regression in this PR<br />
                     The captured hunk moves the existing staging path onto
                     <code>TempIndex</code> without changing its <code>git add</code>
                     semantics; a reviewer reproduced the extra index and lock entries
@@ -6778,6 +6794,7 @@ observe --cohort staff</code></pre>
       <lf-file-editor
         id="research-file"
         binding="research-notes"
+        data-width="available"
         data-height="480"
       ></lf-file-editor>
       <details id="file-editing-setup">
@@ -6909,7 +6926,9 @@ observe --cohort staff</code></pre>
                 <code>answer.value</code> contains option ids, and
                 <code>prompt.target</code> names the surrounding context.
               </p>
-              <button id="bg-read-question" type="button">Read current ask</button>
+              <button id="bg-read-question" class="button" type="button">
+                Read current ask
+              </button>
               <pre id="bg-question-reading" hidden></pre>
             </details>
             <section id="bg-task-on-you">
@@ -6941,10 +6960,13 @@ observe --cohort staff</code></pre>
                 normally. Leave the sample: <kbd>1</kbd> no longer focuses the note.
               </p>
               <div id="bg-local-shortcuts" tabindex="0">
-                <button id="bg-shortcut-focus-note" type="button">
+                <button id="bg-shortcut-focus-note" class="button" type="button">
                   Write sample note
                 </button>
-                <label>Sample note <input id="bg-shortcut-note" type="text" /></label>
+                <label>
+                  Sample note
+                  <input id="bg-shortcut-note" class="field" type="text" />
+                </label>
               </div>
             </section>
             <section id="bg-keyboard-preference">
@@ -7796,7 +7818,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <strong>Thread states</strong
               ><span class="bg-feature-detail">: live before and after examples</span>
             </h2>
-            <p id="bg-thread-states-guide" data-width="column">
+            <p id="bg-thread-states-guide">
               These passages have real threads in this gallery. Open Threads to compare
               each row's status and compact last-activity time, then open a row to
               inspect its messages. The title remains in the header when the card opens.
@@ -7811,7 +7833,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   lettering. Reset starts a fresh untitled thread. Reduced motion shows
                   solid muted text.
                 </p>
-                <button id="bg-title-sheen-show" type="button">
+                <button id="bg-title-sheen-show" class="button" type="button">
                   Open sample thread
                 </button>
                 <lf-sample
@@ -7995,14 +8017,16 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               with the author. On the public site, make a decision or comment first to
               activate your private page, then return here.
             </p>
-            <button id="bg-read-user-view" type="button">Read observed views</button>
+            <button id="bg-read-user-view" class="button" type="button">
+              Read observed views
+            </button>
             <pre id="bg-user-view-reading" hidden></pre>
           </section>
 
           <section id="bg-widths" data-width="wide">
             <p class="eyebrow">data-width</p>
             <h2><strong>Responsive block widths</strong></h2>
-            <p id="bg-widths-guide" data-width="column">
+            <p id="bg-widths-guide">
               Prose keeps the reading column inside this wide section. Individual
               evidence blocks can instead use the shared wide measure or all space the
               shell has left.
@@ -8031,25 +8055,24 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </table>
           </section>
 
-          <section id="bg-ask-track">
+          <section id="bg-ask-across">
             <p class="eyebrow bg-feature-elements">lf-ask · lf-chart · lf-options</p>
             <h2>
-              <strong>An ask beside its figure</strong
-              ><span class="bg-feature-detail">: the options track</span>
+              <strong>An ask around its figure</strong
+              ><span class="bg-feature-detail">: options laid across</span>
             </h2>
-            <p id="bg-ask-track-guide">
-              This ask holds a chart and ends in one option list, and it takes the wide
-              measure. In a window wide enough for both, the list stands in a column
-              beside the chart and stays put while the evidence scrolls past it; narrow
-              the window and the list drops below the chart again.
+            <p id="bg-ask-across-guide">
+              This ask holds a chart and ends in one list of titled options. Under the
+              chart the three cards stand side by side, so the question, the chart and
+              every option fit one window; narrow the window and the cards stack.
             </p>
-            <lf-ask id="bg-track-ask" data-width="wide">
+            <lf-ask id="bg-across-ask">
               <h3>Which trail should the sample team hike on Saturday?</h3>
-              <p id="bg-track-premise">
+              <p id="bg-across-premise">
                 The team walks at a sample pace of 300 m of climb an hour, and the last
                 bus leaves the trailhead at 17:00.
               </p>
-              <lf-chart id="bg-track-climb" data-height="180">
+              <lf-chart id="bg-across-climb" data-height="180">
                 <pre>
 {
   ariaLabel: "Climb by sample trail: Ridge loop 900 m, Lake path 350 m, Pass traverse 1,250 m",
@@ -8070,19 +8093,19 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
 }
 </pre>
               </lf-chart>
-              <p id="bg-track-reading">
+              <p id="bg-across-reading">
                 The traverse's climb takes a little over four hours on its own, which
                 leaves no margin before the bus.
               </p>
-              <lf-options id="bg-track-choice" choose>
-                <lf-option id="bg-track-ridge">
+              <lf-options id="bg-across-choice" choose>
+                <lf-option id="bg-across-ridge">
                   <strong>Ridge loop</strong> Three hours of climbing with views the
                   whole way.
                 </lf-option>
-                <lf-option id="bg-track-lake">
+                <lf-option id="bg-across-lake">
                   <strong>Lake path</strong> An easy morning, back long before the bus.
                 </lf-option>
-                <lf-option id="bg-track-pass">
+                <lf-option id="bg-across-pass">
                   <strong>Pass traverse</strong> The longest day, and a tight finish.
                 </lf-option>
               </lf-options>
@@ -8997,7 +9020,7 @@ gallery/
                   page; another origin cannot frame it.
                 </p>
                 <div id="bg-durable-frame-host">
-                  <button id="bg-durable-frame-open" type="button">
+                  <button id="bg-durable-frame-open" class="button" type="button">
                     Open the earlier map decision
                   </button>
                   <iframe
@@ -9097,10 +9120,16 @@ gallery/
               ></lf-shot>
               <p id="bg-shot-plain-guide">
                 The same pair without <code>outlines</code>: nothing is marked, and the
-                rail says nothing, since the pair has a change to point at.
+                rail says nothing, since the pair has a change to point at. This one
+                carries <code>pixels</code> instead: choose “changed pixels” in the
+                middle of the rail, or press it with Enter, to see the after image
+                greyed with every changed pixel painted over it. Choose Before or After
+                to leave it, or click the picture to return to the comparison as it
+                stood.
               </p>
               <lf-shot
                 id="bg-shot-plain"
+                pixels
                 alt="a sample run list with and without a status column"
                 before="/media/051bee487bfb5d13.png"
                 after="/media/a99a1b63048502d0.png"
@@ -9371,8 +9400,7 @@ switch --readers checkout-api,orders-api</code></pre>
         <lf-tab id="bg-view-interactions" label="Interactions">
           <section id="bg-interactions" aria-labelledby="bg-interactions-title">
             <p class="eyebrow bg-feature-elements">
-              lf-sample · lf-suggestion · lf-old · lf-new · lf-board · lf-column ·
-              lf-card
+              lf-sample · lf-suggestion · lf-old · lf-new
             </p>
             <h2 id="bg-interactions-title">
               <strong>Interactions</strong
@@ -9382,7 +9410,8 @@ switch --readers checkout-api,orders-api</code></pre>
               Each sample below is a complete Leaf page running the production
               components and transitions. Do what its caption asks and watch the page
               answer. What you do stays in that sample's own log; “Reset” starts it
-              again, and nothing reaches this page.
+              again, and nothing reaches this page. To move a card, drag one on
+              <a id="bg-interactions-board" href="#bg-delivery">the delivery board</a>.
             </p>
 
             <section id="bg-interaction-accept">
@@ -9403,30 +9432,6 @@ switch --readers checkout-api,orders-api</code></pre>
                     >
                     before the next run begins.
                   </p>
-                </template>
-              </lf-sample>
-            </section>
-
-            <section id="bg-interaction-move">
-              <h3>Move a card</h3>
-              <p id="bg-interaction-move-guide">
-                Drag the card to “Tried”, or press <kbd>Enter</kbd> on its grip and move
-                it with the arrow keys. Leaf plays the same placement transition for
-                either route.
-              </p>
-              <lf-sample id="bg-motion-board-sample" label="migration checklist">
-                <template id="bg-motion-board-page" data-sample>
-                  <p class="eyebrow">migration checklist</p>
-                  <h1>Schema migration</h1>
-                  <lf-board id="bg-motion-board">
-                    <lf-column id="bg-motion-ready" label="Ready">
-                      <lf-card id="bg-motion-card"
-                        ><strong>Verify migration</strong> Run the schema
-                        sample.</lf-card
-                      >
-                    </lf-column>
-                    <lf-column id="bg-motion-tried" label="Tried"></lf-column>
-                  </lf-board>
                 </template>
               </lf-sample>
             </section>

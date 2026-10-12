@@ -175,6 +175,63 @@ def _authored_document_checks(
     return errors
 
 
+def sample_errors(
+    page_dir: Path,
+    parent: SourceDocument,
+    events: list,
+    holder: SourceDocument,
+    registry: dict | None,
+    contracts: dict,
+) -> list[str]:
+    """Check each live sample `holder` declares as allocation would build it.
+
+    `holder` is `parent` for a page's own templates, or a message in `events`, the
+    log of `parent`. Each child is checked as a page against its initial history,
+    and then the samples it declares in turn."""
+    errors = []
+    pending = [(parent, page_sample_history(parent, events, list_revisions(page_dir)), holder, "")]
+    for document, document_history, declaring, prefix in pending:
+        for sample in declaring.samples:
+            name = prefix + f"sample {sample['attrs'].get('id', '<unnamed>')!r}: "
+            child = sample["document"]
+            selected = set(sample["attrs"].get("data-sample-threads", "").split())
+            # A template may precede its seed log, and the selection reads against
+            # whatever the log holds — so the child checked here is the child
+            # allocation would build from this document and this history.
+            try:
+                child_history = (
+                    initial_sample_history(
+                        page_dir,
+                        document,
+                        document_history,
+                        declaring,
+                        sample,
+                        registry,
+                        contracts,
+                    )
+                    if registry is not None
+                    else SampleHistory([], {})
+                )
+            except ValueError as error:
+                errors.append(name + str(error))
+                child_history = SampleHistory([], {})
+            child_events = child_history.events
+            pending.append((child, child_history, child, name))
+            child_readings = initial_data_document_readings(
+                child, child_events, registry
+            )
+            child_errors = _authored_document_checks(
+                page_dir,
+                child,
+                child_events,
+                registry,
+                child_readings,
+                selected | thread_ids(child_events),
+            )
+            errors.extend(name + error for error in child_errors)
+    return errors
+
+
 def _presentation_errors(parser) -> list[str]:
     """Validate the page's own CSS: its <style> and each inline style."""
     errors = list(css_syntax_errors(parser.css, "page <style>"))
@@ -246,47 +303,9 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
         thread_ids(events),
     )
     errors.extend(document_errors)
-    documents = [
-        (document, page_sample_history(document, events, list_revisions(page_dir)), "")
-    ]
-    for parent, parent_history, parent_name in documents:
-        for sample in parent.samples:
-            name = parent_name + f"sample {sample['attrs'].get('id', '<unnamed>')!r}: "
-            child = sample["document"]
-            selected = set(sample["attrs"].get("data-sample-threads", "").split())
-            # A template may precede its seed log, and the selection reads against
-            # whatever the log holds — so the child checked here is the child
-            # allocation would build from this document and this history.
-            try:
-                child_history = (
-                    initial_sample_history(
-                        page_dir,
-                        parent,
-                        parent_history,
-                        sample,
-                        registry,
-                        contracts,
-                    )
-                    if registry is not None
-                    else SampleHistory([], {})
-                )
-            except ValueError as error:
-                errors.append(name + str(error))
-                child_history = SampleHistory([], {})
-            child_events = child_history.events
-            documents.append((child, child_history, name))
-            child_readings = initial_data_document_readings(
-                child, child_events, registry
-            )
-            child_errors = _authored_document_checks(
-                page_dir,
-                child,
-                child_events,
-                registry,
-                child_readings,
-                selected | thread_ids(child_events),
-            )
-            errors.extend(name + error for error in child_errors)
+    errors.extend(
+        sample_errors(page_dir, document, events, document, registry, contracts)
+    )
     artifact = None
     if not errors and registry is not None:
         try:

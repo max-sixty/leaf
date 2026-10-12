@@ -54,10 +54,8 @@ export default class extends HTMLElement {
       return () => {
         for (const stop of stopRegions) stop();
         this.presentation.unregister();
-        this.indexOrder.dispose();
       };
     });
-    // Both watchers pause while the workspace is away and read afresh on its return.
     watchQuestions(this, () => this.paintObligations());
     watchQueues(this, () => this.paintObligations());
   }
@@ -165,6 +163,7 @@ export default class extends HTMLElement {
       void this.presentation.update();
     });
     this.indexOrder = new HeldReading(
+      this,
       () => [this.list, ...Object.values(this.queues)],
       () => {
         void this.presentation.update();

@@ -14,18 +14,12 @@ import {
   repeat,
   unsafeHTML,
   watchData,
-  whileConnected,
 } from "/runtime/widget-api.js";
 
 export default class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
-    // The painting outlives a departure, so its time readings follow the owner.
     const paint = clocked(this, (snapshot) => this.show(snapshot));
-    whileConnected(this, () => {
-      paint.resume();
-      return () => paint.stop();
-    });
     let deliveries = 0;
     watchData(this, "request", async (snapshot) => {
       const delivery = ++deliveries;

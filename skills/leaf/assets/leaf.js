@@ -277,7 +277,8 @@ const auxiliarySurfaces = createAuxiliarySurfaces({
 });
 const navigation = createNavigation({
   panelElements,
-  openThreads: threadListController.openThreads,
+  threadCards: threadListController.threadCards,
+  openThreadsInPageOrder: threadListController.openThreadsInPageOrder,
   panelIsOpen,
   narrowing,
   coveringAuxiliaryScroller: auxiliarySurfaces.coveringScroller,
@@ -485,7 +486,6 @@ app = mountApplication({
   },
 });
 app.registerThreadPanel({
-  required: true,
   controller: threadListController,
   threadsBox,
   view: {
@@ -577,11 +577,11 @@ const standingTarget = createStandingTarget({
 
 panelKeys = createThreadPanelKeys({
   elements: panelElements,
-  openThreads: threadListController.openThreads,
   narrowing,
   setPanel: (...args) => threadPanelController.setPanel(...args),
   panelIsOpen,
   stepThread: (...args) => navigation.stepThread(...args),
+  threadPosition: () => navigation.threadPosition(),
 });
 pageComment = createPageComment({
   wireInput: inputs.wireInput,
@@ -908,7 +908,7 @@ if (!offlineInteractive) {
   document.body.append(chromeRoot);
   // Exports retain image inspection, but no page controls. Their other standing is
   // what a widget's own box shows, such as an options group's addition field.
-  mountRepaint({ paintInputs: inputs.paintInputs, reflectKeys });
+  mountRepaint({ paintInputs: inputs.paintInputs, reflectFirstScopes, reflectKeys });
 }
 
 // Widget commands belong to interactive documents, including offline exports.
@@ -918,6 +918,14 @@ mountKeyboard({
   setGoToSequence: goToSequence.setGoToSequence,
   reactArmed: reactions.isReactArmed,
   setReact: reactions.setReact,
+});
+// A page declared failed (`lf-startup-failed`) is its readable fallback from then on
+// (prepaint.js) and never presents, though a later state answer asks it to. A page
+// whose module staged words it cannot read (passages.js, `refusesBareText`) reads past
+// them afterwards, and presented, it would pass for a page whose widgets work.
+let startupFailed = false;
+window.addEventListener("lf-startup-failed", () => (startupFailed = true), {
+  once: true,
 });
 
 const initialStateRead = beginRead();
@@ -942,7 +950,7 @@ const { landArrival, savedView } = offlineInteractive
 const savedComposer = offlineInteractive ? null : responseSurface.pendingComposer();
 
 async function presentPage() {
-  if (pagePresented()) return;
+  if (pagePresented() || startupFailed) return;
   await whenApplicationPresented();
   if (pagePresented()) return;
   setAnchoringReady(true);
@@ -964,6 +972,7 @@ async function presentPage() {
     setAnchoringReady(false);
     throw error;
   }
+  if (startupFailed) return;
   markPagePresented();
   // Optional author context begins after the presented frame. It neither imports
   // checks nor takes geometry on the path that gives the reader the page.
@@ -1016,6 +1025,7 @@ async function startPage() {
       : loadIcon().catch((error) => reportPageError(error, "tab icon failed to load")),
   ]);
   if (!upgraded) return;
+  app.watchThreadSurfaces();
   // Initial layout and later residency share prepaint's synchronous computation.
   openResidency({ onRead: annotationRenderer?.syncMarginResidency });
   if (!offlineInteractive) {

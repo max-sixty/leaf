@@ -155,8 +155,7 @@ export class LeafEditorView extends EditorView {
   // then place its recorded caret; composed ranges reach closed shadow roots.
   focus() {
     if (!canPlaceFocus()) return;
-    const selection =
-      this.root.getSelection?.() ?? this.dom.ownerDocument.getSelection();
+    const selection = this.#selection();
     if (
       this.root.activeElement !== this.contentDOM &&
       selection
@@ -171,10 +170,21 @@ export class LeafEditorView extends EditorView {
     )
       selection.removeAllRanges();
     this.contentDOM.focus({ preventScroll: true });
+    this.placeSelection();
+  }
+
+  // Write the recorded selection into the focused editor's DOM. A move that keeps focus
+  // (`moveBefore`) still collapses the native selection, which the view would otherwise
+  // read back as its own.
+  placeSelection() {
     if (this.root.activeElement !== this.contentDOM) return;
     const { anchor, head } = this.state.selection.main;
     const from = this.domAtPos(anchor);
     const to = this.domAtPos(head);
-    selection.setBaseAndExtent(from.node, from.offset, to.node, to.offset);
+    this.#selection().setBaseAndExtent(from.node, from.offset, to.node, to.offset);
+  }
+
+  #selection() {
+    return this.root.getSelection?.() ?? this.dom.ownerDocument.getSelection();
   }
 }

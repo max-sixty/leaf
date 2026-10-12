@@ -1,9 +1,8 @@
-/* Undo waits while an action the log holds is not yet on the page.
+/* Undo waits while a newer action has not yet been presented.
 
-   A reading can log an action before or after the action's own POST answers. Either
-   way the semantic root already draws the log's event while the page may still show
-   what came before it, so an Undo that would take back an earlier gesture waits for
-   that reading to be presented. The ledger's lifecycle owns which states those are;
+   A reading can log an action before or after the action's own POST answers. Until
+   its document pass presents, a withdrawal of an earlier action could take back a
+   gesture under a stale view. The ledger's lifecycle owns which states those are;
    this drives the one withdrawal door through both orders. */
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -37,17 +36,17 @@ const reading = (events) => ({
     thread_memberships: {},
     todos: [],
     ended_todos: [],
-    thread: {
-      threads: [],
-      projection: { entries: [], actions: [], reports: [], desired: [] },
-      asks: noAsks(),
-    },
     views: {
       1: {
         basis: { revision: 1, through_seq: events.length },
+        thread: {
+          threads: [],
+          projection: { entries: [], actions: [], reports: [], desired: [] },
+          asks: noAsks(),
+        },
         coverage: [],
         undo: events.map((event) => ({ event })).reverse(),
-        queues: { questions: [], tasks: [], done: [] },
+        queues: { questions: [], tasks: [], done: [], held: [] },
         approval_blocking: [],
         document: {
           asks: noAsks(),
@@ -72,7 +71,7 @@ const reading = (events) => ({
   },
 });
 
-test("Undo waits while a logged action is unpresented, whichever answer came first", () => {
+test("Undo waits for a newer action through its send, answer and presentation", () => {
   applicationState.identify(1);
   applicationState.captureDocument({
     ...applicationState.read().document,
@@ -111,6 +110,8 @@ test("Undo waits while a logged action is unpresented, whichever answer came fir
   // A reading logs the new action before its POST answers.
   const polled = { ...action("polled"), id: "e1", seq: 2 };
   applicationState.enqueue(action("polled"), "now");
+  assert.equal(applicationState.entry("polled").state, "sending");
+  assert.equal(undoWaits(), true);
   applicationState.adopt(reading([earlier, polled]));
   assert.equal(applicationState.entry("polled").state, "sending:logged");
   assert.equal(undoWaits(), true);
@@ -118,10 +119,13 @@ test("Undo waits while a logged action is unpresented, whichever answer came fir
   assert.equal(undoWaits(), false);
   applicationState.accept("polled", polled);
 
-  // The POST answers before a reading logs the next one.
+  // The POST answers before a reading logs the next one. The user's later
+  // accepted action is still only drawn locally, so an earlier Undo must wait.
   const answered = { ...action("answered"), id: "e2", seq: 3 };
   applicationState.enqueue(action("answered"), "now");
   applicationState.accept("answered", answered);
+  assert.equal(applicationState.entry("answered").state, "accepted");
+  assert.equal(undoWaits(), true);
   applicationState.adopt(reading([earlier, polled, answered]));
   assert.equal(applicationState.entry("answered").state, "accepted:logged");
   assert.equal(undoWaits(), true);

@@ -38,7 +38,7 @@ from .files import (
     version_revisions,
 )
 from .interaction_log import append_interactions, client_records
-from .layer import incompatible_layer
+from .layer import incompatible_layer, running_leaf, same_leaf
 from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
 from .passages import SourceReading
@@ -418,12 +418,18 @@ class PageEndpoint:
         write this response itself made, and the tab would be told to ask again for
         what it was just handed. Between the two, the worst case is a token already
         stale on arrival, which costs one more request and no news.
+
+        Where the Leaf this server runs is another than the one that vendored the
+        page, `leaf` names it, and the banner shows it beside the page's own
+        (`AGENTS.md`, "Pages across Leaf updates").
         """
         state = self._state_service().page_state(view_revision)
         names = self.source.revision_names
         state["vocabularies"] = {
             str(revision): self._artifact_root(revision) for revision in names
         }
+        if not same_leaf(state["layer"].get("producer", {}), self.server.leaf):
+            state["leaf"] = self.server.leaf
         return state
 
     def page_browser_view(self, view_revision: int, through_seq: int) -> dict:
@@ -1170,11 +1176,7 @@ class PageEndpoint:
         entries = self.posted.get("entries")
         if not isinstance(session, str) or not session:
             return self._refuse("interaction requires a nonempty session")
-        if (
-            not isinstance(entries, list)
-            or not entries
-            or any(not isinstance(entry, dict) for entry in entries)
-        ):
+        if not isinstance(entries, list) or not entries:
             return self._refuse("interaction requires a nonempty array of entries")
         # Every sample directory is temporary, including a nested sample's
         # parent. Retain all descendants in the authored page's trace, with
@@ -1196,6 +1198,9 @@ class PageEndpoint:
         template = self.posted.get("template")
         if not isinstance(template, str) or not template:
             return self._refuse("sample requires a template id")
+        message = self.posted.get("message")
+        if message is not None and (not isinstance(message, str) or not message):
+            return self._refuse("a sample's message must be a message id")
         revision = self.layer_revision
         if revision is None:
             return self._refuse("sample requires an active parent revision")
@@ -1208,6 +1213,7 @@ class PageEndpoint:
                 self.page_dir,
                 inputs,
                 template,
+                message,
                 asset_root,
             )
         except ValueError as error:
@@ -1360,9 +1366,12 @@ def page_app(endpoint, server):
     between two of them. The routes are ordinary blocking code — page transactions,
     log reads, atomic writes — so they run on the serving loop's worker threads.
     Each answer completes rather than keeping a per-document HTTP connection open.
+    The Leaf the server runs is read here, as it is built, rather than at its first
+    request, after which its checkout may have moved on (`layer.running_leaf`).
     """
 
     server.samples = Samples()
+    server.leaf = running_leaf()
 
     async def app(scope, receive, send) -> None:
         if scope["type"] != "http":

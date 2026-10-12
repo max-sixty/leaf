@@ -14,9 +14,9 @@ command rather than copying its callback.
 
 Core owns commands on the page, chrome, navigation, comments, and shared thread state;
 a widget owns commands that interpret or change its content, and its scopes join the
-register only while the instance exists. Element scopes declare through `keys(element,
-…)` and `commandScope(…)` in `scopes.js`, core scopes through `pageScope`,
-`pageCommand`, and `pageRung` in `register.js`. A new scope, page command, or Escape
+register only while the instance exists. Element scopes declare through
+`keys(element, …)`, a template's `commandsOn(…)`, and `commandScope(…)` in `scopes.js`,
+core scopes through `pageScope`, `pageCommand`, and `pageRung` in `register.js`. A new scope, page command, or Escape
 rung also needs its place in `STACK`, `PAGE_COMMANDS`, or `RUNG_LADDER`.
 
 ## Scope resolution
@@ -27,7 +27,11 @@ page scopes, then the browser. An implemented declaration gets first refusal whi
 (`dispatch.js`'s `standing`: the user is in it and the page has it); if its command is
 unavailable, the press does not fall through to another Leaf meaning. Text entry keeps
 characters, composition, caret movement, and deletion ahead of ancestor widgets; an
-exact control may still claim Enter or its own Escape step.
+exact control may still claim Enter or its own Escape step. A native control keeps its
+activation press, such as Enter on a link or Space on a button: no widget or page scope
+around it runs another command on that press, while a mode that owns the keyboard still
+does. Unlike the text-entry claim, a row that only names the press, such as a link's
+Follow, still names it.
 
 ## Escape
 
@@ -87,7 +91,8 @@ Page scope holds commands whose subject is the page; surface scopes hold command
 about their contents. A page-level letter must stay useful on every page; any
 other control stays reachable through Tab, native activation, ask digits, or
 Go-to hints. `register.js`'s `PAGE_COMMANDS` is the canonical page vocabulary in
-shortcut-line order. Lowercase advances a walk and Shift goes back. A surface may
+shortcut-line order. Lowercase advances a walk and Shift goes back, and a page walk
+comes round from either end to the other. A surface may
 reuse a page key for the same intent with a nearer destination. While the user
 stands in an ask or its associated margin/thread representative, core forwards only
 the widget's explicit `contextKeys`. Widgets own `1`–`9` assignments; Decision is a
@@ -102,8 +107,11 @@ control, serving both a finger and a mouse. A row declares the control's words a
 `touch-controls.js` builds the control from the row the key uses.
 
 - A page command's control is an entry in the banner's More.
-- A page-scope row's control is a step on the banner's row while its scope is the
-  innermost applying scope with steps, since a phone's row fits one interaction's. A
+- A scope row's control is a step on the banner's row while its scope, a page scope
+  or one on the focused element, is the innermost applying scope with steps, since a
+  phone's row fits one interaction's. An element scope declares one only where its
+  widget draws no control for a finger, as a code block draws Copy only for a pointer,
+  and the banner offers an element scope's step only under a coarse pointer. A
   mode or bounded interaction a finger can enter declares its way out, and anything else
   inside it a finger cannot otherwise do, such as walking search matches.
 
@@ -134,9 +142,10 @@ Closing More or standing outside it retires the checkpoint.
 `bindings.js` (spelling, parsing, declaration checks), `scopes.js` (element
 scopes), `register.js` (scope order, page commands, the Escape ladder),
 `dispatch.js` (precedence), `controller.js` (input lifecycle), `text-entry.js`
-(native editing claims), `layer-stack.js` (popovers and dialogs over the page),
-`page.js` (the page's own parts and the foot of the ladder), `go-to-sequence.js`
-(the `g` grammar), `control-keys.js`,
+(native editing and activation claims), `layer-stack.js` (popovers and dialogs over the
+page, whether a node stands in one, and why Tab in them stays the browser's), `page.js` (the
+page's own parts and the foot of the ladder), `go-to-sequence.js` (the `g` grammar),
+`control-keys.js`,
 `key-sequence.js`, `shortcut-bar.js`, `command-reference.js`, `hints.js`,
 `command-hints.js` (inline hints from reachable command bindings),
 `key-badge-placement.js`, `chip-seats.js` (where key chips stand), `disclosure.js`,

@@ -8,21 +8,16 @@ import {
   projectData,
   render,
   watchData,
-  whileConnected,
 } from "/runtime/widget-api.js";
 export default class extends HTMLElement {
   pending = false;
   connectedCallback() {
     if (!once(this)) return;
     this.reading = new HeldReading(
+      this,
       () => [...this.children],
       () => this.watching.refresh(),
     );
-    // A departure ends the wait for the reader; a return resumes a held reading's.
-    whileConnected(this, () => {
-      if (this.pending) this.watching.refresh();
-      return () => this.reading.dispose();
-    });
     this.watching = watchData(this, "worktrees", (snapshot) => this.show(snapshot));
   }
   showLatest() {

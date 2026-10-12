@@ -17,7 +17,6 @@ import { keeps } from "../keeps.js";
 import { reportPageError } from "../layer-client.js";
 import { closestAcross, elementById, inChrome } from "../passages.js";
 import { threadState, readThreads } from "./state.js";
-import { watchThreads } from "./watch.js";
 import { holdReply } from "./focus.js";
 import { holdReplyCompositions } from "./replies.js";
 import {
@@ -26,7 +25,6 @@ import {
   commitThreadSeats,
   retainThreadSeats,
 } from "./inline.js";
-import { RetainedThreadListError, retainedThreadListProof } from "./thread-list.js";
 import {
   applicationPresenter,
   applicationState,
@@ -71,11 +69,8 @@ export function createThreadPresentation({
   const presenter = applicationPresenter({
     region: "thread",
     order: PRESENTATION_ORDER.thread,
-    // The log supplies this region's reading. Before its first answer there is
-    // no thread cohort to prove; connected views provide their own loading state.
-    current: () =>
-      readApplication().phase === "waiting" ? null : readApplication().effective.thread,
-    failSoft: retainedThreadListProof,
+    // Before the first server reading there is no thread cohort to prove.
+    current: () => readApplication().phase === "waiting" ? null : readApplication().effective.thread,
     paint: async (value, current) => {
       const phase = readApplication().phase;
       // A pass reads the latest root. Clock changes claim another pass through the
@@ -108,12 +103,6 @@ export function createThreadPresentation({
       if (value !== null) void present();
     });
 
-  function finishListRecovery(candidates) {
-    for (const candidate of candidates)
-      if (candidate?.recovered)
-        throw new RetainedThreadListError(candidate.recovered, candidate.proof);
-  }
-
   let surfaceGeneration = 0;
   let cancelCurrentRender = () => {};
   const startRender = (presenting, phase = "ready") => {
@@ -132,9 +121,7 @@ export function createThreadPresentation({
     // (thread/focus.js, `holdReply`).
     const restoreReply = holdReply(openThread);
     let prepared = null;
-    const livePanels = [...panels].filter(
-      (panel) => panel.required && panel.threadsBox.isConnected,
-    );
+    const livePanels = [...panels].filter((panel) => panel.threadsBox.isConnected);
     let surfaces = null;
     try {
       const { all } = threadState();
@@ -205,7 +192,6 @@ export function createThreadPresentation({
           surfaceView.composition.finishPlacement();
           renderAnnotations();
           pageGeometry.pageShifted();
-          finishListRecovery(candidates);
           read.present();
           // Continuity may reveal a route needing this very presenter. Its work starts
           // after the cohort commits, and never joins the ticket it is completing.
@@ -221,7 +207,6 @@ export function createThreadPresentation({
       surfaces?.cancel();
       if (!current()) throw error;
       read.abort();
-      if (error instanceof RetainedThreadListError) throw error;
       primary?.cancel();
       // A synchronous sibling failure may leave the panel's widget preparation in
       // flight. Invalidate its private generation before restoring the whole reading.
@@ -264,58 +249,20 @@ export function createThreadPresentation({
     panel.detach = () => panel.threadsBox.removeEventListener("lf-reveal", listener);
   }
 
-  function registerPanel({ controller, threadsBox, view, required = false }) {
-    const panel = { controller, threadsBox, view, required, detach: () => {} };
+  function registerPanel({ controller, threadsBox, view }) {
+    const panel = { controller, threadsBox, view, detach: () => {} };
     panels.add(panel);
-    const renderOptional = async (collection) => {
-      try {
-        const candidate =
-          collection.phase === "ready"
-            ? await controller.renderThreads(collection, view)
-            : await controller.renderThreadListUnavailable(
-                collection.phase === "offline"
-                  ? "Current threads are unavailable while the server is offline."
-                  : "Loading current threads…",
-                view,
-              );
-        if (!panels.has(panel) || !candidate) return;
-        candidate.commit();
-        finishListRecovery([candidate]);
-        pageGeometry.pageShifted();
-      } catch (error) {
-        if (!panels.has(panel)) return;
-        let failure = error;
-        try {
-          await controller.restoreThreadList();
-        } catch (restoring) {
-          failure = new AggregateError(
-            [error, restoring],
-            "Thread panel presentation and retention failed",
-          );
-        }
-        reportPageError(
-          failure,
-          `Thread panel ${threadsBox.closest(".lf-thread-panel")?.id} failed`,
-        );
-      }
-    };
-    const paintOptional = required
-      ? null
-      : clocked(threadsBox, () => renderOptional(readThreads()));
-    const stopWatching = required
-      ? () => {}
-      : watchThreads(threadsBox, () => void paintOptional());
-    if (mounted) attach(panel);
-    if (required && mounted) void present();
+    if (mounted) {
+      attach(panel);
+      void present();
+    }
     return {
-      update: required ? present : paintOptional,
+      update: present,
       unregister() {
         if (!panels.delete(panel)) return;
         panel.detach();
         controller.cancel();
-        stopWatching();
-        paintOptional?.stop();
-        if (required && mounted) void present();
+        if (mounted) void present();
       },
     };
   }

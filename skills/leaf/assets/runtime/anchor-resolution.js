@@ -127,8 +127,6 @@ function suppliedDatum(source, key) {
 // handed it by package code, so an undeclared one is that code's error, thrown at the
 // call rather than read as a reference to nothing.
 export function requireReference(verb, owner, attribute) {
-  if (!(owner instanceof Element))
-    throw new TypeError(`${verb} owner must be an element`);
   if (
     typeof attribute !== "string" ||
     !Object.hasOwn(registryFor(owner)[owner.localName]?.["x-refers"] ?? {}, attribute)
@@ -392,14 +390,16 @@ export function datumAimTarget(datum) {
 // semantic fences. A short unique quote keeps the file capture’s initial context;
 // repeated words grow their context until the shared resolver finds this exact span
 // or the real boundary is exhausted. An unresolved passage remains unresolved.
-export function anchorForRange(range) {
-  const node = range.commonAncestorContainer;
+// `anchorForPassage` captures segments already taken from the page reading, under
+// `node`, without walking the reading again to find them.
+export const anchorForRange = (range) =>
+  anchorForPassage(segmentsIn(range), range.commonAncestorContainer);
+export function anchorForPassage(segments, node) {
   const holder = node.nodeType === Node.ELEMENT_NODE ? node : upFrom(node);
   // The neighbours come from the same indexed reading the search uses and stop at
   // the same opaque-widget fences as the file-side capture. The browser knows words
   // a module generated and may quote them; it does not pretend the file can confirm
   // context across their seam.
-  const segments = segmentsIn(range);
   const { text: quote, units } = readingFrom(segments);
   const dataNodes = new Set(
     segments.map((seg) => closestAcross(seg.node, DATUM)).filter(Boolean),

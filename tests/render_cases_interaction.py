@@ -287,17 +287,6 @@ CHIP_PAGE = leaf_page(
 <dl class="facts"><dt>Owner</dt><dd id="owner-fact"><span class="tag">finch</span></dd></dl>
 """,
 )
-PAINTED_PAGE = leaf_page(
-    "painted",
-    """
-<h1 id="h">What the paint says</h1>
-<lf-test-signal id="painted" status="blocked"><strong>Fit squirrel baffles</strong>
-  Waiting on the brackets.</lf-test-signal>
-""",
-).replace(
-    "</head>",
-    "<style>lf-test-signal[status=blocked] { color: #9d2525; }</style></head>",
-)
 SETTLED_ASK_PAGE = ASK_PAGE.replace(
     '<lf-options id="jobs" choose multiple>',
     '<lf-options id="jobs" choose multiple settled>',
@@ -581,8 +570,8 @@ ASK_WITH_CONTEXT_PAGE = leaf_page(
 
 # An ask that cannot declare an arrival region of its own: the change is a phrase inside a
 # sentence, and what explains it is that sentence and the heading over it. One ask, so the
-# clamped walk stays on it and a second press can be asked what it does to a page the
-# user has already adjusted.
+# walk stays on it and a second press can be asked what it does to a page the user has
+# already adjusted.
 SUGGESTION_IN_CONTEXT_PAGE = leaf_page(
     "suggestion with context",
     f"""

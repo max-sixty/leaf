@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 from leaf.activity import answer_command
+from leaf.data import read_contracts
 from leaf.data_contracts import data_binding_errors
 from leaf.events import build_threads
 from leaf.files import list_revisions
@@ -20,7 +21,11 @@ from leaf.thread_context import (
 )
 
 from ..refusals import Refused
-from .instances import reference_errors, thread_markup_contract_errors
+from .instances import (
+    instance_errors,
+    reference_errors,
+    thread_markup_contract_errors,
+)
 from .markup import (
     document_declaration_errors,
     fragment_style_errors,
@@ -74,7 +79,7 @@ def thread_obligation(events: list, responses: dict, message: str) -> dict | Non
     )
 
 
-def logged_id(events: list, value: str, responses: dict) -> str | None:
+def logged_id(page_dir: Path, events: list, value: str, responses: dict) -> str | None:
     """Say what the page's log holds a bare id as, and which writer takes it now.
 
     The CLI names several kinds of id with bare strings — an element id anchors a
@@ -91,20 +96,13 @@ def logged_id(events: list, value: str, responses: dict) -> str | None:
     message is the one id whose writer turns on its thread rather than on
     itself — naming the thread for a proactive message is refused while the thread owes a
     response, whichever of its messages is owed it — so it is read through
-    `thread_obligation`, the same reading `post_reply`'s guard refuses on.
-
-    A thread's id is its opening comment's, so an agent holding a thread id names
-    it as a message. Where the log lost that comment the id names no event, yet
-    still names the thread to every thread command (`thread.thread_addressed`).
+    `thread_obligation`, the same reading `post_reply`'s guard refuses on. A
+    thread's id is its opening comment's, so an agent holding a thread id names it
+    as a message.
     """
     event = next((event for event in events if event.get("id") == value), None)
     if event is None:
-        if value not in thread_names(events):
-            return None
-        return (
-            f"{value} is a thread whose opening message this page's log lost — "
-            f"`leaf thread reply <page> {value}` replies in it"
-        )
+        return None
     kind = event["kind"]
     article = "an" if kind[:1] in "aeiou" else "a"
     held = f"{value} is {article} {kind} in this page's log"
@@ -126,11 +124,11 @@ def logged_id(events: list, value: str, responses: dict) -> str | None:
             )
         return (
             f"{held}, and its thread is owed a reply — "
-            f"{answer_command(owed)} answers it"
+            f"{answer_command(owed, page_dir)} answers it"
         )
     if owed is None:
         return f"{held}, and nothing is owed for it"
-    return f"{held} — {answer_command(owed)} answers it"
+    return f"{held} — {answer_command(owed, page_dir)} answers it"
 
 
 def version_ids(page_dir: Path) -> set:
@@ -147,13 +145,15 @@ def check_markup(
     events: list,
     *,
     reading: SourceReading | None = None,
+    thread: str | None = None,
 ) -> SourceDocument:
     """A message's HTML fragment, validated against its captured publication
     reading — the discussion-side `page check`, and the field's one gate: the browser
     door refuses `markup` outright, so nothing reaches the log under that name
     unvalidated. Text needs no vocabulary gate — the runtime renders it with every tag
     escaped, so it cannot claim a widget — but its Markdown can still point at a file,
-    which `read_text_arg` asks about wherever a body arrives. Refuses with
+    which `read_text_arg` asks about wherever a body arrives. `thread` is the thread
+    a reply joins; a comment opens one whose id is not yet assigned. Refuses with
     what's wrong."""
     frag = SourceDocument(markup)
     revisions = list_revisions(page_dir)
@@ -181,6 +181,8 @@ def check_markup(
         page,
         version_ids(page_dir),
         extra_errors,
+        read_contracts(page_dir),
+        thread,
         effective_events=effective_events,
     ):
         raise Refused(error)
@@ -196,14 +198,16 @@ def message_markup_error(
     page: SourceDocument,
     prior_ids: set[str],
     extra_errors: list[str],
+    contracts: dict,
+    thread_id: str | None,
     *,
     effective_events: list | None = None,
 ) -> str | None:
     """The shared message-fragment gate for a stored or newly constructed page.
 
-    Callers supply their lifetime's binding checks. The
-    fragment's structure, vocabulary, presentation, media, ids and references
-    have one gate regardless of whether its page has been allocated yet.
+    Callers supply their lifetime binding checks. Fragment structure, vocabulary,
+    presentation, media, ids, references and live sample children have one gate,
+    whether or not its page is allocated. `thread_id` names the joined thread.
     """
     errs = (
         thread_markup_contract_errors(frag, registry)
@@ -233,5 +237,26 @@ def message_markup_error(
     ):
         return f"{kind} markup doesn't validate:\n" + "\n".join(
             f"  - {error}" for error in reference_errs
+        )
+    # A child selecting the thread this message joins would hold this sample again,
+    # and its child the same, without end.
+    if looping := sorted(
+        sample["attrs"].get("id", "<unnamed>")
+        for sample in frag.samples
+        if thread_id in sample["attrs"].get("data-sample-threads", "").split()
+    ):
+        return (
+            f"{kind} markup: sample {json_value(looping)} selects thread "
+            f"{thread_id!r}, which holds this message, so its child would hold the "
+            "same sample again; select other threads"
+        )
+    # A live sample's child is a page of its own, built from this message once it is
+    # logged. Imported here because checking a child calls this gate back for each
+    # fixture message in its history.
+    from .source import sample_errors
+
+    if child_errs := sample_errors(page_dir, page, events, frag, registry, contracts):
+        return f"{kind} markup doesn't validate:\n" + "\n".join(
+            f"  - {error}" for error in child_errs
         )
     return None

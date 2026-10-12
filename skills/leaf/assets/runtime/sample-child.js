@@ -2,6 +2,7 @@
  * port; documents, DOM nodes, functions and browser owners remain in this realm. */
 import { canPlaceFocus, focusDestination, onStanding } from "./focus.js";
 import { pagePresented } from "./page-paint.js";
+import { sizeObserver } from "./rendering.js";
 const child = document.documentElement.lfSample;
 const commands = new Map();
 const observers = new Map();
@@ -84,7 +85,7 @@ if (child) {
     presented = true;
     child.present();
     measure();
-    new window.ResizeObserver(measure).observe(document.body);
+    sizeObserver(measure, { counted: false }).observe(document.body);
     sampleNotice("ready", {
       height,
       block: document.documentElement.hasAttribute("data-lf-sample-block"),

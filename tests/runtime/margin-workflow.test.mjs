@@ -6,8 +6,7 @@ import {
   contributionHost,
   contributionReceipts,
   presentContributionHost,
-  syncContributionAgentWorkflow,
-  syncContributionTurn,
+  presentContributionReceipts,
 } from "../../skills/leaf/assets/runtime/contribution-controls.js";
 import { servedWorkflow } from "../served.mjs";
 
@@ -22,18 +21,20 @@ const workflow = (stage, condition = null) =>
 test("margin workflow paint distinguishes live work from conditioned history", () => {
   const control = document.createElement("button");
 
-  syncContributionAgentWorkflow(control, workflow("working"));
+  presentContributionReceipts(control, workflow("working"), false);
   assert.equal(control.getAttribute("data-lf-agent-workflow"), "working");
 
-  syncContributionAgentWorkflow(
+  presentContributionReceipts(
     control,
     workflow("working", { kind: "stale", operation: "work" }),
+    false,
   );
   assert.equal(control.hasAttribute("data-lf-agent-workflow"), false);
 
-  syncContributionAgentWorkflow(
+  presentContributionReceipts(
     control,
     workflow("picked_up", { kind: "ended", operation: "work" }),
+    false,
   );
   assert.equal(control.hasAttribute("data-lf-agent-workflow"), false);
 });
@@ -81,8 +82,7 @@ test("template contribution hosts paint the retained-host contract and are found
     };
     paint(record, options, receipt, awaitsUser);
     presentContributionHost(imperative, record, options);
-    syncContributionAgentWorkflow(imperative, receipt);
-    syncContributionTurn(imperative, awaitsUser);
+    presentContributionReceipts(imperative, receipt, awaitsUser);
     const control = root.querySelector("button");
     assert.equal(control.outerHTML, imperative.outerHTML);
     assert.equal(contributionControl(source, "apply", "map"), control);

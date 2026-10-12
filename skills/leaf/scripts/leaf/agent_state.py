@@ -365,14 +365,13 @@ def _write_page_state(
     # claim subject either: every reading below keeps its empty default.
     if reading is not None:
         browser = served["browser"]
+        view = browser["views"][str(active["revision"])]
         _apply_document_state(
             state, reading.documents[active["revision"]], stored_data, registry
         )
-        state["reports"] = browser["views"][str(active["revision"])]["reports"]
+        state["reports"] = view["reports"]
         _apply_thread_state(state, reading.thread)
-        served_threads = {
-            thread["id"]: thread for thread in browser["thread"]["threads"]
-        }
+        served_threads = {thread["id"]: thread for thread in view["thread"]["threads"]}
         # The user's side between their updates: which of your messages they have not
         # taken in yet, at their current content version.
         for thread in state["threads"]:
@@ -380,18 +379,17 @@ def _write_page_state(
                 item["message"] for item in served_threads[thread["id"]]["unread"]
             ]
             thread["attention"] = served_threads[thread["id"]]["attention"]
-        state["asks"] = (
-            browser["views"][str(active["revision"])]["document"]["asks"]["all"]
-            + browser["thread"]["asks"]["all"]
-        )
+        state["asks"] = view["document"]["asks"]["all"] + view["thread"]["asks"]["all"]
         state["todos"] = browser["todos"]
-        served_queues = browser["views"][str(active["revision"])]["queues"]
+        served_queues = view["queues"]
         state["queues"] = {side: served_queues[side] for side in ("questions", "tasks")}
     subject = None
     if target is not None:
         subject = page_subject(page_dir, events, target)
         if subject is None:
-            held = logged_id(events, target, current_responses(page_dir, events))
+            held = logged_id(
+                page_dir, events, target, current_responses(page_dir, events)
+            )
             raise Refused(
                 f"{target!r} names no thread or widget on this page"
                 + (f"; {held}" if held else "")

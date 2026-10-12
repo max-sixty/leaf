@@ -83,6 +83,29 @@ long as any architectural problem they leave remains easy to fix.
 Make improvements that follow from the repository. Ask the user only when the
 choice depends on purpose or intent the code cannot supply.
 
+### Pages across Leaf updates
+
+A page keeps the layer of the Leaf that vendored it, and each later Leaf serves,
+checks and writes it, so the two often differ. Changes cross that gap in two ways:
+
+- **A protocol bump** breaks every page vendored before it, and the schema
+  announces it: the kernel registry's `$events.protocol` changes, and a Leaf
+  refuses a page vendored at another number, naming the `leaf page init` that
+  rebuilds it. A change to what a page's log holds, what its runtime posts, or the
+  reading its server serves, that an earlier page would break on, bumps the
+  number; the browser build holds the event contract to that. Bumps are rare,
+  perhaps one in five hundred commits. Once Leaf is released, a bump is the only
+  change allowed to break an existing page.
+- **Drift**, while Leaf is in alpha, may occasionally break an older page without
+  a bump, as when a render check imports a runtime name the page's runtime lacks.
+  Leaf does not detect drift by comparing the page's files with its own: a check
+  that refuses a page over any change to them forces a rebuild on nearly every
+  update. Instead the page's banner names the Leaf that vendored it beside the one
+  serving it, `page check` names it beside the one checking it, each with its
+  date, and the agent judges: a page much older than its Leaf that misbehaves
+  gets re-vendored. A failure drift does cause names the re-vendor, as the render
+  gate's does.
+
 ## Fix the underlying issue
 
 When packages or runtimes use the same concept, one owner defines its meaning
@@ -248,10 +271,13 @@ frozen into thread markup use the thread window.
 A forward gesture whose result the page can draw shows that result in the turn that
 sends it, before the log answers; a disabled control, spinner, or other delivery
 status is not that result. The page can draw what its own document settles, such as
-a widget's state or a thread's turn. Which widget asks the document still holds, and which
-of them the user owes, depend on the whole log, so that reading changes only when
-the browser adopts the state the gesture's own POST returns; the browser never
-derives it. A refusal restores the authoritative state.
+a widget's state or the words of a turn the user adds to a thread. Which asks
+the document still holds, which of them the user owes, and whose turn a thread is
+depend on the whole log, so the browser reads them from the server's state and,
+while a thread gesture of its own is unresolved, from what the server read that
+gesture leaving (each thread's `after`). It adds only what it decides itself: a
+required-version approval, a thread it opened, and the resend a refused send
+leaves. A refusal restores the authoritative state.
 
 The active document has one immutable application publication. Only its publisher
 combines authored baselines, the complete admitted server reading, and the ordered
@@ -340,7 +366,7 @@ Before handing over, run the tests that hold the behavior the change touches, an
 change needs"). A pull request's `test` job and `wt merge`'s pre-merge run the broad
 selection, `uv run pytest tests`, at landing, and report any failure your selection
 missed. Don't run it by hand before then, nor a whole browser test file or a whole
-later tier (`--run-main`, `--run-nightly`, `-m main`, `-m nightly`): each takes minutes
+later tier (`--run-main`, `--run-nightly`, `tests/browser`, `tests/journeys`): each takes minutes
 to over an hour and slows every session on the shared host, however idle it looks. A
 change to code most of the suite runs through still hands over on the tests that
 exercise what it changed, and leaves finding the rest to the gate. Before widening

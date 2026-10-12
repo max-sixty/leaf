@@ -71,7 +71,8 @@
    reader asking straight after an input handler that queued work reads false.
 
    Finite asynchronous preparation registers a `holdRendering` until it commits or its
-   owner retires. Registration unsettles synchronously; release requires a final quiet
+   owner retires. A live sample whose first document departs before presentation
+   waits for its next document or Reset. Registration unsettles synchronously; release requires a final quiet
    update, including the preparation's DOM writes and observer deliveries. Its opaque
    frozen identity is announced to `observePreparations` at registration and once on
    settlement or cancellation. The registration-time observer cohort follows that hold

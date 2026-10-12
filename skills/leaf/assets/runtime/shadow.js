@@ -15,14 +15,25 @@ export { shadowHost, upFrom, renderedParent };
 // answer: a message arriving in the panel carries widget markup that upgrades in a
 // subtree, so a pass over that subtree has the same boundary to cross and no document
 // to ask about.
+//
+// A root refused for holding bare text (passages.js, `refusesBareText`) leaves the list for
+// good, so its host reads as one with no declared root: by its own children.
+const refusedRoots = new WeakSet();
+export const refuseShadowRoot = (root) => refusedRoots.add(root);
+// The declared root `host` holds the page's words in, or null.
+export const declaredRoot = (host) =>
+  host.shadowRoot &&
+  registryFor(host)[host.localName]?.["x-shadow"] &&
+  !refusedRoots.has(host.shadowRoot)
+    ? host.shadowRoot
+    : null;
 export const shadowRootsIn = (root) =>
   tagsDeclaring((entry) => entry["x-shadow"])
     .flatMap((tag) => [
       ...(root.nodeType === Node.ELEMENT_NODE && root.matches(tag) ? [root] : []),
       ...root.querySelectorAll(tag),
     ])
-    .filter((host) => registryFor(host)[host.localName]?.["x-shadow"])
-    .map((host) => host.shadowRoot)
+    .map(declaredRoot)
     .filter(Boolean);
 export const pageShadowRoots = () => shadowRootsIn(document);
 // Explicit inertness excludes a node through its composed ancestry. A standing native

@@ -1,0 +1,18 @@
+# The waiting status command names unanswered work until the reply settles it.
+
+before reply:
+  exit: 0
+  status:
+    state: waiting
+    detail: >-
+      pick one
+  note: |
+    1 user update with no answer (`leaf response reply <answer.ref>` with the `answer.ref` that `leaf wait <page>` delivers for event-1); the page reads waiting once each has one
+
+after reply:
+  exit: 0
+  status:
+    state: waiting
+    detail: >-
+      pick one
+  note: ''

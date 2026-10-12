@@ -3,7 +3,7 @@
    `g Q`, as the Threads panel opens with `g T` and `t` walks the threads.
 
    What waits on the user is the application's one reading, `queues.onYou`
-   (`runtime/queues.js`, the browser's selection of `agent_state.queues`): each open
+   (the server's `served_state.queues`, with this tab's sends placed against it): each open
    Question or explicit task on the user, each thread holding a
    update to send again, and each page widget action handed back to them. The walk does not
    decide membership; it stops once at each place an item is arrived at, so a thread

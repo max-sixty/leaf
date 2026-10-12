@@ -20,7 +20,12 @@ from leaf.projection import (
     authored_positions,
     record_members,
 )
-from leaf.questions import asking, projected_action_holders, quoted_in
+from leaf.questions import (
+    approval_blocking,
+    asking,
+    projected_action_holders,
+    quoted_in,
+)
 from leaf.read_state import read_contract_error
 from leaf.refusals import Refusal
 from leaf.registry.contract import (
@@ -486,18 +491,9 @@ def _approval_error(view, event: dict, events: list, registry: dict):
         )
     page = AdmissionReadings(view, events, registry).page(revision)
     work = WorkReading(events, registry, page)
-    unanswered = [
-        *(
-            question
-            for question in work.document.questions["unanswered"]
-            if question["source"]["kind"] == "widget"
-        ),
-        *(
-            question
-            for question in work.widget_questions["unanswered"]
-            if question["next_actor"] is not None
-        ),
-    ]
+    unanswered = approval_blocking(
+        [*work.document.questions["all"], *work.widget_questions["all"]]
+    )
     if unanswered:
         identities = ", ".join(question["id"] for question in unanswered)
         return (

@@ -24,14 +24,18 @@ export const coordinateOf = (key) => JSON.parse(key);
 /** @param {{detail: Record<string, unknown>}} event @param {import("../../../../../build/browser/domain.ts").StateRecord} record */
 export function foldedValue(event, record) {
   const value = event.detail.value;
-  if (record.kind === "attribute") {
-    // Unresolved detail has not passed admission. Only iterable attribute values
-    // can be drawn; the server remains the owner of the declared detail schema.
-    if (typeof value === "string" || Array.isArray(value))
-      return [...value].sort().join(" ");
-  }
+  // An attribute record is a set, which the server's value lists sorted
+  // (`projection.folded_value`); a pending action's value takes the same shape.
+  // Unresolved detail has not passed admission, so a value that is no list is drawn
+  // as it came until admission refuses it.
+  if (record.kind === "attribute" && Array.isArray(value)) return value.toSorted();
   return value ?? null;
 }
+
+// Whether a standing value says the same as another: values are JSON, and an
+// attribute record's is a sorted list.
+/** @param {unknown} a @param {unknown} b */
+const sameStandingValue = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 /** @param {ProjectionEntry} a @param {ProjectionEntry} b */
 const compareProjected = (a, b) => {
@@ -157,7 +161,6 @@ const authoredValue = (
   if (!spec || !state) throw new Error(`Missing authored state for ${owner}/${verb}`);
   const record = spec.record;
   const value = state.value;
-  if (record?.kind === "attribute" && Array.isArray(value)) return value.join(" ");
   if (record?.kind === "position" && "units" in state)
     return (
       Object.keys(state.value).find((container) =>
@@ -185,7 +188,7 @@ export function projectionOrigins(authoredSnapshots, projection) {
   for (const entry of projection.desired.values()) {
     const { unit, e, spec, value } = entry;
     const overridesSource = spec.record
-      ? value !== authoredValue(authoredSnapshots, entry)
+      ? !sameStandingValue(value, authoredValue(authoredSnapshots, entry))
       : true;
     if (!overridesSource) continue;
     add(e.kind === "action" ? "user" : "reported", unit);
@@ -366,9 +369,8 @@ export function questionValue(widget, verb, answered) {
   if (!state || !spec) throw new Error(`Missing Question value definition for ${verb}`);
   /** @param {unknown} value */
   const recorded = (value) =>
-    spec.record?.kind === "attribute" &&
-    (typeof value === "string" || Array.isArray(value))
-      ? [...value].sort()
+    spec.record?.kind === "attribute" && Array.isArray(value)
+      ? value.toSorted()
       : value;
   const value =
     "units" in state

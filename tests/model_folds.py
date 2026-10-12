@@ -58,6 +58,9 @@ UNCLAIMED = {
     "session_cwd": None,
 }
 
+# The Layouts that shape `main` (layouts.css), and None for a `main` with none.
+PAGE_LAYOUTS = ("column", "sidebar", "workspace", None)
+
 
 def leaf_page(
     title: str, body: str, *, head: str = "", layout: str | None = "column"
@@ -66,6 +69,8 @@ def leaf_page(
     names the Layout `main` takes (`sidebar` is `<main class="layout-sidebar">`): the column,
     the Layout most pages take, unless the test says otherwise, and None for a `main`
     with no Layout at all."""
+    if layout not in PAGE_LAYOUTS:
+        raise ValueError(f"no page Layout layout-{layout}; one of {PAGE_LAYOUTS}")
     extra_head = f"{head}\n" if head else ""
     main = f'<main class="layout-{layout}">' if layout else "<main>"
     return f"""<!doctype html>

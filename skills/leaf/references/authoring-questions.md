@@ -27,9 +27,10 @@ marker beside it stand with the paragraphs around it. An `lf-ask` that frames a
 figure, such as a chart, image or table, around one option list sets the list beside
 its premise and evidence wherever the context has room, so the question, the figure and
 every option share the window. The reading column is too narrow for that, so give the
-`lf-ask` the wide measure with `data-width="wide"`. An `lf-ask` holding a playground or
-another surface that uses every column it gets takes `data-width="available"`
-(`page-authoring.md`, "Bounds and widths").
+`lf-ask` the wide measure with `data-width="wide"`. A playground or another surface in
+an `lf-ask` that uses every column it gets takes `data-width="available"` itself, so the
+question and its premise keep the prose's width (`page-authoring.md`, "Bounds and
+widths").
 
 Write related, independently answerable Questions in page order. A widget can carry its
 own question and context, or an `lf-ask` can frame them around it. They remain visible

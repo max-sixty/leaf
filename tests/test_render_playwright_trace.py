@@ -994,7 +994,6 @@ def test_trace_comparison_pairs_authored_results_across_delayed_sources(browser,
         leaf_page(
             "Matched results",
             f'<h1>Matched results</h1><lf-trace-compare id="feeds">{viewers}</lf-trace-compare>',
-            layout="wide",
         ),
         packages=("playwright",),
         media=media,
@@ -2981,7 +2980,6 @@ def test_trace_images_stand_at_their_own_capture_times(browser, serve):
         leaf_page(
             "Capture times",
             '<h1>Capture times</h1><lf-trace id="journey" source="timed-trace"></lf-trace>',
-            layout="wide",
         ),
         packages=("playwright",),
         media=media,

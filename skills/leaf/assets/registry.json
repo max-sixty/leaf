@@ -1294,7 +1294,7 @@
     "x-example": "<span class=\"tag\">experimental</span>"
   },
   ".callout": {
-    "description": "An aside set off from the prose — a tinted field with a hairline border. For something the user must not miss; a note they lose nothing by skipping goes in the margin (aside.sidenote). Add `ok`, `warn` or `danger` when the callout reports a status, as `class=\"callout warn\"` for a paused release; its tint and title take the tone and its prose stays in the body's ink. In a flow wider than the column, such as a sidebar page.s body, it keeps the prose.s width; one holding a chart or table that needs more takes `data-width`.",
+    "description": "An aside set off from the prose — a tinted field with a hairline border. For something the user must not miss; a note they lose nothing by skipping goes in the margin (aside.sidenote). Add `ok`, `warn` or `danger` when the callout reports a status, as `class=\"callout warn\"` for a paused release; its tint and title take the tone and its prose stays in the body's ink. In a flow wider than the column, such as a sidebar page's body, it keeps the prose's width; one holding a chart or table that needs more takes `data-width`.",
     "x-space": "column",
     "x-example": "<aside class=\"callout\" id=\"rollback-note\">Rollback is one flag flip; the backfill is idempotent.</aside>"
   },

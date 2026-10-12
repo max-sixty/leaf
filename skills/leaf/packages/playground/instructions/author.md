@@ -12,10 +12,11 @@ The playground draws its own regions: the preview is a stage, and the controls a
 instruction to the agent stand in a rail beside it, on the same `2fr 1fr` tracks as a
 sidebar page's body and aside, wherever it has 43.5rem; narrower, they stack. A preview
 that needs width, such as two candidates side by side, takes the room beside the column:
-an `lf-ask` keeps the prose's width, so give the playground's `lf-ask` context
-`data-width="available"`. On a workspace page (`<main class="layout-workspace
-density-working">`) whose body is that context, the stage also grows to the window's
-height. Draw candidates directly on the stage without separate cards.
+give the `lf-playground` `data-width="available"`, so it widens while the question and
+premise in its `lf-ask` keep the prose's width. On a workspace page (`<main
+class="layout-workspace density-working">`) whose body is that `lf-ask`, the stage also
+grows to the window's height. Draw candidates directly on the stage without separate
+cards.
 
 The preview is the surface the user operates. An A/B comparison keeps both candidates
 mounted there with the same configuration and starting content. Candidates that stand
@@ -78,9 +79,10 @@ leaves out keeps the user's last value. Name the outcome—`Status strip`, not `
 In this comparison, `format` identifies which of the two candidates to build:
 
 ```html
-<lf-ask id="notification-ask" data-width="available">
+<lf-ask id="notification-ask">
   <h2>Which deployment notification should we build?</h2>
-  <lf-playground id="notification-playground" submit-label="Create notification">
+  <lf-playground id="notification-playground" submit-label="Create notification"
+    data-width="available">
     <lf-playground-control name="format" label="Format" kind="choice" value="banner">
       <lf-playground-choice value="banner" label="Banner"></lf-playground-choice>
       <lf-playground-choice

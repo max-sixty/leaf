@@ -2270,6 +2270,66 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     assert at["holds-t"]["left"] < at["prose"]["left"], at
 
 
+NOTE = '<aside class="sidenote" id="note"><p>A note that needs a sidenote.</p></aside>'
+
+
+@pytest.mark.parametrize(
+    ("resident", "posture"),
+    [
+        ("", "even"),
+        ('<aside class="sidebar"><lf-toc id="toc"></lf-toc></aside>', "map"),
+        (NOTE, "note"),
+        ('<aside class="sidebar"><p>Owner: payments.</p></aside>', "sidebar"),
+    ],
+)
+def test_a_table_granted_room_stands_on_the_prose_axis(
+    browser, serve, resident, posture
+):
+    """A table given `data-width` keeps its columns' natural width and stands centred on
+    the prose axis, however unevenly the margins share the room: a contents map's spine
+    or a column moved over for a sidenote leaves one side narrower. One that fits the
+    column takes the column's width and starts where the prose starts. Where a sidebar
+    stands in the left margin the room is all on the right, so the table starts at the
+    prose and grows right."""
+    head = "".join(f"<th>Column {i}</th>" for i in range(8))
+    row = "".join(f"<td>measured value {i}</td>" for i in range(8))
+    body = (
+        f"{resident}<h1>Tables</h1>"
+        '<p id="prose">A paragraph at the measure, long enough to fill the column it '
+        "stands in from one edge to the other.</p>"
+        f'<table id="wide" data-width="available"><thead><tr>{head}</tr></thead>'
+        f"<tbody><tr>{row}</tr></tbody></table>"
+        '<table id="narrow" data-width="available"><tr><th>Plan</th><td>60</td></tr>'
+        "</table>"
+    )
+    page = open_page(browser, serve(leaf_page("Tables granted room", body)))
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    at = page.evaluate("""() => {
+      const edges = (el) => {
+        const box = el.getBoundingClientRect();
+        return {left: box.left, right: box.right, centre: (box.left + box.right) / 2};
+      };
+      const grid = (id) => edges(document.querySelector(`#${id} tr`));
+      return {
+        margin: document.querySelector('main').getAttribute('data-lf-margin') ?? '',
+        prose: edges(document.getElementById('prose')),
+        wide: grid('wide'),
+        narrow: grid('narrow'),
+      };
+    }""")
+    if posture != "even":
+        assert posture in at["margin"].split(), at
+    prose = at["prose"]
+    assert at["narrow"]["left"] == pytest.approx(prose["left"], abs=1), at
+    assert at["wide"]["right"] - at["wide"]["left"] > prose["right"] - prose["left"], at
+    if posture == "sidebar":
+        assert at["wide"]["left"] == pytest.approx(prose["left"], abs=1), at
+    else:
+        assert at["wide"]["centre"] == pytest.approx(prose["centre"], abs=1), at
+    assert root_overflow(page) == 0
+
+
 def test_a_sample_fills_the_room_its_authored_width_takes(browser, serve):
     """The breakout rule widens a block by negative margins, which an auto-width box
     fills and a box with a width of its own does not. A sample is a table box with a

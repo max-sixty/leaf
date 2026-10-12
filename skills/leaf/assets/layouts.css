@@ -263,14 +263,18 @@
      * columns, an eight-column table stood at 1080px with 30px of nothing between each
      * pair. Its box stays the allocation above, keeping the size containment and scrolling
      * its columns as any table does, while its grid keeps the columns' natural width
-     * inside it (reading.css withholds the fill) and stands centred in the allocation,
-     * which on a column page is centred on the prose axis. `safe` starts a grid too wide
-     * for the allocation where its scroll begins. A grid narrower than the column takes
-     * the column's width (`--lf-width`, an empty caption as the fill's is), so it starts
-     * where the prose does rather than centred under it. Where the left margin is spoken
-     * for, as by a sidebar standing there, the allocation starts at the prose and the grid
-     * does too. Nested in another breakout, the grid starts at its holder's edge with the
-     * holder's own blocks, and in a frame it fills the frame as every table there does.
+     * inside it (reading.css withholds the fill) and stands centred on the prose axis.
+     * The allocation grows unevenly where one margin is narrower, by a contents map's
+     * spine or a column moved over for a sidenote, so the box pads its wider side by the
+     * difference and centres the grid in what is left. A grid wider than that even span
+     * wraps or scrolls sooner by the difference: 48px beside a map's spine at 1440px.
+     * `safe` starts a grid too wide for the box where its scroll begins. A grid narrower
+     * than the column takes the column's width (`--lf-width`, an empty caption as the
+     * fill's is), so it starts where the prose does rather than centred under it. Where
+     * the left margin is spoken for, as by a sidebar standing there, evening the sides
+     * would leave the grid no room at all, so it starts at the prose and grows right.
+     * Nested in another breakout, the grid starts at its holder's edge with the holder's
+     * own blocks, and in a frame it fills the frame as every table there does.
      *
      * Alignment moves the native grid whole: its caption, columns and borders stay one
      * table. Three layouts this replaced split them or broke a guarantee: a box sized to
@@ -282,10 +286,13 @@
      * (notes/browser-support.md). */
     main.layout-column table[data-lf-space]:not([data-lf-space="column"]) {
       justify-items: safe center;
+      padding-left: max(0px, calc(var(--lf-grow-l) - var(--lf-grow-r)));
+      padding-right: max(0px, calc(var(--lf-grow-r) - var(--lf-grow-l)));
     }
     main.layout-column[data-lf-margin~="sidebar"] table[data-lf-space]:not([data-lf-space="column"]),
     main.layout-column [data-lf-space]:not([data-lf-space="column"]) table[data-lf-space] {
       justify-items: normal;
+      padding-inline: 0;
     }
     @container not style(--lf-room: 100%) {
       main.layout-column table[data-lf-space]:not([data-lf-space="column"])::before {

@@ -808,10 +808,13 @@
         --lf-block-frame: 1;
         box-sizing: border-box;
         min-width: 0;
-        max-width: 100%;
         padding: var(--sp-2);
         border: 1px solid transparent;
         border-radius: var(--r);
+      }
+
+      .code-candidate[data-candidate] {
+        max-width: 100%;
       }
 
       .code-candidate-title,
@@ -2909,9 +2912,13 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
 </lf-tab>
 
 <lf-tab id="corpus-notification-playground" label="Notification">
-<lf-ask id="notification-ask" data-width="available">
+<lf-ask id="notification-ask">
         <h1>Stress-test the deployment notification</h1>
-        <lf-playground id="notification-playground" submit-label="Create notification">
+        <lf-playground
+          id="notification-playground"
+          submit-label="Create notification"
+          data-width="available"
+        >
           <lf-playground-control
             name="events"
             label="Concurrent release events"
@@ -3034,9 +3041,13 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
         Choose which releases to include in the report. Add filters, check the matching
         rows, then ask the agent to build the query.
       </p>
-      <lf-ask id="release-query-ask" data-width="available">
+      <lf-ask id="release-query-ask">
         <h2>Which release query should the agent build?</h2>
-        <lf-playground id="release-query-playground" submit-label="Build query">
+        <lf-playground
+          id="release-query-playground"
+          submit-label="Build query"
+          data-width="available"
+        >
           <lf-playground-control
             name="limit"
             label="Maximum results"
@@ -3071,9 +3082,13 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
         Compare a scrolling code reader with a wrapping one. Adjust their spacing and
         shared width, then choose the treatment to keep.
       </p>
-      <lf-ask id="code-comparison-ask" data-width="available">
+      <lf-ask id="code-comparison-ask">
         <h2>Which code-reader treatment should the agent keep?</h2>
-        <lf-playground id="code-comparison-playground" submit-label="Apply treatment">
+        <lf-playground
+          id="code-comparison-playground"
+          submit-label="Apply treatment"
+          data-width="available"
+        >
           <lf-playground-control
             name="width"
             label="Comparison viewport"
@@ -3157,7 +3172,7 @@ export function releaseLabels(releases) {
           </lf-playground-output>
         </lf-playground>
       </lf-ask>
-      <section id="code-reader-feedback" data-width="available">
+      <section id="code-reader-feedback">
         <h2>Point at the reader element you want changed</h2>
         <p id="code-reader-feedback-guide">
           Turn on Design mode with <kbd>l</kbd> or the More menu, then press the heading
@@ -3166,7 +3181,11 @@ export function releaseLabels(releases) {
           stays beside that element as its treatment changes. Describe a shared change
           in the comment when both readers should inherit it.
         </p>
-        <section id="target-reader-artifact" class="code-candidate">
+        <section
+          id="target-reader-artifact"
+          class="code-candidate"
+          data-width="available"
+        >
           <h3 id="target-reader-heading" class="reader-treatment-title">
             Reader sample
           </h3>

@@ -187,7 +187,7 @@ One arranges a block's children:
 
 Wide content on a column page breaks out of the column by its own declaration: a board
 or a diagram declares its width, and `data-width` asks for one on any other block, such
-as a table, a trace or the Question holding a playground ("Bounds and widths"). The
+as a table, a trace or a playground ("Bounds and widths"). The
 prose keeps its axis around it.
 
 On a sidebar page or a workspace, every block, the title included, starts at one left
@@ -196,9 +196,9 @@ widget read as text, such as an option list or a draft. A sidebar page is capped
 widest page and sets its title larger; a workspace takes the whole window and leaves its
 title to the theme.
 
-An `lf-ask` and a callout keep the reading measure in every Layout. Give one
-`data-width` where it holds a chart, a table, a playground or another surface that needs
-more room.
+An `lf-ask` and a callout keep the reading measure in every Layout. Give the chart,
+table, playground or other surface inside one that needs more room its own
+`data-width`.
 
 A Layout is a starting point. The page's own `<style>` comes after it in the cascade, so
 an ordinary rule adjusts it — a different track share, a gap, an order — and a page
@@ -338,10 +338,10 @@ shell, frames, chrome, and a margin resident that takes its side, such as a side
 standing in the margin or the contents map's spine; the markers beside it then stand as
 pins on it, and it moves below a note hanging level with it. A native `table` given
 either takes its columns' natural width up to that room: one that fits the column
-stands where the prose starts, and a wider one grows evenly about the prose. An
-`lf-ask` or a callout keeps the column; give it the width its chart, table or
-playground needs, and in a wider flow it also widens to a block of its own that
-declares one.
+stands where the prose starts, and a wider one grows evenly about the prose, or to the
+right where a sidebar stands in the left margin. An `lf-ask` or a callout keeps the
+column: a block of its own that declares a width breaks out of it on a column page, and
+widens it in a wider flow.
 Use these names on the semantic block itself, including a native `table`, `lf-code`, or
 `lf-diff`; do not reproduce their responsive widths in page CSS.
 

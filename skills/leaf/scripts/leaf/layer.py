@@ -12,6 +12,7 @@ from .locations import located, locations_overlap
 from .machine import package_store
 from .refusals import Refused
 from .registry.contract import element_declarations, is_element_name
+from .registry.kernel import kernel_protocol
 from .schema import (
     ASSETS,
     BROWSER_DIRS,
@@ -412,36 +413,27 @@ def payload_server_fingerprint() -> str:
     )
 
 
-# The contract between a page's vendored layer and any Leaf that serves the page or
-# writes its log, as one number `page init` records under `$layer.protocol`. A Leaf
-# serves and writes any page vendored at its own number, whichever Leaf vendored it,
-# so a plugin update leaves open pages working. Bump it when a page an older Leaf
-# vendored at this number would break under this one: the served state, a runtime
-# module the server relies on, or an event drops, renames or changes the meaning of
-# something the other side reads, or a field the page's runtime sends becomes
-# required. Adding a field or kind the page's older code ignores needs no bump. The
-# promise runs one way: an older Leaf serving a page a newer one vendored may refuse
-# a field it does not know. Every page vendored before a bump is refused until
-# `leaf page init` re-vendors it.
-PROTOCOL = 1
+def incompatible_layer(page_dir: Path, registry: dict) -> str | None:
+    """Why this Leaf can neither serve a page nor write its log, given the registry it
+    would serve the page under: that registry's `$events` were vendored at another
+    `protocol` than this Leaf's own (`registry.kernel.kernel_protocol`). None when it
+    may.
 
-
-def incompatible_layer(page_dir: Path, layer: dict) -> str | None:
-    """Why this Leaf can neither serve a page nor write its log, given its recorded
-    `$layer`: the page was vendored at another `PROTOCOL`. None when it may.
-
-    Every page server, the gate's and the website's included (`http.page_endpoint`,
+    A Leaf serves and writes any page vendored at its own number, whichever Leaf
+    vendored it, so a plugin update leaves open pages working. Every page server, the
+    gate's and the website's included (`http.page_endpoint`,
     `leaf_website.page_binding`), and the one append door (`event_contracts`) refuse
-    on this one reading. A page vendored before the number was recorded names none,
+    on this one reading. A page vendored before the number was declared names none,
     and is refused too.
     """
-    vendored = layer.get("protocol")
-    if vendored == PROTOCOL:
+    vendored = registry.get("$events", {}).get("protocol")
+    running = kernel_protocol()
+    if type(vendored) is int and vendored == running:
         return None
     return (
         f"{page_dir} was vendored by a Leaf at page protocol "
         f"{vendored if vendored is not None else 'none'}, and this Leaf "
-        f"({PLUGIN_ROOT}) speaks protocol {PROTOCOL}, so it cannot serve the page or "
+        f"({PLUGIN_ROOT}) speaks protocol {running}, so it cannot serve the page or "
         f"write its log. Re-vendor it with `leaf page init {page_dir}`."
     )
 

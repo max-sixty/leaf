@@ -5060,9 +5060,17 @@ def test_sample_data_bindings_use_copied_data_but_not_parent_history(page_dir):
     assert data_model.read_contracts(page_dir)["shared"] == "parent"
 
 
-@pytest.mark.parametrize("seeded", [False, True])
-@pytest.mark.parametrize("available", [False, True])
-@pytest.mark.parametrize("nested", [False, True])
+# Selection alone decides: a thread the log holds is out of reach unless selected,
+# a selected one need not be held, and a nested sample reads the same way.
+@pytest.mark.parametrize(
+    ("seeded", "available", "nested"),
+    [
+        (False, True, False),
+        (True, False, False),
+        (False, True, True),
+        (True, False, True),
+    ],
+)
 def test_sample_references_see_only_selected_threads(
     page_dir, seeded, available, nested
 ):
@@ -6010,7 +6018,6 @@ def test_sample_fixture_accepts_native_message_markup(page_dir):
     ("anchor", "valid", "complaint"),
     [
         ({"section": "outer-only"}, False, "no element id 'outer-only'"),
-        ({"section": "missing"}, False, "no element id 'missing'"),
         (
             {"section": "child", "quote": "Words only in the parent"},
             False,

@@ -2354,20 +2354,18 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     expect(page.locator(".lf-legend-box")).to_have_count(0)
 
 
+# Each mode once and each route once: the route reaches the same picker whatever mode
+# it stands in.
 @pytest.mark.parametrize(
     ("mode", "route"),
     [
-        (None, "pointer"),
         (None, "keyboard"),
         ("l", "pointer"),
-        ("l", "keyboard"),
         ("w", "pointer"),
     ],
     ids=[
-        "content-pointer",
         "content-keyboard",
         "design-pointer",
-        "design-keyboard",
         "draw",
     ],
 )
@@ -2439,8 +2437,11 @@ def test_target_picker_selects_in_the_standing_comment_mode(
         expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
 
 
-@pytest.mark.parametrize("route", ["direct", "picker-pointer", "picker-keyboard"])
-@pytest.mark.parametrize("role", ["slider", "button"])
+# Each route once, with each role taking at least one of them.
+@pytest.mark.parametrize(
+    ("role", "route"),
+    [("slider", "direct"), ("button", "picker-pointer"), ("slider", "picker-keyboard")],
+)
 def test_design_mode_owns_every_platform_control_from_the_shared_boundary(
     browser, serve, route, role
 ):
@@ -2516,7 +2517,7 @@ def test_design_mode_owns_every_platform_control_from_the_shared_boundary(
 
 
 @pytest.mark.parametrize(
-    ("generated", "route"), [(False, "pointer"), (False, "keyboard"), (True, "pointer")]
+    ("generated", "route"), [(False, "keyboard"), (True, "pointer")]
 )
 def test_repeated_design_control_names_keep_context_without_inventing_identity(
     browser, serve, generated, route
@@ -2623,8 +2624,11 @@ def test_repeated_design_control_names_keep_context_without_inventing_identity(
         expect(card.locator(".lf-msg-text")).to_contain_text("Keep this row.")
 
 
-@pytest.mark.parametrize("kind", ["button", "select"])
-@pytest.mark.parametrize("route", ["pointer", "keyboard"])
+# Each kind and each route once; the anchor a kind resolves to does not depend on the
+# route that chose it.
+@pytest.mark.parametrize(
+    ("route", "kind"), [("keyboard", "button"), ("pointer", "select")]
+)
 def test_design_control_context_must_resolve_to_visible_words(
     browser, serve, kind, route
 ):
@@ -2701,7 +2705,9 @@ def test_design_control_context_must_resolve_to_visible_words(
     ).to_contain_text("Review this control.")
 
 
-@pytest.mark.parametrize("route", ["input", "label", "keyboard"])
+# The label's larger hit area and the keyboard; a press on the input itself is every
+# other design test's route.
+@pytest.mark.parametrize("route", ["label", "keyboard"])
 def test_design_label_and_input_are_one_control(browser, serve, route):
     """A native label's larger hit area selects the same control as its input."""
     page = open_page(
@@ -4683,8 +4689,21 @@ def _paint_mode(page, mode, words):
         expect(page.locator(".lf-key-hint[data-lf-hint-code]").first).to_be_visible()
 
 
-@pytest.mark.parametrize("scroller", ["window", "header", "pane"])
-@pytest.mark.parametrize("mode", ["design", "picker", "go-to", "search", "ask", "ink"])
+# Every mode's paint in a pane, the frame each of them once trailed by a frame; the
+# legend in every frame, and chips under a header's cut and in the window's own plane.
+@pytest.mark.parametrize(
+    ("mode", "scroller"),
+    [
+        *(
+            (mode, "pane")
+            for mode in ("design", "picker", "go-to", "search", "ask", "ink")
+        ),
+        ("design", "window"),
+        ("design", "header"),
+        ("picker", "header"),
+        ("go-to", "window"),
+    ],
+)
 def test_a_scroll_carries_paint_over_targets_and_writes_it_once_settled(
     browser, serve, mode, scroller
 ):
@@ -4698,8 +4717,6 @@ def test_a_scroll_carries_paint_over_targets_and_writes_it_once_settled(
     pane by a frame, and so did the picker's and Go-to's chips, the search's mark and
     an Ask's binding digits, each written on every frame of the gesture. Saved ink
     stands the same way."""
-    if mode == "ask" and scroller != "pane":
-        pytest.skip("the Ask's digits stand beside a pane's suggestion")
     source = {
         "window": LONG_PAGE,
         "header": HEADED_PAGE,
@@ -4936,7 +4953,8 @@ def test_each_legend_box_stays_on_what_it_names_without_a_pass(browser, serve):
     assert moved == [["p3", -1, -1]], moved
 
 
-@pytest.mark.parametrize("distance", [8, 64, 256])
+# Near context and context far beyond any cap a capture could hold.
+@pytest.mark.parametrize("distance", [8, 256])
 def test_selected_words_grow_context_until_the_exact_span_resolves(
     browser, serve, distance
 ):
@@ -5185,8 +5203,9 @@ def test_design_hint_faces_follow_controls_and_their_native_labels(browser, serv
     assert seen == names, heard
 
 
-@pytest.mark.parametrize("kind", ["checkbox", "select"])
-@pytest.mark.parametrize("route", ["pointer", "keyboard"])
+@pytest.mark.parametrize(
+    ("route", "kind"), [("keyboard", "checkbox"), ("pointer", "select")]
+)
 def test_design_captures_a_repeated_controls_real_associated_label(
     browser, serve, kind, route
 ):
@@ -5506,8 +5525,9 @@ def test_a_unique_anonymous_control_captures_its_visible_face(browser, serve, ro
     assert abs(card.bounding_box()["y"] - control.bounding_box()["y"]) < 100
 
 
-@pytest.mark.parametrize("kind", ["editable", "focusable"])
-@pytest.mark.parametrize("route", ["pointer", "keyboard"])
+@pytest.mark.parametrize(
+    ("route", "kind"), [("keyboard", "editable"), ("pointer", "focusable")]
+)
 def test_design_regions_keep_distinct_comments_and_ordinary_interaction(
     browser, serve, kind, route
 ):

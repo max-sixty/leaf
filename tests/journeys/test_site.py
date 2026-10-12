@@ -1087,7 +1087,7 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
         state = page.evaluate("() => fetch('api/state').then(r => r.json())")
         assert state["publication"] == {
             "kind": "product",
-            "agent": "The agent",
+            "agent": "Agent",
             "install_url": "/#install",
         }
         if name == "how-it-works.html":
@@ -1518,7 +1518,7 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
     state = page.evaluate("() => fetch('api/state').then(r => r.json())")
     assert state["publication"] == {
         "kind": "example",
-        "agent": "The agent",
+        "agent": "Agent",
         "install_url": "/#install",
     }
     assert state["browser"]["todos"] == []

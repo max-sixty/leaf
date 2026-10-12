@@ -110,9 +110,9 @@
  * name that could not break (an identifier has nowhere to break until the rule
  * at `code` above gives it one) or because there are more columns than the
  * measure holds. `page check --render` refuses a table that scrolls with a
- * cell in it wrapped at any width from 360px to 1920px (`squeezedTables`,
- * render-checks/layout.js) and leaves the third case to a table with nothing
- * left to wrap.
+ * cell in it wrapped at its two viewports, advises on one at the other widths
+ * from 360px to 1920px (`squeezedTables`, render-checks/layout.js), and leaves
+ * the third case to a table with nothing left to wrap.
  *
  * Two things the display change could have cost, both measured rather than
  * assumed, and neither charged: Chrome's accessibility tree keeps table,

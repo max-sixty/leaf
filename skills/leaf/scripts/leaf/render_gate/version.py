@@ -11,6 +11,7 @@ from .readings import (
     open_widgets,
     settle_at,
     shrunk_label_advice,
+    squeezed_table_advice,
     sweep,
     swept_overflow,
     unreserved_height_advice,
@@ -90,7 +91,8 @@ def _render_version_attempt(
     paint did not hold; and then, resizing that loaded page through every width from
     360px to 1920px, the sideways readings again: a version holds at each of them, not
     only at the two it renders. There it also reads, as advice naming the widths it
-    spans, whether a drawing's fit to its box shrinks its labels past reading. That pass
+    spans, whether a drawing's fit to its box shrinks its labels past reading, and
+    whether a table scrolls with a cell wrapped at widths the two miss. That pass
     also finds each width where the page's margin content changes (a sidebar, contents
     map or note first standing in the margin), and the gate renders the page there too,
     in the light scheme: what stands in the margin is layout, which the scheme does not
@@ -122,6 +124,7 @@ def _render_version_attempt(
         advice.extend(unreserved_height_advice(page, element_declarations(registry)))
         widths = sweep(page, RENDER_VIEWPORTS, open_widgets(registry))
         advice.extend(shrunk_label_advice(widths))
+        advice.extend(squeezed_table_advice(widths, RENDER_VIEWPORTS))
         swept.extend(swept_overflow(widths, RENDER_VIEWPORTS))
         arrangement.extend(arrangement_changes(widths))
         fixed = {viewport["width"] for viewport in RENDER_VIEWPORTS}

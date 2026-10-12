@@ -123,7 +123,7 @@ and standing state that replays without conflict and idempotently.
 `render_gate/readings.py` is the list. Those readings run
 at a desktop and a phone viewport; once they are done, the loaded desktop page is
 resized through the widths from 360px to 1920px and sideways overflow, misplaced boxes,
-squeezed tables, and scrollbar clearance are read again at each: a version holds at every width from
+and scrollbar clearance are read again at each: a version holds at every width from
 the narrowest phone to a wide desktop, not only at the two the gate renders, and each fault the sweep alone finds is
 reported with the widths it spans. The sweep also finds each width where the page's own
 margin residents change (`data-lf-margin` on `main`, less the rail), and the readings
@@ -131,9 +131,11 @@ run again there in the light scheme, where each resident has the least room it w
 ever have. It reads, too, how each flex or grid box the page wrote splits its children
 into rows, and the swept widths where that changes.
 At each swept width it also reads, as advice, each drawing whose fit to its box draws
-labels under 10px, and reports each unbroken run of widths where one appears, with its
-reading at the narrowest of them. Swept sideways faults are reported by run the same
-way.
+labels under 10px and each table that scrolls with a cell wrapped, and reports each
+unbroken run of widths where one appears, with its reading at the narrowest of them.
+A squeezed table refuses the version only at the two viewports it renders: elsewhere
+the table still scrolls with every word in reach, and whether the page answers for that
+width is the author's call. Swept sideways faults are reported by run the same way.
 
 A version that passes gets screens for the author to read (`render_gate/screens.py`):
 the page's first eight screens down from its top at the desktop viewport, at the

@@ -536,22 +536,27 @@ def margin_changes(page, readings, height: int) -> list[int]:
 
 
 def swept_overflow(readings, viewports) -> list[str]:
-    """Sideways overflow, squeezed tables, and scrollbar collisions the fixed
-    viewports miss, with the widths each run spans and what it reads at the narrowest.
+    """Sideways overflow and scrollbar collisions the fixed viewports miss, with
+    the widths each run spans and what it reads at the narrowest.
 
     A run that takes in a fixed width is dropped here, because that viewport's own
     reading already reports it in both schemes."""
+    return _unfixed(
+        readings,
+        viewports,
+        lambda reading: (
+            _overflow(reading["overflow"], reading["misplaced"])
+            + _scrollbars(reading["scrollbars"])
+        ),
+    )
+
+
+def _unfixed(readings, viewports, faults) -> list[str]:
+    """Each swept run of `faults` that takes in no fixed width, said with its widths."""
     fixed = {viewport["width"] for viewport in viewports}
     return [
         f"at {_span(widths)} wide, {text}"
-        for widths, text in _swept(
-            readings,
-            lambda reading: (
-                _overflow(reading["overflow"], reading["misplaced"])
-                + _scrollbars(reading["scrollbars"])
-                + _squeezed(reading["squeezed"])
-            ),
-        )
+        for widths, text in _swept(readings, faults)
         if not fixed & set(widths)
     ]
 
@@ -560,6 +565,18 @@ def swept_overflow(readings, viewports) -> list[str]:
 # can draw a page worse than either fixed viewport does. Each item names the widths it
 # spans and what it reads at the narrowest. Which of those widths a page answers for is
 # the author's call, so none of it refuses a version.
+
+
+def squeezed_table_advice(readings, viewports) -> list[str]:
+    """Advice naming each table that scrolls sideways with a cell wrapped at swept
+    widths the fixed viewports miss.
+
+    Advice there, though the fixed viewports refuse the same reading, because the
+    table still scrolls and every word in it stays in reach: what costs the reader is
+    prose wrapped a word a line beside a scroller, and whether a page answers for a
+    360px phone with fewer columns or shorter words is the author's call. A run that
+    takes in a fixed width is that viewport's failure to report."""
+    return _unfixed(readings, viewports, lambda r: _squeezed(r["squeezed"]))
 
 
 def shrunk_label_advice(readings) -> list[str]:

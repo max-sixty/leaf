@@ -59,5 +59,6 @@ assert:
   value: |
     Read each `lf-tab`'s `label` and `summary` together as its row in the queue. Pass
     only if every row says, in a few words, what its ticket is about, such as the
-    problem the customer reports, and no `summary` repeats its tab's `group`. Fail if
-    a row names only the ticket and attributes such as severity, age and outcome.
+    problem the customer reports; where the label does not say it, the summary says it
+    first, before attributes such as severity and age; and no `summary` repeats its
+    tab's `group`. Fail if a row names only the ticket and such attributes.

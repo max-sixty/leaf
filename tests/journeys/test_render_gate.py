@@ -973,8 +973,8 @@ def test_the_render_gate_reports_a_table_squeezed_by_what_cannot_break(browser, 
     overlaps the first's, and a reading of line boxes lost it again.
 
     And a table that fits both fixed viewports and squeezes only on a phone narrower
-    than either: the width sweep reads it too, and reports it with the widths it
-    spans."""
+    than either: the width sweep reads it too, and advises on it with the widths it
+    spans, refusing nothing, since the table still scrolls with every word in reach."""
     linked = LINKED_CELLS_PAGE[LINKED_CELLS_PAGE.index('<table id="sessions">') :]
     linked = linked[: linked.index("</table>") + len("</table>")]
     url = serve(
@@ -991,7 +991,8 @@ def test_the_render_gate_reports_a_table_squeezed_by_what_cannot_break(browser, 
         scrolls = options.evaluate("(t) => t.scrollWidth - t.clientWidth")
         assert (scrolls <= 1) == fits, (width, scrolls)
     page.close()
-    failures = render_gate_model.render_version(browser, url).failures
+    reading = render_gate_model.render_version(browser, url)
+    failures = reading.failures
 
     squeezed = [f for f in failures if "<table id=held> scrolls" in f]
     assert squeezed, failures
@@ -1002,10 +1003,10 @@ def test_the_render_gate_reports_a_table_squeezed_by_what_cannot_break(browser, 
     owners = [f for f in failures if "<table id=sessions> scrolls" in f]
     assert owners, failures
     assert all('"Owners" wraps at' in f for f in owners), owners
-    phone = [f for f in failures if "<table id=options> scrolls" in f]
-    assert phone, failures
-    assert all(f.startswith("at 360") for f in phone), phone
-    assert not [f for f in failures if f not in squeezed + owners + phone], failures
+    assert not [f for f in failures if f not in squeezed + owners], failures
+    phone = [a for a in reading.advice if "<table id=options> scrolls" in a]
+    assert phone, reading.advice
+    assert all(a.startswith("at 360") for a in phone), phone
 
 
 def test_the_runtime_holds_a_scroller_the_page_wrote(browser, serve):

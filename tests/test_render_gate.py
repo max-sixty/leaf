@@ -90,7 +90,6 @@ from render_cases_widgets import (
     GENERIC_VISUAL_WIDGETS,
     PART_DIAGRAM_PAGE,
     PREFIXED_VISUAL_PAGE,
-    STAGED_VISUAL_WIDGETS,
     TYPED_PARTS_PAGE,
     prefixed_visual_layer,
     visual_widgets,
@@ -1962,33 +1961,91 @@ def test_the_render_gate_requires_a_visual_parts_provider(
     ), failures
 
 
-def test_the_render_gate_validates_a_registered_visual_inventory(browser, serve):
-    """The gate resolves every authored token through the generic package contract."""
-    assert (
-        render_gate_model.render_version(
-            browser,
-            serve(
-                GENERIC_VISUAL_PAGE,
-                layer_registry=GENERIC_VISUAL_LAYER,
-                layer_widgets=GENERIC_VISUAL_WIDGETS,
-            ),
-        ).failures
-        == []
+def test_the_render_gate_resolves_registered_visual_inventories(browser, serve):
+    """The gate resolves every authored token through the generic package contract,
+    one registered visual per case on one page: one that draws every part, and one
+    that draws `inner` only in another state, which resolves through its
+    registration's reveal. Reveals come after every other reading, so a defect in the
+    opening state stands even when revealing a part draws it away."""
+    cases = {
+        "lf-test-visual": {},
+        "lf-test-visual-staged": {"staged": True},
+        "lf-test-visual-repaired": {
+            "staged": True,
+            "opening_fill": "var(--accent-glow)",
+            "repair_fill_on_reveal": True,
+        },
+    }
+    entry = GENERIC_VISUAL_LAYER["lf-test-visual"]
+    layer = {
+        tag: {
+            **entry,
+            "x-example": f'<{tag} id="example" parts="outer inner html"></{tag}>',
+        }
+        for tag in cases
+    }
+    widgets = {}
+    for tag, configuration in cases.items():
+        widgets |= visual_widgets(tag=tag, **configuration)
+    markup = GENERIC_VISUAL_PAGE.replace(
+        "</main>",
+        '<lf-test-visual-staged id="staged" parts="outer inner html">'
+        "</lf-test-visual-staged>\n"
+        '<lf-test-visual-repaired id="repaired" parts="outer inner html">'
+        "</lf-test-visual-repaired>\n</main>",
     )
 
+    failures = render_gate_model.render_version(
+        browser, serve(markup, layer_registry=layer, layer_widgets=widgets)
+    ).failures
 
-def test_the_render_gate_resolves_a_part_its_visual_draws_on_reveal(browser, serve):
-    """A part the visual draws only in another state resolves through its reveal."""
-    assert (
-        render_gate_model.render_version(
-            browser,
-            serve(
-                GENERIC_VISUAL_PAGE,
-                layer_registry=GENERIC_VISUAL_LAYER,
-                layer_widgets=STAGED_VISUAL_WIDGETS,
-            ),
-        ).failures
-        == []
+    assert failures, "the repaired visual's opening fill went unread"
+    assert all(
+        "repaired" in f and "does not resolve to valid fill" in f for f in failures
+    ), failures
+
+
+def test_the_render_gate_rejects_invalid_visual_inventory_records(browser, serve):
+    markup = GENERIC_VISUAL_PAGE.replace(
+        '<lf-test-visual id="visual" parts="outer inner html"></lf-test-visual>',
+        """<lf-test-visual id="missing" parts="outer absent"></lf-test-visual>
+<lf-test-visual id="outside" parts="outer inner html"></lf-test-visual>""",
+    )
+    widgets = visual_widgets(outside_surface_for="outside")
+    failures = render_gate_model.render_version(
+        browser.unwatched,
+        serve(
+            markup,
+            layer_registry=GENERIC_VISUAL_LAYER,
+            layer_widgets=widgets,
+        ),
+    ).failures
+    assert [failure.splitlines()[0] for failure in failures] == [
+        (
+            "[light] <lf-test-visual id='missing'> declares addressable visual parts "
+            "but its module did not register declared parts absent"
+        ),
+        (
+            "[light] <lf-test-visual id='outside'> declares addressable visual parts "
+            "but its module could not read visual parts: Visual part outer has no descendant Element surface"
+        ),
+        (
+            "[dark] <lf-test-visual id='missing'> declares addressable visual parts "
+            "but its module did not register declared parts absent"
+        ),
+        (
+            "[dark] <lf-test-visual id='outside'> declares addressable visual parts "
+            "but its module could not read visual parts: Visual part outer has no descendant Element surface"
+        ),
+    ]
+
+    inventory_errors = [
+        failure for failure in failures if "could not read visual parts" in failure
+    ]
+    assert len(inventory_errors) == 2, failures
+    assert all(
+        "TypeError:" in failure and "registeredVisualParts" in failure
+        for failure in inventory_errors
     )
 
 
@@ -2040,70 +2097,6 @@ def test_replay_findings_keep_the_throw_site(browser, serve):
     )
     assert "TypeError: replay rejected" in findings[0]
     assert "replayProjection" in findings[0]
-
-
-def test_the_render_gate_reads_a_visual_before_revealing_its_parts(browser, serve):
-    """Reveals come after every other reading, so a defect in the opening state stands
-    even when revealing a part draws it away."""
-    widgets = visual_widgets(
-        staged=True,
-        opening_fill="var(--accent-glow)",
-        repair_fill_on_reveal=True,
-    )
-    failures = render_gate_model.render_version(
-        browser,
-        serve(
-            GENERIC_VISUAL_PAGE,
-            layer_registry=GENERIC_VISUAL_LAYER,
-            layer_widgets=widgets,
-        ),
-    ).failures
-    assert any("does not resolve to valid fill" in f for f in failures), failures
-    assert not any("did not reveal" in f for f in failures), failures
-
-
-def test_the_render_gate_rejects_invalid_visual_inventory_records(browser, serve):
-    markup = GENERIC_VISUAL_PAGE.replace(
-        '<lf-test-visual id="visual" parts="outer inner html"></lf-test-visual>',
-        """<lf-test-visual id="missing" parts="outer absent"></lf-test-visual>
-<lf-test-visual id="outside" parts="outer inner html"></lf-test-visual>""",
-    )
-    widgets = visual_widgets(outside_surface_for="outside")
-    failures = render_gate_model.render_version(
-        browser.unwatched,
-        serve(
-            markup,
-            layer_registry=GENERIC_VISUAL_LAYER,
-            layer_widgets=widgets,
-        ),
-    ).failures
-    assert [failure.splitlines()[0] for failure in failures] == [
-        (
-            "[light] <lf-test-visual id='missing'> declares addressable visual parts "
-            "but its module did not register declared parts absent"
-        ),
-        (
-            "[light] <lf-test-visual id='outside'> declares addressable visual parts "
-            "but its module could not read visual parts: Visual part outer has no descendant Element surface"
-        ),
-        (
-            "[dark] <lf-test-visual id='missing'> declares addressable visual parts "
-            "but its module did not register declared parts absent"
-        ),
-        (
-            "[dark] <lf-test-visual id='outside'> declares addressable visual parts "
-            "but its module could not read visual parts: Visual part outer has no descendant Element surface"
-        ),
-    ]
-
-    inventory_errors = [
-        failure for failure in failures if "could not read visual parts" in failure
-    ]
-    assert len(inventory_errors) == 2, failures
-    assert all(
-        "TypeError:" in failure and "registeredVisualParts" in failure
-        for failure in inventory_errors
-    )
 
 
 def test_the_render_gate_bounds_a_prefixed_inventory_by_its_prefixes(browser, serve):

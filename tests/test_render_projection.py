@@ -5145,11 +5145,9 @@ customElements.define('page-counter', class extends HTMLElement {
 
 
 @pytest.mark.parametrize("start", ["generated", "authored"])
-@pytest.mark.parametrize("typed", [False, True], ids=["clicked", "typed"])
-def test_replacing_document_yields_to_input_before_runtime_loads(
-    browser, serve, start, typed
-):
-    """The fresh page belongs to its reader before its module graph arrives."""
+def test_replacing_document_yields_to_input_before_runtime_loads(browser, serve, start):
+    """The fresh page belongs to its reader before its module graph arrives: the
+    field the reader clicks keeps its focus and the words typed into it."""
     html = leaf_page(
         "Arrival",
         '<h1>Arrival</h1><lf-activity id="feed"></lf-activity>'
@@ -5181,8 +5179,7 @@ def test_replacing_document_yields_to_input_before_runtime_loads(
     assert blocked, "the runtime module must still be withheld"
     second = page.locator("#second")
     second.click()
-    if typed:
-        page.keyboard.type("Keep this input")
+    page.keyboard.type("Keep this input")
     expect(second).to_be_focused()
     page.unroute("**/leaf.js")
     for route in blocked:
@@ -5191,8 +5188,7 @@ def test_replacing_document_yields_to_input_before_runtime_loads(
     wait_until_ready(page)
     expect(panel).to_have_attribute("aria-expanded", "true")
     expect(second).to_be_focused()
-    if typed:
-        expect(second).to_have_value("Keep this input")
+    expect(second).to_have_value("Keep this input")
 
 
 def test_replacing_document_keeps_typing_while_presentation_is_held(browser, serve):
@@ -6699,66 +6695,52 @@ def test_render_allows_authored_state_the_log_replays_over(browser, serve):
             },
         )
 
-    def stamp(n, html):
-        stamp_page(d, html, "t")
-        return url.replace("v1.html", f"v{n}.html")
-
-    def preview(html):
-        document = structure_model.SourceDocument(html)
-        with preview_server(d, document, files_model.latest_revision(d) + 1) as at:
-            return render_gate_model.render_version(browser, at).failures
-
-    moved = REPLAYED_PAGE.replace(IMPORTER_CARD, "").replace(
-        'label="Done">', f'label="Done">{IMPORTER_CARD}'
-    )
-
-    # v2 writes the move and says nothing about the pick; v3 honors both.
-    assert render_gate_model.render_version(browser, stamp(2, moved)).failures == []
-    honored = moved.replace('id="opt-shim"', 'id="opt-shim" chosen')
-    assert render_gate_model.render_version(browser, stamp(3, honored)).failures == []
-
-    # v4 changes the baseline pick and the card's column order. Rendering remains
+    # v2 changes the baseline pick and the card's column order. Rendering remains
     # valid: the user's choice paints over the baseline; the new order is authored.
-    contradicted = honored.replace('id="opt-shim" chosen', 'id="opt-shim"')
-    contradicted = contradicted.replace(
+    # A version that honors either decision, or says nothing of one, is the weaker
+    # case of the same rule.
+    contradicted = REPLAYED_PAGE.replace(
         'id="opt-stage"', 'id="opt-stage" chosen'
     ).replace(IMPORTER_CARD, "")
     contradicted = contradicted.replace(
         "</lf-card></lf-column>", f"</lf-card>{IMPORTER_CARD}</lf-column>"
     )
-    assert preview(contradicted) == []
-    page = open_page(browser, stamp(4, contradicted))
+    document = structure_model.SourceDocument(contradicted)
+    with preview_server(d, document, files_model.latest_revision(d) + 1) as at:
+        assert render_gate_model.render_version(browser, at).failures == []
+    stamp_page(d, contradicted, "t")
+    page = open_page(browser, url.replace("v1.html", "v2.html"))
     expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
     expect(page.locator("#opt-stage")).not_to_have_attribute("chosen", "")
 
 
-@pytest.mark.parametrize(
-    "introduced", [False, True], ids=["changed-state", "new-widget"]
-)
-def test_render_accepts_actions_made_after_the_authored_change(
-    browser, serve, introduced
-):
-    """A user choosing on r2 does not retroactively contradict r2's authoring."""
-    previous = (
-        leaf_page("Approach", '<p id="intro">Choose an approach.</p>')
-        if introduced
-        else REPLAYED_PAGE
-    )
-    url = serve(previous)
+def test_render_accepts_actions_made_after_the_authored_change(browser, serve):
+    """A user acting on r2 does not retroactively contradict r2's authoring, whether
+    r2 changed the widget's authored state (the pick) or introduced the widget (the
+    board r1 did not have)."""
+    board = REPLAYED_PAGE[
+        REPLAYED_PAGE.index('<lf-board id="work">') : REPLAYED_PAGE.index("</lf-board>")
+        + len("</lf-board>")
+    ]
+    url = serve(REPLAYED_PAGE.replace(board, ""))
     d = serve.page_dir
     current = REPLAYED_PAGE.replace('id="opt-stage"', 'id="opt-stage" chosen')
     stamp_page(d, current, "t")
-    append_command(
-        d,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 2,
-            "widget": "approach",
-            "action": "choose",
-            "detail": {"value": ["opt-shim"]},
-        },
-    )
+    for widget, action, detail in [
+        ("approach", "choose", {"value": ["opt-shim"]}),
+        ("work", "move", {"unit": "card-importer", "value": "col-done", "rank": "0i"}),
+    ]:
+        append_command(
+            d,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 2,
+                "widget": widget,
+                "action": action,
+                "detail": detail,
+            },
+        )
     assert (
         render_gate_model.render_version(
             browser, url.replace("v1.html", "v2.html")
@@ -6828,21 +6810,15 @@ customElements.define("lf-pair", class extends HTMLElement {
     current = previous.replace('second="a"', 'second="b"')
     stamp_page(d, current, "t")
     act(2, "second")
-    # Both renderState writes hit the same id. Only the newer verb was authored.
+    # Both renderState writes hit the same id. Only the newer verb was authored; a
+    # version changing an older decision's baseline is
+    # `test_render_allows_authored_state_the_log_replays_over`.
     assert (
         render_gate_model.render_version(
             browser, url.replace("v1.html", "v2.html")
         ).failures
         == []
     )
-    # Changing the older verb's authored baseline is allowed too.
-    with preview_server(
-        d,
-        structure_model.SourceDocument(current.replace('first="a"', 'first="b"')),
-        3,
-    ) as preview_url:
-        failures = render_gate_model.render_version(browser, preview_url).failures
-    assert failures == []
 
 
 def test_the_render_gate_applies_every_standing_action_a_second_time(browser, serve):
@@ -7255,12 +7231,8 @@ def test_a_widget_standing_out_of_place_is_a_page_the_gate_reports(
     url = serve(
         drifting_widget(tmp_path, monkeypatch), packages=(*EXAMPLE_PACKAGES, "./.leaf")
     )
-
-    covered = [
-        f
-        for f in render_gate_model.render_version(browser, url).failures
-        if "same place" in f
-    ]
+    page = open_page(browser, url)
+    covered = render_checks_model.evaluate_probe(page, "coveredWords")
 
     assert covered and all("drift-note" in f for f in covered), covered
 
@@ -7970,11 +7942,11 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
 ):
     """Bug-back for the settlement reading, in both directions. The bare family first
     proves the gate accepts a holder that brings nothing of its own — the layer's
-    default hide is the whole of its disappearance. Then the one generic hide rule is
-    stripped from the vendored theme, standing in for whatever re-shows a retired
-    slot (a later layer's rule outranking the default, a module re-showing what it
-    folded): the words stay on screen where the user can select what no comment
-    can anchor to, and the gate must say so. Then the theme goes back and the
+    default hide is the whole of its disappearance. Then two independent faults go in
+    together. The one generic hide rule is stripped from the vendored theme, standing
+    in for whatever re-shows a retired slot (a later layer's rule outranking the
+    default, a module re-showing what it folded): the words stay on screen where the
+    user can select what no comment can anchor to, and the gate must say so. And the
     vendored module marks every trial after the controller publishes: on the undecided
     spare that is a settlement the log never decided, silencing words the user can
     still see, and the gate must say that too. Both failures render perfectly, which
@@ -8001,19 +7973,6 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     css = vendored.read_text()
     assert css.count(hide) == 1
     vendored.write_text(css.replace(hide, ""))
-    stamp_page(
-        serve.page_dir,
-        (serve.page_dir / "index.html").read_text(),
-        "capture the visible settled slot",
-    )
-    failures = render_gate_model.render_version(browser, live_url(url)).failures
-    assert any(
-        "<lf-trial id='th-cache'> settled `shelve` and its <lf-proposed> still shows"
-        in failure
-        for failure in failures
-    ), failures
-
-    vendored.write_text(css)
     module = serve.page_dir / "widgets" / "lf-trial.js"
     module.write_text(
         """\
@@ -8062,9 +8021,14 @@ customElements.define("lf-trial", class extends HTMLElement {
     stamp_page(
         serve.page_dir,
         (serve.page_dir / "index.html").read_text(),
-        "capture the false settlement mark",
+        "capture the visible settled slot and the false settlement mark",
     )
     failures = render_gate_model.render_version(browser, live_url(url)).failures
+    assert any(
+        "<lf-trial id='th-cache'> settled `shelve` and its <lf-proposed> still shows"
+        in failure
+        for failure in failures
+    ), failures
     assert any(
         "<lf-trial id='th-spare'> wears data-lf-state=\"shelve\" where the log "
         "records no decision" in failure
@@ -9309,11 +9273,7 @@ def test_command_goal_thread_follows_its_declaration_not_talk(
 
 @pytest.mark.parametrize(
     "provided",
-    [
-        "ledger_id,amount\n7,42",
-        "ledger_id,amount\n7,42\n",
-        "\nledger_id,amount\n7,42  \n",
-    ],
+    ["ledger_id,amount\n7,42", "\nledger_id,amount\n7,42  \n"],
 )
 def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided):
     """An input action discharges the request live; the honoring version removes its

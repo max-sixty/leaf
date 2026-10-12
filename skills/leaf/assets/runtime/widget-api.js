@@ -229,7 +229,6 @@ export {
   offered,
   reachedForWords,
   relabel,
-  said,
   reserve,
   searchField,
   selectableOffer,

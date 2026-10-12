@@ -28,7 +28,7 @@ import { holdFocus, focusDestination, focused, standsOn } from "../focus.js";
 import { html, render, repeat, nothing, ref } from "../../vendor/browser-runtime.js";
 import { turns, threadKey, threadSummary } from "./model.js";
 import { anchorLabel, MessageView, messageReading } from "./messages.js";
-import { offer, reachedForWords, measure, reserve, said } from "../widget-elements.js";
+import { offer, reachedForWords, measure, reserve } from "../widget-elements.js";
 import { keeps, keepsHidden, layoutPx } from "../keeps.js";
 import { commandsOn, keys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
@@ -938,7 +938,7 @@ export class ThreadView {
           model.surface === "outlet"
             ? html`<summary
                 class="lf-page-thread-summary lf-ui"
-                ${said(false)}
+                data-lf-gen="1"
                 data-lf-offer=""
                 ?hidden=${!model.resolved}
               >

@@ -637,10 +637,24 @@
    * its holder's width rather than the column's: the column bounds a line of text, and
    * no card's line is wider than its column, so an Ask granted the wide measure for its
    * figure lays its cards under all of it. Bare-label rows stay a list: each is one
-   * line, so a list of them is not what pushes the options past the window. */
+   * line, so a list of them is not what pushes the options past the window.
+   *
+   * There are never more columns than options. `auto-fit` collapses only a column no
+   * cell stands in, and the user's cell and Done span every column, so a wide group
+   * with room for four kept an empty fourth beside three cards. The count of options
+   * sets each column's floor to its share of the width instead (`--lf-option-count`);
+   * past six, 14rem is the floor at any width a page grants. */
   @container style(--lf-options-across: 1) {
     :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *):has(> lf-option > strong) {
-      grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+      --lf-option-count: 99;
+      &:has(> lf-option:nth-of-type(1):last-of-type) { --lf-option-count: 1; }
+      &:has(> lf-option:nth-of-type(2):last-of-type) { --lf-option-count: 2; }
+      &:has(> lf-option:nth-of-type(3):last-of-type) { --lf-option-count: 3; }
+      &:has(> lf-option:nth-of-type(4):last-of-type) { --lf-option-count: 4; }
+      &:has(> lf-option:nth-of-type(5):last-of-type) { --lf-option-count: 5; }
+      &:has(> lf-option:nth-of-type(6):last-of-type) { --lf-option-count: 6; }
+      grid-template-columns: repeat(auto-fit,
+        minmax(min(100%, max(14rem, 100% / var(--lf-option-count))), 1fr));
       max-inline-size: none;
     }
   }

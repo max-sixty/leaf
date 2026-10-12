@@ -599,8 +599,7 @@ const floatingPanel =
     ? createFloatingPanel({
         wireInput: inputs.wireInput,
         threadActions: app.threadActions,
-        read: app.read,
-        openThread: app.threadDestinations.openPageThread,
+        registerThreadPresentation: app.registerThreadPresentation,
         questions: {
           choicesOf: questions.choicesOf,
           open: (id) => app.openQuestion(id),

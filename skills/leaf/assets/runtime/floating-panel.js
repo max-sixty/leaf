@@ -25,14 +25,7 @@
  * row staying put, by one tween of its height; a view arriving fades in over the one
  * leaving. These are mechanics borrowed from the Codex app's floating panel
  * (`notes/floating-panel/GOAL.md`). */
-import {
-  html,
-  nothing,
-  ref,
-  render,
-  repeat,
-  unsafeHTML,
-} from "../vendor/browser-runtime.js";
+import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 import { el } from "./widget-elements.js";
 import { keeps, keepsHidden, keepsText } from "./keeps.js";
 import { approvalReading, approve, toggleBtn, watchStatus } from "./banner.js";
@@ -88,8 +81,7 @@ const coarse = () => matchMedia("(pointer: coarse)").matches;
 export function createFloatingPanel({
   wireInput,
   threadActions,
-  read,
-  openThread,
+  registerThreadPresentation,
   questions: questionView,
   queueActions,
   withdraw,
@@ -127,11 +119,7 @@ export function createFloatingPanel({
   let filter = "all";
   let query = "";
   let writing = false;
-  // The messages of each thread the reader has been shown, by thread key: news the
-  // agent sends while it is open waits behind New reply until the reader asks for it
-  // (AGENTS.md, "News never moves what the reader is reading"). The reader's own
-  // words join at once, since their send takes them with it.
-  const shown = new Map();
+  // The thread the reader lands at the end of, once Leaf has drawn it.
   let landAtEnd = null;
 
   // ---------- one native editor per destination ----------
@@ -256,7 +244,7 @@ export function createFloatingPanel({
     const parent = PARENT[route.view];
     return [...(parent ? pathTo({ view: parent }) : []), route];
   };
-  function open(route, { replace = false, reopen = false } = {}) {
+  function open(route, { replace = false, reopen = false, focus = true } = {}) {
     const before = trail.at(-1);
     if (before && routeKey(before) === routeKey(route) && !replace) {
       if (reopen) return;
@@ -266,13 +254,11 @@ export function createFloatingPanel({
     trail = replace && before ? [...trail.slice(0, -1), route] : pathTo(route);
     if (replace && route.view === "thread" && trail.length === 1) trail = pathTo(route);
     if (route.view === "thread") arriveAt(route.thread);
-    transition(before);
+    transition(before, { focus });
   }
   // Opening a thread shows it whole, at its end, where the latest turn is.
   function arriveAt(key) {
-    const thread = threadByKey(key);
-    shown.set(key, new Set(thread ? messagesOf(thread).map(messageKey) : []));
-    landAtEnd = key;
+    landAtEnd = threadByKey(key)?.key ?? key;
   }
   // The field stands for the page again, with nothing open above it.
   function writeOnPage() {
@@ -320,8 +306,9 @@ export function createFloatingPanel({
       () => {},
     );
   });
-  function transition(before) {
+  function transition(before, { focus = true } = {}) {
     const after = trail.at(-1);
+    const reading = [before, after].some((route) => route?.view === "thread");
     if (after?.view !== "questions") {
       seated = null;
       seatHeights.clear();
@@ -330,10 +317,11 @@ export function createFloatingPanel({
       (before ? routeKey(before) : null) !== (after ? routeKey(after) : null);
     leaving = changed && before && after ? before : null;
     paint();
+    if (reading) void present({ release: true });
     if (!changed || reducedMotion() || !pagePresented()) {
       leaving = null;
       paint();
-      focusView(after);
+      if (focus) focusView(after);
       return;
     }
     const arriving = stage.querySelector(".lf-fp-view:not([data-leaving])");
@@ -356,7 +344,7 @@ export function createFloatingPanel({
     };
     if (fade) fade.finished.then(settle, () => {});
     else leaving = null;
-    focusView(after);
+    if (focus) focusView(after);
   }
   function focusView(route) {
     if (!route) return;
@@ -474,48 +462,44 @@ export function createFloatingPanel({
     const approval = approvalReading();
     const approved = approval?.text.startsWith("✓");
     return html`${repeat(
-        versions,
-        (entry) => `${entry.version === null ? "draft" : "version"}:${entry.revision}`,
-        (entry) =>
-          html`<div class="lf-fp-version" ?data-current=${entry.current}>
-            ${menuRow(
-              entry.name,
-              entry.current ? "Showing" : (entry.note ?? ""),
-              () => {
-                close();
-                versionPicker.activate(entry);
-              },
-            )}${
-              entry.comparable
-                ? html`<button
-                    type="button"
-                    class="lf-fp-quiet lf-fp-compare"
-                    aria-pressed=${String(selection.on && selection.base === entry.version)}
-                    aria-label=${`Compare with ${entry.name}`}
-                    @click=${() => {
-                      close();
-                      versionPicker.compare(entry.version);
-                    }}
-                  >
-                    Compare
-                  </button>`
+      versions,
+      (entry) => `${entry.version === null ? "draft" : "version"}:${entry.revision}`,
+      (entry) =>
+        html`<div class="lf-fp-version" ?data-current=${entry.current}>
+          ${menuRow(entry.name, entry.current ? "Showing" : (entry.note ?? ""), () => {
+            close();
+            versionPicker.activate(entry);
+          })}${
+            entry.comparable
+              ? html`<button
+                  type="button"
+                  class="lf-fp-quiet lf-fp-compare"
+                  aria-pressed=${String(selection.on && selection.base === entry.version)}
+                  aria-label=${`Compare with ${entry.name}`}
+                  @click=${() => {
+                    close();
+                    versionPicker.compare(entry.version);
+                  }}
+                >
+                  Compare
+                </button>`
+              : nothing
+          }
+        </div>`,
+    )}
+    ${versions.length ? nothing : html`<p class="lf-fp-empty">${picker.token}</p>`}
+    ${
+      approval
+        ? html`<hr />
+            ${menuRow(approval.text, "", () => approve(), {
+              disabled: Boolean(approval.reason) && !approved,
+            })}${
+              approval.reason
+                ? html`<p class="lf-fp-reason">${approval.reason}</p>`
                 : nothing
-            }
-          </div>`,
-      )}
-      ${versions.length ? nothing : html`<p class="lf-fp-empty">${picker.token}</p>`}
-      ${
-        approval
-          ? html`<hr />
-              ${menuRow(approval.text, "", () => approve(), {
-                disabled: Boolean(approval.reason) && !approved,
-              })}${
-                approval.reason
-                  ? html`<p class="lf-fp-reason">${approval.reason}</p>`
-                  : nothing
-              }`
-          : nothing
-      }`;
+            }`
+        : nothing
+    }`;
   }
 
   function threadsView() {
@@ -592,78 +576,43 @@ export function createFloatingPanel({
       </div>`;
   }
 
-  // A thread's turns, its reactions aside, which the panel does not draw yet.
-  const messagesOf = (thread) => thread.msgs.filter((message) => !message.token);
-  const messageKey = (message) => message.attempt ?? message.id;
-  // Each message body the reader is shown is evidence for the page's read tracking
-  // (thread/read.js), the same evidence a card or the Threads panel gives.
-  const observed = new WeakMap();
-  const observe = (reading) => (body) => {
-    if (!body || observed.get(body) === reading.version) return;
-    observed.set(body, reading.version);
-    read.observeMessage(body, { id: reading.id, version: reading.version });
-  };
+  // A thread inside the panel is drawn by Leaf's own conversation reader: the panel
+  // registers as the page's primary thread presentation (application.js,
+  // `registerThreadPresentation`) and gives the open thread's messages an outlet
+  // here. Leaf draws each message there, with its reactions, rewrites, read marks and
+  // agent-authored widgets, and holds news that would move what the reader is reading
+  // behind its own notice. The reply is the panel's field below, not a box in the
+  // outlet. A thread anchored to a passage stays the page's: its card opens beside
+  // the words it is about.
+  let presentation = null;
+  const outletOf = () =>
+    stage.querySelector(
+      '.lf-fp-view[data-view="thread"]:not([data-leaving]) .lf-fp-outlet',
+    );
+  function nominate(collection, parts) {
+    const top = trail.at(-1);
+    if (top?.view !== "thread") return;
+    const outlet = outletOf();
+    const thread = collection.threads.find(
+      (candidate) => candidate.key === top.thread || candidate.id === top.thread,
+    );
+    if (!outlet || !thread) return;
+    for (const message of thread.msgs) parts.message(thread.key, message.key, outlet);
+  }
+  // A deliberate view change shows the reader the whole current thread.
+  function present({ release = false } = {}) {
+    if (!presentation) return Promise.resolve();
+    return presentation
+      .update({ release })
+      .then(() => landReader())
+      .catch(() => {});
+  }
 
   function threadView(key) {
     const thread = threadByKey(key);
     if (!thread)
       return html`<p class="lf-fp-empty">This thread is not on the page.</p>`;
-    const seen = shown.get(key) ?? new Set();
-    const messages = messagesOf(thread);
-    let through = -1;
-    messages.forEach((message, index) => {
-      if (seen.has(messageKey(message)) || message.author === "user") through = index;
-    });
-    for (const message of messages.slice(0, through + 1)) seen.add(messageKey(message));
-    shown.set(key, seen);
-    const held = messages.length - (through + 1);
-    return html`<div class="lf-fp-messages">
-        ${repeat(messages.slice(0, through + 1), messageKey, (message) => {
-          const reading = messageReading(message, {
-            panel: false,
-            reactions: [],
-            workflows: message.workflows ?? [],
-          });
-          const body = reading.body.authored
-            ? html`<p class="lf-fp-aside">
-                This reply is part of the page.
-                <button
-                  type="button"
-                  @click=${() => {
-                    close();
-                    void openThread(message.id, { part: "message" });
-                  }}
-                >
-                  Show it
-                </button>
-              </p>`
-            : reading.body.html
-              ? unsafeHTML(reading.body.html + reading.body.mediaHtml)
-              : reading.body.plainText;
-          return html`<article class="lf-fp-message" data-author=${message.author}>
-            <header>
-              ${reading.by}${reading.age ? html` · ${reading.age}` : nothing}${
-                reading.workflowLabel ? html` · ${reading.workflowLabel}` : nothing
-              }
-            </header>
-            <div class="lf-fp-body" ${ref(observe(reading))}>${body}</div>
-          </article>`;
-        })}
-      </div>
-      <button
-        type="button"
-        class="lf-fp-held"
-        ?data-none=${!held}
-        ?inert=${!held}
-        aria-hidden=${held ? nothing : "true"}
-        @click=${() => {
-          shown.set(key, new Set(messages.map(messageKey)));
-          landAtEnd = key;
-          paint();
-        }}
-      >
-        ${held ? `${held === 1 ? "New reply" : `${held} new replies`} · Show` : ""}
-      </button>`;
+    return html`<div class="lf-fp-messages lf-fp-outlet"></div>`;
   }
 
   // ---------- Questions: answered where they are read ----------
@@ -676,7 +625,11 @@ export function createFloatingPanel({
   // The height each seated card first stood at, which it keeps while seated, so an
   // answer that shortens it moves nothing below.
   const seatHeights = new Map();
-  const QUEUE_TABS = Object.freeze({ you: "On you", agent: "On the agent", done: "Done" });
+  const QUEUE_TABS = Object.freeze({
+    you: "On you",
+    agent: "On the agent",
+    done: "Done",
+  });
   const queueLists = () => {
     const reading = readQueues();
     return reading.phase === "ready"
@@ -715,9 +668,10 @@ export function createFloatingPanel({
       : ask?.prompt?.text;
     const prompt = said && said.trim() !== title.trim() ? said : "";
     const answered = ask && ask.status !== "open";
-    const choices = ask && !answered && ask.source.kind === "widget"
-      ? questionView.choicesOf(ask)
-      : null;
+    const choices =
+      ask && !answered && ask.source.kind === "widget"
+        ? questionView.choicesOf(ask)
+        : null;
     const gesture = answered ? answerGesture(ask) : null;
     const discuss = thread
       ? html`<button
@@ -740,15 +694,19 @@ export function createFloatingPanel({
     </button>`;
     let answers;
     if (list !== "you" && !answered)
-      answers = html`<span class="lf-fp-said">${
-        item.running?.text ?? workflowLabel(item.workflow) ?? ""
-      }</span>${thread ? discuss : nothing}`;
+      answers = html`<span class="lf-fp-said"
+          >${item.running?.text ?? workflowLabel(item.workflow) ?? ""}</span
+        >${thread ? discuss : nothing}`;
     else if (answered)
       answers = html`<span class="lf-fp-said"
           >${ask.status === "withdrawn" ? "Withdrawn" : `Answered ${questionWords(ask) ?? ""}`.trim()}</span
         >${
           gesture
-            ? html`<button type="button" class="lf-fp-quiet" @click=${() => withdraw(gesture)}>
+            ? html`<button
+                type="button"
+                class="lf-fp-quiet"
+                @click=${() => withdraw(gesture)}
+              >
                 Undo
               </button>`
             : nothing
@@ -756,29 +714,29 @@ export function createFloatingPanel({
     else if (ask?.source.kind === "approval") {
       const approval = approvalReading();
       answers = html`<button
-          type="button"
-          class="lf-fp-answer"
-          ?disabled=${Boolean(approval?.reason)}
-          title=${approval?.reason ?? nothing}
-          @click=${() => approve()}
-        >
-          ${approval?.text ?? "Approve version"}
-        </button>`;
+        type="button"
+        class="lf-fp-answer"
+        ?disabled=${Boolean(approval?.reason)}
+        title=${approval?.reason ?? nothing}
+        @click=${() => approve()}
+      >
+        ${approval?.text ?? "Approve version"}
+      </button>`;
     } else if (choices?.length)
       answers = html`${choices.map(
-          (choice) =>
-            html`<button
-              type="button"
-              class="lf-fp-answer"
-              aria-pressed=${String(choice.chosen)}
-              @click=${() => {
-                choice.press();
-                paint();
-              }}
-            >
-              ${capital(choice.label)}
-            </button>`,
-        )}${discuss}`;
+        (choice) =>
+          html`<button
+            type="button"
+            class="lf-fp-answer"
+            aria-pressed=${String(choice.chosen)}
+            @click=${() => {
+              choice.press();
+              paint();
+            }}
+          >
+            ${capital(choice.label)}
+          </button>`,
+      )}${discuss}`;
     else if (item.offers?.done)
       answers = html`<button
           type="button"
@@ -849,16 +807,22 @@ export function createFloatingPanel({
           ? repeat(items, queueItemKey, (item) =>
               questionCard(
                 item,
-                lists.you.includes(item) ? "you" : lists.agent.includes(item) ? "agent" : "done",
+                lists.you.includes(item)
+                  ? "you"
+                  : lists.agent.includes(item)
+                    ? "agent"
+                    : "done",
               ),
             )
-          : html`<p class="lf-fp-empty">${
-              {
-                you: "Nothing waits on you.",
-                agent: `${agentName()} owes nothing here.`,
-                done: "Nothing is done yet.",
-              }[queueTab]
-            }</p>`
+          : html`<p class="lf-fp-empty">
+              ${
+                {
+                  you: "Nothing waits on you.",
+                  agent: `${agentName()} owes nothing here.`,
+                  done: "Nothing is done yet.",
+                }[queueTab]
+              }
+            </p>`
       }`;
   }
 
@@ -915,7 +879,7 @@ export function createFloatingPanel({
   function seatQuestions() {
     if (trail.at(-1)?.view !== "questions") return;
     for (const card of stage.querySelectorAll(
-      '.lf-fp-view:not([data-leaving]) .lf-fp-question[data-key]',
+      ".lf-fp-view:not([data-leaving]) .lf-fp-question[data-key]",
     ))
       if (!seatHeights.has(card.dataset.key))
         seatHeights.set(card.dataset.key, card.getBoundingClientRect().height);
@@ -927,7 +891,7 @@ export function createFloatingPanel({
     const view = stage.querySelector(
       '.lf-fp-view[data-view="thread"]:not([data-leaving])',
     );
-    if (!view) return;
+    if (!view || !outletOf()?.childElementCount) return;
     landAtEnd = null;
     view.scrollTop = view.scrollHeight;
   }
@@ -1064,39 +1028,40 @@ export function createFloatingPanel({
         )}`,
         quick,
       );
-    } else render(
-      html`<button
-          type="button"
-          class="lf-fp-chip lf-fp-questions"
-          ?data-none=${!questions}
-          ?inert=${!questions}
-          aria-hidden=${questions ? nothing : "true"}
-          @click=${() => open({ view: "questions" })}
-        >
-          Questions <span class="lf-fp-num">${questions || ""}</span></button
-        ><button
-          type="button"
-          class="lf-fp-chip lf-fp-desk"
-          @click=${() => open({ view: "group", group: "annotate" })}
-        >
-          Annotate</button
-        ><button
-          type="button"
-          class="lf-fp-chip lf-fp-news"
-          ?data-none=${!news}
-          ?inert=${!news}
-          aria-hidden=${news ? nothing : "true"}
-          aria-label=${`${news} ${news === 1 ? "thread" : "threads"} with news`}
-          @click=${() => {
-            filter = "unread";
-            query = "";
-            open({ view: "threads" });
-          }}
-        >
-          ${news ? `${news} new` : ""}
-        </button>`,
-      quick,
-    );
+    } else
+      render(
+        html`<button
+            type="button"
+            class="lf-fp-chip lf-fp-questions"
+            ?data-none=${!questions}
+            ?inert=${!questions}
+            aria-hidden=${questions ? nothing : "true"}
+            @click=${() => open({ view: "questions" })}
+          >
+            Questions <span class="lf-fp-num">${questions || ""}</span></button
+          ><button
+            type="button"
+            class="lf-fp-chip lf-fp-desk"
+            @click=${() => open({ view: "group", group: "annotate" })}
+          >
+            Annotate</button
+          ><button
+            type="button"
+            class="lf-fp-chip lf-fp-news"
+            ?data-none=${!news}
+            ?inert=${!news}
+            aria-hidden=${news ? nothing : "true"}
+            aria-label=${`${news} ${news === 1 ? "thread" : "threads"} with news`}
+            @click=${() => {
+              filter = "unread";
+              query = "";
+              open({ view: "threads" });
+            }}
+          >
+            ${news ? `${news} new` : ""}
+          </button>`,
+        quick,
+      );
 
     // Moderate adds where the reader stands and the keys that act there.
     const typing = host.contains(focused()) && focused()?.localName === "leaf-text";
@@ -1210,6 +1175,19 @@ export function createFloatingPanel({
   function mount(parent) {
     parent.append(host);
     follow.observe(inner);
+    presentation = registerThreadPresentation(host, {
+      render: nominate,
+      // A thread about the whole page opens here; one about a passage opens beside it.
+      reveal: (key, request) => {
+        const thread = threadByKey(key);
+        if (!thread || thread.anchor) return false;
+        open(
+          { view: "thread", thread: thread.key },
+          { reopen: true, focus: request.focus !== false },
+        );
+        return present({ release: true });
+      },
+    });
     watchStatus((reading) => {
       status = reading;
       paint();

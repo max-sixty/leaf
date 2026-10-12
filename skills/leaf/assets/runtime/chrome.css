@@ -364,12 +364,10 @@ html[data-lf-floating-chrome] .lf-chrome {
     padding-inline: 12px;
     border-radius: 8px;
   }
-  .lf-fp-answer:first-child {
-    background: var(--lf-fp-hover);
-  }
   .lf-fp-answer[aria-pressed=true] {
     border-color: var(--accent);
     color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 7%, transparent);
   }
   .lf-fp-quiet {
     color: var(--muted);
@@ -566,15 +564,13 @@ html[data-lf-floating-chrome] .lf-chrome {
     font-size: var(--t-6);
     pointer-events: none;
     display: none;
-    transition: opacity 120ms, translate 120ms;
+    transition: opacity 120ms;
   }
   .lf-fp-peek[data-shown] {
     display: block;
     opacity: 1;
-    translate: 0 0;
     @starting-style {
       opacity: 0;
-      translate: 0 4px;
     }
   }
   @media screen and (width <= 480px) {

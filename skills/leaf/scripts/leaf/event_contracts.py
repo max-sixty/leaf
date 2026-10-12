@@ -18,7 +18,7 @@ from leaf.event_meaning import (
 )
 from leaf.events import build_threads, spoken_turns, undo_error
 from leaf.files import version_revisions
-from leaf.layer import foreign_event_contract
+from leaf.layer import incompatible_layer
 from leaf.page_view import CandidatePageView, PageView
 from leaf.projection import (
     RANK,
@@ -38,7 +38,7 @@ from leaf.registry.contract import (
     verb_writer,
     visual_parts,
 )
-from leaf.registry.kernel import kernel_event_ownership
+from leaf.registry.kernel import kernel_event_kinds, kernel_event_ownership
 from leaf.registry.reactions import reaction_tokens
 from leaf.registry.schema import json_value, schema_error
 from leaf.registry.storage import layer_metadata
@@ -826,7 +826,10 @@ def admitted_event(view, events: list, event: dict) -> dict:
     applies without a page directory, a server, or a browser under it.
     """
     registry = admitting_registry(view, event, events)
-    contracts = registry["$events"]["kinds"]
+    # The kernel's records are this Leaf's own, whichever Leaf vendored the page: no
+    # layer can change them, and a page at this protocol reads what they add
+    # (`layer.PROTOCOL`).
+    contracts = kernel_event_kinds()
     if error := command_error(event, contracts):
         raise EventRefused(error)
     kind = event["kind"]
@@ -867,7 +870,7 @@ def admitted_event(view, events: list, event: dict) -> dict:
 
 def write_refusal(page_dir: Path) -> str | None:
     """Why this Leaf may write no event to the page, or None where it may: the
-    page's layer came from another Leaf (`layer.foreign_event_contract`). A writer
+    page was vendored at another protocol (`layer.incompatible_layer`). A writer
     that must not fail on a page it cannot write, such as a hook, asks this first."""
     try:
         layer = layer_metadata(page_dir)
@@ -875,7 +878,7 @@ def write_refusal(page_dir: Path) -> str | None:
         # A broken or missing candidate registry does not invalidate an active
         # revision's captured vocabulary. Admission will read that vocabulary.
         return None
-    return foreign_event_contract(page_dir, layer)
+    return incompatible_layer(page_dir, layer)
 
 
 def append_admitted(page, event: dict, *, view=None) -> dict:

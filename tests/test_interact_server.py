@@ -56,7 +56,7 @@ from interact_support import (
     running_http_server,
     spawn_probe,
     thread_records,
-    vendored_by_another_leaf,
+    vendored_at_another_protocol,
     wait_for,
 )
 from leaf import activity as activity_model
@@ -3162,12 +3162,11 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
     ("corrupt", "message"),
     [
         (lambda registry: "{broken", "invalid JSON"),
-        # The reachable one. A page's registry is vendored once and the layer around it
-        # goes on moving, so a stamp that no longer names what this layer writes is
-        # ordinary state — and the user meets it by clicking, not by running anything.
         (
-            lambda registry: json.dumps({**registry, "$events": {"kinds": {}}}),
-            "$events.kinds must equal Leaf's fixed transport contract",
+            lambda registry: json.dumps(
+                {key: value for key, value in registry.items() if key != "$languages"}
+            ),
+            "registry must declare",
         ),
     ],
 )
@@ -4985,12 +4984,12 @@ def test_a_server_refuses_a_page_another_leaf_vendored_until_it_is_re_vendored(
     the browser on every read, so the start is refused before it claims the page or
     records a service, and the refusal names the re-vendor that ends it."""
     runner = CliRunner()
-    foreign = vendored_by_another_leaf(page_dir)
+    foreign = vendored_at_another_protocol(page_dir)
 
     refused = runner.invoke(cli_model.cli, ["server", "start", str(page_dir)])
 
     assert refused.exit_code != 0, refused.output
-    assert foreign in refused.output
+    assert f"page protocol {foreign}" in refused.output
     assert f"leaf page init {page_dir}" in refused.output
     assert not service_model.claim_path(page_dir).exists()
     assert files_model.read_json(page_dir / "service.json") is None

@@ -37,6 +37,7 @@ from interact_support import (
     publish,
     record_claim,
     shipped_payload,
+    vendored_at_another_protocol,
     wait_for,
 )
 from leaf import cli as cli_model
@@ -230,11 +231,9 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     regtest.write("\n".join(outputs).encode("ascii", "backslashreplace").decode())
 
 
-@pytest.mark.parametrize("identity", ["runtime", "server"])
-def test_response_reply_names_a_page_vendored_by_another_leaf(
-    claimed, server, identity
-):
-    page = claimed
+def _replying_after(page, server, edit):
+    """Reply to a user comment after `edit` changes what the page's layer records,
+    as a Leaf update leaves it, and return the command's result."""
     publish(page)
     code, response = fetch(
         f"{server}/api/event",
@@ -246,17 +245,57 @@ def test_response_reply_names_a_page_vendored_by_another_leaf(
     envelope = json.loads(woke.output)
     delivery_model.receive(envelope, "s1")
     reference = envelope["batches"][0]["events"][0]["answer"]["ref"]
-
-    registry = interact_files.read_json(page / "registry.json")
-    registry["$layer"][identity] = "sha256:" + "b" * 64
-    (page / "registry.json").write_text(json.dumps(registry))
-
-    replied = CliRunner().invoke(
-        cli_model.cli,
-        ["response", "reply", reference, "--ephemeral", "--text", "Working"],
+    edit(page)
+    # A process of its own, as the agent's next command is, so it reads the page as
+    # edited rather than as this one remembers it (`page_memory`).
+    return subprocess.run(
+        [*LEAF_COMMAND, "response", "reply", reference, "--ephemeral", "--text", "Hi"],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=False,
     )
-    assert replied.exit_code != 0, replied.output
-    assert f"leaf page init {page}" in replied.output
+
+
+def test_a_page_another_leaf_vendored_at_this_protocol_takes_its_writes(
+    claimed, server
+):
+    """A Leaf update leaves an open page working. Another Leaf's runtime and serving
+    code, and an older kernel vocabulary lacking fields this Leaf writes, in every
+    registry the page and its revisions captured, still take a reply: the kernel's
+    records are the running Leaf's own (`layer.PROTOCOL`)."""
+
+    def older_leaf(page):
+        captured = page.glob("revisions/*/resources/registry.json")
+        for stamp in [page / "registry.json", *captured]:
+            registry = interact_files.read_json(stamp)
+            if "$layer" in registry:
+                registry["$layer"]["runtime"] = "sha256:" + "b" * 64
+                registry["$layer"]["server"] = "sha256:" + "c" * 64
+            reply = registry["$events"]["kinds"]["reply"]["record"]["properties"]
+            for written in ("ephemeral", "start"):
+                del reply[written]
+            # Replaced rather than written through: a revision hard-links its files.
+            stamp.unlink()
+            stamp.write_text(json.dumps(registry))
+
+    replied = _replying_after(claimed, server, older_leaf)
+    assert replied.returncode == 0, replied.stderr
+    # The page's own copy is its runtime's, so a new version still composes over it.
+    checked = subprocess.run(
+        [*LEAF_COMMAND, "page", "check", str(claimed)],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=False,
+    )
+    assert checked.returncode == 0, checked.stderr
+
+
+def test_response_reply_names_a_page_vendored_at_another_protocol(claimed, server):
+    replied = _replying_after(claimed, server, vendored_at_another_protocol)
+    assert replied.returncode != 0, replied.stdout
+    assert f"leaf page init {claimed}" in replied.stderr
 
 
 def test_the_skill_routes_every_reference_it_ships():
@@ -3385,10 +3424,8 @@ def test_a_fresh_log_starts_without_the_cursor_of_the_log_it_replaced(page_dir):
 
 
 def test_init_revendors_a_page_an_earlier_leaf_left_behind(page_dir):
-    """A page an earlier Leaf vendored is readable again through `page init`.
-
-    Re-vendoring is the only move the user has, so the refusal names it and
-    `page init` takes it."""
+    """A page an earlier Leaf vendored at this protocol stays readable, its older
+    kernel vocabulary included, and `page init` brings that vocabulary up to date."""
     publish(page_dir)
     revision = interact_files.latest_revision(page_dir)
     append_carried_log_record(
@@ -3425,8 +3462,7 @@ def test_init_revendors_a_page_an_earlier_leaf_left_behind(page_dir):
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     stale = check(page_dir)
-    assert stale.exit_code != 0
-    assert "leaf page init" in stale.output
+    assert stale.exit_code == 0, stale.output
 
     revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert revendored.exit_code == 0, revendored.output

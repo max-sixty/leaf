@@ -4512,12 +4512,6 @@ def test_event_kinds_and_ownership_are_the_kernel_contract_not_a_layer_extension
     assert result.exit_code != 0
     assert f"$events.{key} is Leaf's fixed transport contract" in result.output
 
-    with pytest.raises(
-        registry_contract.RegistryError,
-        match=rf"\$events.{key} must equal Leaf's fixed transport contract",
-    ):
-        registry_validation.validate_registry(registry, "incoming")
-
 
 def test_an_empty_agent_name_uses_the_harness_default(
     page_dir, sessionless, monkeypatch

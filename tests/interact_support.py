@@ -464,20 +464,20 @@ def install_payload(destination):
     return destination
 
 
-def vendored_by_another_leaf(page_dir: Path) -> str:
-    """Record another Leaf's runtime identity in the page's layer, and return it.
+def vendored_at_another_protocol(page_dir: Path) -> int:
+    """Record another page protocol in the page's layer, and return it.
 
-    The state a plugin update, or a runtime edit in a checkout, leaves a page in:
-    its runtime modules are the ones an earlier `page init` copied, and this Leaf's
-    own are something else. Only the stamp changes, which is all a comparison of
-    identities reads, and it is replaced rather than written through, as every
-    file a lent page may share with its template has to be.
+    The state a breaking Leaf update leaves a page in: its layer is the one an
+    earlier `page init` copied, at a number this Leaf no longer speaks. Only the
+    stamp changes, which is all the comparison reads, and it is replaced rather
+    than written through, as every file a lent page may share with its template
+    has to be.
     """
     stamp = page_dir / "registry.json"
     registry = json.loads(stamp.read_text(encoding="utf-8"))
-    foreign = "sha256:" + "b" * 64
-    assert registry["$layer"]["runtime"] != foreign
-    registry["$layer"]["runtime"] = foreign
+    foreign = 999
+    assert registry["$layer"]["protocol"] != foreign
+    registry["$layer"]["protocol"] = foreign
     cleanup_model.write_json(stamp, registry)
     return foreign
 

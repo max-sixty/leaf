@@ -28,7 +28,7 @@ and its reader confirms nothing. So it hands an envelope over inline only once i
 has confirmed every batch: an inline envelope it could not confirm would leave its
 input pending, and every later hook and watch would offer it again as new. A
 batch's receipt can be refused for good, as when this Leaf may not write a log
-another Leaf vendored (`event_contracts.write_refusal`), so whatever the hook
+vendored at another protocol (`event_contracts.write_refusal`), so whatever the hook
 could not confirm goes as a pointer, whose reader's explicit `leaf delivery ack`
 either confirms it or shows the refusal. The plan reads that refusal once per
 page: the hook then records no other pickup there and names the refusal in the

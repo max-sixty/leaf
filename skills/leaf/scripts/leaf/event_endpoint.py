@@ -11,16 +11,14 @@ from pathlib import Path
 
 from .event_contracts import (
     EventRefused,
-    admitting_registry,
     append_admitted,
     browser_command_error,
 )
 from .event_log import AttemptConflict
 from .harness import claim_harness
-from .page_view import PageView
 from .presence import nudge_unwatched
 from .registry.contract import RegistryError
-from .registry.kernel import kernel_event_ownership
+from .registry.kernel import kernel_event_kinds, kernel_event_ownership
 from .registry.schema import json_value
 from .schema import MESSAGE_KINDS
 from .service import PageTransaction, requires_agent_attention
@@ -90,14 +88,9 @@ def accept_event(
 
 
 def _receive_event(page_dir: Path, event: dict) -> EventAnswer:
-    try:
-        # The shape check before the lease reads no log, so a sign-off checks its
-        # kind against the newest vocabulary; admission inside the lease reads the
-        # version's own.
-        registry = admitting_registry(PageView(page_dir), event, [])
-    except (EventRefused, RegistryError) as error:
-        return event_rejection(event, str(error))
-    contracts = registry["$events"]["kinds"]
+    # The shape check before the lease reads only the kernel's own records, which no
+    # layer changes; admission inside the lease reads the page's vocabulary.
+    contracts = kernel_event_kinds()
     browser_kinds = sorted(
         name for name, contract in contracts.items() if "browser" in contract
     )

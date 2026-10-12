@@ -38,7 +38,7 @@ from .files import (
     version_revisions,
 )
 from .interaction_log import append_interactions, client_records
-from .layer import foreign_runtime
+from .layer import incompatible_layer
 from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
 from .passages import SourceReading
@@ -1235,7 +1235,7 @@ def page_endpoint(
     request: they are facts about the vendored page this server was started over. So
     is whether this Leaf can serve that page at all: every one-page server, durable
     or temporary, passes here before it binds, and refuses naming the re-vendor when
-    the page's runtime came from another Leaf (`foreign_runtime`).
+    the page was vendored at another protocol (`incompatible_layer`).
     The key has no default: every server over a page directory is reachable by
     whatever reached the machine, so there is no construction that should quietly go
     without one."""
@@ -1244,7 +1244,7 @@ def page_endpoint(
         if page_snapshot is not None
         else layer_metadata(page_dir)
     )
-    if refusal := foreign_runtime(page_dir, identity):
+    if refusal := incompatible_layer(page_dir, identity):
         raise Refused(refusal)
     return partial(
         endpoint,

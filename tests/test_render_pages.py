@@ -2346,8 +2346,8 @@ def test_a_scrolling_breakout_table_keeps_its_caption_in_its_scrollport(
     container its caption reads its width from; the caption is held to the box instead.
     On a phone, where the room is the column and an eight-column table scrolls, a long
     caption stays inside the scrollport at either end of the scroll: in the page's flow,
-    in a list item, which its list indents from the column the bound measures from and
-    so keeps the table its own container, and in a quotation, whose frame holds it."""
+    in a list item, whose table is measured from the column as the bound is, and in a
+    quotation, whose frame holds it."""
     cells = "".join(f"<td>measured value {i}</td>" for i in range(8))
     caption = "Services in the migration, by stage, with their owners and windows"
     table = (
@@ -2377,6 +2377,61 @@ def test_a_scrolling_breakout_table_keeps_its_caption_in_its_scrollport(
         at = table.evaluate(reading)
         assert at["caption"][0] >= at["box"][0] - 1, (end, at)
         assert at["caption"][1] <= at["box"][1] + 1, (end, at)
+    assert root_overflow(page) == 0
+
+
+@pytest.mark.parametrize("direction", ["ltr", "rtl"])
+def test_a_breakout_in_nested_list_items_grows_about_the_prose_axis(
+    browser, serve, direction
+):
+    """A list indents its items from the column, so a block that breaks out of an item
+    three lists deep holds its room 72px from the column's start. Measured from the item,
+    the breakout centred on the item, 36px off the prose; measured from the column, a
+    wide block, an available block and a table granted room all stand on the prose
+    axis, the available block reaches both edges of the room, and a table that fits the
+    column starts where the prose starts."""
+    cells = "".join(f"<td>measured value {i}</td>" for i in range(8))
+    blocks = (
+        '<div id="wide" data-width="wide">A wide block.</div>'
+        '<div id="available" data-width="available">An available block.</div>'
+        f'<table id="table" data-width="wide"><tr>{cells}</tr></table>'
+        '<table id="narrow" data-width="available"><tr><th>Plan</th><td>60</td></tr>'
+        "</table>"
+    )
+    body = (
+        '<h1>Lists</h1><p id="prose">A paragraph at the measure, long enough to fill '
+        "the column it stands in from one edge to the other.</p>"
+        f"<ul><li>One<ol><li>Two<ul><li>Three{blocks}</li></ul></li></ol></li></ul>"
+    )
+    source = leaf_page("Nested lists", body).replace(
+        '<html lang="en">', f'<html lang="en" dir="{direction}">', 1
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1440, 900)
+    at = page.evaluate("""() => {
+      const edges = (el) => {
+        const box = el.getBoundingClientRect();
+        return {left: box.left, right: box.right, centre: (box.left + box.right) / 2};
+      };
+      return {
+        prose: edges(document.getElementById('prose')),
+        holder: edges(document.getElementById('wide').parentElement),
+        wide: edges(document.getElementById('wide')),
+        available: edges(document.getElementById('available')),
+        table: edges(document.querySelector('#table tr')),
+        narrow: edges(document.querySelector('#narrow tr')),
+        room: [24, innerWidth - 24],
+      };
+    }""")
+    prose = at["prose"]
+    assert abs(at["holder"]["centre"] - prose["centre"]) >= 30, at
+    for block in ("wide", "available", "table"):
+        assert at[block]["centre"] == pytest.approx(prose["centre"], abs=1), (block, at)
+    assert at["wide"]["right"] - at["wide"]["left"] == pytest.approx(1080, abs=1), at
+    assert at["available"]["left"] == pytest.approx(at["room"][0], abs=1), at
+    assert at["available"]["right"] == pytest.approx(at["room"][1], abs=1), at
+    start = "left" if direction == "ltr" else "right"
+    assert at["narrow"][start] == pytest.approx(prose[start], abs=1), at
     assert root_overflow(page) == 0
 
 

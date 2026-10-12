@@ -339,9 +339,10 @@ standing in the margin or the contents map's spine; the markers beside it then s
 pins on it, and it moves below a note hanging level with it. A native `table` given
 either takes its columns' natural width up to that room: one that fits the column
 starts where the prose starts, and a wider one grows evenly about the prose axis, or to
-the right where a sidebar stands in the left margin. A table in a list item fills its
-room instead. An `lf-ask` or a callout keeps the column: a block of its own that
-declares a width breaks out of it on a column page, and widens it in a wider flow.
+the right where a sidebar stands in the left margin. A block in a list item measures
+its room from the column too, so it stands on the prose axis however deep the list.
+An `lf-ask` or a callout keeps the column: a block of its own that declares a width
+breaks out of it on a column page, and widens it in a wider flow.
 Use these names on the semantic block itself, including a native `table`, `lf-code`, or
 `lf-diff`; do not reproduce their responsive widths in page CSS.
 

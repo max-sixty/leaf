@@ -574,6 +574,12 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     # callback's `Response has been disposed` from the next test's browser call. Remove
     # the routes and wait for any handler already running before their owning page goes.
     page.unroute_all(behavior="wait")
+    # The expectation can receive the console event before the fixture's separate
+    # collector receives its callback. Let that same event reach the collector.
+    for _ in range(200):
+        if reported.value.text in page.lf_errors:
+            break
+        page.wait_for_timeout(25)
     errors = take_browser_errors(page)
     assert [error for error in errors if "400" not in error] == [reported.value.text], (
         errors

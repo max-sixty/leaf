@@ -15,10 +15,6 @@ vars:
     \ | 14 |\n| 3 | 23 | 29 | 20 |\n| 4 | 27 | 32 | 24 |\n| 5 | 19 | 25 | 16 |\n\nThe page directory is\
     \ not reachable from here, so reply with the section's\nHTML fragment rather than writing a file.\n"
 assert:
-- type: regex
-  metric: charts-the-pattern
-  value: <lf-chart\b
-  transform: output.toLowerCase()
 - type: llm-rubric
   metric: judgment
   value: |

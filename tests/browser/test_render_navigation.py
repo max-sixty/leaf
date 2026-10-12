@@ -10588,6 +10588,9 @@ def test_an_ask_under_the_open_panel_is_shown_beside_it_or_by_clearing_it(
     evidence = (
         "<figure><p>The hedge shelters the feeders.</p></figure>" if side_track else ""
     )
+    options_style = (
+        "<style>#spot { width: 40%; margin-left: 60%; }</style>" if side_track else ""
+    )
     url = serve(
         leaf_page(
             "Under the panel",
@@ -10602,6 +10605,7 @@ def test_an_ask_under_the_open_panel_is_shown_beside_it_or_by_clearing_it(
 </lf-options></lf-ask>
 <section id="below">{filler}</section>
 """,
+            head=options_style,
         )
     )
     append_carried_log_record(

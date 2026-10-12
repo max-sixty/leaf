@@ -199,28 +199,6 @@ window.authoredModuleRan = true;
     )
 
 
-def test_the_gallery_embeds_an_ordinary_stamped_page(browser, serve):
-    """Authored iframe markup opens a durable version rather than a practice copy."""
-    url = live_url(serve(FEATURE_GALLERY))
-    page = open_page(browser, url + "#bg-durable-embedding")
-    expect(page.locator("#bg-durable-embedding")).to_be_in_viewport()
-    page.locator("#bg-durable-frame-open").click()
-    frame = page.locator("#bg-durable-frame").element_handle().content_frame()
-    wait_until_ready(frame)
-    assert urlparse(frame.url).path == "/versions/v2.html"
-    expect(frame.locator("#bg-choice-ask h3")).to_have_text(
-        "Which map should the sample team carry?"
-    )
-    frame.locator(".lf-threads-toggle").click()
-    expect(frame.locator(".lf-thread-panel")).to_be_visible()
-    frame.goto(frame.url)
-    wait_until_ready(frame)
-    assert urlparse(frame.url).path == "/versions/v2.html"
-    expect(frame.locator("#bg-choice-ask h3")).to_have_text(
-        "Which map should the sample team carry?"
-    )
-
-
 def test_a_live_page_refuses_a_same_site_parent_at_another_port(browser, serve):
     """SameSite cookies do not isolate ports, so a different origin can authenticate
     the frame even without knowing its key. CSP blocks disguising its controls."""
@@ -1726,7 +1704,11 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
 
 
 def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
-    """Optional page interface preparation holds the first widget upgrade."""
+    """Optional page interface preparation holds the first widget upgrade.
+
+    The same gallery page then embeds an ordinary stamped page: authored iframe markup
+    opens a durable version rather than a practice copy, and keeps opening it across a
+    reload of the frame."""
     url = serve(FEATURE_GALLERY)
     held = []
     release_state = False
@@ -1773,6 +1755,24 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     ).click()
     expect(controls).to_be_visible()
     expect(page.locator(".lf-status-detail")).not_to_contain_text("Connecting")
+
+    page.evaluate("location.hash = 'bg-durable-embedding'")
+    expect(page.locator("#bg-durable-embedding")).to_be_in_viewport()
+    page.locator("#bg-durable-frame-open").click()
+    frame = page.locator("#bg-durable-frame").element_handle().content_frame()
+    wait_until_ready(frame)
+    assert urlparse(frame.url).path == "/versions/v2.html"
+    expect(frame.locator("#bg-choice-ask h3")).to_have_text(
+        "Which map should the sample team carry?"
+    )
+    frame.locator(".lf-threads-toggle").click()
+    expect(frame.locator(".lf-thread-panel")).to_be_visible()
+    frame.goto(frame.url)
+    wait_until_ready(frame)
+    assert urlparse(frame.url).path == "/versions/v2.html"
+    expect(frame.locator("#bg-choice-ask h3")).to_have_text(
+        "Which map should the sample team carry?"
+    )
 
 
 def test_playground_joins_initial_widget_settlement(browser, serve):

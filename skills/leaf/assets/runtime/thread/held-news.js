@@ -149,17 +149,28 @@ const fold = (summary, drawn) =>
 // The edit a message's words were last rewritten by, or null for words as first said.
 const rewritten = (message) => (message.base === message.id ? null : message.base);
 
+// How the seat would draw `message` differently in its words from `prior`, the same
+// message as it drew it, or null where they stand as drawn:
+// - "joined": a turn new to the thread, the agent's reply or a message of the user's
+//   such as one from another tab, or words joining the reply still streaming, which a
+//   provisional message stands for at the thread's end and which grows there as an
+//   appended turn does;
+// - "completed": the streaming reply's answer with the words already drawn, that
+//   reply's arrival, which counts only where it folds earlier progress;
+// - "rewritten": words a new revision changed, an edit;
+// - "grew": words that changed under the same revision, still that message arriving.
+function messageChange(prior, message) {
+  if (!prior) return "joined";
+  const reworded = JSON.stringify(prior.body) !== JSON.stringify(message.body);
+  if (prior.provisional)
+    return reworded ? "joined" : message.provisional ? null : "completed";
+  if (!reworded) return null;
+  return rewritten(prior) === rewritten(message) ? "grew" : "rewritten";
+}
+
 // What of `now` the seat would draw differently from `was`, the thread as it drew it:
-// each message that joins it, each one whose words changed, each reaction put on a reply
-// or taken off it, each summary that comes or goes, and the thread's settlement. A turn
-// joining the thread counts as the agent's reply or as a message of the user's, such as
-// one from another tab. The reply still streaming, which a provisional message stands
-// for at the thread's end until its answer completes it, arrives with every change: its
-// words joining it grow the thread at its end as an appended turn does, and its answer
-// completing it is that reply's arrival even where the words stay as they were, which
-// counts it only when it folds earlier progress, since the words already stood drawn.
-// Words a new revision of any other message changed are an edit; words that
-// changed under the same revision are still that message arriving.
+// each message's words (`messageChange`), each reaction put on a reply or taken off it,
+// each summary that comes or goes, and the thread's settlement.
 // `changed` the keys of the messages the news changes in place, every one where the
 // settlement changes, which moves the thread's controls into or out of its head row and
 // draws or folds its reaction strips; `folds` the keys of the messages a summary that
@@ -190,20 +201,15 @@ function difference(was, now) {
   const completed = new Set();
   for (const message of now.messages) {
     const prior = drawn.get(message.key);
-    const reworded =
-      prior !== undefined &&
-      JSON.stringify(prior.body) !== JSON.stringify(message.body);
-    if (prior?.provisional && !message.provisional && !reworded)
-      completed.add(message.id);
-    if (prior?.provisional) arrived.add(message.id);
-    if (!prior || (reworded && prior.provisional)) {
+    const change = messageChange(prior, message);
+    if (!prior || prior.provisional) arrived.add(message.id);
+    if (change === "completed") completed.add(message.id);
+    if (change === "joined") {
       if (message.author === "agent") news.replies += 1;
       else news.messages += 1;
       news.appended = true;
-      arrived.add(message.id);
-    } else if (reworded) {
-      if (rewritten(prior) === rewritten(message)) news.replies += 1;
-      else news.edits += 1;
+    } else if (change === "grew" || change === "rewritten") {
+      news[change === "grew" ? "replies" : "edits"] += 1;
       changed.add(message.key);
     } else if (settled) changed.add(message.key);
     else if (message.reactions && prior.reactions) {

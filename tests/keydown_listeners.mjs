@@ -2,7 +2,7 @@
 // per line: every `addEventListener` call whose event type is the literal "keydown", or
 // the variable of an enclosing `for (… of [...])` whose array lists "keydown". Read from
 // the parsed module, so a call wrapped across lines, or registered for several types in
-// one loop, counts as written (tests/test_interact_layer.py).
+// one loop, counts as written (tests/*/test_interact_layer.py).
 import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 import { parse } from "acorn";

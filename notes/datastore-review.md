@@ -17,7 +17,7 @@ cannot yet create a record with several fields.
 Position records preserve both the container and the gap between units. The
 `recorded_state` reading compares the container and nearest preceding unit shared by
 both documents, so `page check` detects a same-container reorder that contradicts the
-user's move. `tests/test_interact_document.py` exercises both that case and later
+user's move. `tests/*/test_interact_document.py` exercises both that case and later
 revisions that must retain the recorded order.
 
 Some state units identify external records rather than elements: `lf-diff` uses file

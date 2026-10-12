@@ -47,7 +47,6 @@ from urllib.parse import parse_qsl, urlencode, urlsplit
 import pytest
 from browser_sources import browser_function
 from click.testing import CliRunner
-from conftest import tier
 from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
@@ -1239,12 +1238,15 @@ _TEST = None
 
 
 def watches_shifts(test):
-    """Unmarked tests watch shifts, whatever tier their cost runs them in; surveyed
-    journeys marked with a tier opt in.
+    """Every test watches shifts but those in a module marked `shifts_unsurveyed`,
+    which still await a survey, and of those the ones marked `watch_shifts` watch too.
 
     This selection does not lift the watcher's first-presentation exemption.
     """
-    return tier(test) is None or test.get_closest_marker("watch_shifts") is not None
+    return (
+        test.get_closest_marker("shifts_unsurveyed") is None
+        or test.get_closest_marker("watch_shifts") is not None
+    )
 
 
 @contextmanager

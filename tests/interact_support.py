@@ -1283,6 +1283,38 @@ def fetch(url, data=None, token=TOKEN, layer=None, headers=None):
         return e.code, e.read()
 
 
+def fetch_hanging_up(url, data=None):
+    """`fetch(url, data, token=None)` that closes the connection from the client.
+
+    Whichever side closes a TCP connection first holds its address in TIME_WAIT, and
+    a server rebinding its recorded port waits that out (`hosting.listening_socket`):
+    a minute on Linux. urllib asks the server to close, so a test that fetches and
+    then restarts the server at the same URL waits that minute at every restart. This
+    keeps the connection alive and hangs up itself, leaving the cooldown on its own
+    ephemeral port. The URL carries the page's key, as an announced URL does.
+    """
+    parts = urllib.parse.urlsplit(url)
+    connection = http.client.HTTPConnection(
+        parts.hostname, parts.port, timeout=STATED_TIMEOUT
+    )
+
+    def request(method, path, body=None, headers=None):
+        connection.request(
+            method, f"{path}?{parts.query}", body=body, headers=headers or {}
+        )
+        response = connection.getresponse()
+        return response.status, response.read()
+
+    try:
+        if data is None:
+            return request("GET", parts.path or "/")
+        _, state = request("GET", "/api/state")
+        layer = json.loads(state)["layer"]["generation"]
+        return request("POST", parts.path, data, {"Leaf-Layer": layer})
+    finally:
+        connection.close()
+
+
 HELD_LEASES = []
 
 

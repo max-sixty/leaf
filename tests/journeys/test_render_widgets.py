@@ -1837,6 +1837,7 @@ def test_a_playground_dresses_each_sample_child_and_never_its_own_page(browser, 
           <style>:root[data-playground-tone="loud"] p { color: rgb(200, 0, 0); }</style>
           <h1 id="child-title">Child page</h1>
           <p id="child-note">The page the candidate restyles.</p>
+          <lf-draft id="child-draft"><pre>A draft the candidate restyles too.</pre></lf-draft>
         </template>
       </lf-sample>
     </lf-playground-preview>
@@ -1860,17 +1861,31 @@ def test_a_playground_dresses_each_sample_child_and_never_its_own_page(browser, 
 
     # The reset child has an opaque origin. Collect its paints there, then request
     # the whole sequence after Reset completes across the browsing-context boundary.
+    # The parent's answer to the child's connection is held for a few frames, as a
+    # busy machine holds it: no frame the child shows meanwhile may be undressed,
+    # including the draft's prepainted markdown, which makes itself visible.
     page.add_init_script("""(() => {
       if (window === top) return;
       const paints = [];
       let sampling = true;
       const tick = () => {
-        const note = document.getElementById('child-note');
-        if (note && getComputedStyle(note).visibility === 'visible')
-          paints.push(getComputedStyle(note).color);
+        for (const words of document.querySelectorAll('#child-note, #child-draft p'))
+          if (words.checkVisibility({visibilityProperty: true, opacityProperty: true}))
+            paints.push(getComputedStyle(words).color);
         if (sampling) requestAnimationFrame(tick);
       };
       requestAnimationFrame(tick);
+      window.addEventListener('message', event => {
+        if (event.source !== parent || !event.ports.length || event.lfHeld) return;
+        event.stopImmediatePropagation();
+        setTimeout(() => {
+          const held = new MessageEvent('message', {
+            data: event.data, source: event.source, ports: [...event.ports],
+          });
+          held.lfHeld = true;
+          window.dispatchEvent(held);
+        }, 200);
+      }, true);
       window.addEventListener('message', event => {
         if (event.source !== parent || event.data?.type !== 'lf-test-tone-read')
           return;

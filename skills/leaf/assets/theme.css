@@ -303,6 +303,10 @@ html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) {
     html[data-lf-interactive] body:not([data-lf-upgraded]) > main .lf-ui {
       visibility: hidden !important;
     }
+    html[data-lf-sample-connecting] {
+      opacity: 0 !important;
+      visibility: hidden !important;
+    }
   }
 }
 .lf-held-keys {

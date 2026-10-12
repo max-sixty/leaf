@@ -57,7 +57,7 @@ import {
   sizeObserver,
   widgetController,
   watchData,
-  watchOwner,
+  whileConnected,
   scrollIntoView,
   layoutPx,
 } from "/runtime/widget-api.js";
@@ -715,29 +715,8 @@ customElements.define(
     };
 
     connectedCallback() {
-      this.addEventListener("lf-reveal", this.revealPassage);
-      const firstConnection = once(this);
-      if (firstConnection) {
-        watchOwner(this, {
-          disconnect: () => {
-            this.rendering = (this.rendering ?? 0) + 1;
-          },
-        });
-      }
-      if (!this.threadSurface)
-        this.threadSurface = placeThreads(this, (targets) => {
-          this.beginThreadSurface();
-          const outlets = targets.map((target) => this.threadOutletFor(target));
-          this.endThreadSurface();
-          return outlets;
-        });
-      // A page diff's file header pins at `--lf-top`, the top of the page's box that
-      // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,
-      // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
-      // the module answers it once with the layer's own predicate and paints the answer.
-      this.toggleAttribute("data-lf-diff-pinned", !inChrome(this));
-      if (!this.diffKeys) {
-        this.diffKeys = commands(
+      if (!once(this)) return;
+      commands(
           this,
           "In a diff review",
           [
@@ -830,34 +809,44 @@ customElements.define(
           ],
           () => Boolean(this.fileEntries?.length),
         );
-      }
       const bound = this.hasAttribute("source");
-      if (!bound) {
-        if (this.classList.contains("lf-rendered")) return;
-        // Not bodyText: a diff's trailing whitespace is content — a hunk's last line
-        // can be a lone space, the context line for a blank source line — so only the
-        // closing newline is the <pre>'s layout.
-        if (this.inlineSource === undefined)
-          this.inlineSource = dataBody(this).replace(/^\n+/, "").replace(/\n$/, "");
-        this.present((this.sourceRendering = this.render(this.inlineSource)));
-        return;
-      }
-      if (firstConnection)
+      whileConnected(this, (signal) => {
+        this.addEventListener("lf-reveal", this.revealPassage, { signal });
+        this.threadSurface = placeThreads(this, (targets) => {
+          this.beginThreadSurface();
+          const outlets = targets.map((target) => this.threadOutletFor(target));
+          this.endThreadSurface();
+          return outlets;
+        });
+        // A page diff's file header pins at `--lf-top`, the top of the page's box that
+        // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,
+        // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
+        // the module answers it once with the layer's own predicate and paints the answer.
+        this.toggleAttribute("data-lf-diff-pinned", !inChrome(this));
+        // An inline patch whose rendering a departure cut short renders on return.
+        if (!bound && !this.classList.contains("lf-rendered")) {
+          // Not bodyText: a diff's trailing whitespace is content — a hunk's last line
+          // can be a lone space, the context line for a blank source line — so only the
+          // closing newline is the <pre>'s layout.
+          this.inlineSource ??= dataBody(this).replace(/^\n+/, "").replace(/\n$/, "");
+          this.present((this.sourceRendering = this.render(this.inlineSource)));
+        }
+        return () => {
+          this.rendering = (this.rendering ?? 0) + 1;
+          for (const target of this.threadSizeTargets ?? []) threadSizes.unobserve(target);
+          this.threadSizeTargets = null;
+          this.threadSurface.unregister();
+          this.threadSurface = null;
+          this.threadOutlets = null;
+          this.threadPairs = null;
+        };
+      });
+      if (bound)
         watchData(this, "document", (snapshot) => {
           const rendering = this.render(snapshot?.value ?? null, snapshot);
           this.sourceRendering = rendering;
           return rendering;
         });
-    }
-
-    disconnectedCallback() {
-      this.removeEventListener("lf-reveal", this.revealPassage);
-      for (const target of this.threadSizeTargets ?? []) threadSizes.unobserve(target);
-      this.threadSizeTargets = null;
-      this.threadSurface?.unregister();
-      this.threadSurface = null;
-      this.threadOutlets = null;
-      this.threadPairs = null;
     }
 
     // `snapshot` is the bound delivery, null when a bound source has no value, and

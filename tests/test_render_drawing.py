@@ -72,6 +72,30 @@ def draw_over(page, locator, *, steps=8, points=STROKE):
     return stroke_over(page, locator, steps=steps, points=points)
 
 
+# Two joined options of one Question, with prose around them so the page scrolls them
+# into the middle of the window and on past it.
+FILLER = "\n".join(
+    f"<p id='filler-{i}'>Paragraph {i}. " + "Filler. " * 20 + "</p>" for i in range(12)
+)
+MAP_CHOICE_PAGE = leaf_page(
+    "map choice",
+    """
+<h1 id="title">Field day</h1>
+"""
+    + FILLER.replace("filler-", "before-")
+    + """
+<lf-ask id="map-ask">
+  <h3>Which map should the sample team carry?</h3>
+  <lf-options id="map" choose>
+    <lf-option id="map-street">Street map</lf-option>
+    <lf-option id="map-trail">Trail map</lf-option>
+  </lf-options>
+</lf-ask>
+"""
+    + FILLER.replace("filler-", "after-"),
+)
+
+
 READ_BOX = """selector => {
   const box = document.querySelector(selector).getBoundingClientRect();
   return {x: box.x, y: box.y, width: box.width, height: box.height, scrollY};
@@ -128,31 +152,14 @@ def mark_relation(page, mark, target):
     )
 
 
-# A pick between two joined options, with page above and beside it for a stroke to
-# cross: the shape the feature gallery's map Ask has, without the gallery around it.
-CHOICE_PAGE = leaf_page(
-    "map choice",
-    '<h1 id="title">The sample trip</h1>'
-    + "<p>Every walk starts from the visitor centre and its car park.</p>" * 4
-    + '<lf-ask id="bg-choice-ask"><h3>Which map should the sample team carry?</h3>'
-    '<lf-options id="bg-choice" choose>'
-    '<lf-option id="bg-choice-street">Street map</lf-option>'
-    '<lf-option id="bg-choice-trail">Trail map</lf-option>'
-    "</lf-options></lf-ask>"
-    + "<p>The route returns along the river before the light goes.</p>"
-    * 8,
-    head="<style>#bg-choice { width: 360px; }</style>",
-)
-
-
 def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
     """One pointer stroke starts on one semantic anchor, crosses the page beyond it,
     and the accepted comment keeps its ink positioned over that anchor. The record
     carries the window it was drawn in, its layout viewport and color scheme, which
     is what lays the page out again for the agent's picture of it."""
-    url = serve(CHOICE_PAGE)
+    url = serve(MAP_CHOICE_PAGE)
     page = open_page(browser, url, color_scheme="dark")
-    target = page.locator("#bg-choice-trail")
+    target = page.locator("#map-trail")
     target.evaluate("el => { el.style.position = 'relative'; el.style.zIndex = '1'; }")
     scroll_width = page.evaluate("document.documentElement.scrollWidth")
 
@@ -174,7 +181,7 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
 
     event = events_model.read_events(serve.page_dir)[-1]
     assert event["kind"] == "comment"
-    assert event["anchor"] == {"section": "bg-choice-trail"}
+    assert event["anchor"] == {"section": "map-trail"}
     assert event["text"] == "This bend is the part I mean."
     drawing = event["drawing"]
     assert drawing["format"] == "leaf-drawing/3"
@@ -219,10 +226,10 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
     assert stable_mark.evaluate("node => node.isConnected"), (
         "a repaint describing unchanged ink must keep the mark it already painted"
     )
-    relation = mark_relation(page, posted, "#bg-choice-trail")
+    relation = mark_relation(page, posted, "#map-trail")
     page.evaluate("scrollBy(0, 100)")
     rendered(page)
-    assert mark_relation(page, posted, "#bg-choice-trail") == pytest.approx(
+    assert mark_relation(page, posted, "#map-trail") == pytest.approx(
         relation, abs=0.02
     )
     # The scroll carries the mark rather than a repaint redrawing it.
@@ -230,7 +237,7 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page)
-    assert mark_relation(page, posted, "#bg-choice-trail") == pytest.approx(
+    assert mark_relation(page, posted, "#map-trail") == pytest.approx(
         relation, abs=0.02
     )
     expect(target).not_to_have_class(re.compile(r"\blf-mark-el\b"))
@@ -240,7 +247,7 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
 
     returned = open_page(browser, url)
     expect(returned.locator(posted)).to_have_count(1)
-    assert mark_relation(returned, posted, "#bg-choice-trail") == pytest.approx(
+    assert mark_relation(returned, posted, "#map-trail") == pytest.approx(
         relation, abs=0.02
     )
 
@@ -1469,8 +1476,8 @@ def test_pointer_modes_leave_document_editing_controls_usable(browser, serve):
 
 def test_a_draw_press_uses_the_exact_target_under_its_start(browser, serve):
     """Joined option seams use the target under the pointer when the stroke starts."""
-    page = open_page(browser, serve(CHOICE_PAGE))
-    trail = page.locator("#bg-choice-trail")
+    page = open_page(browser, serve(MAP_CHOICE_PAGE))
+    trail = page.locator("#map-trail")
     trail.scroll_into_view_if_needed()
     box = trail.bounding_box()
     point = (box["x"] + box["width"] * 0.5, box["y"])
@@ -1478,7 +1485,7 @@ def test_a_draw_press_uses_the_exact_target_under_its_start(browser, serve):
         "([x, y]) => document.elementFromPoint(x, y)?.closest('lf-option')?.id",
         point,
     )
-    assert target in {"bg-choice-street", "bg-choice-trail"}
+    assert target in {"map-street", "map-trail"}
     page.mouse.move(*point)
     page.keyboard.press("w")
     expect(page.locator(".lf-aim")).to_be_hidden()
@@ -1492,8 +1499,8 @@ def test_a_draw_press_uses_the_exact_target_under_its_start(browser, serve):
 
     event = events_model.read_events(serve.page_dir)[-1]
     assert event["anchor"] == {"section": target}
-    assert page.locator("#bg-choice-street").get_attribute("chosen") is None
-    assert page.locator("#bg-choice-trail").get_attribute("chosen") is None
+    assert page.locator("#map-street").get_attribute("chosen") is None
+    assert page.locator("#map-trail").get_attribute("chosen") is None
 
 
 def test_an_active_stroke_re_resolves_a_replaced_target(browser, serve):

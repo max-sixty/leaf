@@ -24,7 +24,7 @@ import { requestJson } from "./layer-client.js";
 import { pageUrl, runtime } from "./context.js";
 import { dressFor, registerSampleDress } from "./dress.js";
 import { widgetDescriptor } from "./widget-descriptors.js";
-import { containingView, frameView, presented } from "./geometry.js";
+import { containingView, frameView, presented, watchRoom } from "./geometry.js";
 import {
   sampleVisibility,
   onSampleVisibility,
@@ -346,8 +346,7 @@ export function mountSample(
     if (current && frame.hasAttribute("src")) record("loaded");
   };
   frame.addEventListener("load", loaded);
-  window.addEventListener("scroll", visibility, true);
-  window.addEventListener("resize", visibility);
+  const room = watchRoom(visibility);
   document.addEventListener("visibilitychange", visibility);
   const seen = new IntersectionObserver(visibility, { threshold: [0, 1] });
   seen.observe(frame);
@@ -363,7 +362,7 @@ export function mountSample(
     attributeFilter: ["inert", "open", "hidden", "aria-hidden", "class", "style"],
   });
   const nativeTransition = () => nextRender(visibility);
-  for (const type of ["beforetoggle", "toggle", "close"])
+  for (const type of ["beforetoggle"])
     document.addEventListener(type, nativeTransition, true);
   const unwatch = onSampleVisibility(visibility);
   const undress = registerSampleDress(frame, (dress) =>
@@ -503,13 +502,12 @@ export function mountSample(
       window.removeEventListener("message", connect);
       frame.removeEventListener("load", loaded);
       window.removeEventListener("pagehide", departing);
-      window.removeEventListener("scroll", visibility, true);
-      window.removeEventListener("resize", visibility);
+      room();
       document.removeEventListener("visibilitychange", visibility);
       seen.disconnect();
       size.disconnect();
       admission.disconnect();
-      for (const type of ["beforetoggle", "toggle", "close"])
+      for (const type of ["beforetoggle"])
         document.removeEventListener(type, nativeTransition, true);
       lifetime.disconnect();
       unwatch();

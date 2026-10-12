@@ -73,14 +73,18 @@ const indentColumns = (tokens) => {
   return columns;
 };
 
-// The numbers the body's lines carry, in body order. `page check` holds `lines` to
-// one strictly ascending number per body line (x-numbering), so the two agree here.
-const numbering = (el, count) =>
-  el.hasAttribute("lines")
-    ? spans(el.getAttribute("lines")).flatMap(([from, to]) =>
-        Array.from({ length: to - from + 1 }, (_, i) => from + i),
-      )
-    : Array.from({ length: count }, (_, i) => i + 1);
+// The numbers the body's lines carry, in body order: the authored `lines` ranges, one
+// number per body line, or 1 to N without them. A body longer than its ranges goes on
+// counting from the last number, and ranges past the body's end number nothing.
+// Each range is walked only as far as the body needs, so a range far longer than the
+// body costs nothing.
+const numbering = (el, count) => {
+  const numbers = [];
+  for (const [from, to] of spans(el.getAttribute("lines")))
+    for (let n = from; n <= to && numbers.length < count; n++) numbers.push(n);
+  while (numbers.length < count) numbers.push((numbers.at(-1) ?? 0) + 1);
+  return numbers;
+};
 
 customElements.define(
   "lf-code",
@@ -128,8 +132,8 @@ customElements.define(
         // The gutter fits the widest number, so an excerpt from deep in a file keeps
         // its code aligned with its notes.
         pre.style.setProperty("--lf-code-digits", String(numbers.at(-1)).length);
-        // Every note's line has a row: `page check` refuses an `at` outside the
-        // block (x-lines), so there is no leftover to sweep up.
+        // A note stands at the row of the line it names, or the elided row standing
+        // for it; one naming a line past either end of the block stands at its foot.
         lines.forEach((tokens, i) => {
           const n = numbers[i];
           if (i && n > numbers[i - 1] + 1) {
@@ -163,6 +167,7 @@ customElements.define(
           // Moved, not copied: the authored element keeps its text and id.
           pre.append(...(byLine.get(n) ?? []));
         });
+        pre.append(...notes.filter((note) => !pre.contains(note)));
         this.replaceChildren(pre);
         this.classList.add("lf-rendered");
         this.append(copyCodeBlock(pre, () => source));

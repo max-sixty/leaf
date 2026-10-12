@@ -11,7 +11,7 @@ from render_cases_interaction import (
     PANEL_PAGE,
     panel_comment,
 )
-from render_harness import FEATURE_GALLERY, open_page, told
+from render_harness import open_page, told
 
 
 def test_new_reply_and_user_question_share_one_notice_without_moving_focus(
@@ -27,11 +27,9 @@ def test_new_reply_and_user_question_share_one_notice_without_moving_focus(
 
     thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "I changed the route. Does this answer your question?",
-        None,
         question=True,
-        for_event=root,
     )
     told(page)
     notice = re.compile(r".+ replied; Input needed")
@@ -40,10 +38,8 @@ def test_new_reply_and_user_question_share_one_notice_without_moving_focus(
     expect(toggle).to_be_focused()
 
 
-def test_gallery_new_information_sample_preserves_focus(browser, serve):
-    page = open_page(browser, serve(FEATURE_GALLERY))
-    guide = page.locator("#bg-thread-notices")
-    expect(guide).to_contain_text("status-line notice")
+def test_a_new_agent_comment_is_announced_without_moving_focus(browser, serve):
+    page = open_page(browser, serve(PANEL_PAGE))
     toggle = page.locator(".lf-threads-toggle")
     toggle.focus()
     expect(toggle).to_be_focused()
@@ -66,10 +62,8 @@ def test_terminal_failure_is_a_response_notice_not_an_agent_reply(browser, serve
 
     thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "The agent turn ended before completion.",
-        None,
-        for_event=root,
         failure="turn_failed",
         attempt="response-failed-attempt",
     )
@@ -134,7 +128,7 @@ def test_initial_history_and_repeated_stage_readings_are_quiet(browser, serve):
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "What changed?")
     thread_model.post_reply(
-        serve.page_dir, root, "The initial historical answer.", None, for_event=root
+        serve.page_dir, {"to": root, "for": root}, "The initial historical answer."
     )
     page = open_page(browser, url)
     expect(page.locator(".lf-notice")).to_be_hidden()

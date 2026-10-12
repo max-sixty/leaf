@@ -1,11 +1,13 @@
 name: ci
 
 # Every event runs the runtime, browser-framework and bundle gates; the Python suite's
-# selection follows the test tiers (`tests/conftest.py`, `TIERS`):
-# - a pull request runs the unmarked tests, plus the `main` and `nightly` tests it edits,
+# selection follows the test tiers, set by a test's marks and its measured cost
+# (`tests/conftest.py`, `run_tier`):
+# - a pull request runs the first tier, plus the `main` and `nightly` tests it edits,
 #   and the website gate;
-# - a push to main runs the unmarked and `main` tests;
-# - the daily schedule and a manual dispatch run every test.
+# - a push to main runs the first tier and `main`;
+# - the daily schedule and a manual dispatch run every test, and their junit report is
+#   what `leaf-dev cost-tiers` measures the tiers from.
 # Relevant pushes to main run the website gate in publish-site before deploy.
 on:
   push:
@@ -125,6 +127,13 @@ jobs:
         # meanwhile: a pull request builds the website beside it.
         run: |
           mkdir -p .tmp/test-results
+          # Each worker charges its tests' CPU to a cgroup of its own under this one
+          # (`dev/leaf_dev/suite_profile.py`). Owning it lets the workers make and join
+          # theirs without root, and this shell joins it so pytest starts inside.
+          export SUITE_PROFILE_CGROUP=/sys/fs/cgroup/leaf-suite
+          sudo mkdir "$SUITE_PROFILE_CGROUP"
+          sudo chown -R "$(id -u)" "$SUITE_PROFILE_CGROUP"
+          echo $$ | sudo tee "$SUITE_PROFILE_CGROUP/cgroup.procs" >/dev/null
           accounting=${{ github.event_name != 'pull_request' }}
           if $accounting; then
             sudo touch /var/log/account/suite

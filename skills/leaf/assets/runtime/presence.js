@@ -2,6 +2,7 @@
 // measured offset here, beside the two public readings that depend on it, so no seat can
 // accidentally render against a second clock.
 import { watchOwner } from "./arrivals.js";
+import { reportPageError } from "./layer-client.js";
 
 let clockSkew = 0;
 let clockReads = null;
@@ -92,46 +93,83 @@ export function clocked(owner, paint, invalidate) {
 }
 
 /** The paint of one reading at a time, kept across the owner's departures, and the one
- * rule for what a returning owner is drawn again. Calling `paint(key, ...args)` draws
- * `draw(...args)` through `clocked`, unless `key` names the reading already painted: a
- * return repaints only what changed while away. A drawn reading stands, failed or not,
- * so a refusal is not reported twice; a draw whose returned promise does not settle
- * while its owner stands was cut short, and the next call draws it again. `owes(key)`
- * says whether `paint(key)` would draw, `forget()` owes the next call a draw,
- * `refresh()` redraws the last reading, at once or on the return, and `stop()` retires
- * the paint. Its owner's subscriptions stay the caller's. A deferred presenter passes
- * `invalidate`, as to `clocked`. */
+ * rule for what a returning owner is drawn again and for a draw that fails. Calling
+ * `paint(key, ...args)` draws `draw(...args)` through `clocked`, unless `key` names the
+ * reading already painted: a return repaints only what changed while away. A draw whose
+ * returned promise does not settle while its owner stands was cut short, and the next
+ * call draws it again. A draw that throws or rejects while its owner stands is reported
+ * here, once, as a page error naming the owner; the failure never reaches the caller as
+ * a throw, so no subscription ends on it, and the call returns a rejected promise the
+ * caller may hand to a presentation or ignore. A drawn reading stands, failed or not,
+ * so a refusal is not reported twice, and the next changed reading draws again. One cut
+ * short is not reported, since its return draws it again. Every draw takes this rule,
+ * whether a call, `refresh()` or the clock started it. `owes(key)` says whether
+ * `paint(key)` would draw, `forget()` owes the next call a draw, `refresh()` redraws the
+ * last reading, at once or on the return, and `stop()` retires the paint. Its owner's
+ * subscriptions stay the caller's. A deferred presenter passes `invalidate`, as to
+ * `clocked`. */
 export function readingPaint(owner, draw, invalidate) {
-  const render = clocked(owner, draw, invalidate);
   let painted = false;
   let key;
+  // The latest draw still running, which a departure leaves owed, and every draw still
+  // running, which a departure cuts short.
   let pending = null;
+  const running = new Set();
   let stopped = false;
   const stopLifetime = watchOwner(owner, {
     disconnect() {
+      for (const mark of running) mark.cut = true;
       if (pending) painted = false;
       pending = null;
     },
   });
+  const failed = (reason) =>
+    reportPageError(
+      reason,
+      `paint failed for ${owner.localName}${owner.id ? `#${owner.id}` : ""}`,
+    );
+  const render = clocked(
+    owner,
+    (...args) => {
+      pending = null;
+      let result;
+      try {
+        result = draw(...args);
+      } catch (error) {
+        failed(error);
+        const refused = Promise.reject(error);
+        refused.catch(() => {});
+        return refused;
+      }
+      if (typeof result?.then === "function") {
+        const mark = (pending = {});
+        running.add(mark);
+        const settled = (reason, rejected) => {
+          running.delete(mark);
+          mark.cut ||= !owner.isConnected;
+          if (pending === mark) {
+            pending = null;
+            if (mark.cut) painted = false;
+          }
+          if (rejected && !mark.cut) failed(reason);
+        };
+        result.then(
+          () => settled(),
+          (reason) => settled(reason, true),
+        );
+      }
+      return result;
+    },
+    invalidate,
+  );
   const owes = (next) => !painted || key !== next;
   const paint = (next, ...args) => {
     if (stopped || !owes(next)) return undefined;
-    // Claim the reading before drawing, so a synchronous failure or a re-entrant call
-    // cannot draw the same reading again.
+    // Claim the reading before drawing, so a failure or a re-entrant call cannot draw
+    // the same reading again.
     painted = true;
     key = next;
-    pending = null;
-    const result = render(...args);
-    if (typeof result?.then === "function") {
-      const mark = (pending = {});
-      const settled = () => {
-        if (pending !== mark) return;
-        pending = null;
-        if (!owner.isConnected) painted = false;
-      };
-      result.then(settled, settled);
-    }
-    return result;
+    return render(...args);
   };
   paint.owes = owes;
   paint.forget = () => {

@@ -96,11 +96,14 @@ def test_a_comparison_mark_that_failed_on_return_keeps_following_the_comparison(
     )
     page = open_page(browser, url.replace("v1.html", "v2.html"))
     mark = page.locator('[aria-controls="decision"] .lf-tabdiff')
-    # The tabs leave while the comparison starts, and their marks fail once on the
-    # return that paints it.
+    compare_with(page, 1)
+    expect(mark).to_have_text("Δ1")
+    # Turn off the settled comparison while the tabs are away. Returning to that
+    # changed reading throws once; the next comparison must still update its mark.
     page.evaluate("""() => {
         const views = document.getElementById('views');
         const tab = views.querySelector('[aria-controls="decision"]');
+        tab.querySelector(':scope > .lf-tabdiff').textContent = 'stale';
         tab.querySelector = () => {
           delete tab.querySelector;
           throw new Error('the marks failed once');
@@ -110,13 +113,12 @@ def test_a_comparison_mark_that_failed_on_return_keeps_following_the_comparison(
     }""")
     compare_with(page, 1)
     page.evaluate("() => document.querySelector('main').append(window.detachedViews)")
-    expect(page.locator("#transport .lf-settled-diff")).to_have_text("Δ1")
+    expect(page.locator("#transport .lf-settled-diff")).to_have_count(0)
     errors = consume_browser_errors(page, "the marks failed once")
     # The page's report and the browser's own record of the one uncaught error.
     assert len([error for error in errors if error.startswith("leaf:")]) == 1, errors
     compare_with(page, 1)
-    expect(page.locator("#transport .lf-settled-diff")).to_have_count(0)
-    compare_with(page, 1)
+    expect(page.locator("#transport .lf-settled-diff")).to_have_text("Δ1")
     expect(mark).to_have_text("Δ1")
 
 

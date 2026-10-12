@@ -1287,8 +1287,44 @@ def test_a_returning_controller_widget_draws_again_only_a_changed_reading(
     assert page.evaluate(leave_and_return) == {"drawn": 0, "failed": 1, "pending": []}
     errors = take_browser_errors(page)
     assert [error.splitlines()[0] for error in errors] == [
-        "leaf: Presentation failed: <lf-local> renderState threw: deliberate render failure"
+        (
+            "leaf: paint failed for lf-local#page-local: <lf-local> renderState threw: "
+            "deliberate render failure"
+        )
     ]
+
+
+def test_a_subscriber_added_after_the_first_render_fails_by_the_paint_rule(
+    browser, serve
+):
+    """A subscriber that joins a drawn reading draws through the widget's paint, so
+    its failure is reported once, as that paint's, and the widget shows its fail-soft
+    box."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Late subscriber",
+                '<h1>Late subscriber</h1><lf-local id="page-local" choice="idle">'
+                "</lf-local>",
+            ),
+            page_files={
+                "registry.json": json.dumps(PAGE_DECLARATION),
+                "widgets/lf-local.js": PAGE_WIDGET,
+            },
+        ),
+    )
+    expect(page.locator("#page-local")).to_have_attribute("data-page-widget", "ready")
+    page.evaluate(
+        "document.querySelector('#page-local').controller.subscribe(() => {"
+        " throw new Error('late subscriber failure'); }); true"
+    )
+    expect(page.locator("#page-local .lf-error")).to_have_text(
+        "<lf-local> failed: late subscriber failure"
+    )
+    reported_browser_errors(
+        page, "leaf: paint failed for lf-local#page-local: late subscriber failure"
+    )
 
 
 @pytest.mark.parametrize("lifetime", ["light", "shadow-child", "shadow-host"])
@@ -1566,7 +1602,10 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
     assert page.evaluate("window.__failedLocalRenders") == 1
     errors = take_browser_errors(page)
     assert [error.splitlines()[0] for error in errors] == [
-        "leaf: Presentation failed: <lf-local> renderState threw: deliberate render failure"
+        (
+            "leaf: paint failed for lf-local#page-local: <lf-local> renderState threw: "
+            "deliberate render failure"
+        )
     ]
     assert "Caused by: Error: deliberate render failure" in errors[0]
 

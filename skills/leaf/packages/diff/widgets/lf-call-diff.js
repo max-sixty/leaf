@@ -21,6 +21,7 @@ import {
   navigateToDatum,
   offer,
   projectData,
+  setChildLists,
   setChildren,
   watchData,
   once,
@@ -305,29 +306,25 @@ customElements.define(
           children: children.map((record) => rows.get(record.key)),
         };
       });
-      // Connect destinations and transfer surviving rows before any old body or
-      // group is drained. Native moves can then keep their controls live even
-      // when a capture puts the same call under a newly arriving root.
-      const arrivals = placements
-        .map(({ group }) => group)
-        .filter((group) => group.parentNode !== this);
-      if (arrivals.length) setChildren(this, [...this.childNodes, ...arrivals]);
+      // Placed at once, a row changing groups, even to a newly arriving root, moves
+      // straight across and keeps its controls live; its group opens to show it.
       const focused = this.getRootNode().activeElement;
-      for (const { group, body, children } of placements) {
-        const transfers = children.filter(
-          (node) => node.parentNode !== body && node.isConnected,
-        );
-        if (transfers.some((node) => node.contains(focused))) group.open = true;
-        if (transfers.length) setChildren(body, [...body.childNodes, ...transfers]);
-      }
-      for (const { group, body, summary, children } of placements) {
-        setChildren(body, children);
-        setChildren(group, [summary, body]);
-      }
-      setChildren(this, [
-        toolbar,
-        rows.get(records[0].key),
-        ...[...groups.values()].flatMap(({ group, location }) => [location, group]),
+      for (const { group, body, children } of placements)
+        if (children.some((node) => node.parentNode !== body && node.contains(focused)))
+          group.open = true;
+      setChildLists([
+        [
+          this,
+          [
+            toolbar,
+            rows.get(records[0].key),
+            ...[...groups.values()].flatMap(({ group, location }) => [location, group]),
+          ],
+        ],
+        ...placements.flatMap(({ group, body, summary, children }) => [
+          [group, [summary, body]],
+          [body, children],
+        ]),
       ]);
       this.groups = groups;
       this.rows = rows;

@@ -100,6 +100,7 @@ from render_harness import (
     panel_settled,
     primed,
     refuse,
+    reported_browser_errors,
     round_trip,
     select,
     sending,
@@ -2072,6 +2073,35 @@ def test_a_root_module_failure_leaves_authored_document_readable(browser, serve)
     assert (
         page.evaluate("() => getComputedStyle(document.body, '::after').content")
         == "none"
+    )
+
+
+def test_the_first_startup_fault_names_the_page(browser, serve):
+    """The first fault before presentation names the page, and later faults leave the
+    name alone: the first is the earliest evidence, and a later one is often its
+    consequence, as a page that cannot read its own words throws the same refusal from
+    every repaint. A later incomplete fault still gives back the readable fallback."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.route(
+        "**/leaf.js",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="text/javascript",
+            body="for (const word of ['first fault', 'first fault', 'later fault'])"
+            " setTimeout(() => { throw new Error(word); });"
+            " setTimeout(() => { window.dispatchEvent(new CustomEvent("
+            "'lf-startup-failed', { detail: { reason: 'declared fault' } }));"
+            " window.faulted = true; });",
+        ),
+    )
+    page.goto(serve(SHORT_SUGGESTION), wait_until="load")
+    page.wait_for_function("() => window.faulted")
+    root = page.locator("html")
+    expect(root).to_have_attribute("data-lf-startup-error", re.compile("first fault"))
+    assert root.evaluate("root => root.lfStartupException.message") == "first fault"
+    expect(root).not_to_have_attribute("data-lf-interactive", "")
+    reported_browser_errors(
+        page, "Error: first fault", "Error: first fault", "Error: later fault"
     )
 
 
@@ -4797,8 +4827,6 @@ customElements.define('lf-feed', class extends HTMLElement {
         "outletFor",
         "invalid-count",
         "invalid-outlet",
-        "unregister",
-        "end-unregister",
         "disconnect",
         "moved",
         "detached",
@@ -4820,10 +4848,10 @@ def test_a_failed_thread_surface_continues_the_keyboard_opened_reply(browser, se
 def _exercise_failed_thread_surface(browser, serve, failure, *, activation):
     """An adapter failure cannot keep stale local views or stop the next widget.
 
-    Each case is one way a surface stops holding its threads: its callback throws
-    (outletFor, after preparing the first datum), it unregisters outside or
-    inside its callback, it leaves the page, its outlet moves out of it or off the
-    page, it places nothing, or its datum goes while the callback awaits. Its threads
+    Each case is one way a surface stops holding its threads: its `threadOutlets`
+    throws (outletFor, after preparing the first datum) or answers with the wrong
+    shape, it leaves the page, its outlet moves out of it or off the page, it places
+    nothing, or its datum goes while `threadOutlets` awaits. Its threads
     fall back to the core surface with the unsent draft, and its picker lets go of the
     keyboard. The healthy surface stands later in registration order, so its updated
     reply proves reconciliation continued beyond the broken adapter.
@@ -4840,7 +4868,7 @@ def _exercise_failed_thread_surface(browser, serve, failure, *, activation):
         "x-example": '<lf-test-surface id="surface-example"></lf-test-surface>',
     }
     module = """
-import {projectData, placeThreads, setChildren} from '/runtime/widget-api.js';
+import {projectData, setChildren, threadSurface} from '/runtime/widget-api.js';
 customElements.define('lf-test-surface', class extends HTMLElement {
   connectedCallback() {
     const datums = ['first', 'second'].map(key => {
@@ -4855,41 +4883,36 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     });
     setChildren(this, datums.map(({node}) => node));
     projectData(this, datums);
-    this.surface = placeThreads(this, async (targets) => {
-      const outlets = targets.map((target) => {
-        const {anchor, placement} = target;
-        if (anchor.datum === 'second' && this.failure === 'outletFor')
-          throw new Error('surface fixture: outletFor');
-        return this.failure === 'hidden' ? null : placement.datumElement.outlet;
-      });
-        if (this.failure === 'end-unregister') {
-          this.failure = null;
-          this.surface.unregister();
-        }
-        for (const row of this.children) {
-          if (this.failure === 'moved') document.querySelector('main').append(row.outlet);
-          if (this.failure === 'detached') row.outlet.remove();
-        }
-        if (this.failure === 'target-removed') {
-          await Promise.resolve();
-          for (const row of [...this.children].filter(row => row.outlet)) {
-            this.append(row.outlet);
-            row.remove();
-          }
-        }
-      if (this.failure === 'invalid-count') return outlets.slice(1);
-      if (this.failure === 'invalid-outlet') return outlets.map(() => undefined);
-      return outlets;
+  }
+  async threadOutlets(targets) {
+    const outlets = targets.map((target) => {
+      const {anchor, placement} = target;
+      if (anchor.datum === 'second' && this.failure === 'outletFor')
+        throw new Error('surface fixture: outletFor');
+      return this.failure === 'hidden' ? null : placement.datumElement.outlet;
     });
+    for (const row of this.children) {
+      if (this.failure === 'moved') document.querySelector('main').append(row.outlet);
+      if (this.failure === 'detached') row.outlet.remove();
+    }
+    if (this.failure === 'target-removed') {
+      await Promise.resolve();
+      for (const row of [...this.children].filter(row => row.outlet)) {
+        this.append(row.outlet);
+        row.remove();
+      }
+    }
+    if (this.failure === 'invalid-count') return outlets.slice(1);
+    if (this.failure === 'invalid-outlet') return outlets.map(() => undefined);
+    return outlets;
   }
   fail(phase) {
     this.failure = phase;
-    if (phase === 'unregister') this.surface.unregister();
-    else if (phase === 'disconnect') {
+    if (phase === 'disconnect') {
       this.remove();
-      document.querySelector('#healthy').surface.update();
+      threadSurface(document.querySelector('#healthy')).update();
     }
-    else this.surface.update();
+    else threadSurface(this).update();
   }
 });
 """
@@ -5050,7 +5073,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     expect(fallback.locator("leaf-text")).to_have_js_property(
         "value", "Keep this unsent reply."
     )
-    if failure not in {"unregister", "end-unregister", "disconnect", "target-removed"}:
+    if failure not in {"disconnect", "target-removed"}:
         page.keyboard.press("Escape")
         broken.evaluate("""widget => {
             widget.failure = null;
@@ -5783,14 +5806,50 @@ def test_a_returning_subscriber_is_repainted_only_where_its_departure_cut_the_pa
     assert result == {"interrupted": 2, "kept": 2}
 
 
-def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
-    browser, serve
-):
-    """Source names are data, including names inherited by a plain JS object.
+def test_a_subscriber_that_failed_on_return_draws_the_next_reading(browser, serve):
+    """A source that changed while its widget was away is drawn on the return; a
+    callback that throws there is reported once and keeps its subscription, so the
+    next reading draws."""
+    page = open_page(browser, data_projection_page(serve))
+    result = page.evaluate(
+        """async () => {
+          const {watchData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {acceptData, notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
+          const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
+          const widget = document.querySelector('lf-feed');
+          const at = (revision) => {
+            const next = structuredClone(runtime.data);
+            next.version = revision;
+            next.sources.deployments.revision = revision;
+            return next;
+          };
+          const drawn = [];
+          let refuse = false;
+          const stop = watchData(widget, 'rows', (snapshot) => {
+            drawn.push(snapshot.revision);
+            if (refuse) throw new Error('return refused');
+          });
+          const parent = widget.parentNode;
+          const next = widget.nextSibling;
+          widget.remove();
+          await new Promise((resolve) => setTimeout(resolve));
+          acceptData(at('changed-away'), runtime.state.taken);
+          refuse = true;
+          parent.insertBefore(widget, next);
+          await new Promise((resolve) => setTimeout(resolve));
+          refuse = false;
+          acceptData(at('after-return'), runtime.state.taken);
+          await notifyDataSubscribers();
+          stop();
+          return drawn.slice(1);
+        }"""
+    )
+    assert result == ["changed-away", "after-return"]
+    assert len(consume_browser_errors(page, "return refused")) == 1
 
-    A subscriber is also a package mount boundary: if its first render fails, later
-    polls must not keep calling a listener whose widget never finished connecting.
-    """
+
+def test_data_subscriptions_use_own_keys(browser, serve):
+    """Source names are data, including names inherited by a plain JS object."""
     page = open_page(browser, data_projection_page(serve))
     result = page.evaluate(
         """async () => {
@@ -5811,17 +5870,6 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
           const captured = [];
           const stopCaptured = watchData(widget, 'rows', snapshot => { captured.push(snapshot); });
           widget.setAttribute('source', 'deployments');
-
-          let failedCalls = 0;
-          let message = null;
-          try {
-            watchData(widget, 'rows', () => {
-              failedCalls += 1;
-              throw new Error('mount failed');
-            });
-          } catch (error) {
-            message = error.message;
-          }
           const next = structuredClone(runtime.data);
           next.version = 'next-version';
           next.sources.deployments.revision = 'next-revision';
@@ -5831,7 +5879,7 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
           let unbound = 'not-called';
           const stopUnbound = watchData(widget, 'rows', snapshot => { unbound = snapshot; });
           stopUnbound();
-          return {currentRevision, unbound, absent, captured, failedCalls, message};
+          return {currentRevision, unbound, absent, captured};
         }"""
     )
     assert result == {
@@ -5839,8 +5887,6 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
         "unbound": None,
         "absent": None,
         "captured": [None],
-        "failedCalls": 1,
-        "message": "mount failed",
     }
 
 
@@ -5960,6 +6006,9 @@ def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_
             failed[name] = 0;
             stops.push(api[name](owner, () => {
               failed[name] += 1;
+              // A paint that fails later is told the same way as one that throws.
+              if (name === 'watchHistory')
+                return Promise.reject(new Error(`${name} paint failed`));
               throw new Error(`${name} paint failed`);
             }));
             await settle();
@@ -5992,9 +6041,8 @@ def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_
     errors = consume_browser_errors(page, "paint failed")
     reported = sorted(error.splitlines()[0] for error in errors)
     assert reported == sorted(
-        f"{prefix}Error: {name} paint failed"
+        f"leaf: paint failed for div#failing-{name}: {name} paint failed"
         for name in ["watchQuestions", "watchReports", "watchHistory"]
-        for prefix in ["", "leaf: "]
     )
 
 
@@ -6342,9 +6390,9 @@ def test_failed_clock_paints_do_not_starve_other_widgets_or_restart_polling(
 def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
     """The data stamp proves that every asynchronous subscriber has settled.
 
-    A rejected mount removes its listener and a later rejected update is reported at
-    that subscriber's boundary. Neither turns every subsequent poll into the same
-    page-wide read failure or prevents the accepted revision becoming ready.
+    A rejected mount and a later failed update are each reported once, at that
+    subscriber's paint. Neither turns every subsequent poll into the same page-wide
+    read failure or prevents the accepted revision becoming ready.
     """
     page = open_page(browser, data_projection_page(serve))
     result = page.evaluate(
@@ -6399,10 +6447,9 @@ def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
     assert result["throwingDeliveries"] == 2, result
     assert result["afterMount"] == result["before"], result
     assert result["afterUpdate"] == result["version"], result
-    errors = consume_browser_errors(page, "data subscriber failed")
+    errors = consume_browser_errors(page, "paint failed")
     assert {error.splitlines()[0] for error in errors} == {
-        "leaf: data subscriber failed for lf-feed#deployments input rows source deployments: "
-        + f"{message} projection failed"
+        f"leaf: paint failed for lf-feed#deployments: {message} projection failed"
         for message in ("mount", "update", "synchronous update")
     }
     assert len(errors) == 3 and all("\n" in error for error in errors), errors
@@ -6790,7 +6837,7 @@ def test_widgets_claim_before_page_and_only_required_page_failures_fail_proof(
         "x-example": '<lf-test-seat id="sample"></lf-test-seat>',
     }
     module = """
-import {projectData, placeThreads, setChildren} from '/runtime/widget-api.js';
+import {projectData, setChildren, threadSurface} from '/runtime/widget-api.js';
 customElements.define('lf-test-seat', class extends HTMLElement {
   connectedCallback() {
     const datums = ['row'].map(key => {
@@ -6801,11 +6848,14 @@ customElements.define('lf-test-seat', class extends HTMLElement {
     setChildren(this, datums.map(({node}) => node));
     projectData(this, datums);
   }
+  // Until `start`, the seat offers none, so the page presents every thread first.
+  threadOutlets(targets) {
+    if (this.fail) throw new Error('exact widget failed');
+    return targets.map(target => this.started ? target.placement.datumElement.outlet : null);
+  }
   start() {
-    this.surface = placeThreads(this, (targets) => {
-      if (this.fail) throw new Error('exact widget failed');
-      return targets.map(target => target.placement.datumElement.outlet);
-    });
+    this.started = true;
+    threadSurface(this).update();
   }
 });
 """
@@ -6933,7 +6983,7 @@ def test_required_page_failure_retains_composer_seat_focus_and_caret(browser, se
         "x-example": '<lf-test-seat id="seat"></lf-test-seat>',
     }
     module = """
-import {projectData,placeThreads,setChildren} from '/runtime/widget-api.js';
+import {projectData,setChildren} from '/runtime/widget-api.js';
 customElements.define('lf-test-seat',class extends HTMLElement{
   connectedCallback(){
     this.style.cssText='display:block;height:360px;overflow:auto';
@@ -6945,8 +6995,9 @@ customElements.define('lf-test-seat',class extends HTMLElement{
     setChildren(this,datums.map(({node})=>node));
     projectData(this,datums);
     this.side='a';
-    this.surface=placeThreads(this,targets=>
-      targets.map(target=>target.placement.datumElement[this.side]));
+  }
+  threadOutlets(targets){
+    return targets.map(target=>this.side?target.placement.datumElement[this.side]:null);
   }
 });
 """
@@ -6990,9 +7041,10 @@ customElements.define('lf-test-seat',class extends HTMLElement{
     }""")
     expect(page.locator("#rail .lf-page-thread")).to_have_count(1)
     expect(page.locator("[data-seat=a] .lf-page-thread")).to_have_count(1)
-    page.evaluate("""() => {
+    page.evaluate("""async () => {
+      const {threadSurface}=await __lfRuntimeImport('/runtime/widget-api.js');
       const seat=document.querySelector('#seat');
-      seat.surface.open(seat.querySelector('[data-lf-datum]'));
+      threadSurface(seat).open(seat.querySelector('[data-lf-datum]'));
     }""")
     editor = page.locator(".lf-fab-input")
     expect(editor).to_be_focused()
@@ -7122,7 +7174,11 @@ customElements.define('lf-test-seat',class extends HTMLElement{
         )
         == current
     )
-    page.evaluate("()=>document.querySelector('#seat').surface.unregister()")
+    # The widget stops offering its seat, so the page presents both threads.
+    page.evaluate("""async()=>{
+      const {threadSurface}=await __lfRuntimeImport('/runtime/widget-api.js');
+      const seat=document.querySelector('#seat');seat.side=null;threadSurface(seat).update();
+    }""")
     news.click()
     expect(page.locator("#rail .lf-page-thread")).to_have_count(2)
 

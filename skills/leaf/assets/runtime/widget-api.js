@@ -69,7 +69,7 @@ export {
 } from "./focus.js";
 export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
 // Making an element's children a list, moving only what is out of place.
-export { setChildren, setRenderedChildren } from "./dom-children.js";
+export { setChildLists, setChildren, setRenderedChildren } from "./dom-children.js";
 export { readQuestions, watchQuestions } from "./questions/model.js";
 export { comparisonChanges, watchComparison } from "./version.js";
 export { questionWords } from "./questions/answer.js";
@@ -87,7 +87,6 @@ export { queueActions } from "./application.js";
 export { registerVisualParts } from "./visual-parts.js";
 export {
   threadBox,
-  placeThreads,
   placePageThreads,
   consumeAnnotations,
   mountThreadViews,
@@ -95,6 +94,7 @@ export {
   threadActions,
 } from "./application.js";
 export { readThreads } from "./thread/state.js";
+export { threadSurface } from "./thread/surfaces.js";
 export { watchThreads } from "./thread/watch.js";
 export { turns as threadTurns, threadSummary } from "./thread/model.js";
 export { threadInput } from "./thread/landing.js";

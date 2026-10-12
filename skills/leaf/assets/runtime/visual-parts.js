@@ -84,7 +84,7 @@ export function revealRegisteredVisualPart(source, id) {
 }
 
 /** Why one source's registration breaks its `x-visual` declaration, as records of a
- * `kind` and the `parts` or `error` it concerns (`render_gate/findings.py` words them):
+ * `kind` and the `parts` or `error` it concerns (`findings.py` words them):
  * an authored part it does not register, and under `prefixes` a registered id no
  * prefix admits. Under
  * `parts` the module may register more than the author named unless the declaration

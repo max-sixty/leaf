@@ -306,7 +306,7 @@ def wait_for_theme(page) -> None:
 
 def pre_upgrade_findings(page) -> list[dict]:
     """Read authored structure before the held Leaf entry is released, as finding
-    records (`render_gate.findings`)."""
+    records (`leaf.findings`)."""
     _ensure_driver(page)
     return page.evaluate(_PRE_UPGRADE_FINDINGS)
 

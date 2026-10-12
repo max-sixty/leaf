@@ -6,6 +6,7 @@ from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 
 from leaf.files import version_num
+from leaf.findings import Finding
 from leaf.registry.contract import element_declarations
 from leaf.render_checks import (
     HANDOVER_DEADLINE_MS,
@@ -19,7 +20,6 @@ from leaf.render_checks import (
     wait_until_ready,
 )
 
-from .findings import Finding
 from .readings import DevtoolsIssues, _scheme_findings, _SchemeContext
 
 

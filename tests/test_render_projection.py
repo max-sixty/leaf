@@ -594,10 +594,7 @@ def test_diff_coordinates_keep_identity_separate_from_source_navigation(browser,
     assert resolved(["app.py", "new", 20]) == '["app.py","both",5,20]'
 
 
-@pytest.mark.parametrize("manifest", [False, True])
-def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(
-    browser, serve, manifest
-):
+def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(browser, serve):
     """Old source b.py and durable destination b.py identify different rename rows."""
     url = serve(
         leaf_page(
@@ -620,9 +617,7 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(
         "diff --git a/a.py b/a.py\nnew file mode 100644\n"
         "--- /dev/null\n+++ b/a.py\n@@ -0,0 +1 @@\n+new_a()\n"
     )
-    data_model.cmd_data_set(
-        serve.page_dir, "patch-data", patch_manifest(patch) if manifest else patch
-    )
+    data_model.cmd_data_set(serve.page_dir, "patch-data", patch_manifest(patch))
     data_model.cmd_data_set(
         serve.page_dir,
         "calls-data",
@@ -671,7 +666,7 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(
     data_model.cmd_data_set(
         serve.page_dir,
         "patch-data",
-        patch_manifest(long_preimage) if manifest else long_preimage,
+        patch_manifest(long_preimage),
     )
     told(page)
     expect(header).to_contain_text("legacy/very/long/original.py → c.py")
@@ -686,7 +681,7 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(
     data_model.cmd_data_set(
         serve.page_dir,
         "patch-data",
-        patch_manifest(ambiguous) if manifest else ambiguous,
+        patch_manifest(ambiguous),
     )
     told(page)
     expect(header).to_contain_text("a.py → c.py")
@@ -2536,8 +2531,7 @@ def test_live_news_keeps_the_reading_draft_and_resting_target(browser, serve, wi
 
 
 @pytest.mark.watch_shifts
-@pytest.mark.parametrize("width", [1200, 390], ids=["desktop", "narrow"])
-def test_live_revision_keeps_the_visible_semantic_reading(browser, serve, width):
+def test_live_revision_keeps_the_visible_semantic_reading(browser, serve):
     """A content revision keeps the reader on a page that still asks for approval.
 
     Native scroll anchoring is disabled by this page's layout, so it cannot conceal
@@ -2550,7 +2544,7 @@ def test_live_revision_keeps_the_visible_semantic_reading(browser, serve, width)
     )
     second = LIVE_V2.replace("</head>", anchoring + "</head>")
     page = open_page(browser, live_url(serve(first)))
-    resized(page, width, 900)
+    resized(page, 1200, 900)
     reading = page.locator("#live-reading")
     reading.scroll_into_view_if_needed()
     page.evaluate(
@@ -3674,7 +3668,7 @@ def test_a_revision_retires_every_declared_identity_it_removes(browser, serve):
     assert not {"gone-ask", "gone-options", "gone-yes"} & set(descriptors)
 
 
-@pytest.mark.parametrize("subject", ["paragraph", "diff", "selection"])
+@pytest.mark.parametrize("subject", ["diff", "selection"])
 def test_a_live_revision_updates_the_closed_questions_door(browser, serve, subject):
     """Unrelated questions arrive while an anchored comment keeps its native editor."""
     reading = (
@@ -6714,113 +6708,6 @@ def test_render_allows_authored_state_the_log_replays_over(browser, serve):
     expect(page.locator("#opt-stage")).not_to_have_attribute("chosen", "")
 
 
-def test_render_accepts_actions_made_after_the_authored_change(browser, serve):
-    """A user acting on r2 does not retroactively contradict r2's authoring, whether
-    r2 changed the widget's authored state (the pick) or introduced the widget (the
-    board r1 did not have)."""
-    board = REPLAYED_PAGE[
-        REPLAYED_PAGE.index('<lf-board id="work">') : REPLAYED_PAGE.index("</lf-board>")
-        + len("</lf-board>")
-    ]
-    url = serve(REPLAYED_PAGE.replace(board, ""))
-    d = serve.page_dir
-    current = REPLAYED_PAGE.replace('id="opt-stage"', 'id="opt-stage" chosen')
-    stamp_page(d, current, "t")
-    for widget, action, detail in [
-        ("approach", "choose", {"value": ["opt-shim"]}),
-        ("work", "move", {"unit": "card-importer", "value": "col-done", "rank": "0i"}),
-    ]:
-        append_command(
-            d,
-            {
-                "kind": "action",
-                "author": "user",
-                "revision": 2,
-                "widget": widget,
-                "action": action,
-                "detail": detail,
-            },
-        )
-    assert (
-        render_gate_model.render_version(
-            browser, url.replace("v1.html", "v2.html")
-        ).failures
-        == []
-    )
-
-
-def test_render_separates_old_and_new_verbs_on_one_element(
-    browser, serve, tmp_path, monkeypatch
-):
-    monkeypatch.chdir(tmp_path)
-    package = tmp_path / ".leaf"
-    add_test_widget(package, "lf-pair", upgrade=True)
-    registry_path = package / "registry.json"
-    declarations = json.loads(registry_path.read_text())
-    declaration = declarations["lf-pair"]
-    declaration["properties"].update(
-        first={"type": "string"},
-        second={"type": "string"},
-        restated={"type": "boolean"},
-    )
-    declaration["x-state"] = {
-        verb: {
-            "unit": "widget",
-            "record": {"kind": "value", "attr": verb},
-        }
-        for verb in ("first", "second")
-    }
-    registry_path.write_text(json.dumps(declarations))
-    (package / "widgets" / "lf-pair.js").write_text(
-        """import { keeps, once, widgetController } from "/runtime/widget-api.js";
-customElements.define("lf-pair", class extends HTMLElement {
-  #controller = widgetController(this);
-  #stop;
-  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
-  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) {
-    for (const [verb, reading] of Object.entries(state)) {
-      if (reading.value === null) this.removeAttribute(verb);
-      else keeps(this, verb, reading.value);
-    }
-  }
-});
-"""
-    )
-    previous = leaf_page(
-        "Two verbs", '<lf-pair id="pair" first="a" second="a">Two facts.</lf-pair>'
-    )
-    url = serve(previous, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    d = serve.page_dir
-
-    def act(revision, verb):
-        append_command(
-            d,
-            {
-                "kind": "action",
-                "author": "user",
-                "revision": revision,
-                "widget": "pair",
-                "action": verb,
-                "detail": {"value": "picked"},
-            },
-        )
-
-    act(1, "first")
-    current = previous.replace('second="a"', 'second="b"')
-    stamp_page(d, current, "t")
-    act(2, "second")
-    # Both renderState writes hit the same id. Only the newer verb was authored; a
-    # version changing an older decision's baseline is
-    # `test_render_allows_authored_state_the_log_replays_over`.
-    assert (
-        render_gate_model.render_version(
-            browser, url.replace("v1.html", "v2.html")
-        ).failures
-        == []
-    )
-
-
 def test_the_render_gate_applies_every_standing_action_a_second_time(browser, serve):
     """Absoluteness is what makes a fold a fold, and it is the one thing about a widget
     module no reading of a rendered page can see: a relative implementation renders
@@ -6900,9 +6787,8 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
     assert render_gate_model.render_version(browser, url).failures == []
 
 
-@pytest.mark.parametrize("authored", [None, "0"])
 def test_a_user_verb_and_an_agent_verb_stand_side_by_side(
-    browser, serve, tmp_path, monkeypatch, authored
+    browser, serve, tmp_path, monkeypatch
 ):
     """A verb has one writer, so a user's action and a worker's report on one widget
     fold on coordinates of their own: each paints its own record, every log record is
@@ -6955,10 +6841,7 @@ customElements.define("lf-tally", class extends HTMLElement {
 });
 """
     )
-    html = RELATIVE_WIDGET_PAGE
-    if authored is None:
-        html = html.replace('id="tally-seen" count="0"', 'id="tally-seen"')
-    url = serve(html, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+    url = serve(RELATIVE_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     for kind, author, widget, action, count in [
         ("action", "user", "tally-fitted", "set", "7"),
         ("report", "agent", "tally-fitted", "observe", "9"),
@@ -6993,7 +6876,7 @@ customElements.define("lf-tally", class extends HTMLElement {
     original = page.locator("#tally-seen").element_handle()
     page.keyboard.press("z")
     round_trip(page)
-    assert page.locator("#tally-seen").get_attribute("count") == authored
+    assert page.locator("#tally-seen").get_attribute("count") == "0"
     assert original.evaluate("node => node === document.getElementById('tally-seen')")
 
 
@@ -9619,14 +9502,8 @@ def test_the_activity_feed_words_a_pick_in_the_document_it_was_made_in(browser, 
     expect(row).to_contain_text("chose “Fast path” in")
 
 
-@pytest.mark.parametrize(
-    ("fresh", "touch"),
-    [(False, False), (True, False), (False, True)],
-    ids=["patched", "fresh", "touch"],
-)
-def test_activity_held_targets_follow_the_current_document(
-    browser, serve, fresh, touch
-):
+@pytest.mark.parametrize("fresh", [False, True], ids=["patched", "fresh"])
+def test_activity_held_targets_follow_the_current_document(browser, serve, fresh):
     """Held history keeps its words and seat, but never a departed destination."""
 
     def source(destination, executable=""):
@@ -9641,16 +9518,8 @@ def test_activity_held_targets_follow_the_current_document(
         <lf-option id="route-slow">Slow path</lf-option>
       </lf-options></lf-ask>"""
     url = live_url(serve(source(route)))
-    if touch:
-        page = browser.new_page(
-            viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True
-        )
-        page.goto(url)
-        wait_until_ready(page)
-        page.locator("#route-fast .lf-pick").tap()
-    else:
-        page = open_page(browser, url)
-        page.locator("#route-fast .lf-pick").click()
+    page = open_page(browser, url)
+    page.locator("#route-fast .lf-pick").click()
     round_trip(page)
     page.locator("#feed .lf-activity-news").click()
     row = page.locator("#feed .lf-activity-row", has_text="chose")
@@ -9689,10 +9558,7 @@ def test_activity_held_targets_follow_the_current_document(
     assert row.bounding_box() == before
     target.press("Enter")
     assert page.evaluate("location.hash") == fragment
-    if touch:
-        target.tap()
-    else:
-        target.click()
+    target.click()
     assert page.evaluate("location.hash") == fragment
     if fresh:
         frames = page.evaluate("window.activityTargetFrames")

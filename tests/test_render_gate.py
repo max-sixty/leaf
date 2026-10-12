@@ -3165,46 +3165,6 @@ def test_the_render_gate_catches_a_shadow_host_whose_own_words_never_render(
     assert any('paints urgent="" and says nothing' in f for f in failures), failures
 
 
-@pytest.mark.nightly  # a sweep over the whole corpus
-@pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
-def test_page_fixture_renders(browser, serve, source):
-    """Every shipped example and the developer gallery lay out in both color schemes: no
-    fail-soft error box, no console warning or error, every visible widget occupies real
-    space, no sideways scroll, no words on screen a selection can't reach. A
-    widget that upgrades into a 1x1 box, or a heading painted by a pseudo-element,
-    is the shape of failure a static lint cannot see. The invariants live in
-    render_gate.version.render_version — the pass `page check --render` runs on
-    agent-authored pages — so this sweep also proves the gate a user's page goes through.
-
-    The frame readings the gate offers as advice must be empty for shipped pages:
-    every box a shipped theme or example frames declares its frame, and a row at a
-    frame's edge holds it, so no box shows more inset than it draws.
-
-    And nothing the runtime adds stands among the elements the page wrote, where it
-    would change which child the page's own rules find first, last, or next.
-
-    Then the page is scrolled (`scroll_findings`), on the same page the probes read,
-    since both want the page as a reader first opens it."""
-    url = serve(source)
-    failures = render_gate_model.render_version(browser, url).failures
-    assert failures == [], "\n".join(failures)
-    # This pass measures writes caused by scrolling; the sort film may otherwise
-    # repaint its SVG on the same frames while it plays automatically.
-    page = open_page(browser, url, context=browser.new_context(reduced_motion="reduce"))
-    # The layer's own panel is held open by its own test; shut, its boxes misreport.
-    framing = [
-        finding
-        for probe in ("trappedMargins", "splitEdges")
-        for finding in render_checks_model.evaluate_probe(page, probe)
-        if not finding["chrome"]
-    ]
-    assert framing == [], framing
-    stray = render_checks_model.evaluate_probe(page, "apparatusAmongAuthored")
-    assert stray == [], stray
-    following = scroll_findings(page)
-    assert following == [], "\n".join(following)
-
-
 # The page's longest scroller, the one its reader spends the scroll in.
 READING_SCROLLER = (
     "[document.scrollingElement, ...document.querySelectorAll('*')]"
@@ -3622,8 +3582,9 @@ SURFACES = {
     "command reference": (["?", "?"], None),
 }
 UNWIND = 3
-# Round trips after the first, which may build what the surface keeps for next time.
-AGAIN = 3
+# Round trips after the first, which may build what the surface keeps for next time:
+# two, so a count that climbs on each of them is a leak rather than one late build.
+AGAIN = 2
 
 
 def surface_findings(page):
@@ -3700,8 +3661,10 @@ def surface_findings(page):
     return findings
 
 
-# From the widest window the corpus is read at down to a phone's.
-RESIZE_PATH = tuple(range(1200, 439, -80))
+# From the widest window the corpus is read at down to a phone's, crossing every
+# breakpoint between them; a state that outlives its width is still there at the next
+# step back.
+RESIZE_PATH = (*range(1200, 439, -160), 440)
 
 
 def resize_findings(page, path):
@@ -3957,23 +3920,61 @@ def held_scroller_findings(page, source):
 
 @pytest.mark.nightly  # a sweep over the whole corpus
 @pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
-def test_a_still_page_comes_back_from_every_journey_as_it_was(browser, serve, source):
-    """A still_page goes through each journey that must leave it as it found it: left
-    alone (`rest_findings`), every surface opened and closed (`surface_findings`),
-    resized to a phone's width and back (`resize_findings`), and each typed box scrolled
-    away and back (`typed_box_findings`). The page those journeys hand back, at the width
-    it opened at, is then read for commands whose context keys it never shows
-    (`unshown_key_findings`) and for widgets that hold their height
-    (`held_scroller_findings`), which writes it.
+def test_page_fixture_renders(browser, serve, source):
+    """Every shipped example and developer page passes the render gate, and a
+    still_page of it comes back from every journey as it was.
 
-    They share one page because each reads only what its own journey changes, and
-    the page the journey before handed over is one a reader could have reached.
-    Resting reads the untouched page, so it goes first. A resize starting narrow
-    needs a page that first painted narrow, so that journey gets a page of its own."""
+    The gate (render_gate.version.render_version) is the pass `page check --render`
+    runs on agent-authored pages, so this sweep also proves the gate a user's page
+    goes through: in both color schemes, no fail-soft error box, no console warning or
+    error, every visible widget occupies real space, no sideways scroll, no words on
+    screen a selection can't reach. A widget that upgrades into a 1x1 box, or a
+    heading painted by a pseudo-element, is the shape of failure a static lint cannot
+    see.
+
+    The still_page then goes through each journey that must leave it as it found it:
+    left alone (`rest_findings`), read for framing and the runtime's apparatus,
+    scrolled (`scroll_findings`), every surface opened and closed
+    (`surface_findings`), resized to a phone's width and back (`resize_findings`), and
+    each typed box scrolled away and back (`typed_box_findings`). The page those
+    journeys hand back, at the width it opened at, is then read for commands whose
+    context keys it never shows (`unshown_key_findings`) and for widgets that hold
+    their height (`held_scroller_findings`), which writes it.
+
+    The frame readings the gate offers as advice must be empty for shipped pages:
+    every box a shipped theme or example frames declares its frame, and a row at a
+    frame's edge holds it, so no box shows more inset than it draws. The layer's own
+    panel is held open by its own test; shut, its boxes misreport. And nothing the
+    runtime adds stands among the elements the page wrote, where it would change which
+    child the page's own rules find first, last, or next.
+
+    The journeys share one page because each reads only what its own journey changes,
+    and the page the journey before handed over is one a reader could have reached.
+    Resting reads the untouched page, so it goes first, and the framing readings and
+    the scroll want the page as a reader first opens it, so they follow. A resize
+    starting narrow needs a page that first painted narrow, so that journey gets a
+    page of its own."""
     url = serve(source)
+    gate = render_gate_model.render_version(browser, url).failures
+    # Reduced motion, which the still_page asks for, also holds the sort film still
+    # while the scroll pass measures its writes.
     page = still_page(browser, url, width=RESIZE_PATH[0])
     findings = {
+        "render gate": gate,
         "at rest": rest_findings(page, source),
+        "framing": [
+            str(finding)
+            for probe in ("trappedMargins", "splitEdges")
+            for finding in render_checks_model.evaluate_probe(page, probe)
+            if not finding["chrome"]
+        ],
+        "apparatus among authored": [
+            str(stray)
+            for stray in render_checks_model.evaluate_probe(
+                page, "apparatusAmongAuthored"
+            )
+        ],
+        "scrolled": scroll_findings(page),
         "closed surfaces": surface_findings(page),
         "resized from the widest": resize_findings(page, RESIZE_PATH),
         "typed boxes": typed_box_findings(page),
@@ -4599,8 +4600,7 @@ def test_a_table_too_wide_to_wrap_scrolls_inside_the_column(browser, serve):
     where a suggestion's controls hang. `width: 100%` had no third case: the
     table spilled, and at this viewport the window is wide enough that nothing
     scrolled to say so."""
-    url = serve(WIDE_TABLE_PAGE)
-    page = open_page(browser, url)
+    page = open_page(browser, serve(WIDE_TABLE_PAGE))
     measured = page.locator("#sessions").evaluate(
         """(t) => {
         const main = t.closest('main'), pad = parseFloat(getComputedStyle(main).paddingRight);
@@ -4615,8 +4615,6 @@ def test_a_table_too_wide_to_wrap_scrolls_inside_the_column(browser, serve):
     assert measured["past"] <= 0
     assert measured["scrolls"] > 0, "this table fits, so it proves nothing"
     assert root_overflow(page) == 0
-    page.close()
-    assert render_gate_model.render_version(browser, url).failures == []
 
 
 # From a box's last line of text to the inside of its lower border, and whether the box
@@ -4981,8 +4979,7 @@ def test_a_table_fills_its_declared_allocation_or_frame_and_a_bare_one_keeps_its
     The same table with no allocation keeps to what its columns hold. A table too
     wide for the panel still scrolls inside it.
     Code in a cell is set relative to the cell's text rather than at the chip size."""
-    url = serve(FRAMED_TABLES_PAGE)
-    page = open_page(browser, url)
+    page = open_page(browser, serve(FRAMED_TABLES_PAGE))
     measured = page.evaluate(
         """() => {
         const inner = (box) => {
@@ -5014,8 +5011,6 @@ def test_a_table_fills_its_declared_allocation_or_frame_and_a_bare_one_keeps_its
     assert measured["wideScrolls"] > 0 and measured["wideInside"] >= 0, measured
     assert measured["codeRatio"] == pytest.approx(0.9, abs=0.01), measured
     assert root_overflow(page) == 0
-    page.close()
-    assert render_gate_model.render_version(browser, url).failures == []
 
 
 def test_a_scrolling_table_keeps_its_caption_and_status_words_whole(browser, serve):
@@ -5065,8 +5060,7 @@ def test_an_identifier_in_a_cell_breaks_rather_than_holding_its_column(browser, 
     must, and the table fits. The names are longer than any share of the measure a
     column gets, so a name that did not break is a name that fitted by luck rather
     than by the rule, and the test says so."""
-    url = serve(IDENTIFIERS_IN_CODE_PAGE)
-    page = open_page(browser, url)
+    page = open_page(browser, serve(IDENTIFIERS_IN_CODE_PAGE))
     measured = page.locator("#held").evaluate(
         """(t) => {
         const range = document.createRange(), lines = (code) => {
@@ -5084,8 +5078,6 @@ def test_an_identifier_in_a_cell_breaks_rather_than_holding_its_column(browser, 
         resized(page, width, 720)
         scrolls = page.locator("#held").evaluate("(t) => t.scrollWidth - t.clientWidth")
         assert scrolls == 0, (width, scrolls)
-    page.close()
-    assert render_gate_model.render_version(browser, url).failures == []
 
 
 def test_the_render_gate_reports_a_table_squeezed_by_what_cannot_break(browser, serve):
@@ -5093,7 +5085,7 @@ def test_the_render_gate_reports_a_table_squeezed_by_what_cannot_break(browser, 
     is at its longest unbreakable run, so the prose column wrapping beside a name
     that cannot break is the squeeze read off the page, and the finding states the
     widths that carry the diagnosis: the names' column several times the prose's.
-    The control is `test_a_table_too_wide_to_wrap_scrolls_inside_the_column`: a
+    The control is `test_every_table_the_theme_sets_honestly_passes_the_gate`: a
     table that scrolls with nothing left to wrap is the theme's honest third case
     and passes. The table has to scroll before the reading has anything to say, and
     the test says so first: a fixture that fitted CI's fonts by ten pixels left the
@@ -5175,7 +5167,7 @@ def test_the_squeeze_reading_sees_a_wrap_between_two_links(browser, serve):
     84px on five lines with the gate green; set at line-height 1, the second
     line's glyph box overlaps the first's, and a reading of line boxes lost it
     again. The table without that column is
-    `test_a_table_too_wide_to_wrap_scrolls_inside_the_column`'s, and passes."""
+    `test_every_table_the_theme_sets_honestly_passes_the_gate`'s, and passes."""
     failures = render_gate_model.render_version(
         browser, serve(LINKED_CELLS_PAGE)
     ).failures
@@ -5185,25 +5177,31 @@ def test_the_squeeze_reading_sees_a_wrap_between_two_links(browser, serve):
     assert all('"Owners" wraps at' in f for f in squeezed), squeezed
 
 
-def test_a_line_the_author_drew_is_not_a_wrap(browser, serve):
-    """Four cells of a table single tokens hold open, each with a line the author
-    wrote and nothing wrapped: `value <code>7</code>` on one line (an inline <code>
-    is set at 84% and starts 3px lower, so a reading of rect tops called it a wrap
-    and told the author to write the <code> they had written), a <br>, a newline
-    under <pre>, and words either side of a nested table. A wrap is what goes away
-    with soft wrapping turned off, and none of these does."""
-    assert (
-        render_gate_model.render_version(browser, serve(AUTHORED_LINES_PAGE)).failures
-        == []
+def test_every_table_the_theme_sets_honestly_passes_the_gate(browser, serve):
+    """The theme's three cases leave the whole gate with nothing to report, on one page:
+    a table too wide to wrap that scrolls inside the column, tables a panel or an
+    allocation frames, and identifiers in <code> that break inside their cells.
+
+    The scrolling table carries every line an author can write and no wrap:
+    `value <code>7</code>` on one line (an inline <code> is set at 84% and starts 3px
+    lower, so a reading of rect tops called it a wrap and told the author to write the
+    <code> they had written), a <br>, a newline under <pre>, and words either side of a
+    nested table. A wrap is what goes away with soft wrapping turned off, and none of
+    these does. A comment on one of its cells leaves it clean too: the mark paints the
+    cell's words and the runtime's count stands in the chrome, so nothing the runtime
+    writes is read as the cell's words or widens the page."""
+
+    def tables(page, first):
+        start = page.index(first)
+        return page[start : page.rindex("</main>")]
+
+    page = AUTHORED_LINES_PAGE.replace(
+        "</main>",
+        tables(FRAMED_TABLES_PAGE, '<table id="bare">')
+        + tables(IDENTIFIERS_IN_CODE_PAGE, '<table id="held">')
+        + "</main>",
     )
-
-
-def test_a_comment_on_a_cell_is_not_a_wrap_in_it(browser, serve):
-    """A comment on a cell of this table — single tokens, the theme's honest third
-    case — leaves the whole gate with nothing to report: the mark paints the cell's
-    words and the runtime's count stands in the chrome, so nothing the runtime writes
-    is read as the cell's words or widens the page."""
-    url = serve(WIDE_TABLE_PAGE, anchored=[("sessions", "value_number_7")])
+    url = serve(page, anchored=[("sessions", "value_number_3")])
 
     assert render_gate_model.render_version(browser, url).failures == []
 

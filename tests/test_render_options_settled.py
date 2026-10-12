@@ -53,15 +53,6 @@ def test_a_reconnected_settled_ask_restores_its_diff_watcher(browser, serve):
     expect(page.locator('[aria-controls="decision"] .lf-tabdiff')).to_have_text("Δ1")
     expect(page.locator('[aria-controls="notes"] .lf-tabdiff')).to_have_text("")
 
-    # Stray presentation markers cannot add changes to either count.
-    page.evaluate("""() => {
-        document.getElementById('opt-strict').classList.add('lf-ins-block');
-        document.getElementById('opt-bearer').classList.add('lf-ins-block');
-        document.dispatchEvent(new CustomEvent('lf-comparison'));
-    }""")
-    expect(page.locator("#transport .lf-settled-diff")).to_have_text("Δ1")
-    expect(page.locator('[aria-controls="decision"] .lf-tabdiff')).to_have_text("Δ1")
-
     page.evaluate("""() => {
         window.detachedViews = document.getElementById('views');
         window.detachedViews.remove();

@@ -7,12 +7,15 @@
  * the arriving geometry is ready.
  *
  * The picker owns the complete version list. Its focused row selects the comparison
- * base; the row for the displayed version clears comparison. Block marks show changes,
- * and `inlineComparison` / `toggleInlineComparison` disclose a block's text diff on
- * request. `comparisonBase`, `comparisonChanges`, and `closeVersionMenu` serve other
- * surfaces. `comparisonChanges(owner)` selects changed descendants from the same comparison
- * reading; `watchComparison(owner, callback)` reads on connection and each comparison
- * change, pauses while detached, and returns a function that ends the subscription.
+ * base; the row for the displayed version clears comparison. The comparison and the
+ * picker's presentation need no application capability, so they live at module scope,
+ * one per document, and other surfaces import their readers directly; the controller
+ * keeps travel and activation, which do. Block marks show changes, and
+ * `inlineComparison` / `toggleInlineComparison` disclose a block's text diff on
+ * request. `comparisonBase` names the standing base. `comparisonChanges(owner)` selects
+ * changed descendants from the same comparison reading; `watchComparison(owner,
+ * callback)` reads on connection and each comparison change, pauses while detached,
+ * and returns a function that ends the subscription.
  *
  * Executable identity selects the install. An unchanged registry, module graph, and
  * inline module bodies permit an in-place patch; changed executable inputs require a
@@ -152,6 +155,7 @@ import {
   versionBtn,
   versionPicker,
   versionMenu,
+  closeVersionMenu,
   versionMenuIsOpen,
 } from "./version-picker.js";
 import {
@@ -174,31 +178,6 @@ import {
 } from "./reading-place.js";
 
 const PRIVATE_REVISION_PARAM = "_leaf-revision";
-
-// The comparison owns these identities; CSS marks are only their rendering.
-const diffMarked = new Set();
-let diffOn = false;
-
-export function comparisonChanges(owner = null) {
-  const changes = diffOn ? [...diffMarked] : [];
-  return owner
-    ? changes.filter((block) => block !== owner && under(block, owner))
-    : changes;
-}
-
-export function watchComparison(owner, callback) {
-  if (!(owner instanceof Element))
-    throw new TypeError("A comparison watcher needs an Element owner");
-  if (typeof callback !== "function")
-    throw new TypeError("A comparison watcher needs a callback");
-  const read = () => {
-    if (owner.isConnected) callback();
-  };
-  return whileConnected(owner, (signal) => {
-    document.addEventListener("lf-comparison", read, { signal });
-    read();
-  });
-}
 
 // The document roots may carry authored classes, data attributes, and inline custom
 // properties that page-local styles read. The live document also paints its own facts
@@ -271,6 +250,724 @@ const initialPairs = servedMain
   ? pairSources(initialDocument.source, servedMain, new WeakMap())
   : new WeakMap();
 
+// ---------- the version picker ----------
+// Version facts are selectors of the accepted application reading.
+const stamped = (version) =>
+  runtime.versions.find((candidate) => candidate.version === version);
+// The version picker: a press that says which version this is, and a menu that says
+// what each one was and what it changed. It was a <select>, and the two things that
+// cost were both the control's rather than the styling's. A select takes its inner
+// height from Chrome's own metrics and refuses line-height, so it could never stand
+// level with the buttons beside it; and its closed label is its selected option's whole
+// text, so the note had to be in both places or neither — 190px of bar, the widest
+// control on the row, for about nine characters of a note that then ellipsized. A press
+// states the version alone, and the menu is the only place the notes are, where a row
+// can wrap and carry one whole.
+//
+// The diff was a second press beside it, and everything the two shared was in the
+// menu already. It named the previous version because a control with one label can
+// offer one base, and the previous version is the least useful of them on a page that
+// ships a version whenever the work moves: what the user wants marked is what has
+// changed since they last looked, which is as far back as they were away. The base is
+// the menu's to say, so every version older than this one offers itself as one.
+//
+// The closed control is a destination, not the menu's account of the working document.
+// Keep it to one stable version token (or Draft) through disclosure and comparison;
+// those states remain in the menu, class, title, and accessible name. A state arriving
+// on the poll therefore cannot resize this control and displace controls to its left.
+// The visible label prefixes this token with Showing; comparisons keep the bare token.
+const currentVersionToken = () =>
+  runtime.currentStamp === null ? "Draft" : `v${runtime.currentStamp}`;
+
+// Whether there is a menu to open is not whether there is anywhere to walk: a first
+// version has no neighbour, but its menu still explains that version. The browser owns
+// dismissal; Leaf enables its version-walk bindings only when a neighbouring destination
+// exists.
+const draftRevisions = () => {
+  const revisions = new Set();
+  if (runtime.currentStamp === null && runtime.currentRevision !== null)
+    revisions.add(runtime.currentRevision);
+  if (runtime.active?.version === null) revisions.add(runtime.active.revision);
+  return revisions;
+};
+const versionCount = () => runtime.versions.length + draftRevisions().size;
+const versionsOffered = () => versionCount() > 0;
+const versionsToWalk = () => versionCount() > 1;
+const behindCurrent = () =>
+  runtime.active !== null && runtime.currentRevision !== null && !runtime.showsActive;
+
+let versionsWalkable = false;
+function menuRows(state, notes) {
+  const latest = state.versions.at(-1)?.version;
+  const entries = state.versions.map((entry) => ({
+    revision: entry.revision,
+    version: entry.version,
+    name: `v${entry.version}${entry.version === latest ? " (latest version)" : ""}`,
+    note: notes[entry.version] ?? null,
+    current: entry.version === runtime.currentStamp,
+    active: false,
+    comparable: comparable(entry.version),
+  }));
+  for (const revision of draftRevisions()) {
+    const active = revision === state.active.revision;
+    entries.push({
+      revision,
+      version: null,
+      name: `${active ? "Current" : "This view"} · ${
+        revision === runtime.currentRevision
+          ? (runtime.currentLabel ?? revisionLabel(revision))
+          : state.active.label
+      }`,
+      note: null,
+      current: revision === runtime.currentRevision,
+      active,
+      comparable: false,
+    });
+  }
+  entries.sort(
+    (left, right) =>
+      right.revision - left.revision ||
+      (right.version ?? Infinity) - (left.version ?? Infinity),
+  );
+  return Object.freeze(entries.map((entry) => Object.freeze(entry)));
+}
+// One immutable, complete presentation reading for the native picker surfaces. The
+// view deliberately retains the rows it is already showing while its popover stands;
+// the candidate rows below keep advancing, so dismissal can commit them without
+// replaying an accepted state or consulting the rendered DOM as authority.
+function pickerModel(state) {
+  const offered = state !== null && versionsOffered();
+  const behind = behindCurrent();
+  const sourceFailed = LIVE_ROOT && Boolean(state?.source_error);
+  const currentLabel = runtime.currentLabel ?? "Draft";
+  const newer = behind ? `; ${runtime.active.label} available` : "";
+  return Object.freeze({
+    picker: Object.freeze({
+      offered,
+      token: `Showing ${currentVersionToken()}`,
+      compared: diffOn || diffPendingBase !== null,
+      news: behind,
+      keyTitle: offered
+        ? diffPendingBase !== null
+          ? `${currentLabel}: loading a comparison with v${diffPendingBase}${newer}`
+          : diffOn
+            ? `${currentLabel}: showing what changed since v${diffBase} — pick a version, or press Compare again to stop${newer}`
+            : `${currentLabel}: versions; read one, or mark what changed since it${newer}`
+        : currentLabel,
+      ariaLabel: offered
+        ? diffPendingBase !== null
+          ? `${currentLabel}: loading comparison with v${diffPendingBase}; open versions${newer}`
+          : diffOn
+            ? `${currentLabel}: comparing with v${diffBase}; open versions${newer}`
+            : `${currentLabel}: open versions${newer}`
+        : currentLabel,
+    }),
+    latest: Object.freeze({
+      disabled: sourceFailed,
+      keyTitle: sourceFailed ? state.source_error : "Open the current page",
+      label: latestVersionLabel({
+        failed: sourceFailed,
+        activeLabel: behind ? runtime.active.label : null,
+      }),
+      news: sourceFailed || behind,
+    }),
+    rows:
+      state === null || runtime.active === null
+        ? Object.freeze([])
+        : menuRows(state, runtime.browser?.version_notes ?? {}),
+    selection: Object.freeze({
+      base: diffPendingBase ?? (diffOn ? diffBase : null),
+      currentRevision: runtime.currentRevision,
+      on: diffOn,
+      pendingBase: diffPendingBase,
+      baseRevision: stamped(diffBase)?.revision ?? null,
+    }),
+  });
+}
+
+function presentPicker(state = runtime.state) {
+  const model = pickerModel(state);
+  versionPicker.present(model);
+  showNews(latestChip, model.latest.news);
+  repaint();
+  return model;
+}
+
+// `null` is the page before its first accepted state. Version controls read the
+// immutable document revision and the accepted root.
+export function renderVersions(state) {
+  presentPicker(state);
+  const walkable = versionsToWalk();
+  if (walkable !== versionsWalkable) {
+    versionsWalkable = walkable;
+    paintKeys();
+  }
+}
+
+// ---------- version diff ----------
+// "Changes since vN": blocks (paragraphs, list items, Leaf elements) whose text
+// isn't present in the base version get a tinted marker, so re-reading a
+// revision is cheap. Block-level and additions-only — deleted text has no home
+// to mark — and a widget that renders its own body is opaque to it. The base is
+// any version older than the one being read, offered by its own row in the
+// picker's menu, where the note saying what changed in words sits beside the
+// press that marks it on the page.
+//
+// Which blocks and which widgets is the registry's answer both times, so a widget added
+// to the vocabulary diffs on the strength of its declaration: a compound member whose content
+// model is prose is a block of the page's prose the same way a paragraph is.
+const diffBlockSel = () =>
+  [
+    TEXT_BLOCK,
+    "aside",
+    ...tagsDeclaring((e) => e["x-owners"] && (e["x-content"] ?? "markup") === "markup"),
+    // Preserving widgets contribute their own prose. The leaf-blocks-only rule
+    // below avoids counting nested blocks twice and keeps base and live readings
+    // symmetric: a draft's authored <pre> and rendered body key the same words.
+    ...tagsDeclaring((e) => e["x-verbatim"]),
+  ].join(",");
+// Opaque: a widget whose upgrade renders its data body, so the text on screen is the
+// module's and can't compare; and one whose slots a decision retires, which holds two
+// versions of one passage and is already its own mark. Plus svg, drawn by either.
+const diffOpaqueSel = () =>
+  [
+    ...tagsDeclaring(
+      (e) => e["x-upgrade"] && !e["x-verbatim"] && e["x-content"] === "data",
+    ),
+    // External data is absent from both authored documents. Its seat is opaque, and
+    // the authored binding and immutable selector below are the comparison key.
+    ...tagsDeclaring((e) => e["x-upgrade"] && e["x-data"]),
+    ...Object.entries(registry.$decisions)
+      .filter(([, { retires }]) => Object.keys(retires).length)
+      .map(([owner]) => owner),
+    "svg",
+  ].join(",");
+// What is being compared, and whether the comparison is standing. Every rendering of
+// the pair — the picker's word and paint, each row's press, the rail down the span —
+// comes from the immutable picker model and is read back by nothing. The comparison
+// owns the marked identities; the CSS marks are only their rendering.
+let diffOn = false;
+let diffBase = null;
+let diffPendingBase = null;
+const diffMarked = new Set();
+// What each marked block said in the base version, and which of those readings the
+// user has open. The marks say a block changed; these say what it changed from, at
+// the block, so learning it costs no travel to the other version and back.
+//
+// Identity across versions is the id — the fact threads and reading position already
+// ride, and the same lookup the state half of applyDiff resolves its units by. A block
+// with no id names nothing in the base document, so the comparison holds nothing for it
+// and its Change reading stays the plain travel it always was. An opaque widget holds
+// nothing either, and for the reason the pass keys those by identity rather than by
+// words: the live one is upgraded and the base one is not, so their texts were never
+// each other's to compare.
+const diffBefore = new Map(); // marked element -> the base version's words, or null
+const inlineOpen = new Map(); // marked element -> its generated nodes and highlight ranges
+// The comparison request that owns the page. Every request takes the next number and every
+// stop takes one too, so a base whose document lands after the user has moved on is
+// dropped rather than painted over the base they are standing on now. Reachable because the
+// walk asks per row: it is one fetch per press, and the presses come faster than the network.
+let diffRequest = 0;
+// A renderer may format authored words while keeping their source on the formatted
+// island. Compare that source with the unupgraded base document, then use the live
+// DOM for what a user can quote and see in an inline comparison.
+function diffWords(block) {
+  if (!block.querySelector("[data-lf-source-words]")) return wrote(block);
+  const source = block.cloneNode(true);
+  for (const island of source.querySelectorAll("[data-lf-source-words]"))
+    island.replaceWith(document.createTextNode(island.dataset.lfSourceWords));
+  return wrote(source);
+}
+// A block's key is its *authored* text (`wrote`), which is why that reading exists: it
+// drops even the labels anchoring reads as the page's own words, because the base
+// version is parsed unupgraded and holds none of them.
+function diffBlocks(root) {
+  const pairs = [];
+  const [blocks, opaque] = [diffBlockSel(), diffOpaqueSel()];
+  const authoredHere = authored(root);
+  // A data body is one source value. Its formatted paragraphs are its reading,
+  // not independent source units; comparing the source also detects changed emphasis.
+  for (const body of root.querySelectorAll(".lf-markdown-body")) {
+    const owner = body.parentElement;
+    if (inChrome(owner) || owner.closest(opaque)) continue;
+    pairs.push([owner, `markdown:${body.dataset.lfSourceWords}`]);
+  }
+  for (const b of root.querySelectorAll(blocks)) {
+    if (inChrome(b) || b.closest(opaque) || b.closest(".lf-markdown-body")) continue;
+    if (b.querySelector(blocks)) continue; // leaf blocks only, or nesting double-marks
+    let key = diffWords(b);
+    // An x-says value is the page's words at the element's edge (renderSaid), so it
+    // belongs to what this block says: folded into the key at its declared edge, a
+    // version that moves a metric's number or an event's time marks though no prose
+    // changed. Symmetric for free — the base parses unupgraded, where the same
+    // attribute would have painted the same words through the pseudo-element.
+    for (const [attr, edge] of Object.entries(
+      registry[b.localName]?.["x-says"] ?? {},
+    )) {
+      const said = b.getAttribute(attr);
+      if (said) key = edge === "before" ? `${said} ${key}` : `${key} ${said}`;
+    }
+    if (key) pairs.push([b, key]);
+  }
+  // Opaque widgets key by identity, not body: an upgrade rewrote the live body,
+  // so text can't compare — but a widget the base didn't have still marks.
+  for (const w of root.querySelectorAll(opaque)) {
+    // parentElement, not w itself: an svg a widget rendered stays its widget's.
+    if (!authoredHere(w) || inChrome(w) || w.parentElement?.closest(opaque)) continue;
+    const entry = registry[w.localName] ?? {};
+    // A data binding is authored semantics even though the generated children
+    // of an upgraded widget are opaque to comparison.
+    const bindingAttrs = new Set();
+    for (const input of Object.values(entry["x-data"] ?? {})) {
+      bindingAttrs.add(input.source);
+    }
+    const binding = [...bindingAttrs]
+      .sort()
+      .map((attr) => [attr, w.getAttribute(attr)]);
+    pairs.push([w, ` ${w.tagName}#${w.id}${JSON.stringify(binding)}`]);
+  }
+  return pairs;
+}
+async function baseReading(baseRevision, throughSeq) {
+  const params = new URLSearchParams({
+    revision: String(baseRevision),
+    through_seq: String(throughSeq),
+  });
+  const res = await fetch(pageUrl(`api/view?${params}`));
+  if (!res.ok) throw new Error(`couldn't project revision r${baseRevision}`);
+  const answer = await res.json();
+  if (!answer.browser) throw new Error(`revision r${baseRevision} has no projection`);
+  return answer.browser;
+}
+// The longest run of `after` that keeps the order `before` gave the same units:
+// the units that did not move.
+function inOrder(before, after) {
+  const lengths = before.map(() => after.map(() => 0));
+  const at = (i, j) => lengths[i]?.[j] ?? 0;
+  for (let i = before.length - 1; i >= 0; i--)
+    for (let j = after.length - 1; j >= 0; j--)
+      lengths[i][j] =
+        before[i] === after[j]
+          ? at(i + 1, j + 1) + 1
+          : Math.max(at(i + 1, j), at(i, j + 1));
+  const kept = new Set();
+  for (let i = 0, j = 0; i < before.length && j < after.length;)
+    if (before[i] === after[j]) {
+      kept.add(before[i]);
+      i++;
+      j++;
+    } else if (at(i + 1, j) >= at(i, j + 1)) i++;
+    else j++;
+  return kept;
+}
+function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
+  const baseRevision = stamped(baseVersion)?.revision;
+  if (baseRevision == null) throw new Error(`version v${baseVersion} has no revision`);
+  const baseView = baseReading?.views?.[String(baseRevision)];
+  if (!baseView) throw new Error(`revision r${baseRevision} has no projection`);
+  // The base version's widget state, folded as the publisher folds the current one:
+  // its authored values, staged before its Markdown was formatted, under the
+  // projection the server read for it. A report standing at the base painted there
+  // just as an action did, so what the user saw includes it. The server reads each
+  // event under the declaration it was admitted with, and the base's authored values
+  // are decoded under this document's; an entry whose verb was declared otherwise
+  // then has no value here to compare, so the fold leaves it out.
+  const baseProjection = projectView(baseView, baseReading.thread);
+  const declaredAlike = ({ e, spec }) => {
+    const current = baseAuthored.get(e.widget)?.specs.get(e.action);
+    return (
+      current?.unit === spec.unit &&
+      JSON.stringify(current.record ?? null) === JSON.stringify(spec.record ?? null)
+    );
+  };
+  const baseWidgets = foldWidgetStates(baseAuthored, {
+    ...baseProjection,
+    desired: new Map(
+      [...baseProjection.desired].filter(([, entry]) => declaredAlike(entry)),
+    ),
+  });
+  // The before surface holds the same accepted body projection as its version
+  // would show: the event's exact source, never a collapsed comparison value.
+  for (const [id, { state, specs }] of baseWidgets)
+    for (const [verb, spec] of specs) {
+      if (spec.record?.kind !== "body" || !state[verb].action) continue;
+      const body = doc.getElementById(id)?.querySelector(":scope > .lf-markdown-body");
+      if (body) paintMarkdown(body, state[verb].value);
+    }
+  // Multiset membership rather than an alignment: an unchanged block that
+  // merely moved stays unmarked; a changed or new one has no base twin.
+  const base = new Map();
+  for (const [, key] of diffBlocks(doc)) base.set(key, (base.get(key) ?? 0) + 1);
+  for (const [b, key] of diffBlocks(document.body)) {
+    const left = base.get(key) ?? 0;
+    if (left > 0) base.set(key, left - 1);
+    else {
+      b.classList.add("lf-ins-block");
+      diffMarked.add(b);
+    }
+  }
+  // The state half: block keys catch words, and a pure state change — a card
+  // in a different column, a pick on a different option — has no text of its
+  // own. Compare declared state instead: the base fold above against the
+  // publisher's current one. Body records are words and the block keys above own
+  // them.
+  const mark = (target) => {
+    if (diffMarked.has(target)) return;
+    target.classList.add("lf-ins-block");
+    diffMarked.add(target);
+  };
+  for (const [id, now] of readApplication().effective.widgets) {
+    const before = baseWidgets.get(id);
+    const widget = elementById(id);
+    // New to this version: the content half marks it.
+    if (!before || !widget || inChrome(widget) || quoted(widget)) continue;
+    for (const [verb, spec] of now.specs) {
+      if (!spec.record || spec.record.kind === "body" || !before.specs.has(verb))
+        continue;
+      if (spec.record.kind === "position") {
+        // The moved card itself is where the change reads: one in another
+        // container, or one out of order among those its container held at the
+        // base, the fewest cards whose moving explains the new order.
+        const was = before.state[verb].value;
+        const placed = Object.values(was).flat();
+        for (const [container, ids] of Object.entries(now.state[verb].value)) {
+          const stayed = was[container] ?? [];
+          const kept = inOrder(
+            stayed.filter((unit) => ids.includes(unit)),
+            ids.filter((unit) => stayed.includes(unit)),
+          );
+          for (const unit of ids) {
+            if (!placed.includes(unit) || kept.has(unit)) continue;
+            const moved = elementById(unit);
+            if (moved) mark(moved);
+          }
+        }
+        continue;
+      }
+      const { value } = questionValue(now, verb, true);
+      if (
+        JSON.stringify(value) ===
+        JSON.stringify(questionValue(before, verb, true).value)
+      )
+        continue;
+      // The option now picked is where a pick reads; anything else reads on its
+      // widget.
+      const picked =
+        spec.record.kind === "attribute" && value.length === 1
+          ? elementById(value[0])
+          : null;
+      mark(picked ?? widget);
+    }
+  }
+  // One pass over everything marked, after both halves, because the two halves mark
+  // for different reasons and a block reached by either is a block a user can ask
+  // about. The words are taken here rather than at the press: this is the one moment
+  // the base document is in hand, and holding it open for a press that may never come
+  // would keep a whole second document alive for the life of the comparison.
+  const opaque = diffOpaqueSel();
+  for (const block of diffMarked) {
+    if (!block.matches(ADDRESSABLE) || block.closest(opaque)) continue;
+    const baseBlock = doc.getElementById(block.id);
+    diffBefore.set(block, baseBlock ? wrote(baseBlock) : null);
+  }
+  return diffMarked.size;
+}
+// ---------- one marked block's inline comparison ----------
+// `wrote` is the authority for the two texts. This companion reading keeps the same
+// normalized text with a boundary back into the authored text nodes, so a run the
+// alignment calls inserted can be painted in place. Generated labels and deletions wear
+// `.lf-ui`; comments, copies, and later comparisons therefore continue to read the exact
+// current document rather than the temporary historical words on screen.
+const inlineId = (target) => `lf-version-inline-${target.id}`;
+const authoredReading = (target) => readingFrom(textNodesUnder(target, "wrote"));
+
+function pointAt(target, reading, offset) {
+  if (!reading.units.length) return { node: target, offset: 0 };
+  return offset === reading.units.length
+    ? reading.units.at(-1).end
+    : reading.units[offset].start;
+}
+
+function insertAt(target, reading, offset, node) {
+  const point = pointAt(target, reading, offset);
+  if (point.node.nodeType === Node.ELEMENT_NODE) {
+    point.node.insertBefore(node, point.node.childNodes[point.offset] ?? null);
+    return;
+  }
+  const text = point.node;
+  if (point.offset === 0) text.parentNode.insertBefore(node, text);
+  else if (point.offset === text.data.length)
+    text.parentNode.insertBefore(node, text.nextSibling);
+  else text.parentNode.insertBefore(node, text.splitText(point.offset));
+}
+
+function rangeAt(reading, start, end) {
+  const first = reading.units[start];
+  const last = reading.units[end - 1];
+  if (!first || !last) return null;
+  const range = document.createRange();
+  range.setStart(first.start.node, first.start.offset);
+  range.setEnd(last.end.node, last.end.offset);
+  return range;
+}
+
+function paintInlineInsertions() {
+  const ranges = [...inlineOpen.values()].flatMap((entry) => entry.ranges);
+  if (ranges.length) CSS.highlights.set("lf-version-insert", new Highlight(...ranges));
+  else CSS.highlights.delete("lf-version-insert");
+}
+
+function openInlineComparison(target) {
+  const before = diffBefore.get(target);
+  const reading = authoredReading(target);
+  const current = currentVersionToken();
+  const label = el(
+    "span",
+    "lf-ui lf-quiet lf-version-inline-label",
+    before === null ? `New since v${diffBase}` : `v${diffBase} → ${current}`,
+  );
+  label.id = inlineId(target);
+  label.setAttribute(
+    "aria-label",
+    before === null
+      ? `New since version ${diffBase}`
+      : `Inline comparison from version ${diffBase} to ${current}`,
+  );
+
+  const nodes = [label];
+  const additions = [];
+  const insertions = [{ offset: 0, node: label }];
+  let afterOffset = 0;
+  let hasTextChange = false;
+  for (const run of before === null ? [] : alignInlineText(before, reading.text)) {
+    if (run.kind === "delete") {
+      const dropped = el("span", "lf-ui lf-version-inline-deletion");
+      dropped.append(el("del", "", run.text));
+      nodes.push(dropped);
+      insertions.push({ offset: afterOffset, node: dropped });
+      hasTextChange = true;
+    } else {
+      // The passage reading indexes characters by code point while DOM Range offsets
+      // are UTF-16. Keep the alignment cursor in the reading's units; an astral
+      // character must advance it once, not by the two code units String.length sees.
+      const length = [...run.text].length;
+      if (run.kind === "insert") {
+        additions.push([afterOffset, afterOffset + length]);
+        hasTextChange = true;
+      }
+      afterOffset += length;
+    }
+  }
+  insertions
+    .sort((left, right) => right.offset - left.offset)
+    .forEach(({ offset, node }) => insertAt(target, reading, offset, node));
+
+  const currentReading = authoredReading(target);
+  const ranges = additions
+    .map(([start, end]) => rangeAt(currentReading, start, end))
+    .filter(Boolean);
+  target.classList.toggle("lf-version-inline", hasTextChange);
+  inlineOpen.set(target, { nodes, ranges });
+  paintInlineInsertions();
+  layoutChanged(target);
+  return before === null
+    ? `v${diffBase} had nothing here`
+    : `showing an inline diff from v${diffBase}`;
+}
+
+function closeInlineComparison(target) {
+  const entry = inlineOpen.get(target);
+  inlineOpen.delete(target);
+  target.classList.remove("lf-version-inline");
+  for (const node of entry?.nodes ?? []) node.remove();
+  paintInlineInsertions();
+  layoutChanged(target);
+  return `inline diff from v${diffBase} hidden`;
+}
+
+// What a text-changing marked block holds for the margin's disclosure reading. A pure
+// state change remains marked but offers no empty prose comparison. The one controlled
+// id is a quiet label at the start of the block. It names the versions for assistive
+// reading while the margin and Page Map carry that provenance visually, outside the
+// passage whose words are being compared.
+export const inlineComparison = (target) =>
+  diffOn &&
+  diffBefore.has(target) &&
+  (diffBefore.get(target) === null || diffBefore.get(target) !== wrote(target))
+    ? {
+        id: inlineId(target),
+        open: inlineOpen.has(target),
+        offer: `v${diffBase} → ${currentVersionToken()}`,
+      }
+    : null;
+
+// The press, and the sentence to say about it — composed here, where the versions are
+// named. The event is the comparison's, because what changed is its standing
+// rendering: the same pass that reads the marks reads the margin entry's relation back.
+export function toggleInlineComparison(target) {
+  if (!inlineComparison(target)) return null;
+  const said = inlineOpen.has(target)
+    ? closeInlineComparison(target)
+    : openInlineComparison(target);
+  document.dispatchEvent(new CustomEvent("lf-comparison"));
+  return said;
+}
+
+// Whether a stamped version can be compared with the revision being read: any stamp
+// on an earlier revision, which is which rows the menu builds a press onto.
+const comparable = (version) => {
+  const base = stamped(version);
+  return (
+    runtime.currentRevision !== null &&
+    base !== undefined &&
+    base.revision < runtime.currentRevision
+  );
+};
+// Whether the comparison is standing and what against, or which base a stopped one is
+// waiting on — the only thing that decides it, the marks and the paint being renderings
+// rather than a second copy.
+function setDiff(on, base, pendingBase = null) {
+  diffOn = on;
+  diffPendingBase = pendingBase;
+  if (on) diffBase = base;
+  if (!on) {
+    diffRequest++; // a stop outranks a comparison still on its way
+    // Inline diffs leave with the block marks. Historical words or insertion paint
+    // under a block nothing marks any more would leave half of the comparison behind.
+    for (const target of [...inlineOpen.keys()]) closeInlineComparison(target);
+    diffBefore.clear();
+    for (const b of diffMarked) b.classList.remove("lf-ins-block");
+    diffMarked.clear();
+  }
+  presentPicker();
+  // Consumers read the settled comparison projection: on/off and its marks move
+  // together, rather than announcing an applied DOM diff before it is standing.
+  document.dispatchEvent(new CustomEvent("lf-comparison"));
+}
+// The one way a comparison starts, from a row's press, from the walk through the menu,
+// or from an activation putting back the one it dropped. It states a base rather than
+// toggling one — the toggle is a press's own reading of it, and the walk has none to
+// spend, standing on a row being what makes it the base however many times the user
+// arrives there. Everything touching the live page happens in one synchronous stretch
+// after the single await: the walk asks for a comparison per row, and a marking pass
+// that could interleave with the next row's would leave two bases' marks standing
+// under a picker naming one of them.
+async function showComparison(base) {
+  // Selection is immediate even though its result needs two documents. Clear the prior
+  // marks, move the menu's checked state to the requested base, and expose the wait as
+  // busy. A fast walk then never leaves the last completed base highlighted under focus
+  // on a different row. One presentation says both, so the picker never passes through
+  // an unlit state it is about to leave.
+  setDiff(false, null, base);
+  const mine = ++diffRequest;
+  const baseVersion = stamped(base);
+  const baseRevision = baseVersion?.revision;
+  if (baseRevision == null) {
+    diffPendingBase = null;
+    presentPicker();
+    notice(`Couldn't load v${base}`);
+    return;
+  }
+  const documentRequest = authoredDocument(baseVersion.url);
+  let doc;
+  let reading;
+  let baseAuthored;
+  try {
+    while (mine === diffRequest) {
+      const throughSeq = runtime.lastEventSeq;
+      if (!Number.isInteger(throughSeq))
+        throw new Error("the current reading has no log sequence");
+      [doc, reading] = await Promise.all([
+        documentRequest,
+        baseReading(baseRevision, throughSeq),
+      ]);
+      if (mine !== diffRequest) return;
+      if (runtime.lastEventSeq === throughSeq) break;
+    }
+    if (mine !== diffRequest) return;
+    // Typed authored state reads the source before its Markdown is formatted.
+    baseAuthored = stageAuthoredStates(doc, new Map());
+    await prepareDeclaredMarkdown(doc);
+  } catch {
+    if (mine === diffRequest) {
+      diffPendingBase = null;
+      presentPicker();
+      notice(`Couldn't load v${base}`);
+    }
+    return;
+  }
+  if (mine !== diffRequest) return;
+  const n = applyDiff(doc, baseAuthored, base, reading);
+  setDiff(true, base);
+  notice(
+    n
+      ? `${n} changed passage${n === 1 ? "" : "s"} since v${base}`
+      : `No text changes since v${base}`,
+  );
+}
+// A press names one base, so pressing the standing one again is the way off it: Compare is a
+// toggle where it is lit and a switch of base where it isn't. The keyboard's way off is the
+// walk itself — up to the version being read, which is comparable with nothing and so
+// stops rather than re-bases.
+const pressComparison = (base) =>
+  (diffOn && base === diffBase) || diffPendingBase === base
+    ? setDiff(false)
+    : showComparison(base);
+
+export const comparisonBase = () => (diffOn ? diffBase : null);
+// Selection leads the documents it needs. Menu focus follows that immediate reading,
+// while the public projection above stays paired with the marks that have settled.
+const selectedBase = () => diffPendingBase ?? comparisonBase();
+
+export function comparisonChanges(owner = null) {
+  const changes = diffOn ? [...diffMarked] : [];
+  return owner
+    ? changes.filter((block) => block !== owner && under(block, owner))
+    : changes;
+}
+
+export function watchComparison(owner, callback) {
+  if (!(owner instanceof Element))
+    throw new TypeError("A comparison watcher needs an Element owner");
+  if (typeof callback !== "function")
+    throw new TypeError("A comparison watcher needs a callback");
+  // Each watcher holds its own listener, so one callback can serve two subscriptions.
+  const read = () => callback();
+  return whileConnected(owner, (signal) => {
+    document.addEventListener("lf-comparison", read, { signal });
+    read();
+  });
+}
+
+// ---------- another version's document ----------
+// Comparison reads an inert document. A revision keeps the layer it captured, and the
+// server says so — both this document and the projection beside it answer for that
+// generation rather than the page's — so neither is a delivery answer and neither goes
+// through the gate. A layer that really did move under the user reaches them through
+// the state feed, which is the live channel.
+async function authoredDocument(url) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`couldn't load ${url} (${response.status})`);
+  const doc = new DOMParser().parseFromString(await response.text(), "text/html");
+  if (doc.querySelectorAll("body > main").length !== 1)
+    throw new Error(`${url} has no single authored main`);
+  // First-paint delivery wrappers have no place in the authored revision.
+  return restoreInitialSource(doc);
+}
+// Repeated comparisons of the same immutable revision share its document fetch.
+const revisionDocuments = new Map();
+function revisionDocument(revision) {
+  if (!revisionDocuments.has(revision.revision))
+    revisionDocuments.set(
+      revision.revision,
+      authoredDocument(revision.url).catch((error) => {
+        revisionDocuments.delete(revision.revision);
+        throw error;
+      }),
+    );
+  return revisionDocuments.get(revision.revision);
+}
+
 export function createVersionController({
   compositionInput,
   openThread,
@@ -297,71 +994,11 @@ export function createVersionController({
   const VIEW_KEY = "lf-view";
   const HANDOFF_KEY = "lf-revision-handoff";
 
-  // ---------- the version picker ----------
-  // Version facts are selectors of the accepted application reading.
-  const stamped = (version) =>
-    runtime.versions.find((candidate) => candidate.version === version);
-  // The version picker: a press that says which version this is, and a menu that says
-  // what each one was and what it changed. It was a <select>, and the two things that
-  // cost were both the control's rather than the styling's. A select takes its inner
-  // height from Chrome's own metrics and refuses line-height, so it could never stand
-  // level with the buttons beside it; and its closed label is its selected option's whole
-  // text, so the note had to be in both places or neither — 190px of bar, the widest
-  // control on the row, for about nine characters of a note that then ellipsized. A press
-  // states the version alone, and the menu is the only place the notes are, where a row
-  // can wrap and carry one whole.
-  //
-  // The diff was a second press beside it, and everything the two shared was in the
-  // menu already. It named the previous version because a control with one label can
-  // offer one base, and the previous version is the least useful of them on a page that
-  // ships a version whenever the work moves: what the user wants marked is what has
-  // changed since they last looked, which is as far back as they were away. The base is
-  // the menu's to say, so every version older than this one offers itself as one.
-  //
-  // The closed control is a destination, not the menu's account of the working document.
-  // Keep it to one stable version token (or Draft) through disclosure and comparison;
-  // those states remain in the menu, class, title, and accessible name. A state arriving
-  // on the poll therefore cannot resize this control and displace controls to its left.
-  // The visible label prefixes this token with Showing; comparisons keep the bare token.
-  const currentVersionToken = () =>
-    runtime.currentStamp === null ? "Draft" : `v${runtime.currentStamp}`;
-
-  // Whether there is a menu to open is not whether there is anywhere to walk: a first
-  // version has no neighbour, but its menu still explains that version. The browser owns
-  // dismissal; Leaf enables its version-walk bindings only when a neighbouring destination
-  // exists.
-  const draftRevisions = () => {
-    const revisions = new Set();
-    if (runtime.currentStamp === null && runtime.currentRevision !== null)
-      revisions.add(runtime.currentRevision);
-    if (runtime.active?.version === null) revisions.add(runtime.active.revision);
-    return revisions;
-  };
-  const versionCount = () => runtime.versions.length + draftRevisions().size;
-  const versionsOffered = () => versionCount() > 0;
-  const versionsToWalk = () => versionCount() > 1;
-  const behindCurrent = () =>
-    runtime.active !== null && runtime.currentRevision !== null && !runtime.showsActive;
   // A menu is a transient reading of the picker, not a layer over the next control a
   // user Tabs to. Its comparison checkboxes are real internal Tab stops, so offer an
   // exit only from the boundary control in the direction being travelled. The native row
   // below closes the menu first and then leaves the browser to complete that same Tab.
   const atVersionBoundary = (end) => versionPicker.atBoundary(end);
-
-  // The browser owns top-layer state, light dismissal and the handback. What it restores
-  // focus to on a hide is the element that had it when the popover showed — not the
-  // `source`, which buys the anchor and the invoker relationship and nothing about focus
-  // — so every door into this menu shows it from the button, and a pointer press that
-  // lands on the button gets it back. Escape is Leaf's, and the menu's own row performs
-  // the whole of it: the close, and then the menu's parent. The picker stands in More,
-  // so the menu opens from inside More and a layer's one step lands the user back there,
-  // on the picker, whichever route opened it. Scoping the platform handback to its door
-  // rather than to the state is what keeps it off a light dismissal, which restores
-  // nothing on purpose: a user who pressed away into the page is left where they
-  // pressed.
-  function closeVersionMenu() {
-    versionPicker.close();
-  }
 
   const numberedVersionRoutes = () => versionPicker.numberedRoutes();
   const OPEN_NUMBER = {
@@ -540,7 +1177,6 @@ export function createVersionController({
     when: versionsOffered,
   };
 
-  let versionsWalkable = false;
   // A stamped version is historical and always pins. The active working document owns
   // the live root, whether or not that revision has already received a stamp.
   let forceActivation = false;
@@ -563,659 +1199,6 @@ export function createVersionController({
     }
     location.href = PAGE_SCOPE || "/";
   };
-  function menuRows(state, notes) {
-    const latest = state.versions.at(-1)?.version;
-    const entries = state.versions.map((entry) => ({
-      revision: entry.revision,
-      version: entry.version,
-      name: `v${entry.version}${entry.version === latest ? " (latest version)" : ""}`,
-      note: notes[entry.version] ?? null,
-      current: entry.version === runtime.currentStamp,
-      active: false,
-      comparable: comparable(entry.version),
-    }));
-    for (const revision of draftRevisions()) {
-      const active = revision === state.active.revision;
-      entries.push({
-        revision,
-        version: null,
-        name: `${active ? "Current" : "This view"} · ${
-          revision === runtime.currentRevision
-            ? (runtime.currentLabel ?? revisionLabel(revision))
-            : state.active.label
-        }`,
-        note: null,
-        current: revision === runtime.currentRevision,
-        active,
-        comparable: false,
-      });
-    }
-    entries.sort(
-      (left, right) =>
-        right.revision - left.revision ||
-        (right.version ?? Infinity) - (left.version ?? Infinity),
-    );
-    return Object.freeze(entries.map((entry) => Object.freeze(entry)));
-  }
-  // One immutable, complete presentation reading for the native picker surfaces. The
-  // view deliberately retains the rows it is already showing while its popover stands;
-  // the candidate rows below keep advancing, so dismissal can commit them without
-  // replaying an accepted state or consulting the rendered DOM as authority.
-  function pickerModel(state) {
-    const offered = state !== null && versionsOffered();
-    const behind = behindCurrent();
-    const sourceFailed = LIVE_ROOT && Boolean(state?.source_error);
-    const currentLabel = runtime.currentLabel ?? "Draft";
-    const newer = behind ? `; ${runtime.active.label} available` : "";
-    return Object.freeze({
-      picker: Object.freeze({
-        offered,
-        token: `Showing ${currentVersionToken()}`,
-        compared: diffOn || diffPendingBase !== null,
-        news: behind,
-        keyTitle: offered
-          ? diffPendingBase !== null
-            ? `${currentLabel}: loading a comparison with v${diffPendingBase}${newer}`
-            : diffOn
-              ? `${currentLabel}: showing what changed since v${diffBase} — pick a version, or press Compare again to stop${newer}`
-              : `${currentLabel}: versions; read one, or mark what changed since it${newer}`
-          : currentLabel,
-        ariaLabel: offered
-          ? diffPendingBase !== null
-            ? `${currentLabel}: loading comparison with v${diffPendingBase}; open versions${newer}`
-            : diffOn
-              ? `${currentLabel}: comparing with v${diffBase}; open versions${newer}`
-              : `${currentLabel}: open versions${newer}`
-          : currentLabel,
-      }),
-      latest: Object.freeze({
-        disabled: sourceFailed,
-        keyTitle: sourceFailed ? state.source_error : "Open the current page",
-        label: latestVersionLabel({
-          failed: sourceFailed,
-          activeLabel: behind ? runtime.active.label : null,
-        }),
-        news: sourceFailed || behind,
-      }),
-      rows:
-        state === null || runtime.active === null
-          ? Object.freeze([])
-          : menuRows(state, runtime.browser?.version_notes ?? {}),
-      selection: Object.freeze({
-        base: diffPendingBase ?? (diffOn ? diffBase : null),
-        currentRevision: runtime.currentRevision,
-        on: diffOn,
-        pendingBase: diffPendingBase,
-        baseRevision: stamped(diffBase)?.revision ?? null,
-      }),
-    });
-  }
-
-  function presentPicker(state = runtime.state) {
-    const model = pickerModel(state);
-    versionPicker.present(model);
-    showNews(latestChip, model.latest.news);
-    repaint();
-    return model;
-  }
-
-  // `null` is the page before its first accepted state. Version controls read the
-  // immutable document revision and the accepted root.
-  function renderVersions(state) {
-    presentPicker(state);
-    const walkable = versionsToWalk();
-    if (walkable !== versionsWalkable) {
-      versionsWalkable = walkable;
-      paintKeys();
-    }
-  }
-
-  // ---------- version diff ----------
-  // "Changes since vN": blocks (paragraphs, list items, Leaf elements) whose text
-  // isn't present in the base version get a tinted marker, so re-reading a
-  // revision is cheap. Block-level and additions-only — deleted text has no home
-  // to mark — and a widget that renders its own body is opaque to it. The base is
-  // any version older than the one being read, offered by its own row in the
-  // picker's menu, where the note saying what changed in words sits beside the
-  // press that marks it on the page.
-  //
-  // Which blocks and which widgets is the registry's answer both times, so a widget added
-  // to the vocabulary diffs on the strength of its declaration: a compound member whose content
-  // model is prose is a block of the page's prose the same way a paragraph is.
-  const diffBlockSel = () =>
-    [
-      TEXT_BLOCK,
-      "aside",
-      ...tagsDeclaring(
-        (e) => e["x-owners"] && (e["x-content"] ?? "markup") === "markup",
-      ),
-      // Preserving widgets contribute their own prose. The leaf-blocks-only rule
-      // below avoids counting nested blocks twice and keeps base and live readings
-      // symmetric: a draft's authored <pre> and rendered body key the same words.
-      ...tagsDeclaring((e) => e["x-verbatim"]),
-    ].join(",");
-  // Opaque: a widget whose upgrade renders its data body, so the text on screen is the
-  // module's and can't compare; and one whose slots a decision retires, which holds two
-  // versions of one passage and is already its own mark. Plus svg, drawn by either.
-  const diffOpaqueSel = () =>
-    [
-      ...tagsDeclaring(
-        (e) => e["x-upgrade"] && !e["x-verbatim"] && e["x-content"] === "data",
-      ),
-      // External data is absent from both authored documents. Its seat is opaque, and
-      // the authored binding and immutable selector below are the comparison key.
-      ...tagsDeclaring((e) => e["x-upgrade"] && e["x-data"]),
-      ...Object.entries(registry.$decisions)
-        .filter(([, { retires }]) => Object.keys(retires).length)
-        .map(([owner]) => owner),
-      "svg",
-    ].join(",");
-  // What is being compared, and whether the comparison is standing. Every rendering of
-  // the pair — the picker's word and paint, each row's press, the rail down the span —
-  // comes from the immutable picker model and is read back by nothing.
-  let diffBase = null;
-  let diffPendingBase = null;
-  // What each marked block said in the base version, and which of those readings the
-  // user has open. The marks say a block changed; these say what it changed from, at
-  // the block, so learning it costs no travel to the other version and back.
-  //
-  // Identity across versions is the id — the fact threads and reading position already
-  // ride, and the same lookup the state half of applyDiff resolves its units by. A block
-  // with no id names nothing in the base document, so the comparison holds nothing for it
-  // and its Change reading stays the plain travel it always was. An opaque widget holds
-  // nothing either, and for the reason the pass keys those by identity rather than by
-  // words: the live one is upgraded and the base one is not, so their texts were never
-  // each other's to compare.
-  const diffBefore = new Map(); // marked element -> the base version's words, or null
-  const inlineOpen = new Map(); // marked element -> its generated nodes and highlight ranges
-  // The comparison request that owns the page. Every request takes the next number and every
-  // stop takes one too, so a base whose document lands after the user has moved on is
-  // dropped rather than painted over the base they are standing on now. Reachable because the
-  // walk asks per row: it is one fetch per press, and the presses come faster than the network.
-  let diffRequest = 0;
-  // A renderer may format authored words while keeping their source on the formatted
-  // island. Compare that source with the unupgraded base document, then use the live
-  // DOM for what a user can quote and see in an inline comparison.
-  function diffWords(block) {
-    if (!block.querySelector("[data-lf-source-words]")) return wrote(block);
-    const source = block.cloneNode(true);
-    for (const island of source.querySelectorAll("[data-lf-source-words]"))
-      island.replaceWith(document.createTextNode(island.dataset.lfSourceWords));
-    return wrote(source);
-  }
-  // A block's key is its *authored* text (`wrote`), which is why that reading exists: it
-  // drops even the labels anchoring reads as the page's own words, because the base
-  // version is parsed unupgraded and holds none of them.
-  function diffBlocks(root) {
-    const pairs = [];
-    const [blocks, opaque] = [diffBlockSel(), diffOpaqueSel()];
-    const authoredHere = authored(root);
-    // A data body is one source value. Its formatted paragraphs are its reading,
-    // not independent source units; comparing the source also detects changed emphasis.
-    for (const body of root.querySelectorAll(".lf-markdown-body")) {
-      const owner = body.parentElement;
-      if (inChrome(owner) || owner.closest(opaque)) continue;
-      pairs.push([owner, `markdown:${body.dataset.lfSourceWords}`]);
-    }
-    for (const b of root.querySelectorAll(blocks)) {
-      if (inChrome(b) || b.closest(opaque) || b.closest(".lf-markdown-body")) continue;
-      if (b.querySelector(blocks)) continue; // leaf blocks only, or nesting double-marks
-      let key = diffWords(b);
-      // An x-says value is the page's words at the element's edge (renderSaid), so it
-      // belongs to what this block says: folded into the key at its declared edge, a
-      // version that moves a metric's number or an event's time marks though no prose
-      // changed. Symmetric for free — the base parses unupgraded, where the same
-      // attribute would have painted the same words through the pseudo-element.
-      for (const [attr, edge] of Object.entries(
-        registry[b.localName]?.["x-says"] ?? {},
-      )) {
-        const said = b.getAttribute(attr);
-        if (said) key = edge === "before" ? `${said} ${key}` : `${key} ${said}`;
-      }
-      if (key) pairs.push([b, key]);
-    }
-    // Opaque widgets key by identity, not body: an upgrade rewrote the live body,
-    // so text can't compare — but a widget the base didn't have still marks.
-    for (const w of root.querySelectorAll(opaque)) {
-      // parentElement, not w itself: an svg a widget rendered stays its widget's.
-      if (!authoredHere(w) || inChrome(w) || w.parentElement?.closest(opaque)) continue;
-      const entry = registry[w.localName] ?? {};
-      // A data binding is authored semantics even though the generated children
-      // of an upgraded widget are opaque to comparison.
-      const bindingAttrs = new Set();
-      for (const input of Object.values(entry["x-data"] ?? {})) {
-        bindingAttrs.add(input.source);
-      }
-      const binding = [...bindingAttrs]
-        .sort()
-        .map((attr) => [attr, w.getAttribute(attr)]);
-      pairs.push([w, ` ${w.tagName}#${w.id}${JSON.stringify(binding)}`]);
-    }
-    return pairs;
-  }
-  async function baseReading(baseRevision, throughSeq) {
-    const params = new URLSearchParams({
-      revision: String(baseRevision),
-      through_seq: String(throughSeq),
-    });
-    const res = await fetch(pageUrl(`api/view?${params}`));
-    if (!res.ok) throw new Error(`couldn't project revision r${baseRevision}`);
-    const answer = await res.json();
-    if (!answer.browser) throw new Error(`revision r${baseRevision} has no projection`);
-    return answer.browser;
-  }
-  // The longest run of `after` that keeps the order `before` gave the same units:
-  // the units that did not move.
-  function inOrder(before, after) {
-    const lengths = before.map(() => after.map(() => 0));
-    const at = (i, j) => lengths[i]?.[j] ?? 0;
-    for (let i = before.length - 1; i >= 0; i--)
-      for (let j = after.length - 1; j >= 0; j--)
-        lengths[i][j] =
-          before[i] === after[j]
-            ? at(i + 1, j + 1) + 1
-            : Math.max(at(i + 1, j), at(i, j + 1));
-    const kept = new Set();
-    for (let i = 0, j = 0; i < before.length && j < after.length;)
-      if (before[i] === after[j]) {
-        kept.add(before[i]);
-        i++;
-        j++;
-      } else if (at(i + 1, j) >= at(i, j + 1)) i++;
-      else j++;
-    return kept;
-  }
-  function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
-    const baseRevision = stamped(baseVersion)?.revision;
-    if (baseRevision == null)
-      throw new Error(`version v${baseVersion} has no revision`);
-    const baseView = baseReading?.views?.[String(baseRevision)];
-    if (!baseView) throw new Error(`revision r${baseRevision} has no projection`);
-    // The base version's widget state, folded as the publisher folds the current one:
-    // its authored values, staged before its Markdown was formatted, under the
-    // projection the server read for it. A report standing at the base painted there
-    // just as an action did, so what the user saw includes it. The server reads each
-    // event under the declaration it was admitted with, and the base's authored values
-    // are decoded under this document's; an entry whose verb was declared otherwise
-    // then has no value here to compare, so the fold leaves it out.
-    const baseProjection = projectView(baseView, baseReading.thread);
-    const declaredAlike = ({ e, spec }) => {
-      const current = baseAuthored.get(e.widget)?.specs.get(e.action);
-      return (
-        current?.unit === spec.unit &&
-        JSON.stringify(current.record ?? null) === JSON.stringify(spec.record ?? null)
-      );
-    };
-    const baseWidgets = foldWidgetStates(baseAuthored, {
-      ...baseProjection,
-      desired: new Map(
-        [...baseProjection.desired].filter(([, entry]) => declaredAlike(entry)),
-      ),
-    });
-    // The before surface holds the same accepted body projection as its version
-    // would show: the event's exact source, never a collapsed comparison value.
-    for (const [id, { state, specs }] of baseWidgets)
-      for (const [verb, spec] of specs) {
-        if (spec.record?.kind !== "body" || !state[verb].action) continue;
-        const body = doc
-          .getElementById(id)
-          ?.querySelector(":scope > .lf-markdown-body");
-        if (body) paintMarkdown(body, state[verb].value);
-      }
-    // Multiset membership rather than an alignment: an unchanged block that
-    // merely moved stays unmarked; a changed or new one has no base twin.
-    const base = new Map();
-    for (const [, key] of diffBlocks(doc)) base.set(key, (base.get(key) ?? 0) + 1);
-    for (const [b, key] of diffBlocks(document.body)) {
-      const left = base.get(key) ?? 0;
-      if (left > 0) base.set(key, left - 1);
-      else {
-        b.classList.add("lf-ins-block");
-        diffMarked.add(b);
-      }
-    }
-    // The state half: block keys catch words, and a pure state change — a card
-    // in a different column, a pick on a different option — has no text of its
-    // own. Compare declared state instead: the base fold above against the
-    // publisher's current one. Body records are words and the block keys above own
-    // them.
-    const mark = (target) => {
-      if (diffMarked.has(target)) return;
-      target.classList.add("lf-ins-block");
-      diffMarked.add(target);
-    };
-    for (const [id, now] of readApplication().effective.widgets) {
-      const before = baseWidgets.get(id);
-      const widget = elementById(id);
-      // New to this version: the content half marks it.
-      if (!before || !widget || inChrome(widget) || quoted(widget)) continue;
-      for (const [verb, spec] of now.specs) {
-        if (!spec.record || spec.record.kind === "body" || !before.specs.has(verb))
-          continue;
-        if (spec.record.kind === "position") {
-          // The moved card itself is where the change reads: one in another
-          // container, or one out of order among those its container held at the
-          // base, the fewest cards whose moving explains the new order.
-          const was = before.state[verb].value;
-          const placed = Object.values(was).flat();
-          for (const [container, ids] of Object.entries(now.state[verb].value)) {
-            const stayed = was[container] ?? [];
-            const kept = inOrder(
-              stayed.filter((unit) => ids.includes(unit)),
-              ids.filter((unit) => stayed.includes(unit)),
-            );
-            for (const unit of ids) {
-              if (!placed.includes(unit) || kept.has(unit)) continue;
-              const moved = elementById(unit);
-              if (moved) mark(moved);
-            }
-          }
-          continue;
-        }
-        const { value } = questionValue(now, verb, true);
-        if (
-          JSON.stringify(value) ===
-          JSON.stringify(questionValue(before, verb, true).value)
-        )
-          continue;
-        // The option now picked is where a pick reads; anything else reads on its
-        // widget.
-        const picked =
-          spec.record.kind === "attribute" && value.length === 1
-            ? elementById(value[0])
-            : null;
-        mark(picked ?? widget);
-      }
-    }
-    // One pass over everything marked, after both halves, because the two halves mark
-    // for different reasons and a block reached by either is a block a user can ask
-    // about. The words are taken here rather than at the press: this is the one moment
-    // the base document is in hand, and holding it open for a press that may never come
-    // would keep a whole second document alive for the life of the comparison.
-    const opaque = diffOpaqueSel();
-    for (const block of diffMarked) {
-      if (!block.matches(ADDRESSABLE) || block.closest(opaque)) continue;
-      const baseBlock = doc.getElementById(block.id);
-      diffBefore.set(block, baseBlock ? wrote(baseBlock) : null);
-    }
-    return diffMarked.size;
-  }
-  // ---------- one marked block's inline comparison ----------
-  // `wrote` is the authority for the two texts. This companion reading keeps the same
-  // normalized text with a boundary back into the authored text nodes, so a run the
-  // alignment calls inserted can be painted in place. Generated labels and deletions wear
-  // `.lf-ui`; comments, copies, and later comparisons therefore continue to read the exact
-  // current document rather than the temporary historical words on screen.
-  const inlineId = (target) => `lf-version-inline-${target.id}`;
-  const authoredReading = (target) => readingFrom(textNodesUnder(target, "wrote"));
-
-  function pointAt(target, reading, offset) {
-    if (!reading.units.length) return { node: target, offset: 0 };
-    return offset === reading.units.length
-      ? reading.units.at(-1).end
-      : reading.units[offset].start;
-  }
-
-  function insertAt(target, reading, offset, node) {
-    const point = pointAt(target, reading, offset);
-    if (point.node.nodeType === Node.ELEMENT_NODE) {
-      point.node.insertBefore(node, point.node.childNodes[point.offset] ?? null);
-      return;
-    }
-    const text = point.node;
-    if (point.offset === 0) text.parentNode.insertBefore(node, text);
-    else if (point.offset === text.data.length)
-      text.parentNode.insertBefore(node, text.nextSibling);
-    else text.parentNode.insertBefore(node, text.splitText(point.offset));
-  }
-
-  function rangeAt(reading, start, end) {
-    const first = reading.units[start];
-    const last = reading.units[end - 1];
-    if (!first || !last) return null;
-    const range = document.createRange();
-    range.setStart(first.start.node, first.start.offset);
-    range.setEnd(last.end.node, last.end.offset);
-    return range;
-  }
-
-  function paintInlineInsertions() {
-    const ranges = [...inlineOpen.values()].flatMap((entry) => entry.ranges);
-    if (ranges.length)
-      CSS.highlights.set("lf-version-insert", new Highlight(...ranges));
-    else CSS.highlights.delete("lf-version-insert");
-  }
-
-  function openInlineComparison(target) {
-    const before = diffBefore.get(target);
-    const reading = authoredReading(target);
-    const current = currentVersionToken();
-    const label = el(
-      "span",
-      "lf-ui lf-quiet lf-version-inline-label",
-      before === null ? `New since v${diffBase}` : `v${diffBase} → ${current}`,
-    );
-    label.id = inlineId(target);
-    label.setAttribute(
-      "aria-label",
-      before === null
-        ? `New since version ${diffBase}`
-        : `Inline comparison from version ${diffBase} to ${current}`,
-    );
-
-    const nodes = [label];
-    const additions = [];
-    const insertions = [{ offset: 0, node: label }];
-    let afterOffset = 0;
-    let hasTextChange = false;
-    for (const run of before === null ? [] : alignInlineText(before, reading.text)) {
-      if (run.kind === "delete") {
-        const dropped = el("span", "lf-ui lf-version-inline-deletion");
-        dropped.append(el("del", "", run.text));
-        nodes.push(dropped);
-        insertions.push({ offset: afterOffset, node: dropped });
-        hasTextChange = true;
-      } else {
-        // The passage reading indexes characters by code point while DOM Range offsets
-        // are UTF-16. Keep the alignment cursor in the reading's units; an astral
-        // character must advance it once, not by the two code units String.length sees.
-        const length = [...run.text].length;
-        if (run.kind === "insert") {
-          additions.push([afterOffset, afterOffset + length]);
-          hasTextChange = true;
-        }
-        afterOffset += length;
-      }
-    }
-    insertions
-      .sort((left, right) => right.offset - left.offset)
-      .forEach(({ offset, node }) => insertAt(target, reading, offset, node));
-
-    const currentReading = authoredReading(target);
-    const ranges = additions
-      .map(([start, end]) => rangeAt(currentReading, start, end))
-      .filter(Boolean);
-    target.classList.toggle("lf-version-inline", hasTextChange);
-    inlineOpen.set(target, { nodes, ranges });
-    paintInlineInsertions();
-    layoutChanged(target);
-    return before === null
-      ? `v${diffBase} had nothing here`
-      : `showing an inline diff from v${diffBase}`;
-  }
-
-  function closeInlineComparison(target) {
-    const entry = inlineOpen.get(target);
-    inlineOpen.delete(target);
-    target.classList.remove("lf-version-inline");
-    for (const node of entry?.nodes ?? []) node.remove();
-    paintInlineInsertions();
-    layoutChanged(target);
-    return `inline diff from v${diffBase} hidden`;
-  }
-
-  // What a text-changing marked block holds for the margin's disclosure reading. A pure
-  // state change remains marked but offers no empty prose comparison. The one controlled
-  // id is a quiet label at the start of the block. It names the versions for assistive
-  // reading while the margin and Page Map carry that provenance visually, outside the
-  // passage whose words are being compared.
-  const inlineComparison = (target) =>
-    diffOn &&
-    diffBefore.has(target) &&
-    (diffBefore.get(target) === null || diffBefore.get(target) !== wrote(target))
-      ? {
-          id: inlineId(target),
-          open: inlineOpen.has(target),
-          offer: `v${diffBase} → ${currentVersionToken()}`,
-        }
-      : null;
-
-  // The press, and the sentence to say about it — composed here, where the versions are
-  // named. The event is the comparison's, because what changed is its standing
-  // rendering: the same pass that reads the marks reads the margin entry's relation back.
-  function toggleInlineComparison(target) {
-    if (!inlineComparison(target)) return null;
-    const said = inlineOpen.has(target)
-      ? closeInlineComparison(target)
-      : openInlineComparison(target);
-    document.dispatchEvent(new CustomEvent("lf-comparison"));
-    return said;
-  }
-
-  // Whether a stamped version can be compared with the revision being read: any stamp
-  // on an earlier revision, which is which rows the menu builds a press onto.
-  const comparable = (version) => {
-    const base = stamped(version);
-    return (
-      runtime.currentRevision !== null &&
-      base !== undefined &&
-      base.revision < runtime.currentRevision
-    );
-  };
-  // Whether the comparison is standing and what against, or which base a stopped one is
-  // waiting on — the only thing that decides it, the marks and the paint being renderings
-  // rather than a second copy.
-  function setDiff(on, base, pendingBase = null) {
-    diffOn = on;
-    diffPendingBase = pendingBase;
-    if (on) diffBase = base;
-    if (!on) {
-      diffRequest++; // a stop outranks a comparison still on its way
-      // Inline diffs leave with the block marks. Historical words or insertion paint
-      // under a block nothing marks any more would leave half of the comparison behind.
-      for (const target of [...inlineOpen.keys()]) closeInlineComparison(target);
-      diffBefore.clear();
-      for (const b of diffMarked) b.classList.remove("lf-ins-block");
-      diffMarked.clear();
-    }
-    presentPicker();
-    // Consumers read the settled comparison projection: on/off and its marks move
-    // together, rather than announcing an applied DOM diff before it is standing.
-    document.dispatchEvent(new CustomEvent("lf-comparison"));
-  }
-  // The one way a comparison starts, from a row's press, from the walk through the menu,
-  // or from an activation putting back the one it dropped. It states a base rather than
-  // toggling one — the toggle is a press's own reading of it, and the walk has none to
-  // spend, standing on a row being what makes it the base however many times the user
-  // arrives there. Everything touching the live page happens in one synchronous stretch
-  // after the single await: the walk asks for a comparison per row, and a marking pass
-  // that could interleave with the next row's would leave two bases' marks standing
-  // under a picker naming one of them.
-  async function showComparison(base) {
-    // Selection is immediate even though its result needs two documents. Clear the prior
-    // marks, move the menu's checked state to the requested base, and expose the wait as
-    // busy. A fast walk then never leaves the last completed base highlighted under focus
-    // on a different row. One presentation says both, so the picker never passes through
-    // an unlit state it is about to leave.
-    setDiff(false, null, base);
-    const mine = ++diffRequest;
-    const baseVersion = stamped(base);
-    const baseRevision = baseVersion?.revision;
-    if (baseRevision == null) {
-      diffPendingBase = null;
-      presentPicker();
-      notice(`Couldn't load v${base}`);
-      return;
-    }
-    const documentRequest = authoredDocument(baseVersion.url);
-    let doc;
-    let reading;
-    let baseAuthored;
-    try {
-      while (mine === diffRequest) {
-        const throughSeq = runtime.lastEventSeq;
-        if (!Number.isInteger(throughSeq))
-          throw new Error("the current reading has no log sequence");
-        [doc, reading] = await Promise.all([
-          documentRequest,
-          baseReading(baseRevision, throughSeq),
-        ]);
-        if (mine !== diffRequest) return;
-        if (runtime.lastEventSeq === throughSeq) break;
-      }
-      if (mine !== diffRequest) return;
-      // Typed authored state reads the source before its Markdown is formatted.
-      baseAuthored = stageAuthoredStates(doc, new Map());
-      await prepareDeclaredMarkdown(doc);
-    } catch {
-      if (mine === diffRequest) {
-        diffPendingBase = null;
-        presentPicker();
-        notice(`Couldn't load v${base}`);
-      }
-      return;
-    }
-    if (mine !== diffRequest) return;
-    const n = applyDiff(doc, baseAuthored, base, reading);
-    setDiff(true, base);
-    notice(
-      n
-        ? `${n} changed passage${n === 1 ? "" : "s"} since v${base}`
-        : `No text changes since v${base}`,
-    );
-  }
-  // A press names one base, so pressing the standing one again is the way off it: Compare is a
-  // toggle where it is lit and a switch of base where it isn't. The keyboard's way off is the
-  // walk itself — up to the version being read, which is comparable with nothing and so
-  // stops rather than re-bases.
-  const pressComparison = (base) =>
-    (diffOn && base === diffBase) || diffPendingBase === base
-      ? setDiff(false)
-      : showComparison(base);
-
-  const comparisonBase = () => (diffOn ? diffBase : null);
-  // Selection leads the documents it needs. Menu focus follows that immediate reading,
-  // while the public projection above stays paired with the marks that have settled.
-  const selectedBase = () => diffPendingBase ?? comparisonBase();
-
-  // ---------- another version's document ----------
-  // Comparison reads an inert document. A revision keeps the layer it captured, and the
-  // server says so — both this document and the projection beside it answer for that
-  // generation rather than the page's — so neither is a delivery answer and neither goes
-  // through the gate. A layer that really did move under the user reaches them through
-  // the state feed, which is the live channel.
-  async function authoredDocument(url) {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`couldn't load ${url} (${response.status})`);
-    const doc = new DOMParser().parseFromString(await response.text(), "text/html");
-    if (doc.querySelectorAll("body > main").length !== 1)
-      throw new Error(`${url} has no single authored main`);
-    // First-paint delivery wrappers have no place in the authored revision.
-    return restoreInitialSource(doc);
-  }
-  // Repeated comparisons of the same immutable revision share its document fetch.
-  const revisionDocuments = new Map();
-  function revisionDocument(revision) {
-    if (!revisionDocuments.has(revision.revision))
-      revisionDocuments.set(
-        revision.revision,
-        authoredDocument(revision.url).catch((error) => {
-          revisionDocuments.delete(revision.revision);
-          throw error;
-        }),
-      );
-    return revisionDocuments.get(revision.revision);
-  }
 
   // ---------- live revision activation ----------
   // What the outgoing revision wrote on a root and the arriving one does not comes off,
@@ -2133,13 +2116,8 @@ export function createVersionController({
   pageScope("versions", VERSIONS);
 
   return {
-    closeVersionMenu,
     PICKER,
     paintShortcuts,
-    renderVersions,
-    inlineComparison,
-    toggleInlineComparison,
-    comparisonBase,
     prepareActivation,
     aimArrival,
     installArrival,

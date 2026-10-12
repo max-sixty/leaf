@@ -2692,6 +2692,68 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
         for line in lines
     )
 
+    # The same host then serves as a widget's shadow stage. Restaging retains a Lit
+    # container and its editor while other nodes leave, and a passage spanning the
+    # stage's children reads the stage as the host's section.
+    result = page.evaluate(
+        """async () => {
+          const {html, render, shadowStage} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const host = document.querySelector('lf-diff');
+          const container = document.createElement('div');
+          const input = document.createElement('input');
+          input.value = 'draft reply';
+          const paint = text => render(html`<p>${text}</p>${input}`, container);
+          paint('Before restaging');
+          const old = document.createElement('p');
+          old.textContent = 'old reading';
+          shadowStage(host, [old, document.createComment('old stage'), container]);
+          input.focus();
+          input.setSelectionRange(2, 5);
+          const next = document.createElement('p');
+          next.textContent = 'new reading';
+          shadowStage(host, [next, container]);
+          paint('After restaging');
+          return {
+            text: [...host.shadowRoot.childNodes]
+              .filter(node => node.localName === 'p')
+              .map(node => node.textContent),
+            comments: [...host.shadowRoot.childNodes]
+              .filter(node => node.nodeType === Node.COMMENT_NODE).length,
+            rendered: container.querySelector('p').textContent,
+            focused: host.shadowRoot.activeElement === input,
+            value: input.value,
+            selection: [input.selectionStart, input.selectionEnd],
+          };
+        }"""
+    )
+    assert result == {
+        "text": ["new reading"],
+        "comments": 0,
+        "rendered": "After restaging",
+        "focused": True,
+        "value": "draft reply",
+        "selection": [2, 5],
+    }
+
+    result = page.evaluate(
+        """async () => {
+          const {shadowStage} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {anchorForRange} = await window.__lfRuntimeImport('/runtime/anchor-resolution.js');
+          const host = document.querySelector('lf-diff');
+          const first = document.createElement('p');
+          first.textContent = 'first';
+          const last = document.createElement('p');
+          last.textContent = 'last';
+          shadowStage(host, [first, last]);
+          const range = document.createRange();
+          range.setStart(first.firstChild, 0);
+          range.setEnd(last.firstChild, last.firstChild.length);
+          return anchorForRange(range);
+        }"""
+    )
+    assert result["section"] == "patch"
+    assert result["quote"] == "first last"
+
 
 def test_a_diff_can_start_with_every_file_collapsed(browser, serve):
     """A large patch can defer every file body without losing native disclosure."""
@@ -6776,74 +6838,6 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
     assert len(requests) == 2
 
 
-def test_shadow_staging_replaces_all_nodes_without_disturbing_a_retained_editor(
-    browser, serve
-):
-    """Staging retains a Lit container and its editor while other nodes leave."""
-    page = open_page(browser, serve(DIFF_PAGE))
-    result = page.evaluate(
-        """async () => {
-          const {html, render, shadowStage} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const host = document.querySelector('lf-diff');
-          const container = document.createElement('div');
-          const input = document.createElement('input');
-          input.value = 'draft reply';
-          const paint = text => render(html`<p>${text}</p>${input}`, container);
-          paint('Before restaging');
-          const old = document.createElement('p');
-          old.textContent = 'old reading';
-          shadowStage(host, [old, document.createComment('old stage'), container]);
-          input.focus();
-          input.setSelectionRange(2, 5);
-          const next = document.createElement('p');
-          next.textContent = 'new reading';
-          shadowStage(host, [next, container]);
-          paint('After restaging');
-          return {
-            text: [...host.shadowRoot.childNodes]
-              .filter(node => node.localName === 'p')
-              .map(node => node.textContent),
-            comments: [...host.shadowRoot.childNodes]
-              .filter(node => node.nodeType === Node.COMMENT_NODE).length,
-            rendered: container.querySelector('p').textContent,
-            focused: host.shadowRoot.activeElement === input,
-            value: input.value,
-            selection: [input.selectionStart, input.selectionEnd],
-          };
-        }"""
-    )
-    assert result == {
-        "text": ["new reading"],
-        "comments": 0,
-        "rendered": "After restaging",
-        "focused": True,
-        "value": "draft reply",
-        "selection": [2, 5],
-    }
-
-
-def test_passage_range_spanning_shadow_root_children_reads_the_stage(browser, serve):
-    page = open_page(browser, serve(DIFF_PAGE))
-    result = page.evaluate(
-        """async () => {
-          const {shadowStage} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const {anchorForRange} = await window.__lfRuntimeImport('/runtime/anchor-resolution.js');
-          const host = document.querySelector('lf-diff');
-          const first = document.createElement('p');
-          first.textContent = 'first';
-          const last = document.createElement('p');
-          last.textContent = 'last';
-          shadowStage(host, [first, last]);
-          const range = document.createRange();
-          range.setStart(first.firstChild, 0);
-          range.setEnd(last.firstChild, last.firstChild.length);
-          return anchorForRange(range);
-        }"""
-    )
-    assert result["section"] == "patch"
-    assert result["quote"] == "first last"
-
-
 def test_passage_at_either_shadow_host_edge_excludes_its_words(browser, serve):
     page = open_page(browser, serve(PANEL_PAGE))
     quotes = page.evaluate(
@@ -6994,10 +6988,7 @@ def _under_mark(page, name):
     return box
 
 
-@pytest.mark.parametrize("scheme", ("light", "dark"))
-def test_every_mark_the_layer_paints_on_words_is_seen_against_the_paper(
-    browser, serve, scheme
-):
+def test_every_mark_the_layer_paints_on_words_is_seen_against_the_paper(browser, serve):
     """A mark on a passage is the user's whole notice that the words carry something.
 
     The wash cannot be that notice, and no alpha can make it one: --mark composites to
@@ -7017,11 +7008,7 @@ def test_every_mark_the_layer_paints_on_words_is_seen_against_the_paper(
     the same strip over words nobody has said anything about has to come back under it,
     or the reading is answering about descenders and would pass with every line gone.
     """
-    page = open_page(
-        browser,
-        serve(LONG_PAGE, anchored=(("p3", "Paragraph 3."),)),
-        color_scheme=scheme,
-    )
+    page = open_page(browser, serve(LONG_PAGE, anchored=(("p3", "Paragraph 3."),)))
     append_carried_log_record(
         serve.page_dir,
         {
@@ -7037,43 +7024,46 @@ def test_every_mark_the_layer_paints_on_words_is_seen_against_the_paper(
         page.wait_for_function(
             "(name) => (CSS.highlights.get(name)?.size ?? 0) > 0", arg=name
         )
-    line_styles = page.evaluate(
-        "(names) => Object.fromEntries(names.map(name => "
-        "[name, getComputedStyle(document.documentElement, `::highlight(${name})`)"
-        ".textDecorationStyle]))",
-        TEXT_MARKS,
-    )
-    assert line_styles == {name: "solid" for name in TEXT_MARKS}, line_styles
-    paper = tuple(
-        page.evaluate(
-            "() => getComputedStyle(document.body).backgroundColor"
-            ".match(/\\d+/g).slice(0, 3).map(Number)"
+    for scheme in ("light", "dark"):
+        page.emulate_media(color_scheme=scheme)
+        line_styles = page.evaluate(
+            "(names) => Object.fromEntries(names.map(name => "
+            "[name, getComputedStyle(document.documentElement, `::highlight(${name})`)"
+            ".textDecorationStyle]))",
+            TEXT_MARKS,
         )
-    )
-    # Same words, same type, same strip, nothing said about them. "Paragraph 5." carries
-    # the descenders both marked passages carry.
-    quiet = page.evaluate(
-        """() => {
-          const range = new Range();
-          const node = document.getElementById('p5').firstChild;
-          range.setStart(node, 0); range.setEnd(node, 12);
-          const b = range.getBoundingClientRect();
-          return {x: Math.round(b.x), y: Math.round(b.bottom) - 2,
-                  width: Math.round(b.width), height: 10};
-        }"""
-    )
-    control, _ = _line_under(page, quiet, paper)
-    assert control < LINE_COVERAGE / 2, (
-        f"unmarked words already fill {control:.0%} of the strip under them in the "
-        f"{scheme} scheme, so this reading cannot tell a line from the page's own ink"
-    )
-    seen = {
-        name: _line_under(page, _under_mark(page, name), paper) for name in TEXT_MARKS
-    }
-    for name, (covered, band) in seen.items():
-        assert covered >= LINE_COVERAGE and band >= 3.0, (
-            f"the {scheme} page draws no line under a {name} passage: {covered:.0%} of "
-            f"the strip at {band:.2f}:1 against its own ground {paper}, where the "
-            f"unmarked control is at {control:.0%}. A marked passage whose only signal "
-            f"is its wash is one the user never learns is marked. All: {seen}"
+        assert line_styles == {name: "solid" for name in TEXT_MARKS}, line_styles
+        paper = tuple(
+            page.evaluate(
+                "() => getComputedStyle(document.body).backgroundColor"
+                ".match(/\\d+/g).slice(0, 3).map(Number)"
+            )
         )
+        # Same words, same type, same strip, nothing said about them. "Paragraph 5." carries
+        # the descenders both marked passages carry.
+        quiet = page.evaluate(
+            """() => {
+              const range = new Range();
+              const node = document.getElementById('p5').firstChild;
+              range.setStart(node, 0); range.setEnd(node, 12);
+              const b = range.getBoundingClientRect();
+              return {x: Math.round(b.x), y: Math.round(b.bottom) - 2,
+                      width: Math.round(b.width), height: 10};
+            }"""
+        )
+        control, _ = _line_under(page, quiet, paper)
+        assert control < LINE_COVERAGE / 2, (
+            f"unmarked words already fill {control:.0%} of the strip under them in the "
+            f"{scheme} scheme, so this reading cannot tell a line from the page's own ink"
+        )
+        seen = {
+            name: _line_under(page, _under_mark(page, name), paper)
+            for name in TEXT_MARKS
+        }
+        for name, (covered, band) in seen.items():
+            assert covered >= LINE_COVERAGE and band >= 3.0, (
+                f"the {scheme} page draws no line under a {name} passage: {covered:.0%} of "
+                f"the strip at {band:.2f}:1 against its own ground {paper}, where the "
+                f"unmarked control is at {control:.0%}. A marked passage whose only signal "
+                f"is its wash is one the user never learns is marked. All: {seen}"
+            )

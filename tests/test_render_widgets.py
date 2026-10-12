@@ -11158,11 +11158,9 @@ def test_inline_diff_lines_and_files_can_start_comments(browser, serve):
     ]
 
 
-@pytest.mark.parametrize("width", [390, 1280])
-def test_filtering_a_diff_keeps_its_field_and_toolbar_controls_fixed(
-    browser, serve, width
-):
-    """The matching count leaves the filter field in place at every result count."""
+def test_filtering_a_diff_keeps_its_field_and_toolbar_controls_fixed(browser, serve):
+    """The matching count leaves the filter field in place at every result count, on a
+    phone and on a desktop window."""
     url = serve(MANIFEST_DIFF_PAGE)
 
     def patch(count):
@@ -11175,7 +11173,6 @@ def test_filtering_a_diff_keeps_its_field_and_toolbar_controls_fixed(
 
     data_model.cmd_data_set(serve.page_dir, "review-patch", patch_manifest(patch(12)))
     page = open_page(browser, url)
-    resized(page, width, 844)
     diff = page.locator("#patch")
     search = diff.locator(".lf-diff-search input")
     progress = diff.locator(".lf-diff-progress")
@@ -11189,29 +11186,30 @@ def test_filtering_a_diff_keeps_its_field_and_toolbar_controls_fixed(
           return [selector, {x, y, width, height}];
         }))"""
 
-    for total in (12, 1):
-        if total == 1:
+    for width in (390, 1280):
+        resized(page, width, 844)
+        for total in (12, 1):
             data_model.cmd_data_set(
-                serve.page_dir, "review-patch", patch_manifest(patch(1))
+                serve.page_dir, "review-patch", patch_manifest(patch(total))
             )
             told(page)
-        expect(rows).to_have_count(total)
-        base_label = f"{total} file{'s' if total != 1 else ''}"
-        expect(progress).to_have_text(base_label)
-        search.scroll_into_view_if_needed()
-        rendered(page)
-        before = diff.evaluate(geometry)
-        for query, matches in (("file-0.py", 1), ("no-such-file", 0), ("", total)):
-            search.fill(query)
-            expect(rows).to_have_count(matches)
-            expected_label = base_label
-            if matches != total:
-                expected_label = f"{matches} of {total}"
-            expect(progress).to_have_text(expected_label)
+            expect(rows).to_have_count(total)
+            base_label = f"{total} file{'s' if total != 1 else ''}"
+            expect(progress).to_have_text(base_label)
+            search.scroll_into_view_if_needed()
             rendered(page)
-            after = diff.evaluate(geometry)
-            assert after == before, (query, before, after)
-            expect(search).to_be_focused()
+            before = diff.evaluate(geometry)
+            for query, matches in (("file-0.py", 1), ("no-such-file", 0), ("", total)):
+                search.fill(query)
+                expect(rows).to_have_count(matches)
+                expected_label = base_label
+                if matches != total:
+                    expected_label = f"{matches} of {total}"
+                expect(progress).to_have_text(expected_label)
+                rendered(page)
+                after = diff.evaluate(geometry)
+                assert after == before, (width, query, before, after)
+                expect(search).to_be_focused()
 
 
 def test_a_diff_refresh_keeps_the_readers_inspection(browser, serve):
@@ -12177,11 +12175,11 @@ def test_webawesome_chrome_loads_without_optional_controls(browser, serve):
     ), "the package theme must outrank the lazy vendor defaults"
 
 
-@pytest.mark.parametrize("color_scheme", ["light", "dark"])
 def test_webawesome_menu_text_stays_readable_as_the_current_option_moves(
-    browser, serve, color_scheme
+    browser, serve
 ):
-    """Component-owned menu states remain readable through the shared theme.
+    """Component-owned menu states remain readable through the shared theme, in both
+    schemes, read in turn on one open menu.
 
     The visual-review picker is a consumer of the same theme as the trace
     prototype that exposed dark text on a solid blue active row.
@@ -12192,7 +12190,7 @@ def test_webawesome_menu_text_stays_readable_as_the_current_option_moves(
         / "developer"
         / "visual-review-gallery.html"
     )
-    page = open_page(browser, serve(source), color_scheme=color_scheme)
+    page = open_page(browser, serve(source))
     visual_review_menu(page)
     control = page.locator(".lf-vr-case-select")
     options = control.locator("wa-option")
@@ -12234,6 +12232,9 @@ def test_webawesome_menu_text_stays_readable_as_the_current_option_moves(
     expect(current).not_to_have_attribute("value", initial)
     contrast(current)
     options.first.hover()
+    contrast(options.first)
+    page.emulate_media(color_scheme="dark")
+    contrast(current)
     contrast(options.first)
     # Generated apparatus identity must not replace a component's state ink. This
     # catches both a generic host face and upstream root color promoted to the host;

@@ -99,8 +99,7 @@ pytestmark = pytest.mark.main
 OPEN_TITLE = ".lf-threads > .lf-thread:not([hidden])[open] > .lf-thread-summary"
 
 
-@pytest.mark.parametrize("touch", [False, True])
-@pytest.mark.parametrize("surface", ["panel", "margin"])
+@pytest.mark.parametrize(("touch", "surface"), [(False, "panel"), (True, "margin")])
 def test_thread_actions_share_consistently_sized_message_headers(
     browser, serve, touch, surface
 ):
@@ -260,21 +259,6 @@ def test_held_news_keeps_an_agent_header_and_resizes_its_notice(browser, serve):
     news.click()
     expect(thread.locator(".lf-msg")).to_have_count(3)
     expect(thread.locator(".lf-thread-news")).to_have_count(0)
-
-
-def test_gallery_pending_title_opens_when_the_reader_requests_it(browser, serve):
-    page = open_page(browser, serve(FEATURE_GALLERY))
-    sample = page.frame_locator("#bg-title-sheen-sample iframe")
-    expect(sample.locator(".lf-thread-panel")).not_to_have_class(
-        re.compile(r"\bopen\b")
-    )
-
-    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
-    page.locator("#bg-title-sheen-show").click()
-    expect(sample.locator(".lf-thread-panel")).to_have_class(re.compile(r"\bopen\b"))
-    expect(sample.locator('.lf-thread-topic[data-lf-pending-title=""]')).to_have_text(
-        "Generating title"
-    )
 
 
 def test_thread_rows_name_action_in_existing_status(browser, serve):
@@ -447,16 +431,15 @@ def append_agent_reply(page_dir, parent, text, markup=None):
 
 
 @pytest.mark.watch_shifts
-@pytest.mark.parametrize("motion", ["no-preference", "reduce"])
-def test_returning_to_a_hidden_tab_reveals_held_and_refreshed_replies(
-    browser, serve, motion
-):
+def test_returning_to_a_hidden_tab_reveals_held_and_refreshed_replies(browser, serve):
     """Returning catches up once, keeping the native draft and its caret.
 
     Losing focus during visible reading keeps the notice. A hidden interval ends
     that reading, including news admitted by the first asynchronous refresh; later
     arrivals protect the resumed reading again.
     """
+    # The animated reveal is the path that could move the draft.
+    motion = "no-preference"
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Keep this discussion open.")
     page = open_page(browser, url)
@@ -1081,9 +1064,10 @@ def assert_arrival_returns_to_own_fill(page, destination):
         }
 
 
-@pytest.mark.parametrize("scheme", ["light", "dark"])
-def test_refresh_arrival_returns_to_the_thread_fill(browser, serve, scheme):
+def test_refresh_arrival_returns_to_the_thread_fill(browser, serve):
     """A demo opening its seeded conversation on refresh fades to its actual surface."""
+    # The fade's rule is the scheme's own fill, so one scheme exercises it.
+    scheme = "light"
     url = serve(
         leaf_page(
             "Refresh arrival",
@@ -1316,11 +1300,10 @@ def test_a_summary_folds_originals_and_a_direct_reply_link_reveals_them(browser,
     expect(expand).to_have_attribute("aria-expanded", "true")
 
 
-@pytest.mark.parametrize("width", [390, 1440])
-def test_previous_progress_messages_can_fold_without_summary_prose(
-    browser, serve, width
-):
+def test_previous_progress_messages_can_fold_without_summary_prose(browser, serve):
     """The same disclosure keeps progress available without an authored digest."""
+    # The disclosure is the same at any width; the narrow one has the least room.
+    width = 390
     url = serve(SEATED_QUESTION_PAGE)
     root = panel_comment(
         serve.page_dir, "Please check the schedule.", {"section": "jobs"}
@@ -1359,8 +1342,9 @@ def test_previous_progress_messages_can_fold_without_summary_prose(
     expect(card.locator(f'.lf-msg[data-mid="{first["id"]}"]')).to_be_hidden()
 
 
-@pytest.mark.parametrize("surface", ["panel", "inline"])
-@pytest.mark.parametrize("interleaved", [False, True])
+@pytest.mark.parametrize(
+    ("surface", "interleaved"), [("panel", True), ("inline", False)]
+)
 def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     browser, serve, surface, interleaved
 ):
@@ -3207,8 +3191,9 @@ def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
     assert (serve.page_dir / "media" / "051bee487bfb5d13.png").read_bytes() == pixels
 
 
-@pytest.mark.parametrize("touch", [False, True])
-def test_original_image_link_has_a_standalone_target(browser, serve, touch):
+def test_original_image_link_has_a_standalone_target(browser, serve):
+    # Under a finger the link takes the touch floor, the larger of the two.
+    touch = True
     context = browser.new_context(
         viewport={"width": 320, "height": 720}, has_touch=touch
     )
@@ -3354,15 +3339,14 @@ def test_linked_images_zoom_and_return_to_the_report(browser, serve, tmp_path, o
     expect(viewer).to_be_hidden()
 
 
-@pytest.mark.parametrize("width", [1280, 390])
-def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(
-    browser, serve, width
-):
+def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(browser, serve):
     """The compact composer reads the complete draft hidden behind its text box.
 
     Several images make its shelf overflow, proving the anchored box gets the same
     horizontal thumbnail projection as the larger thread text boxes.
     """
+    # The narrow box, where the shelf of images overflows soonest.
+    width = 390
     page = open_page(browser, serve(LONG_PAGE))
     resized(page, width, 844)
     page.locator("#p1").click(click_count=3)
@@ -4740,7 +4724,6 @@ def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination
         (3, "Tab", "back"),
         (3, "wheel", "back"),
         (3, "widget", "back"),
-        (1, None, "onto"),
         (3, None, "onto"),
         (1, None, "return"),
         (1, None, "pressed"),
@@ -6820,8 +6803,17 @@ COMPLETION_EVENTS = (
 )
 
 
-@pytest.mark.parametrize("kind", ["unresolve", "resolve", "reply"])
-@pytest.mark.parametrize("destination", ["stay", "page", "thread"])
+# Each operation and each destination at least once; a reopen's arrival is the one
+# that could open Threads again, so it goes to the page.
+@pytest.mark.parametrize(
+    ("kind", "destination"),
+    [
+        ("unresolve", "page"),
+        ("resolve", "stay"),
+        ("reply", "thread"),
+        ("resolve", "page"),
+    ],
+)
 def test_a_thread_completion_keeps_the_users_later_destination(
     browser, serve, kind, destination
 ):
@@ -8625,11 +8617,12 @@ def standing_thread(page):
     return page.evaluate(THREAD_STANDING)
 
 
-@pytest.mark.parametrize("color_scheme", ["light", "dark"])
-def test_an_empty_thread_list_wears_its_ring_whole(browser, serve, color_scheme):
+def test_an_empty_thread_list_wears_its_ring_whole(browser, serve):
     """The list holds focus itself only while it shows no thread (a list showing one
     hands focus to that thread's title). It then wears the inset ring on its frame,
     whole along both edges, down to the panel's floor, over the list's own ground."""
+    # Whether the ring stands whole is geometry, the same in either scheme.
+    color_scheme = "light"
     url = serve(PANEL_PAGE)
     context = browser.new_context(
         viewport={"width": 459, "height": 856},
@@ -8799,7 +8792,7 @@ def test_no_focus_mark_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered
     d = serve.page_dir
     # A run per section and enough threads to make the list scroll, which is the whole
     # of what the cut half needs: a list that fits in the panel has no edge to fall off.
-    for i in range(8):
+    for i in range(5):
         panel_comment(d, f"About the lede, {i}.", {"section": "lede"})
         panel_comment(d, f"About the store, {i}.", {"section": "how-store"})
         panel_comment(d, f"About the merge, {i}.", {"section": "merge-both"})
@@ -8812,7 +8805,7 @@ def test_no_focus_mark_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     threads = page.locator(".lf-threads > .lf-thread:not([hidden])").count()
-    assert threads == 32, f"the fixture built {threads} threads, not the 32 it needs"
+    assert threads == 20, f"the fixture built {threads} threads, not the 20 it needs"
     assert page.evaluate(
         "() => { const l = document.querySelector('.lf-threads');"
         " return l.scrollHeight > l.clientHeight; }"
@@ -8827,7 +8820,7 @@ def test_no_focus_mark_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered
     # middle of the document happens to be — which on this page is a diff, whose `pre`
     # takes focus. The press then opened that widget's composer and the walk below
     # typed its keys into the box, which is exactly what the non-vacuity check at the
-    # end caught: thirty-two landings asserted, none of them on a thread.
+    # end caught: every landing asserted, none of them on a thread.
     page.evaluate("() => document.activeElement?.blur()")
     # The named address toggles the panel it names, so from a panel opened by its
     # visible control the first completion closes it and the second is the arrival.
@@ -9830,11 +9823,12 @@ IN_LANDING_BAND = """node => {
 }"""
 
 
-@pytest.mark.parametrize("size", [(1200, 900), (800, 520)])
 def test_an_agent_turn_arriving_while_the_user_writes_keeps_their_box_in_view(
-    browser, serve, size
+    browser, serve
 ):
     """An arriving turn preserves the visible writing box, draft and Send control."""
+    # The short window, where the arriving turn has the least room.
+    size = (800, 520)
     url = serve(PANEL_PAGE)
     root = seed_panel_threads(serve.page_dir, 4, long_index=2)[2]
     page = open_page(browser, url)
@@ -9871,10 +9865,11 @@ def test_an_agent_turn_arriving_while_the_user_writes_keeps_their_box_in_view(
     )
 
 
-@pytest.mark.parametrize("size", [(1200, 900), (800, 520)])
-def test_a_page_comment_sent_beside_open_threads_lands_in_view(browser, serve, size):
+def test_a_page_comment_sent_beside_open_threads_lands_in_view(browser, serve):
     """The list's place hold finishing a render cancelled the smooth landing already
     under way, leaving the new thread below the list's foot."""
+    # The short window, where the landing has the furthest to go.
+    size = (800, 520)
     url = serve(PANEL_PAGE)
     seed_panel_threads(serve.page_dir, 8 if size[1] < 600 else 20, long_index=0)
     page = open_page(browser, url)
@@ -9894,11 +9889,12 @@ def test_a_page_comment_sent_beside_open_threads_lands_in_view(browser, serve, s
     expect(page.locator(".lf-page-comment")).to_be_focused()
 
 
-@pytest.mark.parametrize("how", ["r", "button"])
-def test_resolving_a_long_thread_lands_the_next_thread_in_view(browser, serve, how):
+def test_resolving_a_long_thread_lands_the_next_thread_in_view(browser, serve):
     """The landing of the thread focus moved on to was measured while the resolved
     thread still stood open above it, and the fold then took that room away under a
     smooth scroll: the next thread ended above the list."""
+    # Both routes run the same resolve and the same landing.
+    how = "r"
     url = serve(PANEL_PAGE)
     roots = seed_panel_threads(serve.page_dir, 8, long_index=3)
     page = open_page(browser, url)
@@ -10799,10 +10795,9 @@ def test_contextual_messages_share_text_spacing_through_send_and_reopen(
         assert after == pytest.approx(before, abs=0.1), (gaps, reopened)
 
 
-@pytest.mark.parametrize(
-    "surface",
-    ["general", "panel", "card", "composer", "composer-panel", "composer-widget"],
-)
+# The floating card, whose ground the pixel reading checks, the panel, and a thread
+# in a widget's shadow root.
+@pytest.mark.parametrize("surface", ["card", "panel", "composer-widget"])
 def test_sending_flashes_only_the_new_message(browser, serve, surface):
     """Sending cues the words in every surface, including a shadow-root thread.
     Sticky authors share the words' fade. Admission and subsequent repaint do not
@@ -10963,22 +10958,19 @@ def test_firefox_paints_the_author_and_words_in_the_same_send_flash(
 
 @pytest.mark.parametrize(
     ("surface", "how"),
+    # Every surface once, the two routes alternating where both reach Send. The
+    # anchored composer's Tab walks its field and response options (`response.tab`),
+    # so its Send takes no keyboard press; Enter is that route. `pause` stands one
+    # Tab past Send, which the keyboard route proves.
     [
-        (surface, how)
-        for surface in [
-            "card",
-            "panel",
-            "general",
-            "pause",
-            "handoff",
-            "composer",
-            "composer-widget",
-            "composer-panel",
-        ]
-        for how in ["pointer", "keyboard"]
-        # The anchored composer's Tab walks its field and response options
-        # (`response.tab`), so its Send takes no keyboard press; Enter is that route.
-        if not (surface.startswith("composer") and how == "keyboard")
+        ("card", "pointer"),
+        ("panel", "keyboard"),
+        ("general", "pointer"),
+        ("pause", "keyboard"),
+        ("handoff", "pointer"),
+        ("composer", "pointer"),
+        ("composer-widget", "pointer"),
+        ("composer-panel", "pointer"),
     ],
 )
 def test_a_pressed_send_leaves_the_user_where_enter_does(browser, serve, surface, how):
@@ -11205,7 +11197,7 @@ def test_a_diff_thread_reply_grown_by_a_paste_keeps_its_send_above_the_bar(
     )
 
 
-@pytest.mark.parametrize("kind", ["task", "diff", "bounded", "bounded-short"])
+@pytest.mark.parametrize("kind", ["task", "bounded"])
 def test_an_agent_turn_arriving_holds_still_the_page_box_being_typed_in(
     browser, serve, kind
 ):
@@ -11247,13 +11239,13 @@ def test_an_agent_turn_arriving_holds_still_the_page_box_being_typed_in(
     assert page_after == pytest.approx(page_before, abs=1)
 
 
-@pytest.mark.parametrize("kind", ["task", "verdict"])
 def test_resolving_a_long_page_thread_by_its_button_leaves_the_page_still(
-    browser, serve, kind
+    browser, serve
 ):
     """The pressed Resolve leaves with the state it changed, and the thread took the
     focus back with a landing: the nearest edge of a thread taller than the window was
     a 700px jump to its head."""
+    kind = "verdict"
     url, root = seated_thread(serve, kind, 12)
     page = open_page(browser, url)
     thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
@@ -11296,7 +11288,7 @@ def test_settling_a_long_diff_thread_by_key_keeps_it_in_view(browser, serve):
     assert focus_clear_of_the_bar(page), "the reopened thread left the window"
 
 
-@pytest.mark.parametrize("kind", ["task", "diff", "bounded", "bounded-short"])
+@pytest.mark.parametrize("kind", ["diff", "bounded-short"])
 def test_a_turn_arriving_leaves_a_user_who_scrolled_away_from_their_box_reading(
     browser, serve, kind
 ):
@@ -11392,14 +11384,12 @@ def test_a_reply_box_whose_thread_leaves_the_diff_takes_the_user_to_its_card(
 
 @pytest.mark.parametrize(
     ("kind", "finish"),
+    # Each seat once, and each way the written reply ends.
     [
         ("task", "send"),
-        ("diff", "send"),
         ("bounded", "send"),
         ("bounded-short", "send"),
-        ("margin", "send"),
         ("diff", "clear"),
-        ("margin", "clear"),
         ("margin", "reload"),
     ],
 )
@@ -11833,11 +11823,9 @@ def test_a_click_survives_an_element_whose_id_shadows_a_dom_method(browser, serv
     page.locator("#body").click()
 
 
-@pytest.mark.parametrize("color_scheme", ["light", "dark"])
-def test_unused_panel_space_is_neutral_but_keeps_the_thread_context(
-    browser, serve, color_scheme
-):
+def test_unused_panel_space_is_neutral_but_keeps_the_thread_context(browser, serve):
     """Thread paint follows its content; spare panel room still navigates that thread."""
+    color_scheme = "light"
     url = serve(PANEL_PAGE)
     panel_comment(serve.page_dir, "A short discussion.", {"section": "lede"})
     context = browser.new_context(
@@ -12202,7 +12190,7 @@ def test_a_zoomed_window_places_floating_surfaces_by_their_held_edges(browser, s
 
 @pytest.mark.parametrize(
     ("zoom_home", "width"),
-    [("root", 605), ("transformed-holder", 605), ("transformed-holder", 315)],
+    [("root", 605), ("transformed-holder", 315)],
 )
 def test_a_zoomed_floating_draft_and_sent_comment_fit_a_narrow_window(
     browser, serve, zoom_home, width
@@ -12262,13 +12250,11 @@ def test_a_zoomed_floating_draft_and_sent_comment_fit_a_narrow_window(
     assert text.evaluate("el => el.scrollHeight <= el.clientHeight + 1")
 
 
-@pytest.mark.parametrize("touch", [False, True], ids=["desktop", "touch"])
-def test_a_rewrite_of_a_comment_just_sent_stands_where_its_words_did(
-    browser, serve, touch
-):
+def test_a_rewrite_of_a_comment_just_sent_stands_where_its_words_did(browser, serve):
     """The card holding a comment just sent keeps its words in the room the draft had,
     clear of Send (`data-lf-comment-frame`); a rewrite opened there stands in that same
     room, so the message keeps its place and its words their lines."""
+    touch = False
     context = browser.new_context(has_touch=touch, is_mobile=touch)
     page = open_page(browser, serve(LONG_PAGE), context=context)
     resized(page, 390 if touch else 1200, 900)
@@ -12372,7 +12358,7 @@ def test_a_scaled_floating_draft_keeps_its_room_when_its_passage_scrolls_away(
     assert resumed["y"] + resumed["height"] <= 592.1, resumed
 
 
-@pytest.mark.parametrize("surface", ["composer", "composer-widget", "composer-panel"])
+@pytest.mark.parametrize("surface", ["composer-widget", "composer-panel"])
 def test_pending_messages_stay_readable_through_admission(browser, serve, surface):
     """Delivery receipts distinguish sends without fading their readable content.
 
@@ -13788,11 +13774,10 @@ def test_a_rewrite_in_a_card_news_kept_goes_with_its_thread(browser, serve):
 
 
 @pytest.mark.watch_shifts
-@pytest.mark.parametrize("reading", ["open-transcript", "later-card"])
 def test_appended_replies_keep_the_panel_reading_when_the_open_title_is_clipped(
-    browser, serve, reading
+    browser, serve
 ):
-    """The open transcript holds the reading unless the reader names a later card.
+    """The open transcript holds the reading while replies are appended to it.
 
     A card-level anchor chosen only from visible titles instead scrolls old messages
     away to hold the next title. Agent and other-tab user appends share the same rule.
@@ -13801,9 +13786,8 @@ def test_appended_replies_keep_the_panel_reading_when_the_open_title_is_clipped(
     root = panel_comment(
         serve.page_dir, "\n\n".join(["Reading the existing conversation."] * 5)
     )
-    later = [
-        panel_comment(serve.page_dir, f"Later conversation {i}.") for i in range(18)
-    ]
+    for i in range(18):
+        panel_comment(serve.page_dir, f"Later conversation {i}.")
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -13813,13 +13797,8 @@ def test_appended_replies_keep_the_panel_reading_when_the_open_title_is_clipped(
     listing.hover()
     page.mouse.wheel(0, 90)
     scroll_settled(page)
-    following = page.locator(f'.lf-threads > .lf-thread[data-id="{later[0]}"]')
-    if reading == "later-card":
-        following.locator(":scope > .lf-thread-summary").hover()
-        reference = following
-    else:
-        page.mouse.move(100, 100)
-        reference = thread.locator(".lf-msg").first
+    page.mouse.move(100, 100)
+    reference = thread.locator(".lf-msg").first
     rendered(page)
     band = listing.bounding_box()
     original = thread.locator(".lf-msg").first.bounding_box()

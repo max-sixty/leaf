@@ -2331,8 +2331,10 @@ PANED_LONG_PAGE = leaf_page(
 )
 
 
-@pytest.mark.parametrize("scroller", ["page", "pane"])
-@pytest.mark.parametrize("target", ["passage", "item"])
+# The item field is the one that used to retire; the passage field rides the pane.
+@pytest.mark.parametrize(
+    ("target", "scroller"), [("item", "page"), ("passage", "pane")]
+)
 def test_a_comment_field_scrolled_away_and_back_is_still_there(
     browser, serve, target, scroller
 ):

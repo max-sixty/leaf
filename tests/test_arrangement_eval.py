@@ -5,7 +5,7 @@ from pathlib import Path
 
 import turbohtml
 from leaf_dev import ROOT, arrangement_plain
-from leaf_dev.arrangement_eval import WIDTHS, first_prompt
+from leaf_dev.arrangement_eval import CASES, WIDTHS, comment_prompt, first_prompt
 
 
 def test_html_control_uses_browser_without_leaf_payload(tmp_path):
@@ -18,6 +18,10 @@ def test_html_control_uses_browser_without_leaf_payload(tmp_path):
     assert str(ROOT) not in prompt
     assert "$LEAF" not in prompt
     assert "ordinary HTML" in prompt
+    comment = CASES["document"].comment
+    revision = comment_prompt(page, comment, "html")
+    assert comment.target in revision and comment.text in revision
+    assert "$LEAF" not in revision
     assert arrangement_plain.gate(page, WIDTHS)["passed"]
     (page / "index.html").write_text(
         "<!doctype html><title>Fault</title><style>body{width:1800px}</style><h1>Report</h1><script>throw Error('seeded fault')</script>"
@@ -29,7 +33,8 @@ def test_html_control_uses_browser_without_leaf_payload(tmp_path):
 
 
 def test_comparison_snapshots_exclude_later_leaf_feedback(tmp_path, monkeypatch):
-    """Script the external model; real admission and publication preserve user input."""
+    """Script the external model; real admission and publication preserve user input,
+    and the user's comment reaches the page anchored on the passage it names."""
     from leaf_dev import arrangement_eval
     from leaf_dev.arms import run_leaf
 
@@ -45,12 +50,22 @@ def test_comparison_snapshots_exclude_later_leaf_feedback(tmp_path, monkeypatch)
             page = run.authored_page
             if author_turns == 1:
                 run_leaf(ROOT, run.state, "page", "init", str(page), check=True)
-            body = "Reviewed" if author_turns == 3 else f"Author version {author_turns}"
+            if author_turns == 3:
+                comment = arrangement_eval.posted_comment(page)
+                assert "anchor" in comment and "Mei Tanaka" in comment["text"]
+                arrangement_eval.arm_fixture(
+                    run, "answer", str(page), comment["id"], "Named Mei Tanaka's team."
+                )
+            body = {3: "Ask Mei Tanaka's team", 4: "Reviewed"}.get(
+                author_turns, f"Author version {author_turns}"
+            )
             (page / "index.html").write_text(
                 '<!doctype html><html lang="en"><head><title>Decision review</title>'
                 '<meta name="description" content="Review evidence."></head><body>'
                 '<main class="layout-column"><h1>Decision review</h1>'
                 f'<p id="review-status">{body}</p>'
+                '<p id="ask">Need the database owners to say whether 55% peak CPU '
+                "is acceptable.</p>"
                 '<lf-ask id="choice"><h2>Which option?</h2><lf-options id="decision" choose>'
                 '<lf-option id="a">A</lf-option><lf-option id="b">B</lf-option>'
                 "</lf-options></lf-ask></main></body></html>"
@@ -83,11 +98,13 @@ def test_comparison_snapshots_exclude_later_leaf_feedback(tmp_path, monkeypatch)
     arrangement_eval.author(run, tmp_path / "cwd")
     choice = json.loads((evidence / "choice.json").read_text())
     assert choice["seeded"] and choice["correct"] and choice["page_unchanged"]
-    assert author_turns == 3
+    assert author_turns == 4
     assert "Author version 1" in (evidence / "page-phase1/index.html").read_text()
-    assert "Author version 2" in (evidence / "page/index.html").read_text()
+    assert "Author version 2" in (evidence / "page-phase2/index.html").read_text()
+    assert arrangement_eval.comment_applied(run, evidence / "page-phase3")
+    assert arrangement_eval.comment_answered(run, "")
     assert "Reviewed" in (evidence / "page-continuation/index.html").read_text()
-    for snapshot in ("page-phase1", "page"):
+    for snapshot in ("page-phase1", "page-phase2", "page-phase3"):
         assert not any(
             json.loads(line)["kind"] == "action"
             for line in (evidence / snapshot / "events.jsonl").read_text().splitlines()
@@ -186,3 +203,61 @@ def test_reader_calibration_shows_the_judge_its_page_at_every_width(tmp_path):
     clean = turbohtml.parse(reader_eval.fixture(reader_eval.CASES["clean"]))
     assert seeded.select_one("#count-open dd strong").text == "8"
     assert clean.select_one("#count-open dd strong").text == "7"
+
+
+def test_pairwise_counts_only_a_winner_both_orders_name(tmp_path, monkeypatch):
+    """No model runs: a judge that always prefers position A splits every pair, and
+    one that prefers a column's page wins it in both orders."""
+    from click.testing import CliRunner
+    from leaf_dev import eval_pairs
+
+    run = tmp_path / "run"
+    results = []
+    for column in ("claude-code/candidate/workflow", "claude-code/html/workflow"):
+        work = run / "samples" / f"document-{column.split('/')[1]}"
+        work.mkdir(parents=True)
+        (work / "prompt-1.txt").write_text("")
+        shots = run / "screenshots" / work.name
+        shots.mkdir(parents=True)
+        for name in WIDTHS:
+            (shots / f"p3-{name}-0.png").write_bytes(b"")
+        results.append(
+            {
+                "provider": {"label": column},
+                "response": {
+                    "metadata": {
+                        "work": str(work),
+                        "diagnostics": {"subject": "document"},
+                    }
+                },
+            }
+        )
+    (run / "results.json").write_text(json.dumps({"results": {"results": results}}))
+
+    def judging(prefer):
+        def model(cwd, prompt, *args, out, err, **kwargs):
+            brief = (out.parent / "brief.md").read_text()
+            a = brief.split("Page A:")[1].split("Page B:")[0]
+            winner = prefer(a)
+            return [{"type": "result", "result": json.dumps({"overall": winner})}]
+
+        return model
+
+    monkeypatch.setattr(eval_pairs, "run_agent", judging(lambda a: "A"))
+    assert CliRunner().invoke(eval_pairs.eval_pairs, [str(run)]).exit_code == 0
+    assert json.loads((run / "pairs.json").read_text())[0]["winner"] is None
+    monkeypatch.setattr(
+        eval_pairs, "run_agent", judging(lambda a: "A" if "html" in a else "B")
+    )
+    assert CliRunner().invoke(eval_pairs.eval_pairs, [str(run)]).exit_code == 0
+    pair = json.loads((run / "pairs.json").read_text())[0]
+    assert pair["winner"] == "claude-code/html/workflow"
+
+
+def test_a_resumed_phase_costs_only_its_own_work():
+    """Claude Code reports the session's total; Codex reports none."""
+    from leaf_dev.arms import resumed
+
+    totals = [{"cost_usd": 1.0}, {"cost_usd": 1.5}, {"cost_usd": 2.25}]
+    assert [p["cost_usd"] for p in resumed(totals)] == [1.0, 0.5, 0.75]
+    assert [p["cost_usd"] for p in resumed([{"cost_usd": None}] * 2)] == [None, None]

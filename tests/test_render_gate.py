@@ -2158,22 +2158,6 @@ def test_the_render_gate_bounds_a_prefixed_inventory_by_its_prefixes(browser, se
     ]
 
 
-def test_the_gate_passes_every_diagram_type_that_carries_addressable_parts(
-    browser, serve
-):
-    """The corpus needs one page covering the six diagram types the guide documents.
-
-    State, sequence, class, ER, and XY diagrams draw markup a flowchart never does.
-    The whole-page contracts (both palettes, axe, print, export, reachability) are what
-    would catch a renderer-specific failure, and the structural types also exercise
-    every kind of source id accepted by `parts`.
-    """
-    assert (
-        render_gate_model.render_version(browser, serve(TYPED_PARTS_PAGE)).failures
-        == []
-    )
-
-
 def test_the_render_gate_rejects_a_partial_diagram_parts_list(browser, serve):
     page = PART_DIAGRAM_PAGE
     failures = render_gate_model.render_version(browser.unwatched, serve(page)).failures
@@ -2381,22 +2365,57 @@ DIAGRAM_FAMILIES = {
 
 
 def test_the_gate_passes_what_the_renderer_draws(browser, serve):
-    """Leaf draws what Mermaid draws, beyond the families its guide documents.
+    """Leaf draws what Mermaid draws, beyond the families its guide documents, and one
+    page covers the six diagram types the guide documents with addressable parts.
 
+    State, sequence, class, ER, and XY diagrams draw markup a flowchart never does.
+    The whole-page contracts (both palettes, axe, print, export, reachability) are what
+    would catch a renderer-specific failure, and the structural types also exercise
+    every kind of source id accepted by `parts`: a state diagram's generated markers
+    after a comment, authored state ids that resemble those markers, and a class in a
+    namespace, whose identity comes from the parser rather than its rendered label.
     The gate reports a source the renderer cannot draw at all (`UNPARSABLE_DIAGRAM`); a
     family it can draw is no failure, whether or not the guide names it.
     """
-    url = serve(
-        leaf_page(
-            "diagram families",
-            '<h1 id="title">Diagram families</h1>\n'
-            + "\n".join(
-                f'<lf-diagram id="{name}"><pre>\n{source}\n</pre></lf-diagram>'
-                for name, source in DIAGRAM_FAMILIES.items()
-            ),
+    extra = (
+        """<lf-diagram id="authored-life" parts="node:_start2 node:_end2"><pre>
+stateDiagram-v2
+  [*] --&gt; _start2
+  _start2 --&gt; _end2
+  _end2 --&gt; [*]
+</pre></lf-diagram>
+<lf-diagram id="namespaced" parts="all"><pre>
+classDiagram
+  namespace Jobs {
+    class Job
+  }
+  Runner --&gt; Job
+</pre></lf-diagram>
+"""
+        + "\n".join(
+            f'<lf-diagram id="{name}"><pre>\n{source}\n</pre></lf-diagram>'
+            for name, source in DIAGRAM_FAMILIES.items()
         )
+        + '\n<lf-diagram id="trend">'
     )
+    page = (
+        TYPED_PARTS_PAGE.replace(
+            "stateDiagram-v2", "%% Release states\nstateDiagram-v2", 1
+        )
+        .replace(
+            "    Fetch --&gt; Build", "    [*] --&gt; Fetch\n    Fetch --&gt; Build", 1
+        )
+        .replace('<lf-diagram id="trend">', extra, 1)
+    )
+    url = serve(page)
     assert render_gate_model.render_version(browser, url).failures == []
+    drawn = open_page(browser, url)
+    assert (
+        drawn.locator("#namespaced").evaluate(
+            "e => e.visualParts.get('node:Jobs').label"
+        )
+        == "Jobs"
+    )
 
 
 def test_the_render_gate_rejects_an_unresolved_svg_paint_token(

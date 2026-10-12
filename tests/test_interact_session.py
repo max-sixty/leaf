@@ -20517,6 +20517,22 @@ def test_response_api_records_failure_without_reopening_thread(page_dir):
         page_dir, {"kind": "comment", "author": "user", "text": "Please answer."}
     )
     reference = response_reference(page_dir, asked)
+    # Progress whose retry key spells the receipt's discriminator leaves the
+    # receipt its own attempt.
+    progress = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "response",
+            "reply",
+            reference,
+            "--ephemeral",
+            "--attempt",
+            "failure",
+            "--text",
+            "Looking into it.",
+        ],
+    )
+    assert progress.exit_code == 0, progress.output
     posted = CliRunner().invoke(
         cli_model.cli,
         [

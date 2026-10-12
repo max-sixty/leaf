@@ -441,7 +441,9 @@ def test_the_render_gate_fails_a_wide_page_that_scrolls_sideways_only_between_vi
     browser, serve
 ):
     """A body beside its track, and a row that spills only from 600 to 900px: both fixed
-    viewports read the page clean, and only the sweep between them sees it."""
+    viewports read the page clean, and only the sweep between them sees it. A control
+    row that loses its scrollbar track room only between them is the same reading for
+    the overlay bar."""
     source = leaf_page(
         "mid-width overflow",
         f"""
@@ -451,20 +453,31 @@ def test_the_render_gate_fails_a_wide_page_that_scrolls_sideways_only_between_vi
   <div id="rail">{_panel("checks")}{_panel("log")}</div>
 </div>
 <p id="mid-spill">{"A line that wraps at both viewports and runs on unbroken between them. " * 4}</p>
+<div id="strip"><button>Summary</button><button>Release scope</button>
+<button>Owner handoff</button></div>
 """,
         layout="wide",
         head="""<style>
 #tracks { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
 @media (min-width: 600px) and (max-width: 900px) { #mid-spill { white-space: nowrap; } }
+#strip { display: flex; width: 240px; overflow: auto; padding: 0 0 15px; border: 0; }
+#strip button { flex: 0 0 180px; height: 40px; margin: 0; }
+@media (min-width: 600px) and (max-width: 900px) { #strip { padding-bottom: 0; } }
 </style>""",
     )
 
     reading = render_gate_model.render_version(browser, serve(source, packages=()))
 
-    (failure,) = reading.failures
-    assert failure.startswith("at 600–880px wide, the page scrolls sideways by "), (
-        failure
-    )
+    assert len(reading.failures) == 2, reading.failures
+    assert any(
+        failure.startswith("at 600–880px wide, the page scrolls sideways by ")
+        for failure in reading.failures
+    ), reading.failures
+    assert any(
+        failure.startswith("at 600–880px wide, <div id=strip> leaves 0px")
+        and "overlay scrollbar" in failure
+        for failure in reading.failures
+    ), reading.failures
     assert reading.advice == []
 
 
@@ -4664,29 +4677,6 @@ def test_scrollbar_clearance_reads_generic_content_and_open_shadow_words(
         "<div id=raw-words>" in failure and "horizontal overlay scrollbar" in failure
         for failure in failures
     ), failures
-
-
-def test_scrollbar_clearance_catches_an_intermediate_width(browser, serve):
-    """A control row fits at both fixed viewports but loses its track room between them."""
-    source = leaf_page(
-        "Mid-width scrollbar",
-        '<h1>Review sections</h1><div id="strip">'
-        "<button>Summary</button><button>Release scope</button>"
-        "<button>Owner handoff</button></div>",
-        head="""<style>
-          #strip { display: flex; width: 240px; overflow: auto; padding: 0 0 15px;
-                   border: 0; }
-          #strip button { flex: 0 0 180px; height: 40px; margin: 0; }
-          @media (min-width: 600px) and (max-width: 900px) {
-            #strip { padding-bottom: 0; }
-          }
-        </style>""",
-    )
-    failures = render_gate_model.render_version(browser, serve(source)).failures
-    (collision,) = [failure for failure in failures if "overlay scrollbar" in failure]
-    assert collision.startswith("at 600–880px wide, <div id=strip> leaves 0px"), (
-        failures
-    )
 
 
 def test_scrollbar_clearance_reads_main_when_it_is_the_scroller(browser, serve):

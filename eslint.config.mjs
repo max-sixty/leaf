@@ -51,6 +51,7 @@ const browserGlobals = Object.fromEntries(
     "HTMLScriptElement",
     "HTMLSpanElement",
     "Highlight",
+    "ImageData",
     "IntersectionObserver",
     "MessageChannel",
     "MouseEvent",

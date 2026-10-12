@@ -6125,8 +6125,8 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     """t/T step the open threads; q/Q step the things the page is waiting on the user
     for. The category letter stays under one finger: lowercase advances and Shift goes
     back. Both walks repeat when held because walking often takes several presses.
-    Both clamp at the ends like every other one-dimensional list, so another press keeps
-    the user on the edge instead of jumping across the page.
+    Both come round from either end to the other, so a press past the last ask carries
+    on from the first.
 
     The landing is marked on the ask and stands the user on it, which is the same
     element the scroll has just brought to the top of the window — a walk that landed the
@@ -6136,7 +6136,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     page = open_page(browser, serve(ASKS_PAGE))
     expect_asks_answered(page, "1/5")
     walked = []
-    for expected in [*ASKS_IN_ORDER, ASKS_IN_ORDER[-1]]:
+    for expected in [*ASKS_IN_ORDER, ASKS_IN_ORDER[0]]:
         page.keyboard.press("q")
         # The ring is painted from the focus, in the frame after the press, so waiting
         # for it on the Ask this press stepped to is both the wait and the assertion —
@@ -6149,15 +6149,15 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
         walked.append(page.evaluate("document.activeElement.id"))
     assert walked == [
         *ASKS_IN_ORDER,
-        ASKS_IN_ORDER[-1],
+        ASKS_IN_ORDER[0],
     ], f"the walk landed on something else: {walked}"
 
-    # And back, including one press past the first edge. The step off a suggestion is
+    # And back from the first, round past its edge to the last. The step off a suggestion is
     # measured from the suggestion rather than from the ✓ Accept holding the focus —
     # that row is hoisted out into the page margin as a sibling of the block it decides,
     # so a walk reading it where it hangs would step back onto the change the user is
     # standing on.
-    for expected in [*reversed(ASKS_IN_ORDER[:-1]), ASKS_IN_ORDER[0]]:
+    for expected in reversed(ASKS_IN_ORDER):
         page.keyboard.press("Shift+q")
         expect(page.locator(f"#{expected}[data-lf-question]")).to_have_count(1)
         expect(page.locator(STANDING_ASK)).to_have_count(1)
@@ -7086,7 +7086,7 @@ def test_an_ask_already_in_front_of_the_user_is_not_travelled_to(browser, serve)
     # that: frames held still before a glide starts read the same as a page that never
     # moved, and only the announcement puts the read behind the decision.
     observe_live_region(page)
-    page.keyboard.press("q")  # one ask, so the clamped walk stays on it
+    page.keyboard.press("q")  # one ask, so the walk stays on it
     page.wait_for_function(
         "() => window.__lfLiveRegionChanges.some("
         "words => words.includes('waiting on you'))"

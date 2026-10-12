@@ -13,12 +13,18 @@
    on a box is a choice, with two exceptions. A place keeper's write returns the reader
    to a place they already had (reading-place.js, `restorePlace`; user-place.js,
    `placeKeeper`; continuity's move of the page with its band), so it says where it
-   left each box (`placeKept`), and a sequence ending there is the keeper's. A landing
+   left each box (`placeKept`), and a sequence ending there is the keeper's. So is one
+   that ends elsewhere with no input since the write: layout settling after a resize
+   moves the box on, as anchoring does, before the sequence ends. A write that moves
+   nothing starts no sequence, so a keep no scroll follows within two frames lapses,
+   and a later scroll is not taken for the keeper's. A landing
    in motion counts from its start (`chooseScroll`), since layout it caused can be
    announced before its sequence ends. A sequence can end frames after its last
    `scroll` event, as WebKit's do, so continuity takes a reading at the end too. Like
    that record, this listens on the document, which a scroll inside a shadow root does
    not reach. */
+
+import { nextAnimation } from "./rendering.js";
 
 // The browser's document scrollport. Keeping the platform's root as the one page
 // scroller lets fragment links, history restoration, wheel/touch input, and browser UI
@@ -34,14 +40,34 @@ export const scrollChoices = () => choices;
 // Whether the reader chose where `box` stands after the `count`th choice.
 export const chosenSince = (box, count) => (chosen.get(box) ?? 0) > count;
 export const chooseScroll = (box) => chosen.set(box, ++choices);
+// The document's count of the user's inputs (prepaint.js, `lfInputs`).
+const inputs = () => document.documentElement.lfInputs.count;
 export function placeKept(...boxes) {
-  for (const box of boxes) kept.set(box, box.scrollTop);
+  for (const box of boxes) {
+    const keep = { top: box.scrollTop, inputs: inputs(), scrolled: false };
+    kept.set(box, keep);
+    nextAnimation(() =>
+      nextAnimation(() => {
+        if (kept.get(box) === keep && !keep.scrolled) kept.delete(box);
+      }),
+    );
+  }
 }
+document.addEventListener(
+  "scroll",
+  ({ target }) => {
+    const keep = kept.get(target === document ? pageScroller : target);
+    if (keep) keep.scrolled = true;
+  },
+  { capture: true, passive: true },
+);
 document.addEventListener(
   "scrollend",
   ({ target }) => {
     const box = target === document ? pageScroller : target;
-    if (kept.get(box) !== box.scrollTop) chooseScroll(box);
+    const keeper = kept.get(box);
+    if (!keeper || (keeper.top !== box.scrollTop && keeper.inputs !== inputs()))
+      chooseScroll(box);
     kept.delete(box);
   },
   { capture: true, passive: true },

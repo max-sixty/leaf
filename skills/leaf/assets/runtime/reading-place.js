@@ -113,7 +113,7 @@ const drawsLandmark = (parent) => {
 const blockWords = new WeakMap();
 // Whether a block's words are drawn inside its own box: none stands in an element
 // taken out of flow, positioned or transformed, between the words and the block. Read
-// once per page reading, and only for blocks a reading of the screen would pass over.
+// once per reading of the screen, and only for blocks it would pass over.
 const drawnInside = (block, segments, known) => {
   if (!known.has(block)) {
     const asked = new Set();
@@ -148,9 +148,12 @@ function* renderedBlocks(blocks, within = null) {
       if (!words.has(segment.block)) words.set(segment.block, []);
       words.get(segment.block).push(segment);
     }
-    blockWords.set(reading, { words, inside: new Map() });
+    blockWords.set(reading, words);
   }
-  const { words, inside } = blockWords.get(reading);
+  const words = blockWords.get(reading);
+  // Read fresh each time: a stylesheet or a breakpoint can take words out of flow with
+  // no change to the page's text.
+  const inside = new Map();
   const drawn = new Map();
   const range = document.createRange();
   for (const block of blocks) {

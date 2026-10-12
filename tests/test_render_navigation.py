@@ -819,6 +819,41 @@ def test_a_split_drag_keeps_a_panes_reading(engine, request, serve):
     assert page.evaluate(landmark) == pytest.approx(before, abs=8)
 
 
+def test_a_passage_read_in_a_flowing_pane_returns_after_the_panes_scroll_alone(
+    browser, serve
+):
+    """Narrow, the reader scrolls wt-merge's page over its Steps pane. Widened, each pane
+    scrolls on its own, and layout settling moves boxes nobody chose to move. Narrowed
+    again, the panes flow into the page, which returns to the passage the reader read:
+    a place only the layout made never outranks the reader's."""
+    page = open_page(browser, serve(next(p for p in EXAMPLES if p.stem == "wt-merge")))
+    resized(page, 390, 800)
+    rendered(page)
+    box = page.locator("#merge-steps-pane").bounding_box()
+    page.mouse.move(box["x"] + 40, min(box["y"] + 120, 700))
+    page.mouse.wheel(0, 300)
+    page.wait_for_function("document.scrollingElement.scrollTop > 0")
+    scroll_settled(page)
+    rendered(page)
+    below = page.evaluate(
+        """() => {
+          const band = parseFloat(getComputedStyle(document.scrollingElement)
+            .scrollPaddingTop) || 0;
+          const block = [...document.querySelectorAll('#merge-steps-pane p')]
+            .find(p => p.getBoundingClientRect().top >= band);
+          block.id ||= 'read-step';
+          window.__read = block;
+          return block.getBoundingClientRect().top - band;
+        }"""
+    )
+    measure = """() => window.__read.getBoundingClientRect().top
+      - (parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop) || 0)"""
+    for width in (1200, 390):
+        resized(page, width, 800)
+        rendered(page)
+    assert page.evaluate(measure) == pytest.approx(below, abs=2)
+
+
 def test_a_tall_local_comment_survives_its_panes_posture_and_return(browser, serve):
     source = READING_REGIONS_PAGE.replace(
         '<footer><button id="left-foot">',
@@ -12221,16 +12256,22 @@ def test_same_passage_and_controls_keep_a_mixed_travel_group(
     page.wait_for_function("scrollY < 100")
 
 
-def test_a_reading_finds_words_drawn_outside_their_blocks_box(browser, serve):
+@pytest.mark.parametrize("moved", ["inline", "breakpoint"])
+def test_a_reading_finds_words_drawn_outside_their_blocks_box(browser, serve, moved):
     """A block whose own box lies below the window can still draw words in it, through a
     positioned child. A reading of the screen passes over a block only when its words
-    are drawn inside its box, so the words the reader sees name the place."""
+    are drawn inside its box, so the words the reader sees name the place, including
+    once a breakpoint moves the child after an earlier reading, with no change to the
+    page's text."""
+    style = "position: absolute; top: 200px; left: 0" if moved == "inline" else ""
     source = leaf_page(
         "Words outside their block",
+        "<style>@media (width < 800px) {"
+        " #drawn { position: absolute; top: 200px; left: 0 } }</style>"
         '<div style="position: relative">'
         '<div style="height: 1400px"></div>'
         '<p id="carrier">The carrier paragraph sits far below the window.'
-        '<span style="position: absolute; top: 200px; left: 0">'
+        f'<span id="drawn" style="{style}">'
         "These positioned words are drawn in the window.</span></p>"
         "</div>"
         + "".join(f"<p>Later paragraph {n} below the carrier.</p>" for n in range(5)),
@@ -12238,13 +12279,15 @@ def test_a_reading_finds_words_drawn_outside_their_blocks_box(browser, serve):
     page = open_page(browser, serve(source))
     resized(page, 1000, 600)
     rendered(page)
-    first = page.evaluate(
-        """async () => {
-          const rp = await window.__lfRuntimeImport('/runtime/reading-place.js');
-          return rp.readingBlock()?.id;
-        }"""
-    )
-    assert first == "carrier"
+    first = """async () => {
+      const rp = await window.__lfRuntimeImport('/runtime/reading-place.js');
+      return rp.readingBlock()?.id ?? null;
+    }"""
+    if moved == "breakpoint":
+        assert page.evaluate(first) is None
+        resized(page, 700, 600)
+        rendered(page)
+    assert page.evaluate(first) == "carrier"
 
 
 @pytest.mark.parametrize("separated", [False, True])

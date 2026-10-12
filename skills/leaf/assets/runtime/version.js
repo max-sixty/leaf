@@ -64,7 +64,12 @@
  * open, including when the platform dismisses it. Scopes sharing a title merge their
  * rows; an unavailable contributor supplies none.
  */
-import { nextAnimation, nextRender, sizeObserver } from "./rendering.js";
+import {
+  nextAnimation,
+  nextRender,
+  renderingState,
+  sizeObserver,
+} from "./rendering.js";
 import { frameFor, whileConnected } from "./arrivals.js";
 import { LIVE_ROOT, layerRoot, pageUrl, revisionLabel, runtime } from "./context.js";
 import {
@@ -1803,11 +1808,12 @@ export function createVersionController({
   // One place per scroller, read from the words that scroller carries: the page's from
   // every word outside a box that scrolls on its own, flowing regions included
   // (reading-place.js, `capturePlace`), and each bounded region's from its body. It is
-  // recorded when a scroll comes to rest in that scroller, and where the user stands or
-  // steps, in the scroller holding them. A place whose scroller is gone goes with the
-  // next record.
+  // recorded when a scroll the reader made comes to rest or ends in that scroller, and
+  // where the user stands or steps, in the scroller holding them (`recordPlaces`). A
+  // place whose scroller is gone goes with the next record.
   //
-  // After a shift, each scroller it touched takes the newest place that speaks for it:
+  // After a shift, each scroller it touched takes the newest place that speaks for it,
+  // newest by the reader's acts rather than by when it was read:
   // its own, one recorded in a scroller that carried its words before the shift, or one
   // whose landmark it now carries. Where a region was handed across, that is usually the
   // place recorded in the scroller that carried it before, so a pane that turns into
@@ -1871,7 +1877,12 @@ export function createVersionController({
       for (const id of map.keys()) if (id !== PAGE && !standing.has(id)) map.delete(id);
   };
 
-  function recordPlaces(boxes) {
+  // A place is the reader's when they chose a scroll in its box since it was last
+  // recorded (scrolling.js, `chosenSince`), acted since, as a wheel does before its
+  // scroll ends, or stand in the box (`standing`). Only those records rank (`at`): a
+  // scroll layout made, a clamp or an anchoring adjustment, records nothing, and a box's
+  // first place, taken as the page arrives, ranks below every one the reader made.
+  function recordPlaces(boxes, { standing = false } = {}) {
     if (shifting || compositionChanges.size || !regionsSettled()) return;
     dropGonePlaces();
     for (const box of boxes) {
@@ -1879,11 +1890,18 @@ export function createVersionController({
       if (region === undefined || held(box)) continue;
       if (region && !(under(region.host, pageDocument()) && shownRegionBounds(region)))
         continue;
+      const before = places.get(region ? region.id : PAGE);
+      const acted =
+        standing ||
+        chosenSince(box, before?.choices ?? 0) ||
+        (before?.inputs ?? 0) !== inputCount();
+      if (before && !acted) continue;
       const reading = capturePlace(region);
       places.set(reading.scroller, {
         reading,
-        at: ++placeCount,
+        at: acted ? ++placeCount : 0,
         choices: scrollChoices(),
+        inputs: inputCount(),
       });
     }
   }
@@ -1954,9 +1972,10 @@ export function createVersionController({
   // Apply each held place again while the shift's layout settles, as a widget drawing
   // a frame late changes it, and only then: re-application exists for that late layout,
   // and outliving it would put back a place under whatever else changes the page. The
-  // layout is quiet once two frames pass with no delivery, and the window closes after
-  // `SETTLING` deliveries whatever happens. What moves a place is the page's own content
-  // or its bounded region's, and it lands only in the box it was restored into.
+  // window closes when Leaf's rendering reads settled (rendering.js, `renderingState`),
+  // or after `SETTLING` deliveries whatever happens. What moves a place is the page's
+  // own content or its bounded region's, and it lands only in the box it was restored
+  // into.
   const SETTLING = 12;
   const stopReapplying = () => {
     reapply?.disconnect();
@@ -1976,16 +1995,18 @@ export function createVersionController({
     let deliveries = 0;
     const observer = sizeObserver(() => {
       if (reapply !== observer) return;
-      const seen = ++deliveries;
-      if (seen > SETTLING) return stopReapplying();
+      if (++deliveries > SETTLING) return stopReapplying();
       again();
-      nextAnimation(() =>
-        nextAnimation(() => {
-          if (reapply === observer && deliveries === seen) stopReapplying();
-        }),
-      );
     });
     reapply = observer;
+    const settled = () =>
+      nextAnimation(() => {
+        if (reapply !== observer) return;
+        const { updatesSettled, preparationsSettled } = renderingState();
+        if (updatesSettled && preparationsSettled) stopReapplying();
+        else settled();
+      });
+    settled();
     reapply.observe(pageDocument());
     for (const { region } of holds.values())
       if (region) for (const child of region.body.children) reapply.observe(child);
@@ -2030,7 +2051,12 @@ export function createVersionController({
     }
     // The place stands for this subject from now: the reader's scrolls in the box under
     // another subject chose nothing in this one.
-    places.set(region.id, { reading, at: ++placeCount, choices: scrollChoices() });
+    places.set(region.id, {
+      reading,
+      at: ++placeCount,
+      choices: scrollChoices(),
+      inputs: inputCount(),
+    });
     if (own) restorePlace(reading, regionForBox(box));
   }
 
@@ -2144,8 +2170,8 @@ export function createVersionController({
       const at = focused();
       if (!at || !under(at, pageDocument())) return;
       const box = boxOf(at);
-      recordPlaces([box]);
-      nextRender(() => recordPlaces([box]));
+      recordPlaces([box], { standing: true });
+      nextRender(() => recordPlaces([box], { standing: true }));
     };
     onStanding(recordStanding);
     onReadingInput(recordStanding);

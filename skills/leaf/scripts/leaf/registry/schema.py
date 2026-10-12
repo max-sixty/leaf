@@ -3,7 +3,10 @@
 Each validator owns a self-contained resource graph and is cached by schema content.
 Leaf's date-time format admits only absolute, timezone-aware RFC3339 instants, and its
 uri format only absolute URLs the browser's URL parser accepts. A registry schema may
-name only a format `FORMAT_CHECKER` checks (`check_schema`).
+name only a format `FORMAT_CHECKER` checks (`check_schema`). `pattern` and
+`patternProperties` are ECMAScript regular expressions, as JSON Schema defines them
+and the browser reads them; jsonschema would search them with Python's `re`, whose
+`$` also matches before a final newline, so `"abc\n"` passed `^[a-z]+$`.
 """
 
 import functools
@@ -12,8 +15,9 @@ import re
 from datetime import datetime
 
 import ada_url
-from jsonschema import Draft202012Validator, FormatChecker
-from jsonschema.exceptions import SchemaError
+import regress
+from jsonschema import Draft202012Validator, FormatChecker, validators
+from jsonschema.exceptions import SchemaError, ValidationError
 from referencing import Registry
 from referencing.exceptions import Unresolvable
 from referencing.jsonschema import DRAFT202012
@@ -56,6 +60,34 @@ def aware_instant(value: str):
     return parsed if parsed.utcoffset() is not None else None
 
 
+@functools.cache
+def _ecma(pattern: str) -> regress.Regex:
+    return regress.Regex(pattern, "u")
+
+
+def _pattern(validator, pattern, instance, schema):
+    if validator.is_type(instance, "string") and not _ecma(pattern).find(instance):
+        yield ValidationError(f"{instance!r} does not match {pattern!r}")
+
+
+def _pattern_properties(validator, pattern_properties, instance, schema):
+    if not validator.is_type(instance, "object"):
+        return
+    for pattern, subschema in pattern_properties.items():
+        for key, value in instance.items():
+            if _ecma(pattern).find(key):
+                yield from validator.descend(
+                    value, subschema, path=key, schema_path=pattern
+                )
+
+
+# Draft 2020-12 with ECMAScript patterns; every reader is one (`json_validator`).
+LeafValidator = validators.extend(
+    Draft202012Validator,
+    {"pattern": _pattern, "patternProperties": _pattern_properties},
+)
+
+
 def schema_resource_registry(schema: dict):
     """One self-contained resource graph for a vendored JSON Schema."""
     resource = DRAFT202012.create_resource(schema)
@@ -68,11 +100,27 @@ def check_schema(schema) -> None:
 
     jsonschema skips a `format` it has no checker for, so a schema naming one would
     declare a rule no boundary enforces, and the value would reach a widget unchecked.
-    Raises `SchemaError` for either."""
+    A pattern must also be one ECMAScript reads, since that is how every reader runs
+    it. Raises `SchemaError` for any of these."""
     Draft202012Validator.check_schema(schema)
 
     def visit(contents) -> None:
         if isinstance(contents, dict):
+            patterns = [contents.get("pattern"), *contents.get("patternProperties", {})]
+            for pattern in patterns:
+                if not isinstance(pattern, str):
+                    continue
+                try:
+                    _ecma(pattern)
+                except regress.RegressError as error:
+                    raise SchemaError(
+                        f"pattern {pattern!r} is not an ECMAScript regular "
+                        f"expression: {error}",
+                        validator="pattern",
+                        validator_value=pattern,
+                        instance=pattern,
+                        schema=contents,
+                    ) from None
             named = contents.get("format")
             if isinstance(named, str) and named not in FORMAT_CHECKER.checkers:
                 checked = sorted(FORMAT_CHECKER.checkers)
@@ -90,7 +138,7 @@ def check_schema(schema) -> None:
     visit(schema)
 
 
-def json_validator(schema: dict) -> Draft202012Validator:
+def json_validator(schema: dict) -> LeafValidator:
     """One offline schema reader for every authored/event ingress, including formats.
 
     Readers are shared by schema content: a read re-validates every stored event
@@ -101,12 +149,12 @@ def json_validator(schema: dict) -> Draft202012Validator:
 
 
 @functools.lru_cache(maxsize=1024)
-def _validator(canonical: str) -> Draft202012Validator:
+def _validator(canonical: str) -> LeafValidator:
     # Built from its own parse of the key, so a caller that later mutates the dict
     # it passed cannot change the reader that key names.
     schema = json.loads(canonical)
     _, registry = schema_resource_registry(schema)
-    return Draft202012Validator(
+    return LeafValidator(
         schema,
         format_checker=FORMAT_CHECKER,
         registry=registry,

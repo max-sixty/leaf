@@ -90,32 +90,15 @@ SELECT = (
 }"""
 )
 
-# Whether words matching the pattern are drawn within the item that `target`
-# names: from each rendered occurrence of the target, the nearest ancestor that is
-# an item, by its role or by a rendered heading naming the target, below the
-# page's own regions. Without a target, anywhere on the page.
-SHOWS = """([pattern, target]) => {
-  const matches = new RegExp(pattern);
-  if (!target) return matches.test(document.body.innerText);
-  const items = "article, section, li, details, dialog, dd, td, tr, [role=article], "
-    + "[role=dialog], [role=listitem], [role=region], [role=row], [role=tabpanel]";
-  const headings = "h1, h2, h3, h4, h5, h6, [role=heading]";
-  const named = (element) => [...element.querySelectorAll(headings)].some(
-    (heading) => heading.checkVisibility() && heading.textContent.includes(target));
-  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-  for (let node; (node = walker.nextNode()); ) {
-    if (!node.data.includes(target) || !node.parentElement?.checkVisibility())
-      continue;
-    for (let at = node.parentElement; at && at !== document.body; at = at.parentElement) {
-      if (at.matches("main, [role=main]")) break;
-      if (at.matches(items) || named(at)) {
-        if (matches.test(at.innerText ?? "")) return true;
-        break;
-      }
-    }
-  }
-  return false;
-}"""
+SHOWS = """(pattern) => new RegExp(pattern).test(document.body.innerText)"""
+
+# Whether an opener already says its item is open or selected, as ARIA and a
+# disclosure's own state report it, so clicking it again would close it.
+OPEN = """(element) =>
+  element.getAttribute("aria-expanded") === "true"
+  || element.getAttribute("aria-selected") === "true"
+  || ![null, "false"].includes(element.getAttribute("aria-current"))
+  || (element.matches("summary") && element.parentElement?.open === true)"""
 
 # Records every write a page makes to the clipboard, and every copy of a selection.
 COPY_SPY = """(() => {
@@ -149,28 +132,28 @@ COPY_SPY = """(() => {
 })()"""
 
 
-def shows(page: Page, pattern: str, target: str = "") -> bool:
-    """Whether the page draws words matching `pattern` within the item it draws
-    `target` in, or anywhere when there is no target (`SHOWS`)."""
-    return page.evaluate(SHOWS, [pattern, target])
+def shows(page: Page, pattern: str) -> bool:
+    """Whether the page draws words matching `pattern`."""
+    return page.evaluate(SHOWS, pattern)
 
 
 def reveal(page: Page, target: str, pattern: str, settled=settle) -> str:
-    """Open the item `target` names, so that words matching `pattern` are drawn
-    within it, by clicking in turn the drawn elements that name it. Return `shown`
-    when they already were, `revealed`, or `hidden` when no click showed them."""
-    if shows(page, pattern, target):
-        return "shown"
+    """Open the item `target` names, as a reader opens a ticket from a queue: click
+    the first drawn control naming it, unless the control says its item is already
+    open, and the next ones until words matching `pattern` are drawn. The words
+    may also be drawn elsewhere, such as in a summary, so the item is opened
+    whether or not they are. Return `opened` once they are drawn, or `hidden`."""
     openers = page.locator(OPENERS).filter(has_text=target)
     for n in range(min(openers.count(), 6)):
         opener = openers.nth(n)
         if not opener.is_visible():
             continue
-        opener.click()
-        settled(page)
-        if shows(page, pattern, target):
-            return "revealed"
-    return "hidden"
+        if not opener.evaluate(OPEN):
+            opener.click()
+            settled(page)
+        if shows(page, pattern):
+            return "opened"
+    return "opened" if shows(page, pattern) else "hidden"
 
 
 def comment_on_passage(

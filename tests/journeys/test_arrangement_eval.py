@@ -311,9 +311,8 @@ def test_reader_calibration_shows_the_judge_its_page_at_every_width(tmp_path):
 
 
 def test_reveal_opens_the_named_item_though_its_words_show_elsewhere(tmp_path):
-    """A summary naming the comment's fact does not count as the commented item
-    open: the capture clicks the item that names the target until the fact shows
-    inside it."""
+    """A summary naming the comment's fact does not stand for the commented item:
+    the capture opens the item, and leaves one already open as it is."""
     from leaf_dev.browser import chrome, tab
     from leaf_dev.eval_user import reveal, shows
 
@@ -329,8 +328,16 @@ def test_reveal_opens_the_named_item_though_its_words_show_elsewhere(tmp_path):
         tab(browser) as view,
     ):
         arrangement_plain.load(view, url)
-        assert shows(view, "Sam Okafor") and not shows(view, "Sam Okafor", "ESC-4110")
+        assert shows(view, "Sam Okafor")
         assert reveal(view, "ESC-4110", "Sam Okafor", arrangement_plain.settle) == (
-            "revealed"
+            "opened"
         )
         assert view.locator("#t").is_visible()
+        # Opening it again leaves an open disclosure open.
+        view.set_content(
+            "<details open><summary>ESC-4110</summary><p>Sam Okafor</p></details>"
+        )
+        assert reveal(view, "ESC-4110", "Sam Okafor", arrangement_plain.settle) == (
+            "opened"
+        )
+        assert view.locator("details").get_attribute("open") is not None

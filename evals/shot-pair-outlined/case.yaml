@@ -5,10 +5,12 @@
 # page now needs for its outlines.
 description: shot-pair-outlined
 metadata:
-  purpose: 'Source files and media: a pair whose change is local asks for `outlines`, so the page marks
-    where it is.'
+  purpose:
+    "Source files and media: a pair whose change is local asks for `outlines`, so the
+    page marks where it is."
+  authoring: true
   tags:
-  - evidence
+    - evidence
 vars:
   prompt: |
     You are writing a Leaf page for the user about a restyle of the orders dashboard's
@@ -18,28 +20,24 @@ vars:
     larger title and a health chip beside it. Nothing below the header changed.
 
     A probe captured the dashboard at 1100x760 on main and on the branch, both
-    against the same fixture data. `leaf page media` registered the captures and
-    printed each one's page path beside its source file, which sits under the Leaf
-    plugin's root (two directories above the leaf skill's base directory):
+    against the same fixture data. The captures are:
 
-        /media/header-before.png  evals/shot-pair-outlined/captures/before.png  (main)
-        /media/header-after.png   evals/shot-pair-outlined/captures/after.png   (the branch)
+        evals/shot-pair-outlined/captures/before.png  (main)
+        evals/shot-pair-outlined/captures/after.png   (the branch)
 
-    Write the HTML for the page's section on the header, with its before/after pair.
-    The page directory is not reachable from here, so reply with the HTML fragment
-    rather than writing a file.
+    Write the Leaf page's section on the header, with its before/after pair.
 assert:
-- type: llm-rubric
-  metric: pair-outlined
-  value: |
-    Pass only if one `lf-shot` takes `/media/header-before.png` as `before` and
-    `/media/header-after.png` as `after` and carries the `outlines` attribute, so the
-    page marks where the header changed. Fail if the pair has no `outlines`, or
-    the captures appear only as separate images, never together in one `lf-shot`.
-- type: llm-rubric
-  metric: judgment
-  value: |
-    Between the captures only the header changed: a white bar with a small title
-    became a dark bar with a larger title and a green "Healthy" chip. Read the reply.
-    Pass if the HTML shows the pair as one lf-shot and its prose or alt describes that
-    change. Fail if it leaves the pair out, or describes a change below the header.
+  - type: javascript
+    metric: pair-outlined
+    value: file://capture-pair.cjs:outlinedPair
+  - type: agent-rubric
+    metric: captures-in-order
+    transform: "JSON.stringify({html: output, captures: context.metadata.capture_evidence})"
+    value: file://capture-order.txt
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Between the captures only the header changed: a white bar with a small title
+      became a dark bar with a larger title and a green "Healthy" chip. Read the reply.
+      Pass if the HTML shows the pair as one lf-shot and its prose or alt describes that
+      change. Fail if it leaves the pair out, or describes a change below the header.

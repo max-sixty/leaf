@@ -1711,7 +1711,7 @@ def execute_scenario(
     `metadata.checks` answers each fixed check; `metadata.texts` holds each text a
     `rubrics` judge reads: every phase's final message, and what the scorer read."""
     run = Run(case, payload, work, harness)
-    with scratch() as child_work:
+    with scratch(payload, state=run.state) as child_work:
         execute(run, child_work)
         traces = run.traces()
         phases = resumed([trace_scores(t) for t in traces])

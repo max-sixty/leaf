@@ -987,46 +987,27 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
     ]
     # Only which thread the board widget stands in matters here.
     frozen = projection_model.FrozenThreadReading(None, {}, {}, {"board": "root"}, None)
+    tasks = [
+        {
+            "id": "t1",
+            "owner": "agent",
+            "subject": {"kind": "thread", "id": "root"},
+            "title": "Rebuild",
+            "thread": "root",
+            "running": None,
+        }
+    ]
+    thread = {"id": "root", "resolved": None}
     for workflows, expected in cases:
-        threads = [{"id": "root", "resolved": None}]
-        browser_served_model._apply_thread_attention(
-            threads,
-            {"unanswered": []},
-            work_served_model.served_workflows(workflows, frozen),
-            [
-                {
-                    "id": "t1",
-                    "owner": "agent",
-                    "subject": {"kind": "thread", "id": "root"},
-                    "title": "Rebuild",
-                    "thread": "root",
-                    "running": None,
-                }
-            ],
-        )
-        assert threads[0]["attention"] == {
+        assert browser_served_model._thread_attention(
+            thread, False, work_served_model.served_workflows(workflows, frozen), tasks
+        ) == {
             "kind": "waiting",
             "reason": "workflow",
             "workflow": expected,
         }
     # With no workflow holding it, an open task keeps the thread on the agent.
-    threads = [{"id": "root", "resolved": None}]
-    browser_served_model._apply_thread_attention(
-        threads,
-        {"unanswered": []},
-        [],
-        [
-            {
-                "id": "t1",
-                "owner": "agent",
-                "subject": {"kind": "thread", "id": "root"},
-                "title": "Rebuild",
-                "thread": "root",
-                "running": None,
-            }
-        ],
-    )
-    assert threads[0]["attention"] == {
+    assert browser_served_model._thread_attention(thread, False, [], tasks) == {
         "kind": "waiting",
         "reason": "task",
         "workflow": None,

@@ -84,6 +84,7 @@ export type Attention = {
   reason: string;
   workflow: string | null;
 } | null;
+export type ThreadAfter = { attention: Attention; owed: readonly string[] };
 export interface Thread {
   id: string;
   root: Message;
@@ -109,9 +110,14 @@ export interface Thread {
   })[];
   unread: readonly ContentVersion[];
   attention: Attention;
-  /** Whether a new turn of each kind from the user would leave the thread waiting on
-   * the agent, as the server reads its open Questions (`_apply_thread_attention`). */
-  hands_over: { reply: boolean; edit: boolean };
+  /** What each gesture of the user's would leave the thread with, as the server reads
+   * the log with it supposed (`_apply_thread_attention`): its attention, whose
+   * `workflow` is null where it waits on that gesture itself, and the Questions in it
+   * the user owes. Null where the thread offers no such gesture. */
+  after: Record<"reply" | "edit" | "resolve" | "unresolve", ThreadAfter | null>;
+  /** The Questions in the thread the user owes once this tab's pending gestures on it
+   * land, from `after`; absent where none are pending (`foldThreads`). */
+  owed?: readonly string[];
   settling?: "resolve" | "unresolve";
 }
 export type Settlement = Extract<Command, { kind: "resolve" | "unresolve" }> & {

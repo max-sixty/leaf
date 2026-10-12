@@ -26,6 +26,18 @@ class WorkReading:
         self.log = log or TaskReading(events)
         self._thread = thread
 
+    def supposing(self, gestures: list[dict]) -> "WorkReading":
+        """This reading with `gestures` appended to its log, for asking what they would
+        leave standing. They carry no markup and name no task, so the frozen thread
+        document and the task log are this reading's own."""
+        return WorkReading(
+            [*self.events, *gestures],
+            self.registry,
+            self.page,
+            thread=self.thread,
+            log=self.log,
+        )
+
     @cached_property
     def threads(self) -> dict:
         return build_threads(

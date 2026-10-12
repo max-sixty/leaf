@@ -152,29 +152,37 @@ const pendingSeat = (message) =>
 // reading of the same outbox and log the server projects rather than a second store
 // beside it.
 //
-// The derived facts a pending thread carries are the ones the user just made true: a
-// thread the user opened with words is a thread rather than a mark, and asks nothing
-// yet. Whose turn a thread is after a reply or a rewrite depends on the Questions and
-// failed moves the whole log leaves standing, so the fold reads the server's
-// `hands_over` for that kind of turn rather than deciding it: a turn that hands the
-// thread over waits on its own local workflow, which shares its pending id; one that
-// does not leaves the thread on the user, for the reason the server already gives or,
-// where the turn reopens a resolved thread, for the Question it uncovers. Every other
-// thread keeps the attention the server derived.
+// A thread the user opened with words is a thread rather than a mark, and asks
+// nothing yet. Whose turn any other thread is, and which of its Questions the user
+// owes, once a pending gesture lands depends on what the whole log leaves standing, so
+// the fold takes them from the server's reading of that gesture (`after`, served
+// beside the thread) rather than deciding them: the attention, drawn on a send's own
+// local workflow, which shares its pending id, where the thread waits on the send,
+// and the owed Questions as `owed`, which the published Questions read. Of several
+// pending gestures on one thread, the last decides, a turn reopening what a
+// settlement before it closed, and a reply's reading covers a rewrite beside it,
+// since a reply answers what a rewrite would and more. A gesture the thread offers
+// no reading of, a settlement undoing another still pending, leaves it as served.
 /** @param {{id: string}} turn @returns {import("../../../../../build/browser/domain.ts").Attention} */
 const sending = (turn) => ({
   kind: "waiting",
   reason: "workflow",
   workflow: turn.id,
 });
-/** @param {Thread} thread @param {{id: string, kind: "reply" | "edit"}} turn
- * @returns {import("../../../../../build/browser/domain.ts").Attention} */
-const turnAttention = (thread, turn) =>
-  thread.hands_over[turn.kind]
-    ? sending(turn)
-    : thread.attention?.kind === "needs_user"
-      ? thread.attention
-      : { kind: "needs_user", reason: "question", workflow: null };
+/** @returns {Thread["after"]} */
+const openedAfter = () => {
+  /** @type {import("../../../../../build/browser/domain.ts").ThreadAfter} */
+  const waiting = {
+    attention: { kind: "waiting", reason: "workflow", workflow: null },
+    owed: [],
+  };
+  return {
+    reply: waiting,
+    edit: waiting,
+    resolve: { attention: null, owed: [] },
+    unresolve: null,
+  };
+};
 
 // `gestures` are the ledger's thread gestures, oldest first: each comment, reply or
 // rewrite as the thread draws it, each settlement with the `localParent` its pending
@@ -201,6 +209,16 @@ export function foldThreads(threads, gestures) {
   const byName = threadNames(copies);
   /** @type {Thread[]} */
   const opened = [];
+  // Each thread's pending gestures, as far as its reading goes: the last turn, whether
+  // a reply was among them, and which came last, a turn or a settlement.
+  /** @type {Map<Thread, {turn: {id: string} | null, replied: boolean, last: string}>} */
+  const effects = new Map();
+  /** @param {Thread} thread @param {{turn?: {id: string}, replied?: boolean, last: string}} change */
+  const note = (thread, change) =>
+    effects.set(thread, {
+      ...(effects.get(thread) ?? { turn: null, replied: false }),
+      ...change,
+    });
   for (const gesture of gestures) {
     if (gesture.kind === "comment") {
       const reaction = isReaction(gesture);
@@ -221,7 +239,7 @@ export function foldThreads(threads, gestures) {
         summaries: [],
         unread: [],
         attention: reaction ? null : sending(gesture),
-        hands_over: { reply: true, edit: true },
+        after: openedAfter(),
       };
       opened.push(thread);
       byName.set(gesture.id, thread);
@@ -234,11 +252,7 @@ export function foldThreads(threads, gestures) {
       thread.msgs.splice(thread.msgs.length - streaming, 0, gesture);
       if (isReaction(gesture)) continue;
       thread.resolved = null;
-      thread.attention = turnAttention(thread, gesture);
-      // The reply answers every prose Question before it, so a rewrite after it answers
-      // what the reply would: only the widget Questions are left.
-      const { reply } = thread.hands_over;
-      thread.hands_over = { reply, edit: reply };
+      note(thread, { turn: gesture, replied: true, last: "turn" });
     } else if (gesture.kind === "edit") {
       // An edit shows as its message's new words, and is a turn as a reply is, under
       // the edit's own pending id (`events.exchange`).
@@ -258,7 +272,7 @@ export function foldThreads(threads, gestures) {
       });
       if (thread.root.id === gesture.message) thread.root = thread.msgs[at] ?? message;
       thread.resolved = null;
-      thread.attention = turnAttention(thread, gesture);
+      note(thread, { turn: gesture, last: "turn" });
     } else if (gesture.kind === "resolve" || gesture.kind === "unresolve") {
       const thread =
         byName.get(gesture.parent) ??
@@ -273,7 +287,22 @@ export function foldThreads(threads, gestures) {
       // lands without changing anything else, and a view reading the ledger would keep
       // the state it drew before that.
       thread.settling = gesture.kind;
+      note(thread, { last: gesture.kind });
     }
+  }
+  for (const [thread, { turn, replied, last }] of effects) {
+    const after =
+      last === "resolve"
+        ? thread.after.resolve
+        : turn
+          ? thread.after[replied ? "reply" : "edit"]
+          : thread.after.unresolve;
+    if (!after) continue;
+    thread.attention =
+      turn && last !== "resolve" && after.attention?.kind === "waiting" && !after.attention.workflow
+        ? sending(turn)
+        : after.attention;
+    thread.owed = after.owed;
   }
   for (const thread of opened)
     thread.bare_reaction = isReaction(thread.root) && !spoken(thread).length;

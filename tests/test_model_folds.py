@@ -571,13 +571,15 @@ def test_frozen_ask_attention_comes_from_its_widget_without_a_prose_task():
     )
 
 
-def test_hands_over_says_what_the_next_user_turn_leaves_the_thread():
-    """While a reply or a rewrite is sending, the browser draws the thread as the log
-    will read it once that turn lands, and only the log knows what it leaves
-    standing. A reply answers prose and leaves an Ask; a rewrite answers nothing;
-    either reopens a resolved thread, and neither recovers a pick whose answer
-    failed. Each case's served `hands_over` is checked against the attention the
-    server reads after each kind of turn."""
+def test_after_is_what_each_gesture_leaves_the_thread_as_the_log_reads_it():
+    """While a gesture the user sent is unanswered, the browser draws its thread, and
+    the Questions in it, as the log will read them once it lands, and only the log
+    knows what a gesture leaves standing: a reply answers prose and leaves an Ask, a
+    rewrite answers nothing, a reopening brings back what the resolution suppressed,
+    and nothing the user says recovers a pick whose answer failed. Each served
+    `after[kind]` is checked against the reading of the log with that gesture
+    appended: its attention, the waiting one's workflow aside, and the Questions the
+    user owes in the thread."""
     asked = {"kind": "comment", "text": "Chart the year."}
     prose = {
         "kind": "reply",
@@ -593,62 +595,65 @@ def test_hands_over_says_what_the_next_user_turn_leaves_the_thread():
         "text": "Pick one.",
         "markup": '<lf-options id="years" choose><lf-option id="y24">2024</lf-option><lf-option id="y25">2025</lf-option></lf-options>',
     }
-    cases = {
-        "plain": (
-            (
-                asked,
-                {"kind": "reply", "author": "agent", "parent": "e1", "text": "Done."},
-            ),
-            {"reply": True, "edit": True},
-        ),
-        "prose question": ((asked, prose), {"reply": True, "edit": False}),
-        "Ask in the thread": ((asked, ask), {"reply": False, "edit": False}),
-        "resolved over a prose question": (
-            (asked, prose, {"kind": "resolve", "parent": "e1"}),
-            {"reply": True, "edit": False},
-        ),
-        "resolved over an Ask": (
-            (asked, ask, {"kind": "resolve", "parent": "e1"}),
-            {"reply": False, "edit": False},
-        ),
-        # The harness gave up answering the user's pick, which is theirs to send again
-        # whatever they say beside it.
-        "failed answer to a pick": (
-            (
-                asked,
-                ask,
-                {
-                    "kind": "action",
-                    "widget": "years",
-                    "action": "choose",
-                    "detail": {"value": ["y25"]},
-                },
-                {
-                    "kind": "reply",
-                    "author": "agent",
-                    "parent": "e2",
-                    "responds": "e3",
-                    "failure": "turn_failed",
-                    "text": "No answer is coming.",
-                },
-            ),
-            {"reply": False, "edit": False},
-        ),
+    pick = {
+        "kind": "action",
+        "widget": "years",
+        "action": "choose",
+        "detail": {"value": ["y25"]},
     }
-    turns = {
+    # The harness gave up answering the user's pick, which is theirs to send again
+    # whatever they say beside it.
+    failed = {
+        "kind": "reply",
+        "author": "agent",
+        "parent": "e2",
+        "responds": "e3",
+        "failure": "turn_failed",
+        "text": "No answer is coming.",
+    }
+    resolve = {"kind": "resolve", "parent": "e1"}
+    done = {"kind": "reply", "author": "agent", "parent": "e1", "text": "Done."}
+    cases = {
+        "plain": (asked, done),
+        "prose question": (asked, prose),
+        "Ask in the thread": (asked, ask),
+        "prose beside an Ask": (asked, ask, {**prose, "parent": "e2"}),
+        "resolved over a prose question": (asked, prose, resolve),
+        "resolved over an Ask": (asked, ask, resolve),
+        "failed answer to a pick": (asked, ask, pick, failed),
+        "resolved after a failed pick": (asked, ask, pick, failed, resolve),
+    }
+    gestures = {
         "reply": {"kind": "reply", "parent": "e2", "text": "2025."},
         "edit": {"kind": "edit", "message": "e1", "text": "Chart 2025."},
+        "resolve": {"kind": "resolve", "parent": "e1"},
+        "unresolve": {"kind": "unresolve", "parent": "e1"},
     }
-    for name, (events, expected) in cases.items():
+
+    def owed(state):
+        return [
+            question["id"]
+            for question in state["thread"]["questions"]["user"]
+            if question["thread"] == "e1"
+        ]
+
+    for name, events in cases.items():
         thread = model.threads(model.reading(HUB, events))["e1"]
-        assert thread["hands_over"] == expected, name
-        for kind, turn in turns.items():
-            after = model.threads(model.reading(HUB, (*events, turn)))["e1"]
-            assert after["resolved"] is None, (name, kind)
-            assert (after["attention"]["kind"] == "waiting") == expected[kind], (
+        for kind, gesture in gestures.items():
+            after = thread["after"][kind]
+            if (kind == "resolve") == bool(thread["resolved"]) and kind in {
+                "resolve",
+                "unresolve",
+            }:
+                assert after is None, (name, kind)
+                continue
+            state = model.reading(HUB, (*events, gesture))
+            attention = model.threads(state)["e1"]["attention"]
+            if attention is not None and attention["kind"] == "waiting":
+                attention = {**attention, "workflow": None}
+            assert after == {"attention": attention, "owed": owed(state)}, (
                 name,
                 kind,
-                after["attention"],
             )
 
 

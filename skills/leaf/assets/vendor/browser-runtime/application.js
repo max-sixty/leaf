@@ -474,23 +474,28 @@ function normalizedQuestions(
   return { all, user: selection("user"), unanswered: selection("unanswered") };
 }
 
-/* Prose sends hand attention to the agent immediately; settlement remains the
- * server's. Earlier suppressed prompts stay in the complete inventory. */
-function questionAttention(questions               , threads                                                 )                {
-  const byThread = new Map(threads.map((thread) => [thread.id, thread]));
-  const user = new Set(questions.user.map((question) => question.id));
+/* While a gesture of this tab's is pending in a thread, the user owes the Questions in
+ * it that the server read that gesture leaving them (`Thread.owed`, from `after`), and
+ * no others; every other Question stands as admitted. */
+function questionAttention(questions               , threads                               )                {
+  const owing = new Map(threads.flatMap((thread) =>
+    thread.owed ? [[thread.id, new Set(thread.owed)]         ] : []));
+  const pending = (question                ) =>
+    question.thread === null ? undefined : owing.get(question.thread);
   const all = questions.all.map((question)                 => {
-    if (question.source.kind !== "reply" || !user.has(question.id)) return question;
-    const thread = question.thread === null ? undefined : byThread.get(question.thread);
-    return thread?.resolved || thread?.attention?.kind === "waiting"
-      ? { ...question, next_actor: thread?.resolved ? null : "agent" }
-      : question;
+    const owed = pending(question);
+    if (!owed) return question;
+    const next_actor = owed.has(question.id)
+      ? "user"
+      : question.next_actor === "user" ? null : question.next_actor;
+    return next_actor === question.next_actor ? question : { ...question, next_actor };
   });
   const byId = new Map(all.map((question) => [question.id, question]));
+  const admitted = new Set(questions.user.map((question) => question.id));
   return {
     all,
-    user: questions.user.map((question) => byId.get(question.id) )
-      .filter((question) => question.next_actor === "user"),
+    user: all.filter((question) =>
+      pending(question) ? question.next_actor === "user" : admitted.has(question.id)),
     unanswered: questions.unanswered.map((question) => byId.get(question.id) ),
   };
 }
@@ -746,9 +751,9 @@ export function createSemanticApplication({
       : NO_QUESTIONS;
     const tasks = ready ? localTasks(state, local) : { open: [], ended: [] };
     // Thread attention is the server's reading, and two local facts adjust it. A
-    // pending turn takes the attention the server says that kind of turn leaves,
-    // which `foldThreads` reads from `hands_over`. A refused send hands a thread the
-    // server left with the agent back to the user, whose Retry it is.
+    // pending gesture takes the attention the server read it leaving (`after`, which
+    // `foldThreads` reads). A refused send hands a thread the server left with the
+    // agent back to the user, whose Retry it is.
     // The thread a gesture stands in, of every kind the ledger holds. A message stands
     // in the thread that draws it, under its pending id or, once the log has it, its
     // attempt. Until one does, a comment opens the thread its own id names, and a reply
@@ -874,7 +879,7 @@ export function createSemanticApplication({
       markingRead,
       ready,
     );
-    const questions = questionAttention(admittedQuestions, threads);
+    const questions = questionAttention(admittedQuestions, obligated);
     const selectedQueues = selectQueues({ threads, workflows, tasks: tasks.open, questions });
     const workflowById = new Map(workflows.map((workflow) => [workflow.id, workflow]));
     const contextual =                                         (

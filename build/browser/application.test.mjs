@@ -1211,10 +1211,19 @@ test("a pending prose reply does not hide a frozen structural Ask", () => {
     user: [frozen],
     unanswered: [frozen],
   };
+  const ask = {
+    attention: { kind: "needs_user", reason: "question", workflow: null },
+    owed: [frozen.id],
+  };
   accepted.browser.thread.threads = [
     servedThread([root], {
-      attention: { kind: "needs_user", reason: "question", workflow: null },
-      hands_over: { reply: false, edit: false },
+      attention: ask.attention,
+      after: {
+        reply: ask,
+        edit: ask,
+        resolve: { attention: null, owed: [] },
+        unresolve: null,
+      },
     }),
   ];
   app.adopt(accepted);
@@ -1237,6 +1246,56 @@ test("a pending prose reply does not hide a frozen structural Ask", () => {
     reason: "question",
     workflow: null,
   });
+});
+
+test("a reply reopening a thread over an Ask puts the Ask back on the user at once", () => {
+  // A resolution suppresses the Ask the thread carries, so the server lists no
+  // Question on the user; the reply reopens the thread, and the server read it giving
+  // the Ask back. The thread and the Questions list both say so in the reply's own
+  // turn rather than one of them when the log answers.
+  const root = {
+    kind: "comment",
+    id: "question",
+    author: "agent",
+    text: "Choose in the options below.",
+    ts: "now",
+  };
+  const app = setup();
+  const accepted = state(2);
+  const frozen = {
+    ...wireQuestion("frozen-ask", "lf-ask", "frozen-choice", "lf-choice", root.id),
+    next_actor: null,
+  };
+  accepted.browser.thread.questions = { all: [frozen], user: [], unanswered: [frozen] };
+  const ask = {
+    attention: { kind: "needs_user", reason: "question", workflow: null },
+    owed: [frozen.id],
+  };
+  accepted.browser.thread.threads = [
+    servedThread([root], {
+      resolved: { id: "closed", kind: "resolve", author: "user" },
+      after: { reply: ask, edit: ask, resolve: null, unresolve: ask },
+    }),
+  ];
+  app.adopt(accepted);
+  assert.deepEqual(app.read().effective.questions.user, []);
+
+  app.enqueue(
+    {
+      kind: "reply",
+      parent: root.id,
+      attempt: "reopen",
+      text: "Back to this.",
+      revision: 1,
+    },
+    "now",
+  );
+  const { thread, questions } = app.read().effective;
+  assert.deepEqual(thread.all[0].attention, ask.attention);
+  assert.deepEqual(
+    questions.user.map(({ id }) => id),
+    [frozen.id],
+  );
 });
 
 test("a thread whose opening message the log lost is known by its id, not its root", () => {
@@ -1932,7 +1991,9 @@ test("pending prose answer changes next actor without suppressing inventory or s
   const pending = app.read().effective.questions;
   assert.equal(pending.all.length, 2);
   assert.equal(pending.all[1].status, "open");
-  assert.equal(pending.all[1].next_actor, "agent");
+  // The reply answers it, as the server read the reply doing (`after`); the log will
+  // say so once it lands.
+  assert.equal(pending.all[1].next_actor, null);
   assert.deepEqual(pending.user, []);
   assert.equal(app.read().effective.queues.onYou.length, 0);
   app.refuse("prose-answer");

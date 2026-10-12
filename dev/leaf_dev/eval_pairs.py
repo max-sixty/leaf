@@ -63,6 +63,8 @@ def samples(runs: list[Path]) -> dict[str, dict[str, list[dict]]]:
             found[subject][result["provider"]["label"]].append(
                 {
                     "sample": work.name,
+                    "work": work,
+                    "diagnostics": metadata["diagnostics"],
                     "shots": run / "screenshots" / work.name,
                     "started": (work / "prompt-1.txt").stat().st_mtime,
                 }

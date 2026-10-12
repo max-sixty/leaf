@@ -79,7 +79,8 @@ reaches a module by importing it from this package, never through `sys.path`,
   through Promptfoo on the working tree, and with `--base` the merge base too.
   `evals/README.md` owns the format and how to read the results.
 - `leaf-dev eval-pairs RUN...` judges an authored task's samples across a run's two
-  columns side by side, in both orders.
+  columns side by side, in both orders, and `leaf-dev eval-report PAGE RUN...` writes
+  those samples, their spend and the verdicts to a Leaf page.
 - `leaf-dev eval-ui-review` runs the retained internal viewer-review diagnostics;
   `evals/ui-review-detection/README.md` owns their scope, controls and automatic grading.
 

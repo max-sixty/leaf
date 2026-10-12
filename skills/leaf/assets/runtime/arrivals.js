@@ -22,11 +22,16 @@
    `arriveBatch(elements)` may replace `arrive` where an owner must read all matching
    elements before writing any of them. Each initial stage and mutation delivery is
    one batch; an explicit offer is a batch of one. `watchArrivals` returns `offer(el)`,
-   which decides one element at once rather than at the next mutation delivery.
+   which decides one element at once rather than at the next mutation delivery. It
+   first reads the mutations already made as a batch, so a decision made now never
+   runs ahead of a departure made before it.
 
    An element's connection lifetime is one such watch over every element:
    `watchOwner(owner, {connect, disconnect})` connects while the owner stands and
-   disconnects once a batch shows it gone, so a move within one batch keeps it. The
+   disconnects once a batch shows it gone, so a move within one batch keeps it. A new
+   owner connects through `offer`, so whatever left before it has released first: a
+   revision evicts a replaced widget before its replacement connects, and a
+   registration only one element may hold passes from one to the other. The
    runtime's own subscriptions (data, projections, widget controllers) and clock paints
    (`clocked` and `readingPaint` in presence.js) hold it directly.
    Widgets hold it through `whileConnected`, for resources, and `frameFor`, for
@@ -198,7 +203,7 @@ export function watchArrivals(selector, attributes, { arrive, arriveBatch, leave
     (arrived.has(node) || node.matches(selector))
       ? [node]
       : [];
-  const observer = new MutationObserver((records) => {
+  const read = (records) => {
     const offered = new Set();
     for (const record of records) {
       if (record.type === "attributes") {
@@ -217,11 +222,15 @@ export function watchArrivals(selector, attributes, { arrive, arriveBatch, leave
         for (const el of matching(node, selector)) if (arrived.has(el)) offered.add(el);
     }
     offerMany(offered);
-  });
+  };
+  const observer = new MutationObserver(read);
   const watch = { selector, attributes, observer, offerMany };
   watches.add(watch);
   for (const root of [document.body, ...liveStages()]) enroll(watch, root);
-  return offer;
+  return (el) => {
+    read(observer.takeRecords());
+    offer(el);
+  };
 }
 
 function enroll({ selector, attributes, observer, offerMany }, root) {

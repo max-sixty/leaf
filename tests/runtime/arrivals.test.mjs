@@ -117,6 +117,33 @@ test("synchronous setup is released when its owner leaves before its first arriv
   }
 });
 
+// A revision evicts a replaced widget before its replacement connects, in one batch.
+// A registration only one element may hold passes from the first to the second.
+test("an owner replaced within one batch releases before its replacement starts", async () => {
+  const held = [];
+  const hold = (owner) =>
+    whileConnected(owner, () => {
+      if (held.length) throw new Error("already held");
+      held.push(owner);
+      return () => held.splice(held.indexOf(owner), 1);
+    });
+  const outgoing = document.createElement("section");
+  const arriving = document.createElement("section");
+  document.body.append(outgoing);
+  const stops = [hold(outgoing)];
+  try {
+    await mutate(() => {
+      outgoing.remove();
+      document.body.append(arriving);
+      stops.push(hold(arriving));
+    });
+    assert.deepEqual(held, [arriving]);
+  } finally {
+    for (const stop of stops) stop();
+    arriving.remove();
+  }
+});
+
 test("failed setup aborts its listeners and permanently retires the subscription", async () => {
   const owner = document.createElement("section");
   document.body.append(owner);

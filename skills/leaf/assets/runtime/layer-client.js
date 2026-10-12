@@ -97,6 +97,11 @@ function reloadNow(message) {
 // as the disagreement lasts.
 let asking = false;
 let saidWaiting = false;
+function sayWaiting() {
+  if (saidWaiting) return;
+  saidWaiting = true;
+  notice("Waiting for the server to finish updating.");
+}
 function reloadDelivery(message) {
   if (layerReloading || asking) return;
   asking = true;
@@ -108,9 +113,7 @@ function reloadDelivery(message) {
         // The answers stay refused, which is the offline reading this page already knows
         // how to hold: authored content stays readable and the feed keeps asking, so the
         // page rejoins the log by itself once the server is back on this delivery.
-        if (saidWaiting) return;
-        saidWaiting = true;
-        notice("Waiting for the server to finish updating.");
+        sayWaiting();
         return;
       }
       reloadNow(message);
@@ -140,8 +143,20 @@ export class LayerRefused extends Error {}
 // proxy wrote fails as its status rather than as a parse. A failure throws the server's
 // `error`, or `<what>: HTTP <status>`, carrying the status, the raw body and, for a
 // file the server holds newer than the draft, its `current`.
+// A `503` carrying `Retry-After` is the website's edge holding requests while a
+// release's containers roll out (worker/src/index.ts, `rollingOut`): not yet, rather
+// than no. The request waits as asked and goes again, as an event send does
+// (delivery.js), so a sample or upload made during a deploy lands once it ends.
 export async function requestJson(url, init, what) {
-  const response = await fetch(url, { ...init, headers: layerHeaders(init.headers) });
+  let response;
+  for (;;) {
+    response = await fetch(url, { ...init, headers: layerHeaders(init.headers) });
+    const retryAfter = response.headers.get("Retry-After");
+    if (response.status !== 503 || retryAfter === null) break;
+    admitResponse(response);
+    sayWaiting();
+    await new Promise((resolve) => setTimeout(resolve, Number(retryAfter) * 1000));
+  }
   if (!admitResponse(response))
     throw new LayerRefused(`Leaf's layer changed while requesting ${what}`);
   const text = await response.text();

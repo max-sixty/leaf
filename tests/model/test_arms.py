@@ -17,6 +17,38 @@ EVENT_ENVELOPE = {
 }
 
 
+def test_codex_children_give_native_tools_private_temporary_directories(
+    tmp_path, monkeypatch
+):
+    """Replace only App Server startup; tool environment and login homes are real."""
+    from leaf_dev import eval_codex
+
+    login = tmp_path / "login"
+    login.mkdir()
+    (login / "auth.json").write_text("{}")
+    monkeypatch.setenv("CODEX_HOME", str(login))
+    monkeypatch.setenv("TMPDIR", str(tmp_path / "shared-host-temp"))
+    observed = []
+    monkeypatch.setattr(
+        eval_codex,
+        "private_app_server",
+        lambda executable, *, env: observed.append(env),
+    )
+    for name in ("first", "second"):
+        cwd = tmp_path / name
+        cwd.mkdir()
+        eval_codex.CodexChild(
+            cwd,
+            "Write a page",
+            stderr=cwd / "err",
+            limit=1,
+            timed_out=cwd / "timeout",
+        )
+        assert (cwd / "tmp").is_dir()
+        assert observed[-1]["TMPDIR"] == str(cwd / "tmp")
+    assert observed[0]["TMPDIR"] != observed[1]["TMPDIR"]
+
+
 def test_codex_command_and_turn_success_are_observed_harness_results():
     # Command text is retained independently of its exit status; completion is
     # the native turn outcome, rather than something inferred from stdout.

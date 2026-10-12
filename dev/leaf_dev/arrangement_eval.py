@@ -24,7 +24,6 @@ resumed revision preserves that choice. Readable records have no invented decisi
 import json
 import re
 import shutil
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -717,8 +716,8 @@ def execute_scenario(
         "condition": condition,
         "phases": {},
     }
-    with tempfile.TemporaryDirectory(prefix="leaf-author-") as temporary:
-        author(run, Path(temporary) / "cwd")
+    with scratch(payload) as child_work:
+        author(run, child_work)
         # The phases and the continuation are one resumed session.
         turns = [
             *map(str, phases(case)),

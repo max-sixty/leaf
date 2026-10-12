@@ -392,13 +392,56 @@ def claude_environment(home: Path, **extra: str) -> dict[str, str]:
     return env
 
 
+def retire_sessions(payload: Path, state: Path) -> None:
+    """End this sample's generations and join detached delivery retirement.
+
+    The arm owns its records and leases, so its interpreter applies its canonical
+    lifecycle transition. A private App Server ending does not end persisted-chat
+    ownership. Take each adapter's lease, then its startup lock: the former joins
+    the watch, and the latter joins the final writes its retirement makes after
+    releasing that lease. No native session may still use this state home.
+    """
+    subprocess.run(
+        [
+            str(payload / ".venv/bin/python"),
+            "-c",
+            """
+import json
+from leaf.state import SESSION_SUFFIX, end_session, flocked, state_home_path
+from leaf.leases import adapter_lease_path
+from leaf.codex_adapter import adapter_start_lock_path
+
+sessions = state_home_path() / "sessions"
+for path in sessions.glob(f"*.{SESSION_SUFFIX}"):
+    session = json.loads(path.read_text())["id"]
+    end_session(session)
+    with flocked(adapter_lease_path(session)), flocked(adapter_start_lock_path(session)):
+        pass
+""",
+        ],
+        env=environment(XDG_STATE_HOME=str(state)),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+
 @contextmanager
-def scratch():
-    """Own a scenario's cwd and sibling credential home until scoring ends."""
+def scratch(payload: Path | None = None, *, state: Path | None = None):
+    """Own a scenario's cwd and sibling credential home until scoring ends.
+
+    An owning sample supplies its arm and, when outside the cwd, its state home.
+    It retires native session resources before removing their files. A nested
+    reader sharing its parent's state omits the arm and owns only its workspace.
+    """
     with tempfile.TemporaryDirectory(prefix="leaf-eval-") as directory:
         work = Path(directory) / "cwd"
         work.mkdir()
-        yield work
+        try:
+            yield work
+        finally:
+            if payload is not None:
+                retire_sessions(payload, state if state is not None else work / "state")
 
 
 def claude_child(

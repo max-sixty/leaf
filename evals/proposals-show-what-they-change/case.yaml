@@ -7,6 +7,8 @@
 # whose options name actions ("Explore and build it", "Leave it").
 # The captures are cited only as paths, as the source's subagent findings cited them:
 # listing them as page media, or naming `leaf page media`, made base embed them 3/3.
+# Tool-capable authoring now registers real files and grades the saved page;
+# drawings no longer substitute for an unavailable capture.
 # At 35c660aee base passed 0/6 (draws-the-change 1/6, shows-today 0/3); the
 # shape-shown-inside-the-ask rule in authoring-questions.md passed 3/3, drawing the
 # change 6/6. The wording guardrail held 12/12.
@@ -14,6 +16,7 @@ description: proposals-show-what-they-change
 metadata:
   purpose: 'Asks: a proposal to change something visible shows it as it is today in a capture and
     draws the change, while a wording proposal stays text.'
+  authoring: true
   tags:
   - asks
   - drawing
@@ -51,8 +54,8 @@ vars:
     pairwise judge as the quality score.
 
     Leaf. Three subagents checked every judge claim about Leaf's pages against the
-    screenshots and source, citing captures under the run directory
-    `.tmp/eval/20261012-002020-gxftdld6/screenshots/`. Real defects, each with its cause
+    screenshots and source, citing captures under
+    `evals/proposals-show-what-they-change/captures/`. Real defects, each with its cause
     and proposed fix:
     1. Configuration: each alert's threshold and action controls sit in the playground's
        right rail, apart from that alert's evidence in the stage. HTML put threshold
@@ -88,23 +91,27 @@ vars:
     Judge claims that were wrong: "Sam Okafor not visible" (the screenshots show only
     the first ticket); "23 services shown only as a graphic" (the table says 23).
 
-    The page directory is not reachable from here, so reply with the complete `<main>`
-    element's HTML rather than writing a file.
+    Write the plan as a Leaf page.
 assert:
 - type: regex
   metric: has-asks
   value: <lf-ask\b
   transform: output.toLowerCase()
-- type: llm-rubric
+- type: agent-rubric
   metric: shows-today
+  transform: 'JSON.stringify({html: output, captures: context.metadata.capture_evidence})'
   value: |
+    The output contains authored HTML and a map of original inputs and page media.
+    `captures.exact_inputs` lists verified original matches for each page media URL.
+    Treat those as the supplied captures without rechecking their identical pixels.
+    For other page media, open the cited originals and compare the images the HTML
+    uses: cropped or marked captures must still show the cited defect.
     Find the asks deciding the configuration controls (defect 1), the queue's progress
     (defect 2) and the options track (defect 4). Pass only if each of the three shows
     the defect as it looks today in a picture, inside that `lf-ask` or in the section
     text directly before it that the ask rests on: the capture the notes cite for it
-    as an `<img>` or `lf-shot` (cropped or marked counts), or, where the answer says
-    the capture can't be embedded from here, a drawing of today's state (an inline
-    `<svg>` or `lf-diagram`). Fail if any of the three describes today's state only
+    as an `<img>` or `lf-shot` (cropped or marked counts). A drawing alone does not
+    show the captured state. Fail if any of the three describes today's state only
     in words, a table row, a cited file path, or a link to the report page.
 - type: llm-rubric
   metric: draws-the-change

@@ -40,8 +40,9 @@ pnpm run eval:view
 ## Reading the results
 
 Promptfoo prints a table with a row per test and a column per provider: a harness on
-one arm (`claude-code/candidate`, `codex/base`), suffixed `/workflow` for complete
-tasks, and `claude-code/html/workflow` for the HTML control. A Codex workflow column
+one arm (`claude-code/candidate`, `codex/base`), suffixed `/authoring` for short
+authoring cases or `/workflow` for complete tasks, and `claude-code/html/workflow`
+for the HTML control. A Codex authoring or workflow column
 reads `codex:app-server/...`: its session takes Leaf's App Server transport, and the
 queue transport the desktop app and IDE use runs under
 `leaf-dev journey codex-queue`. Each assertion's `metric` is a named score, so a
@@ -55,9 +56,9 @@ name it. Run each column the same number of times; the Nth samples pair.
 this machine, each named by branch, commits and cases. It shows each sample's
 output, assertion reasons, metadata, cost and tokens, and compares runs.
 
-Complete tasks keep their evidence (prompts, native traces, page directories)
-under `.tmp/eval/<run>/samples/`, one directory per sample named by its case, and
-each sample's `metadata.work` names its directory. A judged sample's screenshots
+Authoring cases and complete tasks keep their evidence (prompts, native traces,
+page directories) under `.tmp/eval/<run>/samples/`, one directory per sample named
+by its case, and each sample's `metadata.work` names its directory. A judged sample's screenshots
 are under `screenshots/`, in a directory of the same name. `results.json` there
 holds the whole run.
 
@@ -73,13 +74,38 @@ completion timing; it is never filled in as zero.
 A short case is one prompt with native assertions: `vars.prompt` carries the
 request, and `assert` holds `regex`, `llm-rubric` or JavaScript assertions. The
 runner prepends a line telling the agent to use the Leaf skill for shipped-skill
-cases. The agent may only
+cases. A source or reading probe may only
 read (Claude Code's Skill and Read tools; Codex's read-only sandbox), so a prompt
 that needs a page asks for its HTML in the reply, and one that grades what the
 agent would do asks for the commands it would run. Opus 5.5's safeguards refuse a
 prompt asking for its tool calls with their JSON input. The leading comment records
 where the case came from and what it measured, `metadata.purpose` the behavior it
 pins, and `metadata.tags` its area.
+
+A short case that needs real authoring declares `metadata.authoring: true`.
+Its agent has native file and command tools, an initialized writable page, the
+arm's launcher as `$LEAF`, and a fresh workspace, home, temporary directory and
+Leaf state for every sample. Pinned files under `evals/<case>/` are copied into
+that workspace at the same relative paths. Cite those paths in the prompt; the
+agent can open, register, crop or mark the captures. Ask it to write the page.
+Assertions grade the saved `index.html`, with additional `completed` and
+`page-valid` checks; the executor independently runs `page check --render` and
+keeps the page, native trace, reply, and check output under the sample's evidence.
+A visual `agent-rubric` can use `metadata.capture_evidence` to compare original
+captures with registered page media, including cropped or marked images. Its
+`exact_inputs` records computed source matches, leaving visual comparison to
+transformed images. The judge can read only copied images under the run's
+screenshot tree; the assertion
+supplies authored HTML to identify the references, without the author's trace.
+
+Use authoring cases for media preparation, widget markup and checking or repairing
+rendering. Keep source and reading probes for decisions that need no writable
+artifact. Use complete tasks for revisions, user feedback and delivery rounds.
+Authoring adds page initialization, tool turns and a render check to each sample;
+`setup_seconds`, native trace accounting and Promptfoo's `latencyMs` expose those
+costs separately. Each sample has its own temp directory, though native tool
+permissions are the same unrestricted permissions the complete-task executors
+use, rather than a filesystem sandbox.
 
 Internal instruction cases exercise developing Leaf itself; `/developing-leaf`,
 "Score an instruction change", owns when to use one. They declare

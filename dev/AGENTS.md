@@ -76,6 +76,9 @@ reaches a module by importing it from this package, never through `sys.path`,
 - `leaf-dev eval [CASE]... --harness claude-code|codex|both` runs the eval catalog
   through Promptfoo on the working tree, and with `--base` the merge base too.
   `evals/README.md` owns the format and how to read the results.
+- `authoring_eval.py` runs short cases that need a writable page and native tools,
+  using the shared isolated child and page checks; their assertions read the saved
+  HTML. `metadata.authoring` selects this mode in the catalog.
 - `leaf-dev eval-pairs RUN...` judges an authored task's samples across a run's two
   columns side by side, in both orders.
 - `leaf-dev eval-ui-review` runs the retained internal viewer-review diagnostics;

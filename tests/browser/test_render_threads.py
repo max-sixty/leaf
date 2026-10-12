@@ -2504,15 +2504,22 @@ def test_a_poll_accounted_settlement_repaints_before_its_post_response(
 
 def test_a_sent_page_comment_closes_and_a_refusal_restores_its_draft(browser, serve):
     """Long comments and attachments leave no empty card after Send. Refusal restores
-    the editor and its media while the send still owns the user's intent."""
+    the editor and its media while the send still owns the user's intent. The card
+    hangs from the banner, so an attachment joins below the words, leaving them put."""
     page = open_page(browser, serve(LONG_PAGE))
     card = page.locator(".lf-page-comment-card")
     box = page_comment(page)
     send = card.locator(".lf-compose-submit")
     draft = "\n".join(f"Page comment line {n}" for n in range(14))
     write(box, draft)
+    field = card.locator(".lf-compose-field")
+    written = field.bounding_box()
     paste_image(box, (example_media() / "051bee487bfb5d13.png").read_bytes())
     expect(card.locator(".lf-composer-media img")).to_be_visible()
+    shelf = card.locator(".lf-composer-media").bounding_box()
+    attached = field.bounding_box()
+    assert attached["y"] == written["y"], "the attachment moved the words"
+    assert shelf["y"] >= attached["y"] + attached["height"], "the shelf is not below"
     held = []
 
     def hold(route):

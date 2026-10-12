@@ -227,6 +227,7 @@ AWAITS_SCHEMA = {
         "value": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "answered": ANSWERED_SCHEMA,
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        "retired": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     },
     "required": ["value", "answered"],
     "additionalProperties": False,

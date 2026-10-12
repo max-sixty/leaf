@@ -2095,9 +2095,7 @@ def test_the_first_startup_fault_names_the_page(browser, serve):
     page.wait_for_function("() => window.faulted")
     root = page.locator("html")
     expect(root).to_have_attribute("data-lf-startup-error", re.compile("first fault"))
-    assert (
-        root.evaluate("root => root.lfStartupException.message") == "first fault"
-    )
+    assert root.evaluate("root => root.lfStartupException.message") == "first fault"
     # The faults recur, so the page closes before they are consumed.
     page.close()
     consume_browser_errors(page, "first fault", "later fault")

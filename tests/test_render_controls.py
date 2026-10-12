@@ -9575,12 +9575,11 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                 if selector:
                     target = page.locator(selector).first
                     # A sample can stand inside a container that is closed on arrival —
-                    # the corpus holds each example in a tab, and only one panel is open.
+                    # the gallery holds its sections in tabs, and only one panel is open.
                     # Nothing inside a hidden panel is focusable, so the ring would read
                     # as undrawn for a control that paints it perfectly well. Ask the
                     # runtime's own disclosure route, so the surface a sample needs is
-                    # derived from where it sits rather than from the corpus's tab order —
-                    # which follows the examples directory, and moves when one is added.
+                    # derived from where it sits rather than from a page's tab order.
                     # `reveal` takes the intent its caller's gesture retained, and
                     # has no default (runtime/user-intent.js). This arrangement is
                     # not a user's delayed work that a later input may supersede —

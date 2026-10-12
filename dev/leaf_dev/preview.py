@@ -749,7 +749,7 @@ def serve_preview(
                 staged = Path(raw) / "page"
                 prepared_page = prepare_page(
                     staged,
-                    read_fixture(source),
+                    read_fixture(source, runtime=runtime),
                     partial(leaf, launcher, runtime),
                 )
                 mark_preview(source, staged, runtime, user, state["authored"])
@@ -1023,7 +1023,7 @@ def export_preview(
         page = Path(staging) / "page"
         prepared = prepare_page(
             page,
-            read_fixture(source),
+            read_fixture(source, runtime=runtime),
             partial(leaf, launcher, runtime),
         )
         suffix = f"-{slot}" if slot else ""

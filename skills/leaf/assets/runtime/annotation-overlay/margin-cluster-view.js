@@ -8,7 +8,7 @@
  * inserts, moves, or removes a child inside a view.
  */
 import { html, render } from "/vendor/browser-runtime.js";
-import { setChildLists } from "/runtime/dom-children.js";
+import { setChildLists } from "../dom-children.js";
 import {
   clearContributionControls,
   materializeContributionControls,

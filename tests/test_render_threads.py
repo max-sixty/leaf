@@ -11525,6 +11525,53 @@ def test_a_comment_being_written_on_a_diff_line_stays_in_hand_across_a_new_patch
     expect(box).to_be_focused()
 
 
+@pytest.mark.parametrize("native_move", [True, False])
+def test_the_comment_box_keeps_the_user_typing_as_it_takes_its_seat_again(
+    browser, serve, native_move
+):
+    """Opening the folded file seats the comment box being written back on its diff
+    line, and the user goes on typing in it at the same caret. Where the browser has
+    `moveBefore` the move never blurs the editor, as `append` did, and the caret
+    survives the native selection the move collapses."""
+    url = serve(
+        leaf_page(
+            "diff",
+            f'<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch">'
+            f"<pre></pre></lf-diff>{SEAT_FILLER}",
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
+    page = open_page(browser, url)
+    if not native_move:
+        page.evaluate("() => { Element.prototype.moveBefore = undefined; }")
+    page.locator(
+        'lf-diff [data-line-type="change-addition"][data-lf-datum=\'["app.py","new",1]\']'
+    ).hover()
+    page.get_by_role(
+        "button", name="Comment on app.py · new line 1", exact=True
+    ).click()
+    seated = page.locator("lf-diff .lf-diff-thread-outlet .lf-fab-input")
+    expect(seated).to_be_focused()
+    box = page.locator(".lf-fab-input")
+    write(box, "Half a thought")
+    details = page.locator("lf-diff details").first
+    details.evaluate("details => { details.open = false; }")
+    expect(seated).to_have_count(0)
+    expect(box).to_be_focused()
+    rendered(page)
+    box.evaluate("""box => {
+      box.setSelectionRange(4, 4);
+      window.blurs = 0;
+      box.addEventListener('blur', () => window.blurs++);
+    }""")
+    details.evaluate("details => { details.open = true; }")
+    expect(seated).to_be_focused()
+    page.keyboard.type(" tr")
+    expect(seated).to_have_js_property("value", "Half tr a thought")
+    if native_move:
+        assert page.evaluate("window.blurs") == 0
+
+
 def test_a_wheel_during_a_resolution_fold_outranks_the_landing_after_it(browser, serve):
     """The landing of the next title waits for the fold, and a user who scrolls the
     list meanwhile has taken it somewhere else: the deferred landing pulled the list

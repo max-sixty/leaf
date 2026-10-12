@@ -15,6 +15,7 @@ import { compareContributions, spokenSubject } from "./contribution-model.js";
 import { addressableWord } from "./addressable-names.js";
 import { inChrome } from "./passages.js";
 import { holdFocus } from "./focus.js";
+import { move } from "./dom-move.js";
 import { el } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
 
@@ -91,11 +92,8 @@ export function createInlineContributions({ targetPath }) {
         host,
       );
       restoreFocus?.();
-      if (target.nextSibling !== host) {
-        const keepFocus = holdFocus(host);
-        target.after(host);
-        keepFocus?.();
-      }
+      if (target.nextSibling !== host)
+        move(target.parentNode, host, target.nextSibling);
     }
   }
   return Object.freeze({ present });

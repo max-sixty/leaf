@@ -92,6 +92,7 @@ import {
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { focusedInView } from "./user-place.js";
 import { patchTree, patchRetains } from "./dom-children.js";
+import { move } from "./dom-move.js";
 import { labelOf, PRESS } from "./keyboard/bindings.js";
 import { commandShortcut } from "./keyboard/control-keys.js";
 import { keys, paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
@@ -691,14 +692,14 @@ function pointAt(target, reading, offset) {
 function insertAt(target, reading, offset, node) {
   const point = pointAt(target, reading, offset);
   if (point.node.nodeType === Node.ELEMENT_NODE) {
-    point.node.insertBefore(node, point.node.childNodes[point.offset] ?? null);
+    move(point.node, node, point.node.childNodes[point.offset] ?? null);
     return;
   }
   const text = point.node;
-  if (point.offset === 0) text.parentNode.insertBefore(node, text);
+  if (point.offset === 0) move(text.parentNode, node, text);
   else if (point.offset === text.data.length)
-    text.parentNode.insertBefore(node, text.nextSibling);
-  else text.parentNode.insertBefore(node, text.splitText(point.offset));
+    move(text.parentNode, node, text.nextSibling);
+  else move(text.parentNode, node, text.splitText(point.offset));
 }
 
 function rangeAt(reading, start, end) {

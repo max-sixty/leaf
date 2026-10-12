@@ -443,6 +443,7 @@ keeps its own test says why beside it. Rows marked *lint* are enforced in
 | --- | --- |
 | Where the user stands: focus inside open shadow trees, or a label press holding them | `focus.js` `focused` |
 | Put the user on an element, saying what moved them | `focus.js` `focusDestination(node, cause)` (*lint*) |
+| Place a node that may already stand somewhere, keeping the user's place in it | `dom-move.js` `move(parent, node, before)`; a whole list of children, `dom-children.js` `setChildren` (*lint*) |
 | Whether a control takes typed letters | `focus.js` `typesText`, `takesLetters` |
 | Which focused control counts as the user's place: shown, and not under a stuck box | `user-place.js` `focusedInView` |
 | Whether a click came from the keyboard | `pointer.js` `pressIsKeyboardActivation` |

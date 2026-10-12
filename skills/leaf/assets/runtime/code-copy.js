@@ -18,6 +18,7 @@ import {
 import { focusDestination, onStanding } from "./focus.js";
 import { upFrom } from "./shadow.js";
 import { chromeRoot } from "./chrome.js";
+import { move } from "./dom-move.js";
 import { claimReachStop, releaseReachStop } from "./reach.js";
 
 const controls = new WeakMap();
@@ -82,7 +83,7 @@ export function watchCodeBlocks() {
         const copy = positionCodeBlock(pending);
         // Keep the page's authored sibling and child selectors intact. The anchor
         // still positions this control at its source when it lives in chrome.
-        if (copy.parentNode !== chromeRoot) chromeRoot.append(copy);
+        if (copy.parentNode !== chromeRoot) move(chromeRoot, copy, null);
         copy.tabIndex = -1;
         let route = routes.get(pre);
         if (!route) routes.set(pre, (route = { keys: false }));

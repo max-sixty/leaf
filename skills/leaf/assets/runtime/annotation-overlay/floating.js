@@ -60,6 +60,7 @@ import { afterPresentation } from "../presentation.js";
 import { keeps, layoutPx as px, atLayoutPrecision } from "../keeps.js";
 import { anchorElement, anchorFor, anchorHolder, anchorName } from "../css-anchors.js";
 import { holdFocus } from "../focus.js";
+import { move } from "../dom-move.js";
 import { shownBand } from "../geometry.js";
 import {
   followScroll,
@@ -287,7 +288,7 @@ export function floatingPlacement({ floating, update }) {
       layers.push(layer);
       parent = layer;
     }
-    parent.append(floating);
+    move(parent, floating, null);
     for (const layer of previous) layer.remove();
     graph = sources;
   }
@@ -570,14 +571,12 @@ export function floatingPlacement({ floating, update }) {
       placementProof = null;
       stood.delete(floating);
       if (frame !== floating) {
-        const restore = frame.contains(floating) ? holdFocus(floating) : null;
-        if (frame.contains(floating)) frame.before(floating);
+        if (frame.contains(floating)) move(frame.parentNode, floating, frame);
         frame.remove();
         frame = floating;
         layers = [];
         graph = [];
         floating.style.removeProperty("position");
-        restore?.();
       }
       restoreNativeFocus = null;
       delete floating.dataset.lfPlane;

@@ -940,6 +940,15 @@ unfinished work on departure, keep finished nodes where they are, and have `star
 restore whatever its cleanup cleared. A `HeldReading` built with its widget,
 `new HeldReading(this, region, changed)`, keeps waiting across a return itself.
 
+A paint that follows a reading of the module's own takes the same rule from
+`readingPaint(element, draw)`; build it once, before `whileConnected`. The returned
+`paint(key, ...args)` calls `draw(...args)` unless `key` names the reading it last
+drew, so calling it from `start` on every connection draws again only a changed
+reading or one whose returned promise the departure cut short. Authored content that
+never changes is one reading, keyed by its text. A `draw` that throws inside `start`
+fails that connection like any other `start`, so call a paint fed by later readings
+from their own listener. `paint.stop()` retires it.
+
 ```js
 schedulePaint = frameFor(this, () => this.paint());
 
@@ -1239,9 +1248,11 @@ version comparison, excluding the owner itself. Omit the owner to read every cha
 Element. It reads the comparison's identities, so CSS markers do not determine
 membership. With no comparison standing it returns an empty array.
 
-`watchComparison(owner, callback)` calls the callback immediately when the owner is
-connected and whenever the comparison changes. It pauses while the owner is detached
-and reads again on reconnection. Its returned function permanently ends the watch.
+`watchComparison(owner, callback)` calls the callback on each change to the
+comparison, and on the microtask after the owner first connects. It pauses while the
+owner is detached, and a return calls it by the rule in "Connection lifetimes": only
+when the comparison changed while the owner was away. A callback that throws is reported, and
+the next change calls it again. Its returned function permanently ends the watch.
 Use `comparisonChanges` in the callback to update counts or other local presentations.
 
 ## Reading asks and obligation queues

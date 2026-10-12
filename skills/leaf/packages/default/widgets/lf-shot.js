@@ -15,8 +15,8 @@
  *
  * Once the page has presented, the widget compares the two images pixel for pixel
  * (`runtime/image-difference.js` owns what counts as a difference) and puts its
- * `describeDifference` between the rail labels. Every pair says when it is identical,
- * only slightly changed, or changed throughout, so a reader of one side of the divider,
+ * `describeDifference` reading in the rail or Changes tooltip. Every pair says when
+ * it is identical, only slightly changed, or changed throughout, so a reader of one side of the divider,
  * or of a screenshot of the page, still learns it. With `outlines`, each frame also
  * outlines its own regions, what changed and what moved, where they sit in that frame,
  * and Changes toggles them together, with the full count on hover. `difference` is
@@ -26,7 +26,7 @@
  * through `changedPixels`' mask in the theme's warning colour. The mask is built
  * on the first press, since most readers never open it. Pixels again or clicking
  * the picture returns to the comparison as it stood; choosing an endpoint leaves
- * the view. These inspection actions use the compact message-notice text style.
+ * the view.
  * Pairs compare one per frame, so a page of large captures does not hold input for the
  * whole batch.
  *
@@ -547,7 +547,7 @@ customElements.define(
           {
             id: "screenshot.pixels",
             keys: PRESS,
-            title: () => pixels.title,
+            title: () => pixels.title.toLowerCase(),
             when: () => this.#controlsEnabled,
             run: () => pixels.click(),
           },

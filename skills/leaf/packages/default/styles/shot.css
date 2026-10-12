@@ -140,8 +140,8 @@
    solid warning rule and what only moved a dashed accent one. The marks take the pair's
    own frame (natural width by the taller image's height), stand a little outside what
    they mark rather than over it, and stop at the frame's edge, so a region that reaches
-   the edge still shows its outline there. The rail counts the regions, and says so when
-   there is none to draw: identical, throughout the image, or only slight. */
+   the edge still shows its outline there. Changes carries their count, and the rail
+   says when there is none to draw: identical, throughout the image, or only slight. */
 :scope:is(lf-shot) .lf-shotdiff { position: absolute; top: 0; left: 0; width: 100%;
     aspect-ratio: var(--lf-shot-ratio); pointer-events: none; }
 :scope:is(lf-shot) .lf-shotdiff > span { position: absolute;

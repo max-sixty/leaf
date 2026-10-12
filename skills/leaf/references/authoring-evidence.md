@@ -201,8 +201,7 @@ Add `pixels` where the reader needs to see exactly which pixels changed, as when
 the change is a shift of a few pixels or a recolour that flipping barely shows, or
 when the claim is that nothing else changed. The rail's Pixels action opens an
 inspection view, the after image greyed with every changed pixel painted over it,
-so build no difference image of your own. Press Pixels again or click the picture
-to return to the comparison with its divider and outline setting preserved.
-It combines with `outlines`, which still say where to look. Leave it off where the
-change reflows much of the frame, since nearly
-every pixel there changes and the view says less than the outlines.
+so build no difference image of your own. Returning preserves the divider and
+outline setting. It combines with `outlines`, which still say where to look. Leave
+it off where the change reflows much of the frame, since nearly every pixel there
+changes and the view says less than the outlines.

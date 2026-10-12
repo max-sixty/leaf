@@ -9103,7 +9103,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     tab_matches = help_el.locator(
         ".lf-command-reference-binding-matches tr[data-lf-command]:visible"
     ).evaluate_all("rows => rows.map(row => row.dataset.lfCommand)")
-    assert "command.reference.focus.walk" in tab_matches, tab_matches
+    assert "version.leave-forward" in tab_matches, tab_matches
     search.fill("w")
     w_results = help_el.locator("tr[data-lf-command]:visible").evaluate_all(
         "rows => rows.map(row => row.dataset.lfCommand)"

@@ -477,10 +477,10 @@
    * region of the Layout's own in either posture (`--lf-reading-region`,
    * reading-regions.js), bounded beside the body and flowing stacked, so the reader's
    * place in it survives the change between them. */
+  main.layout-sidebar > aside:has(> :only-child) { align-self: stretch; }
   main.layout-sidebar > aside > :only-child { --lf-reading-region: layout; }
   @media screen {
     main.layout-sidebar { --lf-top-outer: var(--lf-top); }
-    main.layout-sidebar > aside[data-lf-beside]:has(> :only-child) { align-self: stretch; }
     main.layout-sidebar > aside[data-lf-beside] > :only-child {
       position: sticky;
       top: calc(var(--lf-top-outer) + var(--sp-4));

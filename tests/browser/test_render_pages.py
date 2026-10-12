@@ -2769,6 +2769,34 @@ def test_a_sidebar_pages_track_stays_in_view_only_beside_the_body(browser, serve
             False,
         ),
         ("#body { margin-block-start: 200px }", block, "", "", (900,), True),
+        (
+            "main { height: 20000px } #body { align-self: flex-end }",
+            block,
+            "",
+            "",
+            (900,),
+            True,
+        ),
+        (
+            (
+                "#body { display: contents } #body > p { display: none }"
+                " #body > p:first-child { display: block; flex: 2 1 30rem;"
+                " min-height: 4000px }"
+            ),
+            block,
+            "",
+            "",
+            (900,),
+            True,
+        ),
+        (
+            "#body { position: absolute; left: 400px; top: 0; width: 350px }",
+            block,
+            "",
+            "",
+            (900,),
+            False,
+        ),
     )
     for css, track, lead, after, widths, sticks in cases:
         source = leaf_page(

@@ -631,52 +631,60 @@
   // stands beside the body, which it says as `data-lf-beside` so the Layout keeps the
   // block it holds in view only there. Flex wrapping places it, from the window's width,
   // the shares the page gives the track and the body, and the minimum the body's content
-  // declares, and no query reads that. A track stands beside the body when one of
-  // `main`'s own boxes shares its line and stands wholly to one side of it. Another track
-  // does not count; a box on another line, such as the header, the footer or a stacked
-  // body, is above or below it, or spans it. A flex line holds its items' margin boxes,
-  // whatever margins a page gives them, so two boxes share a line where their margin
-  // boxes are level. Sticking moves only the block inside the track, so the track's own
-  // box is where the flex line put it. Every box is read before any track is written.
+  // declares, and no query reads that. A track stands beside the body when one of the
+  // other boxes `main` lays out in its flex lines shares its line and stands wholly to
+  // one side of it: a box `main` lays out is a child that draws a box and is not taken
+  // out of the flow, or one inside a child that draws none (`display: contents`), and
+  // another track does not count. A track holding one block runs its line's height
+  // (layouts.css), and a line holds its items' margin boxes whatever margins a page gives
+  // them, so a box on the line is level with the track and one on another line, such as
+  // the header, the footer or a stacked body, is above or below it or spans it. Sticking
+  // moves only the block inside the track, so the track's own box is where the flex line
+  // put it. Every box is read before any track is written.
   const BESIDE = "data-lf-beside";
-  const lineBox = (element, style) => {
+  const items = (element) => {
+    const style = getComputedStyle(element);
+    if (style.display === "contents")
+      return [...element.children].flatMap((child) => items(child));
+    if (!element.checkVisibility() || ["absolute", "fixed"].includes(style.position))
+      return [];
     const { left, right, top, bottom, width } = element.getBoundingClientRect();
-    return {
-      left,
-      right,
-      width,
-      top: top - parseFloat(style.marginTop),
-      bottom: bottom + parseFloat(style.marginBottom),
-    };
+    return [
+      {
+        element,
+        track: style.getPropertyValue("--lf-resident").trim() === "track",
+        left,
+        right,
+        width,
+        top: top - parseFloat(style.marginTop),
+        bottom: bottom + parseFloat(style.marginBottom),
+      },
+    ];
   };
   const stand = () => {
     const main = document.querySelector("body > main");
     if (!main) return false;
-    const children = [...main.children].map((child) => [
-      child,
-      getComputedStyle(child),
-    ]);
-    const isTrack = ([, style]) =>
-      style.getPropertyValue("--lf-resident").trim() === "track";
-    if (!children.some(isTrack)) return false;
-    const tracks = [];
-    const own = [];
-    for (const [child, style] of children) {
-      const line = child.checkVisibility() ? lineBox(child, style) : null;
-      if (isTrack([child, style])) tracks.push([child, line]);
-      else if (line) own.push(line);
-    }
-    const readings = tracks.map(([track, line]) => [
-      track,
-      line !== null &&
-        own.some(
-          (box) =>
-            box.width > 0 &&
-            box.top < line.bottom - 0.5 &&
-            box.bottom > line.top + 0.5 &&
-            (box.right <= line.left + 0.5 || box.left >= line.right - 0.5),
-        ),
-    ]);
+    const tracks = [...main.children].filter(
+      (child) =>
+        getComputedStyle(child).getPropertyValue("--lf-resident").trim() === "track",
+    );
+    if (!tracks.length) return false;
+    const laid = [...main.children].flatMap((child) => items(child));
+    const own = laid.filter((item) => !item.track);
+    const readings = tracks.map((track) => {
+      const line = laid.find((item) => item.element === track);
+      return [
+        track,
+        line !== undefined &&
+          own.some(
+            (box) =>
+              box.width > 0 &&
+              box.top < line.bottom - 0.5 &&
+              box.bottom > line.top + 0.5 &&
+              (box.right <= line.left + 0.5 || box.left >= line.right - 0.5),
+          ),
+      ];
+    });
     let changed = false;
     for (const [track, beside] of readings) {
       if (track.hasAttribute(BESIDE) === beside) continue;

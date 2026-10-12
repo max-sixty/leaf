@@ -28,7 +28,6 @@ import {
   OPEN_MESSAGE_EDIT,
   holdsMessageEdit,
   keptRewrite,
-  openMessageEdit,
   releaseMessageEdit,
   watchRewrite,
 } from "./message-edit.js";
@@ -48,10 +47,10 @@ import {
 } from "../declared-words.js";
 import { highlightBlocks } from "../syntax.js";
 import { ago } from "../presence.js";
-import { elementById, pageQueryAll } from "../passages.js";
+import { elementById } from "../passages.js";
 import { designName } from "../design-readings.js";
 import { addressableLabel, addressableWord } from "../addressable-names.js";
-import { visualPartLabel } from "../anchor-resolution.js";
+import { datumLabel, visualPartLabel } from "../anchor-resolution.js";
 import { rememberPassageParts } from "../widget-loader.js";
 import { ReactionStripView } from "./reaction-strips.js";
 import { iconTemplate } from "../icons.js";
@@ -170,7 +169,7 @@ export function messageReading(
     id: message.id,
     // A reply still streaming, which the answer it stands for completes in place.
     provisional: Boolean(message.provisional),
-    version: message.edited?.id ?? message.id,
+    version: message.content_version,
     seq: moved(message).seq,
     unread: message.unread,
     attempt: message.attempt ?? null,
@@ -186,9 +185,9 @@ export function messageReading(
     editable: editable(message),
     failure: message.failure ?? null,
     pending: workflow?.stage === "sending",
-    // What a rewrite of the message is written over (`base` on an edit): its latest
-    // edit, or the message itself.
-    base: message.edited?.id ?? message.id,
+    // What a rewrite of the message is written over (`base` on an edit): its current
+    // content version.
+    base: message.content_version,
     workflow,
     workflowLabel: workflowLabel(workflow),
     workflowTitle: workflowTitle(workflow),
@@ -229,9 +228,6 @@ export class MessageView {
 
   present(model, { arrived = false, headerControls = nothing } = {}) {
     const prior = this.#model;
-    // A surface that seats no rewrite offers none: a primary reader drawing one message
-    // of a conversation it lays out itself has no thread card to open it in.
-    if (model.editable && !this.#commands.edit) model = { ...model, editable: false };
     this.#model = model;
     const panel = model.panel;
     // A view presents messages of one surface for its whole life, so what the surface
@@ -267,7 +263,7 @@ export class MessageView {
         base: () => this.#model.base,
         send: (text, options) =>
           this.#commands.edit.send(this.#model.id, text, options),
-        land: () => this.#commands.edit.land(),
+        land: () => this.#commands.edit.land(this.node),
         paint: () => this.#commands.edit.paint(this.node),
         previous: () => this.#commands.edit.previous(this.#model.id),
         reveal: (caretLine) => this.#commands.edit.reveal(this.node, caretLine),
@@ -276,6 +272,7 @@ export class MessageView {
       this.#editor.dispose();
       this.#editor = null;
     }
+    this.#editor?.follow();
     // Whether the message says it holds kept words follows the draft, which another tab
     // can change; a keystroke in the open editor changes no such answer.
     this.#kept = model.editable && !editing && keptRewrite(model.id);
@@ -424,18 +421,27 @@ export class MessageView {
     const model = this.#model;
     if (!model?.editable) return false;
     if (!this.#editor) {
-      this.#commands.edit.opening(model.id);
-      openMessageEdit(model.id, this, model.panel);
+      this.#commands.edit.opening(model.id, this, model.panel);
       this.#commands.edit.paint(this.node);
     }
     this.#editor?.enter();
     return true;
   }
 
+  // Draw the message as it stands, its rewrite having opened in another view.
+  closeEdit() {
+    this.#commands.edit.paint(this.node);
+  }
+
   // Make way for another editor opening in the thread, closing this one where its
   // words are the message's own.
   putEditAside() {
     this.#editor?.putAside();
+  }
+
+  // The reading this view last drew.
+  get model() {
+    return this.#model;
   }
 
   // Whether this view draws an open rewrite.
@@ -475,19 +481,6 @@ export class MessageView {
     this.#stopKept = null;
     this.#stopRead?.();
   }
-}
-
-function datumLabel(anchor) {
-  if (!anchor?.section || !anchor.datum) return "";
-  const datum = pageQueryAll("[data-lf-projection][data-lf-datum]").find(
-    (element) =>
-      element.dataset.lfProjection === anchor.section &&
-      (!anchor.source || element.dataset.lfSource === anchor.source) &&
-      (anchor.identity
-        ? element.dataset.lfIdentity === anchor.identity
-        : element.dataset.lfDatum === anchor.datum),
-  );
-  return datum?.dataset.lfDatumLabel?.trim() ?? "";
 }
 
 function coordinateLabel(anchor, about) {

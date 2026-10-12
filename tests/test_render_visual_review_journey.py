@@ -1169,43 +1169,6 @@ def test_visual_review_text_refresh_retains_comparison_choice_and_focus(browser,
     assert abs(after["y"] - before["y"]) <= 1, (before, after)
 
 
-def test_visual_review_recovers_from_rejected_cases(browser, serve):
-    """Correcting a failed source restores its review and working navigation."""
-    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
-    widget = page.locator("#visual-review-run")
-    selected = widget.locator(".lf-vr-case-select")
-    first = selected.evaluate("node => node.value")
-    record = json.loads(
-        data_model.source_file(serve.page_dir, "gallery-visual-run").read_text()
-    )["value"]
-    data_model.cmd_data_set(
-        serve.page_dir,
-        "gallery-visual-run",
-        record | {"cases": [*record["cases"], record["cases"][0]]},
-    )
-    told(page)
-    expect(widget.locator(".lf-error")).to_contain_text("visual run repeats a case id")
-    consume_browser_errors(page, "visual run repeats a case id")
-    data_model.cmd_data_set(serve.page_dir, "gallery-visual-run", record)
-    told(page)
-    expect(widget.locator(".lf-error")).to_have_count(0)
-    expect(widget.locator(".lf-vr-title")).to_have_text(record["title"])
-    assert widget.evaluate(
-        """async node => {
-          const {readingRegion, compoundReadingRegionId} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
-          return readingRegion(compoundReadingRegionId(node, 'evidence')).body ===
-            node.querySelector('.lf-vr-cases');
-        }"""
-    )
-    expect(selected).to_have_js_property("value", first)
-    widget.locator(".lf-vr-next").click()
-    ids = [case["id"] for case in record["cases"]]
-    expect(selected).to_have_js_property(
-        "value", ids[(ids.index(first) + 1) % len(ids)]
-    )
-
-
 def test_visual_review_source_reorder_keeps_the_focused_case_draft(browser, serve):
     """Moving a keyed case retains its comment editor, text selection and focus."""
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))

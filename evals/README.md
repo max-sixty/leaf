@@ -82,7 +82,8 @@ Internal instruction cases exercise developing Leaf itself; `/developing-leaf`,
 `metadata.instructions`, a source path in
 that arm. The native provider receives its contents and source file location as
 system/developer context, retaining the origin of its linked references;
-the case grades the resulting behavior. These columns end in `/instructions`.
+the case grades the resulting behavior. These columns end in `/instructions:` and
+that path, so cases injecting different files never share a provider.
 Shipped-skill cases instead let the agent load its skill and references. Both kinds
 score the resulting answer against the task. Reading a named file is not a scored
 requirement; native traces retain tool calls for diagnosing instruction loading.

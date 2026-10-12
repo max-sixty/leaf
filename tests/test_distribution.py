@@ -1,7 +1,7 @@
-"""A prepared install needs no compiler, including native custom-package authoring.
+"""The website's prepared install needs no compiler, including for custom packages.
 
 Exercise the actual copied launcher, kernel, render probes and offline document.
-Compiler shims fail every attempted Node/package-manager invocation after CI preparation.
+Compiler shims fail every attempted Node/package-manager invocation after preparation.
 """
 
 import json
@@ -9,11 +9,9 @@ import os
 import subprocess
 
 import pytest
-from click import ClickException
 from interact_support import PAGE
 from leaf.refusals import Refused
 from leaf_dev import ROOT
-from leaf_dev import distribution as distribution_model
 from leaf_dev.arms import environment
 from leaf_dev.distribution import prepare
 from playwright.sync_api import expect
@@ -166,70 +164,6 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
         )
         assert refused.returncode != 0
         assert "replaces private kernel modules: runtime/context.js" in refused.stderr
-
-
-def test_prepared_publication_preserves_source_ancestry_and_rejects_stale_builds(
-    tmp_path, monkeypatch
-):
-    """Use a real local Git remote; publication never edits the source index."""
-    source = tmp_path / "source"
-    remote = tmp_path / "remote.git"
-    subprocess.run(
-        ["git", "init", "--bare", str(remote)], check=True, capture_output=True
-    )
-    subprocess.run(
-        ["git", "init", "-b", "main", str(source)], check=True, capture_output=True
-    )
-
-    def git(*args):
-        return subprocess.run(
-            ["git", "-C", str(source), *args],
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout.strip()
-
-    git("config", "user.name", "Distribution test")
-    git("config", "user.email", "distribution@example.test")
-    git("remote", "add", "origin", str(remote))
-    (source / "source.txt").write_text("first\n")
-    git("add", ".")
-    git("commit", "-m", "First source")
-    git("push", "origin", "main")
-    first = git("rev-parse", "HEAD")
-    monkeypatch.setattr(distribution_model, "PLUGIN_ROOT", source)
-    payload = tmp_path / "payload"
-    payload.mkdir()
-    (payload / "compiled.js").write_text("compiled output\n")
-    metadata = payload / "leaf-distribution.json"
-
-    def stamp(commit, dirty=False):
-        metadata.write_text(
-            json.dumps({"producer": {"commit": commit, "dirty": dirty}})
-        )
-
-    stamp(first)
-    source_index = git("write-tree")
-    prepared_first = distribution_model.publish(payload)
-    assert git("write-tree") == source_index
-    assert git("show", f"{prepared_first}:compiled.js") == "compiled output"
-    git("merge-base", "--is-ancestor", first, prepared_first)
-    assert distribution_model.publish(payload) == prepared_first
-
-    (source / "source.txt").write_text("second\n")
-    git("add", ".")
-    git("commit", "-m", "Second source")
-    git("push", "origin", "main")
-    second = git("rev-parse", "HEAD")
-    assert distribution_model.publish(payload) is None
-    stamp(second)
-    prepared_second = distribution_model.publish(payload)
-    git("merge-base", "--is-ancestor", prepared_first, prepared_second)
-    git("merge-base", "--is-ancestor", second, prepared_second)
-    assert "compiled.js" not in git("ls-tree", "--name-only", "main")
-    stamp(second, dirty=True)
-    with pytest.raises(ClickException, match="dirty"):
-        distribution_model.publish(payload)
 
 
 @pytest.mark.parametrize("directory", ["runtime", "widgets", "vendor"])

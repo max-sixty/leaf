@@ -12,6 +12,7 @@ from .locations import located, locations_overlap
 from .machine import package_store
 from .refusals import Refused
 from .registry.contract import element_declarations, is_element_name
+from .registry.kernel import kernel_protocol
 from .schema import (
     ASSETS,
     BROWSER_DIRS,
@@ -372,11 +373,11 @@ def payload_runtime_fingerprint() -> str:
 
     The kernel is the payload's own directory, so this reads the same from any working
     directory and on any machine, and a page's selected packages cannot move it. That
-    is what a page's server and the browser gates need: each runs out of the Leaf
-    running the command against the runtime out of the page, and a page's recorded
-    layer fingerprint cannot be recomposed away from the project its packages were
-    resolved in. `page init` records this reading under `$layer.runtime`, and
-    `foreign_runtime` compares the two.
+    is what the render gate needs: it runs out of the Leaf running the command
+    against the runtime out of the page, and a page's recorded layer fingerprint
+    cannot be recomposed away from the project its packages were resolved in.
+    `page init` records this reading under `$layer.runtime`, and `foreign_runtime`
+    compares the two.
     """
     runtime = ASSETS / "runtime"
     return files_identity(
@@ -412,21 +413,40 @@ def payload_server_fingerprint() -> str:
     )
 
 
+def incompatible_layer(page_dir: Path, registry: dict) -> str | None:
+    """Why this Leaf can neither serve a page nor write its log, given the registry it
+    would serve the page under: that registry's `$events` were vendored at another
+    `protocol` than this Leaf's own (`registry.kernel.kernel_protocol`). None when it
+    may.
+
+    A Leaf serves and writes any page vendored at its own number, whichever Leaf
+    vendored it, so a plugin update leaves open pages working. Every page server, the
+    gate's and the website's included (`http.page_endpoint`,
+    `leaf_website.page_binding`), and the one append door (`event_contracts`) refuse
+    on this one reading. A page vendored before the number was declared names none,
+    and is refused too.
+    """
+    vendored = registry.get("$events", {}).get("protocol")
+    running = kernel_protocol()
+    if type(vendored) is int and vendored == running:
+        return None
+    return (
+        f"{page_dir} was vendored by a Leaf at page protocol "
+        f"{vendored if vendored is not None else 'none'}, and this Leaf "
+        f"({PLUGIN_ROOT}) speaks protocol {running}, so it cannot serve the page or "
+        f"write its log. Re-vendor it with `leaf page init {page_dir}`."
+    )
+
+
 def foreign_runtime(page_dir: Path, layer: dict) -> str | None:
-    """Why this Leaf cannot serve a page, given its recorded `$layer`: the page's
-    runtime came from another Leaf. None when the page carries this Leaf's own.
+    """Why the render gate cannot probe a page, given its recorded `$layer`: the
+    page's runtime modules are not this Leaf's own. None when they are.
 
-    Whatever serves a page runs the Leaf that started it, while the page's browser
-    runtime is whatever its last `page init` copied in, and the two speak one
-    contract: the state a server sends and the probe modules the render gate serves
-    beside the page's runtime. Served by another Leaf, the page breaks in the
-    browser on every read, in a way that reads as a defect in the page. Every page
-    server, the gate's and the website's included, refuses on this one reading
-    (`http.page_endpoint`, `leaf_website.page_binding`).
-
-    It compares only the runtime's modules (`payload_runtime_fingerprint`), so a
-    contract change made on the Python side alone passes it. A page vendored before
-    the identity was recorded names none, and is refused too.
+    The gate's probe modules come from this Leaf and import the runtime's modules
+    out of the page by name, an internal coupling no protocol covers, so the gate
+    needs the exact runtime (`payload_runtime_fingerprint`), where a server needs
+    only a compatible one (`incompatible_layer`). A page vendored before the
+    identity was recorded names none, and is refused too.
     """
     vendored = layer.get("runtime")
     running = payload_runtime_fingerprint()
@@ -435,29 +455,8 @@ def foreign_runtime(page_dir: Path, layer: dict) -> str | None:
     return (
         f"{page_dir} was vendored from another Leaf's runtime: its layer names "
         f"{vendored or 'no runtime identity'}, and this Leaf ({PLUGIN_ROOT}) ships "
-        f"{running}. Leaf serves and checks a page only against the runtime it "
+        f"{running}. The render gate probes a page only against the runtime it "
         f"ships, so re-vendor it with `leaf page init {page_dir}`."
-    )
-
-
-def foreign_event_contract(page_dir: Path, layer: dict) -> str | None:
-    """Why this Leaf cannot admit an event against the page's installed layer.
-
-    Event writers use the page's registry to validate a record, while the fields
-    they author come from this Leaf's Python code. A changed serving contract can
-    make that registry reject a record even when browser runtime bytes agree.
-    """
-    if refusal := foreign_runtime(page_dir, layer):
-        return refusal
-    vendored = layer.get("server")
-    running = payload_server_fingerprint()
-    if vendored == running:
-        return None
-    return (
-        f"{page_dir} was vendored from another Leaf's serving code: its layer names "
-        f"{vendored or 'no server identity'}, and this Leaf ({PLUGIN_ROOT}) ships "
-        f"{running}. Re-vendor it with `leaf page init {page_dir}` before writing "
-        "events."
     )
 
 

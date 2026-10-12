@@ -15,6 +15,7 @@ from functools import cached_property
 from pathlib import Path
 
 from ..data import read_data
+from ..file_bindings import binding_stamps
 from ..files import (
     active_descriptor,
     document_descriptor,
@@ -38,6 +39,8 @@ class PageRead:
     registry: dict | None
     stored_layer: Callable[[], dict]
     stored_data: Callable[[], dict]
+    # Each file binding's stamp (`file_bindings.binding_stamps`); a capture binds none.
+    bound_files: Callable[[], dict[str, str]]
     versions: tuple[dict, ...]
     presence: dict
     live_stream: dict | None
@@ -134,6 +137,7 @@ def read_page(
             else layer_identity
         ),
         stored_data=lambda: read_data(page_dir, registry),
+        bound_files=lambda: binding_stamps(page_dir),
         versions=tuple(version_descriptors(events, revisions)),
         presence=present,
         live_stream=live_stream,

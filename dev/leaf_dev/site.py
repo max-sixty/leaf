@@ -15,7 +15,7 @@ server answers its API requests.
 
 Every `leaf` command a build runs comes from the Leaf its caller hands it. `leaf-dev
 site` hands it an installation prepared from this checkout (`leaf_dev.distribution`)
-beside its output, so each page vendors the compiled kernel a consumer install carries.
+beside its output, so each page vendors the compiled kernel.
 The website's container image installs the same tree, so a revision a hosted session
 writes captures the layer the published revisions were built from. The suite and
 `refresh-previews` serve the site with this checkout's adapter, which refuses pages

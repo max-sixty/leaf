@@ -1,0 +1,52 @@
+{
+  "registry": {
+    "lf-sample": {
+      "x-exhibit": true
+    },
+    "lf-group": {},
+    "lf-pick": {}
+  },
+  "cases": [
+    {
+      "id": "a widget inside an exhibit is quoted and the exhibit is not",
+      "markup": "<lf-sample id=\"exhibit\"><lf-pick id=\"inner\"></lf-pick></lf-sample>",
+      "quoted": {
+        "exhibit": false,
+        "inner": true
+      }
+    },
+    {
+      "id": "plain markup between them does not lift the fence",
+      "markup": "<lf-sample id=\"exhibit\"><div><p><lf-pick id=\"inner\"></lf-pick></p></div></lf-sample>",
+      "quoted": {
+        "exhibit": false,
+        "inner": true
+      }
+    },
+    {
+      "id": "a widget between them is quoted, and so is what it holds",
+      "markup": "<lf-sample id=\"exhibit\"><lf-group id=\"group\"><lf-pick id=\"inner\"></lf-pick></lf-group></lf-sample>",
+      "quoted": {
+        "exhibit": false,
+        "group": true,
+        "inner": true
+      }
+    },
+    {
+      "id": "a widget beside an exhibit is not quoted",
+      "markup": "<lf-sample id=\"exhibit\"></lf-sample><lf-pick id=\"beside\"></lf-pick>",
+      "quoted": {
+        "exhibit": false,
+        "beside": false
+      }
+    },
+    {
+      "id": "an exhibit inside an exhibit is quoted",
+      "markup": "<lf-sample id=\"outer\"><lf-sample id=\"inner\"></lf-sample></lf-sample>",
+      "quoted": {
+        "outer": false,
+        "inner": true
+      }
+    }
+  ]
+}

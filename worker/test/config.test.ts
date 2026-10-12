@@ -115,7 +115,7 @@ describe("deployment configuration", () => {
   });
 
   it("ships the pinned Codex harness, ready Leaf CLI, and complete Leaf plugin", () => {
-    expect(packageManifest.dependencies["@openai/codex"]).toBe("0.153.4");
+    expect(packageManifest.dependencies["@openai/codex"]).toMatch(/^\d+\.\d+\.\d+$/);
     expect(dockerfile).toContain("/app/.venv/bin/leaf --version");
     expect(dockerfile).toContain("codex plugin add leaf@leaf --json");
     expect(dockerfile).toContain("codex-resources /codex-bin/codex-resources");

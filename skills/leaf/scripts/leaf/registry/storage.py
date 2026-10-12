@@ -10,7 +10,7 @@ from leaf.page_memory import Slot, memo
 
 from ..refusals import Refused
 from .contract import RegistryError, read_registry_declarations
-from .layer import required_layer_declarations, validate_event_contracts
+from .layer import required_layer_declarations
 
 
 class _Layer(Slot):
@@ -25,10 +25,11 @@ def load_registry(page_dir: Path):
     """The page's complete vendored layer, or None before `page init`.
 
     The layer is `page init`'s own output rather than anything an author writes, so a
-    reader that rejects it wants a re-vendor rather than an edit. It checks only what
-    the running Leaf can disagree with, the kernel's event contract, which a page
-    vendored by an earlier Leaf may carry in an older form; `read_page_registry`
-    validates the vocabulary where it is new.
+    reader that rejects it wants a re-vendor rather than an edit. It checks only that
+    the layer declares what every reader looks up. Its `$events` copy may be another
+    Leaf's at this protocol: it is the page runtime's, and admission reads the running
+    Leaf's own (`registry.kernel`); `read_page_registry` validates the vocabulary where
+    it is new.
 
     Kept in the page's memory while the file's stamp holds, because an action POST
     asks for the whole vocabulary before it can check a single press."""
@@ -44,7 +45,6 @@ def _read_layer(page_dir: Path, path: Path) -> dict | None:
         registry = read_registry_declarations(path)
         if registry is not None:
             required_layer_declarations(registry, path)
-            validate_event_contracts(registry["$events"], path)
     except RegistryError as error:
         raise _revendor(page_dir, error) from None
     return registry

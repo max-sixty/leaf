@@ -1730,9 +1730,9 @@ def test_failed_serving_preparation_never_publishes_a_takeover(
     record["enabled"] = True
     (page_dir / "service.json").write_text(json.dumps(record))
     if refusal == "layer":
-        from interact_support import vendored_by_another_leaf
+        from interact_support import vendored_at_another_protocol
 
-        vendored_by_another_leaf(page_dir)
+        vendored_at_another_protocol(page_dir)
     else:
         from leaf import detached
 

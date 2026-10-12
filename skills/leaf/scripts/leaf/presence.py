@@ -395,7 +395,7 @@ def nudge_unwatched(page: PageTransaction) -> None:
     if not claim or wait_is_live(page_dir, claim["id"]):
         return
     present, turn = claimant_reading(page_dir, page.events)
-    stamp = claim.get("turn_closed") or claim.get("turn_opened")
+    stamp = claim["turn_closed"] or claim["turn_opened"]
     mark = f"{claim['turn']}@{stamp}"
     if (
         turn.ended is not None

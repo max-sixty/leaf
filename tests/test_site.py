@@ -47,6 +47,7 @@ from leaf_dev.leaf_assets import pinned_assets, raw_prefix, specification
 from leaf_dev.page_fixtures import source_packages
 from PIL import Image
 from playwright.sync_api import expect
+from render_cases_interaction import GALLERY_THREAD_TEXT, serve_interaction_gallery
 from render_cases_layout import banner_control
 
 # The suite's own page primitives, so a navigation here waits on what every other
@@ -77,7 +78,7 @@ DEVELOPER_PAGES = tuple(sorted((EXAMPLES / "developer").glob("*.html")))
 # The theme's paper, light and dark, as the browser reports a background.
 PAPER = {"light": "rgb(250, 249, 245)", "dark": "rgb(25, 24, 21)"}
 PHONE = {"width": 390, "height": 844}
-GALLERY_THREAD_TEXT = "Gallery thread: I moved the practice exercise before lunch"
+
 
 # The module-scoped build and host are one shared setup, so they belong to one
 # xdist work unit rather than being rebuilt independently on every worker.
@@ -1335,7 +1336,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
     dispatching its input gesture, so a developer can inspect the transition without
     the demonstration becoming durable page state.
     """
-    url = serve(FEATURE_GALLERY)
+    url = serve_interaction_gallery(serve)
     page_dir = serve.page_dir
     # Let every child present before starting the timed sequence. Otherwise the
     # first replay can finish while open_page still waits for another sample.
@@ -1417,6 +1418,12 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
                 ),
             };
         }"""
+    # A paused animation's time is fixed at the frame its pause commits, so the
+    # reading waits for every pause to stop pending.
+    accept_frame_element.element_handle().content_frame().wait_for_function(
+        """() => document.querySelector('#bg-motion-accept')
+            .getAnimations({subtree: true}).every(animation => !animation.pending)"""
+    )
     frozen = accept.evaluate(paused_suggestion)
     page.wait_for_timeout(800)
     assert accept.evaluate(paused_suggestion) == frozen
@@ -1572,7 +1579,7 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
         ),
     )
     page = open_page(
-        browser, f"{serve(FEATURE_GALLERY)}#bg-interactions", context=context
+        browser, f"{serve_interaction_gallery(serve)}#bg-interactions", context=context
     )
     # The user's own standing intent, written the way a user writes it. It has to
     # survive out here for the frames' silence about it to say anything.
@@ -1659,7 +1666,7 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
 
 
 def test_reduced_motion_leaves_gallery_play_explicit(serve, browser):
-    url = serve(FEATURE_GALLERY)
+    url = serve_interaction_gallery(serve)
     context = browser.new_context(
         reduced_motion="reduce", viewport={"width": 1280, "height": 900}
     )
@@ -1704,7 +1711,7 @@ def test_the_interaction_gallery_reads_where_it_is_now(serve, browser):
     the rest of the page's life. The arrival scroll crosses the gallery out of view and
     back on its own, which is how a loaded machine hands both crossings over together.
     """
-    url = serve(FEATURE_GALLERY)
+    url = serve_interaction_gallery(serve)
     page = open_page(browser, url, init_script=COALESCED_VIEW_RECORDS)
     gallery = page.locator("#bg-interactions")
     status = gallery.locator("[data-interaction-status]")
@@ -1718,7 +1725,7 @@ def test_the_interaction_gallery_reads_where_it_is_now(serve, browser):
 
 def test_interaction_gallery_contains_page_chrome(serve, browser):
     """A replay changes its zoomed-out Leaf document, not the gallery around it."""
-    url = serve(FEATURE_GALLERY)
+    url = serve_interaction_gallery(serve)
     context = browser.new_context(
         reduced_motion="reduce", viewport={"width": 1280, "height": 900}
     )
@@ -1818,7 +1825,7 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
 
 def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
     """A remembered chrome demo cannot replay before its inner Leaf page is ready."""
-    url = serve(FEATURE_GALLERY)
+    url = serve_interaction_gallery(serve)
     context = browser.new_context(reduced_motion="reduce")
     page = open_page(browser, f"{url}#bg-interactions", context=context)
     gallery = page.locator("#bg-interactions")
@@ -1883,7 +1890,7 @@ def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
 
 def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser):
     """A healthy contained page may present after an arbitrarily slow state read."""
-    url = serve(FEATURE_GALLERY)
+    url = serve_interaction_gallery(serve)
     context = browser.new_context(reduced_motion="reduce")
     page = context.new_page()
     held = []
@@ -1932,7 +1939,8 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
         contained_document = contained.locator("html")
         storage = contained_document.evaluate(
             """async () => {
-                const {LIVE_ROOT, PAGE_SCOPE, tabStore, draftStore, userStore} =
+                const {LIVE_ROOT} = await window.__lfRuntimeImport('/runtime/context.js');
+                const {PAGE_SCOPE, tabStore, draftStore, userStore} =
                     await window.__lfRuntimeImport('/runtime/storage.js');
                 for (const [name, store] of Object.entries({tabStore, draftStore, userStore})) {
                     if (!store.set('isolation-test', name) || store.get('isolation-test') !== name)
@@ -2029,7 +2037,7 @@ def test_a_sample_keeps_ephemeral_storage_and_presents_uploaded_media(serve, bro
 
 def test_a_contained_page_retries_a_failed_first_state_read(serve, browser):
     """A sample retries startup state without retaining a live page feed."""
-    url = serve(FEATURE_GALLERY)
+    url = serve_interaction_gallery(serve)
     context = browser.new_context(reduced_motion="reduce")
     page = context.new_page()
     failed = []
@@ -2084,7 +2092,7 @@ def test_a_contained_page_retries_a_failed_first_state_read(serve, browser):
 @pytest.mark.parametrize("document_status", [200, 503])
 def test_gallery_reports_sample_document_without_leaf(serve, browser, document_status):
     """A failed contained page is reported without blocking the other demos."""
-    url = serve(FEATURE_GALLERY)
+    url = serve_interaction_gallery(serve)
     context = browser.new_context(reduced_motion="reduce")
     page = context.new_page()
 

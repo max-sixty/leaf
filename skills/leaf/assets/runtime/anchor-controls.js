@@ -12,6 +12,7 @@
 import { scrollIntoView } from "./landing-scroll.js";
 import { nextRender } from "./rendering.js";
 import { holdFocus } from "./focus.js";
+import { fragmentId } from "./initial-render.js";
 import { sameAnchor } from "./anchor-coordinate.js";
 import { createAnchorNoteProjection } from "./anchor-note-view.js";
 import { shelve, unshelve } from "./details-shelf.js";
@@ -22,7 +23,6 @@ import {
   repeat,
 } from "../vendor/browser-runtime.js";
 import {
-  fragmentId,
   fragmentTarget,
   annotationAt,
   lightSeat,

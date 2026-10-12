@@ -9,7 +9,7 @@ from ..events import (
     unanswered_agent_turn,
 )
 from ..projection import FrozenThreadReading
-from ..read_state import unread_content
+from ..read_state import content_version, unread_content
 from ..schema import agent_name
 from ..thread import is_answer
 from .wire import browser_projection
@@ -98,8 +98,14 @@ def browser_thread(
             summary["protected"] = [
                 identity for identity in summary["covers"] if identity in protected
             ]
+        # Each message names its current content version (`read_state`), the one the
+        # browser marks read once its words have been shown.
         messages = [
-            {**_named(message), **_answer_key(message, first_answers)}
+            {
+                **_named(message),
+                **_answer_key(message, first_answers),
+                "content_version": content_version(message),
+            }
             for message in thread["msgs"]
         ]
         rendered_threads.append(
@@ -140,6 +146,7 @@ def browser_thread(
                 *target["msgs"],
                 {
                     "id": f"stream:{live_reply['turn']}",
+                    "content_version": f"stream:{live_reply['turn']}",
                     "attempt": live_reply["attempt"],
                     **_response_key(live_reply["responds"]),
                     "provisional": True,

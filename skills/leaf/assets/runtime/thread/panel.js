@@ -21,11 +21,11 @@ export function createThreadPanelKeys({
     threadsBox,
     inPanel: panelFocusIsInside,
   },
-  openThreads,
   setPanel,
   panelIsOpen,
   narrowing,
   stepThread,
+  threadPosition,
 }) {
   async function mount() {
     closeBtn.onclick = () => setPanel(false);
@@ -34,20 +34,19 @@ export function createThreadPanelKeys({
   }
 
   const inPanel = () => panelFocusIsInside(panelIsOpen);
-  const hasThreads = () => openThreads({ visibleOnly: panelIsOpen() }).length > 0;
-  // The list's rows are its focus stops, its threads' titles and withdrawn notices'
-  // Dismiss, which the arrows walk as they walk the Questions panel's rows; `t` and `T`
-  // still step and open. Only from a stop, so the arrows inside an open thread keep
-  // scrolling it. A position counts threads alone.
-  const stops = () => threadsBox.focusStops();
-  const onStop = () => threadsBox.isFocusStop(focused());
+  const hasThreads = () => threadsBox.walkRows().some(({ thread }) => thread);
+  // The arrows walk the list's rows (`walkRows`), its threads' titles and withdrawn
+  // notices' Dismiss, as they walk the Questions panel's rows; `t` and `T` still step
+  // and open. Only from a stop, so the arrows inside an open thread keep scrolling it.
+  // A landing reports the position `t` would, counting the same threads.
+  const stops = () => threadsBox.walkRows().map(({ stop }) => stop);
   const titleWalk = rowWalk({
     id: "thread.list",
     noun: "Thread",
     plural: "threads",
     rows: stops,
-    items: () => stops().filter((stop) => stop.matches(".lf-thread-summary")),
-  }).map((row) => ({ ...row, when: onStop }));
+    position: threadPosition,
+  }).map((row) => ({ ...row, when: () => stops().includes(focused()) }));
 
   const stopPanelScope = pageScope("panel", {
     title: "In the thread panel",

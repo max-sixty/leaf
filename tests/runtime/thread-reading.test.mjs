@@ -76,8 +76,8 @@ test("two Thread panels own separate controls and list state", () => {
   first.findInput.value = "different filter";
   first.threadsBox.scrollTop = 72;
 
-  assert.deepEqual(firstList.openThreads({ panelOpen: true }), [card]);
-  assert.deepEqual(secondList.openThreads({ panelOpen: true }), []);
+  assert.deepEqual(firstList.openThreads(), [card]);
+  assert.deepEqual(secondList.openThreads(), []);
   assert.notEqual(second.findInput.value, first.findInput.value);
   assert.equal(second.threadsBox.scrollTop, 0);
   assert.notEqual(first.panel, second.panel);

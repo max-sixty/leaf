@@ -71,13 +71,9 @@ const turnOnItsWay = (thread) =>
       (message.id.startsWith(PENDING) && !message.token) || message.edited?.pending,
   );
 
-// The focus stop of drawn row `row`: a card's title, a withdrawn notice's Dismiss.
+// The focus stop of drawn card or notice `row`: a card's title, a notice's Dismiss.
 const rowStop = (row) =>
-  row.kind === "thread"
-    ? threadFocusStop(row.node)
-    : row.kind === "withdrawn"
-      ? row.node?.querySelector("button")
-      : null;
+  row.kind === "thread" ? threadFocusStop(row.node) : row.node.querySelector("button");
 
 class ThreadListView extends RetainedFace {
   #commands = null;
@@ -256,19 +252,19 @@ class ThreadListView extends RetainedFace {
         );
   }
 
-  navigationThreads() {
-    return this.#visibleRows().map((row) => row.node);
-  }
-
-  // Each shown row's focus stop in the list's order, which the arrows walk (panel.js):
-  // a card's title, or a withdrawn notice's Dismiss.
-  focusStops() {
-    return this.#rows.map(rowStop).filter((stop) => stop?.checkVisibility());
-  }
-
-  // Whether `node` is a row's focus stop, read without layout for the shortcut bar.
-  isFocusStop(node) {
-    return Boolean(node) && this.#rows.some((row) => rowStop(row) === node);
+  // The rows the list's walks step through, in its order, each as its focus `stop` and
+  // the card it shows, `thread`, null for a withdrawn notice: every shown card, a card
+  // the list keeps outside the view included, and each withdrawn notice. A card folding
+  // out is in none of them, since its room is about to go. The arrows walk the stops
+  // (panel.js), and `t`/`T` and every walk position count the threads (navigation.js).
+  walkRows() {
+    const shown = new Set(this.#visibleRows());
+    return this.#rows
+      .filter((row) => (row.kind === "withdrawn" ? row.node : shown.has(row)))
+      .map((row) => ({
+        stop: rowStop(row),
+        thread: row.kind === "thread" ? row.node : null,
+      }));
   }
 
   // The shown cards in the page's order, whichever order the list stands in.

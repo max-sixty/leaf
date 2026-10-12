@@ -589,11 +589,11 @@ const standingTarget = createStandingTarget({
 
 panelKeys = createThreadPanelKeys({
   elements: panelElements,
-  openThreads: threadListController.openThreads,
   narrowing,
   setPanel: (...args) => threadPanelController.setPanel(...args),
   panelIsOpen,
   stepThread: (...args) => navigation.stepThread(...args),
+  threadPosition: () => navigation.threadPosition(),
 });
 pageComment = createPageComment({
   wireInput: inputs.wireInput,

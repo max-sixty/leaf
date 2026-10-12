@@ -53,6 +53,52 @@ test("a superseded value cannot complete the current region", async () => {
   });
 });
 
+test("a handle releases the holds it supersedes and leaves running paints to report", async () => {
+  const { coordinator, failures } = setup();
+  const document = {};
+  const publication = coordinator.begin(document, 0);
+  const handle = coordinator.attach("widget", {});
+  const hold = handle.present("held");
+  const running = handle.present("painting");
+  const paint = Promise.withResolvers();
+  running.resolve(paint.promise);
+  // The newer presentation settled the hold its renderer left open.
+  await hold.ready;
+
+  const latest = handle.present("latest");
+  coordinator.seal(publication);
+  const error = new Error("superseded paint failed");
+  paint.reject(error);
+  await running.ready;
+  assert.deepEqual(failures, [error]);
+
+  // So does disconnecting the renderer.
+  handle.disconnect();
+  await latest.ready;
+  assert.equal(await coordinator.whenPresented(document, 0), "presented");
+});
+
+test("a paint that claims its own region again still reports its own failure", async () => {
+  const { coordinator, failures } = setup();
+  const publication = coordinator.begin({}, 0);
+  const schedule = createPresentationSchedule((callback) => callback);
+  const error = new Error("first paint failed");
+  let first = true;
+  const presenter = schedule.presenter({
+    attach: () => coordinator.attach("thread", {}),
+    paint: (value) => {
+      if (!first) return value;
+      first = false;
+      void presenter.sync("again");
+      return Promise.reject(error);
+    },
+  });
+  void presenter.sync("first");
+  coordinator.seal(publication);
+  await schedule.passed().catch(() => {});
+  assert.deepEqual(failures, [error]);
+});
+
 test("a disconnected renderer retires its work and ignores a late completion", async () => {
   const { coordinator, failures } = setup();
   const document = {};
@@ -800,10 +846,12 @@ for (const order of ["passive-first", "input-first"]) {
         }
       };
     });
+    const { coordinator } = setup();
+    coordinator.begin({}, 0);
     const painted = [];
     const presenter = (name) =>
       schedule.presenter({
-        attach: () => null,
+        attach: () => coordinator.attach(name, {}),
         paint: () => painted.push([name, context]),
       });
     const passive = presenter("passive");

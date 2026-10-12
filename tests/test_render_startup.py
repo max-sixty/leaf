@@ -6441,17 +6441,14 @@ def test_data_readiness_does_not_wait_for_an_unrelated_widget_region(browser, se
           const unrelated = attachApplicationPresentation(
             'widget:unrelated:render', document.body,
           );
-          let release;
-          const held = unrelated.present(
-            'held', new Promise(resolve => { release = resolve; }),
-          );
+          const held = unrelated.present('held');
           let ready = false;
           const data = notifyDataSubscribers().then(() => { ready = true; });
           await Promise.resolve();
           await new Promise(resolve => setTimeout(resolve, 0));
           const beforeRelease = ready;
-          release();
-          await Promise.all([held, data]);
+          held.resolve();
+          await Promise.all([held.ready, data]);
           unrelated.disconnect();
           return beforeRelease;
         }"""

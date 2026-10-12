@@ -88,7 +88,6 @@ function createWidgetController(owner) {
   const subscriptions = new Set();
   let deferred = false;
   let deferredReading = null;
-  let deferredHold = null;
   let stopSelection = null;
   let renderHandle = null;
   let renderedReading = null;
@@ -192,26 +191,19 @@ function createWidgetController(owner) {
     }
   };
 
+  // A held reading leaves its ticket open; the next presentation or the handle's
+  // disconnect releases it.
   const holdRender = (reading) => {
     deferredReading = reading;
-    const handle = render();
-    if (!handle) return;
-    const prior = deferredHold;
-    deferredHold = handle.present(reading);
-    // The newer ticket is installed before the old hold settles, so an obsolete value
-    // cannot briefly acknowledge the current epoch between two deferred publications.
-    prior?.resolve();
+    render()?.present(reading);
   };
 
   const resumeGestureRender = () => {
     gestureDeferred.delete(resumeGestureRender);
     if (deferred || !deferredReading || !subscriptions.size) return;
     const latest = deferredReading;
-    const hold = deferredHold;
     deferredReading = null;
-    deferredHold = null;
     presentRender(latest, [...subscriptions]);
-    hold?.resolve();
   };
 
   const publish = () => {
@@ -261,8 +253,6 @@ function createWidgetController(owner) {
       release?.();
       pendingPreparations.set(settled, null);
     }
-    deferredHold?.resolve();
-    deferredHold = null;
     deferredReading = null;
     renderedReading = null;
     renderedStatus = null;
@@ -293,8 +283,6 @@ function createWidgetController(owner) {
           stopSelection = null;
           renderHandle?.disconnect();
           renderHandle = null;
-          deferredHold?.resolve();
-          deferredHold = null;
           deferredReading = null;
           renderedReading = null;
           renderedStatus = null;
@@ -321,11 +309,8 @@ function createWidgetController(owner) {
         resumed = true;
         deferred = false;
         const latest = deferredReading ?? read();
-        const hold = deferredHold;
         deferredReading = null;
-        deferredHold = null;
         if (subscriptions.size) presentRender(latest, [...subscriptions]);
-        hold?.resolve();
         invalidateDom();
         return latest;
       };

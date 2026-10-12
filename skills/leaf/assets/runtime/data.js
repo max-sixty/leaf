@@ -123,7 +123,6 @@ export function watchData(element, input, callback) {
     subscriptions.delete(subscription);
     stopSelection?.();
     stopSelection = null;
-    pendingDelivery?.ticket.resolve();
     pendingDelivery = null;
     paint.stop();
     presentation?.disconnect();
@@ -186,7 +185,7 @@ export function watchData(element, input, callback) {
     // A source can return to the reading already on screen while a later one is
     // staged; that staged reading must be replaced rather than left to paint.
     if (!pendingDelivery && delivered && deliveredIdentity === identity) return;
-    pendingDelivery?.ticket.resolve();
+    // The new ticket releases a staged one that never painted.
     pendingDelivery = { sourceStore, ticket: presentation.present(identity) };
   };
   function notifySelected() {

@@ -611,7 +611,8 @@ export const elementById = (id, root = document) => {
 // document of its own, placed in that message's body; everything else is the page's
 // `main`. A widget resolving a reference among its own document's elements searches
 // here, so markup a message quotes neither answers for the page nor reaches into it.
-export const pageDocument = () => document.querySelector("body > main");
+// `doc` is a parsed revision's document, where a version reads its authored `main`.
+export const pageDocument = (doc = document) => doc.querySelector("body > main");
 export const authoredScope = (node) =>
   closestAcross(node, ".lf-msg-body") ?? pageDocument();
 

@@ -3188,8 +3188,10 @@ SURFACES = {
 SHOWN = {"thread card": lambda page: page.evaluate(IN_THREAD) is not None}
 UNWIND = 3
 # Round trips after the first, which may build what the surface keeps for next time:
-# two, so a count that climbs on each of them is a leak rather than one late build.
-AGAIN = 2
+# three, so a count that climbs on each of them is a leak rather than a late build. With
+# two, CI read the feature gallery's command reference at 53,317, 53,352 and 53,353
+# nodes, a build finishing, as a leak.
+AGAIN = 3
 
 
 def surface_findings(page):

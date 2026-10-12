@@ -15,8 +15,57 @@ from render_harness import (
     consume_browser_errors,
     holding,
     open_page,
+    page_comment,
     take_browser_errors,
+    write,
 )
+
+
+def test_sample_upgrade_does_not_wait_for_child_saved_state(browser, serve):
+    """Parent and child comments work at upgrade; saved-thread selection waits for state."""
+    source = leaf_page(
+        "Independent sample startup",
+        '<h1>Independent sample startup</h1><p id="outer">Parent passage.</p>'
+        '<lf-sample id="practice" label="Practice" window>'
+        '<template id="practice-source" data-sample>'
+        '<h1>Practice</h1><p id="inner">Child passage.</p>'
+        "</template></lf-sample>",
+    )
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.set_default_timeout(15_000)
+    held = []
+    route_pattern = re.compile(r"/api/samples/[^/]+/api/state")
+    page.route(route_pattern, lambda route: held.append(route))
+    page.goto(serve(source), wait_until="load")
+    holding(page, held, 1, "the child's unanswered saved-state read")
+    expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
+    sample = page.locator("#practice")
+    sample.evaluate("async sample => await sample.ready")
+    child = sample.locator("iframe").element_handle().content_frame()
+    expect(child.locator("body")).to_have_attribute("data-lf-upgraded", "1")
+    expect(child.locator("body")).not_to_have_attribute("inert")
+    expect(child.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+    expect(child.locator(".lf-status-text")).to_have_text("Loading saved state…")
+    outer_box = page_comment(page)
+    write(outer_box, "Parent draft")
+    page.keyboard.press("Escape")
+    inner_box = page_comment(child)
+    write(inner_box, "Child draft")
+    page.keyboard.press("Escape")
+    sample.evaluate("""sample => {
+      window.sampleSelected = false;
+      sample.showThread(undefined, {surface: 'panel'}).then(() => window.sampleSelected = true);
+    }""")
+    assert page.evaluate("window.sampleSelected") is False
+    expect(outer_box).to_have_js_property("value", "Parent draft", timeout=5_000)
+    expect(inner_box).to_have_js_property("value", "Child draft", timeout=5_000)
+    page.unroute(route_pattern)
+    for route in held:
+        route.continue_()
+    page.wait_for_function("window.sampleSelected", timeout=15_000)
+    expect(child.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(outer_box).to_have_js_property("value", "Parent draft", timeout=5_000)
+    expect(inner_box).to_have_js_property("value", "Child draft", timeout=5_000)
 
 
 def interaction_records(page, page_dir, *, document=None):
@@ -139,7 +188,7 @@ document.querySelector('#popup').addEventListener('click', () => {
         "loading",
         "loaded",
         "connected",
-        "presented",
+        "upgraded",
     }
     assert {row["allocation"] for row in initial} == {1}
     child_records = interaction_records(page, serve.page_dir, document=child)
@@ -182,7 +231,7 @@ document.querySelector('#popup').addEventListener('click', () => {
         for row in child_records
         if row.get("type") == "sample"
         and row["template"] == "nested-source"
-        and row["phase"] == "presented"
+        and row["phase"] == "upgraded"
     )
     grandchild_records = interaction_records(page, serve.page_dir, document=grandchild)
     grandchild_page = [
@@ -218,7 +267,7 @@ document.querySelector('#popup').addEventListener('click', () => {
     assert documents[-1]["reloading"] is True
     assert documents[0]["document"] != documents[-1]["document"]
     assert {row["allocation"] for row in reloaded} == {1}
-    assert [row for row in reloaded if row["phase"] == "presented"][-1][
+    assert [row for row in reloaded if row["phase"] == "upgraded"][-1][
         "document"
     ] == documents[-1]["document"]
     child.evaluate("""async () => {
@@ -346,7 +395,7 @@ def test_sample_document_without_bootstrap_retires_and_can_reset(
     )
     replacement = sample_records(page, serve)
     assert {row["host"] for row in replacement} == {records[0]["host"]}
-    completed = [row for row in replacement if row["phase"] == "presented"][-1]
+    completed = [row for row in replacement if row["phase"] == "upgraded"][-1]
     assert completed["allocation"] == 2
     assert completed["document"]
     if status == 404:
@@ -424,7 +473,7 @@ def test_sample_native_departure_keeps_destination_and_reset(
         row for row in departed_records if row["phase"] == "departed"
     )
     assert departed_record["document"] == next(
-        row["document"] for row in departed_records if row["phase"] == "presented"
+        row["document"] for row in departed_records if row["phase"] == "upgraded"
     )
     # The selection and `ready` wait for a next document, which only Reset brings here.
     assert page.evaluate("window.departedCall") is None
@@ -453,7 +502,7 @@ def test_sample_native_departure_keeps_destination_and_reset(
         next(row for row in reset_records if row["phase"] == "retired")["reason"]
         == "reset"
     )
-    completed = [row for row in reset_records if row["phase"] == "presented"][-1]
+    completed = [row for row in reset_records if row["phase"] == "upgraded"][-1]
     assert completed["allocation"] == 2
     assert completed["document"] != departed_record["document"]
     # Only account for teardown refusals from the proven departing capability.

@@ -261,7 +261,7 @@ def test_a_website_example_names_its_limited_agent(browser, serve):
     ]
 
 
-@pytest.mark.parametrize("outcome", ["presented", "abandoned", "offline"])
+@pytest.mark.parametrize("outcome", ["presented", "abandoned", "offline", "slow"])
 def test_public_startup_reports_upgrade_separately_from_held_state(
     browser, serve, outcome, request
 ):
@@ -312,6 +312,10 @@ def test_public_startup_reports_upgrade_separately_from_held_state(
     expect(page.locator(".lf-status-text")).to_have_text("Loading saved state…")
     assert reports == []
     assert page.evaluate("firstStateResponses") == []
+    if outcome == "slow":
+        page.clock.install()
+        page.clock.fast_forward(16_000)
+        assert reports == [], "a usable page waiting on state is not a startup timeout"
     upgraded_before_release = page.evaluate("Math.round(performance.now())")
     page.evaluate("async () => await (await fetch('/other/api/state')).json()")
 
@@ -345,12 +349,17 @@ def test_public_startup_reports_upgrade_separately_from_held_state(
     assert len(reports) == 1
     reading = reports[0]
     assert reading["version"] == 2
-    assert reading["outcome"] == ("presented" if outcome == "offline" else outcome)
+    assert reading["outcome"] == (
+        "presented" if outcome in {"offline", "slow"} else outcome
+    )
     assert 0 <= reading["upgradedMs"] <= upgraded_before_release
-    if outcome == "presented":
+    if outcome in {"presented", "slow"}:
         first_response = page.evaluate("Math.round(firstStateResponses[0])")
         assert reading["firstStateResponseMs"] == first_response
-        assert released_at <= first_response <= reading["presentedMs"]
+        assert first_response <= reading["presentedMs"]
+        if outcome != "slow":
+            # The slow case advances the JS timer clock, not Resource Timing.
+            assert released_at <= first_response
         assert page.evaluate(
             """performance.getEntriesByType('resource').every(entry =>
                 new URL(entry.name).pathname !== '/api/state')"""
@@ -2312,7 +2321,7 @@ def test_a_root_module_failure_leaves_authored_document_readable(browser, serve)
 
 
 def test_the_first_startup_fault_names_the_page(browser, serve):
-    """The first fault before presentation names the page, and later faults leave the
+    """The first fault before upgrade names the page, and later faults leave the
     name alone: the first is the earliest evidence, and a later one is often its
     consequence. A later incomplete fault still gives back the readable fallback."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})

@@ -46,6 +46,7 @@ from render_harness import (
     panel_settled,
     refuse,
     round_trip,
+    select_words,
     sending,
     ticked,
     told,
@@ -256,6 +257,7 @@ def test_slow_history_keeps_decisions_safe_and_status_honest(browser, serve, ans
         lambda request: (
             posts.append(request.post_data_json)
             if request.url.endswith("/api/event")
+            and request.post_data_json["kind"] == "action"
             else None
         ),
     )
@@ -268,6 +270,14 @@ def test_slow_history_keeps_decisions_safe_and_status_honest(browser, serve, ans
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     expect(page.locator(".lf-status-text")).to_have_text("Loading saved state…")
     assert len(held) == 1
+    if answer == "ready":
+        # An ordinary error in a usable page must not start recovery that could
+        # reload the document and discard an early comment while history waits.
+        page.evaluate("setTimeout(() => { throw new Error('post-upgrade fault'); })")
+        page.wait_for_timeout(50)
+        expect(page.locator("html")).not_to_have_attribute("data-lf-startup-error")
+        expect(page.get_by_text("Leaf couldn't start", exact=False)).to_have_count(0)
+        consume_browser_errors(page, "post-upgrade fault")
     first = page.locator("#pick .lf-pick").first
     second = page.locator("#pick .lf-pick").nth(1)
     expect(first).to_have_attribute("aria-disabled", "true")
@@ -315,6 +325,57 @@ def test_slow_history_keeps_decisions_safe_and_status_honest(browser, serve, ans
         {"value": ["yes"]},
         {"value": []},
         {"value": ["no"]},
+    ]
+
+
+def test_offline_reaction_waits_for_its_saved_standing(browser, serve):
+    """Unknown standing cannot invent an add; recovery toggles the actual saved event."""
+    source = leaf_page(
+        "Saved reaction", '<h1>Saved reaction</h1><button id="target">A target</button>'
+    )
+    saved = {
+        "id": "saved-reaction",
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "token": "keep",
+        "anchor": {"section": "target"},
+    }
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    posts = []
+    page.on(
+        "request",
+        lambda request: (
+            posts.append(request.post_data_json)
+            if request.url.endswith("/api/event")
+            else None
+        ),
+    )
+    page.route("**/api/state*", refuse)
+    page.goto(serve(source, events=[saved]), wait_until="load")
+    expect(page.locator(".lf-status-text")).to_contain_text("Server offline")
+    page.locator("#target").click()
+    page.keyboard.press("e")
+    page.keyboard.press("1")
+    assert posts == []
+    select_words(page, "#target")
+    page.keyboard.press("c")
+    page.keyboard.press("Tab")
+    chip = page.locator('.lf-response-options .lf-react[data-token="keep"]')
+    expect(chip).to_have_attribute("aria-disabled", "true")
+    chip.dispatch_event("click")
+    chip.focus()
+    page.keyboard.press("Space")
+    assert posts == []
+    page.keyboard.press("Escape")
+    page.unroute("**/api/state*")
+    wait_until_ready(page, timeout_ms=15_000)
+    page.locator("#target").click()
+    page.keyboard.press("e")
+    page.keyboard.press("1")
+    round_trip(page)
+    assert [(post["kind"], post.get("undoes")) for post in posts] == [
+        ("undo", "saved-reaction")
     ]
 
 

@@ -375,7 +375,12 @@
       once: true,
     });
     window.addEventListener("pagehide", () => report("abandoned"), { once: true });
-    setTimeout(() => report("timeout"), 15000);
+    setTimeout(() => {
+      readMilestones();
+      // A usable interface may still be waiting on a healthy state read. Its
+      // eventual answer or departure closes the authoritative profile.
+      if (upgradedMs === null) report("timeout");
+    }, 15000);
     recordStartupFault = (reason) => {
       fault ??= reason;
     };
@@ -385,7 +390,7 @@
   // where the page is incomplete (prepaint.js): it lacks something it needs however
   // far it gets, so the notice stands until a server that can start the page replaces
   // this one. An uncaught error in code that did load leaves nothing to wait for: the
-  // same server would serve the same bytes, so if the page presents it has started
+  // same server would serve the same bytes, so if the page upgrades it has started
   // with everything it is going to get. A fault that is the page's own (`page`) is
   // answered by no server: the page holds what its author wrote, so the notice says
   // the page has a problem and waits for nothing.
@@ -409,26 +414,26 @@
     else document.addEventListener("DOMContentLoaded", show, { once: true });
     if (page) return;
 
-    // The notice says the page has not started, and a page that presents has started,
+    // The notice says the page has not started, and a page that upgrades has started,
     // so a user who is using the page would otherwise be reading that Leaf could not
     // start, over a request a second that no answer ends.
     if (!awaits) {
-      const presentation = new MutationObserver(() => {
-        if (!document.body?.hasAttribute("data-lf-presented")) return;
-        presentation.disconnect();
+      const upgrade = new MutationObserver(() => {
+        if (!document.body?.hasAttribute("data-lf-upgraded")) return;
+        upgrade.disconnect();
         started = true;
         status.remove();
       });
-      presentation.observe(document, {
+      upgrade.observe(document, {
         attributes: true,
-        attributeFilter: ["data-lf-presented"],
+        attributeFilter: ["data-lf-upgraded"],
         childList: true,
         subtree: true,
       });
     }
 
     // A round carries what it learned to the end rather than acting where it learned
-    // it. The round in flight when the page presents resolves after it, and the user
+    // it. The round in flight when the page upgrades resolves after it, and the user
     // is then using a page this would otherwise navigate out from under them, so the
     // one place that acts is the one place that has to ask whether the page started.
     const check = async () => {

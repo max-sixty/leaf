@@ -452,8 +452,8 @@ not generated.
    this document's semantic proof.
 10. Land a fresh URL's fragment, prepare anchor-dependent chrome, then stamp
     `data-lf-upgraded="1"` and open comment capture against the shown document.
-11. Start the state feed; its first answer presents the page, or after a bounded
-    wait the page presents offline and applies the answer when it lands.
+11. Start the state feed; its first answer presents the page. A failed or expired
+    read presents offline; an unanswered request keeps its loading status.
 
 Authored HTML paints immediately, and the render-blocking theme reserves the
 banner and bottom bar so mounting the runtime moves nothing. Prose, links, and

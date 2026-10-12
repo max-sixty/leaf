@@ -356,8 +356,8 @@ browser, or `loadId`.
 | `serverMs`, `firstByteMs`, `firstContentfulPaintMs` | Worker time, network time to the first byte, and first paint |
 | `upgradedMs` | First widget upgrade in the body |
 | `firstStateResponseMs` | First completed `api/state` response for the page (Resource Timing `responseEnd`) |
-| `presentedMs` | When the page came up |
-| `outcome` | How the record closed: `presented`, `failed` (the page reported it could not start), `timeout` (fifteen seconds passed without either), or `abandoned` (the user left first) |
+| `presentedMs` | When authoritative state or the offline fallback presented |
+| `outcome` | How the record closed: `presented`, `failed` (the page reported it could not start), `timeout` (fifteen seconds passed without widget upgrade or a declared failure), or `abandoned` (the user left first) |
 | `reason` | What went wrong during startup, when anything did |
 
 `serverMs` is how long the Worker took to answer, from its `Server-Timing` header. Every
@@ -366,12 +366,15 @@ Widgets can upgrade while private state still waits for its container. The page
 presents after the state answer is applied, except that the offline fallback can
 present authored content with `firstStateResponseMs: null`.
 
-`presentedMs` says whether the page came up; `outcome` says only how the record closed.
-A page that comes up and then waits on a subresource reports `timeout`, or `abandoned`
-if the user leaves, with `presentedMs` set in both cases.
+`upgradedMs` says when the interface became usable, including new comments while
+saved state loads. `presentedMs` says when that read answered or failed; `outcome`
+says only how the record closed. A healthy state read can take more than fifteen
+seconds after upgrade without reporting a startup timeout.
+A page that presents while a native subresource still loads closes after native
+load, or as `abandoned` if the user leaves first, with `presentedMs` set.
 
 `reason` is at most 300 characters: the entry module or theme that failed to load, the
-message and source position of a script that threw before presentation, or what the
+message and source position of a script that threw before upgrade, or what the
 runtime said when it reported it could not start. A page that recovers and presents
 still carries it, so these records find faults in browsers this repository cannot run.
 Apart from `reason`, the record holds no page content, URL details, cookies, IP

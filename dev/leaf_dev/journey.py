@@ -1054,8 +1054,8 @@ class BrowserEnd:
         )
         await_presentation(page, url, failures, timeout=TURN_PRESENTATION)
         startup = startup_reading(page)
-        # The runtime presents without waiting for its first read, which is what
-        # brings the revision back, so that follow gets its own wait and timing.
+        # Startup can present the offline authored fallback when its first read fails.
+        # A later answer brings the revision back, with its own wait and timing.
         # The revision marker advances as the patch begins; its presentation proof
         # must finish before the text below is a reading of that revision.
         followed_at = time.monotonic()

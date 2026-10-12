@@ -21,6 +21,7 @@ import {
   whenArrived,
   pageReadiness,
   settlePageInterface,
+  afterPresentation,
   PRESENTATION,
 } from "./runtime/presentation.js";
 import { pagePresented } from "./runtime/page-paint.js";
@@ -752,19 +753,24 @@ if (document.documentElement.lfSample) {
     viewOperation?.abort();
     viewOperation = new AbortController();
     const { signal } = viewOperation;
-    if (surface === "panel")
-      return threadPanelController.showView({ thread: id, status, waiting, signal });
-    const retained = retainUserIntent({ available: () => !signal.aborted });
-    // A host view never takes focus, but newer child input still supersedes it.
-    const intent = restrictUserIntent(retained, retained);
-    intent.handoff(() => threadPanelController.setPanel(false));
-    return Boolean(
-      await app.threadDestinations.openPageThread(id, {
-        focus: false,
-        travel: false,
-        intent,
-      }),
-    );
+    // The host's usable interface includes comments while history still loads.
+    // Selecting a saved conversation needs the child's authoritative reading.
+    return afterPresentation(async () => {
+      if (signal.aborted) return false;
+      if (surface === "panel")
+        return threadPanelController.showView({ thread: id, status, waiting, signal });
+      const retained = retainUserIntent({ available: () => !signal.aborted });
+      // A host view never takes focus, but newer child input still supersedes it.
+      const intent = restrictUserIntent(retained, retained);
+      intent.handoff(() => threadPanelController.setPanel(false));
+      return Boolean(
+        await app.threadDestinations.openPageThread(id, {
+          focus: false,
+          travel: false,
+          intent,
+        }),
+      );
+    });
   });
 }
 

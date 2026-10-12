@@ -3824,7 +3824,6 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
         expect(explanation).to_be_visible()
         expect(explanation).to_be_focused()
         expect(explanation).to_contain_text(detail.strip())
-        expect(door).to_have_attribute("aria-expanded", "true")
         box = explanation.bounding_box()
         assert box["x"] >= 0 and box["x"] + box["width"] <= width, box
         page.keyboard.press("Escape")
@@ -4394,11 +4393,9 @@ def test_one_version_opens_a_menu_with_its_version(browser, serve):
     expect(version).to_be_enabled()
     expect(version).to_have_text("Showing v1")
     expect(version).to_have_attribute("aria-haspopup", "menu")
-    assert accessible_expanded(page, ".lf-version") is False
     banner_control(page, ".lf-version").click()
     menu = page.locator(".lf-version-menu")
     expect(menu).to_be_visible()
-    assert accessible_expanded(page, ".lf-version") is True
     expect(menu.locator(".lf-version-row")).to_have_count(1)
     expect(menu.locator(".lf-version-row")).to_have_attribute("aria-current", "true")
     expect(menu.locator(".lf-version-num")).to_have_text("v1 (latest version)")

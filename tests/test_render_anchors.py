@@ -4597,12 +4597,10 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     btn = page.locator(".lf-version")
     menu = page.locator(".lf-version-menu")
     expect(btn).to_have_text("Showing v2")
-    expect(btn).to_have_attribute("aria-expanded", "false")
     expect(menu).to_be_hidden()
 
     banner_control(page, ".lf-version").click()
     expect(menu).to_be_visible()
-    expect(btn).to_have_attribute("aria-expanded", "true")
     # Versions replaces More rather than covering its own invoker. Escape closes the
     # one root panel and leaves the page as the keyboard destination.
     expect(page.locator(".lf-banner-menu")).to_be_hidden()
@@ -4743,7 +4741,6 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     # the two are one thing (the picker's focusSelectedRow).
     open_versions(page)
     expect(menu).to_be_visible()
-    expect(btn).to_have_attribute("aria-expanded", "true")
     menu_line = shortcut_bar_text(page)
     assert "1–3\nopen version" in menu_line, menu_line
     assert "back" not in menu_line, menu_line

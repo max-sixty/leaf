@@ -1949,8 +1949,8 @@ def test_candidate_vocabulary_can_change_after_frozen_thread_actions(page_dir):
 @pytest.mark.parametrize(
     ("contracts", "message"),
     [
-        ({"Bad Name": {"description": "x", "schema": {}}}, "invalid contract name"),
-        ({"builds": {"schema": {}}}, "description and schema"),
+        ({"Bad Name": {"description": "x", "schema": {}}}, "'Bad Name' does not match"),
+        ({"builds": {"schema": {}}}, "'description' is a required property"),
         (
             {"builds": {"description": "Build facts.", "schema": {"type": "nope"}}},
             "invalid JSON Schema",
@@ -1991,7 +1991,7 @@ def test_candidate_vocabulary_can_change_after_frozen_thread_actions(page_dir):
                     "resources": "images[].url",
                 }
             },
-            "resources must be a list",
+            '"images[].url" is not of type "array"',
         ),
         (
             {
@@ -2017,6 +2017,49 @@ def test_the_registry_door_validates_data_contracts(page_dir, contracts, message
 
     assert result.exit_code != 0
     assert "$data" in result.output and message in result.output
+
+
+def test_layer_facts_read_names_whole_and_an_absent_records_as_null():
+    """The layer facts' schema holds names as the hand checks before it did: a
+    trailing newline is no part of a token or contract name, and an optional
+    `records: null` a same-protocol Leaf vendored still reads as absent."""
+    kernel = json.loads((schema_model.ASSETS / "registry.json").read_text())
+
+    def facts_error(**changes):
+        registry = deepcopy(kernel)
+        for fact, value in changes.items():
+            registry[f"${fact}"] = {**registry[f"${fact}"], **value}
+        return registry_layer.layer_facts_error(registry)
+
+    assert facts_error() is None
+    absent = {"description": "Build facts.", "schema": {}, "records": None}
+    assert facts_error(data={"contracts": {"builds": absent}}) is None
+    named = {"description": "Build facts.", "schema": {}}
+    assert "does not match" in facts_error(data={"contracts": {"builds\n": named}})
+    assert "does not match" in facts_error(
+        reactions={"tokens": {"keep\n": {"glyph": "+"}}}
+    )
+
+
+def test_a_custom_units_identity_rule_keeps_the_details_reference_base():
+    """A custom verb's unit is held nonempty inside its own declaration, so a
+    `#/properties/...` reference in the declared detail still resolves there."""
+    spec = {
+        "unit": "item",
+        "detail": {
+            "type": "object",
+            "properties": {
+                "item": {"type": "string"},
+                "also": {"$ref": "#/properties/item"},
+            },
+            "required": ["item"],
+            "additionalProperties": False,
+        },
+    }
+    schema = registry_contract.detail_schema({}, spec)
+    assert registry_schema.schema_error(schema, {"item": "a", "also": "b"}) is None
+    assert "non-empty" in registry_schema.schema_error(schema, {"item": ""})
+    assert spec["detail"]["properties"]["item"] == {"type": "string"}
 
 
 @pytest.mark.parametrize(
@@ -3810,10 +3853,7 @@ def test_init_refuses_handling_that_a_batch_could_not_carry(
         ],
     )
     assert result.exit_code != 0
-    assert (
-        "$events.handling must map declared kinds to a non-empty list of clauses"
-        in result.output
-    )
+    assert "$events" in result.output and "handling" in result.output
 
 
 def test_the_events_reference_names_the_fields_each_kind_declares():
@@ -4465,7 +4505,7 @@ def test_init_requires_tones_to_be_a_list_membership_can_be_tested_against(
         ],
     )
     assert result.exit_code != 0
-    assert "$tones.names must be a unique list of strings" in result.output
+    assert "$tones.names" in result.output
 
 
 def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path):
@@ -4622,7 +4662,7 @@ def test_check_rejects_an_unknown_authored_width(page_dir):
     assert result.exit_code == 1
     assert (
         '<table data-width="full"> (line 9) has an invalid value; expected one of '
-        "column, wide, available" in result.output
+        "wide, available" in result.output
     )
 
 
@@ -5422,6 +5462,35 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
     answer = json.loads(body)
     assert answer["final"] is True, body
     assert "already been taken back" in answer["error"], body
+    # Every thread fold drops a withdrawn message, so nothing may name it as a parent:
+    # a reply to it would open a thread with no root.
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {"kind": "reply", "revision": 1, "parent": nod["id"], "token": "keep"}
+        ).encode(),
+    )
+    assert status == 400 and "has been taken back" in json.loads(body)["error"]
+    # Nor may a message another stands on be withdrawn, a reaction to it included.
+    mark = json.loads(
+        fetch(
+            f"{server}/api/event",
+            data=json.dumps(
+                {
+                    "kind": "reply",
+                    "revision": 1,
+                    "parent": reaction["id"],
+                    "token": "keep",
+                }
+            ).encode(),
+        )[1]
+    )["state"]["events"][-1]
+    assert mark["parent"] == reaction["id"]
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "undo", "undoes": reaction["id"]}).encode(),
+    )
+    assert status == 400 and "has been answered" in json.loads(body)["error"]
     # Answered, the page reaction is a thread, and the withdrawal would orphan
     # the answer; the user's move is in the thread it opened.
     thread_model.post_reply(page_dir, {"to": reaction["id"]}, "Which part is long?")
@@ -5526,7 +5595,7 @@ def test_a_gesture_at_a_coordinate_reaches_only_the_answers_still_standing_there
     later gesture's, as a revised suggestion that resolves another thread shows."""
     from leaf.thread_context import thread_memberships
 
-    def decide(id, outcome, answer, revision=1):
+    def decide(id, outcome, answer, revision=1, depends=("sug-a",)):
         return {
             "kind": "action",
             "id": id,
@@ -5534,7 +5603,7 @@ def test_a_gesture_at_a_coordinate_reaches_only_the_answers_still_standing_there
             "widget": "sug-a",
             "action": "decide",
             "detail": {"outcome": outcome},
-            "meaning": {"unit": "sug-a", "depends": ["sug-a"], "answer": answer},
+            "meaning": {"unit": "sug-a", "depends": list(depends), "answer": answer},
         }
 
     comments = [{"kind": "comment", "id": "c1"}, {"kind": "comment", "id": "c2"}]
@@ -5587,6 +5656,87 @@ def test_a_gesture_at_a_coordinate_reaches_only_the_answers_still_standing_there
         {},
     )
     assert (late["stale"], late["again"]) == (["c1"], ["c2"])
+    # A version retracting only the action that superseded an answer gives the
+    # coordinate back to that answer, which closes its thread again.
+    restored = thread_memberships(
+        [
+            *comments,
+            decide("accept", "accept", "c1"),
+            decide("reject", "reject", None, depends=("sug-a", "sug-note")),
+            {"kind": "note", "id": "v2", "revision": 2, "restated": ["sug-note"]},
+        ],
+        names,
+        {},
+        {"sug-note": ["sug-a", "sug-note"]},
+    )
+    assert (restored["reject"], restored["v2"]) == (["c1"], ["c1"])
+
+
+def test_a_sampled_thread_starts_as_its_source_log_leaves_it():
+    """A child page sampling a thread holds one revision, its parent's document, so
+    what a later version of the parent retracted stays behind rather than standing
+    again on that one revision: an answer the parent no longer counts leaves the
+    child's copy of its thread open too, and the action it had superseded, which
+    answered nothing, decides the widget there as it does in the parent."""
+    from leaf.events import build_threads
+    from leaf.passages import enclosing_ids
+    from leaf.thread_context import sample_events
+
+    document = structure_model.SourceDocument(
+        '<main><lf-suggestion id="sug-a" resolves="c1">'
+        '<p id="sug-note">Refill when half-empty.</p></lf-suggestion></main>'
+    )
+    within = enclosing_ids(document)
+    events = [
+        {
+            "kind": "comment",
+            "id": "c1",
+            "seq": 1,
+            "revision": 1,
+            "author": "user",
+            "ts": "t",
+            "text": "Refill less often?",
+            "anchor": {"section": "sug-a"},
+        },
+        {
+            "kind": "action",
+            "id": "first",
+            "seq": 2,
+            "revision": 1,
+            "author": "user",
+            "ts": "t",
+            "widget": "sug-a",
+            "action": "decide",
+            "detail": {"outcome": "defer"},
+            "meaning": {"unit": "sug-a", "depends": [], "answer": None},
+        },
+        {
+            "kind": "action",
+            "id": "accept",
+            "seq": 3,
+            "revision": 1,
+            "author": "user",
+            "ts": "t",
+            "widget": "sug-a",
+            "action": "decide",
+            "detail": {"outcome": "accept"},
+            "meaning": {"unit": "sug-a", "depends": ["sug-note"], "answer": "c1"},
+        },
+        {
+            "kind": "note",
+            "id": "v2",
+            "seq": 4,
+            "revision": 2,
+            "author": "agent",
+            "ts": "t",
+            "text": "Reworded the rule.",
+            "restated": ["sug-note"],
+        },
+    ]
+    assert build_threads(events, within)["c1"]["resolved"] is None
+    copied = sample_events(document, events, {"c1"})
+    assert [event["id"] for event in copied] == ["c1", "first"]
+    assert build_threads(copied, within)["c1"]["resolved"] is None
 
 
 @pytest.mark.parametrize(

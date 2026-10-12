@@ -125,6 +125,18 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     position: absolute; width: 1px; height: 1px; overflow: hidden;
     clip-path: inset(50%); margin-right: 0; }
 }
+/* Where a widget upgrade fails, it fails soft into this box, in the document or in an
+ * x-shadow widget's stage (runtime/widget-upgrade.js). Its face is the sans the theme
+ * gives other labels (.tag, figcaption), with figures of one width. */
+.lf-error { border: 1px solid var(--danger); background: var(--danger-tint);
+            color: var(--danger-ink); border-radius: var(--r); padding: 8px 12px;
+            font-family: var(--sans); font-size: var(--t-5);
+            font-variant-numeric: tabular-nums; white-space: normal; --lf-block-frame: 1; }
+/* The box sets `white-space: normal`, so the source inside it restores preformatting,
+   and outranks the reading sheet's print wrap by specificity until it answers paper
+   itself. */
+.lf-error pre { margin: 8px 0 0; white-space: pre; }
+@media print { .lf-error pre { white-space: pre-wrap; } }
 /* A key badge has one face in the document, in the chrome, and in declared shadow
    trees: a binding's steps, a transient hint code, and a control's binding seat all
    wear it. Where it stands is each surface's. A seat a widget builds empty draws

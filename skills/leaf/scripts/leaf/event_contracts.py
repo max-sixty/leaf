@@ -11,17 +11,12 @@ domains: undo in `events` and widget meaning in `event_meaning`.
 from pathlib import Path
 
 from leaf.event_log import APPEND_STAMPED, EventRefused, new_event_id
-from leaf.event_meaning import (
-    AdmissionReadings,
-    admit_widget_event,
-    direct_dependencies,
-)
-from leaf.events import build_threads, spoken_turns, undo_error
+from leaf.event_meaning import AdmissionReadings, admit_widget_event
+from leaf.events import build_threads, spoken_turns, taken_back, undo_error
 from leaf.files import version_revisions
 from leaf.layer import incompatible_layer
 from leaf.page_view import CandidatePageView, PageView
 from leaf.projection import (
-    RANK,
     authored_positions,
     record_members,
 )
@@ -138,13 +133,6 @@ def declared_event_error(event: dict, tag: str, registry: dict):
         )
     if message := schema_error(detail_schema(entry, spec), event["detail"]):
         return f"<{tag}> {kind} {event['action']!r} detail is invalid: {message}"
-    if message := schema_error(
-        {"type": "array", "items": {"type": "string", "minLength": 1}},
-        direct_dependencies(event, spec),
-    ):
-        return (
-            f"<{tag}> {kind} {event['action']!r} identity fields are invalid: {message}"
-        )
     return None
 
 
@@ -203,12 +191,6 @@ def position_record_error(
         return (
             f"position record destination {target_id!r} is <{target['tag']}>, "
             f"not <{record['within']}>"
-        )
-    rank = event["detail"]["rank"]
-    if not RANK.fullmatch(rank):
-        return (
-            f"position record rank {rank!r} is not a rank key: base-36 digits "
-            "0-9a-z not ending in 0"
         )
 
     def holder(node: dict):
@@ -575,11 +557,19 @@ def _anchored_comment_error(view, event: dict, registry: dict):
 
 
 def _parent_error(event: dict, events: list) -> str | None:
+    """A parent is a message the log holds and no undo took back. Every thread fold
+    drops a withdrawn message (`build_threads`), so an event naming one would stand
+    on a message no reading shows; with `UndoReading` refusing to withdraw a message
+    another stands on, every standing message's parent stands too."""
     if "parent" not in event:
         return None
-    messages = {logged["id"] for logged in events if logged["kind"] in MESSAGE_KINDS}
-    if event["parent"] not in messages:
-        return f"unknown parent {event['parent']!r}"
+    parent = event["parent"]
+    if not any(
+        logged["id"] == parent and logged["kind"] in MESSAGE_KINDS for logged in events
+    ):
+        return f"unknown parent {parent!r}"
+    if parent in taken_back(events):
+        return f"parent {parent!r} has been taken back"
     return None
 
 

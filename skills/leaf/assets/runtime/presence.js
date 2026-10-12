@@ -60,6 +60,11 @@ export function clocked(owner, paint, invalidate) {
     generation += 1;
     clockPaints.delete(entry);
   };
+  // A painting that outlived a stop, as one kept across its owner's departure does,
+  // takes its last readings back to the clock; the next tick repaints what aged.
+  render.resume = () => {
+    if (reads.length) clockPaints.add(entry);
+  };
   render.refresh = entry.refresh;
   return render;
 }

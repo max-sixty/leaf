@@ -682,7 +682,6 @@ def test_a_wide_shot_owns_comparison_actions_in_its_native_rail(browser, serve, 
         "Inspect captured controls",
         '<h1>Inspect captured controls</h1><div style="overflow-x:auto;inline-size:100%">'
         f'<div style="inline-size:1280px;max-inline-size:none">{shot}</div></div>',
-        layout="wide",
     )
     page = open_page(
         browser,

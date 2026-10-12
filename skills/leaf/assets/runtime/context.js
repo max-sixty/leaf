@@ -159,9 +159,4 @@ export const runtime = {
   },
 };
 
-// A sample arrives without the surrounding user's arrangements. Passive gallery
-// replays stay inert and take one state reading; operable samples run the ordinary
-// live feed.
-export const passiveSample = document.body.hasAttribute("data-lf-sample-passive");
-
 export const revisionLabel = (revision) => runtime.state.revision_labels[revision];

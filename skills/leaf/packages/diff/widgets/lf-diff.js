@@ -955,7 +955,6 @@ customElements.define(
         this.classList.toggle("lf-rendered", false);
         // The failure box quotes a patch text; a manifest has none to quote.
         failSoft(this, err, typeof source === "string" ? source : undefined);
-        if (this.shadowRoot) shadowStage(this, [...this.childNodes]);
         if (snapshot !== undefined) projectData(this, [], { snapshot });
       }
     }

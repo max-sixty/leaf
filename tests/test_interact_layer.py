@@ -1443,10 +1443,7 @@ def test_kernel_selectors_name_no_package_tag():
     lf-toc serves lf-toc and no other contents map, and binds the kernel to one
     package's vocabulary. A kernel sheet's selectors and `@scope` preludes, and the
     selectors the runtime hands a DOM query, use no tag a bundled package declares as
-    a type selector.
-
-    The interaction gallery still finds its tabs by tag (F86, which moves it into a
-    package); the reading names that one leak so it can only shrink."""
+    a type selector."""
     tags = {
         tag
         for registry in schema_model.BUNDLED_PACKAGES.glob("*/registry.json")
@@ -1507,10 +1504,7 @@ def test_kernel_selectors_name_no_package_tag():
             for found in query.findall(code)
             if leaks_in(found[1])
         ]
-    assert leaks == [
-        "runtime/interaction-gallery.js: lf-tabs",
-        "runtime/interaction-gallery.js: :scope > lf-tab",
-    ], leaks
+    assert leaks == [], leaks
 
 
 def test_every_widget_api_export_has_a_behavior_module_reader():
@@ -1572,6 +1566,7 @@ def test_every_widget_api_export_has_a_behavior_module_reader():
     shown = {name for name in exported if re.search(rf"\b{name}\b", in_code)}
 
     assert {"once", "html", "widgetController"} <= imported, "no import read"
+    assert sorted(imported - exported) == [], "widget imports absent from widget-api"
     assert sorted(exported - imported - shown) == []
 
 
@@ -5335,7 +5330,7 @@ def test_package_check_refuses_a_malformed_reaction_token(tmp_path, monkeypatch,
     result = runner.invoke(cli_model.cli, ["package", "check", ".leaf"])
 
     assert result.exit_code != 0
-    assert "$reactions.tokens must map lowercase token names" in result.output
+    assert "$reactions.tokens.nod" in result.output
 
 
 def test_the_register_is_the_only_way_a_key_enters_the_runtime():

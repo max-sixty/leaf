@@ -78,7 +78,6 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
         leaf_page(
             "Release journey",
             '<h1>Release review</h1><lf-trace id="journey" source="release-trace"></lf-trace>',
-            layout="wide",
         ),
         packages=("playwright",),
     )
@@ -972,6 +971,116 @@ def test_trace_bookmarks_jump_to_exact_evidence_in_page_flow(browser, serve):
     assert phone.evaluate("document.documentElement.scrollWidth <= innerWidth")
 
 
+LANDED_ROW = """async () => {
+  const {landingBand} = await window.__lfRuntimeImport('/runtime/geometry.js');
+  const tree = document.querySelector('#journey .lf-trace-tree');
+  // Every scroller stands still for a while, so a late restore has had its turn.
+  const where = () => [scrollY, tree.scrollTop].join();
+  for (let still = 0, last = where(); still < 30; ) {
+    await new Promise(requestAnimationFrame);
+    const now = where();
+    still = now === last ? still + 1 : 0;
+    last = now;
+  }
+  const rows = tree.querySelectorAll('.lf-trace-node');
+  const row = rows[rows.length - 1].getBoundingClientRect();
+  const box = tree.getBoundingClientRect();
+  const band = landingBand(document.scrollingElement);
+  const top = Math.max(band.top, box.top + tree.querySelector('summary').offsetHeight);
+  const bottom = Math.min(band.bottom, box.top + tree.clientTop + tree.clientHeight);
+  return {open: tree.open, row: [row.top, row.bottom], shown: [top, bottom]};
+}"""
+
+
+@pytest.mark.parametrize("motion", ["no-preference", "reduce"])
+def test_trace_moment_lands_its_saved_element_over_the_trees_reading(
+    browser, serve, motion
+):
+    """A Moment naming a saved element shows its row in the tree and the page.
+
+    The reader scrolled this checkpoint's tree and closed it, so opening the tree
+    has a reading to restore: lf-trace's own place for the checkpoint, and the
+    continuity reading of the region the opening hands from the point inspector to
+    the tree. The Moment's landing is newer than both and stands. Its checkpoint is
+    already shown, so no image decode delays the landing past either restore; that
+    delay is what let this pass on some runs. Smooth motion is cut short by any
+    later scroll write, so both motions run. A row inside the window but below the
+    tree's own box is not shown either.
+    """
+    source = ROOT / "examples/developer/playwright-trace-gallery.data.json"
+    record = json.loads(source.read_text())["release-journey"]
+    archive = record["archive"]["sha256"]
+    action = next(
+        action
+        for action in reversed(record["actions"])
+        if len(action["phases"].get("after", {}).get("tree", {}).get("nodes", ())) > 5
+    )
+    node = action["phases"]["after"]["tree"]["nodes"][-1]
+    phase = f"trace-{archive}-phase-{action['id']}-after"
+    members = (
+        f'<lf-trace-bookmark label="Checkpoint" target="{phase}"></lf-trace-bookmark>'
+        f'<lf-trace-bookmark label="Saved element" '
+        f'target="{phase}-node-{node["path"].encode().hex()}"></lf-trace-bookmark>'
+    )
+    media = {
+        image["url"]: (example_media() / Path(image["url"]).name).read_bytes()
+        for image in record["images"]
+    }
+    after = "".join(
+        f"<p>Review note {n} on the recording above.</p>" for n in range(40)
+    )
+    url = serve(
+        leaf_page(
+            "Saved element",
+            "<h1>Saved element</h1>"
+            f'<lf-trace id="journey" source="review-trace">{members}</lf-trace>{after}',
+        ),
+        packages=("playwright",),
+        media=media,
+    )
+    data_model.cmd_data_set(serve.page_dir, "review-trace", record)
+    context = browser.new_context(
+        viewport={"width": 1280, "height": 500}, reduced_motion=motion
+    )
+    user = open_page(browser, url, context=context)
+    widget = user.locator("#journey")
+    moments = widget.locator(".lf-trace-bookmarks")
+    moments.get_by_role("button", name=re.compile("Checkpoint")).click()
+    expect(widget.locator(".lf-trace-phase")).to_contain_text("After checkpoint")
+    tree = widget.locator(".lf-trace-tree")
+    summary = tree.locator("summary")
+    summary.click()
+    expect(tree).to_have_attribute("open", "")
+    tree.hover()
+    user.mouse.wheel(0, 40)
+    user.wait_for_function("document.querySelector('#journey details').scrollTop > 0")
+    rendered(user)
+    summary.click()
+    expect(tree).not_to_have_attribute("open", "")
+    rendered(user)
+    saved = moments.get_by_role("button", name=re.compile("Saved element"))
+    saved.click()
+    landed = user.evaluate(LANDED_ROW)
+    assert landed["open"]
+    (top, bottom), (shown_top, shown_bottom) = landed["row"], landed["shown"]
+    assert shown_top - 1 <= top and bottom <= shown_bottom + 1, landed
+
+    # The open tree back at its start, its top near the window's: the row is
+    # inside the window, below what the tree shows.
+    user.set_viewport_size({"width": 1280, "height": 900})
+    rendered(user)
+    tree.evaluate(
+        "tree => { tree.scrollTop = 0;"
+        " scrollBy(0, tree.getBoundingClientRect().top - 120); }"
+    )
+    rendered(user)
+    saved.evaluate("button => button.click()")
+    landed = user.evaluate(LANDED_ROW)
+    context.close()
+    (top, bottom), (shown_top, shown_bottom) = landed["row"], landed["shown"]
+    assert shown_top - 1 <= top and bottom <= shown_bottom + 1, landed
+
+
 def test_trace_comparison_pairs_authored_results_across_delayed_sources(browser, serve):
     """A shared semantic result resolves each archive's own target, even on late arrival."""
     source = ROOT / "examples/developer/playwright-trace-gallery.html"
@@ -995,7 +1104,6 @@ def test_trace_comparison_pairs_authored_results_across_delayed_sources(browser,
         leaf_page(
             "Matched results",
             f'<h1>Matched results</h1><lf-trace-compare id="feeds">{viewers}</lf-trace-compare>',
-            layout="wide",
         ),
         packages=("playwright",),
         media=media,
@@ -2001,7 +2109,6 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
         leaf_page(
             "Dense trace review",
             f'<h1>Dense trace review</h1><lf-trace id="journey" source="dense-trace">{members}</lf-trace>',
-            layout="wide",
         ),
         packages=("playwright",),
         media=media,
@@ -2196,7 +2303,6 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
             "Numbered trace moments",
             f'<h1>Numbered trace moments</h1><lf-trace id="journey" source="numbered-trace">{members}</lf-trace>'
             f'<lf-sample id="quoted-recording" label="Recording example"><lf-trace id="quoted-journey" source="numbered-trace">{members}</lf-trace></lf-sample>',
-            layout="wide",
         ),
         packages=("playwright",),
         media=media,
@@ -2340,7 +2446,6 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
         leaf_page(
             "Recording boundary",
             f'<h1>Recording boundary</h1><lf-trace id="boundary" source="boundary-trace">{boundary_members}</lf-trace>',
-            layout="wide",
         ),
         packages=("playwright",),
     )
@@ -2985,7 +3090,6 @@ def test_trace_images_stand_at_their_own_capture_times(browser, serve):
         leaf_page(
             "Capture times",
             '<h1>Capture times</h1><lf-trace id="journey" source="timed-trace"></lf-trace>',
-            layout="wide",
         ),
         packages=("playwright",),
         media=media,

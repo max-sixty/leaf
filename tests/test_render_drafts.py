@@ -1870,6 +1870,62 @@ def test_a_reply_behind_a_refused_parent_is_withdrawn_rather_than_sent(
     consume_browser_errors(page, "400")
 
 
+def test_a_reply_behind_a_refused_parent_says_where_its_words_wait(held_events, serve):
+    """A refusal can hand back more words than the gesture delivery was sending: a reply
+    written into the parent's pending thread goes too. With the parent's words back in
+    a box on screen, the reply's are the ones out of view, under a thread the refusal
+    withdrew, so the notice says where they wait. Sending the comment again under its
+    attempt brings the thread back, and the reply's box with it."""
+    browser, held = held_events
+    page = open_page(browser, serve(LONG_PAGE))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    parent = "The parent the server will refuse."
+    write(page_comment(page), parent)
+    page.locator(".lf-general .lf-compose-submit").click()
+    holding(page, held, 1, "the parent send")
+
+    card = page.locator('.lf-thread[data-id^="pending:"]')
+    expect(card).to_have_count(1)
+    reply = "A reply written while the parent was in flight."
+    write(card.locator("leaf-text").first, reply)
+    card.get_by_role("button", name="Send", exact=True).click()
+    # The user goes back to the page comment box, so the parent's words return in view.
+    box = page_comment(page)
+
+    attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        held.pop(0).fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+    expect(box).to_have_js_property("value", parent)
+    expect(page.locator(".lf-notice")).to_have_text(
+        "Couldn't send — refused before append. "
+        "Reply kept — it returns when its comment sends"
+    )
+
+    page.locator(".lf-general .lf-compose-submit").click()
+    holding(page, held, 1, "the parent sent again")
+    assert held[0].request.post_data_json["attempt"] == attempt
+    held.pop(0).continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    sent = next(
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("text") == parent
+    )
+    thread = page.locator(f'.lf-thread[data-id="{sent["id"]}"]')
+    expect(thread.locator("leaf-text").first).to_have_js_property("value", reply)
+    consume_browser_errors(page, "400")
+
+
 def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
     held_events, serve
 ):

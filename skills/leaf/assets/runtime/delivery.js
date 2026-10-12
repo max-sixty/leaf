@@ -124,9 +124,11 @@ export function createDelivery({
         if (!entry) break;
         const { accepted, application, refusal, state } = await deliver(entry);
         if (accepted) ledger.accept(entry, accepted);
+        // What the refusal took down with this gesture, such as a reply to its message.
+        let dependents = [];
         try {
           if (!accepted) {
-            await settleRejected(entry, state);
+            dependents = await settleRejected(entry, state);
           }
           settlementChanged(entry, accepted);
         } catch (error) {
@@ -136,18 +138,24 @@ export function createDelivery({
           else {
             entry.resolve(accepted);
             // Answer listeners restore their draft and other rejected mechanical state.
-            // The sender registered them on this answer when it sent, so a reaction
+            // Each sender registered them on its answer when it sent, so a reaction
             // registered now runs after every one of them (promise reactions run in
-            // registration order): the notice reads where the words ended up, and says
-            // so where that is out of view. It is presented at that script's
-            // checkpoint, so its geometry reads the foreground the user will see.
-            if (refusal)
-              void entry.answer.then(() =>
+            // registration order): the notice reads where the words of every refused
+            // gesture ended up, and says so where that is out of view. It is presented
+            // at that script's checkpoint, so its geometry reads the foreground the
+            // user will see.
+            if (refusal) {
+              const refused = [
+                { attempt: entry.event.attempt, answer: entry.answer },
+                ...dependents,
+              ];
+              void Promise.all(refused.map(({ answer }) => answer)).then(() =>
                 afterScript(() => {
-                  const kept = refusedWords(entry.event.attempt);
+                  const kept = refusedWords(refused.map(({ attempt }) => attempt));
                   notice(kept ? `${refusal}. ${kept}` : refusal);
                 }),
               );
+            }
           }
         }
       }

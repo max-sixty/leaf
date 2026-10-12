@@ -62,10 +62,14 @@ export function createPendingLedger({ newAttempt, enqueue }) {
     /** @param {readonly Pick<Entry, "event">[]} entries */
     release: (entries) =>
       applicationState.release(new Set(entries.map((entry) => entry.event.attempt))),
-    /** @param {DeliveryHandle} entry */
+    /** The gestures refused with `entry`, each answered null here.
+     * @param {DeliveryHandle} entry @returns {{attempt: string, answer: Promise<Event | null>}[]} */
     refuse(entry) {
-      for (const attempt of applicationState.refuse(entry.event.attempt))
-        handles.get(attempt)?.resolve(null);
+      return applicationState.refuse(entry.event.attempt).flatMap((attempt) => {
+        const handle = handles.get(attempt);
+        handle?.resolve(null);
+        return handle ? [{ attempt, answer: handle.answer }] : [];
+      });
     },
     /** @param {DeliveryHandle} entry @param {Event} event */
     accept(entry, event) {

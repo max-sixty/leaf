@@ -408,12 +408,14 @@ export function mountApplication(dependencies) {
         await receiveState(state).catch((error) =>
           reportCarried(error, "state in refused event response"),
         );
+      let dependents = [];
       await stateApplication.runSerialized(async () => {
-        ledger.refuse(entry);
+        dependents = ledger.refuse(entry);
         const prepared = invalidateDom();
         releasePendingSafely("rejected event presentation");
         await prepared;
       });
+      return dependents;
     },
     settlementChanged: (entry, accepted) => {
       if (accepted) {

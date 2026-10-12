@@ -51,7 +51,8 @@
    typed in reads empty, while the record stands unsettled until the answer accepts it
    or a refusal gives the words back. The mask is this document's; the record is every
    tab's. Words a refusal gives back to a box out of view become the Resume writing
-   destination, and the refusal's notice names that address (`keepRefusedWords`).
+   destination, and the refusal's notice names that address, for every gesture the
+   refusal took down (`keepRefusedWords`).
 
    `base` records the durable shared generation a local edit descends from. A chain of
    nondurable local writes keeps that base. Storage news from the base cannot erase the
@@ -520,25 +521,45 @@ export function forgetWritingPlace(ctx) {
   }
   storeWritingPlace();
 }
-// What a refusal of `attempt` left the user, read once the sender's own answer has
-// returned the words (`standGesture`) and any owner has reopened its box for them. Words
-// back in a box on screen need no sentence. Words back only in a box out of view are
-// the ones a refusal otherwise appears to lose, so they become the Resume writing
-// destination, a content change to that draft like any other, and the refusal's notice
-// carries the sentence naming that address (delivery.js).
-export function keepRefusedWords(attempt) {
-  const ctx = [...draftContexts()].find(
-    (context) => activeDraftRecord(context)?.attempt === attempt,
-  );
-  if (ctx === undefined) return null;
-  const shown = [...draftEditors].some((view) => {
-    const input = view.ctx === ctx && editorInput(view);
-    return Boolean(input?.isConnected && input.checkVisibility());
+// What a refusal left the user, given every attempt it refused, read once each sender's
+// own answer has returned its words (`standGesture`) and any owner has reopened its box
+// for them. Words back in a box on screen need no sentence. Words back only in a box out
+// of view are the ones a refusal otherwise appears to lose, so they become the Resume
+// writing destination, a content change to that draft like any other, and the refusal's
+// notice carries the sentence naming that address (delivery.js). A reply to a message
+// the same refusal withdrew has no box anywhere: its draft keys by that thread
+// (`reply:<attempt>`), which comes back when the comment is sent again under the attempt
+// a refusal keeps, so it is no place to resume and the notice says where it waits.
+export function keepRefusedWords(attempts) {
+  const refused = new Set(attempts);
+  const returned = attempts.flatMap((attempt) => {
+    const ctx = [...draftContexts()].find(
+      (context) => activeDraftRecord(context)?.attempt === attempt,
+    );
+    return ctx === undefined ? [] : [ctx];
   });
-  if (shown) return null;
-  if (writingPlace?.context !== ctx)
-    keepWritingPlace({ context: ctx, selection: [0, 0], generation: randomId() });
-  return "Draft kept — g i resumes writing";
+  const waiting = returned.filter(
+    (ctx) => ctx.startsWith("reply:") && refused.has(ctx.slice("reply:".length)),
+  );
+  for (const ctx of waiting) forgetWritingPlace(ctx);
+  const hidden = returned.filter(
+    (ctx) =>
+      !waiting.includes(ctx) &&
+      ![...draftEditors].some((view) => {
+        const input = view.ctx === ctx && editorInput(view);
+        return Boolean(input?.isConnected && input.checkVisibility());
+      }),
+  );
+  // The gesture delivery was sending comes first, so it is the place Resume writing
+  // reaches first, and the others stand behind it.
+  for (const ctx of hidden.toReversed())
+    if (writingPlace?.context !== ctx)
+      keepWritingPlace({ context: ctx, selection: [0, 0], generation: randomId() });
+  const sentences = [
+    hidden.length && "Draft kept — g i resumes writing",
+    waiting.length && "Reply kept — it returns when its comment sends",
+  ].filter(Boolean);
+  return sentences.length ? sentences.join(". ") : null;
 }
 const writingEditor = () =>
   [...draftEditors].find((editor) => editorInput(editor) === focused());

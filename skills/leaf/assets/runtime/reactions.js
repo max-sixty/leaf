@@ -70,7 +70,7 @@ import {
   pageCommand,
   pageScope,
 } from "./keyboard/register.js";
-import { PRESS, rowArrows, savedReadingReady } from "./keyboard/bindings.js";
+import { PRESS, rowArrows, savedReadingSettled } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { anchorLabel } from "./thread/messages.js";
 import { reactionsAt, tokenChoices } from "./thread/model.js";
@@ -101,7 +101,7 @@ function reactionChip({ name, glyph, label }, pressed) {
   keys(chip, "On a reaction", [
     {
       id: `reaction.${name}`,
-      ready: savedReadingReady,
+      ready: savedReadingSettled,
       keys: [],
       control: chip,
       title: label,
@@ -485,7 +485,7 @@ export function createReactionController({
 
   const REACT = {
     title: "With reactions open",
-    ready: savedReadingReady,
+    ready: savedReadingSettled,
     escape: "inner",
     // Opening the modal reference dismisses this transient mode. Its section still reads
     // the liveness captured at that boundary rather than listing every conditional choice.
@@ -589,7 +589,7 @@ export function createReactionController({
   // accepted for now (composing/selection.js, TODO.md).
   pageCommand({
     id: "reaction.open",
-    ready: savedReadingReady,
+    ready: savedReadingSettled,
     touch: false,
     keys: ["e"],
     description: () =>

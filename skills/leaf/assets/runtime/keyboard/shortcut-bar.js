@@ -270,10 +270,7 @@ function lineRows(scopes) {
     // outer scopes are read. Keep all unshadowed rows in the batch so activeRows still
     // rejects two live meanings inside this reachable scope.
     const reachable = scope.rows.flatMap((row) => {
-      if (
-        row.line === false ||
-        (!scope.sequence && commandReady(row) && word(row.lineWhen) === false)
-      )
+      if (row.line === false || (!scope.sequence && word(row.lineWhen) === false))
         return [];
       const bound = bindings(row);
       const active = bound.filter((binding) =>
@@ -285,14 +282,10 @@ function lineRows(scopes) {
       );
       return active.length ? [effectiveRow(row, bound, active)] : [];
     });
-    for (const row of activeRows(reachable, scope.title ?? "the page's keys", {
-      includePending: true,
-    })) {
+    for (const row of activeRows(reachable, scope.title ?? "the page's keys")) {
       if (!lineOf(row)) continue;
       const active = bindings(row).filter(
-        (binding) =>
-          !named.has(binding) &&
-          commandEntries(row, [binding], { includePending: true }).length,
+        (binding) => !named.has(binding) && commandEntries(row, [binding]).length,
       );
       if (!active.length) continue;
       const source = sourceRow(row);
@@ -378,8 +371,8 @@ export function collapseShortcutBar({ silent = false } = {}) {
   if (!silent) announce("Shortcut bar collapsed.");
 }
 export function renderShortcutBar(goToStatus) {
-  // The document's line starts at upgrade and retains pending declarations, whose
-  // printed keys queue until their canonical input arrives.
+  // The document's line starts at upgrade and names commands available now.
+  // Keys whose input is still loading have their own held-key feedback.
   if (!pageUpgraded()) return;
   // One walk, read twice: `at` and `when` are the page's own state and a second walk would
   // ask every one of them again for the same frame.
@@ -449,7 +442,7 @@ export function renderShortcutBar(goToStatus) {
       sequenceControl: Boolean(row.sequenceControl),
       sequence: keySequenceModel(steps, states),
       said: lineOf(row),
-      commandIds: commandPresentations(row, active, { includePending: true })
+      commandIds: commandPresentations(row, active)
         .map(({ id }) => id)
         .join(" "),
       wayOut: row === wayOut,

@@ -4088,11 +4088,11 @@ flowchart LR
             </table>
             <p id="loading-order">
               Commands that need saved history wait for that history; document controls
-              and new comments work as soon as the interface is ready. If no state
-              answer arrives within ten seconds of interface readiness, the banner shows
-              Offline while the request continues. A later answer joins the page
-              normally. The interface and saved state can be ready before the agent
-              starts.
+              and new comments work as soon as the interface is ready. The banner shows
+              Loading saved state while the request is unanswered. Only a failed read
+              shows Offline; Decisions wait for a complete reading. A later answer joins
+              the page normally. The interface and saved state can be ready before the
+              agent starts.
             </p>
           </section>
         </lf-tab>

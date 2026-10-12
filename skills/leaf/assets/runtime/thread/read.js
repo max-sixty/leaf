@@ -25,7 +25,7 @@ import { whenDocumentPresented } from "../semantic-state.js";
 import { moved } from "./model.js";
 import { readThreads } from "./state.js";
 import { keeps, keepsHidden } from "../keeps.js";
-import { savedReadingReady } from "../keyboard/bindings.js";
+import { savedReadingSettled } from "../keyboard/bindings.js";
 import {
   onSampleVisibility,
   sampleVisibility,
@@ -115,7 +115,7 @@ export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
 
   const firstUnreadCommand = {
     id: "thread.unread.first",
-    ready: savedReadingReady,
+    ready: savedReadingSettled,
     keys: ["u"],
     description: "Go to the first unread message",
     title: "first unread",

@@ -13,7 +13,8 @@
    loaded on a page with no instance must contribute no scope or reference section. Runtime
    scopes live in `SCOPES`; `merge` is the only function that gathers scope sections.
    A scope may declare `ready` for incomplete inputs shared by its rows; a row or
-   route may override that reading, while Decision commands still await saved state.
+   route may override that reading. Decision commands queue until the first saved read
+   answers; their owning actions supply availability, including after a failed read.
    Normal element and page command declarations share native button activation. A
    sequence's `control` is a travel destination and arrival seat, not an activation
    declaration; native editing scopes may likewise name only the input's key route.

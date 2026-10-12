@@ -39,7 +39,7 @@ import { anchorForRange } from "../anchor-resolution.js";
 import { THREAD } from "../thread/selectors.js";
 import { keys, paintKeys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
-import { PRESS, rowArrows, savedReadingReady } from "../keyboard/bindings.js";
+import { PRESS, rowArrows, savedReadingSettled } from "../keyboard/bindings.js";
 import {
   onStanding,
   takesLetters,
@@ -791,7 +791,7 @@ export function createSelectionComposer({
   const RESPONSE_OPTIONS_TITLE = "With other responses open";
   const RESPONSE_REACTION = {
     id: "response.reaction.choose",
-    ready: savedReadingReady,
+    ready: savedReadingSettled,
     keys: () =>
       reactionTokens()
         .slice(0, 9)

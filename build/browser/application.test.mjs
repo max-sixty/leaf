@@ -325,6 +325,15 @@ test("one widget selection publishes optimistic state without writable access", 
   stop();
 });
 
+test("widget actions await a complete reading after loading or failed history", () => {
+  const app = setup();
+  const selected = app.selectWidget(descriptor);
+  for (const phase of ["waiting", "offline", "ready"]) {
+    app.setPhase(phase);
+    assert.equal(selected.read().actions.decide.available, phase === "ready", phase);
+  }
+});
+
 test("an offline document publishes every host command as unavailable", () => {
   const app = setup();
   const pending = app.enqueue(action("first"), "now");

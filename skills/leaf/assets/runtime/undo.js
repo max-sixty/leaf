@@ -20,7 +20,7 @@ import {
   whenDocumentPresented,
 } from "./semantic-state.js";
 import { pageCommand } from "./keyboard/register.js";
-import { savedReadingReady } from "./keyboard/bindings.js";
+import { savedReadingSettled } from "./keyboard/bindings.js";
 import { undoSentence } from "./reactions.js";
 import { PENDING } from "./thread/identity.js";
 import { retainUserIntent } from "./user-intent.js";
@@ -128,7 +128,7 @@ export function createUndo({ post, stateApplying, unaccountedGesture }) {
   // line that said it would be naming a member where the mechanism is what holds.
   pageCommand({
     id: "history.undo",
-    ready: savedReadingReady,
+    ready: savedReadingSettled,
     keys: ["z"],
     description: () => undoSentence(undoable),
     title: "undo",

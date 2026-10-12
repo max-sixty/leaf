@@ -249,21 +249,17 @@ export const bindings = (row) => declaredBindings(row).filter(bindingEnabled);
 export const commandEntries = (
   row,
   active = bindings(row),
-  { includeUnavailable = false, includePending = false } = {},
+  { includeUnavailable = false } = {},
 ) => {
   const routes = commandRoutes(row);
   if (!routes.length)
-    return includeUnavailable ||
-      (includePending && !commandReady(row)) ||
-      commandAvailable(row)
+    return includeUnavailable || commandAvailable(row)
       ? [{ id: row.id, binding: active[0], route: null }]
       : [];
   return routes
     .filter(
       (route) =>
-        (includeUnavailable ||
-          (includePending && !commandReady(row, route)) ||
-          commandAvailable(row, route)) &&
+        (includeUnavailable || commandAvailable(row, route)) &&
         (active.includes(route.binding) ||
           contextBindings(route).some((binding) => active.includes(binding))),
     )
@@ -337,7 +333,9 @@ export const declaredCommandAvailable = (row, route = null) =>
 // startup key keeps its place until that input can be read rather than disappearing
 // as an ordinary unavailable command would.
 const scopeReadiness = new WeakMap();
-export const savedReadingReady = () => readApplication().phase === "ready";
+// Terminal absence is known input too. Availability still comes from the owner's
+// `when` (widget actions require a complete reading); only unfinished input queues.
+export const savedReadingSettled = () => readApplication().phase !== "waiting";
 // A scope supplies a shared input contract without replacing its rows or their identity.
 export function declareCommandReadiness(rows, ready) {
   if (ready !== undefined && typeof ready !== "function")
@@ -345,7 +343,7 @@ export function declareCommandReadiness(rows, ready) {
   if (ready) for (const row of rows) scopeReadiness.set(row, ready);
 }
 export const commandReady = (row, route = null) => {
-  const saved = savedReadingReady();
+  const saved = savedReadingSettled();
   if ((row.decision || route?.decision) && !saved) return false;
   const reference = routedCommand(route);
   if (reference) {
@@ -474,12 +472,8 @@ export const validateRows = (rows, where = "a scope") => {
 // A scope may reuse a key across mutually exclusive states, but never in the scene the
 // user is in. Resolve liveness before any surface projects the rows, and refuse an
 // ambiguous scene instead of letting declaration order choose a meaning silently.
-export function activeRows(rows, where = "a scope", options = {}) {
-  const available = (row) =>
-    bindings(row).filter(
-      (binding) => commandEntries(row, [binding], options).length > 0,
-    );
-  const active = rows.filter((row) => available(row).length > 0);
+export function activeRows(rows, where = "a scope") {
+  const active = rows.filter((row) => live(row) && bindings(row).length > 0);
   return validateActive(active, where, (row) => availableBindings(row, bindings(row)));
 }
 

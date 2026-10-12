@@ -8,7 +8,7 @@
 import { scrollIntoView } from "../landing-scroll.js";
 import { keys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
-import { savedReadingReady } from "../keyboard/bindings.js";
+import { savedReadingSettled } from "../keyboard/bindings.js";
 import { focusDestination, focused } from "../focus.js";
 import { rowWalk } from "../walk-position.js";
 
@@ -77,7 +77,7 @@ export function createThreadPanelKeys({
       },
       {
         id: "thread.waiting.toggle",
-        ready: savedReadingReady,
+        ready: savedReadingSettled,
         // `w` for the words the control says. It is the phrase the page already uses for
         // the same question the queue walk (q/Q) asks of the page, asked here of
         // the thread — so the user learns one idea and reaches it two ways rather

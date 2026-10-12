@@ -742,7 +742,7 @@ function widgetReading(
           available:
             currentDescriptor &&
             root.effective.hostAvailable &&
-            root.phase !== "waiting" &&
+            root.phase === "ready" &&
             !descriptor.quoted,
           unavailable: root.effective.hostAvailable
             ? null

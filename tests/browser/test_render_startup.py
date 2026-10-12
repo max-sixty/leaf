@@ -3344,8 +3344,8 @@ def test_the_first_read_and_the_user_s_later_ones_are_bounded_apart(browser, ser
     2252-3918 ms after one. A bound inside that spread does not delay such a read, it
     ends it: an expiry is a completed offline answer, so the page takes the container
     for gone while the answer it asked for is still on its way. Nothing waits on the
-    first read — the page presents at its own wait, tested below — so its bound can sit
-    outside every reading a live container takes. The deploy gate gives that container
+    first read to open the comment interface — upgrade does that independently — so its
+    bound can sit outside every reading a live container takes. The deploy gate gives that container
     120 seconds for each read it makes of it.
 
     Every read after presentation answers to the user instead. The banner's one way

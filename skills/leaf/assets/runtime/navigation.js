@@ -32,7 +32,7 @@ import { announce } from "./notifications.js";
 import { focusThread } from "./thread/focus.js";
 import { landWalkedThread } from "./thread/landing.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
-import { savedReadingReady } from "./keyboard/bindings.js";
+import { savedReadingSettled } from "./keyboard/bindings.js";
 
 // The walk's reading supplies both its destinations and their visible scope. In the
 // panel they are the cards its list walks (`walkRows`), which may show resolved threads
@@ -411,7 +411,7 @@ export function createNavigation({
     // A walk needs a visible destination, not the complete saved inventory: local
     // sends are usable destinations while the first reading is still loading.
     ready: () =>
-      savedReadingReady() || threadWalk(panelIsOpen, threadList).threads.length > 0,
+      savedReadingSettled() || threadWalk(panelIsOpen, threadList).threads.length > 0,
     touch: false,
     // A walk's letter names its category; Shift reverses it. The page's walks therefore
     // share one compact, repeatable grammar.

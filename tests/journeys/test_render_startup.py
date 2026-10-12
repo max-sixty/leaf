@@ -20,7 +20,6 @@ from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
-from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import user_views as user_views_model
@@ -45,6 +44,8 @@ from render_harness import (
     open_page,
     page_comment,
     panel_settled,
+    refuse,
+    round_trip,
     sending,
     ticked,
     told,
@@ -236,44 +237,85 @@ def test_more_than_six_live_documents_share_an_origin_without_stalling(browser, 
             expect(page.locator("#t")).to_have_text("Updated across tabs")
 
 
-def test_a_first_read_still_out_does_not_decide_when_the_page_arrives(browser, serve):
-    """The user's page arrives on the runtime's wait, not on the container's answer.
-
-    Presentation is where durable controls, the heartbeat and freshness checks open, so a
-    container that accepts the connection and says nothing would otherwise decide whether
-    the user gets a usable page at all — and the read's own bound is set outside what a
-    live container takes, which is far past anyone's patience for a page. The wait ends
-    without ending the read: the request stays in flight, no second one opens beside it,
-    and the answer that lands after the page has presented offline is applied where it
-    stands.
-    """
+@pytest.mark.parametrize("answer", ["ready", "offline"])
+def test_slow_history_keeps_decisions_safe_and_status_honest(browser, serve, answer):
+    """Presentation is not a state answer; every Decision route needs the same reading."""
+    source = leaf_page(
+        "Slow decision",
+        '<h1>Slow decision</h1><lf-ask id="decision"><h2>Proceed?</h2>'
+        '<lf-options id="pick" choose><lf-option id="yes">Proceed</lf-option>'
+        '<lf-option id="no">Wait</lf-option></lf-options></lf-ask>',
+    )
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
     held = []
+    posts = []
     page.route("**/api/state*", lambda route: held.append(route))
-    page.goto(live_url(serve(LONG_PAGE)), wait_until="load")
-    # The page presents offline once the runtime's own wait for the read
-    # (PRESENTATION_WAIT_MS, state-feed.js) runs out, so the hang bound starts there.
-    expect(page.locator("body[data-lf-presented]")).to_have_count(
-        1, timeout=render_checks_model.SERVED_TIMEOUT_MS + 10_000
+    page.on(
+        "request",
+        lambda request: (
+            posts.append(request.post_data_json)
+            if request.url.endswith("/api/event")
+            else None
+        ),
     )
-    expect(page.locator(".lf-status-detail")).to_contain_text(
-        "Server offline — reconnecting"
-    )
-
-    # The read the page presented without is still the one it is waiting on. Ticks of
-    # the shared clock pass with the slot held, and none of them opens a second read.
-    page.wait_for_timeout(4000)
-    assert len(held) == 1, held
-    assert not page.locator("body[data-lf-presented]").evaluate(
-        "body => body.dataset.lfReading ?? ''"
-    )
-
-    held[0].fulfill(json=held[0].fetch().json())
-    told(page)
-    expect(page.locator(".lf-status-detail")).not_to_contain_text(
-        "Server offline — reconnecting"
-    )
+    page.goto(serve(source), wait_until="load")
+    holding(page, held, 1, "the unanswered private-state read")
+    expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
+    # Cross the former ten-second presentation deadline with a read still in flight.
+    # This is the interval that used to invent an offline answer and release choices.
+    page.wait_for_function("performance.now() > 11_000", timeout=15_000)
+    expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+    expect(page.locator(".lf-status-text")).to_have_text("Loading saved state…")
+    assert len(held) == 1
+    first = page.locator("#pick .lf-pick").first
+    second = page.locator("#pick .lf-pick").nth(1)
+    expect(first).to_have_attribute("aria-disabled", "true")
+    first.focus()
+    page.keyboard.press("Space")
+    second.dispatch_event("click")
+    page.keyboard.press("1")
+    expect(page.locator(".lf-held-keys kbd")).to_have_text("1")
+    expect(page.locator("#yes")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#no")).not_to_have_attribute("chosen", "")
+    assert posts == []
+    page.unroute("**/api/state*")
+    if answer == "offline":
+        page.route("**/api/state*", refuse)
+        for route in held:
+            refuse(route)
+        expect(page.locator(".lf-status-text")).to_contain_text("Server offline")
+        expect(page.locator(".lf-held-keys")).to_have_count(0)
+        expect(first).to_have_attribute("aria-disabled", "true")
+        expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("Proceed")
+        first.focus()
+        page.keyboard.press("1")
+        page.keyboard.press("Space")
+        second.dispatch_event("click")
+        expect(page.locator("#yes")).not_to_have_attribute("chosen", "")
+        expect(page.locator("#no")).not_to_have_attribute("chosen", "")
+        assert posts == []
+        page.unroute("**/api/state*")
+        wait_until_ready(page, timeout_ms=15_000)
+        first.focus()
+        page.keyboard.press("1")
+    else:
+        for route in held:
+            route.continue_()
+        wait_until_ready(page, timeout_ms=15_000)
+    expect(page.locator("#yes")).to_have_attribute("chosen", "")
+    round_trip(page)
+    assert len(posts) == 1, "the held or fresh digit should send exactly once"
+    first.focus()
+    page.keyboard.press("Space")
+    round_trip(page)
+    second.click()
+    round_trip(page)
+    assert [post["detail"] for post in posts] == [
+        {"value": ["yes"]},
+        {"value": []},
+        {"value": ["no"]},
+    ]
 
 
 def test_a_page_hears_again_when_its_server_comes_back(browser, serve):

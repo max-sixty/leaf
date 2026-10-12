@@ -16,7 +16,7 @@ import {
   commandAvailable,
   commandEntries,
   commandReady,
-  savedReadingReady,
+  savedReadingSettled,
   setQuickShortcuts,
 } from "../../skills/leaf/assets/runtime/keyboard/bindings.js";
 import {
@@ -38,14 +38,14 @@ test("saved-reading commands retain their key until their input is known", async
   document.body.append(owner);
   const row = {
     id: "readiness.saved-version",
-    ready: savedReadingReady,
+    ready: savedReadingSettled,
     contextKeys: ["1"],
     title: "Open saved version",
     keys: ["Shift+v"],
     when: () => readApplication().phase === "ready",
     run: () => {},
   };
-  keys(owner, "Saved version", [row], { when: row.when, ready: savedReadingReady });
+  keys(owner, "Saved version", [row], { when: row.when, ready: savedReadingSettled });
   owner.focus();
   const press = () =>
     new window.KeyboardEvent("keydown", {
@@ -57,15 +57,13 @@ test("saved-reading commands retain their key until their input is known", async
     applicationState.setPhase("waiting");
     document.body.setAttribute("data-lf-presented", "1");
     assert.equal(commandReady(row), false);
-    assert.equal(commandEntries(row).length, 0);
-    assert.deepEqual(commandEntries(row, undefined, { includePending: true }), [
-      { id: row.id, binding: "Shift+v", route: null },
-    ]);
+    assert.deepEqual(commandEntries(row), []);
     assert.equal(keyReady(press()), false);
     assert.equal(keyReady(new window.KeyboardEvent("keydown", { key: "1" })), false);
     applicationState.setPhase("offline");
-    assert.equal(commandReady(row), false);
-    assert.equal(keyReady(press()), false);
+    assert.equal(commandReady(row), true);
+    assert.equal(keyReady(press()), true);
+    assert.deepEqual(commandEntries(row), []);
     applicationState.setPhase("ready");
     document.body.removeAttribute("data-lf-presented");
     assert.equal(commandReady(row), true);
@@ -77,28 +75,25 @@ test("saved-reading commands retain their key until their input is known", async
   }
 });
 
-test("pending alternatives reserve a binding without becoming two live meanings", () => {
+test("unavailable alternatives stay off the command line until they are live", () => {
   const rows = [
     {
       id: "readiness.first",
       title: "First",
       keys: ["x"],
-      ready: savedReadingReady,
+      ready: savedReadingSettled,
       when: () => true,
     },
     {
       id: "readiness.second",
       title: "Second",
       keys: ["x"],
-      ready: savedReadingReady,
+      ready: savedReadingSettled,
       when: () => false,
     },
   ];
   applicationState.setPhase("waiting");
-  assert.deepEqual(
-    activeRows(rows, "Pending alternatives", { includePending: true }),
-    rows,
-  );
+  assert.deepEqual(activeRows(rows), []);
   applicationState.setPhase("ready");
   assert.deepEqual(activeRows(rows), [rows[0]]);
   rows[1].when = () => true;
@@ -159,8 +154,8 @@ test("a document-ready scope retains commands whose own input needs saved state"
     id: "readiness.saved-filter",
     title: "Filter threads waiting on you",
     keys: ["w"],
-    ready: savedReadingReady,
-    when: savedReadingReady,
+    ready: savedReadingSettled,
+    when: savedReadingSettled,
     run: () => runs.push("saved"),
   };
   keys(owner, commandScope("Local threads", [local, saved], { ready: () => true }));

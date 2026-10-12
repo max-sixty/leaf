@@ -54,7 +54,7 @@
    Experimental: the lists and the walk over them are new, and their shape is
    expected to change a lot (notes/what-needs-you/). Change them freely.
 */
-import { cycledRow, savedReadingReady } from "./keyboard/bindings.js";
+import { cycledRow, savedReadingSettled } from "./keyboard/bindings.js";
 import { pageCommand, pageScope } from "./keyboard/register.js";
 import { documentFocused, paintKeys } from "./keyboard/scopes.js";
 import { onStanding } from "./focus.js";
@@ -363,7 +363,7 @@ export function createQueueWalk({
 
   pageCommand({
     id: "queue.walk",
-    ready: savedReadingReady,
+    ready: savedReadingSettled,
     touch: false,
     keys: ["q", "Shift+q"],
     routes: [
@@ -395,7 +395,7 @@ export function createQueueWalk({
   // banner's row under a finger. Its row in the Questions panel carries the same Done.
   pageScope("task", {
     title: "On a to-do waiting on you",
-    ready: savedReadingReady,
+    ready: savedReadingSettled,
     at: () => Boolean(doneTask()),
     rows: [
       {

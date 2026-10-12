@@ -513,9 +513,7 @@ export function createAnchorTravel({
     const thread = threadNames(currentThreads()).get(id);
     const anchor = thread?.anchor;
     const status = anchors.placedAt(id)?.status;
-    const hydrating =
-      (anchor?.datum && status !== "outdated") ||
-      (anchor?.visual && status === "fallback");
+    const hydrating = (anchor?.datum && status !== "outdated") || anchor?.visual;
     const standing = threadDestination(id);
     // Decided before the trip awaits anything: a destination that is not readable now,
     // or one a widget has yet to hydrate, is somewhere else.
@@ -524,7 +522,8 @@ export function createAnchorTravel({
     if (standing || hydrating) departure.plan(standing);
     if (hydrating) {
       const source = sectionOf(anchor);
-      // A visual draws the state holding its part synchronously; a lazy datum may load.
+      // A visual settles on its part, including cancelling a pending replacement of
+      // an already visible destination; a lazy datum may load.
       const hydration =
         source && revealAddressed(source, anchor.visual ?? anchor.datum);
       if (hydration?.then) await hydration;

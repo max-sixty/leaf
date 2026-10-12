@@ -7,13 +7,10 @@ from leaf.render_checks import RENDER_VIEWPORT, SERVED_TIMEOUT_MS
 
 from .readings import (
     arrangement_changes,
-    framing_advice,
     margin_changes,
     open_widgets,
-    overflowing_region_advice,
     settle_at,
     shrunk_label_advice,
-    stacked_panes,
     sweep,
     swept_overflow,
     unreserved_height_advice,
@@ -77,8 +74,7 @@ def _render_version_attempt(
     there would outline nothing and the Question walk would travel to the top of the page,
     the page scrolling sideways, content set past the column and out into the margin,
     a table that scrolls sideways with a cell in it wrapped,
-    words the user can read and can't select, words drawn on top of other words, code
-    coloured in an ink the user cannot tell from the code around it — each
+    words the user can read and can't select, words drawn on top of other words — each
     in both color schemes at wide and compact viewports, because the dark theme and
     responsive layout are real CSS nobody otherwise renders — plus, in one scheme at
     each viewport, a word the registry promised that never reached
@@ -89,17 +85,12 @@ def _render_version_attempt(
     page again (none of the three is CSS), a settled holder whose mark or still-showing
     slot words disagree with the log's decision (read once: the palettes carry no
     geometry between them), and an SVG paint token that does not resolve to valid paint
-    in that scheme. At each viewport and scheme it also reads, as advice, whether a
-    child's margin enlarges an authored box's inset or edge trim misaligns a flex or
-    grid row. Once per version, on the settled desktop page in the light scheme, it
-    reads whether a widget declaring x-height drew at a height its first paint did
-    not hold; and then, resizing that loaded page through every width
-    from 360px to 1920px, the sideways readings again: a version holds at each of them,
-    not only at the two it renders. There it also reads whether a workspace whose panes
-    stand side by side at the desktop viewport stacks them while the Layout still fills
-    the window, which only the widths between the two viewports show, and, as advice
-    naming the widths each spans, whether a drawing's fit to its box shrinks its labels
-    past reading and whether a region of a screen runs past the room it has. That pass
+    in that scheme. Once per version, on the settled desktop page in the light scheme,
+    it reads, as advice, whether a widget declaring x-height drew at a height its first
+    paint did not hold; and then, resizing that loaded page through every width from
+    360px to 1920px, the sideways readings again: a version holds at each of them, not
+    only at the two it renders. There it also reads, as advice naming the widths it
+    spans, whether a drawing's fit to its box shrinks its labels past reading. That pass
     also finds each width where the page's margin content changes (a sidebar, contents
     map or note first standing in the margin), and the gate renders the page there too,
     in the light scheme: what stands in the margin is layout, which the scheme does not
@@ -124,8 +115,6 @@ def _render_version_attempt(
     advice = []
     changes = []
     arrangement = []
-    framing = {}
-    checked_schemes = {}
 
     def once(page, registry):
         desktop = RENDER_VIEWPORTS[0]
@@ -133,9 +122,7 @@ def _render_version_attempt(
         advice.extend(unreserved_height_advice(page, element_declarations(registry)))
         widths = sweep(page, RENDER_VIEWPORTS, open_widgets(registry))
         advice.extend(shrunk_label_advice(widths))
-        advice.extend(overflowing_region_advice(widths, desktop["height"]))
         swept.extend(swept_overflow(widths, RENDER_VIEWPORTS))
-        swept.extend(stacked_panes(widths, desktop["width"]))
         arrangement.extend(arrangement_changes(widths))
         fixed = {viewport["width"] for viewport in RENDER_VIEWPORTS}
         changes.extend(
@@ -148,16 +135,8 @@ def _render_version_attempt(
 
     def render(viewport, scheme, then=None):
         viewport_label = _viewport_label(viewport)
-        checked_schemes.setdefault(viewport_label, set()).add(scheme)
-
-        def advise(page, registry):
-            for finding in framing_advice(page):
-                framing.setdefault((finding, viewport_label), set()).add(scheme)
-            if then is not None:
-                then(page, registry)
-
         found, found_notices, complete = _render_scheme(
-            browser, url, scheme, viewport, served_timeout_ms, opened_pages, then=advise
+            browser, url, scheme, viewport, served_timeout_ms, opened_pages, then=then
         )
         failures.extend((finding, viewport_label) for finding in found)
         notices.extend((notice, viewport_label) for notice in found_notices)
@@ -180,20 +159,9 @@ def _render_version_attempt(
                 page.close()
         raise
     rendered = [*RENDER_VIEWPORTS, *margins]
-    framed = [
-        (
-            (
-                finding
-                if schemes == checked_schemes[viewport]
-                else f"[{next(iter(schemes))}] {finding}"
-            ),
-            viewport,
-        )
-        for (finding, viewport), schemes in framing.items()
-    ]
     reading = RenderReading(
         _findings_with_viewports(failures, rendered) + swept,
-        _findings_with_viewports(framed, rendered) + advice,
+        advice,
         changes,
         arrangement,
     )

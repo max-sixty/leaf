@@ -32,11 +32,8 @@ export function once(el) {
 export const dataBody = (el) => el.querySelector(":scope > pre").textContent;
 
 // The body's text as a module reads its lines: leading blank lines and trailing
-// whitespace are the <pre>'s layout, not lines. `page check` holds an x-numbering to
-// the lines of this same trim (`_body_text`, validation/instances.py). trimEnd removes
-// the characters registry.json's `$passages.collapse` lists, which Python reads from
-// there because its own \s differs at the edges. Notations whose whitespace is
-// content, such as a diff or exact Markdown source, read `dataBody` instead.
+// whitespace are the <pre>'s layout, not lines. Notations whose whitespace is content,
+// such as a diff or exact Markdown source, read `dataBody` instead.
 export const bodyText = (el) => dataBody(el).replace(/^\n+/, "").trimEnd();
 
 // A failed upgrade becomes a visible error box rather than a blank page. A widget failure

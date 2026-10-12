@@ -2718,7 +2718,6 @@ def test_boolean_attribute_subschemas_validate_without_crashing(
         # Each of these names attributes, so an empty one declares nothing while
         # reading as a declaration.
         ("x-refers", {}),
-        ("x-lines", []),
         ("x-paints", []),
         ("x-says", []),
         ("x-state", []),
@@ -3640,7 +3639,6 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
         ),
         ("lf-option", "x-refers", {"for": {}, "about": {}}, "about"),
         ("lf-test-task", "x-paints", ["status", "urgency"], "urgency"),
-        ("lf-code", "x-lines", ["hi", "upto"], "upto"),
         ("lf-code", "x-language", "dialect", "dialect"),
         ("lf-column", "x-tone", "shade", "shade"),
     ],
@@ -3648,9 +3646,9 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
 def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(
     page_dir, tag, key, value, missing
 ):
-    """Six keys point at attributes rather than declaring them — the words a widget
-    shows, the ones that name another element, the ones it paints and never words, the
-    ones holding line references, and the two carrying a word its layer has to know —
+    """Five keys point at attributes rather than declaring them — the words a widget
+    shows, the ones that name another element, the ones it paints and never words, and
+    the two carrying a word its layer has to know —
     and each is read by a pass that finds the attribute absent and does nothing. That
     is the never-closed vocabulary's own failure mode: no error anywhere, the widget
     simply missing from the pass, and a page that looks authored correctly because it
@@ -4570,55 +4568,6 @@ def test_check_requires_the_vendored_layer(tmp_path):
     assert f"run `leaf page init {d}`" in result.output
 
 
-def test_check_advises_page_css_that_scrolls_a_box_and_leaves_arrangement_alone(
-    page_dir,
-):
-    """Page CSS stays free, so a scroller is advice: one Leaf did not make is one its
-    reading features cannot reach. Arranging is the page's own business, panes included,
-    so a rule that places a pane, or scrolls only sideways, says nothing."""
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<title>t</title>",
-            "<title>t</title><style>.feed { overflow-y: auto; max-height: 20rem }"
-            " main lf-pane { display: flex; grid-column: 1 / -1 }"
-            " .wide { overflow-x: auto } #cells { grid-template-columns: 1fr }</style>",
-        ).replace(
-            "<h2>Plan</h2>",
-            '<h2>Plan</h2><div id="cells"><lf-pane id="queue" label="Queue"><p>One</p></lf-pane></div>'
-            '<div class="feed" style="overflow: scroll"><p>Log</p></div>',
-        )
-    )
-    result = check(page_dir)
-    assert result.exit_code == 0, result.output
-    assert "rule `.feed` sets overflow-y to scroll" in result.output
-    assert "sets overflow to scroll" in result.output
-    for quiet in ("main lf-pane", ".wide", "#cells"):
-        assert quiet not in result.output, result.output
-
-
-def test_check_advises_the_same_css_in_a_stylesheet_the_page_links(page_dir):
-    """A stylesheet the page links from page/, and one that sheet imports, are page CSS
-    as much as its <style>, so the advice reads them and names the file."""
-    (page_dir / "page").mkdir(exist_ok=True)
-    (page_dir / "page" / "app.css").write_text(
-        '@import "log.css";\n.feed { overflow-y: auto }\n'
-    )
-    (page_dir / "page" / "log.css").write_text("#log { overflow: scroll }\n")
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<title>t</title>",
-            '<title>t</title><link rel="stylesheet" href="/page/app.css">',
-        ).replace(
-            "<h2>Plan</h2>",
-            '<h2>Plan</h2><pre id="log">x</pre><div class="feed"><p>Log</p></div>',
-        )
-    )
-    result = check(page_dir)
-    assert result.exit_code == 0, result.output
-    assert "/page/app.css rule `.feed` sets overflow-y to scroll" in result.output
-    assert "/page/log.css rule `#log` sets overflow to scroll" in result.output
-
-
 def test_check_rejects_an_invalid_bound_and_loose_pane_text(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace(
@@ -4651,10 +4600,9 @@ def test_check_rejects_an_unknown_authored_width(page_dir):
     )
 
 
-def test_check_takes_a_stated_height_only_on_a_widget_that_draws_into_its_box(page_dir):
-    """`data-height` states the box of a widget whose declaration says it draws into one
-    (x-height), in whole CSS pixels. A chart takes it; a table and a code block take the
-    height of what they hold, so the attribute there would clip their words."""
+def test_check_takes_a_stated_height_in_whole_css_pixels(page_dir):
+    """`data-height` states the box of a widget that draws into one, in whole CSS
+    pixels."""
     chart = '<lf-chart id="c" data-height="{}"><pre>{{ariaLabel: "x", marks: []}}</pre></lf-chart>'
     (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + chart.format(240))
@@ -4662,13 +4610,7 @@ def test_check_takes_a_stated_height_only_on_a_widget_that_draws_into_its_box(pa
     result = check(page_dir)
     assert result.exit_code == 0, result.output
     (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<h2>Plan</h2>",
-            "<h2>Plan</h2>"
-            + chart.format("240px")
-            + '<table data-height="80"><tr><td>A</td></tr></table>'
-            + '<lf-code id="t" data-height="80"><pre>src/</pre></lf-code>',
-        )
+        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + chart.format("240px"))
     )
     result = check(page_dir)
     assert result.exit_code == 1
@@ -4676,39 +4618,10 @@ def test_check_takes_a_stated_height_only_on_a_widget_that_draws_into_its_box(pa
         'data-height="240px"> (line 9) has an invalid value; expected a whole number '
         "of CSS pixels" in result.output
     )
-    assert "<table data-height> (line 9) states the height of a widget" in (
-        result.output
-    )
-    assert "<lf-code> takes the height of what it holds" in result.output
 
 
-def test_check_takes_a_page_s_width_from_a_layout_and_not_from_data_width(page_dir):
-    """A page's width is a Layout class on `main`. `data-width` sizes a block in the
-    page's flow, so on `main` it would widen nothing and is refused; a `main` with no
-    Layout at all is advice, since nothing arranges it unless the page's own CSS does."""
-    unarranged = "<main> has no Layout class"
-    (page_dir / "index.html").write_text(
-        PAGE.replace("<main>", '<main class="layout-column">')
-    )
-    result = check(page_dir)
-    assert result.exit_code == 0, result.output
-    assert unarranged not in result.output
-    (page_dir / "index.html").write_text(PAGE)
-    result = check(page_dir)
-    assert result.exit_code == 0, result.output
-    assert unarranged in result.output
-    (page_dir / "index.html").write_text(
-        PAGE.replace("<main>", '<main data-width="available">')
-    )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "data-width> (line" in result.output
-    assert "its width is a Layout class on it" in result.output
-
-
-def test_check_takes_a_rail_only_on_body_and_only_by_name(page_dir):
-    """`data-rail` says whether the page keeps a rail, so it stands on `body` and names
-    one of the two answers; anywhere else it would silently declare nothing."""
+def test_check_takes_a_rail_only_by_name(page_dir):
+    """`data-rail` says whether the page keeps a rail, naming one of the two answers."""
     (page_dir / "index.html").write_text(
         PAGE.replace("<body>", '<body data-rail="none">')
     )
@@ -4716,17 +4629,11 @@ def test_check_takes_a_rail_only_on_body_and_only_by_name(page_dir):
     assert result.exit_code == 0, result.output
     (page_dir / "index.html").write_text(
         PAGE.replace("<body>", '<body data-rail="left">')
-        .replace("<main>", '<main data-rail="right">')
-        .replace(
-            "<h2>Plan</h2>", '<h2>Plan</h2><section data-rail="none"><p>A</p></section>'
-        )
     )
     result = check(page_dir)
     assert result.exit_code == 1
     assert 'data-rail="left"> (line' in result.output
     assert "expected one of right, none" in result.output
-    assert "data-rail> (line" in result.output
-    assert result.output.count("belongs on <body>") == 2
 
 
 def test_a_fresh_server_does_not_revalidate_the_active_revisions_inputs(
@@ -4895,16 +4802,6 @@ def test_sample_body_declarations_use_the_child_document_boundary(page_dir):
         else:
             assert "sample 'practice'" in result.output
             assert "invalid value" in result.output
-
-    # The declaration is not allowed on arbitrary templates or content blocks.
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "</main>", '<template data-annotations="page">Static</template></main>'
-        )
-    )
-    result = check(page_dir)
-    assert result.exit_code != 0
-    assert "belongs on <body>" in result.output
 
 
 @pytest.mark.parametrize(

@@ -67,6 +67,17 @@ many tiles share a row overrides every page that needs another number. A check m
 report what it sees, as the render check names where a tile row wraps, and leave the
 call to the agent.
 
+Checks follow the same line. `page check` and its render checks hold Leaf's contracts
+on every page: each widget upgrades, nothing a user needs is clipped out of reach, every
+control can be pressed. Don't add a check that anticipates one particular authoring
+mistake, such as one attribute misapplied to one tag. Each such check costs code, tests
+and gate time on every page from then on, while a mistake agents rarely make costs one
+fix on the page where it happened, or a clearer line in the instruction it misread. Add
+a narrow check only where agents get what it reports wrong on real pages and fix it when
+told. A check that fires mostly on pages that already work, because delivery or the
+page's own CSS handles what it looks for, costs more than it catches. Prefer widening a
+general reading to adding a narrow one beside it.
+
 ## Explore an open design
 
 Whenever the user is to choose among designs for a visual or interaction

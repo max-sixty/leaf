@@ -247,10 +247,12 @@ frozen into thread markup use the thread window.
 A forward gesture whose result the page can draw shows that result in the turn that
 sends it, before the log answers; a disabled control, spinner, or other delivery
 status is not that result. The page can draw what its own document settles, such as
-a widget's state or a thread's turn. Which widget Questions the document still holds, and which
-of them the user owes, depend on the whole log, so that reading changes only when
-the browser adopts the state the gesture's own POST returns; the browser never
-derives it. A refusal restores the authoritative state.
+a widget's state or the words of a turn the user adds to a thread. Which Questions
+the document still holds, which of them the user owes, and whose turn a thread is
+depend on the whole log, so the browser takes that reading from the server: from
+the state it adopts and, while a gesture of its own is unresolved, from what the
+server read that gesture leaving (each thread's `after`); the browser never derives
+it. A refusal restores the authoritative state.
 
 The active document has one immutable application publication. Only its publisher
 combines authored baselines, the complete admitted server reading, and the ordered

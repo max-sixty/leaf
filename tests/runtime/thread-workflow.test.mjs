@@ -300,25 +300,43 @@ test("a pending gesture leaves its thread as the server read that gesture leavin
     ts: "now",
   };
   const reply = { ...rewrite, id: "pending:reply", kind: "reply", parent: "question" };
-  const resolve = { id: "pending:resolve", kind: "resolve", author: "user", parent: "root" };
+  const resolve = {
+    id: "pending:resolve",
+    kind: "resolve",
+    author: "user",
+    parent: "root",
+  };
   const unresolve = { ...resolve, id: "pending:unresolve", kind: "unresolve" };
-  const waiting = { attention: { kind: "waiting", reason: "workflow", workflow: null }, owed: [] };
+  const waiting = {
+    attention: { kind: "waiting", reason: "workflow", workflow: null },
+    owed: [],
+  };
   const closed = { attention: null, owed: [] };
   const fold = (changes, ...gestures) => {
-    const [thread] = foldThreads([servedThread([asked, question], changes)], gestures);
+    const [thread] = foldThreads(
+      [servedThread([asked, question], changes)],
+      gestures,
+      (token) => token === "keep",
+    );
     return { attention: thread.attention, owed: thread.owed };
   };
 
   // A question left in prose: a reply answers it and hands the thread over, on the
   // reply's own send; new words for an older message answer nothing; a reply's reading
   // covers a rewrite beside it.
+  const settled = {
+    attention: { kind: "waiting", reason: "workflow", workflow: "root" },
+    owed: [],
+  };
   const prose = {
     attention: owed,
+    user_prompt: { message: "question", version: "question" },
     after: {
       reply: waiting,
       edit: { attention: owed, owed: ["reply:question"] },
       resolve: closed,
       unresolve: null,
+      react: settled,
     },
   };
   assert.deepEqual(fold(prose, reply), {
@@ -327,12 +345,23 @@ test("a pending gesture leaves its thread as the server read that gesture leavin
   });
   assert.deepEqual(fold(prose, rewrite), prose.after.edit);
   assert.equal(fold(prose, reply, rewrite).attention.workflow, "pending:rewrite");
+  // A reaction that settles the question answers it, as the server read it doing; one
+  // that settles nothing leaves the thread as served.
+  const keep = { ...reply, id: "pending:keep", text: undefined, token: "keep" };
+  assert.deepEqual(fold(prose, keep), settled);
+  assert.deepEqual(fold(prose, { ...keep, token: "clarify" }), {
+    attention: owed,
+    owed: undefined,
+  });
   // Settlement goes the way the last gesture takes it: a resolve closes the thread, a
   // turn after it reopens it, and a reopen undoing a resolve still pending leaves the
   // thread as served.
   assert.deepEqual(fold(prose, reply, resolve), closed);
   assert.equal(fold(prose, resolve, reply).attention.workflow, "pending:reply");
-  assert.deepEqual(fold(prose, resolve, unresolve), { attention: owed, owed: undefined });
+  assert.deepEqual(fold(prose, resolve, unresolve), {
+    attention: owed,
+    owed: undefined,
+  });
   // A resolved thread over an Ask: a reopening, by itself or by a turn, gives the Ask
   // back to the user, and a pick whose answer failed stays theirs to send again.
   const ask = { attention: owed, owed: ["widget:years"] };
@@ -343,7 +372,7 @@ test("a pending gesture leaves its thread as the server read that gesture leavin
   const resolved = {
     attention: null,
     resolved: { id: "closed", kind: "resolve", author: "user" },
-    after: { reply: resend, edit: resend, resolve: null, unresolve: ask },
+    after: { reply: resend, edit: resend, resolve: null, unresolve: ask, react: null },
   };
   assert.deepEqual(fold(resolved, unresolve), ask);
   assert.deepEqual(fold(resolved, reply), resend);

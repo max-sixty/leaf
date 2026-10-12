@@ -743,7 +743,11 @@ export function createSemanticApplication({
             : [],
     );
     const folded = ready
-      ? foldThreads(state?.browser.thread.threads ?? [], gestures)
+      ? foldThreads(
+          state?.browser.thread.threads ?? [],
+          gestures,
+          (token) => Boolean(document.registry.$reactions?.tokens?.[token]?.settles),
+        )
       : [];
     const widgets = foldWidgetStates(document.authored, projection);
     const admittedQuestions = ready

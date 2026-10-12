@@ -1223,6 +1223,7 @@ test("a pending prose reply does not hide a frozen structural Ask", () => {
         edit: ask,
         resolve: { attention: null, owed: [] },
         unresolve: null,
+        react: null,
       },
     }),
   ];
@@ -1274,7 +1275,7 @@ test("a reply reopening a thread over an Ask puts the Ask back on the user at on
   accepted.browser.thread.threads = [
     servedThread([root], {
       resolved: { id: "closed", kind: "resolve", author: "user" },
-      after: { reply: ask, edit: ask, resolve: null, unresolve: ask },
+      after: { reply: ask, edit: ask, resolve: null, unresolve: ask, react: null },
     }),
   ];
   app.adopt(accepted);

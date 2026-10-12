@@ -525,7 +525,7 @@ selects each widget answer from the same local-inclusive state its controls draw
 without folding its `x-awaits.answered` completion rule again. A required-version
 approval is another Question source: its local approval or undo updates its contained
 answer and status immediately, with refusal restoring the admitted reading. While a
-reply, rewrite or settlement is unresolved, its thread's attention and the Questions
+reply, rewrite, settlement or settling reaction is unresolved, its thread's attention and the Questions
 in it the user owes are what the server read that gesture leaving them (each served
 thread's `after`); a refusal restores the admitted reading. Questions derive their queue rows directly, while Tasks hold
 explicit committed work. Every state read has

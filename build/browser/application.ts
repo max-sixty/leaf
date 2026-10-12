@@ -290,7 +290,7 @@ export interface SemanticDocument {
       [name: string]: unknown;
     }
   > & {
-    $reactions?: { tokens: Record<string, {glyph: string}> };
+    $reactions?: { tokens: Record<string, {glyph: string; settles?: boolean}> };
   };
   authored: AuthoredMap;
   descriptors: ReadonlyMap<string, WidgetDescriptor>;
@@ -743,7 +743,11 @@ export function createSemanticApplication({
             : [],
     );
     const folded = ready
-      ? foldThreads(state?.browser.thread.threads ?? [], gestures)
+      ? foldThreads(
+          state?.browser.thread.threads ?? [],
+          gestures,
+          (token) => Boolean(document.registry.$reactions?.tokens?.[token]?.settles),
+        )
       : [];
     const widgets = foldWidgetStates(document.authored, projection);
     const admittedQuestions = ready

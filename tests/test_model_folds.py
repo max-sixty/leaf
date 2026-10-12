@@ -576,7 +576,8 @@ def test_after_is_what_each_gesture_leaves_the_thread_as_the_log_reads_it():
     the Questions in it, as the log will read them once it lands, and only the log
     knows what a gesture leaves standing: a reply answers prose and leaves an Ask, a
     rewrite answers nothing, a reopening brings back what the resolution suppressed,
-    and nothing the user says recovers a pick whose answer failed. Each served
+    a `keep` reaction settles the question it marks, and nothing the user says
+    recovers a pick whose answer failed. Each served
     `after[kind]` is checked against the reading of the log with that gesture
     appended: its attention, the waiting one's workflow aside, and the Questions the
     user owes in the thread."""
@@ -642,6 +643,8 @@ def test_after_is_what_each_gesture_leaves_the_thread_as_the_log_reads_it():
         "edit": {"kind": "edit", "message": "e1", "text": "Chart 2025."},
         "resolve": {"kind": "resolve", "parent": "e1"},
         "unresolve": {"kind": "unresolve", "parent": "e1"},
+        # A reaction whose token settles the question the user owes.
+        "react": {"kind": "reply", "token": "keep"},
     }
 
     def owed(state):
@@ -661,6 +664,11 @@ def test_after_is_what_each_gesture_leaves_the_thread_as_the_log_reads_it():
             }:
                 assert after is None, (name, kind)
                 continue
+            if kind == "react":
+                if thread["user_prompt"] is None:
+                    assert after is None, (name, kind)
+                    continue
+                gesture = {**gesture, "parent": thread["user_prompt"]["message"]}
             state = model.reading(HUB, (*events, gesture))
             attention = model.threads(state)["e1"]["attention"]
             # A wait on the gesture itself names no workflow: the browser draws its

@@ -102,13 +102,17 @@ def _readings(
 
 # The gestures a user makes on a thread whose effect on its attention and Questions
 # only the log can read, each supposed on the threads where it is possible.
-_SUPPOSED = ("reply", "edit", "resolve", "unresolve")
+_SUPPOSED = ("reply", "edit", "resolve", "unresolve", "react")
 
 
-def _supposed(kind: str, thread: dict, seq: int) -> dict | None:
+def _supposed(
+    kind: str, thread: dict, seq: int, prompt: str | None, settling: str | None
+) -> dict | None:
     """The user's `kind` gesture on `thread`, as the log would hold it, or None where
-    the thread offers none: a rewrite needs words of the user's to rewrite, and a
-    settlement goes the way the thread does not stand."""
+    the thread offers none: a rewrite needs words of the user's to rewrite, a
+    settlement goes the way the thread does not stand, and `react`, a reaction with
+    the `settling` token on the agent turn whose question the user owes (`prompt`),
+    needs both."""
     gesture = {
         "id": f"supposed-{kind}:{thread['id']}",
         "kind": kind,
@@ -130,6 +134,12 @@ def _supposed(kind: str, thread: dict, seq: int) -> dict | None:
             None,
         )
         return mine and {**gesture, "message": mine["id"], "text": "…"}
+    if kind == "react":
+        return (
+            prompt
+            and settling
+            and {**gesture, "kind": "reply", "parent": prompt, "token": settling}
+        )
     if (kind == "resolve") == bool(thread["resolved"]):
         return None
     return {**gesture, "parent": thread["root"]["id"]}
@@ -141,8 +151,10 @@ def _apply_thread_attention(work: WorkState, threads: list[dict], tasks: list[di
 
     A reply answers the prose Questions before it and no widget Question, a rewrite
     answers none, either reopens a resolved thread and supersedes a failed response
-    to a thread input, and a reopening brings back what its resolution suppressed,
-    such as a failed pick or an Ask. Rather than restate those rules, each `after`
+    to a thread input, a reopening brings back what its resolution suppressed, such
+    as a failed pick or an Ask, and a reaction whose token settles (`$reactions`)
+    answers the question the turn it marks asks, which `react` supposes on the turn
+    whose question the user owes. Rather than restate those rules, each `after`
     reading is the log's own: the same reading of the work, folded with that gesture
     supposed on every thread where it is possible (threads are independent, so one
     fold serves them all), and the same `_thread_attention`. `after[kind]` is
@@ -164,11 +176,24 @@ def _apply_thread_attention(work: WorkState, threads: list[dict], tasks: list[di
         thread["attention"] = current[thread["id"]][0]
     base = durable.events[-1]["seq"] if durable.events else 0
     held = durable.threads
+    tokens = durable.registry.get("$reactions", {}).get("tokens", {})
+    settling = next(
+        (name for name, token in tokens.items() if token.get("settles")), None
+    )
+    prompts = {
+        identity: reading.prompt["message"] if reading.prompt else None
+        for identity, reading in durable.thread_questions.items()
+    }
     for kind in _SUPPOSED:
         supposed = {
             identity: gesture
             for at, (identity, thread) in enumerate(held.items(), start=1)
-            if (gesture := _supposed(kind, thread, base + at)) is not None
+            if (
+                gesture := _supposed(
+                    kind, thread, base + at, prompts[identity], settling
+                )
+            )
+            is not None
         }
         if not supposed:
             for thread in threads:

@@ -425,7 +425,9 @@ readable and its parts stay commentable. For fixed recordings and screen capture
 follow `authoring-evidence.md`, "Source files and media". When the shape of numbers is
 the point — a trend, ranking, groups on one scale, or series moving together —
 lead with an `lf-chart`, even if the numbers compare the same dimensions across
-items. Put a table below it in `<details>` when readers also need exact values.
+items. The chart labels the values the page's argument cites (`lf-chart`'s
+instructions); put the rest in a table below it in `<details>` when readers also
+need exact values.
 Use a table for value lookup, mixed units that cannot share an axis, or comparisons
 with text-heavy cells; use native sections for a few alternatives read as wholes,
 and `lf-options` when the user must choose among them. A headline measurement is
@@ -491,11 +493,12 @@ page composition can choose their layout.
 
 Keep content within its allocated column, visual surface, or pane. The theme scrolls a `<pre>` or a table
 that runs wider than its container and fits an image or SVG to it, so none of them needs a
-width. A table that scrolls has every column at its longest unbreakable run, and
-the browser gate refuses one that scrolls with a cell in it wrapped: put an
-identifier in `<code>`, where it breaks inside its cell, rather than bare, where
-it holds its column and squeezes the prose beside it, and keep the columns to
-what the measure holds. Widgets whose element declaration requests wider space size
+width. A table that scrolls has every column at its longest unbreakable run, so prose
+that wraps in it wraps a word a line while the reader also scrolls sideways. The
+browser gate advises on each width from a 360px phone up where a table scrolls with a
+cell in it wrapped: put an identifier in `<code>`, where it breaks inside its cell,
+rather than bare, where it holds its column and squeezes the prose beside it, and keep
+the columns to what the measure holds at the narrowest width the page's readers use. Widgets whose element declaration requests wider space size
 themselves within the page's available room. Preserve the meaningful detail in a diagram
 or comparison rather than shrinking its source solely to fit the prose column.
 

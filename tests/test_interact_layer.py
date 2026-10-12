@@ -5314,7 +5314,7 @@ def test_package_check_refuses_a_malformed_reaction_token(tmp_path, monkeypatch,
     result = runner.invoke(cli_model.cli, ["package", "check", ".leaf"])
 
     assert result.exit_code != 0
-    assert "$.$reactions.tokens.nod" in result.output
+    assert "$reactions.tokens.nod" in result.output
 
 
 def test_the_register_is_the_only_way_a_key_enters_the_runtime():

@@ -92,7 +92,13 @@ def layer_facts_error(registry: dict) -> str | None:
     error = min(
         json_validator(LAYER_FACTS_SCHEMA).iter_errors(registry), key=str, default=None
     )
-    return f"{error.json_path}: {schema_error_message(error)}" if error else None
+    if error is None:
+        return None
+    where = "".join(
+        f"[{step}]" if isinstance(step, int) else f".{step}"
+        for step in error.absolute_path
+    )
+    return f"{where.lstrip('.') or 'registry'}: {schema_error_message(error)}"
 
 
 def validate_layer_declarations(registry: dict, path) -> None:

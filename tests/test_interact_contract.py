@@ -4452,7 +4452,7 @@ def test_init_requires_tones_to_be_a_list_membership_can_be_tested_against(
         ],
     )
     assert result.exit_code != 0
-    assert "$.$tones.names" in result.output
+    assert "$tones.names" in result.output
 
 
 def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path):

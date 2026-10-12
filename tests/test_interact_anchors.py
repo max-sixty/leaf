@@ -1267,7 +1267,10 @@ def test_detach_is_a_distinct_reply_target_transition(page_dir):
     assert "--detach cannot be combined" in mixed.output
 
 
-def test_a_withdrawn_reaction_root_can_still_be_moved_but_not_detached(page_dir):
+def test_a_withdrawn_reaction_root_takes_no_reply(page_dir):
+    """An undone reaction is a mark taken back: no thread fold shows it, so a reply
+    naming it would open a thread with no root. Neither detaching nor moving it
+    lands."""
     (page_dir / "index.html").write_text(FLOW_PAGE)
     published(page_dir)
     root = append_carried_log_record(
@@ -1313,8 +1316,8 @@ def test_a_withdrawn_reaction_root_can_still_be_moved_but_not_detached(page_dir)
             "Move the withdrawn mark's thread here.",
         ],
     )
-    assert moved.exit_code == 0, moved.output
-    assert json.loads(moved.output)["anchor"] == {"section": "plan"}
+    assert moved.exit_code != 0
+    assert "has been taken back" in moved.output
 
 
 def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):

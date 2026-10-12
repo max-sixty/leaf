@@ -51,16 +51,15 @@ representative desktop viewport.
   when their CSS loads before first paint: adding, removing or moving one keeps every
   block's position, wrapping and size. No rule pads, indents, widens or reflows a block
   to clear a pin, since reserved room would make the page's geometry depend on which
-  markers exist and where. Where a pin covers something the user needs, the answers are
-  `o` (Hide annotations under More on a touch screen) and a better placement
-  (`TODO.md`), never room made for it. The rail sits right of `main` wherever the window
+  markers exist and where. Resting pins use clear space or are withheld, while Page Map
+  retains their threads and actions. The rail sits right of `main` wherever the window
   has room, and seating it there never moves, narrows or indents the column
   (`content-layout.js`). `data-rail` on `body` withholds or reserves it: `"right"` makes
   the shell give up the rail's width, so the page's layout gets narrower
   (`annotation-theme.css`). Otherwise only the left resident and sidenotes move the
   column, through prepaint.js `residency`.
   Checks: `test_a_comment_leaves_its_block_as_the_page_wrote_it` and the shift watch
-  ("Stability"). Owners: the default package's `margin-placement.js` for where a margin
+  ("Stability"). Owners: `runtime/annotation-overlay/margin-placement.js` for where a margin
   row sits and when a pin folds.
 - **Auxiliary surfaces open over the page and never change its geometry.** The
   Questions panel, the thread panel and the Pages drawer take no room from the page;

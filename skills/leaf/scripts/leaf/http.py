@@ -271,6 +271,9 @@ class PageEndpoint:
         # The generation this answer speaks, which a route narrows to the revision it
         # actually served.
         self.response_layer = self.layer
+        # The revision a POST's layer gate held it to (`_layer_gate`): the one the tab
+        # named, or the active one when it named none. None until that gate runs.
+        self.layer_revision: int | None = None
         # Set by `authorized` when the key arrived in the query.
         self.set_cookie = False
         # A declared body this request never drained. Those bytes would be read as the
@@ -1061,7 +1064,9 @@ class PageEndpoint:
         one by naming none, and sends the layer generation it was built from. A
         stale runtime gets the current generation instead of a verdict in a
         vocabulary it no longer speaks; the body was already read, so the
-        connection stays reusable."""
+        connection stays reusable. The revision it held the write to is
+        `layer_revision`, which a handler reads rather than resolving the active
+        revision again after an activation may have moved it."""
         try:
             view_revision = self.requested_view_revision(header=True)
         except ValueError as error:
@@ -1070,6 +1075,7 @@ class PageEndpoint:
             view_revision = self.source.active_revision()
         elif view_revision not in self.source.revision_names:
             return self._refuse(f"unknown view revision r{view_revision}")
+        self.layer_revision = view_revision
         self.response_layer = (
             self._registry(view_revision)["$layer"]["generation"]
             if view_revision is not None
@@ -1164,9 +1170,7 @@ class PageEndpoint:
             return self._refuse(
                 "sample requires a template id and a boolean passive value"
             )
-        revision = (
-            self.requested_view_revision(header=True) or self.source.active_revision()
-        )
+        revision = self.layer_revision
         if revision is None:
             return self._refuse("sample requires an active parent revision")
         try:

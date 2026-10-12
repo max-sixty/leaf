@@ -10,6 +10,8 @@
  * committed file descriptors; each referenced chunk follows once as a regular file
  * named by its hex digest. Capture and stream retention share one synchronous
  * reading. The container consumes the snapshot before replacing any local inputs.
+ * Delivery identity is the pathname and sorted decoded query pairs, independent
+ * of the HTTP serializer used by Python or the browser.
  */
 
 import * as z from "zod/mini";
@@ -41,6 +43,17 @@ export function readPublication(value: unknown): PagePublication {
 function references(publication: PagePublication): string[] {
   return [...new Set([...Object.values(publication.record), ...Object.values(publication.responses)]
     .flatMap((entry) => entry.chunks))];
+}
+
+function responseIdentity(path: string): string {
+  const address = new URL(path, "https://leaf.page/");
+  address.searchParams.sort();
+  return JSON.stringify([address.pathname, [...address.searchParams]]);
+}
+
+function responseEntries(publication: PagePublication) {
+  return Object.entries(publication.responses).map(([path, response]) =>
+    [responseIdentity(path), response] as const);
 }
 
 /** Delivery dates calibrate the browser clock and order answers; folded content
@@ -99,7 +112,7 @@ export class PageStore {
       for (const [path, file] of Object.entries(publication.record)) {
         this.storage.sql.exec("INSERT INTO leaf_files VALUES (?, 1, ?, ?, ?)", root, path, JSON.stringify(file.chunks), file.modified);
       }
-      for (const [path, response] of Object.entries(publication.responses)) {
+      for (const [path, response] of responseEntries(publication)) {
         this.storage.sql.exec("INSERT INTO leaf_responses VALUES (?, 1, ?, ?, ?, ?)",
           root, path, response.status, JSON.stringify(response.headers), JSON.stringify(response.chunks));
       }
@@ -138,6 +151,7 @@ export class PageStore {
   publish(publication: PagePublication): void {
     this.storage.transactionSync(() => {
       const root = publication.root;
+      const expectedResponses = new Map(responseEntries(publication));
       const pages = this.storage.sql.exec<{ release: string }>(
         "SELECT release FROM leaf_pages WHERE root = ? AND staged = 1", root).toArray();
       const files = this.storage.sql.exec<{ path: string; chunks: string; modified: number }>(
@@ -149,9 +163,9 @@ export class PageStore {
         || files.length !== Object.keys(publication.record).length
         || files.some(({ path, chunks, modified }) => chunks !== JSON.stringify(publication.record[path]?.chunks)
           || modified !== publication.record[path]?.modified)
-        || responses.length !== Object.keys(publication.responses).length
+        || responses.length !== expectedResponses.size
         || responses.some(({ path, status, headers, chunks }) => {
-          const response = publication.responses[path];
+          const response = expectedResponses.get(path);
           return !response || status !== response.status || headers !== JSON.stringify(response.headers)
             || chunks !== JSON.stringify(response.chunks);
         })) throw new Error("page publication was not staged");
@@ -247,7 +261,7 @@ export class PageStore {
     const rows = this.storage.sql.exec<{
       status: number; headers: string; chunks: string;
     }>("SELECT status, headers, chunks FROM leaf_responses WHERE root = ? AND path = ? AND staged = 0",
-      root, path).toArray();
+      root, responseIdentity(path)).toArray();
     if (rows.length === 0) return null;
     const response = rows[0];
     const headers = new Headers(JSON.parse(response.headers));

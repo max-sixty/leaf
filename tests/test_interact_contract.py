@@ -4461,17 +4461,21 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
     assert keys["x-says"]  # the rest of the shipped members stand
 
 
-@pytest.mark.parametrize("key", ["kinds", "ownership"])
-def test_event_kinds_and_ownership_are_the_kernel_contract_not_a_layer_extension(
-    page_dir, tmp_path, key
-):
+@pytest.mark.parametrize("key", ["kinds", "ownership", "protocol"])
+def test_the_kernel_event_contract_is_not_a_layer_extension(page_dir, tmp_path, key):
+    """A layer cannot change the event kinds, their ownership, or the protocol
+    numbering them, so a page's vendored copy is the kernel's of the Leaf that
+    vendored it."""
     overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
     registry = json.loads((page_dir / "registry.json").read_text())
     if key == "kinds":
         registry["$events"][key]["signal"] = registry["$events"][key]["error"]
-    else:
+    elif key == "ownership":
         registry["$events"][key]["browser_discard"] = []
+    else:
+        # Equal to a protocol of 1 in Python, and still not the kernel's number.
+        registry["$events"][key] = True
     (overlay / "registry.json").write_text(json.dumps(registry))
 
     result = CliRunner().invoke(

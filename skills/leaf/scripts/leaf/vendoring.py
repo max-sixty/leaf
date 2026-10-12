@@ -12,7 +12,6 @@ from typing import NamedTuple
 from .files import read_json, replace_files
 from .hosting import restarting_server
 from .layer import (
-    PROTOCOL,
     LayerComposition,
     checked_layer_inputs,
     compose_layer,
@@ -261,7 +260,6 @@ def _stamp_layer(
         # that directory can recompose the fingerprint. The browser gates compare this
         # to refuse a page whose runtime their probe modules cannot import from.
         "runtime": payload_runtime_fingerprint(),
-        "protocol": PROTOCOL,
         "packages": list(selected),
         **({"producer": producer} if producer else {}),
     }
@@ -269,7 +267,7 @@ def _stamp_layer(
     # remains the producer of the installed bytes until the contract changes.
     same = previous is not None and all(
         previous.get(key) == metadata[key]
-        for key in ("fingerprint", "runtime", "server", "protocol", "packages")
+        for key in ("fingerprint", "runtime", "server", "packages")
     )
     metadata = previous if same else {"generation": secrets.token_hex(16), **metadata}
     incoming = {**composition.registry, "$layer": metadata}

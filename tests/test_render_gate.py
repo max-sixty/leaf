@@ -5740,6 +5740,34 @@ def test_the_render_gate_reads_a_scrolled_container_from_its_content(browser, se
     )
 
 
+# A sidenote beside a section of prose and tiles, the content a strip crushing the
+# column would push out of it.
+COMPARE_NOTE_PAGE = leaf_page(
+    "compare note",
+    """
+<h1 id="title">Maps</h1>
+<section id="comparison">
+  <h2>Compare, Variants, and Chips</h2>
+  <aside class="sidenote" id="compare-note">The page puts short alternatives in a row
+  and longer explanations below. Narrow the window to see this note return to the text
+  flow.</aside>
+  <p id="compare-guide">Ordinary sections compare alternatives. Small labels carry their
+  attributes.</p>
+  <div id="compare" class="layout-tiles">
+    <section class="panel"><small class="tag">power: none</small><small class="tag ok"
+    >weight: low</small> <strong>Paper map</strong> Easy to annotate and fold.</section>
+    <section class="panel"><small class="tag">power: daily</small><small class="tag warn"
+    >weight: medium</small> <strong>Tablet map</strong> Searchable and backlit.</section>
+  </div>
+</section>
+"""
+    + "\n".join(
+        f"<p id='after-{i}'>Paragraph {i}. " + "Filler. " * 30 + "</p>"
+        for i in range(8)
+    ),
+)
+
+
 def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser, serve):
     """The margin form is granted by the room beside the page's column, and the thread
     panel stands over the page rather than taking room from it, so the panel decides
@@ -5751,13 +5779,11 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
     Three readings distinguish a real container response from either never floating the
     note or releasing it whenever the panel opens: the note begins in the margin, returns
     to flow in a window too narrow for it, and stays in the margin with the panel open
-    in one wide enough. The gallery's note is in its page view, which is where the
-    user reads it: a note in a view not shown needs no room."""
-    example = FEATURE_GALLERY
-    url = serve(example)
+    in one wide enough."""
+    url = serve(COMPARE_NOTE_PAGE)
     page = open_page(browser, url)
-    page.evaluate("location.hash = 'bg-compare-note'")
-    expect(page.locator("#bg-compare-note")).to_be_visible()
+    page.evaluate("location.hash = 'compare-note'")
+    expect(page.locator("#compare-note")).to_be_visible()
     resized(page, 1600, 900)
     reading = """() => {
         const note = document.querySelector('aside.sidenote');

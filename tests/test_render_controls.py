@@ -4037,8 +4037,8 @@ def test_every_more_row_wears_one_face_and_rings_inside_the_menu(browser, serve)
 
 def test_share_copies_access_after_a_bare_reload(browser, serve):
     """The copied address opens the viewed version and passage in a fresh browser."""
-    url = serve(FEATURE_GALLERY)
-    page = open_page(browser, url + "&view=reading#bg-share-guide")
+    url = serve(LONG_PAGE)
+    page = open_page(browser, url + "&view=reading#p30")
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     expect(page).not_to_have_url(re.compile(r"[?&]t="))
     page.reload()
@@ -4066,7 +4066,7 @@ def test_share_copies_access_after_a_bare_reload(browser, serve):
         "view": ["reading"],
     }
     assert urlsplit(copied).path == urlsplit(url).path
-    assert urlsplit(copied).fragment == "bg-share-guide"
+    assert urlsplit(copied).fragment == "p30"
     expect(copy).to_be_focused()
     page.keyboard.press("Escape")
     expect(
@@ -4074,15 +4074,26 @@ def test_share_copies_access_after_a_bare_reload(browser, serve):
     ).to_be_focused()
     with browser.new_context() as context:
         recipient = open_page(browser, copied, context=context)
-        expect(recipient.locator("#bg-share-guide")).to_be_visible()
+        expect(recipient.locator("#p30")).to_be_in_viewport()
         expect(recipient).not_to_have_url(re.compile(r"[?&]t="))
     resized(page, 390, 844)
     page.get_by_role("button", name=re.compile(r"^More page controls")).click()
     page.evaluate("navigator.clipboard.writeText('before sharing')")
     share.click()
+    # The copy button ignores a press during its second of success feedback, which a
+    # quick journey reaches before the first copy's feedback ends.
+    expect(page.locator(".lf-share .lf-banner-copy")).to_have_js_property(
+        "isCopying", False
+    )
     copy.click()
+    # The first copy's notice can still stand, so the clipboard says when this one
+    # has landed.
+    wait_for(
+        lambda: page.evaluate("navigator.clipboard.readText()"),
+        lambda text: text == copied,
+        failure="the second copy never reached the clipboard",
+    )
     expect(page.locator(".lf-notice")).to_have_text("Link copied")
-    assert page.evaluate("navigator.clipboard.readText()") == copied
     # Plain HTTP outside loopback has no clipboard API; the link remains usable.
     page.add_init_script(
         "Object.defineProperty(navigator, 'clipboard', {value: undefined})"

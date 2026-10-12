@@ -45,9 +45,9 @@ from render_cases_navigation import (
     source_revision,
 )
 from render_harness import (
-    FEATURE_GALLERY,
     LONG_PAGE,
     RELEASE_FOCUS,
+    REPLY_HOST_PAGE,
     CutOff,
     _traffic,
     _until,
@@ -329,13 +329,17 @@ What should we do next?</lf-test-task></lf-test-plan>
 
 
 @pytest.mark.parametrize("installation", ["in-place", "fresh"])
-def test_gallery_automatic_revision_keeps_the_empty_reply_focused(
+def test_an_automatic_revision_keeps_the_empty_panel_reply_focused(
     browser, serve, installation
 ):
-    page = open_page(browser, live_url(serve(FEATURE_GALLERY)))
+    """A revision, installed in place or as a fresh document, leaves the Threads
+    panel's empty reply box focused and empty."""
+    url = live_url(serve(REPLY_HOST_PAGE))
+    root = panel_comment(serve.page_dir, "Should reads fall back?", author="agent")
+    page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    thread = page.locator('.lf-thread[data-id="72e031c5bf0d485ba9054628e09869d4"]')
+    thread = page.locator(f'.lf-thread[data-id="{root}"]')
     thread.locator(":scope > .lf-thread-summary").click()
     editor = thread.locator(".lf-thread-reply leaf-text")
     editor.click()
@@ -347,16 +351,15 @@ def test_gallery_automatic_revision_keeps_the_empty_reply_focused(
             "content"
         )
     )
-    revised = FEATURE_GALLERY.read_text().replace(
-        "To carry unfinished words to another item",
-        "To move unfinished words to another item",
+    revised = REPLY_HOST_PAGE.replace(
+        "with a signed-cookie fallback", "with a session-cookie fallback"
     )
     if installation == "fresh":
         revised = revised.replace(
             "</head>",
-            '<script type="module">window.galleryRevision = 2;</script></head>',
+            '<script type="module">window.pageRevision = 2;</script></head>',
         )
-    stamp_page(serve.page_dir, revised, "Revise the gallery beside its empty reply")
+    stamp_page(serve.page_dir, revised, "Revise the page beside its empty reply")
     wait_for_revision(page, revision + 1)
     assert (page.evaluate("performance.timeOrigin") != birth) == (
         installation == "fresh"

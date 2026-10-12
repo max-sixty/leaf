@@ -572,10 +572,10 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     assert both.exit_code == 2
     assert "No such option '--for'" in both.output
 
-    [task] = written(
-        ["thread", "reply", str(page_dir), later, "--text", "On it.", "--task", "Trace"]
+    [todo] = written(
+        ["thread", "reply", str(page_dir), later, "--text", "On it.", "--todo", "Trace"]
     )
-    assert (task["parent"], task["task"]) == (later, "Trace")
+    assert (todo["parent"], todo["todo"]) == (later, "Trace")
 
     [closed] = written(["thread", "resolve", str(page_dir), later])
     assert (closed["kind"], closed["parent"]) == ("resolve", later)
@@ -1510,9 +1510,11 @@ def test_kernel_selectors_name_no_package_tag():
 def test_every_widget_api_export_has_a_behavior_module_reader():
     """widget-api.js is the API behavior modules get, so each name it exports is one a
     behavior module imports (a bundled package's, a kernel widget's, an example's or a
-    fixture package's) or one a reference shows package authors in code. A name only
-    the render gate's probes read belongs in check-api.js, and one only the suite reads
-    is imported from its owning module, so neither widens the authoring API."""
+    fixture package's) or one a reference teaches package authors. The list of Lit's
+    names under module-authoring.md's "Lit exports" teaches none of them, so it keeps no
+    name alive. A name only the render gate's probes read belongs in check-api.js, and
+    one only the suite reads is imported from its owning module, so neither widens the
+    authoring API."""
     strip = lambda code: re.sub(r"(?<!:)//[^\n]*|/\*.*?\*/", "", code, flags=re.DOTALL)
     api = strip((schema_model.ASSETS / "runtime" / "widget-api.js").read_text())
     exported = {
@@ -1550,11 +1552,15 @@ def test_every_widget_api_export_has_a_behavior_module_reader():
         SKILL_ROOT / "SKILL.md",
         *schema_model.BUNDLED_PACKAGES.glob("*/instructions/*.md"),
     ]
+    # The list of Lit's names has its own section, which teaches none of them.
+    listed = re.compile(
+        r"^### Lit exports\n.*?(?=^#|\Z)", flags=re.DOTALL | re.MULTILINE
+    )
     in_code = "\n".join(
         code
         for path in references
         for code in re.findall(
-            r"```.*?```|`[^`\n]+`", path.read_text(), flags=re.DOTALL
+            r"```.*?```|`[^`\n]+`", listed.sub("", path.read_text()), flags=re.DOTALL
         )
     )
     shown = {name for name in exported if re.search(rf"\b{name}\b", in_code)}

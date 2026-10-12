@@ -3540,7 +3540,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     expect(text).to_have_text(
         re.compile(
             r"^\s*Claude is working — revising the plan \(.+\)\. 1 response owed on updates awaiting delivery\."
-            r" Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.\s*$"
+            r" Waiting on Claude: 1 reply, 1 to-do \(Work on the page\)\.\s*$"
         )
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -3561,7 +3561,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     expect(text).to_have_text(
         re.compile(
             r"^\s*Claude is working — revising the plan \(.+\)\. "
-            r"1 response owed on queued updates\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.\s*$"
+            r"1 response owed on queued updates\. Waiting on Claude: 1 reply, 1 to-do \(Work on the page\)\.\s*$"
         )
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -3603,7 +3603,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         expect(text).to_have_text(
             re.compile(
                 r"^\s*Claude is working — revising the plan \(.+\)\. "
-                r"1 response owed on updates awaiting delivery\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.\s*$"
+                r"1 response owed on updates awaiting delivery\. Waiting on Claude: 1 reply, 1 to-do \(Work on the page\)\.\s*$"
             )
         )
         expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -3622,7 +3622,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         expect(text).to_have_text(
             re.compile(
                 r"^\s*Claude is using a tool — revising the plan \(.+\) · "
-                r"Running the tests\. 1 response owed on updates awaiting delivery\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.\s*$"
+                r"Running the tests\. 1 response owed on updates awaiting delivery\. Waiting on Claude: 1 reply, 1 to-do \(Work on the page\)\.\s*$"
             )
         )
         expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -3646,7 +3646,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         declare("working", "revising the plan", quiet_for=20 * 60)
         expect(text).to_have_text(
             "Claude last checked in 20m ago: revising the plan. Your updates are saved."
-            " Waiting on Claude: 1 reply, 1 task (Work on the page)."
+            " Waiting on Claude: 1 reply, 1 to-do (Work on the page)."
         )
         expect(dot).to_have_class(re.compile(r"\baway\b"))
 
@@ -3662,7 +3662,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         declare("working", "revising the plan", quiet_for=6 * 60, turn_ended=5 * 60)
         expect(text).to_have_text(
             "Claude’s turn ended 5m ago: revising the plan."
-            " Your updates are saved. Waiting on Claude: 1 reply, 1 task (Work on the page)."
+            " Your updates are saved. Waiting on Claude: 1 reply, 1 to-do (Work on the page)."
         )
         expect(dot).to_have_class(re.compile(r"\baway\b"))
 
@@ -3675,7 +3675,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         declare("working", "revising the plan", quiet_for=5 * 60, turn_ended=5 * 60)
         expect(text).to_have_text(
             "Claude’s turn ended 5m ago: revising the plan."
-            " Your updates are saved. Waiting on Claude: 1 reply, 1 task (Work on the page)."
+            " Your updates are saved. Waiting on Claude: 1 reply, 1 to-do (Work on the page)."
         )
 
         # A turn that has only just ended still holds it. An agent that ends its turn
@@ -3726,7 +3726,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     declare("working", "running the migration", quiet_for=6 * 60, turn_ended=5 * 60)
     expect(text).to_have_text(
         "Claude isn't watching right now. Your updates are saved."
-        " It picks them up next turn. Waiting on Claude: 1 reply, 1 task (Work on the page)."
+        " It picks them up next turn. Waiting on Claude: 1 reply, 1 to-do (Work on the page)."
     )
     expect(dot).to_have_class(re.compile(r"\baway\b"))
 
@@ -3747,7 +3747,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     expect(text).to_have_text(
         "Claude’s turn ended 5m ago. Your updates are saved."
         " Nothing is answering them, so nudge it in the terminal."
-        " Waiting on Claude: 2 replies, 1 task (Work on the page)."
+        " Waiting on Claude: 2 replies, 1 to-do (Work on the page)."
     )
     expect(summary).to_have_text("Nudge Claude in terminal")
     expect(dot).to_have_class(re.compile(r"\baway\b"))
@@ -3763,7 +3763,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     # claim it left has nothing behind it however lately it was written.
     declare("working", "running the migration", session_pid=dead_pid)
     expect(text).to_have_text(
-        UNHELD + " Waiting on Claude: 2 replies, 1 task (Work on the page)."
+        UNHELD + " Waiting on Claude: 2 replies, 1 to-do (Work on the page)."
     )
     expect(summary).to_have_text("No session")
     # Grey, not the amber a session falling behind wears: nobody is on the line, which
@@ -3781,7 +3781,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     # silence on a page that stands for weeks is not a fault to report.
     declare("working", "running the migration", quiet_for=60 * 60, claimed=False)
     expect(text).to_have_text(
-        UNHELD + " Waiting on Agent: 2 replies, 1 task (Work on the page)."
+        UNHELD + " Waiting on Agent: 2 replies, 1 to-do (Work on the page)."
     )
 
     declare("working", "revising the plan", agent="Codex")
@@ -3891,7 +3891,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(other_workflow).to_have_text("Sent")
     expect(page.locator(".lf-status-detail")).to_have_text(
         "Claude picked up your comment and hasn't said what it's doing yet"
-        " (just now). 1 response owed on updates awaiting delivery. Waiting on Claude: 2 replies, 1 task"
+        " (just now). 1 response owed on updates awaiting delivery. Waiting on Claude: 2 replies, 1 to-do"
         " (Work on the page)."
     )
     expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
@@ -4042,7 +4042,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
             held,
             "--text",
             "I'll re-run it against the rolling deploy.",
-            "--task",
+            "--todo",
             "Re-run against the rolling deploy",
         ],
     )
@@ -4080,7 +4080,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(r"^\s*No session holds this page\.")
     )
-    expect(held_thread.locator(".lf-thread-status")).to_have_text("Task open")
+    expect(held_thread.locator(".lf-thread-status")).to_have_text("To-do open")
     expect(workflows).to_have_count(1)
 
 

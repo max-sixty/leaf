@@ -12,7 +12,7 @@ second fold.
 | Fact | Where | Writer | Stops being believed |
 | --- | --- | --- | --- |
 | page declaration: `waiting` or `idle`, detail | `status.json` | `leaf status`, which first writes a `put_down` to the log when a start stands | stands until the next declaration, and its age dates the page's other readings |
-| the item in hand: an update's event id or an open task's id, the line, and the claimant turn that wrote it, or none for another session's | an explicit `start` or an addressed progress reply's `start` metadata in `events.jsonl`, read by `tasks.start_reading` | `leaf task start`, or `leaf response reply --ephemeral` on an update owed, from a turn of the session driving the page | the item ending: an update's answer, or a task's end; a later `put_down` event, which `leaf status waiting` and `idle` write; and as a belief, a short grace after the turn that wrote it closes, about a quarter of an hour with no renewal, or at once when the claimant's lifetime has ended |
+| the item in hand: an update's event id or an open to-do's id, the line, and the claimant turn that wrote it, or none for another session's | an explicit `start` or an addressed progress reply's `start` metadata in `events.jsonl`, read by `tasks.start_reading` | `leaf task start`, or `leaf response reply --ephemeral` on an update owed, from a turn of the session driving the page | the item ending: an update's answer, or a to-do's end; a later `put_down` event, which `leaf status waiting` and `idle` write; and as a belief, a short grace after the turn that wrote it closes, about a quarter of an hour with no renewal, or at once when the claimant's lifetime has ended |
 | live App Server activity: session, turn, typed kind, detail, event floor | optional `stream` in `status.json` | the App Server connection that starts an embedded turn, or the detached adapter's task connection | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event |
 | live App Server reply: one displayed reply plus delivery attempt bindings by response address | optional `stream.reply` and `stream.reply_bindings` in `status.json` | an App Server connection bound to a delivery's reply; explicit `response reply` writes directly to the event log | the draft joins its thread once it has words, drawn under its response address, which the durable answer to that input shares, and remains on failure or disconnect until a logged event naming its delivery attempt or its response address retires it; each binding names the claim turn it belongs to (the delivery's turn once its reply opens, the turn standing at reservation before then), clears after durable commit or terminal failure, and survives a lost connection; it stands only while that is still the claim's turn and the turn is open (`activity.reply_binding_stands`), and a turn's answer committed after its binding lapsed yields to a reply another writer already gave |
 | turn identity, when it last opened or took a prompt, and open or closed state | the session lifecycle record | a prompt, an explicit reader acknowledgement for an unnamed harness turn, the queue adapter observing Codex’s native transcript, or an App Server client following a provider turn opens `turn` and stamps `turn_opened`, or renews that stamp on a turn still open; the id is the harness's where it names one (Codex's hooks and App Server name the same turn) and one Leaf mints otherwise; the Stop hook stamps `turn_closed` on whatever turn is open, and an App Server client on the turn it follows | the next opening of another id; the next closing stamps it, and a closed id never reopens |
@@ -101,7 +101,7 @@ put the thread in Needs you without persisting another workflow record.
 A workflow's `stage` and its `answer` are separate readings. The stage reports
 delivery for every update the user has handed over; the answer, which `workflows.py`
 states, is what the agent owes it: a reply, a version for a thread that asked
-for one, a version whose markup records a user's answer to a page Question, or null. Only owed answers enter activity counts. `leaf status idle`
+for one, a version whose markup records a user's answer to a page ask, or null. Only owed answers enter activity counts. `leaf status idle`
 refuses over one set of them, `activity.blocking_obligations`: the acknowledged
 updates nothing else is set to answer. An update still `queued` is answered by the
 later turn that opens it, and a reply whose provider final the open turn has finished is
@@ -112,17 +112,17 @@ pickup, on the update or on any input its thread's one reply answers, is the age
 answer for now, and the turn may end over it while background workers carry the
 work. The start does not carry into the next turn, which answers the update or starts
 it again. A widget action
-that answers no Question, such as a draft edit or a moved card, owes nothing: its workflow
+that answers no ask, such as a draft edit or a moved card, owes nothing: its workflow
 reports delivery until its document takes it in — for a page action, until the markup
 records the action or a later version supersedes it; for an action in frozen thread markup,
 until the agent's next spoken turn in that thread, or a resolution that closes the
 thread after it. It does not make its thread the agent's turn.
-An action the user has not finished — a pick before the Done its Question declares — has
+An action the user has not finished — a pick before the Done its ask declares — has
 not been handed over and has no workflow. Consecutive user turns form one response batch
 addressed by its newest input. Before settlement each input retains a workflow,
 while only the newest carries the thread's `answer` and enters the obligation
 list. A response to an older input removes that input and leaves the newer
-obligation. A response to the newest settles the batch. Widget Questions remain
+obligation. A response to the newest settles the batch. Widget asks remain
 independent and settle through their declared state. Pickup never rewrites `status.json` or makes the page itself Picked up. A
 resolution or authored state that honors an update also settles it; a later version
 note settles a page action whose verb has no authored record form. A note already
@@ -152,11 +152,11 @@ refines a message workflow. Thinking and tool activity stay page-wide until a ha
 provides an explicit input or subject binding; the current harness contract does not.
 
 A start has to be renewed, and starting the item again renews it. It names one item:
-an update, by its event id, which then reads **Working**, or a task, which then runs with
+an update, by its event id, which then reads **Working**, or a to-do, which then runs with
 the start's line. Nothing in a session starts an item while its turn is over, and its
 workers leave the page to it, so a start over work that outlasts the turn stands
 unrenewed until a later turn starts the item again. What holds such work across turns
-is the task itself (`tasks.py`), which no turn or session ending lapses.
+is the to-do itself (`tasks.py`), which no turn or session ending lapses.
 
 The turn id and `turn_closed` stamp a declaration is judged against are the
 session's rather than the page's: prompts and endings publish one atomic session

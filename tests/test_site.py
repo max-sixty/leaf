@@ -1628,7 +1628,7 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
         "agent": "The agent",
         "install_url": "/#install",
     }
-    assert state["browser"]["tasks"] == []
+    assert state["browser"]["todos"] == []
     assert state["session_alive"] is None
     assert not state["listening"]
     assert not (page_dir / "service.json").exists()

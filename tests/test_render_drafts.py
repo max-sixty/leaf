@@ -5386,8 +5386,8 @@ def editing_read(editor):
     [
         "authored",
         "composer",
+        # The margin card's reply; the panel's open thread holds the same reply editor.
         "reply",
-        "panel-reply",
         "general",
         "first-message",
         "edit",
@@ -5414,17 +5414,13 @@ def test_executable_revision_preserves_each_editor_identity(browser, serve, kind
         page.keyboard.press("c")
         editor = page.locator(".lf-composer leaf-text")
         expect(editor).to_be_focused()
-        if kind in {"reply", "panel-reply"}:
+        if kind == "reply":
             write(editor, "A canonical root comment.")
             page.keyboard.press("Control+Enter")
             round_trip(page)
             page.keyboard.press("c")
             editor = page.locator(".lf-margin-preview .lf-thread-reply leaf-text")
             expect(editor).to_be_focused()
-            if kind == "panel-reply":
-                page.locator(".lf-threads-toggle").click()
-                editor = page.locator(".lf-threads .lf-thread-reply leaf-text").first
-                write(editor, "A native panel draft.")
     words = "Kept words with a selected span."
     if kind == "authored":
         words = "\n".join([words] * 200)

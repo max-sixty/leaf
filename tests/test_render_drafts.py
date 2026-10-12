@@ -521,6 +521,72 @@ def test_a_script_scroll_as_content_grows_above_ends_the_hold(browser, serve):
     assert page.evaluate(heading) < held - 300, "the held place came back"
 
 
+def test_a_page_that_never_settles_lets_the_held_place_go_after_a_while(browser, serve):
+    """A chart whose box breathes forever keeps the page's rendering from ever reading
+    settled. A width change restores the reader's place and holds it while the layout
+    settles, but no longer than a moment: well after, a script that scrolls as content
+    grows above the reader moved the page, and the next width change starts from
+    there rather than putting the held place back."""
+    lead = "".join(
+        f"<p>Lead paragraph {n} has enough words to rewrap at a phone width and push"
+        " what follows further down the page.</p>"
+        for n in range(30)
+    )
+    body = "".join(
+        f"<p>Body paragraph {n} has enough words to rewrap at a phone width and push"
+        " what follows further down the page.</p>"
+        for n in range(40)
+    )
+    source = leaf_page(
+        "A page that never settles",
+        "<style>@keyframes breathe { from { width: 60%; } to { width: 100%; } }"
+        " .breathe #breathing { animation: breathe 3s linear infinite alternate; }"
+        "</style>"
+        '<div id="breathing"><lf-chart id="spin" data-height="120"><pre>\n'
+        '{ ariaLabel: "Two teams", marks: [Plot.barY([{team: "a", n: 12},'
+        ' {team: "b", n: 19}], {x: "team", y: "n"})] }\n</pre></lf-chart></div>'
+        f'{lead}<section id="read"><h2>The section the reader reads</h2>{body}</section>',
+    )
+    page = open_page(browser, serve(source))
+    page.evaluate("document.documentElement.classList.add('breathe')")
+
+    def settle():
+        # The page never reads settled, so wait out its scrolls and a few frames.
+        scroll_settled(page)
+        page.wait_for_timeout(300)
+        one_frame(page)
+
+    resized(page, 390, 800)
+    settle()
+    page.evaluate("location.hash = 'read'")
+    settle()
+    box = page.locator("#read p").first.bounding_box()
+    page.mouse.move(box["x"] + 20, box["y"] + 5)
+    page.mouse.wheel(0, 8)
+    settle()
+    resized(page, 1200, 800)
+    settle()
+    heading = """() => document.querySelector('#read h2').getBoundingClientRect().top
+      - (parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop) || 0)"""
+    held = page.evaluate(heading)
+    page.wait_for_timeout(1500)
+    page.evaluate(
+        """() => new Promise(done => requestAnimationFrame(() => {
+          const late = document.createElement('div');
+          late.style.height = '300px';
+          const section = document.getElementById('read');
+          section.parentNode.insertBefore(late, section);
+          document.scrollingElement.scrollBy(0, 400);
+          done();
+        }))"""
+    )
+    settle()
+    assert page.evaluate(heading) < held - 300, "the script's scroll was undone"
+    resized(page, 390, 800)
+    settle()
+    assert page.evaluate(heading) < held - 300, "the held place came back"
+
+
 def test_paging_down_from_a_landed_section_keeps_the_paged_passage(browser, serve):
     """A fragment lands on a section and focuses it; the reader pages down through it.
     Focus on a section the reader reads through names the passage they paged to, not

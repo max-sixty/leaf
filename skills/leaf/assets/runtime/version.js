@@ -1620,6 +1620,9 @@ export function createVersionController({
       // This continuation never enters the semantic document snapshot.
       land: () =>
         landContinuity(async () => {
+          // A revision ends every hold, whether or not the reader's intent lets the
+          // view be restored: its own handoff places the reader.
+          releaseHolds();
           syncLayout();
           if (currentIntent()) {
             restoreView(view, currentIntent);
@@ -1751,8 +1754,6 @@ export function createVersionController({
   }
 
   function restoreView(view, currentIntent) {
-    holds.clear();
-    stopReapplying();
     const regions = new Map(readingRegions().map((region) => [region.id, region]));
     const active =
       regions.get(view.activeRegion) ??
@@ -2083,13 +2084,22 @@ export function createVersionController({
   // and outliving it would put back a place under whatever else changes the page. The
   // window closes when Leaf's rendering reads settled (rendering.js, `renderingState`)
   // and every region stands where it was last seen (`regionsSettled`), or after
-  // `SETTLING` deliveries whatever happens. What moves a place is the page's
+  // `SETTLING` deliveries or `SETTLING_MS` whatever happens: a widget that keeps
+  // resizing, or a rendering hold that never releases, would otherwise keep reading
+  // every later move as layout's. What moves a place is the page's
   // own content or its bounded region's, and it lands only in the box it was restored
   // into.
   const SETTLING = 12;
+  const SETTLING_MS = 1000;
+  let reapplyTimer;
   const stopReapplying = () => {
     reapply?.disconnect();
+    clearTimeout(reapplyTimer);
     reapply = null;
+  };
+  const releaseHolds = () => {
+    holds.clear();
+    stopReapplying();
   };
   function watchHolds() {
     stopReapplying();
@@ -2115,6 +2125,7 @@ export function createVersionController({
       again();
     });
     reapply = observer;
+    reapplyTimer = setTimeout(stopReapplying, SETTLING_MS);
     const settled = () =>
       nextAnimation(() => {
         if (reapply !== observer) return;
@@ -2282,8 +2293,7 @@ export function createVersionController({
       },
       { capture: true, passive: true },
     );
-    for (const type of ["popstate", "hashchange"])
-      addEventListener(type, () => holds.clear());
+    for (const type of ["popstate", "hashchange"]) addEventListener(type, releaseHolds);
     // Arriving or editing changes the place even when no scroller moves. Keep the intact
     // place now: an immediate resize can invalidate geometry before a later record runs.
     // Record again after any seat or layout commits.

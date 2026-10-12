@@ -134,6 +134,8 @@ import { anchorLabel } from "../thread/messages.js";
 
 import { standingPoint } from "../pointed-place.js";
 import { keeps } from "../keeps.js";
+import { closeVersionMenu } from "../version.js";
+import { versionMenuIsOpen } from "../version-picker.js";
 import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
 
 export function createResponseSurface({
@@ -158,8 +160,6 @@ export function createResponseSurface({
   reactionTokens,
   setReact,
   collapseShortcutBar,
-  closeVersionMenu,
-  versionMenuIsOpen,
   openPageThread,
   drawModeActive,
   refreshThread,

@@ -250,9 +250,6 @@ export function mountApplication(dependencies) {
 
   const annotations = createAnnotationInventory({
     readQuestions,
-    comparisonBase: dependencies.annotationCommands.comparisonBase,
-    inlineComparison: dependencies.annotationCommands.inlineComparison,
-    toggleInlineComparison: dependencies.annotationCommands.toggleInlineComparison,
     placedAt: dependencies.anchorPlacement.placedAt,
     openThread: openPageThread,
     goToQuestion: dependencies.annotationCommands.goToQuestion,
@@ -379,7 +376,6 @@ export function mountApplication(dependencies) {
     notifyDataSubscribers: dependencies.state.notifyDataSubscribers,
     isSignoffDeclared: dependencies.state.isSignoffDeclared,
     renderStatus: dependencies.state.renderStatus,
-    renderVersions: dependencies.state.renderVersions,
     stateSignoff: dependencies.state.stateSignoff,
     renderOthers: dependencies.state.renderOthers,
     accountPending,

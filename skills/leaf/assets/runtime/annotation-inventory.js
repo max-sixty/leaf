@@ -38,13 +38,15 @@ import { renderedParent, shadowHost, under } from "./shadow.js";
 import { placeOf } from "./standing-target.js";
 import { questionPlace } from "./questions/place.js";
 import { scrollBehavior } from "./motion.js";
-import { comparisonChanges } from "./version.js";
+import {
+  comparisonBase,
+  comparisonChanges,
+  inlineComparison,
+  toggleInlineComparison,
+} from "./version.js";
 
 export function createAnnotationInventory({
   readQuestions,
-  comparisonBase,
-  inlineComparison,
-  toggleInlineComparison,
   placedAt,
   openThread,
   goToQuestion,

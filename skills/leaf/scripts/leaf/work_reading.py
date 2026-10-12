@@ -18,24 +18,35 @@ from .tasks import TaskReading
 
 class WorkReading:
     def __init__(
-        self, events: list, registry: dict, page=None, *, thread=None, log=None
+        self,
+        events: list,
+        registry: dict,
+        page=None,
+        *,
+        thread=None,
+        log=None,
+        document=None,
     ):
         self.events = events
         self.registry = registry
         self.page = page
         self.log = log or TaskReading(events)
         self._thread = thread
+        self._document = document
 
     def supposing(self, gestures: list[dict]) -> "WorkReading":
         """This reading with `gestures` appended to its log, for asking what they would
-        leave standing. They carry no markup and name no task, so the frozen thread
-        document and the task log are this reading's own."""
+        leave in the threads they stand in. They carry no markup and name no task, so
+        the frozen thread document and the task log are this reading's own, and the
+        page document is too: what they could change there, a page Ask seated in a
+        thread they reopen, stands in no thread's reading."""
         return WorkReading(
             [*self.events, *gestures],
             self.registry,
             self.page,
             thread=self.thread,
             log=self.log,
+            document=self.document,
         )
 
     @cached_property
@@ -118,6 +129,8 @@ class WorkReading:
 
     @cached_property
     def document(self):
+        if self._document is not None:
+            return self._document
         return read_document(self.page, self.threads) if self.page is not None else None
 
     @cached_property

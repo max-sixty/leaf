@@ -622,9 +622,23 @@ def test_after_is_what_each_gesture_leaves_the_thread_as_the_log_reads_it():
         "resolved over an Ask": (asked, ask, resolve),
         "failed answer to a pick": (asked, ask, pick, failed),
         "resolved after a failed pick": (asked, ask, pick, failed, resolve),
+        # The agent at work on the comment: the thread waits on that work, which
+        # outranks a send beside it, as the log will say.
+        "at work on the comment": (
+            asked,
+            {
+                "kind": "start",
+                "author": "agent",
+                "agent": "Agent",
+                "session": "s",
+                "turn": "t",
+                "item": "e1",
+                "text": "Charting",
+            },
+        ),
     }
     gestures = {
-        "reply": {"kind": "reply", "parent": "e2", "text": "2025."},
+        "reply": {"kind": "reply", "parent": "e1", "text": "2025."},
         "edit": {"kind": "edit", "message": "e1", "text": "Chart 2025."},
         "resolve": {"kind": "resolve", "parent": "e1"},
         "unresolve": {"kind": "unresolve", "parent": "e1"},
@@ -649,7 +663,9 @@ def test_after_is_what_each_gesture_leaves_the_thread_as_the_log_reads_it():
                 continue
             state = model.reading(HUB, (*events, gesture))
             attention = model.threads(state)["e1"]["attention"]
-            if attention is not None and attention["kind"] == "waiting":
+            # A wait on the gesture itself names no workflow: the browser draws its
+            # own send there. A wait on any other names it as the log does.
+            if attention is not None and attention["workflow"] == f"e{len(events) + 1}":
                 attention = {**attention, "workflow": None}
             assert after == {"attention": attention, "owed": owed(state)}, (
                 name,

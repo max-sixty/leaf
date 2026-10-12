@@ -148,7 +148,10 @@ def _apply_thread_attention(work: WorkState, threads: list[dict], tasks: list[di
     fold serves them all), and the same `_thread_attention`. `after[kind]` is
     `{attention, owed}`, or None where the thread offers no such gesture. A waiting
     attention's `workflow` is null where it waits on the supposed gesture itself,
-    which the browser draws as its own send.
+    which the browser draws as its own send. Delivery liveness, which activity adds
+    to served workflows from claims and the clock, is not supposed, so where it would
+    mark an earlier input uncertain the reading names the gesture's own wait instead;
+    which actor owes the thread, and what, are the log's either way.
 
     The browser reads `after` while a gesture it sent is unanswered, so its thread
     attention and Questions agree with the reading the log gives back
@@ -173,9 +176,7 @@ def _apply_thread_attention(work: WorkState, threads: list[dict], tasks: list[di
             continue
         reading = durable.supposing(list(supposed.values()))
         workflows = served_workflows(reading.workflows, reading.thread)
-        after = _readings(
-            reading.threads.values(), reading.questions, workflows, tasks
-        )
+        after = _readings(reading.threads.values(), reading.questions, workflows, tasks)
         for thread in threads:
             gesture = supposed.get(thread["id"])
             if gesture is None:

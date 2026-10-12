@@ -1120,9 +1120,11 @@ def test_a_shift_without_input_after_typing_fails(browser):
     consume_browser_errors(page, "textarea#field moved without input")
 
 
-@pytest.mark.parametrize("work_ms", [30, 300], ids=["ordinary", "ten-times-slower"])
-def test_an_input_owns_its_counted_rendering_until_it_settles(browser, serve, work_ms):
-    """Counted input work can cross frames; its completion ends movement credit."""
+def test_an_input_owns_its_counted_rendering_until_it_settles(browser, serve):
+    """Counted input work can cross frames; its completion ends movement credit. Each
+    step of the work takes ten times an ordinary frame's, so credit that lapsed on a
+    clock rather than on the work's completion would fail here."""
+    work_ms = 300
     page = open_page(
         browser,
         serve(

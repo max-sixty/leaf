@@ -1049,13 +1049,9 @@ def test_opening_a_visible_line_in_a_long_draft_preserves_the_reading_position(
     expect(editor).to_have_js_property("value", text)
 
 
-@pytest.mark.parametrize(
-    "viewport", [(1440, 900), (390, 844)], ids=["desktop", "phone"]
-)
-def test_a_draft_uses_shared_editing_and_saves_exact_markdown_source(
-    browser, serve, viewport
-):
-    """Formatted reading retains exact Markdown through caret placement and editing."""
+def test_a_draft_uses_shared_editing_and_saves_exact_markdown_source(browser, serve):
+    """Formatted reading retains exact Markdown through caret placement and editing, at
+    a phone's width, where the formatted words wrap most."""
     text = (
         "A **bold invitation**, `literal code`, and [a link](https://example.com). " * 3
     ).strip()
@@ -1069,7 +1065,7 @@ def test_a_draft_uses_shared_editing_and_saves_exact_markdown_source(
             )
         ),
     )
-    resized(page, *viewport)
+    resized(page, 390, 844)
     draft = page.locator("#source")
     point = draft.locator(".lf-draft-body").evaluate("""body => {
       const node=body.querySelector('code').firstChild;

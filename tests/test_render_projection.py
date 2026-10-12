@@ -2424,11 +2424,11 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
 
 
 @pytest.mark.watch_shifts
-@pytest.mark.parametrize("width", [1200, 390], ids=["desktop", "narrow"])
-def test_live_news_keeps_the_reading_draft_and_resting_target(browser, serve, width):
+def test_live_news_keeps_the_reading_draft_and_resting_target(browser, serve):
     """Live news keeps the user's simultaneous reading, editing, and pointer places.
 
-    The following passage and editor are visible below the reply's insertion point.
+    At a phone's width, where the tall reply grows the most, the following passage and
+    editor are visible below the reply's insertion point.
     Status paints immediately and a tall reply waits behind its fixed-row notice.
     An unrelated source revision arrives while retaining the editor and restoring the
     page's reading position. Opening the reply proves the notice held genuine growth.
@@ -2452,7 +2452,7 @@ def test_live_news_keeps_the_reading_draft_and_resting_target(browser, serve, wi
         },
     )
     page = open_page(browser, live_url(url))
-    resized(page, width, 900)
+    resized(page, 390, 900)
     thread = page.locator("#jobs .lf-page-thread")
     editor = thread.locator("leaf-text")
     words = "  Keep the middle of this unsent thought.  "

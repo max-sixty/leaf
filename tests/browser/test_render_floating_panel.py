@@ -271,3 +271,20 @@ def test_a_page_thread_opens_in_the_panel_from_the_page_s_routes(browser, serve)
     expect(reader).to_be_visible()
     expect(reader.locator(".lf-msg")).to_contain_text("Is the window long enough?")
     expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile("open"))
+
+
+def test_words_in_the_field_keep_it_the_row_when_it_lets_go(browser, serve):
+    """While the field holds words it takes the whole row, and what waits stands on the
+    line naming where the words go, whether or not the caret is in it: a press that
+    takes the caret away moves nothing, so the control it was aimed at is still there."""
+    page = floating(browser, serve(LONG_PAGE))
+    field(page).click()
+    page.keyboard.type("Could the rollback cover the weekend?")
+    settled(page)
+    box = page.locator(".lf-fp-field").bounding_box()
+    expect(page.locator(".lf-fp-to .lf-fp-quick")).to_have_count(1)
+    page.mouse.click(5, 5)
+    settled(page)
+    expect(field(page)).not_to_be_focused()
+    assert page.locator(".lf-fp-field").bounding_box() == box
+    expect(page.locator(".lf-fp-to .lf-fp-quick")).to_have_count(1)

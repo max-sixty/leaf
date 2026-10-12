@@ -9,11 +9,16 @@
    one line. */
 html[data-lf-floating-chrome] .lf-chrome {
   .lf-banner, .lf-shortcut-bar { display: none !important; }
+  /* A passing notice stands at the window's head, centred, as the prototype's did: the
+     panel's foot is where the user is writing, and its height changes. */
+  .lf-bottom-status { top: calc(12px + var(--lf-safe-top)); bottom: auto; right: auto;
+    left: 50%; translate: -50% 0; }
 }
 @scope (.lf-chrome) {
   .lf-floating-panel {
-    --lf-fp-surface: light-dark(#fffefb, #22211d);
-    --lf-fp-ring: color-mix(in srgb, var(--ink) 13%, transparent);
+    --lf-fp-surface: light-dark(#fffefb, #2a2925);
+    --lf-fp-ring: color-mix(in srgb, var(--ink) light-dark(13%, 22%), transparent);
+    --lf-fp-shadow: light-dark(rgb(20 18 12 / 0.18), rgb(0 0 0 / 0.5));
     --lf-fp-hover: color-mix(in srgb, var(--ink) 5%, transparent);
     --lf-fp-inset: 6px;
     --lf-fp-radius: 14px;
@@ -28,7 +33,7 @@ html[data-lf-floating-chrome] .lf-chrome {
   .lf-fp-card {
     display: flex; flex-direction: column; justify-content: flex-end; overflow: clip;
     background: var(--lf-fp-surface); border-radius: var(--lf-fp-radius);
-    box-shadow: 0 0 0 0.5px var(--lf-fp-ring), 0 16px 32px -10px rgb(20 18 12 / 0.18),
+    box-shadow: 0 0 0 0.5px var(--lf-fp-ring), 0 16px 32px -10px var(--lf-fp-shadow),
       0 2px 6px -2px rgb(20 18 12 / 0.06);
   }
   .lf-fp-inner { flex: none; display: flex; flex-direction: column; }
@@ -79,16 +84,25 @@ html[data-lf-floating-chrome] .lf-chrome {
   /* A gesture's next step, in the counts' place while the gesture holds it. */
   .lf-fp-quick[data-steps] { gap: 4px; }
   .lf-fp-step { color: var(--ink); box-shadow: inset 0 0 0 1px var(--rule); }
-  /* A count's room stands whether or not it has anything to say. */
-  .lf-fp-questions { min-width: calc(11.5ch + 18px); }
-  .lf-fp-news { min-width: calc(6ch + 18px); }
+  /* A count's room in the row stands whether or not it has anything to say. */
+  .lf-fp-row .lf-fp-questions { min-width: calc(11.5ch + 18px); }
+  .lf-fp-row .lf-fp-news { min-width: calc(6ch + 18px); }
   :is(.lf-fp-chip, .lf-fp-held)[data-none] { visibility: hidden; }
+  /* On a phone a count is its number beside an icon (below). */
+  .lf-fp-icon { display: none; width: 15px; height: 15px; vertical-align: -3px;
+    margin-right: 4px; }
+  /* Beside where the words go, while the user writes, the counts are as quiet as the
+     line they stand on, and one with nothing to say takes no room. */
+  .lf-fp-to .lf-fp-quick .lf-fp-chip { font-size: var(--t-6); min-height: 26px;
+    padding-inline: 8px; }
+  .lf-fp-to .lf-fp-quick [data-none] { display: none; }
+  .lf-fp-actions { display: flex; align-items: center; flex: none; }
 
   /* Folded to the leaf: the row is the mark and what waits, nothing else. */
   .lf-floating-panel[data-rest="mark"]:not([data-open]) {
-    width: auto; left: auto; right: calc(var(--lf-floating-gap) + var(--lf-safe-right));
-    translate: none;
-    .lf-fp-field, .lf-fp-desk, .lf-fp-foot { display: none; }
+    width: auto;
+    .lf-fp-field, .lf-fp-desk, .lf-fp-foot, .lf-fp-chip[data-none] { display: none; }
+    .lf-fp-row .lf-fp-chip { min-width: 0; }
   }
 
   /* Where the user is, and the way back, just above the field. */
@@ -102,7 +116,7 @@ html[data-lf-floating-chrome] .lf-chrome {
   .lf-fp-back { text-align: start; }
   .lf-fp-back[hidden] { display: block; visibility: hidden; }
   .lf-fp-title { flex: 1; min-width: 0; margin: 0; font: inherit; font-weight: 600;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: start; }
   .lf-fp-count { font-weight: 400; color: var(--muted); margin-left: 7px;
     font-variant-numeric: tabular-nums; }
   /* Who the words go to, and what the user can do to that thread. */
@@ -113,13 +127,18 @@ html[data-lf-floating-chrome] .lf-chrome {
     min-height: 30px; box-sizing: border-box;
   }
   .lf-fp-head:not(:empty) + .lf-fp-to { border-top: 0; }
+  .lf-fp-to[data-thread] { flex-wrap: wrap; row-gap: 0; }
+  .lf-fp-to[data-thread] .lf-fp-dest { flex-basis: 100%; padding-top: 4px; }
+  .lf-fp-to[data-thread] .lf-fp-quick { margin-left: -8px; }
+  .lf-fp-to .lf-fp-actions { margin-left: auto; }
   .lf-fp-dest { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden;
     text-overflow: ellipsis; }
+  .lf-fp-dest:empty { display: none; }
   .lf-fp-to button { font-size: var(--t-6); color: var(--muted); min-height: 26px;
     padding-inline: 8px; }
   .lf-fp-foot {
     order: 5; display: flex; justify-content: space-between; gap: 12px;
-    padding: 0 calc(var(--lf-fp-inset) + 8px) 6px; margin-top: -2px;
+    padding: 5px calc(var(--lf-fp-inset) + 8px) 6px; border-top: 1px solid var(--rule);
     font-size: var(--t-6); color: var(--muted);
   }
   .lf-fp-foot kbd { font: inherit; color: var(--ink); }
@@ -127,6 +146,11 @@ html[data-lf-floating-chrome] .lf-chrome {
   /* The open view, above the head. An inventory keeps one height however it is
      filtered; a short view fits its contents. */
   .lf-fp-stage { order: 1; position: relative; display: grid; min-height: 0; }
+  /* A view scrolled past its first lines fades out at its top edge rather than
+     cutting a line in half. */
+  .lf-fp-view[data-view="thread"] {
+    mask-image: linear-gradient(to bottom, transparent 0, #000 14px); }
+  .lf-fp-view[data-view="thread"] { padding-top: 14px; }
   .lf-fp-stage:empty { display: none; }
   .lf-fp-view { grid-area: 1 / 1; min-height: 0; max-height: var(--lf-fp-view-height);
     overflow-y: auto; overscroll-behavior: contain; padding: 8px var(--lf-fp-inset);
@@ -137,6 +161,10 @@ html[data-lf-floating-chrome] .lf-chrome {
     inset-inline: 0; bottom: 0; }
   .lf-fp-view:is([data-view="threads"], [data-view="questions"]) {
     height: var(--lf-fp-view-height); padding-top: 0; }
+  /* Threads fits every thread it holds, up to the cap, and keeps that height however it
+     is filtered or searched. */
+  .lf-fp-view[data-view="threads"] {
+    height: min(var(--lf-fp-view-height), calc(96px + max(var(--lf-fp-rows), 3) * 43px)); }
   /* A question reads as its title, its prompt, and the answers it takes, answered
      here; what waits on the agent is quieter, a line of where it has got. */
   .lf-fp-question { padding: 14px 10px; border-bottom: 1px solid var(--rule); }
@@ -145,6 +173,7 @@ html[data-lf-floating-chrome] .lf-chrome {
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* A question that is its own title reads whole, up to a few lines. */
   .lf-fp-qtitle.lf-fp-whole { white-space: normal; line-height: 1.55; display: -webkit-box;
+    font-weight: 400;
     -webkit-box-orient: vertical; -webkit-line-clamp: 4; }
   .lf-fp-prompt { margin: 0 0 10px; line-height: 1.55; display: -webkit-box;
     -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; }
@@ -152,8 +181,9 @@ html[data-lf-floating-chrome] .lf-chrome {
     margin-top: 8px; }
   .lf-fp-answer { border: 1px solid var(--rule); min-height: 32px; padding-inline: 12px;
     border-radius: 8px; }
-  .lf-fp-answer[aria-pressed="true"] { border-color: var(--accent); color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 7%, transparent); }
+  .lf-fp-answer[aria-pressed="true"] { border-color: var(--ok); color: var(--ok-ink);
+    background: var(--ok-tint); }
+  .lf-fp-answer[aria-pressed="true"]::before { content: "✓"; margin-right: 6px; }
   .lf-fp-quiet { color: var(--muted); }
   .lf-fp-version { display: flex; align-items: center; gap: 4px; }
   .lf-fp-version .lf-fp-item { flex: 1; min-width: 0; }
@@ -171,8 +201,10 @@ html[data-lf-floating-chrome] .lf-chrome {
   .lf-fp-value { flex: none; color: var(--muted); font-size: var(--t-6);
     font-variant-numeric: tabular-nums; }
   .lf-fp-item[data-lf-urgent] .lf-fp-value { color: var(--accent); }
+  /* The agent's status in full where room allows: two lines, then the peek. */
   .lf-fp-reading { margin: 4px 10px 8px; color: var(--muted); font-size: var(--t-6);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    line-height: 1.5; display: -webkit-box; -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2; overflow: hidden; }
   .lf-fp-empty { margin: 16px 10px; color: var(--muted); }
   .lf-fp-tools { position: sticky; top: 0; z-index: 1; background: var(--lf-fp-surface);
     padding: 8px 0 2px; }
@@ -224,11 +256,22 @@ html[data-lf-floating-chrome] .lf-chrome {
     .lf-fp-desk { display: none; }
     /* Where the words go takes its own line, and the thread's actions the next. */
     .lf-fp-to { flex-wrap: wrap; padding-left: calc(var(--lf-fp-inset) + 8px); }
-    .lf-fp-dest { flex-basis: 100%; padding-top: 4px; }
     .lf-fp-to button { margin-left: -8px; margin-right: 8px; }
-    /* A phone's row is too narrow for words and counts at once: while the user writes,
-       the field takes the row, and the counts come back when they leave it. */
-    .lf-fp-row:has(leaf-text[data-lf-focus]) .lf-fp-quick { display: none; }
+    /* In the row a count is its number beside an icon, so the agent's status keeps
+       the field; beside where the words go it keeps its words. */
+    .lf-fp-row .lf-fp-icon { display: inline-block; }
+    .lf-fp-row .lf-fp-questions .lf-fp-icon { box-sizing: border-box; width: 17px;
+      height: 17px; padding: 1px; border: 1.3px solid currentColor; border-radius: 50%; }
+    .lf-fp-row .lf-fp-word { position: absolute; width: 1px; height: 1px; overflow: hidden;
+      clip-path: inset(50%); white-space: nowrap; }
+    .lf-fp-row .lf-fp-questions { min-width: calc(3ch + 33px); }
+    .lf-fp-row .lf-fp-news { min-width: calc(2ch + 33px); }
+  }
+  @media (pointer: coarse) {
+    .lf-fp-item, .lf-fp-thread { min-height: 44px; }
+    :where(.lf-floating-panel) button { min-height: 40px; }
+    .lf-fp-leaf { width: 44px; min-height: 44px; }
+    .lf-fp-to button, .lf-fp-filters button { min-height: 40px; }
   }
   @media (prefers-reduced-motion: reduce) {
     .lf-fp-peek { transition: none; }

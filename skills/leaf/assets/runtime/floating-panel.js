@@ -27,6 +27,8 @@
  * (`notes/floating-panel/GOAL.md`). */
 import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 import { el } from "./widget-elements.js";
+import { move } from "./dom-move.js";
+import { iconTemplate } from "./icons.js";
 import { keeps, keepsHidden, keepsText } from "./keeps.js";
 import { approvalReading, approve, toggleBtn, watchStatus } from "./banner.js";
 import { queueBtn } from "./drawers.js";
@@ -61,6 +63,9 @@ const prefs = () => document.documentElement.lfChrome;
 const EASE = "cubic-bezier(.23, 1, .32, 1)";
 const RESIZE_MS = 300;
 const FADE_MS = 180;
+// The view leaving is gone before the one arriving shows, so the two never read
+// through each other.
+const OUT_MS = 80;
 
 // The menu's groups, each a view of the toolbar rows declaring it.
 const GROUPS = Object.freeze({
@@ -93,6 +98,9 @@ export function createFloatingPanel({
   const stage = el("div", "lf-fp-stage");
   const head = el("div", "lf-fp-head");
   const to = el("div", "lf-fp-to");
+  const toDest = el("span", "lf-fp-dest");
+  const toActions = el("span", "lf-fp-actions");
+  to.append(toDest, toActions);
   const row = el("div", "lf-fp-row");
   const foot = el("div", "lf-fp-foot");
   const peek = el("div", "lf-fp-peek");
@@ -194,7 +202,6 @@ export function createFloatingPanel({
   };
   const unread = (thread) => thread.unread.length > 0;
   const newCount = () => threads().filter(unread).length;
-  const openCount = () => threads().filter((thread) => !thread.resolved).length;
   const questionCount = () => {
     const queues = readQueues();
     return queues.phase === "ready" ? queues.questions.length : 0;
@@ -330,11 +337,11 @@ export function createFloatingPanel({
         { opacity: 0, transform: "translateY(6px)" },
         { opacity: 1, transform: "none" },
       ],
-      { duration: FADE_MS, easing: EASE },
+      { duration: FADE_MS, delay: OUT_MS, easing: EASE, fill: "backwards" },
     );
     const gone = stage.querySelector(".lf-fp-view[data-leaving]");
     const fade = gone?.animate([{ opacity: 1 }, { opacity: 0 }], {
-      duration: FADE_MS * 0.7,
+      duration: OUT_MS,
       easing: "linear",
       fill: "forwards",
     });
@@ -348,6 +355,11 @@ export function createFloatingPanel({
   }
   function focusView(route) {
     if (!route) return;
+    const view = stage.querySelector(".lf-fp-view:not([data-leaving])");
+    if (!keyed && route.view !== "threads" && route.view !== "thread") {
+      if (view) focusDestination(view, "move");
+      return;
+    }
     const target =
       route.view === "threads"
         ? stage.querySelector(".lf-fp-search")
@@ -356,6 +368,12 @@ export function createFloatingPanel({
           : stage.querySelector(".lf-fp-view:not([data-leaving]) button");
     if (target) focusDestination(target, "move");
   }
+
+  // Whether the gesture now under way came from the keyboard: a key arriving in a view
+  // stands on its first control, a pointer in the view itself, with no ring drawn.
+  let keyed = false;
+  host.addEventListener("keydown", () => (keyed = true), true);
+  host.addEventListener("pointerdown", () => (keyed = false), true);
 
   // ---------- views ----------
   const menuRow = (label, value, press, { urgent = false, disabled = false } = {}) =>
@@ -375,7 +393,7 @@ export function createFloatingPanel({
     const view = OWN_VIEWS[entry.key];
     const value =
       entry.key === "threads"
-        ? `${openCount()}${newCount() ? ` · ${newCount()} new` : ""}`
+        ? `${threads().length}${newCount() ? ` · ${newCount()} new` : ""}`
         : entry.value;
     return menuRow(
       entry.label,
@@ -407,8 +425,13 @@ export function createFloatingPanel({
       all.some((entry) => entry.group === group && !entry.gesture),
     );
     const display = prefs().display;
-    return html`<p class="lf-fp-reading" data-tone=${status.tone}>
-        ${status.explanation || status.summary}
+    const asks = questionCount();
+    return html`<p
+        class="lf-fp-reading"
+        data-tone=${status.tone}
+        title=${status.explanation || status.summary}
+      >
+        ${status.summary}${asks ? ` · ${asks} ${asks === 1 ? "question" : "questions"} on you` : ""}
       </p>
       ${page.map(rowFor)}
       ${groups.map((group) =>
@@ -466,7 +489,7 @@ export function createFloatingPanel({
       (entry) => `${entry.version === null ? "draft" : "version"}:${entry.revision}`,
       (entry) =>
         html`<div class="lf-fp-version" ?data-current=${entry.current}>
-          ${menuRow(entry.name, entry.current ? "Showing" : (entry.note ?? ""), () => {
+          ${menuRow(entry.name, entry.current ? "Showing" : "", () => {
             close();
             versionPicker.activate(entry);
           })}${
@@ -491,13 +514,11 @@ export function createFloatingPanel({
     ${
       approval
         ? html`<hr />
-            ${menuRow(approval.text, "", () => approve(), {
-              disabled: Boolean(approval.reason) && !approved,
-            })}${
-              approval.reason
-                ? html`<p class="lf-fp-reason">${approval.reason}</p>`
-                : nothing
-            }`
+            <div class="lf-fp-approval" title=${approval.reason ?? nothing}>
+              ${menuRow(approval.text, approval.reason ?? "", () => approve(), {
+                disabled: Boolean(approval.reason) && !approved,
+              })}
+            </div>`
         : nothing
     }`;
   }
@@ -915,7 +936,9 @@ export function createFloatingPanel({
         (route) =>
           html`<div
             class="lf-fp-view"
+            tabindex="-1"
             data-view=${route.view}
+            style=${route.view === "threads" ? `--lf-fp-rows: ${threads().length}` : nothing}
             ?data-leaving=${route === leaving}
           >
             ${viewTemplate(route)}
@@ -965,40 +988,49 @@ export function createFloatingPanel({
       >
         On the page
       </button>`;
+    keepsText(
+      toDest,
+      showTo
+        ? thread
+          ? thread.resolved
+            ? "Resolved · its history stays here"
+            : replyWords(thread)
+          : "Comment on this page"
+        : "",
+    );
     render(
       showTo
-        ? html`<span class="lf-fp-dest"
-              >${
-                thread
-                  ? thread.resolved
-                    ? "Resolved · its history stays here"
-                    : replyWords(thread)
-                  : "Comment on this page"
-              }</span
-            >${
-              thread
-                ? html`${thread.anchor ? toPage() : nothing}<button
-                      type="button"
-                      @click=${writeOnPage}
-                    >
-                      New comment</button
-                    ><button
-                      type="button"
-                      class="lf-fp-settle"
-                      ?disabled=${!(thread.resolved ? thread.offers.reopen : thread.offers.resolve)}
-                      @click=${() =>
-                        thread.resolved
-                          ? threadActions.reopen(thread.key)
-                          : threadActions.resolve(thread.key)}
-                    >
-                      ${thread.resolved ? "Reopen" : "Resolve"}
-                    </button>`
-                : nothing
-            }`
+        ? html`${
+            thread
+              ? html`${thread.anchor ? toPage() : nothing}<button
+                    type="button"
+                    @click=${writeOnPage}
+                  >
+                    New comment</button
+                  ><button
+                    type="button"
+                    class="lf-fp-settle"
+                    ?disabled=${!(thread.resolved ? thread.offers.reopen : thread.offers.resolve)}
+                    @click=${() =>
+                      thread.resolved
+                        ? threadActions.reopen(thread.key)
+                        : threadActions.resolve(thread.key)}
+                  >
+                    ${thread.resolved ? "Reopen" : "Resolve"}
+                  </button>`
+              : nothing
+          }`
         : nothing,
-      to,
+      toActions,
     );
     keepsHidden(to, !showTo);
+    keeps(to, "data-thread", thread ? "" : null);
+    // While the user writes, the field takes the row and what waits moves up beside
+    // where the words go, as the prototype seats it: the field grows into the room the
+    // counts leave, so the field the user pressed stays where it was.
+    const home = showTo ? to : row;
+    if (quick.parentNode !== home) move(home, quick, showTo ? toActions : null);
+    keeps(host, "data-writing", showTo ? "" : null);
 
     // Each count keeps its room whether or not anything waits, so a count arriving or
     // leaving moves nothing beside it (AGENTS.md, "Generated interface first appears in
@@ -1037,8 +1069,13 @@ export function createFloatingPanel({
             ?inert=${!questions}
             aria-hidden=${questions ? nothing : "true"}
             @click=${() => open({ view: "questions" })}
+            aria-label=${questions ? `Questions: ${questions}` : nothing}
           >
-            Questions <span class="lf-fp-num">${questions || ""}</span></button
+            ${iconTemplate("question", "lf-action-icon lf-fp-icon")}<span
+              class="lf-fp-word"
+              >Questions</span
+            >
+            <span class="lf-fp-num">${questions || ""}</span></button
           ><button
             type="button"
             class="lf-fp-chip lf-fp-desk"
@@ -1058,7 +1095,10 @@ export function createFloatingPanel({
               open({ view: "threads" });
             }}
           >
-            ${news ? `${news} new` : ""}
+            ${iconTemplate("comment", "lf-action-icon lf-fp-icon")}<span
+              class="lf-fp-num"
+              >${news || ""}</span
+            ><span class="lf-fp-word"> new</span>
           </button>`,
         quick,
       );
@@ -1076,7 +1116,9 @@ export function createFloatingPanel({
       ? `Thread ${threads().indexOf(thread) + 1} of ${threads().length}${news ? ` · ${news} new` : ""}`
       : news
         ? `${news} new`
-        : `${threads().length} threads`;
+        : coarse()
+          ? ""
+          : `${threads().length} threads`;
     render(
       prefsNow.display === "moderate"
         ? html`<span class="lf-fp-keys">${keyWords}</span
@@ -1097,7 +1139,7 @@ export function createFloatingPanel({
   const showPeek = (on) => keeps(peek, "data-shown", on && !trail.length ? "" : null);
   leaf.addEventListener("pointerenter", () => showPeek(true));
   leaf.addEventListener("pointerleave", () => showPeek(false));
-  leaf.addEventListener("focus", () => showPeek(true));
+  leaf.addEventListener("focus", () => showPeek(leaf.matches(":focus-visible")));
   leaf.addEventListener("blur", () => showPeek(false));
   // Escape steps back along the trail, one view at a time, then out of the field.
   keys(host, "In the floating panel", [

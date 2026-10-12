@@ -840,26 +840,10 @@ def test_a_comment_inside_a_widget_stays_out_of_what_the_widget_reads(
     inside a widget's own content would be chrome in the user's text: lf-draft seeds the
     editor they type into from its body div, so words left in there would arrive in the
     leaf-text and post with the edit. The note stands in the chrome, and the block the
-    passage sits in, or the element the anchor names, names it as its details."""
+    passage sits in, or the element the anchor names, names it as its details. A
+    reaction on the same words keeps the widget as its seat too: the passage's generated
+    body is not the owner of the reaction's margin control."""
     url = serve(JOURNEY_V1, anchored=[(section, "Run the migration before deploying.")])
-    page = open_page(browser, url)
-    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-    expect_comment_notes(page, "#draft-ops", 1)
-    # The thread's margin row stands at the same seat as its note: the widget, not the
-    # paragraph its Markdown body renders.
-    expect(page.locator("[data-lf-margin-for]")).to_have_attribute(
-        "data-lf-margin-for", "draft-ops"
-    )
-    page.locator("#draft-ops .lf-draft-body").dblclick()
-    assert (
-        page.locator("#draft-ops leaf-text").evaluate("el => el.value") == DRAFT_TEXT
-    ), "the user's editor opened on text the runtime had written into"
-
-
-@pytest.mark.parametrize("section", ["draft-ops", None])
-def test_a_reaction_inside_a_widget_keeps_its_authored_seat(browser, serve, section):
-    """A passage's generated body is not the owner of the reaction's margin control."""
-    url = serve(JOURNEY_V1)
     append_carried_log_record(
         serve.page_dir,
         {
@@ -874,6 +858,7 @@ def test_a_reaction_inside_a_widget_keeps_its_authored_seat(browser, serve, sect
         },
     )
     page = open_page(browser, url)
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     page.wait_for_function("() => (CSS.highlights.get('lf-react')?.size ?? 0) > 0")
     expect(
         page.locator(
@@ -882,8 +867,16 @@ def test_a_reaction_inside_a_widget_keeps_its_authored_seat(browser, serve, sect
             '[data-lf-margin-entry-key^="reaction:"]:visible'
         )
     ).to_have_count(1)
+    expect_comment_notes(page, "#draft-ops", 1)
+    # The thread's margin row stands at the same seat as its note: the widget, not the
+    # paragraph its Markdown body renders.
+    expect(page.locator("[data-lf-margin-for]")).to_have_attribute(
+        "data-lf-margin-for", "draft-ops"
+    )
     page.locator("#draft-ops .lf-draft-body").dblclick()
-    assert page.locator("#draft-ops leaf-text").evaluate("el => el.value") == DRAFT_TEXT
+    assert (
+        page.locator("#draft-ops leaf-text").evaluate("el => el.value") == DRAFT_TEXT
+    ), "the user's editor opened on text the runtime had written into"
 
 
 def test_double_clicking_a_draft_leaves_every_word_where_it_was(browser, serve):

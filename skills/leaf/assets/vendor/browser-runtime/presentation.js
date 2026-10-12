@@ -44,6 +44,14 @@ import { signal } from "./signals-core.js";
 
 
 
+/** One presentation of a value, which the renderer settles with its proof once the
+ * value is on screen, or rejects when painting it failed. `resolve` adopts a promise of
+ * proof, so a renderer already holding its paint's promise hands that over; resolving
+ * with nothing commits without proof. `ready` is the coordinator's verdict: it settles
+ * once the region committed this presentation, fail-soft proof included, and rejects
+ * when the failure stands with the region still pending. */
+
+
 
 
 
@@ -337,12 +345,14 @@ export function createPresentationCoordinator
 
     const present = (
       value       ,
-      completion                            ,
       failSoft                             ,
-    ) => {
+    )                            => {
+      const { promise: completion, resolve, reject } = Promise.withResolvers
+
+       ();
       const ready = (async () => {
         if (regions.get(region) !== record) {
-          await Promise.resolve(completion).catch(() => undefined);
+          await completion.catch(() => undefined);
           return;
         }
         const ticket                                                        = {
@@ -404,7 +414,7 @@ export function createPresentationCoordinator
       // creating a browser-level unhandled rejection. Callers that await `ready` still
       // receive the same rejection and can turn it into an owning startup failure.
       void ready.catch(() => undefined);
-      return ready;
+      return Object.freeze({ resolve, reject, ready });
     };
 
     const disconnect = () => {
@@ -622,25 +632,14 @@ export function createPresentationSchedule(
   let running                  = [];
   let scheduled = false;
   let settling = false;
-  let pass
-
-
-
-           = null;
+  let pass                                    = null;
 
   function open() {
-    pass ??= (() => {
-      let settle             ;
-      let refuse                            ;
-      const promise = new Promise      ((resolve, reject) => {
-        settle = resolve;
-        refuse = reject;
-      });
-      // A caller that ignores this promise reads the failure from the coordinator's
-      // report instead, so it must not raise a browser-level unhandled rejection.
-      void promise.catch(() => undefined);
-      return { promise, settle, refuse };
-    })();
+    if (pass) return;
+    pass = Promise.withResolvers      ();
+    // A caller that ignores this promise reads the failure from the coordinator's
+    // report instead, so it must not raise a browser-level unhandled rejection.
+    void pass.promise.catch(() => undefined);
   }
 
   function collect(order        , run                     ) {
@@ -685,8 +684,8 @@ export function createPresentationSchedule(
     settling = false;
     const finished = pass ;
     pass = null;
-    if (failed) finished.refuse(failure);
-    else finished.settle();
+    if (failed) finished.reject(failure);
+    else finished.resolve();
   }
 
   /** The page has caught up with the root it is reading. */
@@ -714,17 +713,11 @@ export function createPresentationSchedule(
 
 
     let handle                                          = null;
-    let held                                              = null;
+    let held                                   = null;
     let generation = 0;
 
     function claim(value       )         {
       const claimed = ++generation;
-      let resolve                                     ;
-      let reject                            ;
-      const completion = new Promise                   ((done, fail) => {
-        resolve = done;
-        reject = fail;
-      });
       // The only reading this claim has to answer for is a withheld one, which by
       // definition will never answer for itself. A paint still running keeps its own
       // ticket: it is what reports its own failure, and the document keeps whatever
@@ -733,16 +726,15 @@ export function createPresentationSchedule(
       const inherited = held;
       held = null;
       handle ??= attach();
-      const ready =
-        handle?.present(value, completion                      , failSoft) ??
-        Promise.resolve();
-      // The coordinator reports every rejection. Observe it here so a renderer can
-      // deliberately leave its region pending without also raising a browser-level
-      // unhandled rejection.
-      void ready.catch(() => undefined);
+      // An unmounted renderer has no region to answer to, so its ticket settles nothing.
+      const { resolve, reject, ready } = handle?.present(value, failSoft) ?? {
+        resolve: () => {},
+        reject: () => {},
+        ready: Promise.resolve(),
+      };
       // Release the superseded hold behind the replacement, so an obsolete value cannot
       // briefly acknowledge this epoch between two claims.
-      inherited?.(undefined);
+      inherited?.();
       return { claimed, value, resolve, reject, ready };
     }
 
@@ -752,7 +744,7 @@ export function createPresentationSchedule(
       // it releases the coordinator's continuation, which would otherwise hold this
       // reading's value for as long as the document lives.
       if (ticket.claimed !== generation) {
-        ticket.resolve(undefined);
+        ticket.resolve();
         return;
       }
       let withheld = false;
@@ -788,7 +780,7 @@ export function createPresentationSchedule(
       generation += 1;
       const inherited = held;
       held = null;
-      inherited?.(undefined);
+      inherited?.();
       handle?.disconnect();
       handle = null;
     }

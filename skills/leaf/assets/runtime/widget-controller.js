@@ -132,7 +132,9 @@ function createWidgetController(owner) {
   };
 
   const presentPreparation = (handle, { value, completion }) =>
-    handle.present(value, completion, (reason) => failSoftUnreported(owner, reason));
+    handle
+      .present(value, (reason) => failSoftUnreported(owner, reason))
+      .resolve(completion);
 
   const presentRender = (reading, callbacks) => {
     if (!owner.isConnected) return;
@@ -176,17 +178,17 @@ function createWidgetController(owner) {
         ? new AggregateError(failures, "widget presentation failed")
         : failures[0];
     if (handle) {
-      const completion = failure
-        ? Promise.reject(failure)
-        : complete && owner.updateComplete?.then
-          ? owner.updateComplete
-          : undefined;
+      const presenting = handle.present(reading, (reason) =>
+        failSoftUnreported(owner, reason),
+      );
       // An incomplete startup reading has no DOM to present, but its ticket still
       // commits so the provisional publication can settle. Its subscribers first run
       // when the publisher supplies every declared verb.
-      void handle.present(reading, completion, (reason) =>
-        failSoftUnreported(owner, reason),
-      );
+      if (failure) presenting.reject(failure);
+      else
+        presenting.resolve(
+          complete && owner.updateComplete?.then ? owner.updateComplete : undefined,
+        );
     }
   };
 
@@ -194,16 +196,11 @@ function createWidgetController(owner) {
     deferredReading = reading;
     const handle = render();
     if (!handle) return;
-    let release;
-    const completion = new Promise((resolve) => {
-      release = resolve;
-    });
     const prior = deferredHold;
-    deferredHold = { release };
-    void handle.present(reading, completion);
+    deferredHold = handle.present(reading);
     // The newer ticket is installed before the old hold settles, so an obsolete value
     // cannot briefly acknowledge the current epoch between two deferred publications.
-    prior?.release();
+    prior?.resolve();
   };
 
   const resumeGestureRender = () => {
@@ -214,7 +211,7 @@ function createWidgetController(owner) {
     deferredReading = null;
     deferredHold = null;
     presentRender(latest, [...subscriptions]);
-    hold?.release();
+    hold?.resolve();
   };
 
   const publish = () => {
@@ -248,7 +245,7 @@ function createWidgetController(owner) {
     }
     if (preparation && !preparationHandle) {
       const handle = prepared();
-      if (handle) void presentPreparation(handle, preparation);
+      if (handle) presentPreparation(handle, preparation);
     }
   };
 
@@ -264,7 +261,7 @@ function createWidgetController(owner) {
       release?.();
       pendingPreparations.set(settled, null);
     }
-    deferredHold?.release();
+    deferredHold?.resolve();
     deferredHold = null;
     deferredReading = null;
     renderedReading = null;
@@ -296,7 +293,7 @@ function createWidgetController(owner) {
           stopSelection = null;
           renderHandle?.disconnect();
           renderHandle = null;
-          deferredHold?.release();
+          deferredHold?.resolve();
           deferredHold = null;
           deferredReading = null;
           renderedReading = null;
@@ -328,7 +325,7 @@ function createWidgetController(owner) {
         deferredReading = null;
         deferredHold = null;
         if (subscriptions.size) presentRender(latest, [...subscriptions]);
-        hold?.release();
+        hold?.resolve();
         invalidateDom();
         return latest;
       };
@@ -346,7 +343,7 @@ function createWidgetController(owner) {
       preparation = { value, completion, settled: Promise.allSettled(batch.promises) };
       holdPreparation(preparation.settled);
       const handle = prepared();
-      if (handle) void presentPreparation(handle, preparation);
+      if (handle) presentPreparation(handle, preparation);
       const clear = () => {
         if (preparationBatch?.completion === completion) preparationBatch = null;
       };

@@ -44,12 +44,20 @@ interface PresentationReading<DocumentToken extends object, Region> {
   readonly pending: readonly Region[];
 }
 
+/** One presentation of a value, which the renderer settles with its proof once the
+ * value is on screen, or rejects when painting it failed. `resolve` adopts a promise of
+ * proof, so a renderer already holding its paint's promise hands that over; resolving
+ * with nothing commits without proof. `ready` is the coordinator's verdict: it settles
+ * once the region committed this presentation, fail-soft proof included, and rejects
+ * when the failure stands with the region still pending. */
+interface PresentationTicket<Proof> {
+  readonly resolve: (proof?: Proof | PromiseLike<Proof | undefined>) => void;
+  readonly reject: (reason: unknown) => void;
+  readonly ready: Promise<void>;
+}
+
 interface PresentationHandle<Value, Proof> {
-  present(
-    value: Value,
-    completion: PromiseLike<Proof> | Proof,
-    failSoft?: (reason: unknown) => Proof,
-  ): Promise<void>;
+  present(value: Value, failSoft?: (reason: unknown) => Proof): PresentationTicket<Proof>;
   disconnect(): void;
 }
 
@@ -337,12 +345,14 @@ export function createPresentationCoordinator<
 
     const present = (
       value: Value,
-      completion: PromiseLike<Proof> | Proof,
       failSoft?: (reason: unknown) => Proof,
-    ) => {
+    ): PresentationTicket<Proof> => {
+      const { promise: completion, resolve, reject } = Promise.withResolvers<
+        Proof | undefined
+      >();
       const ready = (async () => {
         if (regions.get(region) !== record) {
-          await Promise.resolve(completion).catch(() => undefined);
+          await completion.catch(() => undefined);
           return;
         }
         const ticket: Ticket<DocumentToken, Region, Renderer, Value, Proof> = {
@@ -404,7 +414,7 @@ export function createPresentationCoordinator<
       // creating a browser-level unhandled rejection. Callers that await `ready` still
       // receive the same rejection and can turn it into an owning startup failure.
       void ready.catch(() => undefined);
-      return ready;
+      return Object.freeze({ resolve, reject, ready });
     };
 
     const disconnect = () => {
@@ -622,25 +632,14 @@ export function createPresentationSchedule(
   let running: Promise<void>[] = [];
   let scheduled = false;
   let settling = false;
-  let pass: {
-    readonly promise: Promise<void>;
-    readonly settle: () => void;
-    readonly refuse: (reason: unknown) => void;
-  } | null = null;
+  let pass: PromiseWithResolvers<void> | null = null;
 
   function open() {
-    pass ??= (() => {
-      let settle!: () => void;
-      let refuse!: (reason: unknown) => void;
-      const promise = new Promise<void>((resolve, reject) => {
-        settle = resolve;
-        refuse = reject;
-      });
-      // A caller that ignores this promise reads the failure from the coordinator's
-      // report instead, so it must not raise a browser-level unhandled rejection.
-      void promise.catch(() => undefined);
-      return { promise, settle, refuse };
-    })();
+    if (pass) return;
+    pass = Promise.withResolvers<void>();
+    // A caller that ignores this promise reads the failure from the coordinator's
+    // report instead, so it must not raise a browser-level unhandled rejection.
+    void pass.promise.catch(() => undefined);
   }
 
   function collect(order: number, run: () => Promise<void>) {
@@ -685,8 +684,8 @@ export function createPresentationSchedule(
     settling = false;
     const finished = pass!;
     pass = null;
-    if (failed) finished.refuse(failure);
-    else finished.settle();
+    if (failed) finished.reject(failure);
+    else finished.resolve();
   }
 
   /** The page has caught up with the root it is reading. */
@@ -709,22 +708,16 @@ export function createPresentationSchedule(
     interface Ticket {
       readonly claimed: number;
       readonly value: Value;
-      readonly resolve: (proof: Proof | undefined) => void;
+      readonly resolve: (proof?: Proof) => void;
       readonly reject: (reason: unknown) => void;
       readonly ready: Promise<void>;
     }
     let handle: PresentationHandle<Value, Proof> | null = null;
-    let held: ((proof: Proof | undefined) => void) | null = null;
+    let held: ((proof?: Proof) => void) | null = null;
     let generation = 0;
 
     function claim(value: Value): Ticket {
       const claimed = ++generation;
-      let resolve!: (proof: Proof | undefined) => void;
-      let reject!: (reason: unknown) => void;
-      const completion = new Promise<Proof | undefined>((done, fail) => {
-        resolve = done;
-        reject = fail;
-      });
       // The only reading this claim has to answer for is a withheld one, which by
       // definition will never answer for itself. A paint still running keeps its own
       // ticket: it is what reports its own failure, and the document keeps whatever
@@ -733,16 +726,15 @@ export function createPresentationSchedule(
       const inherited = held;
       held = null;
       handle ??= attach();
-      const ready =
-        handle?.present(value, completion as PromiseLike<Proof>, failSoft) ??
-        Promise.resolve();
-      // The coordinator reports every rejection. Observe it here so a renderer can
-      // deliberately leave its region pending without also raising a browser-level
-      // unhandled rejection.
-      void ready.catch(() => undefined);
+      // An unmounted renderer has no region to answer to, so its ticket settles nothing.
+      const { resolve, reject, ready } = handle?.present(value, failSoft) ?? {
+        resolve: () => {},
+        reject: () => {},
+        ready: Promise.resolve(),
+      };
       // Release the superseded hold behind the replacement, so an obsolete value cannot
       // briefly acknowledge this epoch between two claims.
-      inherited?.(undefined);
+      inherited?.();
       return { claimed, value, resolve, reject, ready };
     }
 
@@ -752,7 +744,7 @@ export function createPresentationSchedule(
       // it releases the coordinator's continuation, which would otherwise hold this
       // reading's value for as long as the document lives.
       if (ticket.claimed !== generation) {
-        ticket.resolve(undefined);
+        ticket.resolve();
         return;
       }
       let withheld = false;
@@ -788,7 +780,7 @@ export function createPresentationSchedule(
       generation += 1;
       const inherited = held;
       held = null;
-      inherited?.(undefined);
+      inherited?.();
       handle?.disconnect();
       handle = null;
     }

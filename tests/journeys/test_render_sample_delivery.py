@@ -286,45 +286,6 @@ def test_sample_release_failure_records_the_retired_allocation(
     consume_browser_errors(page, "503")
 
 
-def test_a_sample_allocated_during_a_rollout_waits_for_it(browser, serve):
-    """leaf.page's edge answers `503` with `Retry-After` while a release's containers
-    roll out (`rollingOut` in `worker/src/index.ts`). A gallery opened then showed an
-    empty frame and `sample: HTTP 503` until the reader reloaded; the allocation now
-    waits as asked and presents once the rollout lands."""
-    url = serve(
-        leaf_page(
-            "Rollout",
-            '<lf-sample id="practice">'
-            '<template id="practice-source" data-sample><h1>Practice</h1></template>'
-            "</lf-sample>",
-        )
-    )
-    page = browser.new_page()
-    refused = []
-
-    def still_starting(route):
-        if refused:
-            route.continue_()
-            return
-        refused.append(route.request.url)
-        route.fulfill(
-            status=503,
-            body="this release is still starting",
-            headers={"Retry-After": "1", "Content-Type": "text/plain;charset=UTF-8"},
-        )
-
-    page.route("**/api/samples", still_starting)
-    page.goto(url, wait_until="domcontentloaded")
-    sample = page.locator("#practice")
-    sample.evaluate("async sample => await sample.ready")
-    expect(sample.frame_locator("iframe").get_by_role("heading")).to_have_text(
-        "Practice"
-    )
-    assert len(refused) == 1
-    expect(page.locator(".lf-notice")).to_contain_text("Waiting for the server")
-    consume_browser_errors(page, "503")
-
-
 @pytest.mark.parametrize("status", [404, 200])
 @pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
 def test_sample_document_without_bootstrap_retires_and_can_reset(

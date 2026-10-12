@@ -279,8 +279,20 @@ function withheld(was, now) {
     const message = standing.get(messageKey(prior));
     if (!message) return isReaction(prior) || prior.provisional ? [prior] : [];
     // A streaming reply held as drawn is still the reply arriving, whatever completed it.
-    const { text, body, edited, provisional, reactions } = prior;
-    return [Object.freeze({ ...message, text, body, edited, provisional, reactions })];
+    // Its content version is the one its drawn words are, so the words a rewrite holds
+    // back are neither marked read nor taken for the rewrite.
+    const { text, body, edited, content_version, provisional, reactions } = prior;
+    return [
+      Object.freeze({
+        ...message,
+        text,
+        body,
+        edited,
+        content_version,
+        provisional,
+        reactions,
+      }),
+    ];
   });
   return Object.freeze({
     ...now,

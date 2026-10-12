@@ -26,6 +26,7 @@ from render_cases_layout import (
     LINKED_CELLS_PAGE,
     LOOSE_SCROLLER_PAGE,
     OVER_ITS_CONTAINER,
+    PHONE_SQUEEZED_TABLE,
     SIDENOTE_IN_A_WIDGET,
     WIDE_TABLE_PAGE,
     apply_restore_case,
@@ -969,26 +970,46 @@ def test_the_render_gate_reports_a_table_squeezed_by_what_cannot_break(browser, 
     column of owners as links, one word each, in a table eight single-token columns
     hold open. Read node by node it never wraps, and the column stood at 84px on five
     lines with the gate green; set at line-height 1, the second line's glyph box
-    overlaps the first's, and a reading of line boxes lost it again."""
+    overlaps the first's, and a reading of line boxes lost it again.
+
+    And a table that fits both fixed viewports and squeezes only on a phone narrower
+    than either, which the width sweep finds at the widths it spans.
+
+    Each is advice and refuses nothing: the table still scrolls with every word in
+    reach, and the remedy is the author's choice of composition."""
     linked = LINKED_CELLS_PAGE[LINKED_CELLS_PAGE.index('<table id="sessions">') :]
     linked = linked[: linked.index("</table>") + len("</table>")]
-    url = serve(BARE_IDENTIFIERS_PAGE.replace("</main>", linked + "</main>"))
+    url = serve(
+        BARE_IDENTIFIERS_PAGE.replace(
+            "</main>", linked + PHONE_SQUEEZED_TABLE + "</main>"
+        )
+    )
     page = open_page(browser, url)
     scrolls = page.locator("#held").evaluate("(t) => t.scrollWidth - t.clientWidth")
     assert scrolls > 1, "the names fit the measure here, so the reading is never asked"
+    options = page.locator("#options")
+    for width, fits in ((540, True), (360, False)):
+        resized(page, width, 720)
+        scrolls = options.evaluate("(t) => t.scrollWidth - t.clientWidth")
+        assert (scrolls <= 1) == fits, (width, scrolls)
     page.close()
-    failures = render_gate_model.render_version(browser, url).failures
+    reading = render_gate_model.render_version(browser, url)
+    advice = reading.advice
 
-    squeezed = [f for f in failures if "<table id=held> scrolls" in f]
-    assert squeezed, failures
+    assert reading.failures == [], reading.failures
+    squeezed = [a for a in advice if "<table id=held> scrolls" in a]
+    assert squeezed, advice
     for finding in squeezed:
         widths = dict(re.findall(r'"([^"]+)" wraps at (\d+)px', finding))
         assert {"Mechanism", "Held by"} <= widths.keys(), finding
         assert int(widths["Held by"]) > 3 * int(widths["Mechanism"]), finding
-    owners = [f for f in failures if "<table id=sessions> scrolls" in f]
-    assert owners, failures
-    assert all('"Owners" wraps at' in f for f in owners), owners
-    assert not [f for f in failures if f not in squeezed + owners], failures
+    owners = [a for a in advice if "<table id=sessions> scrolls" in a]
+    assert owners, advice
+    assert all('"Owners" wraps at' in a for a in owners), owners
+    phone = [a for a in advice if "<table id=options> scrolls" in a]
+    assert phone, advice
+    assert all(a.startswith("at 360") for a in phone), phone
+    assert not [a for a in advice if a not in squeezed + owners + phone], advice
 
 
 def test_the_runtime_holds_a_scroller_the_page_wrote(browser, serve):

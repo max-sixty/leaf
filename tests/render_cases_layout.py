@@ -339,6 +339,27 @@ LINKED_CELLS_PAGE = WIDE_TABLE_PAGE.replace(
     + "</td></tr></tbody>",
 )
 
+# A comparison of options in two-word cells, which a phone squeezes and neither fixed
+# viewport does: at its longest words it stands about 414px wide, so it fits the 540px
+# viewport with some 80px to spare, and at 360px it scrolls about 100px with every
+# option's cells wrapped. An author's comparison table did this on a 390px phone and
+# passed a gate that read only the fixed viewports. Both margins are wide enough that
+# CI's fonts land on the same side of them.
+PHONE_SQUEEZED_TABLE = """
+<table id="options">
+<thead><tr><th></th><th>Stay put</th><th>Move rows</th><th>Drop state</th>
+<th>Split reads</th><th>Cache more</th></tr></thead>
+<tbody>
+<tr><th scope="row">Read time</th><td>fast reads</td><td>slower reads</td>
+<td>no reads</td><td>mixed reads</td><td>warm reads</td></tr>
+<tr><th scope="row">Logout</th><td>lags behind</td><td>at once</td>
+<td>after expiry</td><td>at once</td><td>lags behind</td></tr>
+<tr><th scope="row">Cost</th><td>contract renewal</td><td>near zero</td>
+<td>near zero</td><td>some hosts</td><td>more memory</td></tr>
+</tbody>
+</table>
+"""
+
 # A block wider than the column and narrower than the window: 70% of 1200px is
 # 840px against a 720px column, so it stands 120px out in the margin with
 # the body not scrolling by a pixel. In vw rather than px because the static lint

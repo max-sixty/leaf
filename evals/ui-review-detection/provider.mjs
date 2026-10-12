@@ -31,6 +31,10 @@ import { chromium } from "playwright";
 import { query, tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 
+// A run that spent its browser operations or model turns. It ends the run as a budget
+// limit, which grading reports apart from a harness failure.
+class BudgetExhausted extends Error {}
+
 const SYSTEM =
   'You are reviewing a user interface. Assess the supplied evidence, explain any concrete problems you can establish, and distinguish uncertainty from observation. Do not change the interface. Return your final assessment as JSON with fields verdict ("ready", "needs-work", or "insufficient-evidence"), findings (an array of objects with title, evidence, and consequence), and uncertainties (an array of strings).';
 const BROWSER_DESCRIPTION =
@@ -190,7 +194,7 @@ export async function openBrowser(manifest, evidenceDir, limit = 12) {
       },
       async invoke(args) {
         if (++calls > limit)
-          throw new Error(`Browser tool budget exhausted (${limit} calls)`);
+          throw new BudgetExhausted(`Browser tool budget exhausted (${limit} calls)`);
         if (!BROWSER_SCHEMA.properties.action.enum.includes(args.action))
           throw new Error("Unknown browser operation");
         if (args.action === "click") {
@@ -329,7 +333,7 @@ async function codexModel(config, content, browser, record) {
       try {
         content = await browser.invoke(call.arguments);
       } catch (error) {
-        if (/budget exhausted/.test(error.message)) throw error;
+        if (error instanceof BudgetExhausted) throw error;
         content = [
           { type: "text", text: `Browser operation failed: ${error.message}` },
         ];
@@ -346,7 +350,7 @@ async function codexModel(config, content, browser, record) {
       });
     }
   }
-  throw new Error(`Model turn budget exhausted (${maxTurns} turns)`);
+  throw new BudgetExhausted(`Model turn budget exhausted (${maxTurns} turns)`);
 }
 
 async function claudeModel(config, content, browser, record, evidenceDir) {
@@ -404,7 +408,7 @@ async function claudeModel(config, content, browser, record, evidenceDir) {
                   try {
                     items = await browser.invoke(args);
                   } catch (error) {
-                    if (/budget exhausted/.test(error.message)) {
+                    if (error instanceof BudgetExhausted) {
                       budgetError = error;
                       record("budget-limit", {
                         message: error.message,
@@ -714,7 +718,7 @@ export default class UiReviewDetectionProvider {
         path.join(evidenceDir, "harness-error.json"),
         json({ name: error.name, message: error.message }),
       );
-      const budgetExhausted = /budget exhausted/.test(error.message);
+      const budgetExhausted = error instanceof BudgetExhausted;
       return {
         error: `Evaluation ${budgetExhausted ? "budget limit" : "harness failure"}: ${error.message}`,
         metadata: { evidenceDir, harnessFailure: !budgetExhausted, budgetExhausted },

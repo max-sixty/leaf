@@ -4,10 +4,12 @@
 # agent wants back rather than leaving that work marked in progress. Scores
 # conversation-loop.md, "When to write" and "Status and handoff". The criterion is the
 # behavior, not either version's command, so the case guards both arms.
+# Reworded by #2329 (updates to progress messages); at 3fe3eb0af it passed 1/1 on
+# Claude Code.
 description: work-names-its-item
 metadata:
   purpose: 'Conversation loop: before starting work, the agent shows it on the page against
-    the delivered move that asked for it, shows work no move asked for under an item of
+    the delivered update that asked for it, shows work no update asked for under an item of
     its own, and at the handoff shows what it wants back with nothing left marked in
     progress.'
   tags:

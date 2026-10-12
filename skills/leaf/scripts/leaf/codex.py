@@ -131,6 +131,7 @@ from .delivery import (
     DeliveryIdConflict,
     ReceiptRefused,
     batch_data,
+    batch_refs,
     current_responses,
     deliverable,
     delivery_path,
@@ -2101,6 +2102,9 @@ def finish_codex_batch(
                 phase="opened" if isinstance(outcome, Opened) else "queued",
                 session=batch["session"],
                 turn=outcome.turn if isinstance(outcome, Opened) else None,
+                # The record keeps only the batch's identities; the envelope its
+                # name addresses holds the refs.
+                refs=batch_refs(read_delivery(path.stem)["batches"][batch_index]),
             )
             received = {
                 "page": Path(batch["page"]),

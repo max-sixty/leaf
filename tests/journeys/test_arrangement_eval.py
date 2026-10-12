@@ -73,7 +73,7 @@ def test_comparison_snapshots_exclude_later_leaf_feedback(tmp_path, monkeypatch)
             run_leaf(
                 ROOT, run.state, "page", "stamp", str(page), "--text", body, check=True
             )
-            response = str(page)
+            result = {"result": str(page)}
         else:
             state = json.loads(run.leaf("page", "state", str(run.authored_page)).stdout)
             selected = next(
@@ -81,13 +81,18 @@ def test_comparison_snapshots_exclude_later_leaf_feedback(tmp_path, monkeypatch)
                 for item in state["state"]
                 if item["widget"] == "decision"
             )
-            response = json.dumps({"options": selected})
+            # The reader is held to its answer's shape, as the harness returns it.
+            assert json.loads(args[args.index("--json-schema") + 1])["required"] == [
+                "options"
+            ]
+            answer = {"options": selected}
+            result = {"result": json.dumps(answer), "structured_output": answer}
         trace = [
             {
                 "type": "result",
                 "is_error": False,
                 "session_id": "observed-session",
-                "result": response,
+                **result,
             }
         ]
         out.write_text("\n".join(json.dumps(record) for record in trace))
@@ -102,7 +107,7 @@ def test_comparison_snapshots_exclude_later_leaf_feedback(tmp_path, monkeypatch)
     assert "Author version 1" in (evidence / "page-phase1/index.html").read_text()
     assert "Author version 2" in (evidence / "page-phase2/index.html").read_text()
     assert arrangement_eval.comment_applied(run, evidence / "page-phase3")
-    assert arrangement_eval.comment_answered(run, "")
+    assert arrangement_eval.comment_answer(run, "") == "Named Mei Tanaka's team."
     assert "Reviewed" in (evidence / "page-continuation/index.html").read_text()
     for snapshot in ("page-phase1", "page-phase2", "page-phase3"):
         assert not any(
@@ -145,8 +150,8 @@ def test_completed_record_has_a_render_correction_loop_without_a_seeded_decision
             '<meta name="description" content="A completed rollout record."></head>'
             '<body><main class="layout-sidebar"><header><h1>Completed rollout</h1>'
             f'<p id="version">Version {len(calls)}</p>'
-            '</header><aside id="checks" style="align-self:stretch">'
-            '<div style="position:sticky;top:var(--lf-top)"><h2>Checks</h2>'
+            '</header><aside id="checks">'
+            "<div><h2>Checks</h2>"
             '<p>Five passed. One failed.</p><lf-toc id="contents"></lf-toc></div></aside>'
             '<section id="log"><h2>Rollout log</h2>'
             + "<p>Completed rollout entry.</p>" * 40

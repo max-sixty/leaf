@@ -24,10 +24,9 @@ last.
 
 An `lf-ask` keeps the prose's width on every page, so its question, options and the
 marker beside it stand with the paragraphs around it. An `lf-ask` that frames a
-figure, such as a chart, image or table, around one option list sets the list beside
-its premise and evidence wherever the context has room, so the question, the figure and
-every option share the window. The reading column is too narrow for that, so give the
-`lf-ask` the wide measure with `data-width="wide"`. A playground or another surface in
+figure, such as a chart, image or table, around one option list sets its titled options
+side by side under the figure, as many as its width holds, so the question, the figure
+and the options share the window. A playground or another surface in
 an `lf-ask` that uses every column it gets takes `data-width="available"` itself, so the
 question and its premise keep the prose's width (`page-authoring.md`, "Bounds and
 widths").

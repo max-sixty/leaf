@@ -3,7 +3,7 @@
 import { canPlaceFocus, focusDestination, onStanding } from "./focus.js";
 import { pagePresented } from "./page-paint.js";
 import { whenArrived } from "./presentation.js";
-import { enterLoop, joinOuterLoop } from "./keyboard/layer-stack.js";
+import { sizeObserver } from "./rendering.js";
 const child = document.documentElement.lfSample;
 const commands = new Map();
 const observers = new Map();
@@ -47,18 +47,6 @@ if (child) {
     if (node && node !== document.body) standing = node;
     sampleNotice("standing", { focused: Boolean(node && node !== document.body) });
   });
-  // The containing page says whether this frame stands in a Tab loop there, and Tab
-  // past this document's ends goes back to that page to move on past the frame
-  // (keyboard/layer-stack.js, `joinOuterLoop`).
-  let looped = false;
-  onSampleNotice("tab-loop", ({ standing }) => {
-    looped = standing;
-  });
-  onSampleNotice("tab-enter", ({ backward }) => enterLoop(backward));
-  joinOuterLoop({
-    standing: () => looped,
-    leave: (backward) => sampleNotice("tab", { backward }),
-  });
   registerSampleCommand("restore-standing", () => {
     if (!standing?.isConnected || !canPlaceFocus()) return false;
     focusDestination(standing, "return");
@@ -98,7 +86,7 @@ if (child) {
     presented = true;
     child.present();
     measure();
-    new window.ResizeObserver(measure).observe(document.body);
+    sizeObserver(measure, { counted: false }).observe(document.body);
     sampleNotice("ready", {
       height,
       block: document.documentElement.hasAttribute("data-lf-sample-block"),

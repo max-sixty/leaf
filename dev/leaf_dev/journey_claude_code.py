@@ -61,6 +61,7 @@ import shlex
 import shutil
 import subprocess
 import time
+import uuid
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -167,10 +168,14 @@ class ClaudeCode(Terminal):
                 time.sleep(0.25)
         raise click.ClickException(f"the turn went on after Escape\n{self.screen()}")
 
+    def state(self) -> str | None:
+        """The turn's state in Claude Code's own record (`live_turn`)."""
+        turn = ClaudeCodeHarness(session=self.session, agent="Claude").live_turn()
+        return None if turn is None else turn["state"]
+
     def idle(self) -> bool:
         """Whether Claude Code's own record says no turn runs."""
-        turn = ClaudeCodeHarness(session=self.session, agent="Claude").live_turn()
-        return turn is not None and turn["state"] == "idle"
+        return self.state() == "idle"
 
     def sleeping(self) -> bool:
         """Whether the user's turn is in its shell step: whether the pane's own
@@ -190,38 +195,33 @@ class ClaudeCode(Terminal):
         return click.ClickException(f"{what} within {limit:.0f} s\n{self.screen()}")
 
     def approve(self) -> None:
-        """Answer a permission prompt Yes, as the user at the pane does, and record
-        it."""
-        question = permission_prompt(self.screen())
-        if question is None:
+        """Answer the dialog a turn holds open, which Claude Code's record reports
+        as `waiting`, with its first option, as the user at the pane does, and record
+        the question the screen shows. The record does not say which dialog it is;
+        in this journey it is a permission prompt, whose first option is Yes, and a
+        step's printed `approved` line would show any other."""
+        if self.state() != "waiting":
             return
+        screen = self.screen()
         self.tmux("send-keys", "-t", self.pane, "Enter")
         deadline = time.monotonic() + 10
-        while question in self.screen() and time.monotonic() < deadline:
+        while self.state() == "waiting" and time.monotonic() < deadline:
             time.sleep(0.1)
-        self.approved.append(question)
+        self.approved.append(asked(screen))
 
     def close(self) -> None:
         self.tmux("kill-session", "-t", self.pane)
 
 
-def permission_prompt(screen: str) -> str | None:
-    """The question of the permission prompt `screen` shows, if it shows one. Each of
-    Claude Code's asks "Do you want to …?" above options starting "1. Yes" and
-    "Esc to cancel": "proceed" for a command, "make this edit to" or "create" a file
-    for Edit and Write. The question alone is not a prompt, since the agent's own
-    words may ask it."""
+def asked(screen: str) -> str:
+    """The question a dialog on `screen` asks, for the record: Claude Code's
+    permission prompts ask "Do you want to …?", "proceed" for a command, "make this
+    edit to" or "create" a file for Edit and Write."""
     lines = [line.strip() for line in screen.splitlines()]
-    question = next(
-        (line for line in lines if line.startswith("Do you want to ")), None
+    return next(
+        (line for line in reversed(lines) if line.startswith("Do you want to ")),
+        "a dialog",
     )
-    if (
-        question is None
-        or not any(line.lstrip("❯ ").startswith("1. Yes") for line in lines)
-        or not any("Esc to cancel" in line for line in lines)
-    ):
-        return None
-    return question
 
 
 def runs(pid: int, command: str) -> bool:
@@ -459,8 +459,11 @@ def answering(browser, *, hooks_module: bool) -> Iterator[tuple[User, Callable]]
                 "leaf@inline": {"options": {"hooks_module": hooks_module}}
             }
         }
+        # The session's id is the journey's from the start, so Claude Code's record
+        # of it answers `approve` before the page is claimed.
+        session = str(uuid.uuid4())
         argv = [
-            "claude", "--model", MODELS[ClaudeCodeHarness.name],
+            "claude", "--session-id", session, "--model", MODELS[ClaudeCodeHarness.name],
             "--plugin-dir", str(place.payload), "--settings", json.dumps(settings),
             "--strict-mcp-config", "--permission-mode", "default",
             "--add-dir", str(place.payload),
@@ -468,6 +471,7 @@ def answering(browser, *, hooks_module: bool) -> Iterator[tuple[User, Callable]]
             "--debug-file", str(place.evidence / "debug.log"),
         ]  # fmt: skip
         cc = ClaudeCode(place, argv, dict(os.environ))
+        cc.session = session
         try:
             started = time.monotonic()
             cc.say(REQUEST)
@@ -475,7 +479,10 @@ def answering(browser, *, hooks_module: bool) -> Iterator[tuple[User, Callable]]
                 lambda: page_claim(place.page) is not None,
                 "setup: the page was not claimed",
             )
-            cc.session = page_claim(place.page)["id"]
+            require(
+                page_claim(place.page)["id"] == session,
+                "setup: the page's claim names another session",
+            )
             cc.until(
                 lambda: (
                     running_server(place.page) is not None

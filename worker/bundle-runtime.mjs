@@ -4,6 +4,8 @@
  * import, including native vendor dependencies. Optional dynamic imports keep
  * their existing demand boundary. Import maps precede these links so preloading
  * cannot resolve a module against a different map than its ordinary execution.
+ * Captured initial-drawing producers are classic scripts already inlined into
+ * the composed document; they are not roots of its module graph.
  */
 
 import { access, readFile, readdir, rm, writeFile } from "node:fs/promises";
@@ -98,7 +100,6 @@ async function preloadDocuments(pageRoot, layers, parser) {
     const required = widgetImports(markup.body, registries.get(vocabulary));
     const entries = [
       entry,
-      ...required.initializers.map(({ path }) => vocabularyRoot + path),
       ...required.modules.map((tag) => `${vocabularyRoot}/widgets/${tag}.js`),
     ];
     const graphKey = entry + importMap[1] + JSON.stringify(entries);

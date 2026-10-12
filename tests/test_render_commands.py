@@ -744,12 +744,12 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
 
     Pointer drag and the component's complete keyboard pattern move one divider. The
     rail jumps to the named endpoints, while print keeps the two complete frames
-    and their order."""
+    and their order. The gate's pass over the pair is
+    `test_render_reads_painted_facts_and_widget_chrome_where_they_stand`'s."""
     url = serve(
         SHOT_PAGE,
         media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
     )
-    assert render_gate_model.render_version(browser, url).failures == []
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.add_init_script(
@@ -1496,7 +1496,8 @@ def test_render_reads_painted_facts_and_widget_chrome_where_they_stand(
     width, so the pair is scaled by two different factors and every line lands somewhere
     new, and the flip would report that the whole page changed with nothing on screen
     to say otherwise. That is the one shot failure worth an error box rather than a
-    caveat, and the gate has to hear about it, since nobody else will."""
+    caveat, and the gate has to hear about it, since nobody else will. The same shot
+    with both frames at one width passes."""
     monkeypatch.chdir(tmp_path)
     package = tmp_path / ".leaf"
     add_test_widget(package, "lf-badge", upgrade=True)
@@ -1514,6 +1515,8 @@ def test_render_reads_painted_facts_and_widget_chrome_where_they_stand(
     pair = (
         f'<lf-shot id="shot-pair" alt="the navigation rail" before="{SHOT_SRC["before"]}"'
         f' after="{narrow_src}"></lf-shot>'
+        f'<lf-shot id="shot-nav" alt="the navigation rail" before="{SHOT_SRC["before"]}"'
+        f' after="{SHOT_SRC["after"]}"></lf-shot>'
     )
     source = REPLY_HOST_PAGE.replace("</main>", painted + pair + "</main>").replace(
         "</head>", "<style>.lf-quiet { display: none }</style></head>"
@@ -1521,7 +1524,10 @@ def test_render_reads_painted_facts_and_widget_chrome_where_they_stand(
     url = serve(
         source,
         packages=(*EXAMPLE_PACKAGES, declared_reading_package),
-        media={SHOT_SRC["before"]: SHOTS["before"], narrow_src: narrow},
+        media={
+            **{SHOT_SRC[name]: data for name, data in SHOTS.items()},
+            narrow_src: narrow,
+        },
     )
     append_carried_log_record(
         serve.page_dir,

@@ -77,12 +77,11 @@ variants:
         The page directory is not reachable here, so reply with the complete
         index.html rather than writing a file.
     assert:
-    - type: regex
-      metric: live-log-keeps-reading-position
-      value: <[^>]+\bdata-bound=["']end["'][^>]*>
-      transform: output.toLowerCase()
     - type: llm-rubric
       metric: live-log-uses-shared-reading
       value: |
-        The run log uses Leaf's bounded reading region without substituting
-        a page-local CSS scroller or custom scroll handlers.
+        The run log uses Leaf's bounded reading region, `data-bound="end"` on the
+        log's element, which follows new output while the reader is at the end and
+        holds their place when they scroll back. Fail if the log is unbounded, bound
+        from the start, or bounded by a page-local CSS scroller or custom scroll
+        handlers.

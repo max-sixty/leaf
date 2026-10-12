@@ -14,6 +14,7 @@ import {
   keeps,
   showNativeLayer,
   closeNativeLayer,
+  isNativeLayer,
   offer,
   once,
   paintKeys,
@@ -75,11 +76,7 @@ customElements.define(
       // also make it the popover; renderSaid sees the same marker and adds no duplicate.
       this.append(this.#bubble, this.#mark);
       this.#bubble.addEventListener("toggle", (event) => {
-        if (
-          event.newState !== "closed" ||
-          !this.#shown ||
-          this.#bubble.matches(":popover-open")
-        )
+        if (event.newState !== "closed" || !this.#shown || isNativeLayer(this.#bubble))
           return;
         this.#shown = false;
         this.#pinned = false;
@@ -162,7 +159,7 @@ customElements.define(
     #sync() {
       if (!this.#bubble?.isConnected) return;
       const show = !this.#dismissed && (this.#hovered || this.#focused || this.#pinned);
-      const open = this.#bubble.matches(":popover-open");
+      const open = isNativeLayer(this.#bubble);
       if (show === this.#shown && show === open) return;
       this.#shown = show;
       keeps(this.#mark, "aria-expanded", show);
@@ -171,7 +168,7 @@ customElements.define(
       if (show) {
         showNativeLayer(this.#bubble);
       } else {
-        if (this.#bubble.matches(":popover-open")) closeNativeLayer(this.#bubble);
+        if (isNativeLayer(this.#bubble)) closeNativeLayer(this.#bubble);
       }
     }
   },

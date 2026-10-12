@@ -23,12 +23,6 @@ vars:
     The page directory is not reachable from here, so reply with the complete `<main>`
     element, and any `<style>` the page needs, rather than writing a file.
 assert:
-- type: regex
-  metric: uses-a-layout
-  value: class="[^"]*\blayout-(sidebar|tiles)\b
-- type: regex
-  metric: no-document-outline
-  value: ^(?![\s\S]*<lf-toc\b)[\s\S]*$
 - type: llm-rubric
   metric: judgment
   value: |
@@ -38,5 +32,6 @@ assert:
     by `layout-tiles`. It uses none of `lf-grid`, `lf-workspace`, or a `data-width`
     attribute on `main`. Any `<style>` adjusts a Layout rather than rebuilding one:
     setting how many columns the numbers' `layout-tiles` block has adjusts it, and
-    passes. Fail if the page's own CSS declares a grid or flex arrangement for the
-    table and side column, or arranges the numbers on a block without `layout-tiles`.
+    passes. The page has no contents outline (`lf-toc`). Fail if the page's own CSS
+    declares a grid or flex arrangement for the table and side column, or arranges
+    the numbers on a block without `layout-tiles`.

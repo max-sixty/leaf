@@ -37,6 +37,7 @@ import {
 import { blockAt, pageRange, quoteFrom, segmentsIn } from "../../passages.js";
 import { pageSelection, selectionAnchor } from "../../composing/capture.js";
 import { closeLayer, drawn, holdFocus, focusDestination } from "../../focus.js";
+import { isNativeLayer } from "../../shadow-tree.js";
 import { coarsePointer } from "../../pointer.js";
 import { LAYOUT } from "../../widget-elements.js";
 import { under } from "../../shadow.js";
@@ -154,7 +155,7 @@ export function createFloatingResponsePlacement({
     );
   };
   const panelCoversPage = () =>
-    panelIsOpen() && threadsBox.closest("dialog")?.matches(":modal");
+    panelIsOpen() && isNativeLayer(threadsBox.closest("dialog"));
 
   // The editing observer reports size and horizontal target movement: CSS anchors
   // own scroll following, while a target moved without resizing must let the shared

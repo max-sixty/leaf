@@ -192,7 +192,11 @@ interface QuestionRecord {
   message: string | null;
   prompt: { text: string | null; target: string };
   answer: { value: unknown; event: Event | null } | null;
-  status: "open" | "answered" | "withdrawn";
+  /** `questions.py` owns the statuses; only a prose ask is `answered_elsewhere`. */
+  status: "open" | "answered" | "answered_elsewhere" | "withdrawn";
+  /** The agent's `leaf task end` that retired a prose ask: where the answer is, or why
+   * the ask no longer applies. */
+  end: { detail: string | null; event: Event } | null;
   next_actor: "user" | "agent" | null;
 }
 
@@ -661,7 +665,7 @@ function localQueues(
     ...current(item),
     live: false,
     state:
-      item.kind === "ask" && question(item).status !== "answered"
+      item.kind === "ask" && question(item).status === "withdrawn"
         ? "dropped"
         : "done",
     ended: null,

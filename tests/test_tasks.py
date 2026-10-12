@@ -315,10 +315,11 @@ def test_the_door_refuses_a_task_off_the_page_and_an_outcome_twice(page_dir):
     unknown = leaf("task", "end", page_dir, "no-such-task", "done")
     assert unknown.exit_code != 0
     assert "unknown to-do" in unknown.output
-    # Work in a thread is opened by the reply that promises it.
+    # Work in a thread is opened by the reply that promises it, so a to-do's subject
+    # is never a thread.
     threaded = leaf("task", "open", page_dir, comment["id"], "Look into it")
     assert threaded.exit_code != 0
-    assert "--todo <title>" in threaded.output
+    assert "event is invalid" in threaded.output
 
     task = written(leaf("task", "open", page_dir, "page", "Look into it"))
     written(leaf("task", "end", page_dir, task["id"], "dropped", "not needed"))
@@ -856,7 +857,7 @@ def test_a_start_line_is_one_sentence(page_dir):
     for line in ("", "   ", "two\nlines"):
         refused = leaf("task", "start", page_dir, task["id"], line)
         assert refused.exit_code != 0
-        assert "names the work and its subject in one sentence" in refused.output
+        assert "start event is invalid" in refused.output
 
 
 def asking(page_dir):
@@ -942,8 +943,9 @@ def test_a_thread_question_remains_distinct_from_explicit_user_work(page_dir):
     refused = leaf(
         "task", "open", page_dir, comment["id"], "Is it enough?", "--on", "user"
     )
+    # A task's subject is never a thread; the thread asks with `--question`.
     assert refused.exit_code != 0
-    assert "--ask" in refused.output
+    assert "event is invalid" in refused.output
 
     status, answer = done(page_dir, "reply:" + question["id"])
     assert status == 400, answer

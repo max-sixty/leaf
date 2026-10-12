@@ -5319,7 +5319,14 @@ THREAD_CARD_PAGE = leaf_page(
 
 def _seed_card_threads(page_dir):
     """Seed THREAD_CARD_PAGE's two threads and the crowded cluster's reactions, and
-    return the two threads' ids: the one on `#thread-text`, then the one on `#crowded`."""
+    return the two threads' ids: the one on `#thread-text`, then the one on `#crowded`.
+
+    The `#thread-text` thread is the gallery's, its question carrying the pasted room
+    photo, so its transcript is as tall as a real one: a card whose height falls short
+    clips it."""
+    image = "051bee487bfb5d13.png"
+    (page_dir / "media").mkdir(exist_ok=True)
+    (page_dir / "media" / image).write_bytes((example_media() / image).read_bytes())
 
     def comment(event):
         return append_carried_log_record(
@@ -5338,8 +5345,21 @@ def _seed_card_threads(page_dir):
         }
     )
     for reply, question in (
-        ("Does this crop show enough of the room, or should I reshoot it wider?", True),
-        ("I also added the room number to the agenda.", False),
+        (
+            (
+                "The pasted image stays inside this thread. Does this crop show "
+                "enough of the room, or should I reshoot it wider?\n\n"
+                f"![Pasted image](/media/{image})"
+            ),
+            True,
+        ),
+        (
+            (
+                "I also added the room number to the agenda. The image question "
+                "above still needs your answer."
+            ),
+            False,
+        ),
     ):
         append_carried_log_record(
             page_dir,

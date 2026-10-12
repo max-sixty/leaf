@@ -15,8 +15,10 @@
    release URL shared with a sample. All three resolve
    the same canonical `/media/…` text without rewriting durable content. The viewer's
    native dialog remains a retained chrome node. Its fitted image appears synchronously
-   while the manipulation module loads. A queued close from an earlier opening
-   leaves a reopened viewer's image and focus intact. */
+   while the manipulation module loads, in the stage's content box, which PhotoSwipe
+   then fits the same image to at the size that image reads, so the handover moves
+   nothing. A queued close from an earlier opening leaves a reopened viewer's image
+   and focus intact. */
 
 import { html, render } from "../vendor/browser-runtime.js";
 import { offlineInteractive, pageUrl, runtimeResource } from "./context.js";
@@ -187,7 +189,12 @@ const open = (url, alt, from) => {
   inspector = null;
   openLayer(mediaViewer, from);
   presentViewer({ url, alt });
-  render(html`<img src=${url} alt=${alt} />`, stage);
+  render(
+    html`<img src=${url} alt=${alt} /><span class="lf-media-viewer-probe"
+        ><img src=${url} alt=""
+      /></span>`,
+    stage,
+  );
   const description =
     from.dataset.lfMediaCaption ||
     from.closest("figure")?.querySelector("figcaption")?.textContent.trim() ||
@@ -197,23 +204,39 @@ const open = (url, alt, from) => {
   keepsText(viewerZoom, "100%");
   if (!mediaViewer.open) showNativeLayer(mediaViewer);
   focusDestination(viewerClose, "move");
-  const image = stage.querySelector("img");
-  Promise.all([imageTools(), image.decode()]).then(
+  const image = stage.querySelector(":scope > img");
+  const probe = stage.querySelector(".lf-media-viewer-probe > img");
+  Promise.all([imageTools(), image.decode(), probe.decode()]).then(
     ([PhotoSwipe]) => {
       // A delayed load belongs only to the image the reader still has open.
       if (attempt !== opening || !mediaViewer.open) return;
+      // In a 1px column an image keeps a width its file states; one that states none
+      // (an SVG with only a viewBox) narrows to the column. Such an image keeps its
+      // shape at the size that covers the screen in either orientation, so it fits
+      // below 100% in any window, refits as the window grows, and zooms past its fit.
+      const sizeless = probe.getBoundingClientRect().width < image.naturalWidth;
+      const fitted = image.getBoundingClientRect();
+      const shape = fitted.width / fitted.height;
+      const size = () => {
+        const side = Math.max(window.screen.width, window.screen.height);
+        return sizeless
+          ? { width: side * Math.max(1, shape), height: side * Math.max(1, 1 / shape) }
+          : { width: image.naturalWidth, height: image.naturalHeight };
+      };
       render(null, stage);
       const current = new PhotoSwipe({
-        dataSource: [
-          { src: url, width: image.naturalWidth, height: image.naturalHeight, alt },
-        ],
+        dataSource: [{ src: url, alt, ...size() }],
         appendToEl: mediaViewer,
-        paddingFn: () => ({
-          top: mediaViewer.querySelector(".lf-media-viewer-head").offsetHeight + 16,
-          right: 16,
-          bottom: caption.offsetHeight + 16,
-          left: 16,
-        }),
+        paddingFn: (viewport) => {
+          const box = stage.getBoundingClientRect();
+          const inset = getComputedStyle(stage);
+          return {
+            top: box.top + parseFloat(inset.paddingTop),
+            right: viewport.x - box.right + parseFloat(inset.paddingRight),
+            bottom: viewport.y - box.bottom + parseFloat(inset.paddingBottom),
+            left: box.left + parseFloat(inset.paddingLeft),
+          };
+        },
         secondaryZoomLevel: 1,
         close: false,
         zoom: false,
@@ -231,9 +254,16 @@ const open = (url, alt, from) => {
         tapAction: "zoom",
       });
       inspector = current;
+      // A screen can grow under an open viewer, as when its window moves to a larger
+      // display; the image takes the new cover before PhotoSwipe refits it.
+      current.on("beforeResize", () => {
+        const slide = current.currSlide;
+        const next = size();
+        if (slide && next.width > slide.width) Object.assign(slide, next);
+      });
       current.on("keydown", (event) => {
         // PhotoSwipe owns only native panning in the active viewer. Leaf owns zoom,
-        // cancellation, scopes and the modal Tab loop (layer-stack.js). Its document
+        // cancellation and scopes, and Tab stays the browser's. Its document
         // listener must never act behind a newer layer or reinterpret text typed there.
         const key = event.originalEvent;
         if (

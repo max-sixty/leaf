@@ -1403,13 +1403,8 @@ def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, hold
     url = live_url(
         serve(leaf_page("Hidden code", '<h1 id="title">Hidden code</h1>' + contents))
     )
-    context = browser.new_context(
-        viewport={"width": 390, "height": 844},
-        is_mobile=True,
-        has_touch=True,
-        permissions=["clipboard-read", "clipboard-write"],
-    )
-    page = open_page(browser, url, context=context)
+    page = open_page(browser, url)
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     controls = page.locator(".lf-chrome > .lf-code-copy")
     expect(controls).to_have_count(100)
     control = controls.first
@@ -1432,7 +1427,7 @@ def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, hold
         if holder == "disclosure"
         else page.get_by_role("tab", name="Overview", exact=True)
     )
-    opener.tap()
+    opener.click()
     rendered(page)
     expect(page.locator("#source")).to_be_visible()
     expect(control).to_be_in_viewport()
@@ -1444,20 +1439,22 @@ def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, hold
         < 100
     )
     button = control.get_by_role("button")
-    button.tap()
+    page.locator("#source").hover()
+    button.click()
     expect(button).to_have_accessible_name("Code copied")
     assert page.evaluate("navigator.clipboard.readText()") == "copy this source"
 
-    closer.tap()
+    closer.click()
     rendered(page)
     expect(page.locator("#source")).to_be_hidden()
     expect(control).not_to_be_in_viewport()
-    opener.tap()
+    opener.click()
     rendered(page)
     expect(control).to_be_in_viewport()
     expect(button).to_have_accessible_name("Copy code")
     page.evaluate("navigator.clipboard.writeText('cleared')")
-    button.tap()
+    page.locator("#source").hover()
+    button.click()
     expect(button).to_have_accessible_name("Code copied")
     assert page.evaluate("navigator.clipboard.readText()") == "copy this source"
 

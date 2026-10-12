@@ -176,7 +176,7 @@
   "lf-options": {
     "description": "Alternatives the user can choose individually or as a set to answer a question.",
     "x-space": "column",
-    "x-instructions": "Keep shared premises and evidence with the group; lf-ask can frame its question and context. Keep each alternative's case and decision-relevant evidence inside its lf-option. Use multiple when the selections form one answer because they depend on each other, such as a limit on how many; leave it off for mutually exclusive alternatives. Items each answerable on its own are separate asks (references/authoring-questions.md). The built-in Another option field accepts unlisted answers, so author the alternatives you mean without a catch-all option. Use for only to select sections or work items that exist independently of the decision; do not create sections solely to hold alternatives. To incorporate a user-added option into a revision, keep its id and words as an ordinary lf-option. A multiple-choice ask still needs the user's Done even when chosen is authored. Use settled to collapse a retired decision while preserving its options and anchors.",
+    "x-instructions": "Keep shared premises and evidence with the group; lf-ask can frame its question and context. Keep each alternative's case and decision-relevant evidence inside its lf-option. Use multiple when the selections form one answer because they depend on each other, such as a limit on how many; leave it off for mutually exclusive alternatives. Items each answerable on its own are separate asks (references/authoring-questions.md). The built-in Another option field accepts unlisted answers, so author the alternatives you mean without a catch-all option. Use for only to select sections or work items that exist independently of the decision; do not create sections solely to hold alternatives. A user-added option stays in the group from the log, where the user put it; leave it out of revisions. A multiple-choice ask still needs the user's Done even when chosen is authored. Use settled to collapse a retired decision while preserving its options and anchors.",
     "type": "object",
     "properties": {
       "id": {
@@ -344,7 +344,7 @@
   },
   "lf-chart": {
     "description": "An Observable Plot chart authored with Plot’s API and sized to its place in the page.",
-    "x-instructions": "Write a JavaScript expression for Plot.plot's options inside pre, HTML-escaping & before < and >; give the options object rather than calling Plot.plot. Plot and width are the only names in scope, and data stays inline. Use ISO date strings on an explicitly typed time scale; use utc for days and months, and include a timezone on moments, such as 2026-06-01T14:00Z. Supply ariaLabel describing the chart for users who cannot see it. Leave width and height out of the options: use width to adapt ticks, and data-height on the element for a nondefault height. Where page check --render reports overlapping labels, reduce category ticks, choose them by width, or reserve more margin for the axis label. Use var(--series-N) for constant or categorical colors; continuous color scales need a Plot scheme because CSS variables cannot be interpolated. Name the chart in the surrounding heading or prose rather than Plot's title.",
+    "x-instructions": "Write a JavaScript expression for Plot.plot's options inside pre, HTML-escaping & before < and >; give the options object rather than calling Plot.plot. Plot and width are the only names in scope, and data stays inline. Use ISO date strings on an explicitly typed time scale; use utc for days and months, and include a timezone on moments, such as 2026-06-01T14:00Z. Supply ariaLabel describing the chart for users who cannot see it. Leave width and height out of the options: use width to adapt ticks, and data-height on the element for a nondefault height. Where page check --render reports overlapping labels, reduce category ticks, choose them by width, or reserve more margin for the axis label. Use var(--series-N) for constant or categorical colors; continuous color scales need a Plot scheme because CSS variables cannot be interpolated. Name the chart in the surrounding heading or prose rather than Plot's title. Label each value the page's argument cites on the chart itself, such as the spikes its prose explains, for example with a text mark beside the point, so the reader sees the evidence without opening a table.",
     "type": "object",
     "properties": {
       "id": {
@@ -361,8 +361,8 @@
     "x-example": "<lf-chart id=\"review-latency\"><pre>\n{\n  ariaLabel: \"Hours to first review by week: backend fell from 31 to 12, frontend from 18 to 11\",\n  x: {type: \"utc\", ticks: \"monday\", label: null},\n  y: {grid: true, label: \"hours to first review\"},\n  color: {legend: true, range: [\"var(--series-1)\", \"var(--series-2)\"]},\n  marks: [\n    Plot.lineY(\n      [\n        {week: \"2026-05-04\", team: \"backend\", hours: 31},\n        {week: \"2026-05-11\", team: \"backend\", hours: 26},\n        {week: \"2026-05-18\", team: \"backend\", hours: 12},\n        {week: \"2026-05-04\", team: \"frontend\", hours: 18},\n        {week: \"2026-05-11\", team: \"frontend\", hours: 21},\n        {week: \"2026-05-18\", team: \"frontend\", hours: 11},\n      ],\n      {x: \"week\", y: \"hours\", stroke: \"team\", marker: true},\n    ),\n  ],\n}\n</pre></lf-chart>"
   },
   "lf-shot": {
-    "description": "A before-and-after screenshot pair with an operable divider, optional change outlines, and component-owned comparison, overlay, scaling and focus-crop presentation.",
-    "x-instructions": "Use served image paths printed by leaf page media for before and after, and describe the pair in alt. Read authoring-evidence.md, Source files and media, for captures and when to use outlines. Write explanations in surrounding prose rather than element content. When a decision turns on the change, put the pair inside the proposing option.",
+    "description": "A before-and-after screenshot pair with an operable divider, optional change outlines and changed-pixel view, and component-owned comparison, overlay, scaling and focus-crop presentation.",
+    "x-instructions": "Use served image paths printed by leaf page media for before and after, and describe the pair in alt. Read authoring-evidence.md, Source files and media, for captures and when to use outlines or pixels. Write explanations in surrounding prose rather than element content. When a decision turns on the change, put the pair inside the proposing option.",
     "type": "object",
     "properties": {
       "id": {
@@ -381,6 +381,9 @@
         "type": "string"
       },
       "outlines": {
+        "type": "boolean"
+      },
+      "pixels": {
         "type": "boolean"
       }
     },
@@ -487,9 +490,40 @@
     "x-views": true,
     "x-example": "<lf-tabs id=\"views\">\n  <lf-tab id=\"tab-implementation\" label=\"Implementation\">\n    <p id=\"rollout-plan\">Wire the first site this week.</p>\n  </lf-tab>\n  <lf-tab id=\"tab-vision\" label=\"Vision\">\n    <p id=\"product-vision\">Keep the original outcome and constraints in reach.</p>\n  </lf-tab>\n</lf-tabs>"
   },
+  "lf-tally": {
+    "description": "A count of the asks a region still holds open, such as a queue's decisions left to make, with an optional control to the next one.",
+    "x-instructions": "Name the region whose asks it counts with for, such as a side-list lf-tabs queue, and place it where the reader looks for the queue's state, such as a workspace header beside its .tag chips. Add next for a Next question control that steps through the region's asks waiting on the user. Write it empty with a stable id; it counts asks the page already poses, so state no count of them in prose or chips.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "for": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "next": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "id",
+      "for"
+    ],
+    "additionalProperties": false,
+    "x-content": "empty",
+    "x-inline": true,
+    "x-prepaint": "<span class=\"lf-tally-face\"><span class=\"lf-tally-count\"><span class=\"lf-tally-room\">00 of 00 to answer</span><span class=\"lf-tally-room\">Nothing to answer</span><span class=\"lf-tally-words\"></span></span><button class=\"lf-btn lf-tally-next lf-ui lf-ui-face\" type=\"button\">Next question</button></span>",
+    "x-refers": {
+      "for": {}
+    },
+    "x-upgrade": true,
+    "x-example": "<header>\n  <h1>Release triage</h1>\n  <p><lf-tally id=\"triage-left\" for=\"triage-queue\" next></lf-tally></p>\n</header>\n<lf-tabs id=\"triage-queue\" list=\"side\">\n  <lf-tab id=\"triage-retries\" label=\"Retry storm\">\n    <lf-ask id=\"retries-ask\">\n      <h3>Ship the retry cap?</h3>\n      <lf-options id=\"retries-choice\" choose>\n        <lf-option id=\"retries-ship\">Ship it</lf-option>\n        <lf-option id=\"retries-hold\">Hold for a canary</lf-option>\n      </lf-options>\n    </lf-ask>\n  </lf-tab>\n  <lf-tab id=\"triage-flag\" label=\"Stale flag\">\n    <lf-ask id=\"flag-ask\">\n      <h3>Remove the flag?</h3>\n      <lf-options id=\"flag-choice\" choose>\n        <lf-option id=\"flag-remove\">Remove it</lf-option>\n        <lf-option id=\"flag-keep\">Keep it a release</lf-option>\n      </lf-options>\n    </lf-ask>\n  </lf-tab>\n</lf-tabs>"
+  },
   "lf-tab": {
     "description": "One labeled view in a tab set, optionally summarized and grouped in a side-list queue.",
-    "x-instructions": "Use summary for the few words a side-list queue needs for scanning, such as severity, age, or suggested outcome. Where a queue's items fall into kinds the user works through in turn, such as merge, close, and FYI, give each item its kind as group and place each kind's items together in the order the user should take them; neighbouring tabs with the same group stand under one heading. Keep ids distinct across tabs: they share the page's one id space.",
+    "x-instructions": "A side-list queue shows summary under each label, so the user can choose an item without opening it. Start it with what the item is about in a few words, such as the problem a ticket reports, unless the label already says so, then add what sets the item apart from its neighbours, such as its age or suggested outcome. Leave out the item's group, which its heading already shows. Where a queue's items fall into kinds the user works through in turn, such as merge, close, and FYI, give each item its kind as group and place each kind's items together in the order the user should take them; neighbouring tabs with the same group stand under one heading. Keep ids distinct across tabs: they share the page's one id space.",
     "x-name": "label",
     "type": "object",
     "properties": {

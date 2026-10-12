@@ -5,6 +5,7 @@ import json
 import re
 import subprocess
 from datetime import UTC, datetime
+from functools import cache
 from pathlib import Path
 from typing import NamedTuple
 
@@ -183,8 +184,8 @@ def composed_dir_files(inputs: list[Path], sub: str) -> dict[str, Path]:
 # outrank a package's default box and a Layout's arrangement. The page's own sheet
 # stays unlayered above these tiers, and inline widget motion outranks them too.
 # The page's rules reach Leaf's own controls only where they name them
-# (runtime/page-sheets.js). The chrome and marks sheets stay unlayered,
-# since their paint must beat page and widget alike (chrome.css).
+# (runtime/page-sheets.js). Chrome and apparatus marks stay unlayered to beat page
+# and widget alike; runtime/stylesheets.js owns their precedence and defaults.
 CASCADE_LAYERS = ("lf-reset", "lf-base", "lf-layouts", "lf-shadow", "lf-state")
 
 
@@ -497,6 +498,26 @@ def payload_provenance(*, include_path: bool = False) -> dict:
     if dirty.returncode == 0:
         provenance["dirty"] = bool(dirty.stdout)
     return provenance
+
+
+@cache
+def running_leaf() -> dict:
+    """`payload_provenance` read once for this process, by its first page server as
+    that server is built (`http.page_app`): the Leaf whose code the process runs,
+    however its checkout moves on afterwards."""
+    return payload_provenance()
+
+
+def same_leaf(one: dict, other: dict) -> bool:
+    """Whether two provenances, as `payload_provenance` reads them, name one source:
+    the same commit, whichever abbreviates it, and the same dirty bit. Two with no
+    commit have nothing to tell apart."""
+    first, second = one.get("commit"), other.get("commit")
+    if not (first and second):
+        return first == second
+    return (first.startswith(second) or second.startswith(first)) and one.get(
+        "dirty"
+    ) == other.get("dirty")
 
 
 def provenance_label(provenance: dict) -> str:

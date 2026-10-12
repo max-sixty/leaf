@@ -303,6 +303,10 @@ html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) {
     html[data-lf-interactive] body:not([data-lf-upgraded]) > main .lf-ui {
       visibility: hidden !important;
     }
+    html[data-lf-sample-connecting] {
+      opacity: 0 !important;
+      visibility: hidden !important;
+    }
   }
 }
 .lf-held-keys {
@@ -842,11 +846,8 @@ lf-suggestion:has(> :is(lf-old, lf-new) > :not(a, abbr, area, audio, b, bdi, bdo
     padding: 2px 10px;
     margin-top: 10px;
     --lf-block-frame: 1;
+    transition: padding var(--lf-motion-fold) ease;
   }
-}
-lf-old,
-lf-new {
-  transition: padding var(--lf-motion-fold) ease;
 }
 lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   background: none;

@@ -1476,12 +1476,22 @@ def reported_browser_errors(page, *expected):
     return errors
 
 
+def _names(fragment, line):
+    """Whether an expected fragment names a browser problem's first line. An HTTP
+    status names the entry a failed response is recorded as, `"<status> <url>"`
+    (`render_gate.scheme.console_error`), by its start: elsewhere in a line, a port
+    or a stack's address can hold the same digits."""
+    if fragment.isdigit():
+        return line.startswith(f"{fragment} ")
+    return fragment in line
+
+
 def consume_browser_errors(page, *expected):
     """Assert intentional messages; stack locations cannot authorize a problem."""
     assert expected, "expected browser-error fragments cannot be empty"
     errors = take_browser_errors(page)
     assert errors and all(
-        any(fragment in error.splitlines()[0] for fragment in expected)
+        any(_names(fragment, error.splitlines()[0]) for fragment in expected)
         for error in errors
     ), errors
     return errors
@@ -2227,6 +2237,14 @@ def fills_the_window(page, block, fills):
         }""",
         arg=[block.element_handle(), fills],
     )
+
+
+# An async page expression for the top of the page scroller's landing band, below the
+# banner and anything else covering its top edge: where a reading place is measured from.
+LANDING_TOP = (
+    "(await window.__lfRuntimeImport('/runtime/geometry.js'))"
+    ".landingBand(document.scrollingElement).top"
+)
 
 
 def resized(page, width, height):

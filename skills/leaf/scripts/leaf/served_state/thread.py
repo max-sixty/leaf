@@ -167,9 +167,6 @@ def browser_thread(
             ),
             "asks": work.questions,
             "threads": rendered_threads,
-            # Standing approvals across every stamp, for Threads' event timeline.
-            # Current-version approval state lives only in its ask.
-            "approval_history": work.approvals,
         },
         reading,
     )

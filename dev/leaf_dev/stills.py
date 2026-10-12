@@ -468,12 +468,30 @@ def options_in_pane(page: Page) -> None:
     page.locator("#ar-latency-decision > lf-options").scroll_into_view_if_needed()
 
 
+def tally_after_an_answer(page: Page) -> None:
+    """A queue's tally after Next question and one answer: the count down by one, the
+    answered row's check above the open marks, and Next question's second ask open."""
+    next_question = page.locator("#ar-left .lf-tally-next")
+    next_question.click()
+    page.locator("#ar-canary-consecutive").click()
+    expect(page.locator("#ar-left .lf-tally-words")).to_have_text("8 of 9 to answer")
+    next_question.click()
+    expect(page.locator("#ar-latency-decision")).to_be_focused()
+    settle(page)
+
+
 def card_grabbed(page: Page) -> None:
     """A board card grabbed by keyboard and carried one column left."""
     page.keyboard.press("Tab")
     page.locator("#card-tz > .lf-grip").focus()
     page.keyboard.press("Enter")
     page.keyboard.press("ArrowLeft")
+
+
+def into_the_body(page: Page) -> None:
+    """Two windows down the page, where a sidebar page's track stands beside the body
+    it scrolls past."""
+    page.evaluate("() => scrollTo(0, 2 * innerHeight)")
 
 
 def code_note(page: Page) -> None:
@@ -504,6 +522,16 @@ def gallery_plans(page: Page) -> None:
     """Planned work beside observed history, using authored stable section identity."""
     page.get_by_role("tab", name="Page & layout", exact=True).click()
     page.locator("#bg-plans-and-history").scroll_into_view_if_needed()
+
+
+def gallery_ask_figure(page: Page) -> None:
+    """An Ask framing a chart, with its question at the window's top so the chart and
+    every option either share the window or run past it."""
+    page.get_by_role("tab", name="Page & layout", exact=True).click()
+    settle(page)
+    page.locator("#bg-ask-across lf-ask").evaluate(
+        "el => el.scrollIntoView({block: 'start'})"
+    )
 
 
 def theme_hierarchy(page: Page) -> None:
@@ -625,7 +653,7 @@ def diff_line_composer(page: Page) -> None:
 
 
 def code_source_by_touch(page: Page) -> None:
-    """Reading code by touch, with the corner control disclosed away."""
+    """Code stood on by touch, its Copy offered on the banner rather than over its words."""
     code_note(page)
     page.locator("lf-code pre").first.tap(position={"x": 60, "y": 20})
 
@@ -1021,6 +1049,26 @@ STATES = (
     State("frame-edges", "developer/feature-gallery", frame_edges),
     State("gallery-metrics", "developer/feature-gallery", gallery_metrics),
     State("gallery-plans", "developer/feature-gallery", gallery_plans),
+    State("gallery-ask-figure", "developer/feature-gallery", gallery_ask_figure),
+    State(
+        "gallery-ask-figure-900",
+        "developer/feature-gallery",
+        gallery_ask_figure,
+        viewport=(900, 900),
+    ),
+    State(
+        "gallery-ask-figure-dark",
+        "developer/feature-gallery",
+        gallery_ask_figure,
+        scheme="dark",
+    ),
+    State(
+        "gallery-ask-figure-phone",
+        "developer/feature-gallery",
+        gallery_ask_figure,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State("gallery-theme", "developer/feature-gallery", theme_hierarchy),
     State(
         "gallery-theme-dark",
@@ -1213,6 +1261,7 @@ STATES = (
     State(
         "alert-queue-touch", "alert-review", at_rest, viewport=(390, 844), touch=True
     ),
+    State("alert-queue-tally", "alert-review", tally_after_an_answer),
     State("alert-option-long", "alert-review", option_long),
     State("alert-options-in-pane", "alert-review", options_in_pane),
     State("ideas-ask", "ideas-to-implement", ask_by_keyboard),
@@ -1232,6 +1281,27 @@ STATES = (
         touch=True,
     ),
     State("triage-grabbed", "triage-board", card_grabbed),
+    State(
+        "walkthrough-body-short",
+        "pr-walkthrough",
+        into_the_body,
+        viewport=(900, 600),
+    ),
+    State(
+        "walkthrough-body-short-dark",
+        "pr-walkthrough",
+        into_the_body,
+        viewport=(900, 600),
+        scheme="dark",
+    ),
+    State(
+        "walkthrough-body-phone",
+        "pr-walkthrough",
+        into_the_body,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State("progress-body-short", "live-progress", into_the_body, viewport=(900, 600)),
     State("walkthrough-code", "pr-walkthrough", code_note),
     State("walkthrough-code-dark", "pr-walkthrough", code_note, scheme="dark"),
     State("walkthrough-diff-comment", "pr-walkthrough", diff_line_composer),

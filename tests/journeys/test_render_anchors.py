@@ -60,9 +60,10 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
 
     A passage's shape is what has made selection and search come apart: its block,
     the widgets around it, whether the runtime says it, and the text transform and
-    white space it is set in. The sweep drags once across each shape the page holds,
-    and once across each pair of shapes that stand next to each other; a repeat of a
-    shape it has already dragged across adds time and no evidence.
+    white space it is set in. The sweep drags once across each pair of shapes that
+    stand next to each other, which crosses both shapes' own words as well as their
+    join, and across a shape alone only where no pair holding it resolved as one
+    passage; a repeat of a drag it has already made adds time and no evidence.
 
     Focused tests own settlements, tabs, shadow roots, and gestures.
     """
@@ -131,20 +132,23 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
             return [block.localName, block.hasAttribute('data-lf-said'),
                     style.textTransform, style.whiteSpace, ...widgets].join(' ');
         };
-        // Each shape alone, then reaching into the next block — a drag rarely stops
-        // tidily on a boundary, and spanning two blocks is where the joins show.
-        const drags = new Map();
+        // Each block reaching into the next — a drag rarely stops tidily on a
+        // boundary, and spanning two blocks is where the joins show. A pair crosses
+        // both blocks' own words too, so a shape some pair resolved exactly needs no
+        // drag of its own. A shape whose every pair crosses a fence (a tab, an option,
+        // generated words) resolves no pair exactly, so it gets one drag across
+        // itself alone: otherwise nothing would check its mark.
+        const pairs = new Map();
         blocks.forEach((block, i) => {
             const next = blocks[i + 1];
-            drags.set(shape(block), drags.get(shape(block)) ?? [block, block]);
-            if (next) {
-                const join = `${shape(block)} | ${shape(next)}`;
-                drags.set(join, drags.get(join) ?? [block, next]);
-            }
+            if (!next) return;
+            const join = `${shape(block)} | ${shape(next)}`;
+            if (!pairs.has(join)) pairs.set(join, [block, next]);
         });
         const missed = [], skipped = [], astray = [], nonexact = [];
         let attempted = 0, detached = 0, fallback = 0;
-        for (const [start, end] of drags.values()) {
+        // Whether the drag's mark was checked: true once it resolved as one passage.
+        const drag = async (start, end) => {
             attempted++;
             // A mouse selection starts in page words and ends with the native
             // pointer/mouse release pair; selectionchange alone does not snap.
@@ -167,7 +171,7 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
             // a passage silently outside this sweep, and the sweep is the coverage.
             if (fab()?.style.display !== 'block') {
                 skipped.push(range.toString().replace(/\\s+/g, ' ').trim().slice(0, 70));
-                continue;
+                return false;
             }
             const anchor = anchorForRange(range);
             const resolved = resolveAnchor(anchor);
@@ -183,7 +187,7 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
                     missed.push('unusable native selection: ' + range.toString().slice(0, 70));
                 sel.removeAllRanges();
                 await rendered();
-                continue;
+                return false;
             }
             const painted = CSS.highlights.get('lf-pending');
             // The captured quote, read off the node whether or not the user can
@@ -217,7 +221,16 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
             for (let i = 0; fab()?.style.display === 'block' && i < 1000; i++) await tick();
             if (fab()?.style.display === 'block')
                 missed.push('Comment stayed open once the selection cleared');
-        }
+            return true;
+        };
+        const checked = new Set();
+        for (const [start, end] of pairs.values())
+            if (await drag(start, end)) checked.add(shape(start)).add(shape(end));
+        const alone = new Map();
+        for (const block of blocks)
+            if (!checked.has(shape(block)) && !alone.has(shape(block)))
+                alone.set(shape(block), block);
+        for (const block of alone.values()) await drag(block, block);
         return {attempted, detached, fallback, missed, skipped, astray, nonexact};
     }"""
     )
@@ -402,6 +415,12 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
             # the block's aria-keyshortcuts.
             pre.focus()
             assert "copy code" in shortcut_bar_text(page)
+            # The corner control serves a pointer, so the banner keeps its own row.
+            expect(
+                page.locator(".lf-banner-actions").get_by_role(
+                    "button", name="Copy code", exact=True
+                )
+            ).to_have_count(0)
             expect(pre).to_have_attribute("aria-keyshortcuts", "Enter")
             page.keyboard.press("?")
             page.keyboard.press("?")
@@ -503,27 +522,36 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
         permissions=["clipboard-read", "clipboard-write"],
     )
     touch = open_page(browser, url, context=touch_context)
+    # A finger has no hover to show intent before it lands, so the corner control never
+    # draws over the code; standing on a block puts its Copy on the banner instead.
     touch_control = touch.locator(".lf-chrome > .lf-code-copy")
-    touch_button = touch_control.get_by_role("button")
-    expect(touch_control).to_have_css("opacity", "1")
-    expect(touch_button).to_have_accessible_name("Copy code")
+    expect(touch_control).to_have_count(1)
+    expect(touch_control).to_be_hidden()
+    banner_copy = touch.locator(".lf-banner-actions").get_by_role(
+        "button", name="Copy code", exact=True
+    )
+    expect(banner_copy).to_have_count(0)
     expect(touch.locator("#plain")).to_have_css("padding-top", "12px")
-    hit = touch_button.bounding_box()
-    assert hit and hit["width"] >= 44 and hit["height"] >= 44, hit
-    touch_button.tap()
-    expect(touch_button).to_have_accessible_name("Code copied")
-    assert touch.evaluate("navigator.clipboard.readText()") == plain
+
+    def copied(expected):
+        touch.wait_for_function(
+            "async (expected) => (await navigator.clipboard.readText()) === expected",
+            arg=expected,
+        )
+
     touch_pre = touch.locator("#plain")
     frame = touch_pre.bounding_box()
     touch_pre.tap(position={"x": 20, "y": 20})
     expect(touch_pre).to_be_focused()
     expect(touch_pre).to_have_attribute("tabindex", "0")
-    expect(touch_control).to_have_css("opacity", "0")
-    expect(touch_control).to_have_css("pointer-events", "none")
+    banner_copy.tap()
+    expect(touch.locator(".lf-notice")).to_have_text("Code copied")
+    copied(plain)
+    expect(touch_pre).to_be_focused()
     assert touch_pre.bounding_box() == frame
 
-    # The source owns a finger's horizontal swipe, even though the copy control
-    # initially occupied its first line. Focus must not cancel the native scroll.
+    # The source owns a finger's horizontal swipe. Focus must not cancel the native
+    # scroll.
     cdp = touch_context.new_cdp_session(touch)
     assert frame
     x, y = frame["x"] + frame["width"] - 60, frame["y"] + 20
@@ -554,8 +582,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
           const rect = range.getBoundingClientRect();
           const copy = document.querySelector('.lf-chrome > .lf-code-copy');
           const hit = document.elementFromPoint(rect.right - 2, rect.top + rect.height / 2);
-          return {opacity: getComputedStyle(copy).opacity,
-                  covered: hit === copy || copy.contains(hit),
+          return {covered: hit === copy || copy.contains(hit),
                   suffix: range.toString(),
                   start: [rect.left, rect.top + rect.height / 2],
                   end: [rect.right, rect.top + rect.height / 2],
@@ -563,7 +590,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
         }""",
             suffix,
         )
-        assert reading["opacity"] == "0" and not reading["covered"], reading
+        assert not reading["covered"], reading
         assert reading["suffix"] == suffix
         assert reading["frame"][0] < reading["start"][0]
         assert reading["end"][0] < reading["frame"][1]
@@ -573,12 +600,11 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
 
     select_suffix()
     touch.locator("#title").tap()
-    expect(touch_control).to_have_css("opacity", "1")
-    expect(touch_control).to_have_css("pointer-events", "auto")
+    expect(banner_copy).to_have_count(0)
     expect(touch_pre).to_have_attribute("tabindex", "0")
 
-    # A fitting dense line has the same reading route: its final characters must
-    # stay available even though they sit beneath the resting copy control.
+    # A fitting dense line ends where the corner control would stand: its final
+    # characters are readable and selectable on arrival, before any tap.
     fitting = touch_pre.evaluate(
         """(pre, suffix) => {
           const code = pre.querySelector('code');
@@ -603,32 +629,29 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
         "getComputedStyle(document.querySelector('#plain'), '::after').content === 'none'"
     )
     frame = touch_pre.bounding_box()
+    select_suffix()
     touch_pre.tap(position={"x": 20, "y": 20})
     expect(touch_pre).to_be_focused()
-    select_suffix()
-    touch.locator("#title").tap()
-    expect(touch_control).to_have_css("opacity", "1")
-    touch_pre.tap(position={"x": 20, "y": 20})
-    expect(touch_control).to_have_css("opacity", "0")
-    # The control refuses a second copy until its last result has shown.
-    expect(touch_button).to_have_accessible_name("Copy code")
     touch.keyboard.press("Enter")
-    expect(touch_button).to_have_accessible_name("Code copied")
-    assert touch.evaluate("navigator.clipboard.readText()") == fitting
+    copied(fitting)
     expect(touch_pre).to_be_focused()
     expect(touch_pre).to_have_attribute("tabindex", "0")
     assert touch_pre.bounding_box() == frame
 
-    # A wrapping widget has no authored stop to retain. Its touch focus is lent
-    # for the reading gesture and disappears when the user leaves its source.
+    # A wrapping widget's block has no authored stop to retain. Its touch focus is lent
+    # for the reading gesture, carries the same Copy step, and disappears when the user
+    # leaves its source.
     numbered_pre = touch.locator("#numbered > pre")
     assert numbered_pre.get_attribute("tabindex") is None
+    expect(touch.locator("#numbered > .lf-code-copy")).to_be_hidden()
     numbered_pre.tap(position={"x": 20, "y": 20})
     expect(numbered_pre).to_be_focused()
-    expect(touch.locator("#numbered > .lf-code-copy")).to_have_css("opacity", "0")
+    touch.evaluate("navigator.clipboard.writeText('cleared')")
+    banner_copy.tap()
+    copied(widget)
     touch.locator("#title").tap()
     expect(numbered_pre).not_to_have_attribute("tabindex")
-    expect(touch.locator("#numbered > .lf-code-copy")).to_have_css("opacity", "1")
+    expect(banner_copy).to_have_count(0)
 
 
 def test_a_revised_example_travels_between_its_own_versions(browser, serve):

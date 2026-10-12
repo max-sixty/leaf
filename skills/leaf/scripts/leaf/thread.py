@@ -5,7 +5,7 @@ from hashlib import sha256
 from pathlib import Path
 from typing import NamedTuple
 
-from leaf.activity import answer_command
+from leaf.activity import answer_command, reply_command
 from leaf.delivery import (
     ReceiptRefused,
     current_responses,
@@ -50,7 +50,7 @@ def _messages(events: list) -> dict[str, dict]:
 
 
 def _unknown_message(page_dir: Path, events: list, name: str) -> None:
-    held = logged_id(events, name, current_responses(page_dir, events))
+    held = logged_id(page_dir, events, name, current_responses(page_dir, events))
     raise Refused(
         f"unknown comment id {name!r}"
         + (f"; {held}" if held else "")
@@ -200,7 +200,7 @@ def _capture_anchor(
         )
     except ValueError as err:
         held = (
-            logged_id(events, section, current_responses(page_dir, events))
+            logged_id(page_dir, events, section, current_responses(page_dir, events))
             if section
             else None
         )
@@ -515,7 +515,7 @@ def _resolve_obligation(
         if expected is None or expected["kind"] != "reply":
             if isinstance(settlement, Receipt):
                 return None
-            held = logged_id(events, for_event, responses)
+            held = logged_id(page_dir, events, for_event, responses)
             raise Refused(
                 f"event {for_event!r} takes no reply; "
                 + (held or f"this page's log holds no event {for_event!r}")
@@ -533,7 +533,7 @@ def _resolve_obligation(
             if isinstance(settlement, Receipt):
                 return None
             if not isinstance(settlement, ProviderFinal):
-                held = logged_id(events, for_event, responses)
+                held = logged_id(page_dir, events, for_event, responses)
                 raise Refused(
                     f"event {for_event!r} no longer requires a reply to {to!r}; "
                     + (held or "read the current delivery or thread state")
@@ -554,24 +554,22 @@ def _resolve_obligation(
                 address.get("input") is None or failure is not None
             ):
                 refusal = f"event {for_event!r} is answered by this turn's messages; "
+                command = reply_command(expected, page_dir)
                 if failure is not None:
                     refusal += (
                         "failure receipts wait for this turn to release the answer; "
-                        "answer in your final message or use "
-                        "`leaf response reply <answer.ref>` without `--failure`"
+                        f"answer in your final message or use {command} without "
+                        "`--failure`"
                     )
                 else:
-                    refusal += (
-                        "use `leaf response reply <answer.ref>` to commit "
-                        "an explicit answer"
-                    )
+                    refusal += f"use {command} to commit an explicit answer"
                 raise Refused(refusal)
     else:
         standing = thread_obligation(events, responses, thread_id)
         if standing is not None:
             raise Refused(
                 f"thread {thread_id!r} currently requires a response; "
-                f"{answer_command(standing)} answers it"
+                f"{answer_command(standing, page_dir)} answers it"
             )
     if (
         isinstance(settlement, Receipt)
@@ -793,9 +791,8 @@ def post_response(
     """
     address = response_address(reference)
     if address["kind"] != "reply":
-        raise Refused(
-            f"response {reference!r} requires {answer_command(address)}, not a reply"
-        )
+        command = answer_command(address, Path(address["page"]))
+        raise Refused(f"response {reference!r} requires {command}, not a reply")
     attempt = options.pop("attempt", None)
     if reservation is None and (attempt is not None or not options.get("ephemeral")):
         # Public retry keys identify this addressed author's writes, never a

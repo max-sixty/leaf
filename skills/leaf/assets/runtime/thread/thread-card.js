@@ -1336,29 +1336,15 @@ export class ThreadView {
           ),
       },
     };
-    const lifetime = createReplyView(model.key, commands, {
+    return createReplyView(model.key, commands, {
       onChange: replyChanged,
       editLast: this.#rewrites.editLast,
+      reveal: panel
+        ? () => this.#commands.listRoot.revealNavigation(this.#model.id)
+        : null,
+      sizes: panel ? replyRowSizes : null,
+      redraw: () => this.repaint(),
     });
-    const { node: row, input } = lifetime;
-    if (panel)
-      input.lfRevealReply = () =>
-        this.#commands.listRoot.revealNavigation(this.#model.id);
-    if (!panel)
-      return {
-        node: row,
-        cancelDictation: lifetime.cancelDictation,
-        dispose: lifetime.dispose,
-      };
-    replyRowSizes.observe(row);
-    return {
-      node: row,
-      cancelDictation: lifetime.cancelDictation,
-      dispose: () => {
-        replyRowSizes.unobserve(row);
-        lifetime.dispose();
-      },
-    };
   }
 
   #prepareLanding(reopen) {

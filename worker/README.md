@@ -82,23 +82,27 @@ pnpm install --frozen-lockfile
 pnpm run site:dev
 ```
 
-`site:dev` builds the site and serves it with `wrangler dev`, which picks free HTTP and
-inspector ports.
-
-To reproduce a deploy-gate failure, run the gate's checks against a local build:
+To reproduce a deploy-gate failure, build the site and run the gate's checks through
+the local Worker and container:
 
 ```sh
+uv run leaf-dev site
 uv run leaf-dev verify-site website-worker
-uv run leaf-dev journey website-adapter
+uv run leaf-dev journey website-worker
 ```
 
-`verify-site website-worker` checks the release `leaf-dev site` built through the local
-Worker and container, as `publish-site` does before it deploys. `journey
-website-adapter` runs one real agent turn against the adapter without the Worker, using
-a temporary `CODEX_HOME` seeded with copies of the host's Codex login and the website's
-Codex config. It prints the container's records and keeps them, with the plugin
-install's output, under `.tmp/verify-site/run-*/` (`website-adapter.log`,
-`plugin-install.log`). In its JSON result, `sinceSendMs.responseVisible` is when the
+`verify-site website-worker` checks the release `leaf-dev site` built, as
+`publish-site` does before it deploys, and `journey website-worker` runs the agent
+journey that `publish-site` runs against <https://leaf.page/> after it deploys. Neither
+builds the site, so rerun `leaf-dev site` after a change.
+
+For a quicker check of the agent alone, `uv run leaf-dev journey website-adapter` runs
+one real agent turn against the adapter on this machine, without the Worker, container
+limits, credential proxy or Docker. It uses a temporary `CODEX_HOME` seeded with copies
+of the host's Codex login and the website's Codex config. It prints the container's
+records and keeps them, with the plugin install's output, under
+`.tmp/verify-site/run-*/` (`website-adapter.log`, `plugin-install.log`). In its JSON
+result, `sinceSendMs.responseVisible` is when the
 open Threads panel first showed a non-empty agent reply; `sinceAdmissionMs.replied` is
 when the container admitted that reply, not when the user could see it.
 
@@ -356,7 +360,8 @@ browser, or `loadId`.
 | `outcome` | How the record closed: `presented`, `failed` (the page reported it could not start), `timeout` (fifteen seconds passed without either), or `abandoned` (the user left first) |
 | `reason` | What went wrong during startup, when anything did |
 
-Every time is milliseconds since navigation started, or `null` when not observed.
+`serverMs` is how long the Worker took to answer, from its `Server-Timing` header. Every
+other time is milliseconds since navigation started. A time not observed is `null`.
 Widgets can upgrade while private state still waits for its container. The page
 presents after the state answer is applied, except that the offline fallback can
 present authored content with `firstStateResponseMs: null`.
@@ -438,12 +443,12 @@ The records to read first:
 
 | Record | Says |
 | --- | --- |
-| `event_accepted` | The Worker accepted the event; carries `eventId` |
+| `event_accepted` | The Worker accepted an event that needs a reply and is dispatching it; carries `eventId` |
 | `container_start_failed` | The turn could not be started; the Worker and the container each write one from their side |
 | `turn_start_acknowledged` | App Server started the turn; carries Codex's `turnId` |
 | `turn_delivery_bound` | The Leaf turn opened for that Codex turn |
 | `turn_reply_first_text_published` | First final-answer text reached the user's thread, the first thing the user sees |
-| `turn_stream_completed` | The provider finished; carries status, fault, `modelRequests`, `inputTokens`, `cachedInputTokens`, `outputTokens` |
+| `turn_stream_completed` | The turn ended, whether it finished, lost its connection, went silent, or failed; carries status, fault, `modelRequests`, `inputTokens`, `cachedInputTokens`, `outputTokens` |
 | `turn_reply_commit_failed` | Leaf could not validate or append the reply |
 | `turn_interrupted`, `turn_interrupt_failed` | The container stopped a turn it could no longer follow, or App Server refused, usually because the turn had already ended |
 | `turn_abandoned_interrupt_started`, `turn_abandoned_interrupt_completed` | The same for a turn found running on a resumed thread |
@@ -454,8 +459,10 @@ The records to read first:
 | `page_fault` | The adapter answered `500`: route, method, page path, exception class, and `detail` |
 
 A failure record carries `error`, the exception's class, and `detail`, the message the
-refusing code wrote, cut to its last 500 characters with a leading ellipsis. A failed
-title request carries no `detail`, because a title's words come from the user's. A
+refusing code wrote, cut to its last 500 characters with a leading ellipsis. A
+`thread_title_failed` record cuts `detail` to its last 500 characters with no ellipsis,
+and a title request the page refused carries no `detail`, because the refusal can quote
+the title, whose words come from the user's. A
 `page_fault` `detail` can quote a value the user entered, so treat it as possibly
 containing user text.
 
@@ -465,8 +472,10 @@ The outbound model handler adds `model_request_started`, `model_response_headers
 ids, a per-request id, status, and byte count. `model_transport_http_fallback` records
 Codex falling back from its WebSocket probe to HTTP.
 
-When a hosted turn cannot answer, the user's message gets a failure receipt in its
-thread. The receipt's `failure` field holds one of three codes, and
+When a hosted turn cannot answer, the user's update gets a failure receipt: a reply
+carrying `failure` in its thread for a message, or a failed pickup for an answer to an
+ask, which leaves the answer standing and lets the user answer again
+(`fail_answer` in `skills/leaf/scripts/leaf/thread.py`). The receipt's `failure` field holds one of three codes, and
 `worker/leaf_website/__init__.py` declares the words the user reads for each in
 `FAILURE_RECEIPTS`:
 

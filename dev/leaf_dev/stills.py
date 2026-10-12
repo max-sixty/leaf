@@ -476,6 +476,12 @@ def card_grabbed(page: Page) -> None:
     page.keyboard.press("ArrowLeft")
 
 
+def into_the_body(page: Page) -> None:
+    """Two windows down the page, where a sidebar page's track stands beside the body
+    it scrolls past."""
+    page.evaluate("() => scrollTo(0, 2 * innerHeight)")
+
+
 def code_note(page: Page) -> None:
     """The first code block with a note, the note in view."""
     page.locator("lf-code pre lf-note").first.evaluate(
@@ -1262,6 +1268,27 @@ STATES = (
         touch=True,
     ),
     State("triage-grabbed", "triage-board", card_grabbed),
+    State(
+        "walkthrough-body-short",
+        "pr-walkthrough",
+        into_the_body,
+        viewport=(900, 600),
+    ),
+    State(
+        "walkthrough-body-short-dark",
+        "pr-walkthrough",
+        into_the_body,
+        viewport=(900, 600),
+        scheme="dark",
+    ),
+    State(
+        "walkthrough-body-phone",
+        "pr-walkthrough",
+        into_the_body,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State("progress-body-short", "live-progress", into_the_body, viewport=(900, 600)),
     State("walkthrough-code", "pr-walkthrough", code_note),
     State("walkthrough-code-dark", "pr-walkthrough", code_note, scheme="dark"),
     State("walkthrough-diff-comment", "pr-walkthrough", diff_line_composer),

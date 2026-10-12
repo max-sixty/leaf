@@ -181,10 +181,11 @@ function refers(node, parent) {
       return parent.body === node;
     case "AssignmentPattern":
       return parent.right === node;
+    case "ExportSpecifier":
+      return parent.local === node;
     case "ImportSpecifier":
     case "ImportDefaultSpecifier":
     case "ImportNamespaceSpecifier":
-    case "ExportSpecifier":
     case "ClassDeclaration":
     case "ClassExpression":
     case "CatchClause":

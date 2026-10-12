@@ -177,7 +177,7 @@ a typography or color override does not remove those requirements.
 
 Icon, widget,
 and vendor files replace by path. Runtime modules add package-owned paths; they
-cannot replace the kernel or default package's JavaScript, including `leaf.js`.
+cannot replace the kernel's JavaScript, including `leaf.js`.
 Those modules are private, and the website compiles them together into one kernel.
 Package checks refuse imports of private kernel modules as well as replacements,
 so source modules and the compiled kernel expose the same extension contract.

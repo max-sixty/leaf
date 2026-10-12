@@ -89,23 +89,23 @@
    space, which a transformed ancestor scales, so each length crosses by the reference's
    scale, and `fit` is handed lengths in that space, as CSS sizes the surface in it. */
 
-import { scrollAxes } from "/runtime/element-frame.js";
+import { scrollAxes } from "../element-frame.js";
 import {
   shellRight,
   shownWindow,
   shownExtent,
   shownParts,
   shownRect,
-} from "/runtime/geometry.js";
-import { clamp, union } from "/runtime/rect.js";
-import { moveScrollerBy, scrollLimit } from "/runtime/scrolling.js";
+} from "../geometry.js";
+import { clamp, union } from "../rect.js";
+import { moveScrollerBy, scrollLimit } from "../scrolling.js";
 
 import {
   containingReadingRegionFor,
   effectiveScroller,
   shownRegionBounds,
-} from "/runtime/reading-regions.js";
-import { pointBand } from "/runtime/pointed-place.js";
+} from "../reading-regions.js";
+import { pointBand } from "../pointed-place.js";
 import { marginSpot } from "./margin-layout.js";
 import { floatingGeometry, positioningScale } from "./floating.js";
 

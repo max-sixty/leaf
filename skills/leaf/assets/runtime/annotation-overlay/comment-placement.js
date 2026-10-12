@@ -95,12 +95,7 @@
    scale, and `fit` is handed lengths in that space, as CSS sizes the surface in it. */
 
 import { scrollAxes } from "../element-frame.js";
-import {
-  shellRight,
-  shownWindow,
-  shownParts,
-  shownRect,
-} from "../geometry.js";
+import { shellRight, shownWindow, shownParts, shownRect } from "../geometry.js";
 import { drawn } from "../focus.js";
 import { clamp, union } from "../rect.js";
 import { moveScrollerBy, scrollLimit } from "../scrolling.js";

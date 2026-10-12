@@ -37,6 +37,7 @@ from render_harness import (
     panel_settled,
     resized,
     round_trip,
+    sending,
     stamp_page,
     told,
     write,

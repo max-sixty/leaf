@@ -6831,7 +6831,9 @@ def test_commenting_on_the_same_selection_preserves_the_existing_suggestion(
 
 
 @pytest.mark.parametrize("resumed", [False, True])
-def test_saved_widget_words_cannot_dismiss_an_unfinished_comment(browser, serve, resumed):
+def test_saved_widget_words_cannot_dismiss_an_unfinished_comment(
+    browser, serve, resumed
+):
     """A later widget edit retains the active or resumed native comment editor."""
     source = leaf_page(
         "Mutable words",

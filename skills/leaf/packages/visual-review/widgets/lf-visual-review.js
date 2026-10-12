@@ -36,6 +36,7 @@ import {
   projectData,
   readingPosture,
   registerReadingRegion,
+  releaseOutlets,
   scopedMediaUrl,
   scrollerFor,
   scrollIntoReadingBand,
@@ -452,6 +453,11 @@ customElements.define(
     }
 
     #show(snapshot) {
+      // A case the run drops goes with its thread outlet, so core's composer leaves it
+      // first, before the hold below would land the user on the evidence instead.
+      const cases = new Set(snapshot?.value?.cases.map(({ id }) => id));
+      for (const [id, { article }] of this.#caseEntries)
+        if (article && !cases.has(id)) releaseOutlets(article);
       const restoreFocus = holdFocus(this);
       const resume = this.#controller.defer();
       try {
@@ -494,6 +500,7 @@ customElements.define(
         // it rebuilds the cases the failure view discarded.
         this.#sourceReady = false;
         this.#caseEntries.clear();
+        releaseOutlets(this);
         failSoft(this, error);
       } finally {
         resume();

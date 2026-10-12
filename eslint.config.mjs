@@ -1225,7 +1225,7 @@ export default [
   {
     // Python executes these test expressions and modules inside the browser. Their
     // source is linted here rather than hidden inside Python string literals.
-    files: ["tests/browser/**/*.js"],
+    files: ["tests/page_scripts/**/*.js"],
     languageOptions: { globals: browserGlobals },
     rules: { "no-undef": "error" },
   },

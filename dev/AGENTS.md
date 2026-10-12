@@ -55,10 +55,8 @@ reaches a module by importing it from this package, never through `sys.path`,
   property, its phases, the CPU its worker's cgroup used, and its time in Playwright's
   sync API by method and caller, and `leaf-dev suite-profile DIR` reads that report,
   with the py-spy stacks and process CPU CI records beside it, into where a run's CPU
-  and worker time went.
-- `leaf-dev cost-tiers DIR` rewrites `tests/cost_tiers.json`, the tier each test's
-  measured cost puts it in, from a daily run's junit report; `cost_tiers.py` owns the
-  limits and the record's format.
+  and worker time went, and which tests are over their tier directory's budget, which
+  `BUDGETS` there holds.
 - `leaf-dev flake NODEID...` runs tests from the working tree as 18 copies, six at a
   time, and prints every failure's message, since a load flake never shows serially.
   It snapshots the candidate once; each copy owns its checkout and test output.

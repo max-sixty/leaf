@@ -49,6 +49,7 @@ import {
   projectedDatum,
   threadSurface,
   readingPaint,
+  releaseOutlets,
   reserve,
   retainUserIntent,
   scrollBehavior,
@@ -718,7 +719,11 @@ async function parsedFiles(source) {
   return files;
 }
 
+// The box takes the place of the file's lines, so core's composer leaves their outlets
+// first: a user writing about one of them stays in it, and the hold below, which
+// would hand them to Retry, finds them outside the file.
 function deferredError(details, error, retry) {
+  releaseOutlets(details);
   const restore = holdFocus(details);
   const box = document.createElement("div");
   box.className = "lf-error";
@@ -893,6 +898,7 @@ customElements.define(
       this.rendering = rendering;
       try {
         if (source === null) {
+          releaseOutlets(this);
           this.fileEntries = null;
           this.sharedStyles = null;
           this.diffTools = null;
@@ -975,6 +981,9 @@ customElements.define(
           for (const entry of fresh) this.attachEntryControls(entry);
           for (const entry of entries) this.attachDisclosure(entry);
           this.filesBody ??= diffBody([]);
+          // A file the patch dropped goes with its outlets, which core's composer leaves first.
+          for (const entry of prior.values())
+            if (!entries.includes(entry)) releaseOutlets(entry.node);
           setChildren(this.filesBody, [
             this.diffTools.search,
             ...entries.map(({ node }) => node),
@@ -996,7 +1005,9 @@ customElements.define(
         this.diffTools = null;
         this.filesBody = null;
         this.classList.toggle("lf-rendered", false);
-        // The failure box quotes a patch text; a manifest has none to quote.
+        // The failure box quotes a patch text; a manifest has none to quote. It takes
+        // the place of every outlet, which core's composer leaves first.
+        releaseOutlets(this);
         failSoft(this, err, typeof source === "string" ? source : undefined);
         if (snapshot !== undefined) projectData(this, [], { snapshot });
       }

@@ -124,6 +124,10 @@ def _validate_widget_structure(
         raise RegistryError(
             f"{path}: <{tag}> x-owners names unknown element declarations {json_value(unknown)}"
         )
+    if unknown := sorted(set(entry.get("x-unique", {}).values()) - set(declarations)):
+        raise RegistryError(
+            f"{path}: <{tag}> x-unique names unknown element declarations {json_value(unknown)}"
+        )
     properties = entry.get("properties", {})
     if entry.get("x-initial"):
         if not entry["x-upgrade"]:

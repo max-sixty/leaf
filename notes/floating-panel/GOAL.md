@@ -1,9 +1,42 @@
 # Goal: the floating Leaf panel
 
-> **Status (2026-10-12): needs an overhaul (TODO #28).** Checkpoints 1–3 landed
-> on `main` behind the preference, off by default, so work can continue there.
-> The behavior is in place, but the user doesn't like the aesthetic: the next
-> round redesigns how the panel looks rather than adding scope.
+> **Status (2026-10-12): being overhauled (TODO #28).** Checkpoints 1–3 landed
+> on `main` behind the preference, off by default. The user disliked their look, so
+> a second round redesigned it from a sketch they tried and configured (below, "The
+> overhaul"), which now supersedes the prototype wherever the two differ.
+
+## The overhaul
+
+On 12 October the user reviewed the build as landed ("it doesn't seem elegant
+generally, nor that consistent with our aesthetic. The menus are quite bad, very
+large spacing. Things like 'layout' should not need to be selectable in a menu;
+they should be embedded into the design"), then tried a sketch of a redesign and
+chose its configuration: the page's own ground (Paper), 12px corners, the compact
+width, a sans status line, the folded leaf in the window's corner, no folding on
+scroll, a badge on the folded leaf for what waits plus a dot for news, and opened
+views that close on a press on the page. The sketch's page is kept at
+`~/.tmp/leaf.floating-panel/overhaul/source/playground.html`. What it changed, and
+what the module header of `runtime/floating-panel.js` now states:
+
+- **Three sizes, chosen by what the user does.** Folded (the leaf in the corner),
+  the row, and a view opened above the row. The Layout row, the Minimal and Moderate
+  displays and the Classic choice are gone from the panel; the preference keeps only
+  where the panel was left (`rest`).
+- **The field holds the status**, a thread's turn in a thread, and passing notices,
+  which no longer stand at the window's head (`--lf-notice-seat: panel`).
+- **Marks with counts in the row**: the question mark, the thread mark with a dot
+  for news, and the pen, which opens Annotations. Send stands in their place while
+  the user types.
+- **The leaf's menu is a small menu** of one-line rows with each row's shortcut
+  (the toolbar row contract's `shortcut`), the agent's state at its head.
+- **Where the user is sits at a view's top edge**, with its filters, search,
+  Resolve and Close beside it; the destination line and the thread-actions row went.
+- **Motion moves no layout**: every change of size takes effect in one step and a
+  separate surface layer follows by a clip, so the shift watch sees no tween.
+
+The sketch's shimmer on a working status and breathing leaf were left out:
+`skills/leaf/assets/AGENTS.md`, "Motion", allows one continuous animation, and
+changing that is the user's call.
 
 Build an opt-in alternative to Leaf's chrome: one panel that hovers over the
 bottom of the page, like the Codex app's floating chat panel, and replaces both

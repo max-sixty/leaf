@@ -73,10 +73,10 @@ has tried; settle that before building it.
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
 - **#28 — Overhaul the floating panel's appearance.** The opt-in floating panel
-  (`?lf-chrome=floating`, off by default) works, but the user doesn't like its
-  aesthetic. It landed so work can continue from `main`. Redesign how it looks
-  before offering it to anyone; [its goal](notes/floating-panel/GOAL.md) holds the
-  spec, the approved prototype, and the departures taken so far.
+  (`?lf-chrome=floating`, off by default) was rebuilt on 12 October to the sketch the
+  user configured ([its goal](notes/floating-panel/GOAL.md), "The overhaul"). Once
+  the user accepts it, the panel becomes the only chrome: the banner, the bottom bar
+  and the preference go.
 
 ### Agent and author experience
 

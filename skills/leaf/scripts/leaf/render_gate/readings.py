@@ -340,7 +340,7 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     ]
     found += [f"[{scheme}] {text}" for _key, text in _overflow(overflow, misplaced)]
     found += [f"[{scheme}] {text}" for _key, text in _scrollbars(scrollbars)]
-    found += [f"[{scheme}] {s}" for s in squeezed]
+    found += [f"[{scheme}] {text}" for _key, text in _squeezed(squeezed)]
     found += [
         f"[{scheme}] the control .{c['ctrl'].split()[0]}"
         + (f" (#{c['id']})" if c["id"] else "")
@@ -406,6 +406,12 @@ def _overflow(overflow: int, misplaced: list) -> list[tuple[tuple[str, str], str
             )
         )
     return found + [((m["place"], m["kind"]), m["text"]) for m in misplaced]
+
+
+def _squeezed(tables: list) -> list[tuple[tuple[str, str], str]]:
+    """Tables that scroll with a cell wrapped, keyed like other width-dependent
+    geometry."""
+    return [((table["place"], "squeezed"), table["text"]) for table in tables]
 
 
 # The widths the sweep takes a loaded page through: a version holds at every width from
@@ -530,8 +536,8 @@ def margin_changes(page, readings, height: int) -> list[int]:
 
 
 def swept_overflow(readings, viewports) -> list[str]:
-    """Sideways overflow and scrollbar collisions the fixed viewports miss, with
-    the widths each run spans and what it reads at the narrowest.
+    """Sideways overflow, squeezed tables, and scrollbar collisions the fixed
+    viewports miss, with the widths each run spans and what it reads at the narrowest.
 
     A run that takes in a fixed width is dropped here, because that viewport's own
     reading already reports it in both schemes."""
@@ -543,6 +549,7 @@ def swept_overflow(readings, viewports) -> list[str]:
             lambda reading: (
                 _overflow(reading["overflow"], reading["misplaced"])
                 + _scrollbars(reading["scrollbars"])
+                + _squeezed(reading["squeezed"])
             ),
         )
         if not fixed & set(widths)

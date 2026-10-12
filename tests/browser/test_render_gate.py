@@ -3734,7 +3734,7 @@ def test_the_squeeze_reading_follows_words_into_an_open_shadow_root(
 
     squeezed = render_checks_model.evaluate_probe(page, "squeezedTables")
 
-    assert any("<table id=held> scrolls" in finding for finding in squeezed), squeezed
+    assert any("<table id=held> scrolls" in f["text"] for f in squeezed), squeezed
 
 
 def test_every_table_the_theme_sets_honestly_passes_the_gate(browser, serve):

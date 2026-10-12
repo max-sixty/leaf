@@ -123,7 +123,7 @@ and standing state that replays without conflict and idempotently.
 `render_gate/readings.py` is the list. Those readings run
 at a desktop and a phone viewport; once they are done, the loaded desktop page is
 resized through the widths from 360px to 1920px and sideways overflow, misplaced boxes,
-and scrollbar clearance are read again at each: a version holds at every width from
+squeezed tables, and scrollbar clearance are read again at each: a version holds at every width from
 the narrowest phone to a wide desktop, not only at the two the gate renders, and each fault the sweep alone finds is
 reported with the widths it spans. The sweep also finds each width where the page's own
 margin residents change (`data-lf-margin` on `main`, less the rail), and the readings

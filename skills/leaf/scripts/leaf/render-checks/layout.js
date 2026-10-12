@@ -33,11 +33,12 @@ export function marginResidents() {
 // sweep, each field read by its own consumer in render_gate/readings.py. Which findings
 // the gate answers for at every width is its choice, not a property of the reader:
 // reachabilityReading also moves with the width, and the gate reports it only at
-// the viewports it renders (validation.md). These readers are
-// synchronous and read-only: taking them in one browser turn preserves their findings
-// while removing the protocol round trips between fields. Resize and rendering
-// completion belong to the caller, so a sample neither advances the page nor waits for
-// a different layout.
+// the viewports it renders (validation.md). These readers are synchronous: taking them
+// in one browser turn preserves their findings while removing the protocol round trips
+// between fields. All but `squeezedTables` are read-only; it adds and removes a
+// wrapping rule, so it reads last and the others read the page as laid out. Resize and
+// rendering completion belong to the caller, so a sample neither advances the page nor
+// waits for a different layout.
 export function geometryReading(open) {
   return {
     overflow: rootOverflow(),
@@ -46,6 +47,7 @@ export function geometryReading(open) {
     margin: marginResidents(),
     arrangement: arrangedBoxes(open),
     labels: shrunkLabelReading(),
+    squeezed: squeezedTables(),
   };
 }
 
@@ -619,6 +621,11 @@ export function misplacedBoxes() {
 // laid out on demand but size-contained, cannot change. The finding lists the wrapping
 // columns with their widths, names the widest, and leaves the diagnosis to the author.
 // A table that scrolls with nothing left to wrap is the theme's honest third case.
+//
+// Whether a table scrolls depends on the window, so the gate reads this at every width
+// of its sweep as well as at its fixed viewports. Each finding carries its table's
+// place (locate.js) beside the words, so the sweep tells one table's run of widths from
+// another's. A page with no scrolling table never adds the wrapping rule.
 export function squeezedTables() {
   const main = pageDocument();
   if (!main) return [];
@@ -653,6 +660,7 @@ export function squeezedTables() {
   const tables = [...main.querySelectorAll("table")].filter(
     (t) => t.checkVisibility() && t.scrollWidth - t.clientWidth > 1 && wordsOutside(t),
   );
+  if (!tables.length) return [];
   // Each table's columns by left edge, each with its cells, before the probe.
   const read = new Map();
   for (const table of tables) {
@@ -702,13 +710,15 @@ export function squeezedTables() {
     const widest =
       columns.find((c) => c.width === top && c.wraps) ??
       columns.find((c) => c.width === top);
-    found.push(
-      `${at(table)} scrolls ${short}px sideways: ` +
+    found.push({
+      place: place(table),
+      text:
+        `${at(table)} scrolls ${short}px sideways: ` +
         wraps.map((c) => `${c.name} wraps at ${c.width}px`).join(", ") +
         (widest.wraps ? "" : ` beside ${widest.name} at ${widest.width}px`) +
         ` — an identifier in <code> breaks inside its cell; a column fewer, or a` +
         ` shorter word in the widest, gives the rest the measure`,
-    );
+    });
   }
   return found;
 }

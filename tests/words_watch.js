@@ -121,6 +121,7 @@
   // the user typed.
   const edited = new Map();
   const hostEdits = new Map();
+  const heard = new WeakSet();
   window.lfInputWork.subscribeEdits((source) => {
     const { event, node: field } = source;
     if (!typed(field)) return;
@@ -135,6 +136,12 @@
     }
     const editingKey = key?.event;
     key = null;
+    // A `leaf-text`'s host input is not composed: inside a widget's shadow tree, where a
+    // page may carry the field between edits, only a listener on the field hears it.
+    if (!heard.has(field)) {
+      heard.add(field);
+      listen(field, "input", (event) => event.composed || readInput(event), true);
+    }
     edited.set(field, {
       typedOrder: source.order,
       key: editingKey,

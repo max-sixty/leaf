@@ -69,7 +69,7 @@ script, and an export no supervisor.
 The kernel registry's `$events.protocol` numbers the contract between a page and any
 Leaf that serves it or writes its log: the kernel event records and their ownership
 beside it, the reading the server serves the page's runtime, and each runtime module
-the server or the render gate's probes rely on. The page carries the number in the `$events` it was vendored
+the server relies on. The page carries the number in the `$events` it was vendored
 with, which no layer can change, and every page server — durable, temporary, the
 gate's ephemeral one, and the website's — and the one append door compare it with
 the running Leaf's own when they bind the page or admit an event
@@ -94,6 +94,13 @@ bounds or conditional clauses, so a change to one of those is the author's to ju
 way: an older Leaf serving a page a newer one vendored may refuse a field it does not
 know. Every page vendored before a bump, and one vendored before the number was
 declared, is refused until `leaf page init` re-vendors it.
+
+The render gate's probes are outside the number. They come from the Leaf running the
+check and import `check-api.js` and `widget-api.js` from the page's runtime, so a
+probe that starts importing a newer name fails on a page vendored earlier, and the
+gate refuses it naming the re-vendor. While Leaf is in alpha that drift is accepted
+rather than bumped (`AGENTS.md`, "Pages across Leaf updates"): `page check` names
+the page's Leaf beside its own, with their dates, for the agent to judge.
 
 ## Composition stamps
 

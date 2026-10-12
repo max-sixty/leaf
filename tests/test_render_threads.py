@@ -12664,7 +12664,11 @@ def _feed_page(serve):
             '<h1>Package reader</h1><p id="cd-q">The bracket notes.</p>'
             '<lf-conversation-workspace id="workspace"></lf-conversation-workspace>',
         ),
-        layer_registry=json.loads((companion / "registry.json").read_text()),
+        layer_registry={
+            "lf-conversation-workspace": json.loads(
+                (companion / "registry.json").read_text()
+            )["lf-conversation-workspace"]
+        },
         layer_widgets={
             "lf-conversation-workspace.js": (
                 companion / "widgets/lf-conversation-workspace.js"

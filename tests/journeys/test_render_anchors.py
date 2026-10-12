@@ -60,9 +60,10 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
 
     A passage's shape is what has made selection and search come apart: its block,
     the widgets around it, whether the runtime says it, and the text transform and
-    white space it is set in. The sweep drags once across each shape the page holds,
-    and once across each pair of shapes that stand next to each other; a repeat of a
-    shape it has already dragged across adds time and no evidence.
+    white space it is set in. The sweep drags once across each pair of shapes that
+    stand next to each other, which crosses both shapes' own words as well as their
+    join, and across a shape alone only where no pair holding it resolved as one
+    passage; a repeat of a drag it has already made adds time and no evidence.
 
     Focused tests own settlements, tabs, shadow roots, and gestures.
     """
@@ -131,20 +132,23 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
             return [block.localName, block.hasAttribute('data-lf-said'),
                     style.textTransform, style.whiteSpace, ...widgets].join(' ');
         };
-        // Each shape alone, then reaching into the next block — a drag rarely stops
-        // tidily on a boundary, and spanning two blocks is where the joins show.
-        const drags = new Map();
+        // Each block reaching into the next — a drag rarely stops tidily on a
+        // boundary, and spanning two blocks is where the joins show. A pair crosses
+        // both blocks' own words too, so a shape some pair resolved exactly needs no
+        // drag of its own. A shape whose every pair crosses a fence (a tab, an option,
+        // generated words) resolves no pair exactly, so it gets one drag across
+        // itself alone: otherwise nothing would check its mark.
+        const pairs = new Map();
         blocks.forEach((block, i) => {
             const next = blocks[i + 1];
-            drags.set(shape(block), drags.get(shape(block)) ?? [block, block]);
-            if (next) {
-                const join = `${shape(block)} | ${shape(next)}`;
-                drags.set(join, drags.get(join) ?? [block, next]);
-            }
+            if (!next) return;
+            const join = `${shape(block)} | ${shape(next)}`;
+            if (!pairs.has(join)) pairs.set(join, [block, next]);
         });
         const missed = [], skipped = [], astray = [], nonexact = [];
         let attempted = 0, detached = 0, fallback = 0;
-        for (const [start, end] of drags.values()) {
+        // Whether the drag's mark was checked: true once it resolved as one passage.
+        const drag = async (start, end) => {
             attempted++;
             // A mouse selection starts in page words and ends with the native
             // pointer/mouse release pair; selectionchange alone does not snap.
@@ -167,7 +171,7 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
             // a passage silently outside this sweep, and the sweep is the coverage.
             if (fab()?.style.display !== 'block') {
                 skipped.push(range.toString().replace(/\\s+/g, ' ').trim().slice(0, 70));
-                continue;
+                return false;
             }
             const anchor = anchorForRange(range);
             const resolved = resolveAnchor(anchor);
@@ -183,7 +187,7 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
                     missed.push('unusable native selection: ' + range.toString().slice(0, 70));
                 sel.removeAllRanges();
                 await rendered();
-                continue;
+                return false;
             }
             const painted = CSS.highlights.get('lf-pending');
             // The captured quote, read off the node whether or not the user can
@@ -217,7 +221,16 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
             for (let i = 0; fab()?.style.display === 'block' && i < 1000; i++) await tick();
             if (fab()?.style.display === 'block')
                 missed.push('Comment stayed open once the selection cleared');
-        }
+            return true;
+        };
+        const checked = new Set();
+        for (const [start, end] of pairs.values())
+            if (await drag(start, end)) checked.add(shape(start)).add(shape(end));
+        const alone = new Map();
+        for (const block of blocks)
+            if (!checked.has(shape(block)) && !alone.has(shape(block)))
+                alone.set(shape(block), block);
+        for (const block of alone.values()) await drag(block, block);
         return {attempted, detached, fallback, missed, skipped, astray, nonexact};
     }"""
     )

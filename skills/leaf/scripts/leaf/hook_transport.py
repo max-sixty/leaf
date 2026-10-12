@@ -55,7 +55,7 @@ from .schema import (
     ANSWER_ASK_INSTRUCTION,
     PREVIEW_FILE,
 )
-from .served_state.work import live_work
+from .served_state.context import read_page
 from .service import (
     PageTransaction,
     owned_pages,
@@ -122,7 +122,7 @@ def read_plans(session_id: str) -> list[PagePlan]:
                 # lock over a page projection or taking locks in reverse order.
                 while True:
                     lifecycle = session_record(session_id)
-                    work = live_work(page_dir, page.events)
+                    work = read_page(page_dir, page.events).work
                     state = {**work.presence, "activity": work.activity}
                     claim = page.active_claim
                     if session_record(session_id) == lifecycle:
@@ -257,7 +257,7 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
                     plan.claim["turn"],
                 ):
                     continue
-                work = live_work(plan.page, page.events)
+                work = read_page(plan.page, page.events).work
                 current = {**work.presence, "activity": work.activity}
                 still_owed = {
                     item["input"] for item in acknowledged_obligations(current)
@@ -382,9 +382,8 @@ def carry_turn(
     # The message avoids "unattended": a page can be watched and still be owed
     # an answer, and the runtime spends that word on a different fact — a page
     # served to nobody at all.
-    # Each page's own line, then one copy of each protocol they share. Three
-    # pages owing the same thing used to carry three copies of the same
-    # instruction into the turn, which is most of what the message weighed.
+    # Each page's own line, then one copy of each protocol they share, so pages
+    # owing the same thing carry one copy of its instruction into the turn.
     protocols = list(dict.fromkeys(protocol for _, protocol in reasons if protocol))
     attention = (
         [

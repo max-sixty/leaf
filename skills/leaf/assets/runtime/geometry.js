@@ -583,13 +583,10 @@ export const skipped = (el) =>
 // (0,0) at the document's origin, which is not a degenerate box but a wrong one: it
 // reads as a real place at the top of the page, so whatever measured it travelled there.
 //
-// No widget in the vocabulary is one now — lf-suggestion was, and its theme comment
-// carries what that cost — but the wrong answer is the platform's rather than that
-// widget's: a page or a project layer styles any wrapper this way in a line. This
-// lived inside the legend's own reading once, where it stood as a fact about the
-// legend rather than about elements, which is exactly why the travel went on asking
-// the element directly and centred the top of the document. One answer to "where is
-// this element", so there is no second way to ask.
+// No widget in the vocabulary displays as contents, but the wrong answer is the
+// platform's rather than any widget's: a page or a project layer styles any wrapper
+// this way in a line. So the answer is a fact about elements, kept here rather than in
+// one reader, and every reader asks this one function where an element is.
 export function shownBox(el) {
   if (el === document.scrollingElement) {
     const { left, top, right, bottom } = shownBand(el);
@@ -903,11 +900,9 @@ function cutBy(box, cuts, root, inWindow) {
 function clipWalk(item, clips, held) {
   // From the box itself, not from its parent: an element is not clipped by its own
   // overflow — that clips what it holds — so its band is skipped and only its position is
-  // read. Starting at the parent instead asked the question of every ancestor of a fixed
-  // box and never of the box, which is the same bug one level up: in design mode the aim
-  // resolves the thread panel itself, and the panel measured through body's band came
-  // back wholly clipped away, so a mode whose row promises a click on the chrome drew
-  // nothing over the chrome.
+  // read. Its position matters when the item is itself fixed: a fixed box escapes its
+  // ancestors' clips, so in design mode the thread panel the aim resolves is not clipped
+  // away by body's band.
   // Cross an open shadow boundary through its host. A package surface rendered in a
   // declared shadow stage is still clipped by that host and by the page containers
   // outside it; stopping at the ShadowRoot would let chrome paint where the package

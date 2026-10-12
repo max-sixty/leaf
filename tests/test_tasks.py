@@ -106,19 +106,24 @@ def test_required_approval_is_a_question_for_its_exact_stamp_until_approved(page
     )
     (page_dir / "index.html").write_text(source)
     assert not any(
-        item["ends"] == "approval" for item in state_json(page_dir)["queues"]["on_you"]
+        item["subject"] == {"kind": "page"}
+        for item in state_json(page_dir)["queues"]["on_you"]
     )
     publish(page_dir)
     queue = state_json(page_dir)
     [approval] = [
-        item for item in queue["queues"]["on_you"] if item["ends"] == "approval"
+        item
+        for item in queue["queues"]["on_you"]
+        if item["subject"] == {"kind": "page"}
     ]
     assert (approval["id"], approval["subject"], approval["question"]["source"]) == (
         "approval:v1",
         {"kind": "page"},
         {"kind": "approval", "version": 1},
     )
-    assert {item["ends"] for item in queue["queues"]["on_you"]} == {
+    assert {
+        item["question"]["source"]["kind"] for item in queue["queues"]["on_you"]
+    } == {
         "widget",
         "approval",
     }

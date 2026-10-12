@@ -474,7 +474,7 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
         ["thread", "open", str(page_dir), "--text", "and the cache?", "--title", ""],
     )
     assert unnamed.exit_code != 0
-    assert "thread_title event is invalid" in unnamed.output
+    assert "comment event is invalid" in unnamed.output
     assert events_model.read_events(page_dir) == before
 
     for command, rejected_kind in (

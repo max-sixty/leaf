@@ -116,12 +116,10 @@ def publishing_notices(
             return
         messages = []
         for page_dir in retained:
-            raw = read_json(claim_path(page_dir))
-            claim = readable_claim(raw)
+            claim = readable_claim(read_json(claim_path(page_dir)))
             if (
                 claim is None
                 or (claim["harness"], claim["id"]) != (harness, session_id)
-                or raw["released"] is not None
                 or (page_dir / PREVIEW_FILE).exists()
             ):
                 continue

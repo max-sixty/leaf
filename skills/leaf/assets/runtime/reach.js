@@ -23,7 +23,7 @@ import { keeps } from "./keeps.js";
 // that content when layout changes: an initially empty Page Map list must give up its
 // container stop once actions arrive inside it.
 //
-// Two things every caller owes it, both learned by getting them wrong. It runs after a
+// Every caller owes it two things. It runs after a
 // widget has rendered rather than as one stages, because the look a scroll box has is
 // the theme's `:host(.lf-rendered)` rule and a widget adds that class once its render
 // returns — so a sweep at `shadowStage` time reads a box the stylesheet has not reached

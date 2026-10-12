@@ -721,7 +721,6 @@ def record_claim(page, /, harness="claude-code", **fields):
         "agent": "Claude",
         "cwd": str(Path.cwd()),
         "ts": "t",
-        "released": None,
         "turn": observed["turn"] if observed else "turn-1",
         "turn_opened": observed["turn_opened"] if observed else cleanup_model.now_iso(),
         "turn_closed": observed["turn_closed"] if observed else None,

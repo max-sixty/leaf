@@ -277,8 +277,6 @@ interface WireTask {
   agent: string | null;
   session: string | null;
   outcome: { id?: string; ts: string | null; detail?: string | null } | null;
-  /** Explicit work ends through its agent, or the user's Done. */
-  ends: "agent" | "done";
 }
 
 export interface SemanticDocument {

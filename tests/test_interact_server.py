@@ -5814,11 +5814,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     # list. Untitled, so the title falls back to the directory's name.
     scratch = tmp_path / "scratch"
     claimed_url = neighbour_page(scratch)
-    record_claim(
-        scratch,
-        released="2026-01-01T00:00:00-08:00",
-        turn_opened="2026-01-01T00:00:00-08:00",
-    )
+    record_claim(scratch, turn_opened="2026-01-01T00:00:00-08:00")
 
     for directory in (pages / "live", malformed, scratch):
         server_rows_model.RowPublisher(directory, "fixture-server").refresh()

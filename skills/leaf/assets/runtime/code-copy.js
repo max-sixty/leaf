@@ -1,8 +1,10 @@
-/* Code blocks own a copy control beside their scrolling text. Document controls
-   stand in chrome so authored sibling selectors keep their meaning. Their sources read
-   their current code on activation; widgets supply their source before rendering
-   line numbers, annotations, or other words. CSS anchors keep the control at the
-   block's right edge without wrapping authored nodes or moving them on arrival.
+/* Blocks of source text own a copy control at their top right: every document code
+   block, and any widget block that asks with `copyBlock`, such as a code listing or a
+   draft's Markdown. Document controls stand in chrome so authored sibling selectors
+   keep their meaning. Their sources read their current code on activation; widgets
+   supply their source before rendering line numbers, annotations, or other words. CSS
+   anchors keep the control at the block's right edge without wrapping authored nodes
+   or moving them on arrival.
    Widgets connect their final styled block before requesting the control. On touch,
    entering the source focuses it and hides the overlay, leaving covered words
    available to read and select. Leaving the source restores the copy control.
@@ -41,13 +43,14 @@ onStanding((node) => {
   }
 });
 
-function prepareCodeBlock(pre, source) {
+// `noun` names what the block holds, in the control's label and its result.
+function prepareCodeBlock(pre, source, noun) {
   let copy = controls.get(pre);
   if (!copy) {
     copy = offer("wa-copy-button", "lf-code-copy");
-    copy.copyLabel = "Copy code";
-    copy.successLabel = "Code copied";
-    copy.errorLabel = "Unable to copy code";
+    copy.copyLabel = `Copy ${noun}`;
+    copy.successLabel = `${noun[0].toUpperCase()}${noun.slice(1)} copied`;
+    copy.errorLabel = `Unable to copy ${noun}`;
     copy.tooltip = "none";
     copy.addEventListener("click", () => (copy.value = source()), { capture: true });
     // Web Awesome announces the result; Leaf puts the same words in its status line.
@@ -77,13 +80,13 @@ function positionCodeBlock({ copy, near, anchor }) {
   return copy;
 }
 
-export function copyCodeBlock(pre, source) {
-  return positionCodeBlock(prepareCodeBlock(pre, source));
+export function copyBlock(block, source, noun) {
+  return positionCodeBlock(prepareCodeBlock(block, source, noun));
 }
 
 export function watchCodeBlocks() {
   // A widget's shadow stage is its renderer's notation, not an ordinary document
-  // block. Its module supplies the source explicitly through copyCodeBlock.
+  // block. Its module supplies the source explicitly through copyBlock.
   watchArrivals("pre:has(> code)", ["style"], {
     arriveBatch(blocks) {
       // Read every source before anchor names and connected controls change layout.
@@ -91,7 +94,11 @@ export function watchCodeBlocks() {
         .filter((pre) => pre.getRootNode() === document)
         .map((pre) => [
           pre,
-          prepareCodeBlock(pre, () => pre.querySelector(":scope > code").textContent),
+          prepareCodeBlock(
+            pre,
+            () => pre.querySelector(":scope > code").textContent,
+            "code",
+          ),
         ]);
       for (const [pre, pending] of prepared) {
         const copy = positionCodeBlock(pending);

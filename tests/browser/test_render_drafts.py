@@ -6039,7 +6039,12 @@ def test_first_draft_save_and_refusal_keep_the_local_editor_controls(browser, se
 def test_draft_controls_survive_hiding_annotations_and_close_keeps_source(
     browser, serve
 ):
-    """Editing operations stay in their box while the annotation layer is hidden."""
+    """Editing operations stay in their box while the annotation layer is hidden.
+
+    The footer offers Save and Cancel; Escape, which has no button, sets the edit
+    aside for the next opening. The box's Copy control copies the Markdown source the
+    box shows, the open editor's while it stands."""
+    context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
     page = open_page(
         browser,
         serve(
@@ -6049,6 +6054,7 @@ def test_draft_controls_survive_hiding_annotations_and_close_keeps_source(
                 '<lf-draft id="local"><pre>Saved **source**.</pre></lf-draft>',
             )
         ),
+        context=context,
     )
     draft = page.locator("#local")
     edit = draft_control(page, "edit", "local")
@@ -6061,7 +6067,12 @@ def test_draft_controls_survive_hiding_annotations_and_close_keeps_source(
     expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
     expect(draft_control(page, "save", "local")).to_be_visible()
     expect(draft_control(page, "cancel", "local")).to_be_visible()
-    draft_control(page, "close", "local").click()
+    expect(draft.locator("[data-lf-draft-action]:visible")).to_have_count(2)
+    copy = draft.get_by_role("button", name="Copy Markdown")
+    copy.click()
+    assert page.evaluate("navigator.clipboard.readText()") == "Unsent `source`."
+    draft_control(page, "save", "local").focus()
+    page.keyboard.press("Escape")
     expect(editor).to_have_count(0)
     expect(edit).to_be_focused()
     edit.press("Enter")
@@ -6070,6 +6081,9 @@ def test_draft_controls_survive_hiding_annotations_and_close_keeps_source(
     expect(edit).to_be_focused()
     edit.click()
     expect(editor).to_have_js_property("value", "Saved **source**.")
+    page.keyboard.press("Escape")
+    copy.click()
+    assert page.evaluate("navigator.clipboard.readText()") == "Saved **source**."
 
 
 def test_resume_writing_is_a_touch_action_and_does_not_steal_hint_addresses(

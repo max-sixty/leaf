@@ -1712,11 +1712,12 @@ leaf-text.lf-fab-input {
 }
 :root {
   --lf-code-copy-size: max(32px, var(--aim-floor));
+  --lf-code-copy-inset: 4px;
 }
 .lf-code-copy {
   position: absolute;
-  top: calc(anchor(top, -9999px) + 4px);
-  left: calc(anchor(right, -9999px) - var(--lf-code-copy-size) - 4px);
+  top: calc(anchor(top, -9999px) + var(--lf-code-copy-inset));
+  left: calc(anchor(right, -9999px) - var(--lf-code-copy-size) - var(--lf-code-copy-inset));
   width: var(--lf-code-copy-size);
   height: var(--lf-code-copy-size);
   z-index: 1;

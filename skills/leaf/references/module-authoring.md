@@ -83,8 +83,9 @@ array per line for a widget that numbers its lines. `lang` is one of the registr
 `undefined`, and `ensureSyntaxLanguage(lang)` loads a language before it is needed.
 `highlightBlocks(root)` colours each `pre > code` block in `root`, `root` included, whose
 `language-…` class names a language, as Leaf colours authored code.
-`copyCodeBlock(pre, source)` returns the Copy button for a code block; it copies
-`source()` when pressed. Append it beside the `pre`.
+`copyBlock(block, source, noun)` returns the Copy button for a block of source text,
+standing at the block's top right; it copies `source()` when pressed, and `noun`, such
+as `"code"`, names what it copies. Append it beside the block, or inside it.
 
 `alignText(before, after)` shows how one text became another: it returns runs
 `{kind, text}`, where `kind` is `same`, `delete` or `insert`, aligned by words. The

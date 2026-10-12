@@ -6,7 +6,8 @@
  * clicked caret through the shared source/visible alignment. Links and selections
  * keep their native gestures. Quoted drafts are read-only exhibits.
  *
- * Editing controls belong to the box, in a persistent local footer. The same
+ * Editing controls belong to the box, in a persistent local footer, and its Copy
+ * control at its top right copies the Markdown source the box shows. The same
  * command declarations own pointer activation, keyboard routes, availability and
  * accessible shortcut hints. The editor's own keys, Save's and Escape's, show in the
  * shared shortcut bar. The controls take no context keys, so a Question lends them
@@ -20,8 +21,11 @@
  *
  * The shared draft store retains unsent source across reloads and tabs. Save
  * submits one absolute edit through the shared send generation; Cancel discards,
- * while Close/Escape keeps the draft. An active editor defers authoritative
- * projection until it closes. Another tab's settlement closes its matching
+ * while Escape keeps the draft for the next opening or resume writing (`g i`). Escape
+ * has no button of its own: a footer offering both Cancel and Close asked the user to
+ * tell two ways of leaving apart. A finger needs none either, since every keystroke
+ * is already kept and an open editor costs it nothing but its place on the page. An
+ * active editor defers authoritative projection until it closes. Another tab's settlement closes its matching
  * editor without taking focus from an unrelated place. Failure reopens the
  * retained source with Retry. Print keeps the saved reading and omits controls.
  */
@@ -45,6 +49,7 @@ import {
   sendDraft,
   notice,
   commands,
+  copyBlock,
   saveDraft,
   loadDraft,
   clearDraft,
@@ -66,8 +71,7 @@ import {
 const ACTIONS = [
   ["edit", "Edit"],
   ["save", "Save"],
-  ["cancel", "Cancel", "Cancel — discard the unsent edit"],
-  ["close", "Close", "Close — keep the unsent edit"],
+  ["cancel", "Cancel", "Cancel, discarding your changes"],
 ];
 
 // The store key for a draft's unsent edit. The page's port is its own origin, so
@@ -227,7 +231,16 @@ customElements.define(
     #offerControls() {
       if (quoted(this) || this.#footer) return;
       this.#footer = offer("div", "lf-draft-footer");
-      this.append(this.#footer);
+      // Copy stands at the box's top right but follows the footer in Tab order, so Tab
+      // from the editor still reaches Save first.
+      this.append(
+        this.#footer,
+        copyBlock(
+          this,
+          () => this.#editor?.value ?? this.#controller.read().state.edit.value,
+          "Markdown",
+        ),
+      );
       this.#paintFooter();
       this.#ensureCommands();
     }
@@ -271,7 +284,6 @@ customElements.define(
           id: "draft.close",
           reach: "in an open draft editor",
           keys: ["Escape"],
-          control: () => this.#control("close"),
           title: "Close — edit kept",
           when: () => Boolean(this.#editor),
           run: () => this.#close(false),

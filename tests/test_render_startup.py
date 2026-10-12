@@ -5744,10 +5744,9 @@ customElements.define(TAG, class extends HTMLElement {
     )
     thread_model.post_reply(
         serve.page_dir,
-        "question",
+        {"to": "question", "for": "question"},
         "Frozen feed.",
         '<lf-object-feed id="thread-feed" source="shared"></lf-object-feed>',
-        for_event="question",
     )
     data_model.cmd_data_set(serve.page_dir, "shared", ["same bytes"])
     page = open_page(browser, url)

@@ -6559,10 +6559,8 @@ body { font-family: system-ui, sans-serif; }
     )
     thread_model.post_reply(
         serve.page_dir,
-        comment["id"],
+        {"to": comment["id"], "for": comment["id"]},
         "Added the deployment-run link to the artifact.",
-        "",
-        for_event=comment["id"],
     )
     refined = stamp_page(
         serve.page_dir,

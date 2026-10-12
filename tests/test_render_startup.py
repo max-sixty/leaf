@@ -423,9 +423,7 @@ def test_a_website_example_shows_its_public_session_reference(browser, serve):
     page.route("**/api/state*", identify)
     page.goto(url, wait_until="load")
     wait_until_ready(page)
-    expect(page.locator(".lf-banner .lf-status-detail")).not_to_contain_text(
-        "239383829012"
-    )
+    expect(page.locator(".lf-banner .lf-status-detail")).to_have_count(0)
     reference = page.locator(".lf-session-reference")
     expect(reference).not_to_be_visible()
     page.get_by_role("button", name="More page controls", exact=True).click()

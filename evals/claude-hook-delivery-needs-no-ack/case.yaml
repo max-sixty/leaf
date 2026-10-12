@@ -1,5 +1,5 @@
 # Added when Claude Code's and Pi's hooks began confirming the inline envelope they
-# hand over, so the move reads Picked up as the hook runs instead of after the
+# hand over, so the update reads Picked up as the hook runs instead of after the
 # model's first call. Replaces a case that pinned the model's own `leaf delivery ack`
 # of the same envelope, a command this change removed. On Codex (3 runs per arm at
 # b9d22d31e) both arms ran no acknowledgement, so it has only guarded there: the

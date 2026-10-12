@@ -113,7 +113,7 @@ judge may read. `metadata.conditions` and `metadata.harnesses` restrict where it
 | Executor | Runs |
 | --- | --- |
 | `arrangement_eval` | Authors, checks and revises a page from `request.md`, then, where the scenario declares a comment, answers the user's comment on it: anchored on the page in Leaf, in chat for HTML. Screenshots each version on a laptop, at 900px with tall and short windows, and on a phone, and records each phase's time, tokens, authored CSS and script lines, and how often it wrote and rendered the page. For tasks that request a decision, Leaf also seeds a user choice, has a fresh reader report it, and checks a further revision keeps it. |
-| `usability_eval` | Seeded pages read, resumed and revised, and live handoffs where the harness posts user moves through the served page. Checks read Leaf's page state and its parse of the markup; answers and edited prose go to the text judge; script repairs exercise the affected control. Fixtures are in `usability/fixtures/`. |
+| `usability_eval` | Seeded pages read, resumed and revised, and live handoffs where the harness posts user updates through the served page. Checks read Leaf's page state and its parse of the markup; answers and edited prose go to the text judge; script repairs exercise the affected control. Fixtures are in `usability/fixtures/`. |
 | `delivery_eval` | Comments posted between turns and mid-turn, each of which must be picked up, started and answered. |
 | `reader_eval` | Calibrates the screenshot judge: `dashboard/reader-seeded` and `reader-clean` each show it one triage board, with a seeded count defect or the correct count, and ask both whether the count matches the cards. |
 

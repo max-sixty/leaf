@@ -1,4 +1,4 @@
-# Added when an ephemeral reply to an owed move began taking that move in hand, so
+# Added when an ephemeral reply to an owed update began taking that update in hand, so
 # the user's first sign of the agent is words in their thread rather than a Working
 # label. Two `leaf-dev journey claude-code` runs on 18142adc showed the agent's first command
 # was `leaf task start` and a read of the page, with nothing in the thread until the

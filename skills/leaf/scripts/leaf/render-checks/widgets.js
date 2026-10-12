@@ -7,6 +7,8 @@ import {
 } from "/runtime/widget-api.js";
 import {
   ADDRESSABLE,
+  commandDeclarationsWithin,
+  commandRoutes,
   unrevealedVisualParts,
   upFrom,
   visualPartProblems,
@@ -464,5 +466,37 @@ export function heldScrollers(tags) {
           height: box.clientHeight,
         });
     }
+  return found;
+}
+
+// Each command in one of `tags`' widgets that declares context keys and no
+// `bindingBadge`. Context keys are the widget's aliases for pressing a control from
+// elsewhere, as a Question forwards its digits; a key the page never shows works only
+// for a user who already knows it (module-authoring.md, "Commands and keyboard
+// routes"). A route without its own `bindingBadge` takes its row's. The reading is the
+// declaration, not the keys reachable now, so a command whose keys depend on state is
+// read the same in every state. A command belongs to the nearest Leaf widget holding
+// the element that declared it, as a box does in `heldScrollers`, so a dependency's
+// widget nested in one of `tags`' answers for its own commands.
+export function unshownContextKeys(tags) {
+  const own = new Set(tags);
+  const found = [];
+  const seen = new Set();
+  for (const { source, scope } of commandDeclarationsWithin(document.body)) {
+    let owner = source;
+    while (owner && !owner.localName.startsWith("lf-")) owner = upFrom(owner);
+    if (!owner || !own.has(owner.localName)) continue;
+    for (const row of scope.rows)
+      for (const command of [row, ...commandRoutes(row)]) {
+        if (command.contextKeys === undefined) continue;
+        const badge =
+          command.bindingBadge !== undefined ? command.bindingBadge : row.bindingBadge;
+        if (badge !== undefined) continue;
+        const key = `${owner.localName}#${owner.id}#${command.id}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        found.push({ tag: owner.localName, id: owner.id, command: command.id });
+      }
+  }
   return found;
 }

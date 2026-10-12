@@ -60,7 +60,7 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 ROOT = Path(__file__).parent.parent
 # `leaf-dev preview`, run by the interpreter this suite runs on.

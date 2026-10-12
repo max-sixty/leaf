@@ -92,7 +92,7 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 def test_column_width_does_not_clear_a_sidenote(browser, serve):

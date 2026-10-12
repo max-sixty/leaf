@@ -633,15 +633,18 @@ class PageClient:
             urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
         )
 
+    @property
+    def state_url(self) -> str:
+        return f"{self.origin}/api/state?t={self.token}"
+
     def state(self) -> dict:
-        with self.opener.open(
-            f"{self.origin}/api/state?t={self.token}", timeout=20
-        ) as response:
+        with self.opener.open(self.state_url, timeout=20) as response:
             return json.loads(response.read())
 
-    def post(self, event: dict) -> None:
-        """Post one move as the page does: keyed, on the served layer. The caller
-        names the revision and the retry key, as the browser does.
+    def post(self, event: dict) -> dict:
+        """Post one move as the page does: keyed, on the served layer, and return the
+        state the server answers with, which shows the move. The caller names the
+        revision and the retry key, as the browser does.
 
         An answer naming another layer than the one posted on admitted nothing: the
         page was re-vendored between the state read and the post. A tab reloads onto
@@ -657,12 +660,13 @@ class PageClient:
             try:
                 with self.opener.open(request, timeout=20) as response:
                     answered = response.headers["Leaf-Layer"]
+                    answer = json.loads(response.read())
             except urllib.error.HTTPError as error:
                 raise click.ClickException(
                     f"posting {event}: HTTP {error.code} {error.read().decode()}"
                 ) from error
             if answered == layer:
-                return
+                return answer["state"]
             layer = answered
 
 

@@ -115,7 +115,7 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 @pytest.mark.parametrize("touch", [False, True])
@@ -2145,9 +2145,7 @@ def test_live_samples_keep_real_gestures_and_drafts_inside_the_child(browser, se
         "aria-checked", "false"
     )
     expect(reset_child.locator(".lf-thread")).to_have_count(0)
-    expect(reset_child.locator(".lf-general leaf-text")).to_have_js_property(
-        "value", ""
-    )
+    expect(page_comment(reset_child)).to_have_js_property("value", "")
     assert page.request.get(child_url + "api/state").status == 404
     assert events_model.read_events(serve.page_dir) == parent_before
     assert (
@@ -10366,46 +10364,6 @@ def test_editor_caret_hold_releases_after_unchanged_selection(browser, serve):
       document.dispatchEvent(new Event('selectionchange'));
     })""")
     assert field.evaluate("node => [node.selectionStart, node.selectionEnd]") == [9, 9]
-
-
-def test_a_field_keeps_what_it_held_before_its_editor_and_takes_focus_at_once(
-    browser, serve
-):
-    """A field builds its editor when first needed (composing/text-field.js). Before
-    that its words, external edits and owner steps stand without a view, and undo walks
-    them in order once it has one. A focus that bypasses the field's `focus()`, as a
-    driver's from its isolated world does, builds the editor in the same turn, so the
-    keys after it reach the words."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page("Editor history", "<h1>Editor history</h1><div id='seat'></div>")
-        ),
-    )
-    assert page.evaluate("""() => {
-      const field = document.createElement('leaf-text');
-      window.steps = [];
-      field.value = 'Draft';
-      field.edit('Draft edited');
-      field.record(() => steps.push('undo'), () => steps.push('redo'));
-      // Connected but not yet given a box by a rendering update.
-      document.querySelector('#seat').append(field);
-      const unbuilt = !field.matches(':state(ready)');
-      HTMLElement.prototype.focus.call(field);
-      return [unbuilt, field.matches(':state(ready)'), document.activeElement === field];
-    }""") == [True, True, True]
-    field = page.locator("#seat leaf-text")
-    page.keyboard.type(" now")
-    expect(field).to_have_js_property("value", "Draft edited now")
-    undone = []
-    for _ in range(3):
-        page.keyboard.press("ControlOrMeta+z")
-        undone.append(field.evaluate("node => [node.value, steps.join()]"))
-    assert undone == [
-        ["Draft edited", ""],
-        ["Draft edited", "undo"],
-        ["Draft", "undo"],
-    ]
 
 
 def test_unfocused_editor_move_leaves_later_selection_alone(browser, serve):

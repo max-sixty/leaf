@@ -98,13 +98,13 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   --lf-focus-ring: focus;
   outline-offset: var(--focus-ring-gap);
 }
-:where([data-lf-focus]) {
+:where(:focus, [data-lf-focus]) {
   scroll-margin-block: var(--focus-ring-room);
 }
 :where([data-lf-sticks]) {
   --lf-head-inset: 0px;
 }
-:where([data-lf-focus]) {
+:where(:focus, [data-lf-focus]) {
   scroll-margin-top: calc(var(--lf-top) - var(--lf-top-covered, var(--lf-top)) + var(--lf-head-inset, calc(var(--focus-ring-room) + var(--lf-landing-room, 0px))) - var(--lf-landing-room, 0px));
 }
 [data-lf-offer]:where(:not([data-lf-offer=""])) {

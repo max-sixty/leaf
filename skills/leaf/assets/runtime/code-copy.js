@@ -8,9 +8,9 @@
    available to read and select. Leaving the source restores the copy control.
    Enter on a document code block copies it. That press is a register row projected
    onto the block beside any scope its owner declares, so the shortcut bar, the command
-   reference and `aria-keyshortcuts` name it; it answers on the block itself, leaving a
-   link inside it its own Enter, and the control stays out of the Tab sequence. Focus need not be on the control, so every copy's result also takes the
-   status line and the live region. */
+   reference and `aria-keyshortcuts` name it. It answers on the block itself, leaving a
+   link inside it its own Enter, and the control stays out of the Tab sequence. Focus
+   need not be on the control, so every copy's result also takes the status line. */
 import { offer } from "./widget-elements.js";
 import { watchArrivals } from "./arrivals.js";
 import {
@@ -49,8 +49,13 @@ function prepareCodeBlock(pre, source) {
     copy.errorLabel = "Unable to copy code";
     copy.tooltip = "none";
     copy.addEventListener("click", () => (copy.value = source()), { capture: true });
-    copy.addEventListener("wa-copy", () => notice(copy.successLabel));
-    copy.addEventListener("wa-error", () => notice(copy.errorLabel));
+    // Web Awesome announces the result; Leaf puts the same words in its status line.
+    copy.addEventListener("wa-copy", () =>
+      notice(copy.successLabel, { announce: false }),
+    );
+    copy.addEventListener("wa-error", () =>
+      notice(copy.errorLabel, { announce: false }),
+    );
     pre.addEventListener("pointerdown", (event) => {
       if (event.pointerType === "touch" && copy.isConnected)
         focusDestination(pre, "move");

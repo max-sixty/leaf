@@ -1612,8 +1612,12 @@ def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
     page.evaluate("document.querySelector('main').append(detachedCodeSource)")
     expect(page.locator(".lf-chrome > .lf-code-copy")).to_have_count(2)
     page.locator("#source").focus()
+    assert "copy code" in shortcut_bar_text(page)
     page.keyboard.press("Tab")
     expect(page.locator("#code-link")).to_be_focused()
+    # The block's Copy answers on the block alone; its link keeps Enter.
+    on_link = shortcut_bar_text(page)
+    assert "Follow" in on_link and "copy code" not in on_link, on_link
     page.keyboard.press("Enter")
     expect(page).to_have_url(re.compile(r"#destination$"))
 
@@ -1865,7 +1869,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
         else:
             button.click()
         expect(button).to_have_attribute("aria-label", "Code copied")
-        expect(page.locator(".lf-live")).to_have_text("Code copied")
+        expect(page.locator(".lf-notice")).to_have_text("Code copied")
         assert page.evaluate("navigator.clipboard.readText()") == expected
 
     copy("#colored", document_controls.nth(0), colored)

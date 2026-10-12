@@ -982,6 +982,9 @@ bytes}`; `save({revision, text})` checks that exact revision before writing and
 returns the submitted snapshot. A stale save throws an error whose `current`
 holds the newer file. Other errors carry a message and leave the caller's buffer
 alone. `text` uses LF line endings; the host preserves the file's LF or CRLF form.
+`watch(callback)` calls back whenever the page hears that the bound file may have
+changed on disk, including through the widget's own save, and returns a function
+that stops it. Read the file again then; its revision says whether it changed.
 
 The `writable` property is false in captured documents and exports. The transport
 owns page-relative routing and delivery checks; a widget never names a host path.

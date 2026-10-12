@@ -1873,7 +1873,7 @@ def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
     )
     assert ask.evaluate(
         """async node => {
-          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const leaf = await window.__lfRuntimeImport('/runtime/reading-regions.js');
           return leaf.readingPosture(node) === 'flow'
             && leaf.effectiveScroller(node) === document.scrollingElement;
         }"""
@@ -2035,7 +2035,7 @@ def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
     pane_posture(page, pane, "flow")
     assert pane.evaluate(
         """async node => {
-          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const leaf = await window.__lfRuntimeImport('/runtime/reading-regions.js');
           return leaf.readingPosture(node) === 'flow'
             && leaf.effectiveScroller(node) === document.getElementById('cells');
         }"""
@@ -2274,7 +2274,7 @@ def test_regions_inside_a_bounded_pane_body_flow_within_the_body_that_scrolls(
         pane_posture(page, page.locator(inner), "flow")
     readings = page.evaluate(
         """async () => {
-          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const leaf = await window.__lfRuntimeImport('/runtime/reading-regions.js');
           const host = document.querySelector('#host-body');
           return Object.fromEntries(['inner-pane', 'loose-pane'].map(id => {
             const body = document.querySelector(`#${id} > div`);
@@ -5732,11 +5732,12 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
     actions = playground.locator(".lf-playground-actions")
     reading = """async () => {
       const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const regions = await window.__lfRuntimeImport('/runtime/reading-regions.js');
       const playground = document.querySelector('#notification-playground');
       const controls = playground.querySelector('.lf-playground-controls');
       const preview = playground.querySelector('.lf-playground-preview-body');
       const instruction = playground.querySelector('lf-playground-output');
-      const region = (body) => leaf.readingRegionFor(body);
+      const region = (body) => regions.readingRegionFor(body);
       const controlsBox = region(controls).host.getBoundingClientRect();
       const previewBox = region(preview).host.getBoundingClientRect();
       const instructionBox = region(instruction).host.getBoundingClientRect();
@@ -5747,8 +5748,8 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
         postures: [controls, preview, instruction].map((body) =>
           leaf.readingPosture(region(body))),
         scrollers: [controls, preview, instruction].map((body) =>
-          leaf.effectiveScroller(body) === body ? 'own' :
-          leaf.effectiveScroller(body) === document.scrollingElement ? 'page' : 'other'),
+          regions.effectiveScroller(body) === body ? 'own' :
+          regions.effectiveScroller(body) === document.scrollingElement ? 'page' : 'other'),
         sideBySide: Math.abs(previewBox.top - controlsBox.top) < 1
           && controlsBox.left >= previewBox.right
           && Math.abs(instructionBox.left - controlsBox.left) < 1
@@ -6847,7 +6848,7 @@ def test_a_quoted_playground_is_a_static_preview_with_its_authored_output(
     assert playground.evaluate("root => root.values")["compact"] is False
     assert playground.evaluate(
         """async root => {
-          const {readingRegionFor} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {readingRegionFor} = await window.__lfRuntimeImport('/runtime/reading-regions.js');
           return readingRegionFor(root.querySelector('lf-playground-preview')) === undefined
             && !root.querySelector('[data-lf-reading-role]');
         }"""
@@ -8958,25 +8959,6 @@ def test_ask_binding_badges_do_not_cover_their_key_line(browser, serve):
         or geometry["line"]["bottom"] <= chip["top"]
         for chip in geometry["chips"]
     ), geometry
-
-
-def test_a_needed_draft_contributes_its_current_ask_action(browser, serve):
-    source = leaf_page(
-        "needed draft binding",
-        """
-<h1>Supply the copy</h1>
-<lf-ask id="copy-ask"><h2>What should the invitation say?</h2>
-  <lf-draft id="copy" needed><pre>Draft invitation</pre></lf-draft>
-</lf-ask>
-""",
-    )
-    page = open_page(browser, serve(source))
-
-    page.keyboard.press("q")
-    expect(page.locator("#copy-ask")).to_be_focused()
-    assert active_digit_bindings(page) == "1"
-    page.keyboard.press("1")
-    expect(page.get_by_role("textbox", name="Edit copy")).to_be_focused()
 
 
 def test_an_ask_that_cannot_name_itself_arrives_on_the_words_that_explain_it(

@@ -14,6 +14,7 @@
 import { userStore, tabStore } from "./storage.js";
 import { AUXILIARY_SURFACE_KEY } from "./auxiliary-surfaces.js";
 import { DESIGN_MODE_KEY } from "./design-readings.js";
+import { restoreEdges } from "./drawn-edge.js";
 // The tab coordinate is shared by restoration evidence and the optional owner.
 export const ANNOTATIONS_KEY = "lf-annotations";
 
@@ -45,16 +46,8 @@ export const USER_VIEW_RESTORE_CASES = [
 // The chrome put back the way this user left it, before the page is presented: the
 // widths first, so a panel or drawer put back open is open at the width they left it at
 // rather than sliding to it afterwards.
-export function restoreUserView({
-  commentsEdge,
-  drawersEdge,
-  restoreAuxiliarySurface,
-  setDesignMode,
-}) {
-  // The widths first, so a panel or a drawer put back open is open at the width the user
-  // left it at rather than sliding to it afterwards.
-  commentsEdge.restore();
-  drawersEdge.restore();
+export function restoreUserView({ restoreAuxiliarySurface, setDesignMode }) {
+  restoreEdges();
   restoreAuxiliarySurface();
   if (tabStore.get(DESIGN_MODE_KEY) === "1") setDesignMode(true, { spoken: false });
 }

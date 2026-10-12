@@ -27,6 +27,7 @@ from .file_changes import page_changes
 from .files import read_json
 from .page_memory import memory_of
 from .presence import PRESENCE_CACHE_S, live_facts
+from .registry.schema import json_validator
 from .served_state.reading import page_reading
 from .served_state.service import PageStateService
 from .service import page_claim
@@ -60,35 +61,41 @@ def row_path(page_dir: Path) -> Path:
     return state_home_path() / "rows" / f"{page_key(page_dir)}.json"
 
 
+_STRING = {"type": "string"}
+# Open objects: a neighbor's leaf may publish fields this version ignores.
+ROW_RECORD_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "page": _STRING,
+        "page_key": _STRING,
+        "server_id": _STRING,
+        "row": {
+            "type": "object",
+            "properties": {
+                "title": _STRING,
+                "activity": {
+                    "type": "object",
+                    "properties": {
+                        "counts": {"type": "object", "required": sorted(COUNT_FIELDS)}
+                    },
+                    "required": sorted(ACTIVITY_FIELDS),
+                },
+            },
+            "required": ["title", "session_cwd", "activity"],
+        },
+    },
+    "required": ["page", "page_key", "server_id", "row"],
+}
+
+
 def read_row(page_dir: Path, service: dict, *, record=None) -> dict | None:
     """Read compatible output from this live service's own publication."""
     if record is None:
         record = read_json(row_path(page_dir))
-    if (
-        not isinstance(record, dict)
-        or not {"page", "page_key", "server_id", "row"} <= record.keys()
-    ):
+    readable = json_validator(ROW_RECORD_SCHEMA).is_valid(record)
+    if not readable or record["server_id"] != service.get("server_id"):
         return None
-    row = record["row"]
-    if (
-        not isinstance(record["server_id"], str)
-        or not isinstance(record["page"], str)
-        or not isinstance(record["page_key"], str)
-        or record["server_id"] != service.get("server_id")
-        or not isinstance(row, dict)
-        or not {"title", "session_cwd", "activity"} <= row.keys()
-    ):
-        return None
-    activity = row["activity"]
-    if (
-        not isinstance(row["title"], str)
-        or not isinstance(activity, dict)
-        or not ACTIVITY_FIELDS <= activity.keys()
-        or not isinstance(activity["counts"], dict)
-        or not COUNT_FIELDS <= activity["counts"].keys()
-    ):
-        return None
-    return row
+    return record["row"]
 
 
 class RowPublisher:

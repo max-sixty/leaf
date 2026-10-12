@@ -3876,16 +3876,17 @@ def test_attention_is_recorded_for_each_page_on_a_shared_server(page_dir, tmp_pa
             )
 
 
-def test_the_website_refuses_a_page_another_leaf_vendored(page_dir, tmp_path):
-    """The container serves only pages its own Leaf's runtime vendored, as every page
-    server does; a site built by another Leaf breaks in the browser otherwise."""
+def test_the_website_refuses_a_page_vendored_at_another_protocol(page_dir, tmp_path):
+    """The container serves only pages vendored at its own Leaf's protocol, as every
+    page server does; a site built across a breaking change breaks in the browser
+    otherwise."""
     site = tmp_path / "site"
     published = site / "examples" / "decision"
     published.parent.mkdir(parents=True)
     shutil.copytree(page_dir, published)
     registry_path = published / "registry.json"
     registry = json.loads(registry_path.read_text())
-    registry["$layer"]["runtime"] = f"sha256:{'0' * 64}"
+    registry["$layer"]["protocol"] = 999
     registry_path.write_text(json.dumps(registry))
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
     httpd = LeafHTTPServer(("127.0.0.1", 0), website_server.site_endpoint(site))
@@ -3897,7 +3898,7 @@ def test_the_website_refuses_a_page_another_leaf_vendored(page_dir, tmp_path):
         get(f"{root}/api/state")
     assert refused.value.code == 500
     told = json.loads(refused.value.read())["error"]
-    assert "vendored from another Leaf's runtime" in told
+    assert "page protocol 999" in told
 
 
 def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeypatch):

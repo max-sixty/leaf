@@ -1729,8 +1729,9 @@ export function createVersionController({
 
   // ---------- reading continuity across a replacement ----------
   // Capture passage and decision landmarks plus each reading region's position. Resolve
-  // a passage first, then its section, then a raw offset in the same scroller. Document
-  // travel stores this reading per tab; restored chrome layout precedes scroll recovery.
+  // a passage first, then its section, then a raw offset in the same scroller at the
+  // same width (reading-place.js, `rawOffsetFits`). Document travel stores this reading
+  // per tab; restored chrome layout precedes scroll recovery.
 
   function captureView() {
     dropGonePlaces();
@@ -1871,9 +1872,14 @@ export function createVersionController({
   const places = new Map();
   let placeCount = 0;
   let shifting = false;
+  // Each hold by the scroller it holds, named as places are: the page, or a bounded
+  // region's id. The box itself is held weakly, so a box a widget replaces without a
+  // revision leaves memory with the document, and its hold ends at its next reading.
   const holds = new Map();
   const subjectPlaces = new Map();
   let reapply = null;
+  // The identity a box scrolls as: the page, a bounded region's id, or undefined.
+  const boxId = (box) => (box === pageScroller ? PAGE : regionForBox(box)?.id);
   // The hold `box` still keeps, or null once someone has moved it: input aimed at the
   // box, or a scroll that carried the held landmark with it. Which moved, the box or
   // what it shows, says whose the move was. A scroll moves the box and the landmark by
@@ -1882,27 +1888,33 @@ export function createVersionController({
   // something else still, by a distance of its own, and the next application puts them
   // back. A scroll and a layout change in one frame are ambiguous: they read as
   // layout's only while the shift's layout settles, and as someone's after that. A
-  // landmark the box no longer carries ends the hold.
+  // landmark the box no longer carries, or a box that no longer scrolls as the one held,
+  // ends the hold.
   const held = (box) => {
-    const hold = holds.get(box);
+    const id = boxId(box);
+    return id === undefined ? null : holdOf(id);
+  };
+  function holdOf(id) {
+    const hold = holds.get(id);
     if (!hold) return null;
-    const moved = regionForBox(box) === hold.region ? movedAway(box, hold) : "gone";
-    const acted = inputSince(box, hold.since);
+    const box = hold.box.deref();
+    const region = box && boxId(box) === id ? regionForBox(box) : undefined;
+    const moved = region === undefined ? "gone" : movedAway(box, hold, region);
+    const acted = Boolean(box) && inputSince(box, hold.since);
     if (!moved && !acted && hold.currentIntent()) return hold;
-    holds.delete(box);
+    holds.delete(id);
     // Where the reader acted in the box the restore put them in, that place is theirs,
     // as if recorded before they acted, so whatever their act moves records over it.
     // Where a scroll carried the landmark away, the place it left is that scroll's.
-    const region = hold.region;
     if (moved === "carried" || (!moved && acted))
-      places.set(region ? region.id : PAGE, {
+      places.set(id, {
         reading: moved ? capturePlace(region) : hold.reading,
         at: ++placeCount,
         choices: scrollChoices(),
         inputs: moved ? inputCount() : hold.since,
       });
     return null;
-  };
+  }
   // Whether the held place still stands in its box: null where it does, or where
   // layout alone moved it; "carried" where a scroll took the landmark with the box;
   // "gone" where the box no longer carries it. A box that scrolled while its landmark
@@ -1910,14 +1922,14 @@ export function createVersionController({
   // anchoring answers a change the layout made, and someone's after that, as a script
   // that scrolls as content grows above the reader. A landmark a widget is repainting is
   // missing only for a moment while the layout settles, so the hold waits it out.
-  const movedAway = (box, hold) => {
+  const movedAway = (box, hold, region) => {
     const settling = reapply !== null;
     const node = placeNode(hold.reading);
     if (!node) return settling ? null : "gone";
     // A landmark another box now carries, as a pane taking its words from the page, is
     // no place of this box's to hold.
     if (boxOf(node) !== box) return "gone";
-    const now = placeOffset(hold.reading, hold.region);
+    const now = placeOffset(hold.reading, region);
     if (now === null) return settling ? null : "gone";
     const scrolled = box.scrollTop - hold.top;
     const shifted = now - hold.offset;
@@ -1939,7 +1951,7 @@ export function createVersionController({
   // the box meanwhile: the end of a keeper's sequence the layout moved on is no choice
   // of the reader's (scrolling.js counts it as one). `writing` holds each box a restore
   // moved until its sequence ends; `ownEnd` the choice count of that end.
-  const writing = new Map();
+  const writing = new WeakMap();
   const ownEnd = new WeakMap();
   const wrote = (box, from) => {
     if (box.scrollTop !== from) writing.set(box, inputCount());
@@ -2015,9 +2027,10 @@ export function createVersionController({
 
   // The newest place speaking for `box`, where it lands there: by a landmark the box now
   // carries, by a section holding the whole box, which lands it at its start, or by the
-  // box's own end or raw offset. `before` names the scrollers that carried the box's
-  // words before the shift; with none, as for a region returning from concealment,
-  // only the box's own place speaks for it.
+  // box's own end, or its raw offset where its width is the one that offset was read at
+  // (reading-place.js, `rawOffsetFits`). `before` names the scrollers that carried the
+  // box's words before the shift; with none, as for a region returning from
+  // concealment, only the box's own place speaks for it.
   function placeFor(box, recorded, before) {
     const own = box === pageScroller ? PAGE : regionForBox(box).id;
     let found = null;
@@ -2068,9 +2081,9 @@ export function createVersionController({
       const from = box.scrollTop;
       restorePlace(place.reading, region, currentIntent);
       wrote(box, from);
-      holds.set(box, {
+      holds.set(region ? region.id : PAGE, {
+        box: new WeakRef(box),
         reading: place.reading,
-        region,
         since: inputCount(),
         offset: placeOffset(place.reading, region),
         top: box.scrollTop,
@@ -2079,7 +2092,7 @@ export function createVersionController({
     }
     // The layout is settling from here, so the holds are read under its window.
     watchHolds();
-    for (const box of [...holds.keys()]) held(box);
+    for (const id of [...holds.keys()]) holdOf(id);
   }
 
   // Apply each held place again while the shift's layout settles, as a widget drawing
@@ -2108,15 +2121,17 @@ export function createVersionController({
     stopReapplying();
     if (!holds.size) return;
     const again = frameFor(document.documentElement, () => {
-      for (const box of [...holds.keys()]) {
-        const hold = held(box);
+      for (const id of [...holds.keys()]) {
+        const hold = holdOf(id);
         if (!hold) continue;
-        const now = placeOffset(hold.reading, hold.region);
+        const box = hold.box.deref();
+        const region = regionForBox(box);
+        const now = placeOffset(hold.reading, region);
         if (now === null || Math.abs(now - hold.offset) <= SCROLL_SLACK) continue;
         const from = box.scrollTop;
-        restorePlace(hold.reading, hold.region, hold.currentIntent);
+        restorePlace(hold.reading, region, hold.currentIntent);
         wrote(box, from);
-        hold.offset = placeOffset(hold.reading, hold.region);
+        hold.offset = placeOffset(hold.reading, region);
         hold.top = box.scrollTop;
       }
       if (!holds.size) stopReapplying();
@@ -2138,8 +2153,11 @@ export function createVersionController({
       });
     settled();
     reapply.observe(pageDocument());
-    for (const { region } of holds.values())
-      if (region) for (const child of region.body.children) reapply.observe(child);
+    for (const hold of holds.values()) {
+      const box = hold.box.deref();
+      if (box && box !== pageScroller)
+        for (const child of box.children) reapply.observe(child);
+    }
   }
 
   // Each composition change in progress (`preserveReadingRegions`), by its owner: the
@@ -2173,7 +2191,7 @@ export function createVersionController({
       subjectPlaces.get(region.id).set(region.subject, place.reading);
       return;
     }
-    holds.delete(box);
+    holds.delete(region.id);
     const reading = subjectPlaces.get(region.id)?.get(region.subject);
     if (!reading) {
       places.delete(region.id);

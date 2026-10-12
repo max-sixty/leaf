@@ -44,6 +44,7 @@ from render_cases_navigation import (
     source_revision,
 )
 from render_harness import (
+    LANDING_TOP,
     LONG_PAGE,
     RELEASE_FOCUS,
     REPLY_HOST_PAGE,
@@ -478,6 +479,59 @@ def test_a_script_scroll_moves_a_held_page(browser, serve, move):
     assert 0 <= after <= line + 60, (line, after)
 
 
+def test_a_bounded_box_holds_its_place_while_its_layout_settles(browser, serve):
+    """A box that scrolls on its own holds the place a width change restored in it, as
+    the page does: content above the reader that a widget draws a frame later is put
+    back behind them, with no anchoring of the browser's to do it, as in Safari."""
+    lines = "".join(
+        f'<p id="line-{n}">Line {n} of the bounded log.</p>' for n in range(80)
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Held box",
+                '<h1>Held box</h1><section id="log" style="height: 400px;'
+                f' overflow: auto; overflow-anchor: none"><div id="late"></div>{lines}'
+                "</section>" + "<p>After the log.</p>" * 40,
+            )
+        ),
+    )
+    resized(page, 1200, 800)
+    rendered(page)
+    page.evaluate("""async () => {
+      const {registerReadingRegion} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const body = document.getElementById('log');
+      registerReadingRegion({id: body.id, host: body, body});
+    }""")
+    rendered(page)
+    box = page.locator("#log").bounding_box()
+    page.mouse.move(box["x"] + 40, box["y"] + 100)
+    page.mouse.wheel(0, 900)
+    scroll_settled(page)
+    rendered(page)
+    reading = """(id) => {
+      const top = document.getElementById('log').getBoundingClientRect().top;
+      const line = id ? document.getElementById(id) : [...document.querySelectorAll(
+        '#log p')].find((p) => p.getBoundingClientRect().top >= top - 1);
+      return {id: line.id, below: line.getBoundingClientRect().top - top};
+    }"""
+    read = page.evaluate(reading, None)
+    page.evaluate(
+        """() => addEventListener('resize', async () => {
+          for (let n = 0; n < 2; n++) await new Promise(requestAnimationFrame);
+          document.getElementById('late').style.height = '200px';
+        }, {once: true})"""
+    )
+    resized(page, 700, 800)
+    rendered(page)
+    scroll_settled(page)
+    rendered(page)
+    assert page.evaluate(reading, read["id"])["below"] == pytest.approx(
+        read["below"], abs=2
+    )
+
+
 def test_a_script_scroll_as_content_grows_above_ends_the_hold(browser, serve):
     """Long after a width change restored the gallery's place, one frame grows content
     above the reader, which anchoring answers, and a script scrolls on. The box and its
@@ -584,11 +638,44 @@ def test_a_page_that_never_settles_lets_the_held_place_go_after_a_while(browser,
     assert page.evaluate(heading) < held - 300, "the held place came back"
 
 
+# The first word of `main` whose line stands at or below the landing band, written
+# down on 'take' and found again on any other step: how far below the band it stands,
+# and how far into its paragraph it is.
+EDGE_WORD = """(step, band) => {
+  const range = document.createRange();
+  const top = (text, at, length) => {
+    range.setStart(text, at);
+    range.setEnd(text, at + length);
+    const rect = range.getClientRects()[0];
+    return rect && {top: rect.top, middle: (rect.top + rect.bottom) / 2};
+  };
+  if (step === 'take') {
+    const blocks = [...document.querySelectorAll('main p')];
+    for (const [block, p] of blocks.entries())
+      for (const text of [...p.childNodes].filter((n) => n.nodeType === 3))
+        for (const word of text.data.matchAll(/\\S+/g)) {
+          const at = top(text, word.index, word[0].length);
+          if (at && at.middle >= band) {
+            window.__edgeWord = {block, node: [...p.childNodes].indexOf(text),
+              at: word.index, length: word[0].length};
+            return {below: at.top - band,
+              within: at.top - p.getBoundingClientRect().top};
+          }
+        }
+    return null;
+  }
+  const {block, node, at, length} = window.__edgeWord;
+  const p = document.querySelectorAll('main p')[block];
+  return {below: top(p.childNodes[node], at, length).top - band};
+}"""
+
+
 def test_paging_down_from_a_landed_section_keeps_the_paged_passage(browser, serve):
     """A fragment lands on a section and focuses it; the reader pages down through it.
     Focus on a section the reader reads through names the passage they paged to, not
     the section, so a width change keeps that passage where they read it, without the
-    browser's anchoring to hold it."""
+    browser's anchoring to hold it: the line at the landing edge, though the paragraph
+    holding it starts above the edge and rewraps above that line."""
     opening = "".join(
         f"<p>Opening paragraph {n}, words enough to rewrap as the window changes.</p>"
         for n in range(10)
@@ -619,21 +706,110 @@ def test_paging_down_from_a_landed_section_keeps_the_paged_passage(browser, serv
     page.wait_for_function("document.scrollingElement.scrollTop > 0")
     scroll_settled(page)
     rendered(page)
-    place = """async (step) => {
-      const rp = await window.__lfRuntimeImport('/runtime/reading-place.js');
-      const {landingBand} = await window.__lfRuntimeImport('/runtime/geometry.js');
-      if (step === 'take') window.__paged = rp.capturePlace();
-      const words = window.__paged.quote.slice(0, 40);
-      const block = [...document.querySelectorAll('main p')]
-        .find(p => p.textContent.includes(words));
-      return block.getBoundingClientRect().top
-        - landingBand(document.scrollingElement).top;
-    }"""
+    place = f"async (step) => ({EDGE_WORD})(step, {LANDING_TOP})"
     read = page.evaluate(place, "take")
+    assert read["within"] > 0, "the page should stop partway into a paragraph"
     for width in (1200, 390):
         resized(page, width, 800)
         rendered(page)
-        assert page.evaluate(place, "read") == pytest.approx(read, abs=4), width
+        assert page.evaluate(place, "read")["below"] == pytest.approx(
+            read["below"], abs=4
+        ), width
+
+
+# Two shapes of what stands at the landing edge in the column the reader scrolls, each
+# with the reading of where it stands now and how far that may stray from where the
+# reader left it, at the reader's own width and at the others. A figure taller than the
+# window draws no text on screen, so what the reader sees is the part of it at the
+# edge: how far through its height the edge cuts. Two columns stack as the window
+# narrows; the reader scrolls the right one, so the paragraph of it at the edge is what
+# they read.
+EDGE_SHAPES = {
+    "figure": (
+        "".join(
+            "<p>" + " ".join(f"p{n}w{i}" for i in range(150)) + "</p>"
+            for n in range(12)
+        )
+        + '<svg id="edge" viewBox="0 0 100 300" style="display:block;width:100%;'
+        'height:auto">'
+        + "".join(
+            f'<rect x="0" y="{n * 10}" width="100" height="10"'
+            f' fill="hsl({n * 12} 60% 60%)"/>'
+            for n in range(30)
+        )
+        + "</svg>",
+        "#edge",
+        """async (band) => {
+          const box = document.getElementById('edge').getBoundingClientRect();
+          return (band - box.top) / box.height;
+        }""",
+        f"""async () => {{
+          const box = document.getElementById('edge').getBoundingClientRect();
+          return box.top - ({LANDING_TOP}) + 0.4 * box.height;
+        }}""",
+        (0.01, 0.4),
+    ),
+    "right-column": (
+        "<style>.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem }"
+        " @media (width < 900px) { .cols { grid-template-columns: 1fr } }</style>"
+        "<div class='cols'><div>"
+        + "".join(
+            f"<p>Left column note {n}, a passage long enough to quote.</p>"
+            for n in range(30)
+        )
+        + "</div><div id='right'>"
+        + "".join(
+            f"<p id='r{n}'>Right column passage {n}, which the reader is reading now.</p>"
+            for n in range(30)
+        )
+        + "</div></div>",
+        "#r10",
+        """async (band) =>
+          document.getElementById('r10').getBoundingClientRect().top - band""",
+        f"""async () =>
+          document.getElementById('r10').getBoundingClientRect().top - ({LANDING_TOP})
+          - 5""",
+        (3, 3),
+    ),
+}
+
+
+@pytest.mark.parametrize("shape", list(EDGE_SHAPES))
+def test_a_width_change_keeps_what_stands_at_the_landing_edge(browser, serve, shape):
+    """The reader wheels until a figure taller than the window fills it, 40% of it above
+    the landing edge, or until a paragraph of the right column of two stands at the
+    edge. As the window narrows, the figure scales and the columns stack, and as it
+    widens they come back. At each width the reader still sees what they saw at the
+    edge: the same paragraph of the column they scrolled, not the left column's, which
+    comes first in the document; and the figure, whose top the browser's anchoring
+    keeps where it stood, as no words on screen give a better landmark, never the old
+    offset, which at another width is somewhere else on the page. Back at the reader's
+    own width, each is exactly where they left it."""
+    content, target, reading, distance, (own, other) = EDGE_SHAPES[shape]
+    filler = "".join(
+        f"<p>Filler paragraph {n} keeps the page long enough to scroll freely.</p>"
+        for n in range(40)
+    )
+    page = open_page(
+        browser,
+        serve(leaf_page("What stands at the edge", f"<h1>Edge</h1>{content}{filler}")),
+    )
+    resized(page, 1200, 800)
+    rendered(page)
+    box = page.locator(target).bounding_box()
+    page.mouse.move(box["x"] + 20, 400)
+    page.mouse.wheel(0, page.evaluate(distance))
+    scroll_settled(page)
+    rendered(page)
+
+    def now():
+        return page.evaluate(f"async () => ({reading})({LANDING_TOP})")
+
+    read = now()
+    for width in (600, 1200, 800, 1200):
+        resized(page, width, 800)
+        rendered(page)
+        assert now() == pytest.approx(read, abs=own if width == 1200 else other), width
 
 
 @pytest.mark.parametrize("bounded", [False, True])

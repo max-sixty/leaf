@@ -1,9 +1,18 @@
 /* The user's place in a scroller, written down as a landmark rather than an offset.
  *
- * A place names the first quotable block the user can see in a scroller, with that
- * block's distance below the scroller's landing edge; failing a quotable block, the
- * section it stands in; failing that, the raw offset, which only the same scroller can
- * take back. A bounded block following its newest entry has its end as its place
+ * A place names the line at the scroller's landing edge in the column the reader works
+ * in: the first line whose middle stands at or below the edge, quoted from its first
+ * character with the context a comment's capture gives a quote (anchor-resolution.js,
+ * `anchorForRange`), and that line's distance below the edge. The lines above it in its
+ * paragraph can rewrap or be rewritten without moving the line the reader sees. A
+ * heading is read whole, from its first word, wherever any of it shows below the edge.
+ * The column is the one the reader's pointer last named their place over, or failing
+ * that the one focus stands in; with neither, every column counts. Words in a stuck box
+ * ride with every scroll and name no place. With no line on screen, the place is the
+ * section the column's first block stands in; failing that, the raw offset, which only
+ * the same scroller at the same width can take back: at another width it names other
+ * content, and the browser's own scroll anchoring keeps what the reader saw better than
+ * it can. A bounded block following its newest entry has its end as its place
  * (`bounds.js`, `followingItsEnd`), however many entries have arrived since.
  * `capturePlace` reads one, of the page or of a reading region, and `restorePlace`
  * returns the user to it: the passage is found again by its words, so a place survives
@@ -13,10 +22,11 @@
  * region. Focus on the reading surface itself keeps its passage as the place, and so
  * does focus on a container holding that passage, as a section a fragment landed on. The
  * destination's DOM identity stays local; serialized places and replaced elements use
- * the ordinary passage reading. A restore jumps rather than glides. It keeps the
- * reader's current disclosures and views: a landmark they concealed supplies no geometry.
- * It returns the reader to a place they had rather than choosing one, so it says where
- * it left each box it moved (scrolling.js, `placeKept`).
+ * the ordinary passage reading, and the node is held weakly, since a place can outlive
+ * the document that drew it. A restore jumps rather than glides. It keeps the reader's
+ * current disclosures and views: a landmark they concealed supplies no geometry. It
+ * returns the reader to a place they had rather than choosing one, so it says where it
+ * left each box it moved (scrolling.js, `placeKept`).
  *
  * Whoever remembers a place owns when to take it and where to keep it: version
  * continuity (version.js) across revisions, reading-region shifts and the subjects a
@@ -35,18 +45,23 @@ import {
   shownBox,
   shownWindow,
   skipped,
+  stuckBox,
 } from "./geometry.js";
 import {
   closestAcross,
-  cut,
   inChrome,
   pageBlocks,
   pageDocument,
   pageText,
-  quoteFrom,
   rangeOf,
+  readingFrom,
 } from "./passages.js";
-import { ADDRESSABLE, resolveAnchor } from "./anchor-resolution.js";
+import {
+  ADDRESSABLE,
+  anchorForPassage,
+  resolveAnchor,
+  sectionOf,
+} from "./anchor-resolution.js";
 import { targetElement, targetSegments } from "./resolved-target.js";
 import {
   containingReadingRegionFor,
@@ -65,19 +80,23 @@ import { recentPlaceInput, focused } from "./focus.js";
 import { focusedInView } from "./user-place.js";
 import { scrollIntoReadingBand } from "./landing-scroll.js";
 import { union } from "./rect.js";
+import { pointerAt } from "./pointer.js";
 
 // A live focused place belongs to this DOM, not a serialized history record. Its
 // symbol keeps that node out of JSON; the ordinary passage reading remains the
-// fallback when a replacement or a later gesture has given focus elsewhere.
+// fallback when a replacement or a later gesture has given focus elsewhere. The node
+// and its reading surface are held weakly: a place outlives the revision that removes
+// them until the reader next records one.
 const FOCUSED_PLACE = Symbol("live focused place");
 const focusedPlace = (reading) => {
   const place = reading?.[FOCUSED_PLACE];
-  return place?.node.isConnected &&
-    place.node === focused() &&
-    under(place.node, place.body) &&
-    containingReadingRegionFor(place.node)?.id === place.region &&
+  const node = place?.node.deref();
+  return node?.isConnected &&
+    node === focused() &&
+    under(node, place.body.deref()) &&
+    containingReadingRegionFor(node)?.id === place.region &&
     place.intent()
-    ? place.node
+    ? node
     : null;
 };
 const LANDMARK_CAP = 160;
@@ -214,15 +233,20 @@ export function openingPassage(where) {
   return renderedBlocks(blocks).next().value?.[0] ?? null;
 }
 
-export function* blocksOnScreen(region = null, blocks = textBlocks()) {
+// What the reader can see of a region, or with none given of the page: null where they
+// see none of it. A flowing region is read through the part of the window the page
+// shows: a line hidden under the banner is not where the user is.
+function readingBounds(region) {
   const shown = region ? shownRegionBounds(region) : shownWindow();
-  if (!shown) return;
-  // A flowing region is read through the part of the window the page shows: a line
-  // hidden under the banner is not where the user is.
-  const bounds =
-    region && effectiveScroller(region) === pageScroller
-      ? shownWindow({ within: shown })
-      : shown;
+  if (!shown) return null;
+  return region && effectiveScroller(region) === pageScroller
+    ? shownWindow({ within: shown })
+    : shown;
+}
+
+export function* blocksOnScreen(region = null, blocks = textBlocks()) {
+  const bounds = readingBounds(region);
+  if (!bounds) return;
   for (const [block, rect, runs] of renderedBlocks(blocks, bounds)) {
     if (region ? !under(block, region.body) : effectiveScroller(block) !== pageScroller)
       continue;
@@ -264,9 +288,83 @@ function pageReading({ bodies }) {
 export const pageReadingBlock = () => pageReading({ bodies: false });
 export const landingPlace = () => pageReading({ bodies: true });
 
-// The quote and the section it's searched in come from the same block, or the search is
-// filtered to a section the text isn't in and can only ever fail — restore then falls back
-// to the section, which doesn't absorb content added above the user inside it.
+// Where across the box the reader works: their pointer, where it last named their place
+// over what they see of the box, else the focus they stand on in it, else null, which
+// leaves every column to count.
+function readerColumn(bounds, body) {
+  if (recentPlaceInput() === "pointer") {
+    const { x, y } = pointerAt();
+    return x >= bounds.left &&
+      x <= bounds.right &&
+      y >= bounds.top &&
+      y <= bounds.bottom
+      ? x
+      : null;
+  }
+  const at = focusedInView();
+  if (!at || !under(at, body)) return null;
+  const rect = shownBox(at);
+  return (rect.left + rect.right) / 2;
+}
+// Whether a block stands across `column`: its own box where it draws one, else the box
+// its words make.
+const spans = (block, rect, column) => {
+  const own = block.getBoundingClientRect();
+  const across = own.width ? own : rect;
+  return column >= across.left && column <= across.right;
+};
+
+// The run's segments from the first character of its first line whose middle stands at
+// or below `edge`; null where the whole run stands above the edge. A run's lines follow one another down the page, so that character is
+// found by halving. A heading is read `whole`: any of it below the edge names it from
+// its first word, since a heading identifies the place as a whole, and a coordinate
+// that hides its opening words is no heading landmark.
+function lineAt(run, edge, range, whole) {
+  const boxes = (node, start, end) => {
+    range.setStart(node, start);
+    range.setEnd(node, end);
+    return [...range.getClientRects()].filter((rect) => rect.width && rect.height);
+  };
+  const reaches = (rect) =>
+    Boolean(rect) && (whole ? rect.bottom : (rect.top + rect.bottom) / 2) >= edge;
+  for (const [at, segment] of run.entries()) {
+    const { node, start, end } = segment;
+    if (!reaches(boxes(node, start, end).at(-1))) continue;
+    if (whole) return run;
+    let low = start;
+    let high = end - 1;
+    while (low < high) {
+      const middle = (low + high) >> 1;
+      if (reaches(boxes(node, middle, end)[0])) high = middle;
+      else low = middle + 1;
+    }
+    // Half a surrogate pair is no character of its own.
+    const unit = node.data.charCodeAt(low);
+    if (unit >= 0xdc00 && unit <= 0xdfff && low > start) low -= 1;
+    return [{ ...segment, start: low }, ...run.slice(at + 1)];
+  }
+  return null;
+}
+// A line's words as a comment's capture quotes a passage: at most LANDMARK_CAP
+// characters from its first, with the context that names this occurrence among the
+// page's words, and the range they span. Null where no context can.
+function lineAnchor(segments) {
+  const { text, units } = readingFrom(segments);
+  if (!text) return null;
+  const from = units[0].start;
+  const to = units[Math.min(units.length, LANDMARK_CAP) - 1].end;
+  const quoted = [];
+  for (const segment of segments) {
+    if (!quoted.length && segment.node !== from.node) continue;
+    const start = quoted.length ? segment.start : from.offset;
+    const end = segment.node === to.node ? to.offset : segment.end;
+    if (end > start) quoted.push({ ...segment, start, end });
+    if (segment.node === to.node) break;
+  }
+  const range = rangeOf(quoted);
+  const anchor = anchorForPassage(quoted, range.commonAncestorContainer);
+  return anchor.quote && !anchor.detached ? { anchor, range } : null;
+}
 export function capturePlace(region = null, blocks = textBlocks()) {
   const box = region ? effectiveScroller(region) : pageScroller;
   // Places are measured from the top of the box's landing band, below whatever covers
@@ -275,13 +373,18 @@ export function capturePlace(region = null, blocks = textBlocks()) {
   const boxTop = landingBand(box).top;
   const landmarkTop = (top, block, blockTop = top) =>
     block?.matches(HEADING) ? top + Math.max(0, -blockTop) : top;
-  const view = { y: box.scrollTop, scroller: scrollerIdentity(box) };
+  // The raw offset, with the width that wrapped the box's contents when it was read.
+  const view = {
+    y: box.scrollTop,
+    scroller: scrollerIdentity(box),
+    width: box.clientWidth,
+  };
   const standing = focusedInView();
   const body = region?.body ?? pageDocument();
   const standingBody = readingRegionFor(standing)?.body ?? body;
   const focusPlace = () => ({
-    node: standing,
-    body,
+    node: new WeakRef(standing),
+    body: new WeakRef(body),
     region: containingReadingRegionFor(standing)?.id,
     intent: retainUserIntent({ source: standing }),
   });
@@ -293,56 +396,81 @@ export function capturePlace(region = null, blocks = textBlocks()) {
     !under(standingBody, standing);
   if (region && followingItsEnd(box))
     return { ...view, ...(standsOn && { [FOCUSED_PLACE]: focusPlace() }), end: true };
+  const bounds = readingBounds(region);
+  const column = bounds && readerColumn(bounds, body);
   // The block whose words name the place, so focus on a container the user reads
   // through, such as a section a fragment landed on, names that passage rather than
   // itself: only focus on what the passage is not inside, a control, is the place.
   let named = null;
-  for (const [block, rect, runs] of blocksOnScreen(region, blocks)) {
-    const section = closestAcross(block, ADDRESSABLE);
-    if (!view.section && section) {
-      named = block;
-      // The first on-screen block's section, kept only until a quotable block supplies
-      // its own: a page with nothing quotable on screen still has somewhere to land.
-      view.section = section.id;
-      view.sectionTop = landmarkTop(
-        shownBox(section).top - boxTop,
-        block,
-        rect.top - boxTop,
-      );
+  // The first line at or below the edge, read down the blocks on screen in document
+  // order, in the reader's column where any block stands across it. A stuck box rides
+  // along with every scroll, so its words say nothing about where in the box the reader
+  // is (geometry.js, `stuckBox`).
+  const range = document.createRange();
+  const read = (across) => {
+    let first = null;
+    let sectioned = null;
+    for (const [block, rect, runs] of blocksOnScreen(region, blocks)) {
+      if (across !== null && !spans(block, rect, across)) continue;
+      if (stuckBox(block)) continue;
+      first ??= block;
+      const section = closestAcross(block, ADDRESSABLE);
+      sectioned ??= section && { block, rect, section };
+      for (const run of runs) {
+        const line = lineAt(run, boxTop, range, block.matches(HEADING));
+        const landmark = line && lineAnchor(line);
+        if (landmark) return { first, sectioned, line: { block, rect, landmark } };
+        // A line no context names leaves the place to the next block's.
+        if (line) break;
+      }
     }
-    // Written down the way a comment's quote is, so the search that re-finds it is
-    // looking for a string of the same kind.
-    // Concealed words split a block's drawn runs. A landmark uses one uninterrupted
-    // run so the ordinary quote resolver can find it in the complete source reading.
-    const run = runs.find((segments) => quoteFrom(segments).length >= 24);
-    const text = run && cut(quoteFrom(run), 0, LANDMARK_CAP);
-    // A short line ("Risks") would match anywhere; keep scanning for a quotable block.
-    if (text) {
-      // Unconditionally, so a quotable block under no section clears the earlier one
-      // rather than sending the search into a subtree its text isn't in.
-      named = block;
-      view.section = section?.id;
-      view.sectionTop =
-        section &&
-        landmarkTop(shownBox(section).top - boxTop, block, rect.top - boxTop);
-      view.quote = text;
-      // A partially covered paragraph is still a reading place: its visible lines
-      // should stay where the user left them. A heading identifies the place as a
-      // whole, so a coordinate that hides its opening words is not a valid heading
-      // landmark. Normalize both quote and fallback section state here, once, rather
-      // than teaching every restore path to repair it after document replacement.
-      view.quoteTop = landmarkTop(
-        rangeOf(run).getBoundingClientRect().top - boxTop,
-        block,
-      );
-      break;
-    }
+    return { first, sectioned, line: null };
+  };
+  let reading = read(column);
+  if (column !== null && !reading.first) reading = read(null);
+  // The column's first block's section, kept only until a line supplies its own: a page
+  // with nothing quotable on screen still has somewhere to land.
+  if (reading.sectioned) {
+    const { block, rect, section } = reading.sectioned;
+    named = block;
+    view.section = section.id;
+    view.sectionTop = landmarkTop(
+      shownBox(section).top - boxTop,
+      block,
+      rect.top - boxTop,
+    );
+  }
+  if (reading.line) {
+    const { block, rect, landmark } = reading.line;
+    named = block;
+    // Unconditionally, so a line under no section clears the earlier one rather than
+    // sending the search into a subtree its words aren't in. A line in projected data
+    // is found again by its words, as any other: what keeps a reading place is where
+    // the words stand, not which datum they are.
+    const { section: id, quote, prefix, suffix } = landmark.anchor;
+    Object.assign(view, { section: id, quote, prefix, suffix });
+    const section = sectionOf(view);
+    view.sectionTop =
+      section && landmarkTop(shownBox(section).top - boxTop, block, rect.top - boxTop);
+    // A heading partly under the edge is restored whole: normalize here, once, rather
+    // than teaching every restore path to repair it after document replacement.
+    view.quoteTop = landmarkTop(
+      landmark.range.getBoundingClientRect().top - boxTop,
+      block,
+    );
   }
   if (standsOn && !(named && under(named, standing)))
     view[FOCUSED_PLACE] = focusPlace();
   return view;
 }
 
+// The quote's words where the page draws every one of them, else none.
+const drawnQuote = (view) => {
+  const segments = targetSegments(view.quote && resolveAnchor(view));
+  return segments.every(({ node }) => drawsLandmark(renderedParent(node)))
+    ? segments
+    : [];
+};
 // What a place stands on now, found as `restorePlace` finds it: the live focused
 // destination, the passage's drawn words, or the drawn section. `node` names it and
 // `top` reads where it stands. Null where the place has no landmark the page draws, so
@@ -350,11 +478,8 @@ export function capturePlace(region = null, blocks = textBlocks()) {
 function landmarkOf(view) {
   const live = focusedPlace(view);
   if (live) return { node: live, top: () => shownBox(live).top };
-  const segments = targetSegments(view.quote && resolveAnchor(view));
-  if (
-    segments.length &&
-    segments.every(({ node }) => drawsLandmark(renderedParent(node)))
-  )
+  const segments = drawnQuote(view);
+  if (segments.length)
     return {
       node: segments[0].node,
       top: () => rangeOf(segments).getBoundingClientRect().top,
@@ -378,8 +503,13 @@ export function placeOffset(view, region = null) {
 // Moving to a mark the user asked for is the other case, and says so.
 export const hasLandmark = (reading) =>
   Boolean(focusedPlace(reading) || reading?.end || reading?.quote || reading?.section);
-export const rawOffsetFits = (reading, scroller) =>
+const sameScroller = (reading, scroller) =>
   reading.scroller !== undefined && reading.scroller === scrollerIdentity(scroller);
+// A raw offset names the same words only in the box that read it, at the width it read
+// them: a box rewrapped to another width puts other words there, where the browser's
+// own anchoring does better than the old offset.
+export const rawOffsetFits = (reading, scroller) =>
+  sameScroller(reading, scroller) && reading.width === scroller.clientWidth;
 function scrollerIdentity(scroller) {
   if (scroller === pageScroller) return "$page";
   return readingRegions().find(({ body }) => body === scroller)?.id;
@@ -388,26 +518,21 @@ function scrollerIdentity(scroller) {
 export function restorePlace(view, region = null, currentIntent = retainUserIntent()) {
   if (!view || !currentIntent()) return;
   const box = region ? effectiveScroller(region) : pageScroller;
+  const body = region?.body ?? pageDocument();
   const destination = focusedPlace(view);
-  const standing =
-    destination && under(destination, region?.body ?? pageDocument())
-      ? destination
-      : null;
+  const standing = destination && under(destination, body) ? destination : null;
   // Within one scroller, live focus is the reading place. Across a handover,
   // first preserve the passage's reading band, then keep that focus reachable.
-  if (!standing || !rawOffsetFits(view, box)) {
+  if (!standing || !sameScroller(view, box)) {
     if (view.end) {
       scrollToEnd(box);
     } else {
       const boxTop = landingBand(box).top;
-      const segments = targetSegments(view.quote && resolveAnchor(view));
       // Restoration keeps the reader's disclosures and chosen views: a landmark
       // the user has since concealed supplies no geometry, and nothing reopens
       // it. Explicit navigation reveals a destination before restoring a place.
-      if (
-        segments.length &&
-        segments.every(({ node }) => drawsLandmark(renderedParent(node)))
-      ) {
+      const segments = drawnQuote(view);
+      if (segments.length) {
         moveScrollerBy(
           box,
           rangeOf(segments).getBoundingClientRect().top - boxTop - view.quoteTop,
@@ -419,7 +544,7 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
         const section = found && drawsLandmark(found) ? found : null;
         if (section) {
           // A section containing the scroller cannot align its contents by its
-          // outer rectangle. Keep the old offset only in the same scrollport.
+          // outer rectangle. Keep the old offset only where it still fits.
           if (under(box, section))
             box.scrollTo({
               top: rawOffsetFits(view, box) ? view.y : 0,

@@ -2229,6 +2229,14 @@ def fills_the_window(page, block, fills):
     )
 
 
+# An async page expression for the top of the page scroller's landing band, below the
+# banner and anything else covering its top edge: where a reading place is measured from.
+LANDING_TOP = (
+    "(await window.__lfRuntimeImport('/runtime/geometry.js'))"
+    ".landingBand(document.scrollingElement).top"
+)
+
+
 def resized(page, width, height):
     """Resize and wait for the page's listeners and rendering update.
 

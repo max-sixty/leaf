@@ -1665,7 +1665,13 @@ def test_plain_check_reports_page_request_failures_but_ignores_optional_assets(
             return page
 
     failed = run_page_code(RoutedBrowser(fail_helper=True), url)
-    assert any("page failed to start" in report for report in failed), failed
+    # The runtime's own report carries the error's stack; the check's refusal quotes
+    # only the reason the page shows.
+    assert any(
+        report.startswith("page failed to start:") and "TypeError" in report
+        for report in failed
+    ), failed
+    assert any(report.startswith("the runtime could not start:") for report in failed)
     assert any(
         "Browser request failed (Script, net::ERR_FAILED)" in report
         and f"in {url}:" in report

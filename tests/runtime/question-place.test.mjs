@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { questionPlace } from "/runtime/questions/place.js";
+import { asksIn, questionPlace } from "/runtime/questions/place.js";
 import { questionHolding } from "/runtime/standing-target.js";
 
 test("shared context keeps placement and containment specific to each Question", () => {
@@ -26,6 +26,37 @@ test("shared context keeps placement and containment specific to each Question",
       assert.equal(questionHolding(questions, place.source.firstElementChild), record);
     }
     assert.equal(questionHolding(questions, document.getElementById("context")), null);
+  } finally {
+    document.body.replaceChildren();
+  }
+});
+
+test("a region holds the live widget asks whose source is it or stands under it", () => {
+  document.body.innerHTML =
+    '<section id="queue"><div id="item"><div id="first"></div><div id="gone"></div></div></section><div id="outside"></div>';
+  const ask = (id, status = "open", kind = "widget") => ({
+    id: `${kind}:${id}`,
+    thread: null,
+    message: null,
+    status,
+    source: { kind, id },
+    prompt: { target: id },
+  });
+  const asks = [
+    ask("first"),
+    ask("gone", "withdrawn"),
+    ask("outside", "answered"),
+    ask("missing"),
+    ask("item", "answered"),
+    ask("first", "open", "reply"),
+  ];
+  const ids = (region) =>
+    asksIn(document.getElementById(region), asks).map((held) => held.id);
+  try {
+    assert.deepEqual(ids("queue"), ["widget:first", "widget:item"]);
+    assert.deepEqual(ids("item"), ["widget:first", "widget:item"]);
+    assert.deepEqual(ids("first"), ["widget:first"]);
+    assert.deepEqual(ids("outside"), ["widget:outside"]);
   } finally {
     document.body.replaceChildren();
   }

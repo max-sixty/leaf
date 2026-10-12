@@ -12,6 +12,7 @@
       <header>
         <h1>Which alerts should still page?</h1>
         <p id="ar-legend">
+          <lf-tally id="ar-left" for="ar-queue" next></lf-tally>
           <span class="tag warn">7 mostly noise</span>
           <span class="tag">2 wrong owner</span>
           <span class="tag danger">5 caught incidents</span>
@@ -532,9 +533,9 @@
       </lf-tabs>
       <footer>
         <p id="ar-next">
-          Payments paged 158 times in week 38; 17 needed a person.
-          <strong>Nine decisions open</strong>, in any order; I'll change every rule in
-          one pull request against <code>alerts/payments.yaml</code>.
+          Payments paged 158 times in week 38; 17 needed a person. Decide in any order;
+          I'll change every rule in one pull request against
+          <code>alerts/payments.yaml</code>.
         </p>
       </footer>
     </main>

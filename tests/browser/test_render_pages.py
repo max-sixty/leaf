@@ -2877,6 +2877,167 @@ def test_a_sidebar_pages_track_is_its_aside_in_the_order_it_is_written(browser, 
         assert (track_box["top"] < body_box["top"]) is first
 
 
+def test_a_sidebar_pages_track_stays_in_view_only_beside_the_body(browser, serve):
+    """Beside the body, the one block a track holds stays in view below the banner as the
+    body scrolls, scrolls what it holds so its end is reachable, and is the reading
+    region its words scroll in; it never reaches over a footer. That holds whatever
+    shares the page gives the track. Stacked, whether the window is narrow, the body's
+    content needs the page's width or the track's needs more than its share, it scrolls
+    with the page rather than standing over the body, however the window reached that
+    width; so does a track beside a second track rather than the body, and a track of
+    several blocks."""
+    body = "<div id='body'>" + "<p>Body paragraph. " * 600 + "</p></div>"
+    block = (
+        "<div id='block'><p id='follow-up'>Follow-up to check.</p>"
+        + "<p>Follow-up to check.</p>" * 60
+        + "</div>"
+    )
+    wide = "<div style='min-width: 1300px'>A block 1300px wide.</div>"
+    footer = "<footer id='foot'><p>Reviewed by the platform team.</p></footer>"
+    read = """async () => {
+      const box = (id) => document.getElementById(id)?.getBoundingClientRect();
+      const { scrollerFor } = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+      return { top: box('block').top, bottom: box('block').bottom,
+               foot: box('foot')?.top ?? Infinity, innerHeight,
+               position: getComputedStyle(document.getElementById('block')).position,
+               banner: document.querySelector('.lf-banner').getBoundingClientRect().bottom,
+               scroller: scrollerFor(document.getElementById('follow-up'))?.id ?? null };
+    }"""
+    in_track = block.replace(
+        "<p ", "<div style='min-width: 650px'>A block 650px wide.</div><p ", 1
+    )
+    cases = (
+        # (the page's CSS, the track, the body's lead, after the body, widths, sticks)
+        ("", block, "", footer, (900,), True),
+        ("", block, "", "", (1440, 900), True),
+        ("#track { flex-basis: 44rem }", block, "", "", (2560,), True),
+        ("", block, "", "", (390,), False),
+        ("", block, wide, "", (1440,), False),
+        ("#track { max-width: 400px }", block, wide, "", (900,), False),
+        ("", in_track, "", "", (900,), False),
+        ("", in_track, "", "", (1440, 900), False),
+        ("", block + "</aside><aside><p>Owners.</p>", "", "", (900,), False),
+        ("", block + "<p>Owners.</p>", "", "", (900,), False),
+        (
+            "#body { flex: 0 0 400px } #track { flex: 0 0 420px; margin-inline-start: auto }",
+            block,
+            "",
+            "",
+            (900,),
+            False,
+        ),
+        (
+            (
+                "#body { flex: 0 0 400px } #track { flex: 0 0 420px;"
+                " margin-inline-start: auto; margin-block-start: -100px }"
+            ),
+            block,
+            "",
+            "",
+            (900,),
+            False,
+        ),
+        ("#body { margin-block-start: 200px }", block, "", "", (900,), True),
+        (
+            "main { height: 20000px } #body { align-self: flex-end }",
+            block,
+            "",
+            "",
+            (900,),
+            True,
+        ),
+        (
+            (
+                "#body { display: contents } #body > p { display: none }"
+                " #body > p:first-child { display: block; flex: 2 1 30rem;"
+                " min-height: 4000px }"
+            ),
+            block,
+            "",
+            "",
+            (900,),
+            True,
+        ),
+        (
+            "#body { position: absolute; left: 400px; top: 0; width: 350px }",
+            block,
+            "",
+            "",
+            (900,),
+            False,
+        ),
+    )
+    for css, track, lead, after, widths, sticks in cases:
+        source = leaf_page(
+            "a sidebar page",
+            "<header><h1>Review</h1></header><aside id='track'>"
+            + track
+            + "</aside>"
+            + body.replace("<p>", lead + "<p>", 1)
+            + after,
+            head=f"<style>{css}</style>" if css else "",
+            layout="sidebar",
+        )
+        page = open_page(browser, serve(source))
+        for width in widths:
+            resized(page, width, 600)
+        page.evaluate("scrollTo(0, 1500)")
+        at = page.evaluate(read)
+        case = (css, widths, track[-30:], at)
+        if sticks:
+            assert at["position"] == "sticky", case
+            assert at["banner"] <= at["top"] <= at["banner"] + 40, case
+            assert at["bottom"] <= at["innerHeight"], case
+            assert at["scroller"] == "block", case
+            page.evaluate("scrollTo(0, document.documentElement.scrollHeight)")
+            at = page.evaluate(read)
+            assert at["bottom"] <= at["foot"], case
+        else:
+            assert at["position"] != "sticky", case
+            assert at["top"] < 0, case
+            assert at["scroller"] != "block", case
+
+
+def test_a_revision_keeps_the_readers_place_in_a_sidebar_tracks_block(browser, serve):
+    """A track's block is a reading region named by its own id, or by its track's where it
+    has none, so a neighbour never renames it. A revision that replaces the track keeps
+    the reader where they were in the block: the replacement stands beside the body, so
+    the block scrolls, before the reader's place returns."""
+    paragraphs = "".join(f"<p id='f{n}'>Follow-up {n} to check.</p>" for n in range(60))
+    body = "<div id='body'>" + "<p>Body paragraph. " * 600 + "</p></div>"
+    regions = """async () => (await window.__lfRuntimeImport('/runtime/reading-regions.js'))
+      .readingRegions().map((region) => region.id)"""
+
+    def source(track, block=""):
+        return leaf_page(
+            "a sidebar page",
+            f"<header><h1>Review</h1></header><aside id='{track}'><div{block}>"
+            f"{paragraphs}</div></aside>{body}",
+            layout="sidebar",
+        )
+
+    page = open_page(browser, serve(source("track")))
+    resized(page, 900, 600)
+    expect(page.locator("#track")).to_have_attribute("data-lf-beside", "")
+    assert "lf-region:layout#track" in page.evaluate(regions)
+
+    page = open_page(browser, live_url(serve(source("track", " id='block'"))))
+    resized(page, 900, 600)
+    expect(page.locator("#track")).to_have_attribute("data-lf-beside", "")
+    page.evaluate("scrollTo(0, 1500)")
+    page.locator("#block").evaluate("block => { block.scrollTop = 1000; }")
+    scroll_settled(page)
+    read = "() => document.getElementById('f30').getBoundingClientRect().top"
+    before = page.evaluate(read)
+
+    stamp_page(serve.page_dir, source("new-track", " id='block'"), "rename the track")
+    wait_for_revision(page, 2)
+    expect(page.locator("#new-track")).to_have_attribute("data-lf-beside", "")
+    scroll_settled(page)
+    assert "lf-region:layout#block" in page.evaluate(regions)
+    assert page.evaluate(read) == pytest.approx(before, abs=2)
+
+
 @pytest.mark.parametrize("rail", [True, False])
 def test_authored_residency_runs_without_annotation_geometry(browser, serve, rail):
     """Content residency imports inertly and admits authored residents independently

@@ -18,6 +18,9 @@
   cursor: pointer; }
 /* An element another widget indicates (indication.js, experimental). A contour in the
    accent, drawn outside the box so it covers none of the element's own words; a widget
-   whose parts have a face of their own (lf-code's lines) states its own rule, which
-   outranks this zero-specificity default. */
-:where([data-lf-indicated]) { outline: 2px solid var(--accent); outline-offset: 1px; }
+   whose parts have a face of their own (lf-code's lines) states its own rule.
+   This default shares the widget base layer so those rules can override it;
+   apparatus marks above remain unlayered. */
+@layer lf-base {
+  :where([data-lf-indicated]) { outline: 2px solid var(--accent); outline-offset: 1px; }
+}

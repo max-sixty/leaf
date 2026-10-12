@@ -6,7 +6,11 @@
    Widgets connect their final styled block before requesting the control. On touch,
    entering the source focuses it and hides the overlay, leaving covered words
    available to read and select. Leaving the source restores the copy control.
-   Enter on a document code block moves keyboard focus to its copy control. */
+   Enter on a document code block copies it. That press is a register row projected
+   onto the block beside any scope its owner declares, so the shortcut bar, the command
+   reference and `aria-keyshortcuts` name it; it answers on the block itself, leaving a
+   link inside it its own Enter, and the control stays out of the Tab sequence. Focus need not be on the control, so every copy's result also takes the
+   status line and the live region. */
 import { offer } from "./widget-elements.js";
 import { watchArrivals } from "./arrivals.js";
 import {
@@ -15,14 +19,17 @@ import {
   anchorView,
   refreshAnchorView,
 } from "./css-anchors.js";
-import { focusDestination, onStanding } from "./focus.js";
+import { focusDestination, focused, onStanding } from "./focus.js";
 import { upFrom } from "./shadow.js";
 import { chromeRoot } from "./chrome.js";
 import { claimReachStop, releaseReachStop } from "./reach.js";
+import { commandScope, projectCommandScope } from "./keyboard/scopes.js";
+import { notice } from "./notifications.js";
 
 const controls = new WeakMap();
 const wired = new WeakMap();
-const routes = new WeakMap();
+// The key this module projects its Copy scope under, beside the block's other owners.
+const COPY_SCOPE = Symbol("code copy");
 
 // Focus can reveal and scroll a source before the observer's next task. Its keyboard
 // route must see the control in that same gesture, widgets included.
@@ -42,6 +49,8 @@ function prepareCodeBlock(pre, source) {
     copy.errorLabel = "Unable to copy code";
     copy.tooltip = "none";
     copy.addEventListener("click", () => (copy.value = source()), { capture: true });
+    copy.addEventListener("wa-copy", () => notice(copy.successLabel));
+    copy.addEventListener("wa-error", () => notice(copy.errorLabel));
     pre.addEventListener("pointerdown", (event) => {
       if (event.pointerType === "touch" && copy.isConnected)
         focusDestination(pre, "move");
@@ -84,13 +93,7 @@ export function watchCodeBlocks() {
         // still positions this control at its source when it lives in chrome.
         if (copy.parentNode !== chromeRoot) chromeRoot.append(copy);
         copy.tabIndex = -1;
-        let route = routes.get(pre);
-        if (!route) routes.set(pre, (route = { keys: false }));
         claimReachStop(pre);
-        if (!pre.hasAttribute("aria-keyshortcuts")) {
-          pre.setAttribute("aria-keyshortcuts", "Enter");
-          route.keys = true;
-        }
         if (!wired.has(pre)) {
           const events = new AbortController();
           wired.set(pre, events);
@@ -104,23 +107,22 @@ export function watchCodeBlocks() {
             },
             options,
           );
-          pre.addEventListener(
-            "keydown",
-            (event) => {
-              if (
-                event.target !== pre ||
-                event.key !== "Enter" ||
-                event.altKey ||
-                event.ctrlKey ||
-                event.metaKey
-              )
-                return;
-              event.preventDefault();
-              refreshAnchorView(copy);
-              const button = copy.shadowRoot?.querySelector("button");
-              if (button) focusDestination(button, "move");
-            },
-            options,
+          projectCommandScope(
+            pre,
+            COPY_SCOPE,
+            commandScope(
+              "On a code block",
+              [
+                {
+                  id: "code.copy",
+                  keys: ["Enter"],
+                  description: "Copy this block's code to the clipboard",
+                  title: "copy code",
+                  run: () => copy.shadowRoot.querySelector("button").click(),
+                },
+              ],
+              { at: () => focused() === pre },
+            ),
           );
           pre.addEventListener(
             "pointerenter",
@@ -152,11 +154,8 @@ export function watchCodeBlocks() {
       if (copy?.matches(".lf-code-copy-hover, .lf-code-copy-focused"))
         copy.classList.remove("lf-code-copy-hover", "lf-code-copy-focused");
       copy?.remove();
-      const route = routes.get(pre);
       releaseReachStop(pre);
-      if (route?.keys && pre.getAttribute("aria-keyshortcuts") === "Enter")
-        pre.removeAttribute("aria-keyshortcuts");
-      routes.delete(pre);
+      projectCommandScope(pre, COPY_SCOPE, null);
     },
   });
 }

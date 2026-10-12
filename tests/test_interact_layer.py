@@ -263,7 +263,7 @@ def test_a_page_another_leaf_vendored_at_this_protocol_takes_its_writes(
     """A Leaf update leaves an open page working. Another Leaf's runtime and serving
     code, and an older kernel vocabulary lacking fields this Leaf writes, in every
     registry the page and its revisions captured, still take a reply: the kernel's
-    records are the running Leaf's own (`layer.PROTOCOL`)."""
+    records are the running Leaf's own (`registry.kernel`)."""
 
     def older_leaf(page):
         captured = page.glob("revisions/*/resources/registry.json")

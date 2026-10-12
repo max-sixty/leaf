@@ -3,7 +3,7 @@
 Loaded as a pytest plugin (`-p leaf_dev.suite_profile`, as CI's `test` job loads it),
 it gives every test one junit property, `profile`: JSON holding the seconds each
 phase took (`setup`, `call`, `teardown`), under `cpu` the CPU seconds the worker and
-its process tree used meanwhile, and, under `playwright`, the seconds and
+every process it started used meanwhile, and, under `playwright`, the seconds and
 calls the test spent in Playwright's sync API, keyed `"<method> from <caller>"`, the
 caller being the first frame outside Playwright. That sync API runs its event loop in
 a second greenlet and switches to it for every call, so a sampling profiler, which
@@ -12,13 +12,16 @@ the waiting test off the stack. Timing each call where the test makes it keeps t
 attribution. A call made from a handler's greenlet overlaps the main greenlet's wait
 and is not counted.
 
-`cpu` is the measure `tests/AGENTS.md` costs the suite in. A worker's process tree holds
-its browsers, their driver, and the servers and commands its tests start, so it covers
-the browser work no Python stack shows. A process that leaves the tree is not counted
-after it leaves: one whose parent exits, as a server `leaf server start` detaches or a
-closed browser's renderers, is reparented outside it, and its CPU appears only in
-`sa`'s table of the whole machine. `cpu_used` keeps such a departure from taking back
-what earlier tests counted.
+`cpu` is the measure `tests/AGENTS.md` costs the suite in: the CPU seconds the kernel
+charged the worker's cgroup during the test. CI's `test` job delegates a cgroup to the
+suite in `SUITE_PROFILE_CGROUP`, and each worker moves into one of its own there before
+its first test, so the browsers, driver, servers and commands it starts are charged to
+it, including a process that outlives its parent, as a server `leaf server start`
+detaches or a closed browser's renderers do. A process serving several tests, such as
+a pooled browser, charges each for what it does during it. Without `SUITE_PROFILE_CGROUP`, as on macOS, which
+has no cgroups, tests carry no `cpu` and the report ranks by worker time. Summing a
+worker's process tree instead lost or recounted a process's CPU whenever it exited,
+since only a parent that reaps a child takes over its CPU.
 
 `leaf-dev suite-profile DIR` reads one run's results from DIR and prints where its
 CPU and worker time went: the junit report's phases, CPU, files and Playwright calls; py-spy's
@@ -33,7 +36,6 @@ summary.
 import json
 import os
 import re
-import resource
 import statistics
 import sys
 import time
@@ -42,7 +44,6 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 import click
-import psutil
 import pytest
 
 from leaf_dev import ROOT
@@ -109,82 +110,34 @@ def _caller():
     return f"{place}:{frame.f_code.co_qualname}"
 
 
-# A process in a worker's tree: (pid, start time), so a reused pid is another process.
-type Key = tuple[int, float]
-# Each process's parent, if in the tree, and its own and its reaped children's CPU.
-type Snapshot = dict[Key, tuple[Key | None, float, float]]
-_cpu = pytest.StashKey[Snapshot]()
+# This worker's cgroup, made on its first test under the one CI delegates in
+# `SUITE_PROFILE_CGROUP`.
+_cgroup: Path | None = None
+_cpu = pytest.StashKey[float | None]()
 
 
-def tree_snapshot() -> Snapshot:
-    """This process and its live descendants, each with its own CPU seconds so far and
-    those of the children it has reaped. This process's come from `getrusage`, since
-    psutil reports no reaped children's time on macOS; a descendant's reaped children
-    are known only where psutil reports them, on Linux."""
-    me = psutil.Process()
-    own = resource.getrusage(resource.RUSAGE_SELF)
-    reaped = resource.getrusage(resource.RUSAGE_CHILDREN)
-    keys = {me.pid: (me.pid, me.create_time())}
-    readings = []
-    for process in me.children(recursive=True):
-        try:
-            with process.oneshot():
-                key, parent, times = (
-                    (process.pid, process.create_time()),
-                    process.ppid(),
-                    process.cpu_times(),
-                )
-        except psutil.NoSuchProcess:  # exited between listing and reading
-            continue
-        keys[process.pid] = key
-        readings.append(
-            (
-                key,
-                parent,
-                times.user + times.system,
-                times.children_user + times.children_system,
-            )
-        )
-    snapshot = {
-        keys[me.pid]: (
-            None,
-            own.ru_utime + own.ru_stime,
-            reaped.ru_utime + reaped.ru_stime,
-        )
-    }
-    for key, parent, own_cpu, reaped_cpu in readings:
-        snapshot[key] = (keys.get(parent), own_cpu, reaped_cpu)
-    return snapshot
-
-
-def cpu_used(start: Snapshot, end: Snapshot) -> float:
-    """CPU seconds the tree used between two snapshots. A process that exits takes its
-    CPU out of the live sum, and the CPU reaches the reaped total of whichever process
-    reaps it, which outside this tree or on macOS is none: a closed browser's renderers,
-    orphaned when the browser exits first, would otherwise take back all the CPU earlier
-    tests counted for them. So each survivor's reaped total counts only what it gained
-    beyond the CPU already counted for the processes that exited beneath it, and never
-    less than nothing; a process that exits uncounted loses only what it used since
-    `start`."""
-    counted = Counter()
-    for key, (parent, own, reaped) in start.items():
-        if key in end:
-            continue
-        while parent in start and parent not in end:
-            parent = start[parent][0]
-        counted[parent] += own + reaped
-    total = 0.0
-    for key, (_, own, reaped) in end.items():
-        _, own_before, reaped_before = start.get(key, (None, 0.0, 0.0))
-        total += own - own_before + max(0.0, reaped - reaped_before - counted[key])
-    return total
+def worker_cpu() -> float | None:
+    """CPU seconds this worker's cgroup has used, or None without
+    `SUITE_PROFILE_CGROUP`. The first call makes the cgroup and moves the worker into
+    it, so every process the worker starts after that is charged to it."""
+    global _cgroup
+    if (parent := os.environ.get("SUITE_PROFILE_CGROUP")) is None:
+        return None
+    if _cgroup is None:
+        _cgroup = Path(parent) / str(os.getpid())
+        _cgroup.mkdir()
+        (_cgroup / "cgroup.procs").write_text(str(os.getpid()))
+    stat = dict(
+        line.split() for line in (_cgroup / "cpu.stat").read_text().splitlines()
+    )
+    return int(stat["usage_usec"]) / 1e6
 
 
 @pytest.hookimpl(wrapper=True)
 def pytest_runtest_protocol(item):
     global _calls
     _calls = {}
-    item.stash[_cpu] = tree_snapshot()
+    item.stash[_cpu] = worker_cpu()
     try:
         return (yield)
     finally:
@@ -201,10 +154,10 @@ def pytest_runtest_makereport(item, call):
             key: [round(seconds, 3), calls]
             for key, (seconds, calls) in sorted((_calls or {}).items())
         }
-        cpu = round(cpu_used(item.stash[_cpu], tree_snapshot()), 3)
-        report.user_properties.append(
-            ("profile", json.dumps({**phases, "cpu": cpu, "playwright": playwright}))
-        )
+        profile = {**phases, "playwright": playwright}
+        if (start := item.stash[_cpu]) is not None:
+            profile["cpu"] = round(worker_cpu() - start, 3)
+        report.user_properties.append(("profile", json.dumps(profile)))
     return report
 
 
@@ -260,7 +213,7 @@ def report_cases(cases: list[dict], top: int) -> None:
     profiled = [c["profile"] for c in cases if c["profile"]]
     phases = {p: sum(prof.get(p, 0) for prof in profiled) for p in PHASES}
     waits = sum(s for prof in profiled for s, _ in prof["playwright"].values())
-    # A run from before tests recorded their CPU ranks by worker time instead.
+    # A run whose tests carry no CPU, without a cgroup, ranks by worker time instead.
     timed = bool(profiled) and all("cpu" in prof for prof in profiled)
     cpu = sum(prof["cpu"] for prof in profiled) if timed else None
     section(

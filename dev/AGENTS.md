@@ -52,7 +52,7 @@ reaches a module by importing it from this package, never through `sys.path`,
 - `suite.py` runs a selection of the suite in a checkout and reads each test's
   outcome from pytest's junit report, refusing a selection pytest would not run.
 - `suite_profile.py` is the pytest plugin that gives each test a junit `profile`
-  property, its phases, its worker's process-tree CPU, and its time in Playwright's
+  property, its phases, the CPU its worker's cgroup used, and its time in Playwright's
   sync API by method and caller, and `leaf-dev suite-profile DIR` reads that report,
   with the py-spy stacks and process CPU CI records beside it, into where a run's CPU
   and worker time went.

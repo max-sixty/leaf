@@ -128,6 +128,13 @@ jobs:
         # meanwhile: a pull request builds the website beside it.
         run: |
           mkdir -p .tmp/test-results
+          # Each worker charges its tests' CPU to a cgroup of its own under this one
+          # (`dev/leaf_dev/suite_profile.py`). Owning it lets the workers make and join
+          # theirs without root, and this shell joins it so pytest starts inside.
+          export SUITE_PROFILE_CGROUP=/sys/fs/cgroup/leaf-suite
+          sudo mkdir "$SUITE_PROFILE_CGROUP"
+          sudo chown -R "$(id -u)" "$SUITE_PROFILE_CGROUP"
+          echo $$ | sudo tee "$SUITE_PROFILE_CGROUP/cgroup.procs" >/dev/null
           accounting=${{ github.event_name != 'pull_request' }}
           if $accounting; then
             sudo touch /var/log/account/suite
@@ -143,6 +150,7 @@ jobs:
             --function --rate "$PY_SPY_RATE" --format raw --output .tmp/test-results/stacks.txt &
           profiler=$!
           wait "$tests" && status=0 || status=$?
+          grep -H usage_usec "$SUITE_PROFILE_CGROUP"/cpu.stat "$SUITE_PROFILE_CGROUP"/*/cpu.stat  # TEMP: validation
           # A profile that failed fails the job, keeping pytest's own failure status.
           wait "$profiler" && profiled=0 || profiled=$?
           if [ "$profiled" -ne 0 ]; then

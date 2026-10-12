@@ -118,7 +118,7 @@ import { createAuxiliarySurfaces } from "./runtime/auxiliary-surfaces.js";
 import { restoreUserView } from "./runtime/restore-state.js";
 import { watchProjection } from "./runtime/projection-watch.js";
 import { createVersionController } from "./runtime/version.js";
-import { versionMenu, versionMenuIsOpen } from "./runtime/version-picker.js";
+import { versionMenu } from "./runtime/version-picker.js";
 import {
   banner,
   isSignoffDeclared,
@@ -479,9 +479,6 @@ app = mountApplication({
     designModeActive: designMode.active,
     pointerModeActive: () =>
       designMode.active() || drawing.drawModeActive() || regionCapture.active(),
-    comparisonBase: version.comparisonBase,
-    inlineComparison: version.inlineComparison,
-    toggleInlineComparison: version.toggleInlineComparison,
     leavePageMap: (...args) => pageMapDialog.leavePageMap(...args),
     openPageMap: (...args) => pageMapDialog.openPageMap(...args),
     pageMapDialogContains: (...args) => pageMapDialog.pageMapDialogContains(...args),
@@ -495,7 +492,6 @@ app = mountApplication({
     notifyDataSubscribers,
     isSignoffDeclared,
     renderStatus,
-    renderVersions: version.renderVersions,
     stateSignoff: (next) => stateSignoff(next, layout.syncLayout, paintVersionApproval),
     renderOthers: offlineInteractive ? () => undefined : renderOthers,
   },
@@ -633,8 +629,6 @@ responseSurface = createResponseSurface({
   reactionTokens,
   setReact: (...args) => reactions.setReact(...args),
   collapseShortcutBar: (...args) => collapseShortcutBar(...args),
-  closeVersionMenu: version.closeVersionMenu,
-  versionMenuIsOpen,
   openPageThread: app.threadDestinations.openPageThread,
   drawModeActive: () => drawing.drawModeActive(),
   refreshThread: app.refreshThread,

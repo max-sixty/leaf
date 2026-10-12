@@ -103,16 +103,18 @@ variants:
           exact wording, synthetic event IDs, or a particular choice widget.
   # Control for prose-review-handoff: chat answers settle decisions without
   # reopening them or moving authorized agent work onto the user. At 87976febb,
-  # unchanged shipped instructions passed 2/2 on Codex.
+  # unchanged shipped instructions passed 2/2 on Codex. With its queue rows as
+  # prose Questions, 27484affb passed 3/3 on Claude Code.
   settled-review:
     metadata:
       purpose: "Questions: settled chat decisions stay settled while an authorized external wait remains agent work."
     vars:
       prompt: |
         You drive a live Leaf prose review at ~/.local/state/leaf/pages/prose-audit.
-        The review had two proposal questions, in agent threads: event-log-q and
-        registry-q. I answered in this chat: "Apply the event-log rewrite; keep
-        the original registry wording." Both edits are now applied and checked.
+        The review had two proposal questions, each opening its own agent thread:
+        event-log-q and registry-q. I answered in this chat: "Apply the event-log
+        rewrite; keep the original registry wording." Both edits are now applied
+        and checked.
         The page has no required version approval. I also authorized you to
         finish the CI wait and merge once the checks pass; CI is still running.
         The existing agent to-do ci-work holds that wait.
@@ -120,8 +122,8 @@ variants:
         The latest page state is:
         {"source":{"live":true,"error":null},
          "queues":{"questions":[
-           {"id":"reply:event-log-q","kind":"ask"},
-           {"id":"reply:registry-q","kind":"ask"}],
+           {"id":"reply:event-log-q","kind":"ask","thread":"event-log-q"},
+           {"id":"reply:registry-q","kind":"ask","thread":"registry-q"}],
            "tasks":[{"id":"ci-work","kind":"todo"}]}}
         No work depends on further feedback; comments remain welcome.
 
@@ -132,18 +134,21 @@ variants:
       - type: llm-rubric
         metric: settled-queue
         value: |
-          Pass only if the agent settles both existing thread questions using
-          leaf task end with their ask IDs, acknowledging the chat decisions,
-          and inspects the canonical queues with leaf page state afterward.
+          Pass only if the agent retires both existing prose asks with leaf
+          task end on their ask IDs (reply:event-log-q and reply:registry-q,
+          any outcome), acknowledging the chat decisions, and inspects the
+          canonical queues with leaf page state afterward. A thread reply alone
+          does not retire them.
           It must leave ci-work open on the agent, preserve the authorized CI
           wait, and introduce no user request for approval, permission to merge,
           or confirmation of the chat answers. An optional invitation to comment
           is allowed; it must create no ask or required user action. Fail if it
-          ends ci-work before CI finishes or claims zero Questions means all
+          ends ci-work before CI finishes or claims an empty Questions list means all
           work is complete. Do not require exact wording or invented result IDs.
   # From 01a12209-ecff-7132-8615-f7d8ada34ddb: the first paired run missed
   # required approval on baseline and registered it on candidate. A later pair
-  # passed both arms; the evidence is illustrative, not a failure rate.
+  # passed both arms; the evidence is illustrative, not a failure rate. Graded
+  # only on the derived approval Question, 27484affb passed 2/2 on Claude Code.
   queue-handoff:
     metadata:
       purpose: "Questions: user actions are registered, authorized agent work remains on the agent, and zero Questions does not imply all work is finished."
@@ -168,14 +173,13 @@ variants:
         value: |
           Pass only if the agent registers the phone test as a user request in
           Leaf's Questions and inspects the canonical lists using page state. The
-          required review/approval of v6 must appear in Questions:
-          recognize its automatically derived approval ask, or register an
-          explicit request on a runtime without that capability. A status line or
-          bare prose alone fails. CI stays
-          agent work, with no request for authorization to continue an authorized
-          wait. The optional explorer creates no required request. The handoff does
-          not equate zero Questions with all work done. Do not require exact
-          wording or a particular number of user to-dos.
+          required review/approval of v6 must appear in Questions: recognize
+          its automatically derived approval ask. A status line or bare
+          prose alone fails. CI stays agent work, with no request for
+          authorization to continue an authorized wait. The optional explorer
+          creates no required request. The handoff does not equate zero
+          Questions with all work done. Do not require exact wording or a
+          particular number of user to-dos.
   drafted-report:
     metadata:
       purpose: "Asks: completing an assessment replaces prose requests for decisions with independently answerable Asks."

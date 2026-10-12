@@ -2933,26 +2933,26 @@ def test_linked_images_zoom_and_return_to_the_report(browser, serve, tmp_path, o
     page = open_page(browser, url)
     viewer = page.get_by_role("dialog", name="Image preview")
     if not offline:
-        # Until PhotoSwipe arrives, the opening draws the fitted image where
-        # PhotoSwipe will, here where the viewport's height binds the fit.
+        # Until PhotoSwipe arrives the viewer shows no image, so the image's first
+        # box is PhotoSwipe's, here where the viewport's height binds the fit.
         held = []
         page.route("**/photoswipe.esm.js", lambda route: held.append(route))
         resized(page, 1440, 500)
         page.locator("#screenshot a").click()
-        interim = viewer.locator(".lf-media-viewer-stage > img")
-        expect(interim).to_have_js_property("complete", True)
-        early = interim.bounding_box()
         holding(page, held, 1, "the image tools")
+        expect(viewer.locator("img:visible")).to_have_count(0)
         held.pop().continue_()
         fitted = viewer.locator("img.pswp__img")
         expect(fitted).to_be_visible()
-        assert fitted.bounding_box() == pytest.approx(early, abs=1)
+        stage = viewer.locator(".lf-media-viewer-stage").bounding_box()
+        box = fitted.bounding_box()
+        assert box["y"] >= stage["y"] + 16
+        assert box["y"] + box["height"] <= stage["y"] + stage["height"] - 16 + 1
         page.unroute("**/photoswipe.esm.js")
         page.keyboard.press("Escape")
         expect(viewer).to_be_hidden()
-    # The diagram fills the room it fits in, not the browser's 300x150 stand-in, and
-    # still does once the window grows, even from a room narrower than that stand-in.
-    # It zooms past that fit for a closer look.
+    # The diagram fills the room it fits in, not the browser's 300x150 stand-in, even
+    # a room narrower than that stand-in, and zooms past that fit for a closer look.
     fills = """() => {
       const stage = document.querySelector('.lf-media-viewer-stage');
       const inset = getComputedStyle(stage);
@@ -2968,8 +2968,6 @@ def test_linked_images_zoom_and_return_to_the_report(browser, serve, tmp_path, o
     page.locator("#diagram a").click()
     expect(viewer.locator("img.pswp__img")).to_be_visible()
     assert page.evaluate(fills)
-    resized(page, 1440, 800)
-    page.wait_for_function(fills)
     expect(
         viewer.get_by_role("button", name="Zoom to actual size", exact=True)
     ).to_be_enabled()

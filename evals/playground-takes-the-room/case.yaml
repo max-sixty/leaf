@@ -24,6 +24,11 @@ vars:
     directory. The page directory is not reachable here, so reply with the page's
     HTML and any page module it needs.
 assert:
-- type: regex
+- type: llm-rubric
   metric: playground-takes-the-room
-  value: <lf-playground\b[^>]*\bdata-width=["']available["']
+  value: |
+    Pass only if the `lf-playground` itself carries `data-width="available"`, so
+    its side-by-side candidates take the page's room while the Ask's question and
+    premise keep the prose's width. Fail if the room goes to the `lf-ask` or the
+    whole page (such as a wide Layout on `main`) instead of the playground, or if
+    the playground takes no extra room.

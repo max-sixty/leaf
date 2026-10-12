@@ -86,6 +86,7 @@ import {
 } from "./runtime/thread/landing.js";
 import { createThreadPanelKeys } from "./runtime/thread/panel.js";
 import { createPageComment } from "./runtime/thread/page-comment.js";
+import { createFloatingPanel } from "./runtime/floating-panel.js";
 import { standingThreadId } from "./runtime/thread/focus.js";
 import { createThreadListController } from "./runtime/thread/thread-list.js";
 import { createThreadNarrowing } from "./runtime/thread/narrowing.js";
@@ -326,7 +327,7 @@ const designMode = createDesignMode({
     refreshAim: () => pageGeometry.refreshAim(),
     pageShifted: () => pageGeometry.pageShifted(),
   },
-  syncGeneral: () => pageComment.sync(),
+  syncGeneral: () => generalComment.sync(),
   composer: {
     showFab: (...args) => responseSurface.showFab(...args),
     openComposer: (...args) => responseSurface.openComposer(...args),
@@ -592,6 +593,25 @@ pageComment = createPageComment({
   showThread: landing.showThread,
   threadsToggle: toggleBtn,
 });
+// The floating panel stands in for the banner and bottom bar where the user chose it
+// (prepaint.js, `lfChrome`); a choice made later reloads the page.
+const floatingPanel =
+  document.documentElement.lfChrome?.mode === "floating"
+    ? createFloatingPanel({
+        wireInput: inputs.wireInput,
+        threadActions: app.threadActions,
+        registerThreadPresentation: app.registerThreadPresentation,
+        questions: {
+          choicesOf: questions.choicesOf,
+          open: (id) => app.openQuestion(id),
+        },
+        queueActions: app.queueActions,
+        withdraw: app.withdraw,
+      })
+    : null;
+// The page's general comment box: the card under the banner's control, or the floating
+// panel's field.
+const generalComment = floatingPanel?.pageComment ?? pageComment;
 const passageSelection = createPassageSelection({
   restore: anchorTravel.restoreSelection,
 });
@@ -622,7 +642,7 @@ responseSurface = createResponseSurface({
   drawModeActive: () => drawing.drawModeActive(),
   refreshThread: app.refreshThread,
   dismissThreadView: () => app.overlay?.inlineThreadView.dismiss(),
-  pageComment,
+  pageComment: generalComment,
   responseHome: overlaySelected ? chromeRoot : panelFoot,
   revealResponseHome: overlaySelected
     ? null
@@ -861,7 +881,8 @@ if (!offlineInteractive) {
   // resolve updateComplete until connection, and keyboard registration needs that input.
   narrowing.mount();
   await panelKeys.mount();
-  pageComment.mount(chromeForeground);
+  if (floatingPanel) floatingPanel.mount(chromeForeground);
+  else pageComment.mount(chromeForeground);
   responseSurface.mount();
   holdToRead();
   reactions.mount();

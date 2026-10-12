@@ -14,7 +14,7 @@ from leaf.event_log import APPEND_STAMPED, EventRefused, new_event_id
 from leaf.event_meaning import AdmissionReadings, admit_widget_event
 from leaf.events import build_threads, spoken_turns, taken_back, undo_error
 from leaf.files import version_descriptors, version_revisions
-from leaf.layer import incompatible_layer
+from leaf.layer import incompatible_layer, incompatible_revision
 from leaf.page_view import CandidatePageView, PageView
 from leaf.projection import (
     authored_positions,
@@ -459,7 +459,12 @@ def admitting_registry(view, event: dict, events: list) -> dict:
     semantic definition in the event. A sign-off names its version
     instead, and admits under the revision that version stamped. An event naming
     neither takes the newest, which is the document any writer of one is looking
-    at, and a page with no revision yet has the candidate's vocabulary.
+    at, and a page with no revision yet has the candidate's vocabulary. Nothing made
+    against a revision saved at another protocol is admitted
+    (`layer.incompatible_revision`): one the event names, or the newest a widget
+    to-do is opened against (`opens_on_newest`). Any other event is judged by the
+    page's layer alone (`write_refusal`), so the bookkeeping a re-vendored page
+    takes before its source saves again, such as a pickup, still goes through.
 
     Frozen widgets use their containing message's publication, independently of
     the page beside the conversation. A command must name that same revision.
@@ -481,12 +486,31 @@ def admitting_registry(view, event: dict, events: list) -> dict:
             revision = next(
                 logged["revision"] for logged in events if logged["id"] == owner
             )
-    if type(revision) is not int or revision not in set(revisions):
+    named = type(revision) is int and revision in set(revisions)
+    if not named:
         revision = revisions[-1] if revisions else None
     registry = view.registry(revision)
     if registry is None:
         raise EventRefused("the page has no registry.json")
+    if (
+        (named or opens_on_newest(event))
+        and revision is not None
+        and (refusal := incompatible_revision(revision, registry))
+    ):
+        raise EventRefused(refusal)
     return registry
+
+
+def opens_on_newest(event: dict) -> bool:
+    """Whether admission records the event against the page's newest revision,
+    though it names none: a to-do on a widget, which that revision declares. Asked
+    of a command before validation too, so it reads the shape it may not have."""
+    subject = event.get("subject")
+    return (
+        event.get("kind") == "todo"
+        and isinstance(subject, dict)
+        and subject.get("kind") == "widget"
+    )
 
 
 def _revision_error(view, event: dict) -> str | None:
@@ -851,7 +875,7 @@ def admitted_event(view, events: list, event: dict) -> dict:
         raise EventRefused(error)
     if kind in WIDGET_KINDS:
         event = admit_widget_event(view.document(event["revision"]), event, readings)
-    if kind == "todo" and event["subject"]["kind"] == "widget":
+    if opens_on_newest(event):
         # The revision the task was opened against, which the stamp that completes
         # it must come after (`publishing`).
         event = {**event, "revision": view.revisions[-1]}

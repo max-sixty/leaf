@@ -2744,7 +2744,7 @@ def test_open_banner_menu_holds_seats_until_the_next_opening(browser, serve):
         const control = document.createElement('button');
         control.className = `lf-ui lf-btn test-${key}`;
         control.textContent = key;
-        toolbar.registerBannerControl({key, control, rank, conditional:true, offered});
+        toolbar.registerBannerControl({key, control, rank, conditional:true, offered, row: {label: key, group: 'page'}});
       }
     }""")
     more = page.locator(".lf-banner-more")
@@ -2843,6 +2843,7 @@ def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
               key: `test-focus-candidate-${i}`,
               control,
               rank: toolbar.BANNER_CONTROL_RANK.blanket + i + 1,
+              row: { label: control.textContent, group: "page" },
             });
           }
         }"""
@@ -3120,6 +3121,7 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
                   key: `test-touch-secondary-${i}`,
                   control: button,
                   rank: toolbar.BANNER_CONTROL_RANK.blanket + (i + 1) / 10,
+                  row: { label: button.textContent, group: "page" },
                 });
               }
             }"""

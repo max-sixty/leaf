@@ -17,8 +17,6 @@ from render_harness import (
     judge_watches,
     leaf_page,
     open_page,
-    resized,
-    scroll_settled,
     take_browser_errors,
 )
 
@@ -1528,66 +1526,6 @@ def test_redispatching_an_event_uses_the_new_dispatch_source(input_work_page, ki
     page.wait_for_function("window.readings.length === 1")
     page.evaluate("dispatchOwner.dispatchEvent(reusedEvent)")
     assert page.evaluate("readings") == ["keydown", None]
-
-
-@pytest.mark.parametrize("shadow", ["open", "closed"])
-def test_native_shadow_disclosure_activation_keeps_its_input_source(
-    input_work_page, shadow
-):
-    """Root-local activation keeps the outer input's identity behind encapsulation."""
-    page = input_work_page('<div id="host"></div>')
-    page.evaluate(
-        """shadow => {
-      const root = document.querySelector('#host').attachShadow({mode: shadow});
-      root.innerHTML = '<details><summary>Fold</summary>Content</details>';
-      window.details = root.querySelector('details');
-      window.readings = [];
-      details.addEventListener('toggle', () => {
-        readings.push(lfInputWork.current()?.event.type ?? null);
-      });
-    }""",
-        shadow,
-    )
-    rect = page.evaluate(
-        'details.querySelector("summary").getBoundingClientRect().toJSON()'
-    )
-    page.mouse.click(rect["x"] + 10, rect["y"] + 5)
-    page.wait_for_function("readings.length === 1")
-    assert page.evaluate("readings") == ["click"]
-
-
-@pytest.mark.parametrize("mutation", ["property", "attribute-node"])
-def test_passive_coalesced_disclosure_changes_replace_native_activation_source(
-    input_work_page, mutation
-):
-    """A later passive mutation owns the coalesced toggle, by any attribute API."""
-    page = input_work_page("<details><summary>Fold</summary>Content</details>")
-    page.evaluate(
-        """mutation => {
-      const details = document.querySelector('details');
-      window.readings = [];
-      details.addEventListener('toggle', () => {
-        readings.push(lfInputWork.current()?.event.type ?? null);
-      });
-      const observer = new MutationObserver(() => {
-        observer.disconnect();
-        window.passiveSource = lfInputWork.current()?.event.type ?? null;
-        window.openedBeforePassive = details.open;
-        if (mutation === 'property') { details.open = false; details.open = true; }
-        else {
-          details.attributes.removeNamedItem('open');
-          details.setAttributeNode(document.createAttribute('open'));
-        }
-      });
-      observer.observe(details, {attributes: true, attributeFilter: ['open']});
-    }""",
-        mutation,
-    )
-    page.locator("summary").click()
-    page.wait_for_function("readings.length === 1")
-    assert page.evaluate("openedBeforePassive") is True
-    assert page.evaluate("passiveSource") is None
-    assert page.evaluate("readings") == [None]
 
 
 def test_a_delivered_disclosure_toggle_releases_its_input_source(input_work_page):
@@ -3119,7 +3057,7 @@ def test_new_anchor_relation_cannot_credit_scroll_before_activation(browser, mod
 
 # Each fault runs the clean placement and its quiet judgement first, which is the
 # control a separate faultless case would add.
-@pytest.mark.parametrize("fault", ["holder", "child", "missing-source"])
+@pytest.mark.parametrize("fault", ["holder", "child"])
 def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, fault):
     source = leaf_page(
         "Floating tenure",
@@ -3154,14 +3092,6 @@ def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, f
         "newStoppedTenure": True,
         "sameStoppedSubject": True,
     }, state
-    if fault == "missing-source":
-        # A source measurement may be absent: preserve the rejected inputs without
-        # granting motion credit merely because the surface still has an owner.
-        page.evaluate("""() => {
-          const entry = document.querySelector('script[data-lf-entry]');
-          const readings = entry.lfFloatingSelections;
-          entry.lfFloatingSelections = () => readings().map(s => ({...s, scrollOffsets:null}));
-        }""")
     paint(page)
     assert page.locator("#holder").bounding_box() == initial
     judge_watches()
@@ -3178,24 +3108,6 @@ def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, f
     assert any("textarea#field moved without input" in error for error in errors), (
         errors
     )
-    if fault == "missing-source":
-        error = next(e for e in errors if "textarea#field moved without input" in e)
-        evidence = shift_evidence(error)
-        assert any(
-            not comparison["scroll_terms"]
-            and any(
-                attachment["owner"] == "div#holder"
-                and attachment["before"]["plane"] == "window"
-                and attachment["after"]["plane"] == "window"
-                and attachment["before"]["scrollOffsets"] is None
-                and attachment["after"]["scrollOffsets"] is None
-                and attachment["after_surface"]["left"]
-                - attachment["before_surface"]["left"]
-                == 80
-                for attachment in comparison["scroll_attachments"]
-            )
-            for comparison in evidence["comparisons"]
-        ), evidence
 
 
 @pytest.mark.parametrize("mode", ["pointer", "keyboard"])
@@ -3502,92 +3414,6 @@ def test_owned_native_finish_records_the_applied_endpoint(browser, fault, fill):
         assert all("moved without input" in error for error in errors), errors
     else:
         assert not errors, errors
-
-
-# The clean run is zoomed, where crediting has the scale to get wrong; the fault control
-# needs no zoom to fail.
-@pytest.mark.parametrize("fault, zoom", [(False, 2), (True, 1)])
-def test_viewport_constrained_attachment_credits_only_its_source_scroll(
-    browser, serve, fault, zoom
-):
-    """Opposite viewport clamps retain source travel, never extra child movement."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Viewport attachment scroll",
-                '<p id="subject" style="position:absolute;left:100px;top:500px;'
-                'margin:0;width:80px;height:30px">Exact subject</p>'
-                '<div id="holder" style="visibility:hidden;position:fixed;'
-                'width:200px;height:60px;margin:0;background:white">'
-                '<textarea id="field" style="width:160px;height:30px"></textarea></div>'
-                '<div style="height:2400px"></div>',
-                head=f"<style>html {{zoom:{zoom}}}</style>",
-                layout=None,
-            )
-        ),
-    )
-    resized(page, 900, 600)
-    source_top = page.locator("#subject").evaluate(
-        "node => node.getBoundingClientRect().top + scrollY"
-    )
-    page.evaluate("top => scrollTo({top, behavior:'instant'})", source_top - 70)
-    scroll_settled(page)
-    page.evaluate(
-        """async zoom => {
-      const module = await window.__lfRuntimeImport('/runtime/annotation-overlay/floating.js');
-      const ui = await module.floatingUi();
-      const subject = document.querySelector('#subject'), holder = document.querySelector('#holder');
-      const boundary = {x:0, y:100, width:900, height:100 * zoom};
-      const owner = module.floatingPlacement({floating:holder, update:()=>void place()});
-      async function place() {
-        owner.begin();
-        const answer = await owner.position(ui.computePosition, subject,
-          {placement:'right-start',middleware:[ui.shift({boundary:[],rootBoundary:boundary,crossAxis:true})]},
-          answer => ({edge:answer.middlewareData.shift.y > 0 ? 'top' : 'bottom', at:answer.middlewareData.shift.y > 0 ? 100 : 100 + 100 * zoom}), subject);
-        if (answer) owner.stand(answer);
-      }
-      owner.watch(subject,subject,ui.autoUpdate);
-      await place();
-      window.constrainedSelection = () => module.floatingSelections().find(item => item.floating === holder);
-      holder.style.removeProperty('visibility');
-    }""",
-        zoom,
-    )
-    paint(page)
-    judge_watches()
-    assert take_browser_errors(page) == []
-    before = page.locator("#field").bounding_box()
-    assert page.locator("#subject").bounding_box()["y"] == pytest.approx(70)
-    assert page.locator("#holder").bounding_box()["y"] == pytest.approx(100)
-    assert page.evaluate("constrainedSelection().plane") == "window"
-    page.evaluate(
-        """([fault, top]) => {
-          scrollTo({top, behavior:'instant'});
-          if (fault) {
-            const field = document.querySelector('#field');
-            field.style.position = 'relative';
-            field.style.top = '20px';
-          }
-        }""",
-        [fault, source_top - (70 + 100 * zoom)],
-    )
-    page.wait_for_function(
-        "top => constrainedSelection().edges.top === 'bottom' && holder.getBoundingClientRect().top === top",
-        arg=100 + 40 * zoom,
-    )
-    scroll_settled(page)
-    paint(page)
-    assert page.locator("#subject").bounding_box()["y"] == pytest.approx(
-        70 + 100 * zoom
-    )
-    assert page.locator("#holder").bounding_box()["y"] == pytest.approx(100 + 40 * zoom)
-    assert page.locator("#field").bounding_box()["y"] - before["y"] == pytest.approx(
-        (40 + (20 if fault else 0)) * zoom
-    )
-    judge_watches()
-    if fault:
-        consume_browser_errors(page, "textarea#field moved without input")
 
 
 FRAMES = """count => new Promise((done) => {

@@ -41,16 +41,8 @@ const loadPlot = () => (plotReady ??= import("/vendor/plot.esm.js"));
 
 /* The body as a function of Plot and the width, which returns the chart's options. The
  * newline before the closing parenthesis ends a trailing line comment. */
-function compile(source) {
-  try {
-    return new Function("Plot", "width", `"use strict";\nreturn (\n${source}\n);`);
-  } catch (err) {
-    if (!(err instanceof SyntaxError)) throw err;
-    throw new Error(
-      `the body is a JavaScript expression for Plot.plot's options, and it does not parse: ${err.message}`,
-    );
-  }
-}
+const compile = (source) =>
+  new Function("Plot", "width", `"use strict";\nreturn (\n${source}\n);`);
 
 /* The options one drawing is made from, made afresh for each so that no mark Plot has
  * already rendered is handed to it a second time. */
@@ -62,8 +54,6 @@ function drawOptions(body, Plot, width, height) {
     throw new Error(
       "give the options rather than Plot.plot(...): lf-chart calls Plot.plot itself, at the width it has",
     );
-  if (spec === null || typeof spec !== "object" || Array.isArray(spec))
-    throw new Error("the body gives one object: the options Plot.plot takes");
   if (!spec.ariaLabel)
     throw new Error(
       "give Plot an ariaLabel: it is what a user who cannot see the chart hears",

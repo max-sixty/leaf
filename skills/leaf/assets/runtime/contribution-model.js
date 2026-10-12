@@ -140,8 +140,6 @@ const unknownOptions = (offered, allowed, kind) => {
 };
 const freezeRelation = (relation) => {
   if (relation == null) return null;
-  if (typeof relation !== "object")
-    throw new TypeError("A contribution entry relation must be an object");
   if (relation.kind === "entries") {
     const keys = relation.keys?.map(text).filter(Boolean) ?? [];
     if (!keys.length)
@@ -166,8 +164,6 @@ const freezeRelation = (relation) => {
 };
 
 export function contributionEntry(offered) {
-  if (!offered || typeof offered !== "object")
-    throw new TypeError("A contribution entry needs an options object");
   unknownOptions(offered, ENTRY_OPTIONS, "entry");
   const {
     key,
@@ -235,8 +231,6 @@ export function contributionEntry(offered) {
 }
 
 export function normalizeContributionReading(reading, owner) {
-  if (!reading || typeof reading !== "object")
-    throw new TypeError("A contribution must read an object");
   unknownOptions(reading, READING_OPTIONS, "contribution");
   const {
     kind = null,
@@ -254,10 +248,6 @@ export function normalizeContributionReading(reading, owner) {
     );
   if (side !== "before" && side !== "after")
     throw new TypeError(`Unknown contribution side: ${side}`);
-  if (!Array.isArray(entries))
-    throw new TypeError("A contribution's entries must be an array");
-  if (!Array.isArray(readings))
-    throw new TypeError("A contribution's readings must be an array");
   const keys = new Set();
   const normalizedEntries = entries.map((entry) => {
     const normalized = entryRecords.has(entry) ? entry : contributionEntry(entry);

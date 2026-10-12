@@ -28,6 +28,7 @@ import {
   closeLayer,
   showNativeLayer,
   closeNativeLayer,
+  isNativeLayer,
   handBack,
 } from "/runtime/widget-api.js";
 
@@ -81,13 +82,15 @@ export default class extends HTMLElement {
   #mount() {
     // Removal ends native modality even when a retained widget reconnects before
     // its host is retired. Reconcile the presentation with that platform state.
-    if (this.#view?.getAttribute("role") === "dialog" && !this.#view.matches(":modal"))
+    if (this.#view?.getAttribute("role") === "dialog" && !isNativeLayer(this.#view))
       this.#embed();
     if (!this.#frame || this.#host || this.#mounting) return;
     this.#mounting = true;
     const ready = mountSample(this.#frame, {
       template: this.#template.id,
-      window: this.hasAttribute("window") || this.#view.matches(":modal"),
+      window: this.hasAttribute("window") || isNativeLayer(this.#view),
+      // The child reads with the chrome its element names, else with the reader's own.
+      chrome: this.getAttribute("chrome") ?? document.documentElement.lfChrome?.mode,
     }).then(
       async (host) => {
         this.#mounting = false;
@@ -143,7 +146,7 @@ export default class extends HTMLElement {
     this.#frame.className = "lf-sample-frame";
     this.#frame.title = this.getAttribute("label") || "Leaf sample";
     this.#frame.addEventListener("lf-sample-return", () => {
-      if (this.#view.matches(":modal")) this.#return();
+      if (isNativeLayer(this.#view)) this.#return();
       else focusDestination(this, "return");
     });
 
@@ -170,7 +173,7 @@ export default class extends HTMLElement {
     this.#status.setAttribute("role", "status");
     this.#full = offer("button", "lf-btn", "Full view");
     this.#full.addEventListener("click", () => {
-      if (this.#view.matches(":modal")) this.#return();
+      if (isNativeLayer(this.#view)) this.#return();
       else {
         // The frame never moves in the DOM: reparenting it destroys its browsing
         // context. Native modality supplies focus containment and parent isolation.
@@ -229,7 +232,7 @@ export default class extends HTMLElement {
   // Full view retains the embedded height while its same frame fills the dialog;
   // returning applies the current block reading without replacing any native editor.
   #height(height, { immediate = false } = {}) {
-    if (this.hasAttribute("window") || this.#view.matches(":modal")) return;
+    if (this.hasAttribute("window") || isNativeLayer(this.#view)) return;
     this.#heightReading = height;
     if (immediate) this.#fit();
     else this.#scheduleFit();
@@ -256,7 +259,7 @@ export default class extends HTMLElement {
     const ready = promise.then(async (reading) => {
       if (this.#ready !== ready) return reading;
       const current = await this.#host.setWindow(
-        this.hasAttribute("window") || this.#view.matches(":modal"),
+        this.hasAttribute("window") || isNativeLayer(this.#view),
       );
       if (this.#ready !== ready) return reading;
       this.#height(current.height, { immediate: true });

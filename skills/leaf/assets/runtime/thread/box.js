@@ -17,7 +17,6 @@ export const threadBox = (el, hint, { createComment, onDraftChanged, wireInput }
     throw new TypeError(
       `<${el.localName}> placed a thread outside its x-thread-seat predicate`,
     );
-  if (!el.id) throw new TypeError(`<${el.localName}> needs an id to own a thread`);
   const box = offer("div", "lf-thread-seat");
   box.dataset.lfRuntime = "";
   box.dataset.lfThreadSeat = el.id;

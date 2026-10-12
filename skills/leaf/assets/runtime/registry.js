@@ -63,8 +63,6 @@ export const recordedWidgetSelector = (scope = document) =>
 // Shared `$` declarations belong to the layer rather than to one widget. Return a copy so
 // a package module can read its cross-widget vocabulary without a registry write path.
 export function layerFact(name) {
-  if (!name?.startsWith("$"))
-    throw new Error(`leaf: layerFact expects a $ declaration, got ${String(name)}`);
   const value = registry[name];
   return value === undefined ? undefined : structuredClone(value);
 }

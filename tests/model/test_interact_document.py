@@ -376,8 +376,7 @@ def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_p
         ('import "/runtime/events.js";', "public layer entry point"),
         ('import "./data.json";', "JavaScript MIME"),
         ('import "./escape.js";', "symlink"),
-        ('import "./data\\u002ejson";', "unescaped string literals"),
-        ("export const = ;", "invalid JavaScript"),
+        ('import "./data\\u002ejson";', "dependency must be a local URL"),
     ]:
         (authored / "app.js").write_text(source)
         refused = revisioning_model.activate_source(page_dir)
@@ -2663,9 +2662,7 @@ diff --git a/src/second file.py b/src/second file.py
         },
     ]
     assert all(
-        file["patch"].startswith("diff --git ")
-        for file in source["value"]["files"]
-        if file["hunkCount"]
+        file["patch"].startswith("diff --git ") for file in source["value"]["files"]
     )
 
 
@@ -2759,9 +2756,13 @@ def test_native_git_file_operations_survive_capture_without_invented_hunks(
     ][0]
     assert opaque["binary"] and "literal " not in opaque["patch"]
     assert opaque["patch"].startswith("diff --git ")
-    assert all(("patch" in file) == (file["hunkCount"] > 0) for file in files.values())
+    assert all(file["patch"].startswith("diff --git ") for file in files.values())
     binary = patch_manifest(git("diff", "--cached", "--binary", "--", "binary.dat"))
-    assert binary["files"] == [files["binary.dat"]]
+    assert [
+        {key: value for key, value in file.items() if key != "patch"}
+        for file in binary["files"]
+    ] == [{key: value for key, value in files["binary.dat"].items() if key != "patch"}]
+    assert "literal " not in binary["files"][0]["patch"]
     empty = patch_manifest(
         git("diff", "--cached", "--no-renames", "--", "added-empty", "deleted-empty")
     )
@@ -2780,25 +2781,17 @@ def test_native_git_file_operations_survive_capture_without_invented_hunks(
         assert read_page_data(page_dir)["sources"]["native-patch"]["value"] == value
 
 
-@pytest.mark.parametrize("escaped", [r"bad\x41.py", r"bad\400.py", r"bad\q.py"])
-def test_unified_diff_rejects_c_escapes_git_does_not_use(escaped):
-    patch = f"""diff --git "a/{escaped}" "b/{escaped}"
---- "a/{escaped}"
-+++ "b/{escaped}"
+@pytest.mark.parametrize(
+    "patch_text",
+    [
+        """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
 @@ -1 +1 @@
 -old
-+new
-"""
-
-    with pytest.raises(ValueError, match="invalid quoted Git path"):
-        patch_manifest(patch)
-
-
-@pytest.mark.parametrize(
-    ("patch_text", "message"),
-    [
-        (
-            """diff --git a/old.py b/new.py
++GIT binary patch
+""",
+        """diff --git a/old.py b/new.py
 similarity index 100%
 rename from old.py
 rename to new.py
@@ -2807,10 +2800,7 @@ rename to new.py
 -before
 +after
 """,
-            "unexpected metadata",
-        ),
-        (
-            """diff --git a/app.py b/app.py
+        """diff --git a/app.py b/app.py
 --- a/app.py
 +++ b/app.py
 @@ -1 +1 @@
@@ -2818,38 +2808,26 @@ rename to new.py
 +after
 +lost
 """,
-            "hunk line counts",
-        ),
-        (
-            """diff --git a/app.py b/app.py
+        """diff --git a/app.py b/app.py
 @@ -1 +1 @@
 --- bogus-old
 +++ bogus-new
 """,
-            "no ---/+++ file-header pair before its first hunk",
-        ),
-        (
-            """diff --git a/app.py b/app.py
+        """diff --git a/app.py b/app.py
 --- a/other.py
 +++ b/other.py
 @@ -1 +1 @@
 -before
 +after
 """,
-            "invalid unified diff",
-        ),
-        (
-            """diff --git a/new.py b/new.py
+        """diff --git a/new.py b/new.py
 new file mode 100644
 --- /dev/null
 +++ b/new.py
 @@ -0,0 +3 @@
 +partial
 """,
-            "must capture its complete file",
-        ),
-        (
-            """diff --git a/app.py b/app.py
+        """diff --git a/app.py b/app.py
 --- a/app.py
 +++ b/app.py
 @@ -1 +1 @@
@@ -2862,13 +2840,11 @@ diff --git a/app.py b/app.py
 -before
 +after
 """,
-            "repeats file path",
-        ),
     ],
 )
-def test_the_diff_script_refuses_evidence_the_widget_cannot_render(patch_text, message):
-    with pytest.raises(ValueError, match=re.escape(message)):
-        patch_manifest(patch_text)
+def test_the_diff_script_preserves_evidence_for_the_widget_to_judge(patch_text):
+    manifest = patch_manifest(patch_text)
+    assert "".join(file["patch"] for file in manifest["files"]) == patch_text
 
 
 DIFF_PATCH_CASES = json.loads(
@@ -2878,25 +2854,17 @@ DIFF_PATCH_CASES = json.loads(
 
 @pytest.mark.parametrize(
     "case",
-    [case for case in DIFF_PATCH_CASES if "files" in case or "manifest" in case],
+    [case for case in DIFF_PATCH_CASES if "files" in case],
     ids=lambda case: case["id"],
 )
 def test_the_manifest_reads_the_diff_patch_table(case):
-    """What lf-diff can present has two readers in two languages: the widget parses a
+    """A patch lf-diff accepts has two readers in two languages: the widget parses a
     patch text in the browser, and `patch_manifest.py` builds the file manifest from a
-    Git patch. `diff_patch_cases.json` is the one statement of that rule both are held
-    to; `test_render_anchors.py` reads it for the widget.
-
-    A row with `files` is a Git patch both readers accept, naming those paths. A row
-    with a `manifest` message is one the contract excludes, which the manifest refuses
-    before it is stored. A row with only a `widget` message is malformed, and the
-    manifest's reading of it is left unpinned: the widget refuses what it stores."""
-    if "files" in case:
-        files = patch_manifest(case["patch"])["files"]
-        assert [file["path"] for file in files] == case["files"]
-    else:
-        with pytest.raises(ValueError, match=re.escape(case["manifest"])):
-            patch_manifest(case["patch"])
+    Git patch. Both read the paths of each `files` row of `diff_patch_cases.json`
+    alike; `test_render_anchors.py` reads it for the widget, which alone refuses the
+    rest."""
+    files = patch_manifest(case["patch"])["files"]
+    assert [file["path"] for file in files] == case["files"]
 
 
 def test_data_set_reads_a_structured_value_from_a_file(page_dir, tmp_path):
@@ -4635,9 +4603,9 @@ def test_revisions_change_decision_words_labels_and_defaults_without_retracting(
 def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir):
     """An action admitted by an earlier Leaf keeps standing, and keeps its Question
     answered, under a Leaf that records the same operation's definition with other
-    fields. Before #2329 the definition carried `update`, the flag that became
-    `report`; matching every recorded field dropped each decision on a page that
-    Leaf version had served."""
+    fields. Before #2329 the definition carried `update`, the verb flag now
+    named `text`; matching every recorded field dropped each decision on a page
+    that Leaf version had served."""
     source = page_dir / "index.html"
     source.write_text(
         PAGE.replace(
@@ -4664,7 +4632,7 @@ def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir)
         event = json.loads(line)
         if event["id"] == picked["id"]:
             recorded = event["meaning"]["state"]
-            recorded["update"] = recorded.pop("report", False)
+            recorded["update"] = False
         earlier.append(json.dumps(event))
     log.write_text("\n".join(earlier) + "\n")
 

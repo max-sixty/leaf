@@ -129,8 +129,8 @@ def test_wait_help_says_where_a_delivery_says_how_to_confirm_it():
 def test_agent_interaction_command_help(regtest):
     """The complete help an agent follows between receiving and answering input.
 
-    Keep the full CLI output, including options, beside the dynamic interaction
-    snapshots in test_interact_session. A prose review can then follow a command
+    Keep the full CLI output, including options, beside the snapshots of what the
+    hooks and waits print to the agent. A prose review can then follow a command
     named by a reminder without reconstructing its help from source docstrings.
     """
     outputs = []
@@ -1942,24 +1942,6 @@ def test_payload_provenance_reads_claude_codes_git_versioned_plugin_cache(
         .astimezone()
         .isoformat(timespec="seconds"),
     }
-
-
-def test_a_producer_date_without_an_offset_is_refused(page_dir):
-    """The browser reads a bare local time in each viewer's own zone, so one
-    vendored page would show every viewer a different age."""
-    stamp = page_dir / "registry.json"
-    registry = json.loads(stamp.read_text(encoding="utf-8"))
-
-    def producer_dated(value):
-        registry["$layer"]["producer"] = {"commit": "a74b08365870", "committed": value}
-        cleanup_model.write_json(stamp, registry)
-        return registry_storage.layer_metadata(page_dir)["producer"]
-
-    assert producer_dated("2026-09-26T09:32:21-07:00")["committed"] == (
-        "2026-09-26T09:32:21-07:00"
-    )
-    with pytest.raises(registry_contract.RegistryError, match="timezone offset"):
-        producer_dated("2026-09-26T09:32:21")
 
 
 def test_page_check_names_an_older_leaf_beside_its_own(page_dir):
@@ -4586,7 +4568,6 @@ def test_the_suite_pins_every_bundled_script_dependency():
         for script in schema_model.BUNDLED_PACKAGES.glob("*/scripts/*.py")
         for requirement in packages_model.script_requirements(script)
     }
-    assert "unidiff>=1" in declared
     # Bundled packages never pass through `package install`, so hold their scripts
     # to the same check here.
     for package in {

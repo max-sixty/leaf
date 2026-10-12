@@ -2,7 +2,7 @@
  * the shared highlight rules. */
 import { vocabularyFor } from "./widget-contexts.js";
 import { registryFor, tagsDeclaring } from "./registry.js";
-import { shadowHost, upFrom, renderedParent } from "./shadow-tree.js";
+import { shadowHost, upFrom, renderedParent, nativeLayerKind } from "./shadow-tree.js";
 export { shadowHost, upFrom, renderedParent };
 
 // The open shadow roots under some root that hold the page's own words, from what the
@@ -43,7 +43,7 @@ export const pageShadowRoots = () => shadowRootsIn(document);
 export function excludedByInert(node) {
   for (let owner = node; owner; owner = renderedParent(owner)) {
     if (owner.inert) return true;
-    if (owner.nodeType === Node.ELEMENT_NODE && owner.matches(":modal")) break;
+    if (nativeLayerKind(owner) === "modal") break;
   }
   return false;
 }

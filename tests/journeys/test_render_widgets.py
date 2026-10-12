@@ -2137,18 +2137,17 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
 
 def test_a_body_the_module_cannot_draw_says_why_over_its_source(browser, serve):
     """The body is the author's, and the author is the only party who can fix it, so a
-    refusal says what is wrong in the author's terms and keeps the source under it: code
-    that does not parse, a chart with no name for a user who cannot see it, a call to
-    something Plot does not export, a value that is not Plot's options, a drawing Plot
-    already made, which is how Plot's own examples end, and a height the page could not
-    have laid out before the chart drew. The author hears the same words as the page's
+    refusal says what is wrong and keeps the source under it: code that does not parse,
+    in the parser's own words, a chart with no name for a user who cannot see it, a call
+    to something Plot does not export, a drawing Plot already made, which is how Plot's
+    own examples end, and a height the page could not have laid out before the chart
+    drew. The author hears the same words as the page's
     `error` event, naming the chart, since the user seeing the box is not the author
     seeing it."""
     said = {
-        "bad-syntax": "does not parse",
+        "bad-syntax": "Unexpected token",
         "bad-label": "ariaLabel",
         "bad-mark": "Plot.barz is not a function",
-        "bad-shape": "the options Plot.plot takes",
         "bad-drawn": "rather than Plot.plot(...)",
         "bad-height": "as data-height on the element",
     }

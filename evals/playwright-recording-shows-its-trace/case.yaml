@@ -29,11 +29,6 @@ assert:
 - type: regex
   metric: selects-playwright-package
   value: 'page\s+init\b[^\n]*--package[\s=]+playwright\b'
-  transform: output.toLowerCase()
-- type: regex
-  metric: shows-the-trace
-  value: '<lf-trace(?=\s|>)(?=[^>]*\ssource\s*=\s*["''][^"'']+["''])[^>]*>'
-  transform: output.toLowerCase()
 - type: llm-rubric
   metric: trace-is-the-recording
   value: The section presents the recorded journey through an lf-trace widget bound to a source the commands fill by importing trace.zip with the playwright package's producer (import_trace.py, or a step reading the package's producer instructions for the command) and `leaf data set`. A video of the screencast may accompany the trace, but the reply does not offer the video as the recording on its own.

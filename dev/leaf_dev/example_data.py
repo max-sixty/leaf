@@ -7,6 +7,8 @@ import sys
 from html.parser import HTMLParser
 from pathlib import Path
 
+from leaf.structure import SourceDocument
+
 from leaf_dev import ROOT
 
 TEST_PAGES = ROOT / "tests" / "fixtures" / "pages"
@@ -64,6 +66,23 @@ def catalog_sources() -> list[Path]:
     return catalog.sources
 
 
+def document_metadata(source: Path) -> tuple[str, str]:
+    """The authored title and description a page's link card and catalog caption show."""
+    parsed = SourceDocument(source.read_text(encoding="utf-8"))
+    title = parsed.title.strip()
+    description = next(
+        (
+            (meta["content"] or "").strip()
+            for meta in parsed.named_metas
+            if meta["name"] == "description"
+        ),
+        "",
+    )
+    if not title or not description:
+        sys.exit(f"{source}: a published page needs a <title> and a description")
+    return title, description
+
+
 # An authored source's companions, named beside it whether or not it has each
 # (examples/AGENTS.md): its seeded history, its data values, and its page-owned files.
 def seed_log(source: Path) -> Path:
@@ -116,11 +135,9 @@ def patch_manifest(patch: str, *, runtime: Path = ROOT) -> dict:
     """The `diff` package's producer script's manifest for one patch.
 
     It runs as a process, reading stdin and writing stdout as an agent's pipeline
-    does, but under this project's interpreter rather than `leaf package run`: the
-    tooling package carries the script's `unidiff` (locked in the checkout), so the
-    fixtures and the suite fetch nothing. The selected runtime owns the producer's
-    bytes and the consumer's contract; a comparison must never seed an older arm with
-    the working tree's producer. A refused patch raises with the script's stderr."""
+    does, but under this project's interpreter rather than `leaf package run`, so the
+    fixtures and the suite fetch nothing. A failed run raises with the script's
+    stderr. The selected runtime owns the producer and consumer contract."""
     produced = subprocess.run(
         [sys.executable, str(runtime / PATCH_MANIFEST)],
         input=patch.encode("utf-8"),

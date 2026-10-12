@@ -3,7 +3,9 @@
     "contracts": {
       "unified-diff": {
         "description": "A unified patch, either as one text value or as a file manifest whose patch fields Leaf delivers separately on demand.",
-        "instructions": {"producer": "Pipe the exact Git patch, with Git's default `a/` and `b/` prefixes, through this package's producer script into the source:\n\n```bash\ngit diff <base>...<head> | leaf package run diff patch_manifest.py | leaf data set \"$PAGE\" <source-id>\n```\n\nThe script records each native file operation, including copies, mode changes, binary changes and empty files. Leaf delivers textual hunks only when their files open."},
+        "instructions": {
+          "producer": "Pipe the exact Git patch, with Git's default `a/` and `b/` prefixes, through this package's producer script into the source:\n\n```bash\ngit diff <base>...<head> | leaf package run diff patch_manifest.py | leaf data set \"$PAGE\" <source-id>\n```\n\nThe script records native file operations, including copies, mode changes, binary changes and empty files, and preserves their Git evidence. It leaves judgment to `lf-diff`: metadata is checked before its row appears, and textual hunks are delivered and checked when their file opens. A file the widget cannot present shows its refusal and reports it to you as the page's error."
+        },
         "records": {
           "items": "files",
           "key": "path",
@@ -18,22 +20,37 @@
               "items": {
                 "type": "object",
                 "properties": {
-                  "path": {"type": "string", "minLength": 1},
-                  "previousPath": {"type": "string", "minLength": 1},
-                  "additions": {"type": "integer", "minimum": 0},
-                  "deletions": {"type": "integer", "minimum": 0},
-                  "patch": {"type": "string", "minLength": 1},
-                  "operation": {"enum": ["modify", "add", "delete", "rename", "copy"]},
-                  "hunkCount": {"type": "integer", "minimum": 0},
-                  "binary": {"type": "boolean"},
-                  "oldMode": {"type": "string", "pattern": "^[0-7]{6}$"},
-                  "newMode": {"type": "string", "pattern": "^[0-7]{6}$"}
+                  "path": { "type": "string", "minLength": 1 },
+                  "previousPath": { "type": "string", "minLength": 1 },
+                  "additions": { "type": "integer", "minimum": 0 },
+                  "deletions": { "type": "integer", "minimum": 0 },
+                  "patch": { "type": "string", "minLength": 1 },
+                  "operation": {
+                    "enum": ["modify", "add", "delete", "rename", "copy"]
+                  },
+                  "hunkCount": { "type": "integer", "minimum": 0 },
+                  "binary": { "type": "boolean" },
+                  "oldMode": { "type": "string", "pattern": "^[0-7]{6}$" },
+                  "newMode": { "type": "string", "pattern": "^[0-7]{6}$" }
                 },
-                "required": ["path", "operation", "hunkCount", "binary", "additions", "deletions"],
+                "required": [
+                  "path",
+                  "operation",
+                  "hunkCount",
+                  "binary",
+                  "additions",
+                  "deletions",
+                  "patch"
+                ],
                 "additionalProperties": false,
                 "allOf": [
-                  {"if": {"properties": {"hunkCount": {"minimum": 1}}}, "then": {"required": ["patch"]}, "else": {"not": {"required": ["patch"]}, "properties": {"additions": {"const": 0}, "deletions": {"const": 0}}}},
-                  {"if": {"properties": {"operation": {"enum": ["rename", "copy"]}}}, "then": {"required": ["previousPath"]}, "else": {"not": {"required": ["previousPath"]}}}
+                  {
+                    "if": {
+                      "properties": { "operation": { "enum": ["rename", "copy"] } }
+                    },
+                    "then": { "required": ["previousPath"] },
+                    "else": { "not": { "required": ["previousPath"] } }
+                  }
                 ]
               }
             }
@@ -61,9 +78,7 @@
         "type": "boolean"
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
     "x-content": "data",
     "x-data": {
@@ -103,11 +118,7 @@
         "pattern": "^[a-z0-9][a-z0-9-]*$"
       }
     },
-    "required": [
-      "id",
-      "source",
-      "diff"
-    ],
+    "required": ["id", "source", "diff"],
     "additionalProperties": false,
     "x-content": "empty",
     "x-data": {

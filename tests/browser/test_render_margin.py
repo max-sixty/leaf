@@ -155,7 +155,6 @@ ACTION_ON_ASK = {
             "unit": "widget",
             "record": {"kind": "attribute", "attr": "chosen"},
             "creates": None,
-            "report": False,
             "detail": {
                 "type": "object",
                 "properties": {

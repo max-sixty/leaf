@@ -66,7 +66,6 @@
   const closed = (owner) =>
     owner.localName === "details" ? !owner.open : !owner.matches(":popover-open");
   const checkpoint = (source, completedEdit = false) => {
-    readDetailsChanges(source, callbackDepth === 0);
     // The first reader after activation owns the native default, even when a
     // toggle listener runs before the dispatch-completion task.
     for (const [activation, owners] of nativeDefaults) {
@@ -130,82 +129,79 @@
     "summary,a[href],audio[controls],button,details,embed,iframe," +
     'img[usemap],img[controls],input:not([type="hidden" i]),label,select,textarea,video[controls]';
 
-  // Every actual open-presence mutation enters one native record stream, whatever
-  // DOM API wrote it. Callback checkpoints drain scripted writes under that exact
-  // source. Outside a callback, only one actual native-default mutation may claim
-  // its retained activation; later unmatched mutations are passive, even when the
-  // platform coalesces all of them into the same toggle delivery.
+  // A details toggle is queued by the platform after summary activation, outside
+  // the click dispatch. Retain that exact activation until its toggle is delivered.
+  // Scripted changes replace it with their own callback source, including null:
+  // passive work must not borrow an earlier click on this same disclosure. The
+  // actual activation can be a synthetic click inside a prevented key or pointer
+  // handler; only cancellation of that activation cancels its native default.
   const detailsToggles = new WeakMap();
-  const detailsActivations = new WeakMap();
-  const pendingDetailsActivation = (owner) => {
-    // A swallowed click after held-word activation cannot erase the earlier
-    // synthetic activation that actually started the native default.
-    let pending = detailsActivations.get(owner);
-    while (pending?.event.defaultPrevented) pending = pending.previous;
-    return pending;
-  };
-  const recordDetailsChanges = (records, source, nativeDefault) => {
-    for (let at = 0; at < records.length; at++) {
-      const record = records[at];
-      const owner = record.target;
-      if (!(owner instanceof HTMLDetailsElement)) continue;
-      const next = records.slice(at + 1).find((later) => later.target === owner);
-      const after = next ? next.oldValue : owner.getAttribute("open");
-      if ((record.oldValue !== null) === (after !== null)) continue;
-      const activation = pendingDetailsActivation(owner);
-      const native =
-        nativeDefault && activation && activation.event.eventPhase === Event.NONE;
-      detailsToggles.set(owner, { source: native ? activation.source : source });
-      if (native) detailsActivations.delete(owner);
-    }
-  };
-  const detailsChanges = new MutationObserver((records) =>
-    recordDetailsChanges(records, null, true),
-  );
-  const readDetailsChanges = (source, nativeDefault) =>
-    recordDetailsChanges(detailsChanges.takeRecords(), source, nativeDefault);
-  const watchDetailsChanges = (root) =>
-    detailsChanges.observe(root, {
-      subtree: true,
-      attributes: true,
-      attributeFilter: ["open"],
-      attributeOldValue: true,
-    });
-  watchDetailsChanges(document);
-  const attachShadow = Element.prototype.attachShadow;
-  Element.prototype.attachShadow = function (...args) {
-    const root = attachShadow.apply(this, args);
-    watchDetailsChanges(root);
-    // Closed roots expose only their host to the outer capture. Classify native
-    // activation at its actual root while retaining that same event's source.
-    listen(root, "click", captureDispatch, true);
-    return root;
-  };
   const observedDetails = new WeakSet();
   const observeDetailsToggle = (owner) => {
     if (observedDetails.has(owner)) return;
     observedDetails.add(owner);
-    watchDetailsChanges(owner);
-    // Platform delivery retires the cause even without a wrapped page listener.
+    // Retirement belongs to platform delivery even when the page has no listener.
+    // Cache that delivery's source before its property or registered handlers run.
     nativeAdd.call(owner, "toggle", captureDispatch, true);
   };
   const activatedDetails = (node) => {
     const summary = node?.closest?.(nativeActivation);
     const details = summary?.parentElement;
-    return summary?.localName === "summary" &&
-      details?.localName === "details" &&
+    return details?.localName === "details" &&
+      summary.localName === "summary" &&
       details.querySelector(":scope > summary") === summary
       ? details
       : null;
   };
-  const retainDetailsActivation = (owner, source, event) => {
+  const pendingDetailsToggle = (owner) => {
+    let pending = detailsToggles.get(owner);
+    while (pending?.activation?.defaultPrevented) pending = pending.previous;
+    return pending;
+  };
+  const retainDetailsActivation = (owner, source, activation) => {
     observeDetailsToggle(owner);
-    detailsActivations.set(owner, {
+    detailsToggles.set(owner, {
       source,
-      event,
-      previous: pendingDetailsActivation(owner),
+      activation,
+      previous: pendingDetailsToggle(owner),
     });
   };
+  const recordDetailsChange = (owner, before, source) => {
+    if (owner.open !== before) {
+      observeDetailsToggle(owner);
+      detailsToggles.set(owner, { source, activation: null });
+    }
+  };
+  const detailsOpen = Object.getOwnPropertyDescriptor(
+    HTMLDetailsElement.prototype,
+    "open",
+  );
+  Object.defineProperty(HTMLDetailsElement.prototype, "open", {
+    ...detailsOpen,
+    set(value) {
+      const before = this.open;
+      const source = current();
+      detailsOpen.set.call(this, value);
+      recordDetailsChange(this, before, source);
+    },
+  });
+  for (const name of [
+    "setAttribute",
+    "removeAttribute",
+    "toggleAttribute",
+    "setAttributeNS",
+    "removeAttributeNS",
+  ]) {
+    const mutate = Element.prototype[name];
+    Element.prototype[name] = function (...args) {
+      if (!(this instanceof HTMLDetailsElement)) return mutate.apply(this, args);
+      const before = this.open;
+      const source = current();
+      const result = mutate.apply(this, args);
+      recordDetailsChange(this, before, source);
+      return result;
+    };
+  }
 
   const handlerOriginals = new WeakMap();
   const handlerWrappers = new WeakMap();
@@ -225,12 +221,7 @@
     // Reusing an Event starts another dispatch. Platform events become untrusted
     // when redispatched too, so only this dispatch's executing caller can own it.
     if (!event.isTrusted) sources.delete(event);
-    const source = eventSource(event);
-    sources.set(event, source);
-    if (event.type === "click") {
-      const details = activatedDetails(event.composedPath()[0]);
-      if (details) retainDetailsActivation(details, source, event);
-    }
+    sources.set(event, eventSource(event));
     // Parser-created handler attributes bypass the property setter. Adopt them
     // at dispatch, before target callbacks, under the same source as listeners.
     const name = `on${event.type}`;
@@ -254,8 +245,6 @@
           return handlerOriginals.get(callback) ?? callback;
         },
         set(callback) {
-          if (type === "toggle" && this instanceof HTMLDetailsElement)
-            observeDetailsToggle(this);
           property.set.call(
             this,
             typeof callback === "function" ? handler(callback) : callback,
@@ -329,12 +318,13 @@
     if (
       event.isTrusted &&
       event.type === "toggle" &&
-      (detailsToggles.has(event.target) || detailsActivations.has(event.target))
+      detailsToggles.has(event.target)
     ) {
-      readDetailsChanges(null, true);
-      const pending = detailsToggles.get(event.target);
+      const pending = pendingDetailsToggle(event.target);
       detailsToggles.delete(event.target);
-      detailsActivations.delete(event.target);
+      // A held-word release already activated its synthetic click before the
+      // browser's following click is swallowed. A cancelled later activation
+      // cannot erase that earlier default from the coalesced toggle.
       const source = pending?.source ?? null;
       sources.set(event, source);
       return source;
@@ -509,8 +499,6 @@
   const remove = EventTarget.prototype.removeEventListener;
   EventTarget.prototype.addEventListener = function (type, callback, options) {
     if (!callback) return add.call(this, type, callback, options);
-    if (type === "toggle" && this instanceof HTMLDetailsElement)
-      observeDetailsToggle(this);
     let listener = listeners.get(callback);
     if (!listener) {
       listener = function (event) {

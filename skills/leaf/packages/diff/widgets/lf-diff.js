@@ -52,6 +52,7 @@ import {
   threadSurface,
   readingPaint,
   releaseOutlets,
+  reportFailure,
   reserve,
   retainUserIntent,
   scrollBehavior,
@@ -115,11 +116,11 @@ async function sourceRecords(source) {
   return (await parsedFiles(source)).map((file) => ({ ...file.record, parsed: file }));
 }
 
-// A manifest record's patch, fetched for the delivery that listed it, must hold that
-// one file.
-async function deferredFile(snapshot, record) {
+// A manifest record's patch must describe that one logical file, including both
+// native sections of a file-type replacement, and agree with its listing.
+async function deferredFile(patch, record) {
   const { path } = record;
-  const files = await parsedFiles(await loadDeferred(snapshot, path));
+  const files = await parsedFiles(patch);
   if (files.length !== 1 || files[0].name !== path)
     throw new Error(`the deferred patch for ${path} does not contain that one file`);
   const fields = new Set([...Object.keys(files[0].record), ...Object.keys(record)]);
@@ -886,6 +887,10 @@ function replacementFile(files, parseDiffFromFile) {
   return file;
 }
 
+// What the widget can present, which it alone judges: the diff package's
+// `patch_manifest.py` preserves the evidence, and an entry refused here reports when
+// its metadata appears or its textual file opens. `tests/diff_patch_cases.json`
+// is the table of cases.
 async function parsedFiles(source) {
   const { parsePatchFiles, parseDiffFromFile } = await pierre();
   const files = parsePatchFiles(source, undefined, true).flatMap(
@@ -911,25 +916,33 @@ async function parsedFiles(source) {
 
 // The box takes the place of the file's lines, so core's composer leaves their outlets
 // first: a user writing about one of them stays in it, and the hold below, which
-// would hand them to Retry, finds them outside the file.
+// would hand them to Retry, finds them outside the file. A patch the widget cannot draw
+// offers no Retry, and the hold lands on the file's header.
 function deferredError(details, error, retry) {
   releaseOutlets(details);
   const restore = holdFocus(details);
+  const header = details.firstElementChild;
+  const message = error?.message || error;
   const box = document.createElement("div");
   box.className = "lf-error";
   box.dataset.lfGen = "1";
-  box.textContent = `That file's diff failed to load: ${error?.message || error}`;
-  const button = offer("button", "lf-btn");
-  button.type = "button";
-  button.textContent = "Retry";
-  button.addEventListener("click", () => {
-    if (button.getAttribute("aria-disabled") === "true") return;
-    button.setAttribute("aria-disabled", "true");
-    retry();
-  });
-  box.append(" ", button);
-  setChildren(details, [details.firstElementChild, box]);
-  restore?.(button);
+  box.textContent = retry
+    ? `That file's diff failed to load: ${message}`
+    : `That file's diff cannot be shown: ${message}`;
+  let standIn = header;
+  if (retry) {
+    standIn = offer("button", "lf-btn");
+    standIn.type = "button";
+    standIn.textContent = "Retry";
+    standIn.addEventListener("click", () => {
+      if (standIn.getAttribute("aria-disabled") === "true") return;
+      standIn.setAttribute("aria-disabled", "true");
+      retry();
+    });
+    box.append(" ", standIn);
+  }
+  setChildren(details, [header, box]);
+  restore?.(standIn);
 }
 
 export default class extends HTMLElement {
@@ -1060,8 +1073,8 @@ export default class extends HTMLElement {
       }
       return () => {
         this.rendering = (this.rendering ?? 0) + 1;
-        // Leaf retires this surface on the same departure, taking core's views out of
-        // every outlet, so all of them go.
+        // Leaf retires this surface when it leaves, after this cleanup, and puts
+        // core's views back, so every outlet goes.
         if (this.threadSeats) {
           for (const record of this.threadSeats.values()) record.active = false;
           this.retireThreadOutlets();
@@ -1108,13 +1121,14 @@ export default class extends HTMLElement {
         previous: prior.get(record.path),
         prepared: null,
       }));
+      // Visible metadata and open textual evidence are judged before committing.
       // Open evidence is prepared without changing the current entries or their native
       // outlets. A disclosure opened while another file loads joins this same commit.
       for (;;) {
         if (rendering !== this.rendering || !this.isConnected) return;
         const pending = plans.filter(
           ({ record, previous, prepared }) =>
-            record.hunkCount > 0 && !prepared && (previous?.details?.open ?? open),
+            !prepared && (record.hunkCount === 0 || (previous?.details?.open ?? open)),
         );
         if (!pending.length) break;
         await Promise.all(
@@ -1134,7 +1148,7 @@ export default class extends HTMLElement {
       try {
         const entries = plans.map(({ record, previous, prepared }) => {
           let entry = previous;
-          const metadata = record.hunkCount === 0;
+          const metadata = record.hunkCount === 0 && !prepared?.error;
           if (
             metadata
               ? !entry ||
@@ -1142,7 +1156,9 @@ export default class extends HTMLElement {
                 JSON.stringify(entry.record) !== JSON.stringify(record)
               : !entry?.details
           ) {
-            const row = metadata ? metadataNode(record) : summaryNode(record, open);
+            const row = metadata
+              ? metadataNode(record)
+              : summaryNode(record, record.hunkCount === 0 || open);
             if (entry) restores.push(replaceFileRendering(entry, row));
             else fresh.push((entry = fileEntry(row)));
           }
@@ -1150,6 +1166,7 @@ export default class extends HTMLElement {
             record,
             loaded: metadata,
             failed: false,
+            refused: false,
             loading: null,
             prepared,
           });
@@ -1204,12 +1221,25 @@ export default class extends HTMLElement {
     }
   }
 
+  // A patch that fails to load may load on Retry. One this widget cannot draw never
+  // will, so it offers no Retry, and `applyEntry` reports it to the agent, which stored
+  // it, once the current rendering shows it: the manifest's producer leaves judging a
+  // patch to this widget.
   async prepareEntry(snapshot, record, renderKey, sharedStyles) {
+    let patch;
+    if (!record.parsed)
+      try {
+        patch = await loadDeferred(snapshot, record.path);
+      } catch (error) {
+        return { error, retry: true };
+      }
     try {
-      const file = record.parsed ?? (await deferredFile(snapshot, record));
+      const file = record.parsed ?? (await deferredFile(patch, record));
       const nextKey = JSON.stringify(file);
       const rendered =
-        renderKey === nextKey ? null : await renderFile(file, sharedStyles);
+        !file.hunks.length || renderKey === nextKey
+          ? null
+          : await renderFile(file, sharedStyles);
       return { renderKey: nextKey, rendered };
     } catch (error) {
       return { error };
@@ -1390,7 +1420,7 @@ export default class extends HTMLElement {
       if (rendering === this.sourceRendering) break;
     }
     if (!this.fileEntries?.includes(entry)) return;
-    if (entry.loaded || entry.prepared) return;
+    if (entry.loaded || entry.prepared || entry.refused) return;
     // A disconnect abandons a load, and the entry stays loadable: an inline patch
     // keeps its entries across a reconnection, so a later open starts afresh.
     if (entry.loading?.rendering === this.rendering) return entry.loading.promise;
@@ -1417,18 +1447,32 @@ export default class extends HTMLElement {
 
   // Returns the focus restore for the caller to run once the file's evidence is staged.
   applyEntry(entry) {
-    const { error, renderKey, rendered } = entry.prepared;
+    const { error, retry, renderKey, rendered } = entry.prepared;
     entry.prepared = null;
     if (error) {
       entry.failed = true;
+      // Reopening retries a load; nothing loads a patch this widget refused again.
+      entry.refused = !retry;
+      if (entry.refused) reportFailure(this, error);
       entry.lines = [];
       entry.renderKey = null;
-      deferredError(entry.details, error, () => {
-        if (!entry.failed) return;
-        entry.failed = false;
-        this.present(this.loadEntry(entry));
-      });
+      deferredError(
+        entry.details,
+        error,
+        retry &&
+          (() => {
+            if (!entry.failed) return;
+            entry.failed = false;
+            this.present(this.loadEntry(entry));
+          }),
+      );
       return null;
+    }
+    if (entry.record.hunkCount === 0) {
+      const restore = replaceFileRendering(entry, metadataNode(entry.record));
+      entry.loaded = true;
+      this.attachDisclosure(entry);
+      return restore;
     }
     const restore =
       rendered &&
@@ -1481,7 +1525,8 @@ export default class extends HTMLElement {
     if (!entry.details) return;
     entry.disclose ??= () => {
       threadSurface(this).update();
-      if (!entry.details.open || !this.fileEntries?.includes(entry)) return;
+      if (!entry.details.open || !this.fileEntries?.includes(entry) || entry.refused)
+        return;
       entry.failed = false;
       this.present(this.loadEntry(entry));
     };

@@ -75,7 +75,10 @@ gate's ephemeral one, and the website's — and the one append door compare it w
 the running Leaf's own when they bind the page or admit an event
 (`layer.incompatible_layer`), refusing another number and naming `leaf page init`.
 Each reads the registry it would serve the page under: a snapshot's captured one, or
-else the vendored layer.
+else the vendored layer. A revision is judged on the registry it captured
+(`layer.incompatible_revision`): a page re-vendored across a bump keeps the revisions
+it saved before in its history, but the document server serves none of them and the
+append door admits nothing made against one.
 
 Any other Leaf at the same number serves and writes the page, so a plugin update
 leaves open pages working: admission validates a kernel record against the running

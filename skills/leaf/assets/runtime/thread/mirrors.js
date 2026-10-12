@@ -136,8 +136,10 @@ export function registerMirrorConsumer(owner, render, { commands }) {
    one physical destination on every pass. A message part offers the user's rewrite of
    it, and a reply part ↑ to the latest, as a thread card does, through the thread's one
    rewrite owner over the parts this reader draws (`threadRewrites`). Layout and
-   disclosure belong to the caller. */
-export function createPrimaryReader(owner, render, commands, update) {
+   disclosure belong to the caller. A presentation that answers a thread in an editor
+   of its own, as the floating panel does in its field, names it (`replyBox`), and that
+   editor is the thread's reply destination, as a drawn reply box would be. */
+export function createPrimaryReader(owner, render, commands, update, replyBox = null) {
   let active = true;
   let generation = 0;
   let pending = null;
@@ -460,6 +462,10 @@ export function createPrimaryReader(owner, render, commands, update) {
       }
       return null;
     }
+    if (part !== "thread") {
+      const own = replyBox?.(key);
+      if (own) return own;
+    }
     if (part !== "thread")
       for (const view of parts) {
         const input = view.node.querySelector(SAY_BOX);
@@ -475,7 +481,8 @@ export function createPrimaryReader(owner, render, commands, update) {
     destination,
     ownsMessage: (message) => owner.isConnected && nativeMessages.has(message.id),
     ownsDestination: (node) =>
-      [...views.values()].some((view) => under(node, view.node)),
+      [...views.values()].some((view) => under(node, view.node)) ||
+      [...destinations.keys()].some((key) => replyBox?.(key) === node),
     cancel() {
       ++generation;
       pending?.abort();

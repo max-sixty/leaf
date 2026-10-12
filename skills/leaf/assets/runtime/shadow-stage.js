@@ -41,7 +41,7 @@ const widgetSheets = new Map();
 export function registerWidgetStyles(name, text) {
   const existing = widgetSheets.get(name);
   if (existing) return existing;
-  const sheet = constructSheet(inBaseLayer(text), name);
+  const sheet = constructSheet(inBaseLayer(text));
   widgetSheets.set(name, sheet);
   document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
   for (const root of liveStages())

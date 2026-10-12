@@ -25,10 +25,15 @@ reaches a module by importing it from this package, never through `sys.path`,
 - `arms.py`: arms (the plugin payload at a ref, or as the working tree has it) and
   an A/B's pair of them, whose base defaults to the merge base with `main`
   (`base_ref`); pages served from an authored source on an arm; the machine's load
-  average a timed command prints; the isolated `claude -p` children evals run; and
-  the throwaway Claude Code, Codex and Pi homes a child of each runs under.
+  average a timed command prints; the isolated `claude -p` children evals run, and
+  the live session (`LiveSession`) every live eval driver plays its user against;
+  and the throwaway Claude Code, Codex and Pi homes a child of each runs under.
+  `eval_user.py` is that user in a browser: a comment from a selection, and a
+  decision a user agent makes through the page's own controls.
 - `page_fixtures.py` builds a page directory from an authored source;
-  `example_data.py` reads the catalog, names, and each page's companions.
+  `example_data.py` reads the catalog, names, and each page's companions; `docs.py`
+  composes into a product document under `docs/` the parts other sources own, so
+  every builder of one, the site and a preview alike, shows them.
 - `browser.py` launches Chrome, and opens and settles a tab, the same way for every
   command that reads one.
 - `leaf-dev probe SOURCE` opens a page built from this working tree, runs input
@@ -77,7 +82,8 @@ reaches a module by importing it from this package, never through `sys.path`,
   through Promptfoo on the working tree, and with `--base` the merge base too.
   `evals/README.md` owns the format and how to read the results.
 - `leaf-dev eval-pairs RUN...` judges an authored task's samples across a run's two
-  columns side by side, in both orders.
+  columns side by side, in both orders, and `leaf-dev eval-report PAGE RUN...` writes
+  those samples, their spend and the verdicts to a Leaf page.
 - `leaf-dev eval-ui-review` runs the retained internal viewer-review diagnostics;
   `evals/ui-review-detection/README.md` owns their scope, controls and automatic grading.
 
@@ -86,9 +92,6 @@ reaches a module by importing it from this package, never through `sys.path`,
 - `leaf-dev preview [EXAMPLE]` serves one example or developer fixture as a live
   page, or exports it with `--export`. `/developing-leaf` says when to pass `--user`.
 - `leaf-dev corpus` generates `examples/corpus.html` and its companions.
-- `leaf-dev keydocs` writes the `x-` key index in `docs/registry.html`.
-- `leaf-dev catalog` refreshes `docs/examples.html` descriptions from example metadata;
-  the site build derives them again before publication.
 
 ## Website and demo
 

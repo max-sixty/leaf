@@ -6970,6 +6970,40 @@ observe --cohort staff</code></pre>
                 preference stays off, then turn it on to restore the hints and keys.
               </p>
             </section>
+            <section id="bg-floating-panel">
+              <h3>The floating panel (experimental)</h3>
+              <p>
+                Add <code>?lf-chrome=floating</code> to this page's address: the banner
+                and the bottom bar give way to one panel hovering over the foot of the
+                page, and the choice stays for every page until
+                <code>?lf-chrome=classic</code> restores them. A window sample shows the
+                chrome its <code>chrome</code> attribute names, whichever you chose.
+                Below, the same page in each: press the floating panel's leaf for the
+                menu, and its field to comment.
+              </p>
+              <lf-sample
+                id="bg-chrome-classic"
+                label="classic chrome"
+                window
+                chrome="classic"
+              >
+                <template id="bg-chrome-classic-page" data-sample>
+                  <h1>Trail notes</h1>
+                  <p>The covered terrace is a short walk from the shelter.</p>
+                </template>
+              </lf-sample>
+              <lf-sample
+                id="bg-chrome-floating"
+                label="floating panel"
+                window
+                chrome="floating"
+              >
+                <template id="bg-chrome-floating-page" data-sample>
+                  <h1>Trail notes</h1>
+                  <p>The covered terrace is a short walk from the shelter.</p>
+                </template>
+              </lf-sample>
+            </section>
             <p id="bg-core-controls-guide">
               The banner also shows <strong>Threads</strong>, the
               <strong>Versions</strong> menu, <strong>Page Map</strong> (<kbd>g</kbd>
@@ -7417,6 +7451,39 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 focused. Writing in it holds a revision for review instead, so leave it
                 empty to inspect automatic arrival.
               </p>
+            </section>
+
+            <section id="bg-carried-comment">
+              <h3>
+                <strong>Move a comment</strong
+                ><span class="bg-feature-detail"
+                  >: carry the box or card off the words it covers</span
+                >
+              </h3>
+              <p id="bg-carried-comment-guide">
+                A passage's comment box and a thread card both move by their edge.
+              </p>
+              <ul id="bg-carried-comment-steps">
+                <li>
+                  Select a sentence here and press <kbd>c</kbd>. Point just outside the
+                  box's border: the pointer becomes a hand. Drag the box over the next
+                  paragraph and type: the caret stays and the box stays where you
+                  dropped it.
+                </li>
+                <li>
+                  Scroll: the box travels with its passage at the spot you chose. Send:
+                  the thread card opens there.
+                </li>
+                <li>
+                  Rest the pointer on the card's padding: after a beat its border
+                  lights. Drag it from there; its words, buttons and links keep their
+                  own presses, and on a touch screen a finger carries it too.
+                </li>
+                <li>
+                  Resize the window, or open another thread: the surface returns to
+                  where the page would stand it.
+                </li>
+              </ul>
             </section>
           </section>
         </lf-tab>

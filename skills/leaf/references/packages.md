@@ -399,9 +399,10 @@ are refused. Their fields come from the effect:
 | `value` | `{value}` | The schema of the destination in the widget's `properties`; `record.attr` names that attribute. |
 | `position` | `{unit, value, rank}` | Strings naming the owned element, valid destination container, and rank key; `record.within` names the container tag. |
 
-`report: true` on an agent-written verb adds required nonempty `text` for its news.
-Omit `report` when the verb has no news. The effect determines the complete payload;
-a recorded verb cannot add contextual fields or independent schema refinements.
+`text: true` on an agent-written verb requires each report to carry non-empty
+`detail.text`, the report's news. Omit `text` when the verb has no news. The effect
+determines the complete payload; a recorded verb cannot add contextual fields or
+independent schema refinements.
 
 A verb with no record declares its own closed `detail` JSON Schema. Its `unit` is
 `"widget"` or a required detail field naming the element it changes. This supports
@@ -472,8 +473,8 @@ A verb whose state the agent writes rather than the user declares `"writer": "ag
 beside its `unit` and `record`. A worker posts it with
 `leaf page report`, the page paints it live, and it stands until a version
 answers it; the user has no control for it. It uses `unit: "widget"` and a required
-`attribute` or `value` record. It declares `report: true` when each report also supplies short human-readable
-news in `detail.text`. Every verb has exactly one
+`attribute` or `value` record. It declares `text: true` when each report must also
+carry short human-readable news in `detail.text`. Every verb has exactly one
 writer, so a coordinate never holds a user's action and an agent's report at once.
 The Atlas example's page-owned task `status` is one example. A widget declaring
 such a verb also declares the boolean `overruled` attribute a version keeps its own

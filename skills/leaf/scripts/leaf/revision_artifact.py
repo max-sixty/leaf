@@ -296,6 +296,9 @@ def javascript_imports(data: bytes, path: str) -> tuple[tuple[int, int, str], ..
     a CDN module named that way loads, and a page file it names is in the revision
     only if something imports it literally.
 
+    This reads imports, not syntax: the browser judges the module, and its error
+    reaches the agent through `page check` or the watcher.
+
     Captures, embedded samples and resource delivery read the same module bytes.
     Keep their immutable spans once per exact source and diagnostic path, as CSS
     readings do below; the syntax tree is discarded. The bounded shared reading
@@ -306,18 +309,8 @@ def javascript_imports(data: bytes, path: str) -> tuple[tuple[int, int, str], ..
     except UnicodeDecodeError as error:
         raise ArtifactError(f"{path}: JavaScript is not UTF-8") from error
     tree = Parser(_JAVASCRIPT).parse(data)
-    if tree.root_node.has_error:
-        pending = [tree.root_node]
-        while pending:
-            node = pending.pop()
-            if node.is_error or node.is_missing:
-                raise ArtifactError(
-                    f"{path}:{node.start_point[0] + 1}: invalid JavaScript"
-                )
-            pending.extend(reversed(node.children))
-        raise ArtifactError(f"{path}: invalid JavaScript")
     # Document order, a node before the nodes it holds, as a walk of the tree meets
-    # them, so the first problem in the file is the one reported.
+    # them, so the spans come back in the order the file states them.
     nodes = sorted(
         QueryCursor(_IMPORT_NODES).captures(tree.root_node).get("node", []),
         key=lambda node: (node.start_byte, -node.end_byte),
@@ -327,21 +320,16 @@ def javascript_imports(data: bytes, path: str) -> tuple[tuple[int, int, str], ..
         literal = None
         if node.type in {"import_statement", "export_statement"}:
             literal = node.child_by_field_name("source")
-            if any(child.type == "import_attribute" for child in node.named_children):
-                raise ArtifactError(
-                    f"{path}:{node.start_point[0] + 1}: import attributes are not supported for JavaScript modules"
-                )
         elif node.type == "call_expression":
             function = node.child_by_field_name("function")
-            if function.type == "import":
-                arguments = node.child_by_field_name("arguments").named_children
-                if len(arguments) == 1 and arguments[0].type == "string":
-                    literal = arguments[0]
+            # A tree the parser recovered from may lack the arguments.
+            if function.type == "import" and (
+                arguments := node.child_by_field_name("arguments")
+            ):
+                named = arguments.named_children
+                if len(named) == 1 and named[0].type == "string":
+                    literal = named[0]
         if literal is not None:
-            if any(child.type != "string_fragment" for child in literal.named_children):
-                raise ArtifactError(
-                    f"{path}:{literal.start_point[0] + 1}: module URLs must be unescaped string literals"
-                )
             imports.append(
                 (
                     literal.start_byte,

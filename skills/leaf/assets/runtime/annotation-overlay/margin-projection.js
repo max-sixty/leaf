@@ -110,7 +110,7 @@ import { readingRegionFor } from "../reading-regions.js";
 
 import { keys, paintKeys } from "../keyboard/scopes.js";
 import { pageRung, pageScope } from "../keyboard/register.js";
-import { nativeLayerHolding } from "../keyboard/layer-stack.js";
+import { nativeLayerHolding } from "../shadow-tree.js";
 
 import { annotationsHidden, watchAnnotations } from "./annotation-layer.js";
 import { repaint } from "../repaint.js";

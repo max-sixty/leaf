@@ -5,7 +5,7 @@ import os
 
 import click
 import pytest
-from leaf.hook_transport import INLINE_DELIVERY
+from leaf.hook_transport import DELIVERY_FIELD
 from leaf_dev.delivery_eval import expected_checks, grade, score
 
 
@@ -110,7 +110,7 @@ def test_delivery_reads_admitted_progress_and_exact_answers(tmp_path):
             "type": "system",
             "subtype": "hook_response",
             "hook_event": "UserPromptSubmit",
-            "output": INLINE_DELIVERY,
+            "output": json.dumps({DELIVERY_FIELD: {"id": "d1", "inline": True}}),
             "received_at": "2026-10-02T00:00:04Z",
         },
         {

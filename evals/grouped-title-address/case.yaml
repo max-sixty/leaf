@@ -33,7 +33,7 @@ variants:
     vars:
       prompt: >-
         Write a short Leaf handover for the Questions contract change. Use the title
-        "Questions lists every move the agent needs from you". Put "Implemented locally
+        "Questions lists everything the agent needs from you". Put "Implemented locally
         · October 9, 2026" directly above the title. Explain that Questions contains
         every current request for the user, zero Questions means nothing is needed from
         them, and Tasks can still contain the agent's work. Include a short verification

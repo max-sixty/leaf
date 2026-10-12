@@ -3,6 +3,8 @@
 # lifecycles or execution of the returned command.
 # Against dd9304c34, each harness scored 0/1 by using the label as summary prose;
 # the candidate scored 1/1 on each harness with --label and explicit empty --text.
+# Reworded by #2329 (label "Previous progress messages", the reference's own
+# example); at 3fe3eb0af it passed 1/1 on Claude Code.
 description: thread-fold-without-summary-prose
 metadata:
   purpose: Fold earlier progress messages under a requested label without summary prose, preserving their originals.

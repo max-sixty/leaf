@@ -6,10 +6,10 @@ import { drawerEdge, sideEdge } from "./drawn-edge.js";
 import { slide } from "./motion.js";
 import { declareOccluder } from "./geometry.js";
 import { currentAuxiliarySurface } from "./auxiliary-surfaces.js";
-import { letGo, openLayer, openerOf } from "./focus.js";
+import { focused, letGo, openLayer, openerOf } from "./focus.js";
 import { keys } from "./keyboard/scopes.js";
 import { pageRung } from "./keyboard/register.js";
-import { rowWalk } from "./walk-position.js";
+import { listWalkPosition, rowWalk } from "./walk-position.js";
 import { createLiveLeavesList } from "./live-leaves-list.js";
 import { bannerControlDoor, dismissBannerControls } from "./banner-toolbar.js";
 import { createQueueList, shownItems, walkStops } from "./queue-list.js";
@@ -246,7 +246,7 @@ export function createDrawers({
         noun: "Item",
         plural: "items",
         rows: queueRows,
-        items: () => shownItems(queueList),
+        position: () => listWalkPosition(shownItems(queueList), focused()),
       }),
       () => queueRows().length > 0,
     );

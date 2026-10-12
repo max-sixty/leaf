@@ -102,7 +102,6 @@ from render_harness import (
     CORPUS_SOURCES,
     EXAMPLE_PACKAGES,
     EXAMPLES,
-    FEATURE_GALLERY,
     LONG_PAGE,
     RECURRING_RESIZE_NOTICE,
     RELEASE_FOCUS,
@@ -239,7 +238,7 @@ def _panel(name: str) -> str:
     return f'<section class="panel" id="{name}"><h2>{name}</h2><p>Words.</p></section>'
 
 
-def test_the_render_gate_fails_a_wide_page_that_scrolls_sideways_only_between_viewports(
+def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewports(
     browser, serve
 ):
     """A body beside its track, and a row that spills only from 600 to 900px: both fixed
@@ -254,7 +253,6 @@ def test_the_render_gate_fails_a_wide_page_that_scrolls_sideways_only_between_vi
 </div>
 <p id="mid-spill">{"A line that wraps at both viewports and runs on unbroken between them. " * 4}</p>
 """,
-        layout="wide",
         head="""<style>
 #tracks { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
 @media (min-width: 600px) and (max-width: 900px) { #mid-spill { white-space: nowrap; } }
@@ -3087,7 +3085,7 @@ def scroll_findings(page):
     return scroll_followers(scroll_writes(page, SCROLL_PASS, READING_SCROLLER))
 
 
-def rest_findings(page, source):
+def rest_findings(page):
     """A page nobody touches writes nothing, asks for no frame, moves no focus, and runs
     no animation without end, in its own document or any it frames. Its clock still
     ticks, to read the server and age what it shows, and a tick that changed nothing
@@ -3097,12 +3095,6 @@ def rest_findings(page, source):
 
     The reader has asked for reduced motion, which is when a page owes stillness: one who
     allows motion may be shown a page's own film playing itself (rust-sort's)."""
-    if source == FEATURE_GALLERY:
-        gallery_frames = page.locator("[data-interaction-frame]")
-        assert gallery_frames.count() > 0
-        expect(
-            page.locator("[data-interaction-frame][data-interaction-ready]")
-        ).to_have_count(gallery_frames.count())
     return at_rest(page)
 
 
@@ -3846,7 +3838,7 @@ def test_a_still_page_comes_back_from_every_journey_as_it_was(browser, serve, so
     url = serve(source)
     page = still_page(browser, url, width=RESIZE_PATH[0])
     findings = {
-        "at rest": rest_findings(page, source),
+        "at rest": rest_findings(page),
         "closed surfaces": surface_findings(page),
         "resized from the widest": resize_findings(page, RESIZE_PATH),
         "typed boxes": typed_box_findings(page),
@@ -4706,10 +4698,11 @@ def test_a_table_fills_its_declared_allocation_or_frame_and_a_bare_one_keeps_its
     browser, serve
 ):
     """A table directly in a panel runs its rules to the panel's inner edge, where they
-    used to stop short and read as a table cut off. An explicit allocation, on the
-    table or its figure, also sizes the painted rows, not just their scrollport.
-    The same table with no allocation keeps to what its columns hold. A table too
-    wide for the panel still scrolls inside it.
+    used to stop short and read as a table cut off. An explicit allocation on the
+    table's figure also sizes the painted rows, not just their scrollport. The same
+    table with no allocation keeps to what its columns hold, and so does one granted the
+    room itself, which is a limit rather than a size: its rows stand where the prose
+    starts. A table too wide for the panel still scrolls inside it.
     Code in a cell is set relative to the cell's text rather than at the chip size."""
     url = serve(FRAMED_TABLES_PAGE)
     page = open_page(browser, url)
@@ -4723,7 +4716,8 @@ def test_a_table_fills_its_declared_allocation_or_frame_and_a_bare_one_keeps_its
         const bare = document.querySelector('#bare'), framed = document.querySelector('#framed');
         const wide = document.querySelector('#wide-framed');
         const cell = framed.querySelector('td'), code = cell.querySelector('code');
-        const allocated = ['allocated', 'figure-table'].map(id => {
+        const own = document.querySelector('#allocated');
+        const allocated = ['figure-table'].map(id => {
             const table = document.getElementById(id);
             return Math.round(inner(table) - rowEnd(table));
         });
@@ -4731,6 +4725,9 @@ def test_a_table_fills_its_declared_allocation_or_frame_and_a_bare_one_keeps_its
             allocated,
             framedShort: Math.round(inner(framed.parentElement) - rowEnd(framed)),
             bareShort: Math.round(inner(bare.parentElement) - rowEnd(bare)),
+            ownShort: Math.round(inner(own) - rowEnd(own)),
+            ownStart: Math.round(own.querySelector('tr').getBoundingClientRect().left
+                - bare.querySelector('tr').getBoundingClientRect().left),
             wideScrolls: wide.scrollWidth - wide.clientWidth,
             wideInside: Math.round(inner(wide.parentElement) - wide.getBoundingClientRect().right),
             codeRatio: parseFloat(getComputedStyle(code).fontSize)
@@ -4741,6 +4738,7 @@ def test_a_table_fills_its_declared_allocation_or_frame_and_a_bare_one_keeps_its
     assert abs(measured["framedShort"]) <= 1, measured
     assert all(abs(short) <= 1 for short in measured["allocated"]), measured
     assert measured["bareShort"] > 100, "the bare table fills its column"
+    assert measured["ownShort"] > 100 and measured["ownStart"] == 0, measured
     assert measured["wideScrolls"] > 0 and measured["wideInside"] >= 0, measured
     assert measured["codeRatio"] == pytest.approx(0.9, abs=0.01), measured
     assert root_overflow(page) == 0

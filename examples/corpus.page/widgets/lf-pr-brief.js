@@ -22,17 +22,17 @@ customElements.define(
   class extends HTMLElement {
     connectedCallback() {
       if (!once(this)) return;
+      // The painting outlives a departure, so its time readings follow the owner.
+      const paint = clocked(this, (snapshot) => this.show(snapshot));
       whileConnected(this, () => {
-        this.paint = clocked(this, (snapshot) => this.show(snapshot));
-        return () => {
-          this.paint.stop();
-          this.paint = null;
-        };
+        paint.resume();
+        return () => paint.stop();
       });
+      let deliveries = 0;
       watchData(this, "request", async (snapshot) => {
-        const paint = this.paint;
+        const delivery = ++deliveries;
         if (snapshot?.value) await loadMarkdown();
-        if (paint !== this.paint || !this.isConnected) return;
+        if (delivery !== deliveries || !this.isConnected) return;
         paint(snapshot);
         if (snapshot?.value) await highlightBlocks(this);
       });

@@ -4,8 +4,10 @@
    frame: the painters before it draw content whose boxes it measures, and those after
    it read the laid-out result. A document supplies the painters it has: a live page
    paints standing, layout and keys; an interactive export, which attaches no chrome,
-   paints only its widgets' boxes and keys. No painter imports a feature's commands or
-   schedules the full presenter while drawing its own geometry.
+   paints only its widgets' boxes and keys. Keys are both of their slots, since a new
+   declaration is read only at the frame's head and the page-wide pass at its tail.
+   No painter imports a feature's commands or schedules the full presenter while
+   drawing its own geometry.
 
    Pending work is cleared before the phases run. An invalidation raised by a phase
    therefore queues another repaint, which the rendering loop runs before this frame

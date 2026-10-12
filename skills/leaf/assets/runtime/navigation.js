@@ -33,14 +33,15 @@ import { focusThread } from "./thread/focus.js";
 import { landWalkedThread } from "./thread/landing.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
 
-// The walk's reading supplies both its destinations and their visible scope. A panel
-// may show resolved threads too; only the closed-panel page walk promises open threads.
+// The walk's reading supplies both its destinations and their visible scope. In the
+// panel they are the cards its list walks (`walkRows`), which may show resolved threads
+// too; only the closed-panel page walk promises open threads.
 const threadWalk = (panelIsOpen, { threadsBox, openThreads }) => {
   const inPanel = panelIsOpen();
   return {
-    threads:
-      (inPanel ? threadsBox.navigationThreads() : null) ??
-      openThreads({ visibleOnly: inPanel }),
+    threads: inPanel
+      ? threadsBox.walkRows().flatMap(({ thread }) => thread ?? [])
+      : openThreads(),
     scope: inPanel ? "shown" : "open",
   };
 };
@@ -62,13 +63,16 @@ const threadPosition = (threadHere, panelIsOpen, narrowing, list) => {
   });
 };
 
-// From a place on the page at no thread, a walk in the page's order measures document
-// position against each thread's target: a target holding the place is where the user
-// already is, so the press steps off it. A general or detached thread has no target, and is reached from the
-// list's ends, as every thread is in the panel's Recent order.
-function threadFrom(threads, place, dir, threadTarget) {
+// From a place at no thread, a walk measures document position against each thread's
+// place: a place on the page, in the page's order, against each thread's target, and a
+// list row that is no thread, such as a withdrawn thread's notice, against the cards
+// beside it, in whichever order the list shows. A target holding the place is where the
+// user already is, so the press steps off it. A general or detached thread has no
+// target, and is reached from the list's ends, as every thread is in the panel's Recent
+// order.
+function threadFrom(threads, place, dir, placeOfThread) {
   const placed = threads
-    .map((thread) => ({ thread, target: threadTarget(thread.dataset.id) }))
+    .map((thread) => ({ thread, target: placeOfThread(thread) }))
     .filter(({ target }) => target);
   if (!place || !placed.length) return clampedRow(threads, null, dir);
   const side =
@@ -121,15 +125,20 @@ function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
   const current = currentThread(threads, threadHere);
   const targetId = !current && threadAtStanding();
   const atTarget = targetId && threads.find((thread) => thread.dataset.id === targetId);
+  // Focus on a list row the walk does not count, such as a withdrawn thread's notice.
+  const atRow =
+    panelIsOpen() && focused() !== threadsBox && threadsBox.contains(focused());
   const next = current
     ? clampedRow(threads, current, dir)
     : (atTarget ??
-      threadFrom(
-        threads,
-        !panelIsOpen() || narrowing.listedInPageOrder() ? walkOrigin() : null,
-        dir,
-        threadTarget,
-      ));
+      (atRow
+        ? threadFrom(threads, focused(), dir, (thread) => thread)
+        : threadFrom(
+            threads,
+            !panelIsOpen() || narrowing.listedInPageOrder() ? walkOrigin() : null,
+            dir,
+            (thread) => threadTarget(thread.dataset.id),
+          )));
   if (!next) return;
   void arriveAtThread(next, destinations, panelIsOpen, threadsBox, retainUserIntent());
   announce(
@@ -473,8 +482,7 @@ export function createNavigation({
   // walk goes to what is on the user whatever the list shows.
   async function arriveAtThreadById(id) {
     const intent = retainUserIntent();
-    const card = () =>
-      openThreads({ visibleOnly: false }).find((thread) => thread.dataset.id === id);
+    const card = () => openThreads().find((thread) => thread.dataset.id === id);
     if (panelIsOpen() && card()?.hidden) await narrowing.revealThread(id);
     const next = card();
     if (!next) return false;
@@ -487,5 +495,8 @@ export function createNavigation({
     seenScroller: () => seenScroller(coveringAuxiliaryScroller),
     stepReading: move,
     stepThread: walkThreads,
+    // Where the thread walk stands, which the panel's arrows report as `t` does.
+    threadPosition: () =>
+      threadPosition(threadDestinations.threadHere, panelIsOpen, narrowing, threadList),
   };
 }

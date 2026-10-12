@@ -784,7 +784,6 @@ class PageEndpoint:
             self.server,
             parent=self,
             path=inside or "/",
-            passive=sample.passive,
             asset_root=sample.asset_root,
             page_dir=sample.directory,
             layer_identity=sample.layer,
@@ -1139,11 +1138,7 @@ class PageEndpoint:
         entries = self.posted.get("entries")
         if not isinstance(session, str) or not session:
             return self._refuse("interaction requires a nonempty session")
-        if (
-            not isinstance(entries, list)
-            or not entries
-            or any(not isinstance(entry, dict) for entry in entries)
-        ):
+        if not isinstance(entries, list) or not entries:
             return self._refuse("interaction requires a nonempty array of entries")
         # Every sample directory is temporary, including a nested sample's
         # parent. Retain all descendants in the authored page's trace, with
@@ -1163,15 +1158,8 @@ class PageEndpoint:
 
     def _create_sample(self) -> Response:
         template = self.posted.get("template")
-        passive = self.posted.get("passive", False)
-        if (
-            not isinstance(template, str)
-            or not template
-            or not isinstance(passive, bool)
-        ):
-            return self._refuse(
-                "sample requires a template id and a boolean passive value"
-            )
+        if not isinstance(template, str) or not template:
+            return self._refuse("sample requires a template id")
         revision = self.layer_revision
         if revision is None:
             return self._refuse("sample requires an active parent revision")
@@ -1187,7 +1175,6 @@ class PageEndpoint:
                 events,
                 data,
                 template,
-                passive,
                 asset_root,
             )
         except ValueError as error:
@@ -1252,7 +1239,6 @@ class SampleEndpoint(PageEndpoint):
         *,
         parent: PageEndpoint,
         path: str,
-        passive: bool,
         asset_root: str | None,
         **binding,
     ) -> None:
@@ -1260,7 +1246,6 @@ class SampleEndpoint(PageEndpoint):
         self.parent = parent
         # The address inside the child, below the capability its parent matched.
         self.path = path
-        self.passive = passive
         self.asset_root = asset_root
 
     def authorized(self) -> bool:
@@ -1282,17 +1267,16 @@ class SampleEndpoint(PageEndpoint):
 
     def _delivery(self, artifact: RevisionArtifact, revision: int) -> Delivery:
         # Every child arrives inert, so its startup cannot take focus from the page;
-        # the host releases a live one once it presents. A passive replay never takes
-        # input. Whether the child lays out as a block or a window is its frame's to
-        # say (sample.js), which its bootstrap asks before it paints.
+        # the host releases it once it presents. Whether the child lays out as a
+        # block or a window is its frame's to say (sample.js), which its bootstrap
+        # asks before it paints.
         return replace(
             super()._delivery(artifact, revision),
             html_attributes={
                 "data-lf-user-scope": self.page_root + "/",
                 "data-lf-sample": "",
             },
-            body_attributes={"inert": ""}
-            | ({"data-lf-sample-passive": ""} if self.passive else {}),
+            body_attributes={"inert": ""},
         )
 
 

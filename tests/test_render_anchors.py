@@ -73,6 +73,7 @@ from render_harness import (
     RELEASE_FOCUS,
     SAID_PAGE,
     _traffic,
+    command_reference_rows,
     compare_with,
     consume_browser_errors,
     hold_selection,
@@ -1611,8 +1612,12 @@ def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
     page.evaluate("document.querySelector('main').append(detachedCodeSource)")
     expect(page.locator(".lf-chrome > .lf-code-copy")).to_have_count(2)
     page.locator("#source").focus()
+    assert "copy code" in shortcut_bar_text(page)
     page.keyboard.press("Tab")
     expect(page.locator("#code-link")).to_be_focused()
+    # The block's Copy answers on the block alone; its link keeps Enter.
+    on_link = shortcut_bar_text(page)
+    assert "Follow" in on_link and "copy code" not in on_link, on_link
     page.keyboard.press("Enter")
     expect(page).to_have_url(re.compile(r"#destination$"))
 
@@ -1834,12 +1839,22 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
         assert 0 <= overlay[1] - frame[1] <= 8, before
         assert 0 <= frame[0] + frame[2] - overlay[0] - overlay[2] <= 8, before
         if keyboard:
-            # Enter on the source reaches its copy control even though the control
-            # stands outside authored markup.
+            # Enter on the source copies it, though the control stands outside
+            # authored markup and the Tab sequence. The register names that press
+            # wherever it names keys: the shortcut bar, the command reference and
+            # the block's aria-keyshortcuts.
             pre.focus()
-            page.keyboard.press("Enter")
-            expect(button).to_be_focused()
-            assert button.evaluate("el => el.matches(':focus-visible')")
+            assert "copy code" in shortcut_bar_text(page)
+            expect(pre).to_have_attribute("aria-keyshortcuts", "Enter")
+            page.keyboard.press("?")
+            page.keyboard.press("?")
+            expect(
+                command_reference_rows(page, "On a code block").get_by_text(
+                    "Copy this block's code to the clipboard"
+                )
+            ).to_be_visible()
+            page.keyboard.press("Escape")
+            expect(pre).to_be_focused()
         else:
             pre.hover()
             expect(control).to_have_css("opacity", "1")
@@ -1850,9 +1865,11 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
             assert after[box] == pytest.approx(before[box], abs=0.5), (before, after)
         if keyboard:
             page.keyboard.press("Enter")
+            expect(pre).to_be_focused()
         else:
             button.click()
         expect(button).to_have_attribute("aria-label", "Code copied")
+        expect(page.locator(".lf-notice")).to_have_text("Code copied")
         assert page.evaluate("navigator.clipboard.readText()") == expected
 
     copy("#colored", document_controls.nth(0), colored)
@@ -2036,10 +2053,12 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     expect(touch_control).to_have_css("opacity", "1")
     touch_pre.tap(position={"x": 20, "y": 20})
     expect(touch_control).to_have_css("opacity", "0")
+    # The control refuses a second copy until its last result has shown.
+    expect(touch_button).to_have_accessible_name("Copy code")
     touch.keyboard.press("Enter")
-    expect(touch_button).to_be_focused()
-    assert touch_button.evaluate("button => button.matches(':focus-visible')")
-    expect(touch_control).to_have_css("opacity", "1")
+    expect(touch_button).to_have_accessible_name("Code copied")
+    assert touch.evaluate("navigator.clipboard.readText()") == fitting
+    expect(touch_pre).to_be_focused()
     expect(touch_pre).to_have_attribute("tabindex", "0")
     assert touch_pre.bounding_box() == frame
 

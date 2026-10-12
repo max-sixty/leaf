@@ -6,8 +6,26 @@ with the page's dated activity rather than maintaining another running flag.
 A pointer acknowledgement proves entry through its exact hook reservation and lifecycle revision.
 Codex can resume without a user prompt. Its native transcript supplies ordered
 turn starts and endings that both the queue adapter and hooks publish through the
-same lifecycle owner. Transcript readings are disposable process memory; the
-session record keeps only the hook-provided path needed to observe that source.
+same lifecycle owner (`sync_transcript_turn`). The source must name the session and
+establish the current provider turn before it replaces one, so a prompt ahead of the
+transcript cannot be rolled back, and a closed turn stays closed. Source timestamps
+date observations, so reading an old start does not renew its activity. Transcript
+readings are disposable process memory; the session record keeps only the
+hook-provided path needed to observe that source.
+
+Codex's prompt hook records the provider turn even before a page is claimed. Once the
+session has claimed a page (`state.hook_needed`), its PostToolUse hook identifies an
+unknown session-scoped turn once, or renews only the provider turn already observed
+running, and offers one immutable pointer between steps (`codex.offer_hook_delivery`).
+The observation's revision advances on a prompt, an ending or a tool step, and the
+queue rechecks it under the delivery lock before reserving its transport, so even a
+renewed step in the same turn invalidates an idle reading taken before it. Completing
+a hook does not prove the model read its output: `leaf delivery ack` in the owning task
+confirms complete receipt and records the opened pickup, through
+`codex.accept_codex_delivery` as every transport's acceptance does. Stop or Interrupt
+closes the observed turn, including for a page acquired before its first tool hook.
+Stale provider callbacks are refused before planning or printing context, and a newer
+prompt protects its generation and turn.
 """
 
 import json

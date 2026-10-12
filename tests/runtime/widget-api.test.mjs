@@ -98,11 +98,29 @@ const documented = ({ spans, code, imported }) => {
   return names;
 };
 
-// The names modules under `dir` import from `/runtime/widget-api.js`.
+// The names modules under `dir` import from `/runtime/widget-api.js`, including the
+// module scripts of its HTML pages.
 function importsUnder(dir) {
   const found = new Set();
-  for (const path of scripts(dir))
-    for (const node of parseModule(read(path)).body)
+  const files = readdirSync(dir, { recursive: true }).filter(
+    (name) => !name.split("/").includes("vendor"),
+  );
+  const modules = [
+    ...files
+      .filter((name) => name.endsWith(".js"))
+      .map((name) => read(join(dir, name))),
+    ...files
+      .filter((name) => name.endsWith(".html"))
+      .flatMap((name) =>
+        [
+          ...read(join(dir, name)).matchAll(
+            /<script\b[^>]*type="module"[^>]*>(.*?)<\/script>/gs,
+          ),
+        ].map((found) => found[1]),
+      ),
+  ];
+  for (const code of modules)
+    for (const node of parseModule(code).body)
       if (node.type === "ImportDeclaration" && node.source.value === API)
         for (const spec of node.specifiers)
           if (spec.type === "ImportSpecifier") found.add(spec.imported.name);
@@ -176,6 +194,25 @@ test("every internal export is undocumented and has a bundled importer", () => {
     [],
     "no bundled package or kernel widget imports these; delete them, or move what only " +
       "the render gate reads to check-api.js",
+  );
+});
+
+test("every name a behavior module imports is exported", () => {
+  const exported = surface();
+  const imported = new Set(
+    [
+      "skills/leaf/packages",
+      "skills/leaf/assets/widgets",
+      "examples",
+      "tests/fixtures",
+      "tests/browser",
+    ].flatMap((dir) => [...importsUnder(join(ROOT, dir))]),
+  );
+  assert.ok(imported.has("once"), "no import read");
+  assert.deepEqual(
+    [...imported].filter((name) => !exported.has(name)),
+    [],
+    "behavior modules import these, and widget-api.js does not export them",
   );
 });
 

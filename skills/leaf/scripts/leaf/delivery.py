@@ -13,11 +13,20 @@ on the events they apply to. Clause identities belong only to that batch.
 
 The envelope names who confirms receipt through `acknowledge`. A hook confirms
 what it hands over inline; a pointer reader explicitly confirms a complete
-reading through its session's harness. `turn_replies` assigns final custody to the
-provider turn.
-An answer's `writer` guides initial handling at capture; the current binding alone
-controls final custody when writing. It is separate from the semantic operation:
-reply and markup requirements retain their meaning on every transport.
+reading through its session's harness.
+
+A reply reservation is a provider turn's hold on the reply to one delivered
+update, on a harness whose turn's final message becomes that reply (a Codex App
+Server turn). Freezing with `turn_replies` marks each reply answer
+`writer: "turn"`, and the harness reserves the answer's address before it starts
+the turn (`thread.reserve_delivery_reply`); the page's status keeps the
+reservation under `stream.reply_reservations`, and session-lifetime.md says when it
+stands and when it clears. While it stands, no other delivery can reserve the
+address, the turn's final message commits as the reply, and failure receipts and
+other provider finals are refused or write nothing. A direct `leaf response reply` still commits at once,
+and the turn's final then yields to it. `writer` is the hint captured at freeze;
+only a standing reservation decides who writes. Neither changes the answer's
+operation: reply and markup answers mean the same on every transport.
 
 Freeze emits an exact `answer.ref`, qualified by delivery, page batch and input.
 The immutable envelope is the only address store. Direct authors and provider
@@ -40,16 +49,11 @@ from typing import Literal
 from xml.etree import ElementTree
 
 from .files import read_json
-from .harness import claim_harness, session_harness
+from .harness import session_harness
 from .machine import state_home
 from .refusals import Refused
 from .schema import CURSOR_FILE, WIDGET_KINDS
-from .service import (
-    PageTransaction,
-    owned_pages,
-    requires_agent_attention,
-    unacknowledged,
-)
+from .service import PageTransaction, requires_agent_attention, unacknowledged
 from .state import (
     flocked,
     open_session_turn,
@@ -308,7 +312,7 @@ def handled(
     turn_replies: bool,
     preserve_refs: bool = False,
 ) -> dict:
-    """One captured batch with exact references, writer custody and handling.
+    """One captured batch with exact references, writer hints and handling.
 
     A clause's `when` reads the event, the answer it owes, and its thread's
     digest, so each event is told only its own case and the answer it owes. The
@@ -585,8 +589,6 @@ def record_pickup(
     transition may therefore be followed by an opened transition for the same
     events, while a retry of the same transition appends nothing.
     """
-    if phase not in {"queued", "opened", "failed"}:
-        raise ValueError(f"unknown pickup phase {phase!r}")
     claim = page.claim
     if session is None and claim:
         session = claim["id"]
@@ -773,28 +775,3 @@ def receive_one(
             turn = observed["turn"]
         record_pickup(page, events, session=session_id, turn=turn)
     return page_dir
-
-
-def pending_batches(session_id: str) -> list[dict]:
-    """Every page's pending input for a session whose hooks carry it, one batch
-    per page, captured under that page's transaction and not yet confirmed.
-
-    Receipt is a separate step, taken once those batches are handed over:
-    it rechecks ownership and the captured events, and anything appended between
-    the two readings stays pending, above the cursor it advances."""
-    batches = []
-    for page_dir in owned_pages(session_id):
-        try:
-            with PageTransaction(page_dir) as page:
-                claim = page.active_claim
-                if not (
-                    claim
-                    and claim["id"] == session_id
-                    and claim_harness(claim).hooks_carry()
-                ):
-                    continue
-                if batch := unacknowledged(page.events, page.cursor):
-                    batches.append(batch_data(page_dir, page, batch))
-        except FileNotFoundError:
-            continue
-    return batches

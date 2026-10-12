@@ -14,6 +14,7 @@ export {
   nothing,
   render,
   classMap,
+  createRef,
   guard,
   keyed,
   live,
@@ -28,6 +29,7 @@ export { widgetController } from "./widget-controller.js";
 export { quoted } from "./widget-descriptors.js";
 export { initialRender } from "./initial-render.js";
 export { whileConnected, frameFor } from "./arrivals.js";
+export { aborted } from "./abort.js";
 // The rank a position record carries for a unit dropped at an index in a container.
 export { rankAt } from "./projection/model.js";
 

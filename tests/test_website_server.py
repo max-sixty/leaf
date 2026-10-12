@@ -1888,7 +1888,7 @@ def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
     There is nothing to follow and possibly something running: a lost
     acknowledgement is a request App Server may well have acted on. So the
     provider is told to stop whatever it started, and the delivery gives the
-    moves back — both the offer and the reply seat it reserved, because either
+    moves back — both the offer and its reply reservation, because either
     left standing blocks the `startup_failed` receipt this raise asks the Worker
     for, and that receipt is what invites the user to send again.
     """
@@ -1934,7 +1934,7 @@ def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
     activity = website_server.full_state(page_dir, read_events(page_dir))["activity"]
     assert activity["observed_kind"] is None
     assert [item["stage"] for item in activity["obligations"]] == ["sent"]
-    # The seat is free, so the Worker's own receipt reaches the user.
+    # The reply reservation is released, so the Worker's own receipt reaches the user.
     assert (
         website_server.write_failure_receipt(page_dir, comment["id"], "startup_failed")
         is not None
@@ -3253,7 +3253,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     thread = page.locator(f'.lf-threads > [data-id="{comment["id"]}"]')
     # An active editor holds the turn's opening so this journey exercises the receipt
     # beside held news; an idle panel thread streams it immediately. The reply joins
-    # the thread with its first words, not when the turn opens its seat.
+    # the thread with its first words, not when the turn opens its draft.
     thread.locator("leaf-text").focus()
     turn.begin()
     turn.reply_stream.update(
@@ -3471,7 +3471,7 @@ def test_a_reply_that_cannot_be_written_still_closes_its_website_turn(
     """The page stops saying the agent is working, however the reply went.
 
     `AppServerReplyStream` guards only the commit of a completed answer. Setting
-    its state and releasing the binding open their own page transactions; the turn's
+    its state and releasing the reservation open their own page transactions; the turn's
     work may have left that page unopenable. The turn has ended either way, and until
     its Leaf turn closes the page tells its user the agent is working, with nothing
     but the claim's grace to correct it — and the move it was carrying goes without
@@ -5223,6 +5223,8 @@ def test_a_progress_update_is_timed_apart_from_the_answer():
 
     # Addressed progress takes the input in hand atomically in the current log.
     inline = {**progress, "start": {"item": comment["id"]}}
+    # Progress on another input, in that input's own thread.
+    other = {**comment, "id": "other-input", "ts": "2026-10-04T12:00:00.900-07:00"}
     unrelated = {
         **inline,
         "id": "other-progress",
@@ -5231,7 +5233,7 @@ def test_a_progress_update_is_timed_apart_from_the_answer():
         "ts": "2026-10-04T12:00:01.000-07:00",
     }
     assert journey.recorded_steps(
-        [comment, unrelated, inline, reply], comment, published
+        [comment, other, unrelated, inline, reply], comment, published
     ) == {
         "queued": None,
         "pickedUp": None,

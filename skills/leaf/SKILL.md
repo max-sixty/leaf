@@ -22,7 +22,7 @@ and how to register each request.
 
 The input is a subject to present, or a delivery from a page already handed
 over: a named `leaf_delivery` tool output, a `leaf-delivery` element, or the
-envelope a `leaf wait` printed. A delivery starts at step 5 below; do
+envelope a `leaf wait` printed. A delivery starts at step 6 below; do
 not initialize or hand the page over again. With no subject in `$ARGUMENTS`,
 present the work already under discussion.
 
@@ -32,8 +32,12 @@ $ARGUMENTS
 
 - **Responsive.** Being responsive to the user is your first priority, ahead of
   the work itself.
-- **Playable.** The user sees at a glance what each view wants of them, and every
-  state offers a move.
+- **Playable.** Using Leaf should feel like playing a game: the user sees at a
+  glance what each view wants of them, every state they reach offers a move, and a
+  move the page can draw shows its result at once. Test a draft by reading only its
+  headings, pictures, and controls, as a player takes in a board: where that leaves
+  a view's point or its move unclear, the view has put in words what it should draw
+  or let the user do.
 - **Visual.** The page shows its subject in pictures and controls, and uses words
   for what they cannot say.
 - **Current.** The page states what is true now, so a returning user finds each
@@ -67,34 +71,31 @@ directory explicitly; export or copy anything that must outlive the page directo
    active immutable revision; an invalid save leaves the last valid one live and
    reports its diagnostic in page state and the browser. You write `index.html` and
    `page/`; Leaf alone writes revisions and version mappings.
-3. **Quick pages and records.** Check the page according to how long the user
-   will rely on it. A quick page revised or dropped after an immediate reaction
-   needs only `leaf page check <page>`; fix every failure and hand it over without
-   stamping or a browser review. A finished record used beyond the conversation needs
-   `leaf page check <page> --render`, the reading in "Pre-handover review" in
-   `references/page-authoring.md`, and then
-   `leaf page stamp <page> --text "<changelog>"`. The check establishes that the
-   page renders; the reading establishes that it shows the intended content.
-   Review a record before its first handoff and at every later stamp, covering
-   the views and asks that stamp adds. Review a quick page when a stamp makes it
-   a record. A revision that answers a user's message needs only
-   `leaf page check` before the reply, even on a record, because each valid save
-   is already live on the user's page and further checking only delays the answer
-   they are waiting for. Stamp a record again, with its render check and reading,
-   at a checkpoint the user would name, such as sign-off (step 6), and wherever a
-   reference requires a stamped version, as taking in an answer to a page ask
-   does (`references/authoring-revisions.md`). A page declaring
-   `<meta name="lf-review" content="sign-off">` is always a record, since
-   approval requires a stamped version.
-4. Read the contract selected by "Harness selection" below. Follow
+3. **Check the page.** Before you hand the page over or reply about a revision,
+   run `leaf page check <page>` and fix every failure. That is the whole check for a quick page, one the user reacts to once
+   and then revises or drops: hand it over without stamping or a browser review. It
+   is also the whole check for a revision that answers a user's message, even on a
+   record, because each valid save is already live on the user's page and further
+   checking only delays the answer they are waiting for.
+4. **Review and stamp a record.** A record is a page used beyond this
+   conversation. A page declaring `<meta name="lf-review" content="sign-off">` is
+   always one, since approval requires a stamped version. Before a record's first
+   handoff, run `leaf page check <page> --render`, do the reading in
+   `references/page-authoring.md`, "Pre-handover review", and then run
+   `leaf page stamp <page> --text "<changelog>"`. The render check establishes that
+   the page renders; the reading establishes that it shows the intended content.
+   `references/page-checkpoints.md`, "Stamp checkpoints", says when to stamp again;
+   each later stamp repeats the render check and the reading for the views and asks
+   it adds. A quick page takes this review when a stamp makes it a record.
+5. Read the contract selected by "Harness selection" below. Follow
    `references/conversation-loop.md`, "Status and handoff", and serve and hand
    over the page by that contract's route.
-5. When a delivery arrives, read `references/event-batches.md`, the
+6. When a delivery arrives, read `references/event-batches.md`, the
    selected harness contract, and, for user messages,
    `references/threads.md`, and answer every event as they say.
    Say what you are doing before doing it, as `references/conversation-loop.md`,
    "When to write", orders it.
-6. Stamp checkpoints and end the page as `references/page-checkpoints.md` says.
+7. Stamp checkpoints and end the page as `references/page-checkpoints.md` says.
 
 ## Harness selection
 
@@ -118,17 +119,6 @@ and work status for each user update. For work that would delay the next update,
 follow its "Long-running work" section: background workers do the work while
 you keep the page and answer the user.
 
-## Leaf soul
-
-Using Leaf should feel like playing a game: the user sees what the page wants
-of them without reading it first, every state they reach offers a move, and a
-move the page can draw shows its result at once. Sometimes the game is Snap,
-where the match is there and they pick it; sometimes it is Factorio, where the
-system is laid out and they move its pieces. It is never a chore. Test a draft
-as a player takes in a board, reading only its headings, pictures, and controls:
-where that leaves a view's point or its move unclear, the view has put in words
-what it should draw or let the user do.
-
 ## Page contract
 
 Unless the user specifies the page's shape or depth, a Leaf is a short sequence
@@ -139,9 +129,9 @@ Where a view's point has a shape, it shows the point in a picture and uses words
 for what the picture cannot say; `references/page-authoring.md`, "Draw the
 subject", says which points have one.
 The visible page follows the subject's shape: prose read in order, regions read side
-by side on a wide page, or a workspace, a screen the user moves through rather than
+by side on a sidebar page, or a workspace, a screen the user moves through rather than
 scrolls. A Layout class
-on `main` or a block arranges each of these, and the page's own CSS adjusts it;
+on `main` sets each of these shapes, and the page's own CSS adjusts it;
 `references/page-authoring.md`, "Composing a page", owns the concrete choices, and
 `references/authoring-questions.md` owns where each ask goes.
 

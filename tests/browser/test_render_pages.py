@@ -1467,17 +1467,19 @@ NOTE = '<aside class="sidenote" id="note"><p>A note that needs a sidenote.</p></
 
 
 @pytest.mark.parametrize(
-    ("resident", "posture"),
+    ("resident", "posture", "engine"),
     [
-        ("", "even"),
-        ('<aside class="sidebar"><lf-toc id="toc"></lf-toc></aside>', "map"),
-        (NOTE, "note"),
-        ('<aside class="sidebar"><p>Owner: payments.</p></aside>', "sidebar"),
+        ("", "even", "browser"),
+        ('<aside class="sidebar"><lf-toc id="toc"></lf-toc></aside>', "map", "browser"),
+        (NOTE, "note", "browser"),
+        ('<aside class="sidebar"><p>Owner: payments.</p></aside>', "sidebar", "browser"),
+        ("", "even", "firefox_browser"),
+        ("", "even", "webkit_browser"),
     ],
 )
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
 def test_a_table_granted_room_stands_on_the_prose_axis(
-    browser, serve, resident, posture, direction
+    request, serve, resident, posture, engine, direction
 ):
     """A table given `data-width` keeps its columns' natural width and stands centred on
     the prose axis, however unevenly the margins share the room: a contents map's spine
@@ -1488,11 +1490,14 @@ def test_a_table_granted_room_stands_on_the_prose_axis(
     narrow table at the prose's right edge, where its text starts; the sidebar stands
     on the left there too.
 
-    The table breaks out of its holder and nothing else: in a cell of the page's own
-    two-track grid it stands where the one in the flow does, and the grid keeps its
-    tracks even, where its natural width had widened its own track and crushed the
-    other to 30px. A table written in the other direction from its holder stands there
-    too, since the browser keeps an over-wide box at its holder's start, not its own."""
+    A table written in the other direction from its holder stands there too, since the
+    browser keeps an over-wide box at its holder's start, not its own. Where the page
+    arranges the box itself, as in a cell of its own two-track grid or as an item of
+    that grid, the room beside it is the page's other track, so the table stays in its
+    box and scrolls its columns there: its natural width had widened its track and
+    crushed the other to 30px, and as an item it had stood across both tracks. Chromium,
+    Firefox and WebKit place them the same."""
+    browser = request.getfixturevalue(engine)
     head = "".join(f"<th>Column {i}</th>" for i in range(8))
     row = "".join(f"<td>measured value {i}</td>" for i in range(8))
     grid = f"<thead><tr>{head}</tr></thead><tbody><tr>{row}</tr></tbody>"
@@ -1508,6 +1513,8 @@ def test_a_table_granted_room_stands_on_the_prose_axis(
         '<div class="pair"><div id="beside"><p>Left cell.</p></div>'
         f'<div id="cell"><p>Right cell.</p><table id="celled" data-width="available">'
         f"{grid}</table></div></div>"
+        '<div class="pair"><p>Left cell.</p>'
+        f'<table id="itemed" data-width="available">{grid}</table></div>'
     )
     source = leaf_page(
         "Tables granted room",
@@ -1530,7 +1537,8 @@ def test_a_table_granted_room_stands_on_the_prose_axis(
         wide: grid('wide'),
         narrow: grid('narrow'),
         turned: grid('turned'),
-        celled: grid('celled'),
+        celled: edges(document.getElementById('celled')),
+        itemed: edges(document.getElementById('itemed')),
         beside: edges(document.getElementById('beside')),
         cell: edges(document.getElementById('cell')),
       };
@@ -1545,12 +1553,10 @@ def test_a_table_granted_room_stands_on_the_prose_axis(
         assert at["wide"]["left"] == pytest.approx(prose["left"], abs=1), at
     else:
         assert at["wide"]["centre"] == pytest.approx(prose["centre"], abs=1), at
-    for placed in ("turned", "celled"):
-        for edge in ("left", "right"):
-            assert at[placed][edge] == pytest.approx(at["wide"][edge], abs=1), (
-                placed,
-                at,
-            )
+    for edge in ("left", "right"):
+        assert at["turned"][edge] == pytest.approx(at["wide"][edge], abs=1), at
+        for kept in ("celled", "itemed"):
+            assert at[kept][edge] == pytest.approx(at["cell"][edge], abs=1), (kept, at)
     width = lambda box: box["right"] - box["left"]  # noqa: E731
     assert width(at["beside"]) == pytest.approx(width(at["cell"]), abs=1), at
     assert root_overflow(page) == 0
@@ -1624,21 +1630,38 @@ INDENTED_PAGE = leaf_page(
     + f'<ol class="steps"><li id="steps">A step{_indented("steps")}</li></ol>'
     + f'<ul class="plain"><li id="plain">An item{_indented("plain")}</li></ul>'
     + f'<div class="inset" id="inset">An indented block{_indented("inset")}</div>'
-    # Breakouts that are themselves items of the page's own grid, in its second track.
+    # Boxes the page arranges itself: breakouts that are items in the second track of
+    # its own grid, one that shares a flex row, and a table in an inline block.
     + '<div class="pair" id="gridded"><i class="gutter"></i>'
+    '<p id="gridded-track">The second track.</p>'
     '<div id="gridded-wide" data-width="wide">Wide.</div>'
-    '<div id="gridded-available" data-width="available">Available.</div></div>',
+    '<div id="gridded-available" data-width="available">Available.</div></div>'
+    '<div class="row"><p id="flexed-beside">Beside the block, in the same row.</p>'
+    '<div id="flexed-wide" data-width="wide">Wide.</div></div>'
+    '<div class="boxed" id="boxed"><p>An inline block holding a table.</p>'
+    f'<table id="boxed-table" data-width="available"><tr>{INDENTED_CELLS}</tr></table>'
+    "</div>",
     head="<style>ul.plain { padding: 0; list-style: none; }"
     " .inset { padding-left: 40px; }"
     " .pair { display: grid; grid-template-columns: 1fr 1fr; column-gap: 16px; }"
-    " .pair > .gutter { grid-row: span 2; }</style>",
+    " .pair > .gutter { grid-row: span 3; }"
+    " .row { display: flex; gap: 16px; } .row > * { flex: 1; }"
+    " .boxed { display: inline-block; }</style>",
 )
 
 
-@pytest.mark.parametrize("posture", ["even", "map", "sidebar", "phone"])
+@pytest.mark.parametrize(
+    ("posture", "engine"),
+    [(posture, "browser") for posture in ("even", "map", "sidebar", "phone")]
+    + [
+        (posture, engine)
+        for engine in ("firefox_browser", "webkit_browser")
+        for posture in ("even", "phone")
+    ],
+)
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
 def test_a_breakout_in_an_indented_holder_measures_its_room_from_the_column(
-    browser, serve, direction, posture
+    request, serve, direction, posture, engine
 ):
     """A holder that stands in from the column, however it got there, gives a block
     that breaks out of it the column's room: three nested list items, a step list whose
@@ -1646,12 +1669,18 @@ def test_a_breakout_in_an_indented_holder_measures_its_room_from_the_column(
     block. The runtime reads how far each holder stands in rather than each kind of
     holder declaring it, so a wide or available block in any of them takes the same box
     as one in the page's flow, on the prose axis, beside a contents map and with a
-    sidebar in the margin as on a plain column, and on a phone. So does one that is
-    itself an item in the second track of the page's own grid, whose block is that
-    track rather than the grid's content box. A table wider than its
+    sidebar in the margin as on a plain column, and on a phone. A table wider than its
     holder stands where one in the page's flow does: centred on the prose axis, or from
     the prose's left edge beside a margin sidebar. One that fits its holder stays with
-    it, starting where the holder's text starts."""
+    it, starting where the holder's text starts. Nothing the page scrolls sideways, in
+    Chromium, Firefox and WebKit: Firefox had counted where a table stood before it was
+    moved over, 10px past a phone's window.
+
+    A box the page arranges itself is no holder of that kind, since the room beside it is
+    the page's own: a block that is an item of the page's grid takes its track, one in a
+    flex row takes its share of the row beside its sibling, and a table in an inline
+    block scrolls inside it."""
+    browser = request.getfixturevalue(engine)
     source = INDENTED_PAGE
     if posture == "map":
         source = source.replace(
@@ -1700,10 +1729,10 @@ def test_a_breakout_in_an_indented_holder_measures_its_room_from_the_column(
           narrow: edges(document.querySelector(`#${name}-narrow tr`)),
           text: textStart(document.getElementById(`${name}-narrow`).parentElement),
         };
-      reading.gridded = {
-        wide: edges(document.getElementById('gridded-wide')),
-        available: edges(document.getElementById('gridded-available')),
-      };
+      reading.arranged = Object.fromEntries([
+        'gridded-track', 'gridded-wide', 'gridded-available', 'flexed-beside',
+        'flexed-wide', 'boxed', 'boxed-table',
+      ].map((id) => [id, edges(document.getElementById(id))]));
       return reading;
     }""",
         direction,
@@ -1713,17 +1742,13 @@ def test_a_breakout_in_an_indented_holder_measures_its_room_from_the_column(
     control, prose = at["control"], at["prose"]
     start = "left" if direction == "ltr" else "right"
     assert abs(at["nested"]["text"] - control["text"]) >= 70, at
-    for name in ("nested", "steps", "plain", "inset", "gridded"):
+    for name in ("nested", "steps", "plain", "inset"):
         holder = at[name]
         for block in ("wide", "available", "table"):
-            if block not in holder:
-                continue
             for edge in ("left", "right"):
                 assert holder[block][edge] == pytest.approx(
                     control[block][edge], abs=1
                 ), (name, block, edge, at)
-        if name == "gridded":
-            continue
         assert holder["narrow"][start] == pytest.approx(holder["text"], abs=1), (
             name,
             at,
@@ -1733,6 +1758,19 @@ def test_a_breakout_in_an_indented_holder_measures_its_room_from_the_column(
         assert control["table"]["centre"] == pytest.approx(prose["centre"], abs=1), at
     elif posture == "sidebar":
         assert control["table"]["left"] == pytest.approx(prose["left"], abs=1), at
+    arranged = at["arranged"]
+    for block in ("gridded-wide", "gridded-available"):
+        for edge in ("left", "right"):
+            assert arranged[block][edge] == pytest.approx(
+                arranged["gridded-track"][edge], abs=1
+            ), (block, at)
+    beside, wide = arranged["flexed-beside"], arranged["flexed-wide"]
+    assert wide["right"] - wide["left"] == pytest.approx(
+        beside["right"] - beside["left"], abs=1
+    ), at
+    assert wide["left"] >= beside["right"] or wide["right"] <= beside["left"], at
+    assert arranged["boxed-table"]["left"] >= arranged["boxed"]["left"] - 1, at
+    assert arranged["boxed-table"]["right"] <= arranged["boxed"]["right"] + 1, at
     assert root_overflow(page) == 0
 
 

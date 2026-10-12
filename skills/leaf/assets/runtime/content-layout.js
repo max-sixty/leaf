@@ -39,36 +39,37 @@ function readResidency() {
 export function scheduleResidency() {
   if (residencyOpen) residencyPending ||= nextRender(residencyPass);
 }
-// The same read also says how far the block each breakout is laid out in stands in
-// from the column (prepaint.js, `indents`), which later changes move without moving the
-// column. Whatever moves a block moves its breakout, so every breakout is watched for
-// moving sideways, an edge moving outward, and being drawn at all (`watchMoves`),
-// whatever caused it: a holder's margin, a class that reveals it, the page's own
-// script. That report comes after the rendering update that moved it has painted, so
-// the causes Leaf itself and a revision produce are read sooner, before the frame
-// paints them. A
-// breakout a revision or a widget inserts, or one a holder reveals (a panel losing
-// `hidden`, a disclosure opening), is read in the microtask its arrival queues, whether
-// it arrived in a task, in a frame's pass after the margin pass ran, or in a
-// ResizeObserver callback. A holder a class or a style pads anew changes width, which
-// the holder's resize reports after layout and before paint; a change of its height
-// alone moves no edge and is not read. Neither waits for the margin pass, which reads
-// at most once a frame and would leave the breakout one frame off; this reading moves
-// only the breakouts, so it needs no such bound. What none of these reports, a block
-// whose edge moves inward while the other stays and its holder keeps its width, as a
-// grid track a sibling's content takes from, keeps its reading until the next pass.
+// The same read also says how far each breakout's holder stands in from the column,
+// and whether the page arranged the box the breakout is in (prepaint.js, `indents`),
+// which later changes alter without moving the column. Whatever moves a holder moves
+// its breakout, so every breakout is watched for moving sideways, an edge moving
+// outward, and being drawn at all (`watchMoves`), whatever caused it: a holder's
+// margin, a class that reveals it, the page's own script. That report comes after the
+// rendering update that moved it has painted, so the causes Leaf itself and a revision
+// produce are read sooner, before the frame paints them. A breakout a revision or a
+// widget inserts, or one a holder reveals (a panel losing `hidden`, a disclosure
+// opening), is read in the microtask its arrival queues, whether it arrived in a task,
+// in a frame's pass after the margin pass ran, or in a ResizeObserver callback. A
+// holder a class or a style pads anew changes width, which the holder's resize reports
+// after layout and before paint; a change of its height alone moves no edge and is not
+// read. Neither waits for the margin pass, which reads at most once a frame and would
+// leave the breakout one frame off; this reading moves only the breakouts, so it needs
+// no such bound. A holder that changes how it arranges what it holds, from a block to a
+// grid, say, while nothing in it moves or resizes, keeps its reading until the next
+// pass.
 const BREAKOUT = '[data-lf-space]:not([data-lf-space="column"])';
 const bringsBreakout = (node) =>
   node.nodeType === Node.ELEMENT_NODE &&
   (node.matches(BREAKOUT) || node.querySelector(BREAKOUT) !== null);
-// The one record of the holders a reading measured, kept only to watch them: each with
-// the width it last reported, and the breakouts the reading found in it, held weakly.
-// A reading replaces the record with exactly the holders it measured. A removal alone
-// moves no breakout that stays, so it drops, without a reading and in the microtask it
-// queues, each holder no longer connected or no longer holding one of its breakouts,
-// before a removed box could report its zero width. Nothing removed stays held: a
-// removed holder held a removed breakout, so that removal drops it, and a breakout is
-// never held but through a WeakRef.
+// The two records of what a reading answered for, kept only to watch it: the holders
+// it measured, each with the width it last reported and the breakouts the reading found
+// in it, and the breakouts, each with its move watch (`moves`, below). A reading
+// replaces both with exactly what it read. A removal alone moves no breakout that
+// stays, so it drops, without a reading and in the microtask it queues, each holder no
+// longer connected or no longer holding one of its breakouts, before a removed box
+// could report its zero width, and each breakout no longer connected. That is how
+// nothing removed stays held: both records hold what they watch, and a removal from
+// `main` releases it.
 const watched = new Map();
 const holderSizes = sizeObserver((entries) => {
   let widened = false;
@@ -90,10 +91,9 @@ const unwatch = (holder) => {
 function watchHolders(holders) {
   for (const holder of watched.keys()) if (!holders.has(holder)) unwatch(holder);
   for (const [holder, { width, breakouts }] of holders) {
-    const refs = breakouts.map((breakout) => new WeakRef(breakout));
-    if (watched.has(holder)) watched.get(holder).breakouts = refs;
+    if (watched.has(holder)) watched.get(holder).breakouts = breakouts;
     else {
-      watched.set(holder, { width, breakouts: refs });
+      watched.set(holder, { width, breakouts });
       holderSizes.observe(holder);
     }
   }
@@ -101,12 +101,10 @@ function watchHolders(holders) {
 // A breakout moved elsewhere arrives there too, and that arrival takes a reading, so a
 // breakout still connected is still its holder's.
 function releaseHolders() {
-  for (const [holder, { breakouts }] of watched)
-    if (
-      !holder.isConnected ||
-      !breakouts.some((breakout) => breakout.deref()?.isConnected)
-    )
-      unwatch(holder);
+  for (const [holder, record] of watched) {
+    record.breakouts = record.breakouts.filter((breakout) => breakout.isConnected);
+    if (!holder.isConnected || !record.breakouts.length) unwatch(holder);
+  }
   for (const breakout of moves.keys()) if (!breakout.isConnected) unwatchMove(breakout);
 }
 // Each breakout a reading answers for, watched by an IntersectionObserver of its own
@@ -117,12 +115,10 @@ function releaseHolders() {
 // root, and a breakout not drawn is watched across the whole root, so drawing it brings
 // it in; either changes the ratio the observer reports, which takes a reading. An edge
 // moving inward leaves the breakout inside its root, which is why the holders' sizes
-// are watched as well. An observer's root
-// is fixed when it is made, so a breakout found elsewhere across is watched anew, from
+// are watched as well. An observer's root is fixed when it is made, so a breakout
+// found elsewhere across is watched anew, from
 // what it reports first: a ratio that is not the one its root was cut for, such as one
-// a scrolling ancestor clips, is where its watch starts. The record is replaced by
-// exactly the breakouts each reading answers for, and a removal drops the disconnected
-// ones (`releaseHolders`), so a removed breakout is held by nothing here.
+// a scrolling ancestor clips, is where its watch starts.
 const moves = new Map();
 const AROUND = 1e6;
 const unwatchMove = (breakout) => {

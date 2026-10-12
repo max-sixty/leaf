@@ -544,26 +544,29 @@
     // before upgrade the same attributes already provide the final authored box.
     return true;
   };
-  // How far the block each breakout is laid out in stands in from the column on each
-  // side (`--lf-indent-l`, `--lf-indent-r`), which the breakout's room counts as its own
-  // (layouts.css): a list item, a list the page resets, a page's own indented block, a
-  // cell of the page's own grid, whatever moved it, read off the boxes rather than
-  // declared by each kind of holder. The block is the one the breakout's margins and
-  // percentages resolve against, and a breakout whose width follows it, as every one
-  // but a table's does, spans exactly that block once its margins are counted back, in
-  // a holder's flow, a grid area or a flex line alike: so it is read off the breakout's
-  // own box, which its margins never move. A table's width is its columns', so its box
-  // says nothing of the block's far edge; it reads its holder's content box instead,
-  // which is its block in a holder's flow and is taken for it in a grid or flex holder.
+  // How far each breakout's holder stands in from the column on each side
+  // (`--lf-indent-l`, `--lf-indent-r`), which the breakout's room counts as its own
+  // (layouts.css): a list item, a list the page resets, a page's own indented block,
+  // whatever moved it, read off the boxes rather than declared by each kind of holder.
   // Only a column grows a breakout past its holder, so a page whose `main` requests no
   // column shell (`seat`) carries no reading, and a breakout inside another takes its
   // holder's width and none of this room. A breakout the browser is not drawing, such
   // as one in a tab not chosen, is not read, since reading skipped content forces its
   // style and layout: it keeps its last reading, and one never read stands as if its
-  // block were the column. Every edge is read before any is written, so the page is
+  // holder were the column. Every edge is read before any is written, so the page is
   // laid out once however many breakouts it holds. Read with the column, so a breakout
   // parsed before first paint is placed before it paints; one inserted, revealed or
   // moved later is read as it arrives or moves (content-layout.js).
+  //
+  // A breakout grows out of the column only down a chain of block flow: each box from
+  // the breakout up to `main` a block-level box its holder lays out one under another.
+  // Where the breakout, or a box between it and the column, is an item of a grid, a
+  // flex line or a table, sits in a line, floats or is positioned, the page arranged
+  // that box itself, and the room beside it is the page's own, such as a sibling track's
+  // text: grown into it, a wide block in a grid cell stood over the other cell's words,
+  // and a table widened its own track and crushed the other to 30px. Such a breakout
+  // wears `data-lf-arranged` and keeps to the box it is laid out in (layouts.css), so
+  // the indent is read only where the holder's content box is the breakout's block.
   const contentEdges = (element) => {
     const box = element.getBoundingClientRect();
     const style = getComputedStyle(element);
@@ -574,15 +577,8 @@
         box.right - parseFloat(style.borderRightWidth) - parseFloat(style.paddingRight),
     };
   };
-  const marginEdges = (element) => {
-    const box = element.getBoundingClientRect();
-    const style = getComputedStyle(element);
-    return {
-      left: box.left - parseFloat(style.marginLeft),
-      right: box.right + parseFloat(style.marginRight),
-    };
-  };
   const BREAKOUT = '[data-lf-space]:not([data-lf-space="column"])';
+  const ARRANGED = "data-lf-arranged";
   // The box a breakout is laid out in: its slot's where a widget slots it, past any
   // ancestor that draws no box of its own (shadow-tree.js, `renderedParent`).
   const holderOf = (breakout, main) => {
@@ -592,11 +588,37 @@
     while (holder !== main && getComputedStyle(holder).display === "contents");
     return holder;
   };
-  // Returns whether any breakout's indent changed, every breakout it answers for, and
-  // the holders it measured, each with its content box's edges and width and the
-  // breakouts it holds, for content-layout.js to watch: a class or style that pads a
-  // holder changes its blocks without inserting anything, and a block that moves moves
-  // its breakout. The reading keeps none of them.
+  // A holder whose inner display is flow or flow-root lays its children out one under
+  // another; the computed value names it by its short keyword or in full.
+  const FLOWS = /^(block|flow-root|list-item|inline-block|table-cell|table-caption)$|\bflow\b|\bflow-root\b|\blist-item\b/;
+  const inFlow = (box, holder) => {
+    const style = getComputedStyle(box);
+    return (
+      FLOWS.test(getComputedStyle(holder).display) &&
+      !/^(inline|table-|ruby)/.test(style.display) &&
+      style.float === "none" &&
+      style.position !== "absolute" &&
+      style.position !== "fixed"
+    );
+  };
+  // Whether the page arranged `holder` or a box above it, once per holder a reading
+  // meets however many breakouts it holds.
+  const arrangedAbove = (holder, main, verdicts) => {
+    if (holder === main) return false;
+    if (!verdicts.has(holder)) {
+      const above = holderOf(holder, main);
+      verdicts.set(
+        holder,
+        !inFlow(holder, above) || arrangedAbove(above, main, verdicts),
+      );
+    }
+    return verdicts.get(holder);
+  };
+  // Returns whether any breakout's indent or arrangement changed, every breakout it
+  // answers for, and the holders it measured, each with its content box's width and
+  // the breakouts it holds, for content-layout.js to watch: a class or style that pads
+  // a holder changes its breakouts' room without inserting anything, and a box that
+  // moves moves its breakout. The reading keeps none of them.
   const indents = () => {
     const holders = new Map();
     const breakouts = [];
@@ -604,44 +626,56 @@
     if (!main) return { changed: false, breakouts, holders };
     const grows = document.body.hasAttribute("data-lf-column-shell");
     const readings = [];
+    const verdicts = new Map();
     let column = null;
     for (const breakout of main.querySelectorAll(BREAKOUT)) {
       if (breakout.parentElement.closest(BREAKOUT)) continue;
       if (!grows) {
-        readings.push([breakout, 0, 0]);
+        readings.push([breakout, 0, 0, false]);
         continue;
       }
       breakouts.push(breakout);
       if (!breakout.checkVisibility()) continue;
-      column ??= contentEdges(main);
       const holder = holderOf(breakout, main);
-      if (!holders.has(holder)) {
-        const edges = contentEdges(holder);
-        holders.set(holder, { edges, width: edges.right - edges.left, breakouts: [] });
+      if (!inFlow(breakout, holder) || arrangedAbove(holder, main, verdicts)) {
+        readings.push([breakout, 0, 0, true]);
+        continue;
       }
+      column ??= contentEdges(main);
+      const edges = contentEdges(holder);
       const held = holders.get(holder);
-      held.breakouts.push(breakout);
-      const block = breakout.localName === "table" ? held.edges : marginEdges(breakout);
+      if (held) held.breakouts.push(breakout);
+      else
+        holders.set(holder, {
+          width: edges.right - edges.left,
+          breakouts: [breakout],
+        });
       readings.push([
         breakout,
-        Math.max(0, Math.round(block.left - column.left)),
-        Math.max(0, Math.round(column.right - block.right)),
+        Math.max(0, Math.round(edges.left - column.left)),
+        Math.max(0, Math.round(column.right - edges.right)),
+        false,
       ]);
     }
     let changed = false;
-    for (const [breakout, left, right] of readings)
-      for (const [property, length] of [
+    for (const [breakout, left, right, arranged] of readings) {
+      const writes = [
         ["--lf-indent-l", left],
         ["--lf-indent-r", right],
-      ]) {
-        const value = length ? `${length}px` : "";
-        if (breakout.style.getPropertyValue(property) === value) continue;
-        if (!sourceShells.has(breakout))
-          sourceShells.set(breakout, breakout.cloneNode(false));
-        if (value) setRuntimeRootStyle(breakout, property, value);
+      ].filter(
+        ([property, length]) =>
+          breakout.style.getPropertyValue(property) !== (length ? `${length}px` : ""),
+      );
+      const rearranged = breakout.hasAttribute(ARRANGED) !== arranged;
+      if (!writes.length && !rearranged) continue;
+      if (!sourceShells.has(breakout))
+        sourceShells.set(breakout, breakout.cloneNode(false));
+      for (const [property, length] of writes)
+        if (length) setRuntimeRootStyle(breakout, property, `${length}px`);
         else removeRuntimeRootStyle(breakout, property);
-        changed = true;
-      }
+      if (rearranged) setRuntimeRootAttribute(breakout, ARRANGED, arranged ? "" : null);
+      changed = true;
+    }
     return { changed, breakouts, holders };
   };
   const residency = () => {

@@ -76,12 +76,13 @@ const indentColumns = (tokens) => {
 // The numbers the body's lines carry, in body order: the authored `lines` ranges, one
 // number per body line, or 1 to N without them. A body longer than its ranges goes on
 // counting from the last number, and ranges past the body's end number nothing.
+// Each range is walked only as far as the body needs, so a range far longer than the
+// body costs nothing.
 const numbering = (el, count) => {
-  const listed = spans(el.getAttribute("lines")).flatMap(([from, to]) =>
-    Array.from({ length: to - from + 1 }, (_, i) => from + i),
-  );
   const numbers = [];
-  for (let i = 0; i < count; i++) numbers.push(listed[i] ?? (numbers.at(-1) ?? 0) + 1);
+  for (const [from, to] of spans(el.getAttribute("lines")))
+    for (let n = from; n <= to && numbers.length < count; n++) numbers.push(n);
+  while (numbers.length < count) numbers.push((numbers.at(-1) ?? 0) + 1);
   return numbers;
 };
 

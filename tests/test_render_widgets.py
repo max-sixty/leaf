@@ -13569,6 +13569,7 @@ def test_an_excerpt_shows_and_answers_to_its_source_line_numbers(browser, serve)
     row standing for it, so a note placed there is that row's caption, and a number
     outside the block addresses nothing. A body longer than its ranges goes on counting,
     and a note past either end stands at the block's foot rather than leaving the page.
+    A range far longer than the body numbers only the body's lines.
     A copied excerpt is the quoted source and the authored notes, never the numbers or
     the elided rows' counts."""
     url = serve(
@@ -13595,6 +13596,9 @@ three
 </pre>
 <lf-note id="far" at="99">Past the end.</lf-note>
 </lf-code>
+<lf-code id="vast" lines="1-999999999999"><pre>
+only
+</pre></lf-code>
 <lf-pointer id="film" for="walk"></lf-pointer>
 """,
         ),
@@ -13625,6 +13629,10 @@ three
         """rs => rs.map(r => r.localName === 'lf-note' ? r.id
                    : getComputedStyle(r, '::before').content)"""
     ) == ['"10"', '"11"', '"12"', "far"]
+    # A range far past the body numbers only the body's lines.
+    vast = page.locator("#vast pre > .lf-code-line")
+    expect(vast).to_have_count(1)
+    assert vast.evaluate("r => getComputedStyle(r, '::before').content") == '"1"'
 
     code_x, note_x = page.evaluate(
         """() => {

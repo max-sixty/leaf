@@ -376,10 +376,15 @@ def mark_declared(
             [registry.get(element.tag, {})] if is_element_name(element.tag) else []
         ) + [entry for selector, entry in idioms if element.matches(selector)]
         attrs = element_attrs(element)
+        content = element.tag not in {"html", "body", "main"} and (
+            element.closest("main") is not None
+        )
         marks = {}
         for key, mark in DECLARED_MARKS.items():
             declared = next((d[key] for d in declarations if d.get(key)), None)
-            if (authored := mark.get("authored")) in attrs:
+            means = {"content": content, "declared": bool(declared)}
+            authored = mark.get("authored")
+            if authored in attrs and means[mark["authored_on"]]:
                 marks[mark["paint"]] = attrs[authored]
             elif declared:
                 marks[mark["paint"]] = "" if declared is True else str(declared)

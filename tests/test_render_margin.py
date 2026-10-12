@@ -58,6 +58,7 @@ from render_harness import (
     EXAMPLES,
     FEATURE_GALLERY,
     FOLLOWER_MARK,
+    LONG_PAGE,
     RELEASE_FOCUS,
     SUBJECT_MARK,
     _traffic,
@@ -364,7 +365,7 @@ def test_a_settled_page_with_a_standing_reaction_stops_rendering_its_margin(
     render a settled page is allowed here, and it comes every two seconds, so at most
     one of these frames can carry it.
     """
-    page = open_page(browser, serve(FEATURE_GALLERY))
+    page = open_page(browser, serve(MARGIN_ACTIONS_PAGE, events=MARGIN_ACTIONS_EVENTS))
     resized(page, 1280, 900)
     margins_laid_out(page)
     assert page.locator(".lf-react-mark").count() >= 1
@@ -719,8 +720,21 @@ def test_the_rail_stands_where_the_room_beside_the_column_holds_it(
 
 def test_an_unchanged_compact_margin_keeps_the_user_at_the_document_end(browser, serve):
     """Re-laying the pins of a compact page cannot pull a user back from the bottom:
-    they stand over the page, so the document's height is the page's own."""
-    page = open_page(browser, serve(FEATURE_GALLERY))
+    they stand over the page, so the document's height is the page's own. The last
+    paragraphs carry them, so a pin laid out in flow would lengthen the document."""
+    url = serve(LONG_PAGE)
+    for i in range(48, 60):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "agent",
+                "revision": 1,
+                "text": f"A note on paragraph {i}.",
+                "anchor": {"section": f"p{i}"},
+            },
+        )
+    page = open_page(browser, url)
     resized(page, 700, 500)
     margins_laid_out(page)
     assert page.locator('.lf-margin-cluster[data-lf-place="pin"]').count() >= 10
@@ -1283,9 +1297,7 @@ PAGE_MAP_EVENTS = [
 
 
 @pytest.mark.parametrize("width", [1200, 390])
-def test_ask_binding_badges_follow_the_feature_gallery_s_visible_margin_entries(
-    browser, serve, width
-):
+def test_ask_binding_badges_follow_the_visible_margin_entries(browser, serve, width):
     """Ask travel shows hoisted answers above fixed chrome, with binding badges."""
     context = browser.new_context(
         viewport={"width": width, "height": 900}, reduced_motion="reduce"
@@ -1293,7 +1305,7 @@ def test_ask_binding_badges_follow_the_feature_gallery_s_visible_margin_entries(
     page = open_page(
         browser,
         serve(
-            FEATURE_GALLERY,
+            MARGIN_ACTIONS_PAGE,
             website_publication={
                 "kind": "example",
                 "agent": "Leaf guide",
@@ -1302,21 +1314,14 @@ def test_ask_binding_badges_follow_the_feature_gallery_s_visible_margin_entries(
         ),
         context=context,
     )
-    # Three times: the gallery's core surfaces open on a decision, which is the page's
-    # first ask and carries no binding of its own, then a task on the user beside it,
-    # and the suggestions this case is about begin after them.
     page.keyboard.press("q")
-    expect(page.locator("#bg-choice-ask")).to_be_focused()
-    page.keyboard.press("q")
-    expect(page.locator("#bg-task-on-you")).to_be_focused()
-    page.keyboard.press("q")
-    expect(page.locator("#bg-replace")).to_be_focused()
+    expect(page.locator("#s-replace")).to_be_focused()
     expect(
         page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     ).to_have_text(["1", "2"])
     geometry = page.evaluate(
         """() => {
-          const item = document.querySelector('[data-lf-margin-for="bg-replace"]');
+          const item = document.querySelector('[data-lf-margin-for="s-replace"]');
           const boxes = (nodes) => nodes.map((node) => {
             const box = node.getBoundingClientRect();
             return {x: box.left + box.width / 2, y: box.top + box.height / 2,
@@ -1577,22 +1582,22 @@ SUGGESTION_PINS = """(ids) => ids.map((id) => {
 
 
 def test_a_decision_undone_leaves_every_suggestion_pin_where_it_stood(browser, serve):
-    """On the feature gallery at 390px the three suggestions share one paragraph, so a
+    """At 390px the three suggestions share one paragraph, so a
     decision reflows the words the others stand by, and their pins follow those words,
     folding where a pair loses its room. Undoing the decision puts the words back, and
     with them every pin: each stands where it stood, folded as it was, with the same
     controls. The words put back can shape up to two pixels narrower than they first
     did, with the same markup and style, so a pin may move by as much as its words'
     end did and no more."""
-    page = open_page(browser, serve(FEATURE_GALLERY))
+    page = open_page(browser, serve(MARGIN_ACTIONS_PAGE))
     resized(page, 390, 900)
     margins_laid_out(page)
-    ids = ["bg-replace", "bg-insert", "bg-delete"]
+    ids = ["s-replace", "s-insert", "s-delete"]
     before = page.evaluate(SUGGESTION_PINS, ids)
     for target, outcome in (
-        ("bg-replace", "accept"),
-        ("bg-insert", "reject"),
-        ("bg-delete", "accept"),
+        ("s-replace", "accept"),
+        ("s-insert", "reject"),
+        ("s-delete", "accept"),
     ):
         item = page.locator(f'[data-lf-margin-for="{target}"]')
         _unfold(item)
@@ -1605,8 +1610,8 @@ def test_a_decision_undone_leaves_every_suggestion_pin_where_it_stood(browser, s
             "data-lf-applied", str(applied + 1)
         )
         render_checks_model.wait_until_ready(page)
-        if target == "bg-insert":
-            inserted = page.locator("#bg-insert lf-new")
+        if target == "s-insert":
+            inserted = page.locator("#s-insert lf-new")
             expect(inserted).to_have_attribute("data-lf-retired", "")
             expect(inserted).to_be_hidden()
         margins_laid_out(page)
@@ -1876,51 +1881,53 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
     expect(atlas.locator(".margin-entry-gallery-projection-result")).to_be_visible()
 
 
-def test_the_feature_gallery_fragment_lands_after_presented_controls_take_space(
-    browser, serve
-):
-    """The atlas remains at the top edge when reaction controls above it appear."""
+def test_a_fragment_lands_after_presented_controls_take_space(browser, serve):
+    """The fragment's target remains at the top edge when the reaction controls above
+    it appear."""
+    reactions = [
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "token": token,
+            "anchor": {"section": f"p{i}"},
+        }
+        for i, token in zip(
+            range(10, 30), ["keep", "change", "clarify", "shorten"] * 5, strict=True
+        )
+    ]
     context = browser.new_context(viewport={"width": 700, "height": 900})
     page = open_page(
         browser,
-        f"{live_url(serve(FEATURE_GALLERY))}#bg-margin-controls",
+        f"{live_url(serve(LONG_PAGE, events=reactions))}#p34",
         context=context,
     )
-    position = page.locator("#bg-margin-controls").evaluate(
+    position = page.locator("#p34").evaluate(
         """element => ({
           top: element.getBoundingClientRect().top,
           clear: parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop),
+          above: [...document.querySelectorAll('.lf-margin-cluster')].filter(
+            cluster => cluster.checkVisibility() && cluster.getBoundingClientRect().top
+              < element.getBoundingClientRect().top).length,
         })"""
     )
+    assert position["above"] > 0, position
     assert abs(position["top"] - position["clear"]) < 2, position
 
 
-def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
+def test_a_margin_entry_carries_a_suggestion_through_its_whole_lifecycle(
     browser, serve
 ):
-    """The margin entry sample shows the stable endpoints and exercises each transition.
+    """A suggestion's margin entry goes through each transition to a settled decision.
 
     A pending user action and an external work claim are different facts, so the
     journey holds each one long enough to prove that the former only dims until
     confirmation while the latter keeps its workflow treatment.
     """
-    page = open_page(browser, live_url(serve(FEATURE_GALLERY)))
+    page = open_page(browser, live_url(serve(MARGIN_ACTIONS_PAGE)))
     resized(page, 1440, 900)
-    tabs = page.locator("#bg-gallery-tabs")
-    tabs.get_by_role("tab", name="Page & layout").click()
 
-    expect(page.locator("#bg-button-accepted")).to_have_attribute(
-        "data-lf-state", "accept"
-    )
-    expect(page.locator("#bg-button-accepted lf-new")).to_be_visible()
-    expect(page.locator("#bg-button-accepted lf-old")).to_be_hidden()
-    seeded = page.locator('[data-lf-margin-for="bg-button-accepted"]')
-    expect(seeded.locator(".lf-margin-receipt")).to_have_count(0)
-    expect(
-        seeded.get_by_role("button", name=re.compile(r"^Undo accepting"))
-    ).to_have_count(1)
-
-    workflow = page.locator('[data-lf-margin-for="bg-margin-control-workflow"]')
+    workflow = page.locator('[data-lf-margin-for="s-replace"]')
     accept = workflow.get_by_role(
         "button", name=re.compile(r"^Accept the suggested change")
     )
@@ -1929,7 +1936,7 @@ def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
     def reject(route):
         route.fulfill(
             status=400,
-            json={"ok": False, "error": "gallery transport refusal", "final": True},
+            json={"ok": False, "error": "transport refusal", "final": True},
         )
 
     page.route("**/api/event", reject)
@@ -1954,8 +1961,8 @@ def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
     pending_undo = workflow.get_by_role("button", name=re.compile(r"^Undo accepting"))
     expect(pending_undo).to_have_attribute("data-lf-state", "busy")
     expect(pending_undo).to_have_attribute("aria-busy", "true")
-    expect(page.locator("#bg-margin-control-workflow lf-old")).to_be_hidden()
-    expect(page.locator("#bg-margin-control-workflow lf-new")).to_be_visible()
+    expect(page.locator("#s-replace lf-old")).to_be_hidden()
+    expect(page.locator("#s-replace lf-new")).to_be_visible()
     expect(pending_undo).to_have_css("opacity", "0.5")
     expect(pending_undo).to_have_css("border-style", "solid")
     expect(pending_undo).to_have_css("animation-name", "lf-runtime-4f3c2a8d-working")
@@ -1966,9 +1973,7 @@ def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
-    expect(page.locator("#bg-margin-control-workflow")).to_have_attribute(
-        "data-lf-state", "accept"
-    )
+    expect(page.locator("#s-replace")).to_have_attribute("data-lf-state", "accept")
     expect(page.locator(".lf-notice")).not_to_have_text(
         re.compile(r"^(Accepted|Rejected) .+ — sent$")
     )
@@ -1989,7 +1994,7 @@ def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
             "task",
             "start",
             str(serve.page_dir),
-            newest_move(serve.page_dir, "bg-margin-control-workflow"),
+            newest_move(serve.page_dir, "s-replace"),
             "applying the selected route",
         ],
     )
@@ -2010,12 +2015,12 @@ def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
 
     stamped = stamp_page(
         serve.page_dir,
-        FEATURE_GALLERY.read_text(encoding="utf-8"),
+        MARGIN_ACTIONS_PAGE,
         "Apply the selected route",
     )
     wait_for_revision(page, stamped["revision"])
     expect(workflow.locator("[data-lf-agent-workflow]")).to_have_count(0)
-    expect(page.locator("#bg-margin-control-workflow lf-new")).to_be_visible()
+    expect(page.locator("#s-replace lf-new")).to_be_visible()
     expect(workflow.locator(".lf-margin-receipt")).to_have_count(0)
     expect(
         workflow.get_by_role("button", name=re.compile(r"^Undo accepting"))
@@ -3071,15 +3076,29 @@ def test_g_hints_reach_a_late_visible_action_only_location(browser, serve):
     expect(review).to_be_focused()
 
 
+# An Ask in the middle of a long page, so its margin host can be scrolled out from under
+# a parked pointer and back.
+ASK_IN_LONG_PAGE = LONG_PAGE.replace(
+    "<p id='p20'>",
+    """<lf-ask id="route-ask"><h2>Which route should the walk follow?</h2>
+<lf-options id="route" choose>
+  <lf-option id="route-garden">Through the garden</lf-option>
+  <lf-option id="route-river">Along the river</lf-option>
+</lf-options></lf-ask>
+<p id='p20'>""",
+    1,
+)
+
+
 def test_margin_target_hover_requires_pointer_movement(browser, serve):
     """Page motion under a parked pointer cannot take ownership from the keyboard."""
-    page = open_page(browser, serve(FEATURE_GALLERY))
+    page = open_page(browser, serve(ASK_IN_LONG_PAGE))
     resized(page, 1280, 720)
-    page.locator("#bg-choice-ask").scroll_into_view_if_needed()
-    go_to_address(page, "Margin entry", "bg-choice-ask")
+    page.locator("#route-ask").scroll_into_view_if_needed()
+    go_to_address(page, "Margin entry", "route-ask")
     page.keyboard.press("Escape")
     margins_laid_out(page)
-    host = page.locator('[data-lf-margin-for="bg-choice-ask"]')
+    host = page.locator('[data-lf-margin-for="route-ask"]')
     initial = host.bounding_box()
     pointer = {
         "x": int(initial["x"] + initial["width"] / 2),
@@ -3099,7 +3118,7 @@ def test_margin_target_hover_requires_pointer_movement(browser, serve):
     page.wait_for_function(
         """({x, y}) => {
           const host = document.querySelector(
-            '[data-lf-margin-for="bg-choice-ask"]'
+            '[data-lf-margin-for="route-ask"]'
           );
           const box = host?.getBoundingClientRect();
           return document.activeElement === document.body && box &&
@@ -3107,7 +3126,7 @@ def test_margin_target_hover_requires_pointer_movement(browser, serve):
         }""",
         arg=pointer,
     )
-    trace = page.locator('.lf-target-trace[data-for="bg-choice-ask"]')
+    trace = page.locator('.lf-target-trace[data-for="route-ask"]')
     expect(
         trace,
         "moving the margin under a stationary pointer claimed pointer ownership",
@@ -3119,20 +3138,19 @@ def test_margin_target_hover_requires_pointer_movement(browser, serve):
 
 def test_margin_target_pointer_ownership_ends_with_its_host(browser, serve):
     """Replacing a hovered margin host cannot transfer its pointer ownership."""
-    page = open_page(browser, serve(FEATURE_GALLERY))
+    page = open_page(browser, serve(MARGIN_ACTIONS_PAGE))
     resized(page, 1280, 720)
-    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Page & layout").click()
     margins_laid_out(page)
-    target = page.locator("#bg-margin-control-workflow")
+    target = page.locator("#s-replace")
     target.scroll_into_view_if_needed()
-    host = page.locator('[data-lf-margin-for="bg-margin-control-workflow"]')
+    host = page.locator('[data-lf-margin-for="s-replace"]')
     box = host.bounding_box()
     pointer = {
         "x": int(box["x"] + box["width"] / 2),
         "y": int(box["y"] + box["height"] / 2),
     }
     page.mouse.move(pointer["x"], pointer["y"])
-    trace = page.locator('.lf-target-trace[data-for="bg-margin-control-workflow"]')
+    trace = page.locator('.lf-target-trace[data-for="s-replace"]')
     expect(trace).to_be_visible()
 
     suggestion = target.element_handle()
@@ -3141,12 +3159,12 @@ def test_margin_target_pointer_ownership_ends_with_its_host(browser, serve):
     suggestion.evaluate("node => node.remove()")
     page.wait_for_function("old => !old.isConnected", arg=old_host)
     page.evaluate(
-        "node => document.querySelector('#bg-button-accepted').before(node)",
+        "node => document.querySelector('#s-crowded').before(node)",
         suggestion,
     )
     page.wait_for_function(
         """({x, y}) => {
-          const host = document.querySelector('[data-lf-margin-for="bg-margin-control-workflow"]');
+          const host = document.querySelector('[data-lf-margin-for="s-replace"]');
           const box = host?.getBoundingClientRect();
           return host?.isConnected && host.checkVisibility() && box &&
             box.bottom > 0 && box.top < innerHeight &&
@@ -3155,7 +3173,7 @@ def test_margin_target_pointer_ownership_ends_with_its_host(browser, serve):
         arg=pointer,
     )
     assert page.evaluate(
-        "old => document.querySelector('[data-lf-margin-for=\"bg-margin-control-workflow\"]') !== old",
+        "old => document.querySelector('[data-lf-margin-for=\"s-replace\"]') !== old",
         old_host,
     )
     expect(
@@ -3163,7 +3181,7 @@ def test_margin_target_pointer_ownership_ends_with_its_host(browser, serve):
         "the replacement host inherited pointer ownership from its disconnected peer",
     ).to_be_hidden()
 
-    replacement = page.locator('[data-lf-margin-for="bg-margin-control-workflow"]')
+    replacement = page.locator('[data-lf-margin-for="s-replace"]')
     replacement_box = replacement.bounding_box()
     page.mouse.move(
         int(replacement_box["x"] + replacement_box["width"] / 2),
@@ -5284,8 +5302,128 @@ WORDS_RIGHT = """() => {
 }"""
 
 
-def _open_gallery_thread(page, target, thread_id):
-    """Enter a gallery thread from its target's comment note."""
+# Two threaded passages with room above and below to scroll them: one paragraph in the
+# right cell of a two-up pair, as a before-and-after comparison sets it, so its words end
+# short of the column and leave room on their left; and a suggestion whose cluster a
+# thread and two standing reactions crowd.
+THREAD_CARD_PAGE = leaf_page(
+    "Thread cards",
+    """
+<h1 id="t">Workshop agenda</h1>
+{before}
+<div id="title-pair">
+  <section id="title-before">
+    <p class="eyebrow">Before · untitled</p>
+    <p id="thread-pending"><strong>An untitled thread.</strong> The workshop schedule
+    leaves lunch open. The agent asked without naming the thread, so its row reads the
+    question itself until the agent gives it a short name.</p>
+  </section>
+  <section id="title-after">
+    <p class="eyebrow">After · title assigned</p>
+    <p id="thread-text"><strong>An existing thread.</strong> The sample agenda has room
+    for one more topic. Its speech-bubble control is green, and hovering it shows “On
+    you” under the label. The image question still needs an answer even though the
+    agent added a later progress message. Open the control and reply: the control turns
+    blue as the thread comes back to the agent.</p>
+  </section>
+</div>
+{between}
+<p id="crowded-line"><strong>Combine roles.</strong> Use the
+  <lf-suggestion id="crowded"><lf-old>courtyard</lf-old><lf-new>covered terrace</lf-new></lf-suggestion>
+  for the practice session. “Accept” and “Reject” act immediately; “Thread” and “⋯”
+  disclose more; a reaction mark stands only while its reaction does.</p>
+{after}
+""",
+    head="""<style>
+#title-pair {{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: var(--sp-4);
+  margin-block: var(--sp-4);
+  max-width: 54rem;
+}}
+</style>""",
+).format(
+    **{
+        part: "\n".join(
+            f"<p id='{part}-{i}'>{part.title()} {i}. " + "Filler. " * 30 + "</p>"
+            for i in range(count)
+        )
+        for part, count in (("before", 8), ("between", 4), ("after", 10))
+    }
+)
+
+
+def _seed_card_threads(page_dir):
+    """Seed THREAD_CARD_PAGE's two threads and the crowded cluster's reactions, and
+    return the two threads' ids: the one on `#thread-text`, then the one on `#crowded`.
+
+    The `#thread-text` thread is the gallery's, its question carrying the pasted room
+    photo, so its transcript is as tall as a real one: a card whose height falls short
+    clips it."""
+    image = "051bee487bfb5d13.png"
+    (page_dir / "media").mkdir(exist_ok=True)
+    (page_dir / "media" / image).write_bytes((example_media() / image).read_bytes())
+
+    def comment(event):
+        return append_carried_log_record(
+            page_dir, {"kind": "comment", "revision": 1, **event}
+        )
+
+    text = comment(
+        {
+            "author": "agent",
+            "text": "I moved the practice exercise before lunch and left the rest of "
+            "the agenda unchanged.",
+            "anchor": {
+                "section": "thread-text",
+                "quote": "The sample agenda has room for one more topic.",
+            },
+        }
+    )
+    for reply, question in (
+        (
+            (
+                "The pasted image stays inside this thread. Does this crop show "
+                "enough of the room, or should I reshoot it wider?\n\n"
+                f"![Pasted image](/media/{image})"
+            ),
+            True,
+        ),
+        (
+            (
+                "I also added the room number to the agenda. The image question "
+                "above still needs your answer."
+            ),
+            False,
+        ),
+    ):
+        append_carried_log_record(
+            page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "parent": text["id"],
+                "revision": 1,
+                "text": reply,
+                **({"question": True} if question else {}),
+            },
+        )
+    crowded = comment(
+        {
+            "author": "agent",
+            "text": "Which space is easier to find? This thread shares its target with "
+            "the decision and reaction controls.",
+            "anchor": {"section": "crowded"},
+        }
+    )
+    for token in ("keep", "change"):
+        comment({"author": "user", "token": token, "anchor": {"section": "crowded"}})
+    return text["id"], crowded["id"]
+
+
+def _open_thread(page, target, thread_id):
+    """Enter a thread from its target's comment note."""
     page.locator(f"#{target}").scroll_into_view_if_needed()
     comment_note(page, f"#{target}").press("Enter")
     walked = page.locator(".lf-margin-preview .lf-page-thread")
@@ -5299,19 +5437,18 @@ def test_a_forced_inline_thread_keeps_its_control_reachable_on_a_crowded_cluster
 ):
     """A walked thread on a crowded cluster keeps its measure by standing over the
     cluster, clear of its words, rather than dropping under it."""
-    # The gallery's thread on the crowded suggestion, which is where this walk is going.
-    crowded_thread = "a554d5e884abffdb6494a2fb90b0634f"
-    page = open_page(browser, serve(FEATURE_GALLERY))
+    url = serve(THREAD_CARD_PAGE)
+    text_thread, crowded_thread = _seed_card_threads(serve.page_dir)
+    page = open_page(browser, url)
     page.emulate_media(reduced_motion="reduce")
     resized(page, 1838, 900)
-    page.evaluate("location.hash = 'bg-margin-controls'")
     page.evaluate(RELEASE_FOCUS)
 
-    _open_gallery_thread(page, "bg-thread-text", "2be2443f0bb6cc49fc86b52f340e6073")
-    _open_gallery_thread(page, "bg-crowded", crowded_thread)
+    _open_thread(page, "thread-text", text_thread)
+    _open_thread(page, "crowded", crowded_thread)
 
-    crowded = page.locator('[data-lf-margin-for="bg-crowded"]')
-    expect(page.locator("#bg-crowded")).to_be_in_viewport()
+    crowded = page.locator('[data-lf-margin-for="crowded"]')
+    expect(page.locator("#crowded")).to_be_in_viewport()
     thread = crowded.locator('.lf-margin-reading-option[data-lf-kinds="comment"]')
     expect(thread).to_be_visible()
     expect(thread).to_have_attribute("aria-expanded", "true")
@@ -5331,7 +5468,7 @@ def test_a_forced_inline_thread_keeps_its_control_reachable_on_a_crowded_cluster
               '.lf-shortcut-bar, .lf-bottom-status')]
             .filter(node => node.checkVisibility())
             .map(node => node.getBoundingClientRect());
-          const words = document.querySelector('#bg-crowded').getBoundingClientRect();
+          const words = document.querySelector('#crowded').getBoundingClientRect();
           return {placement: cardNode.dataset.lfThreadPlacement,
                   controlsLeft: controls.left, controlsRight: controls.right,
                   wordsRight: words.right, cardLeft: card.left, cardRight: card.right,
@@ -5368,24 +5505,25 @@ def test_a_forced_inline_thread_keeps_its_control_reachable_on_a_crowded_cluster
 
 def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
     """A readable free margin outranks an overlay and follows the selected cluster."""
-    page = open_page(browser, serve(FEATURE_GALLERY))
+    url = serve(THREAD_CARD_PAGE)
+    text_thread, _ = _seed_card_threads(serve.page_dir)
+    page = open_page(browser, url)
     page.emulate_media(reduced_motion="reduce")
     resized(page, 2672, 900)
-    page.evaluate("location.hash = 'bg-margin-controls'")
     page.evaluate(RELEASE_FOCUS)
-    _open_gallery_thread(page, "bg-thread-text", "2be2443f0bb6cc49fc86b52f340e6073")
-    expect(page.locator("#bg-thread-text")).to_be_in_viewport()
+    _open_thread(page, "thread-text", text_thread)
+    expect(page.locator("#thread-text")).to_be_in_viewport()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
 
     geometry = page.evaluate(
         """() => {
           const cardNode = document.querySelector('.lf-margin-preview');
           const controlsNode = document.querySelector(
-            '[data-lf-margin-for="bg-thread-text"]');
+            '[data-lf-margin-for="thread-text"]');
           const rect = node => node.getBoundingClientRect();
           const card = rect(cardNode);
           const controls = rect(controlsNode);
-          const target = rect(document.querySelector('#bg-thread-text'));
+          const target = rect(document.querySelector('#thread-text'));
           const overlaps = (one, other) => one.left < other.right
             && other.left < one.right && one.top < other.bottom
             && other.top < one.bottom;
@@ -5433,7 +5571,7 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
               // The words the thread quotes start the paragraph's first line.
               controls: (() => {
                 const range = document.createRange();
-                range.selectNodeContents(document.querySelector('#bg-thread-text'));
+                range.selectNodeContents(document.querySelector('#thread-text'));
                 return range.getClientRects()[0].top - 8;
               })(),
               scrollY,
@@ -5472,7 +5610,7 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
     gone = page.evaluate(
         """() => {
           const range = document.createRange();
-          range.selectNodeContents(document.querySelector('#bg-thread-text'));
+          range.selectNodeContents(document.querySelector('#thread-text'));
           return {
             card: document.querySelector('.lf-margin-preview').getBoundingClientRect().top,
             controls: range.getClientRects()[0].top,
@@ -5486,21 +5624,20 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
 
 def test_a_thread_beside_its_words_takes_the_room_to_the_visible_edge(browser, serve):
     """A middle-width margin gives marker clearance to the message's width."""
-    page = open_page(browser, serve(FEATURE_GALLERY))
+    url = serve(THREAD_CARD_PAGE)
+    text_thread, _ = _seed_card_threads(serve.page_dir)
+    page = open_page(browser, url)
     page.emulate_media(reduced_motion="reduce")
-    # Keep the title comparison centred so this width exercises the middle rail.
-    page.evaluate("document.getElementById('bg-compare-note').remove()")
     resized(page, 1600, 900)
-    page.evaluate("location.hash = 'bg-margin-controls'")
     page.evaluate(RELEASE_FOCUS)
-    _open_gallery_thread(page, "bg-thread-text", "2be2443f0bb6cc49fc86b52f340e6073")
+    _open_thread(page, "thread-text", text_thread)
     geometry = page.evaluate(
         """() => {
           const cardNode = document.querySelector('.lf-margin-preview');
           const list = cardNode.querySelector('.lf-thread-transcript');
           const card = cardNode.getBoundingClientRect();
-          const words = document.querySelector('#bg-thread-text').getBoundingClientRect();
-          const pin = document.querySelector('[data-lf-margin-for="bg-thread-text"]')
+          const words = document.querySelector('#thread-text').getBoundingClientRect();
+          const pin = document.querySelector('[data-lf-margin-for="thread-text"]')
             .getBoundingClientRect();
           const style = getComputedStyle(cardNode);
           return {placement: cardNode.dataset.lfThreadPlacement,
@@ -5535,17 +5672,18 @@ def test_a_thread_in_a_short_rail_stands_on_the_side_with_room(browser, serve):
     """A rail short of the card's minimum puts the card on the side of its words that
     holds it, here the left, as it would the comment box (comment-placement.js), at its
     full height and level with the words."""
-    page = open_page(browser, serve(FEATURE_GALLERY))
+    url = serve(THREAD_CARD_PAGE)
+    text_thread, _ = _seed_card_threads(serve.page_dir)
+    page = open_page(browser, url)
     page.emulate_media(reduced_motion="reduce")
     resized(page, 1024, 900)
-    page.evaluate("location.hash = 'bg-margin-controls'")
     page.evaluate(RELEASE_FOCUS)
-    _open_gallery_thread(page, "bg-thread-text", "2be2443f0bb6cc49fc86b52f340e6073")
+    _open_thread(page, "thread-text", text_thread)
     geometry = page.evaluate(
         """() => {
           const cardNode = document.querySelector('.lf-margin-preview');
           const card = cardNode.getBoundingClientRect();
-          const words = document.querySelector('#bg-thread-text').getBoundingClientRect();
+          const words = document.querySelector('#thread-text').getBoundingClientRect();
           const style = getComputedStyle(cardNode);
           const list = cardNode.querySelector('.lf-thread-transcript');
           return {placement: cardNode.dataset.lfThreadPlacement,
@@ -9112,32 +9250,14 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
     ] == []
 
     # A modal's parent is the page it stands over, so Escape lands the user there
-    # whichever door opened the dialog.
+    # whichever door opened the dialog. The banner overflow the pointer went through
+    # folds with it rather than standing open behind it, promising a door the user has
+    # already been through.
     page.keyboard.press("Escape")
     expect(dialog).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
-
-
-def test_a_folded_compact_map_closes_its_banner_overflow_with_it(browser, serve):
-    """A dialog reached through the banner's overflow leaves that overflow folded.
-
-    Escape lands the user on the page rather than on the control that exposed the
-    door, the dialog's parent being the page it stands over; what the overflow must not
-    do is stay open behind it, promising a door the user has already been through."""
-    page = open_page(browser, serve(FEATURE_GALLERY))
-    resized(page, 390, 700)
-    more = page.get_by_role("button", name="More page controls, questions waiting")
-    more.click()
-    toggle = page.locator(".lf-page-map-toggle")
-    expect(toggle).to_be_visible()
-    toggle.click()
-    dialog = page.get_by_role("dialog", name="Page Map", exact=True)
-    expect(dialog).to_be_visible()
-    page.keyboard.press("Escape")
-    expect(dialog).to_be_hidden()
-    assert page.evaluate("() => document.activeElement === document.body")
-    expect(more).to_have_attribute("aria-expanded", "false")
+    expect(page.locator(".lf-banner-more")).to_have_attribute("aria-expanded", "false")
 
 
 def test_crossing_to_the_small_screen_keeps_the_card_by_its_pin(browser, serve):
@@ -10367,7 +10487,16 @@ def test_a_pin_unfolds_from_the_seat_it_was_pressed_in(browser, serve):
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
     )
-    page = open_page(browser, serve(FEATURE_GALLERY), context=context)
+    keep = {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "token": "keep",
+        "anchor": {"section": "editing-guide"},
+    }
+    page = open_page(
+        browser, serve(MARGIN_ACTIONS_PAGE, events=[keep]), context=context
+    )
     margins_laid_out(page)
     reaction = page.get_by_role("button", name="keep reaction actions", exact=True)
     cluster = page.locator(".lf-margin-cluster").filter(has=reaction)

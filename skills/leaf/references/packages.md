@@ -673,8 +673,9 @@ paint. Do not put credentials or private host state in it.
 A contract whose value holds keyed rows declares `records`: the top-level array field
 and each row's key field. A source replacement is accepted only when every row has a
 non-empty, unique string key. Rows that each carry a large, independently useful
-payload may name that field `deferred`. The source file still holds the complete value,
-and readings validate all of it, but `/api/state` sends each row with that field
+payload may name that field `deferred`; the item schema decides which rows carry it.
+The source file still holds the complete value, and readings validate all of it,
+but `/api/state` sends each row with that field
 omitted; a widget uses `loadDeferred(snapshot, key)` to fetch one row's payload
 using the delivery `watchData` handed it. A request naming a source revision the file
 no longer holds is refused instead of combining a new payload with an old manifest.

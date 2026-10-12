@@ -3,7 +3,6 @@
 import json
 from contextlib import contextmanager
 
-import pytest
 from click.testing import CliRunner
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -805,18 +804,6 @@ def _publish(page_dir, version, html, note):
     )
     assert result.exit_code == 0, result.output
     assert json.loads(result.output)["version"] == version
-
-
-@pytest.fixture
-def one_user(browser):
-    """A browser context two pages can share, which is what makes them tabs.
-
-    `Browser.new_page` opens each page in a context of its own, so two of them are two
-    users with no storage between them — and a draft lives in the user's store now,
-    which is the whole of what these tests are about."""
-    return browser.new_context(
-        viewport={"width": 1200, "height": 900}, color_scheme="light"
-    )
 
 
 def compose(page, passage, text=None):

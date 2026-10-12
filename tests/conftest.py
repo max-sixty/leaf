@@ -39,12 +39,7 @@ __all__ = ["LEAF_COMMAND"]
 signal.signal(signal.SIGINT, signal.default_int_handler)
 # Domain test modules import their assertions explicitly. Register only the modules
 # that own fixtures once for the complete suite.
-pytest_plugins = (
-    "interact_support",
-    "render_harness",
-    "render_cases_layout",
-    "render_cases_navigation",
-)
+pytest_plugins = ("interact_support", "render_harness")
 
 
 # The layer a page carries is the same bytes in every fixture, and the file it

@@ -34,6 +34,9 @@ const reading = (events) => ({
   browser: {
     basis: { through_seq: events.length },
     receipts: events,
+    thread_memberships: {},
+    tasks: [],
+    ended_tasks: [],
     thread: {
       threads: [],
       projection: { entries: [], actions: [], reports: [], desired: [] },
@@ -44,6 +47,8 @@ const reading = (events) => ({
         basis: { revision: 1, through_seq: events.length },
         coverage: [],
         undo: events.map((event) => ({ event })).reverse(),
+        queues: { on_you: [], on_agent: [], done: [] },
+        approval_blocking: [],
         document: {
           questions: noQuestions(),
           projection: {

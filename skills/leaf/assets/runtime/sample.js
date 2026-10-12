@@ -43,6 +43,7 @@ import {
 import { keeps } from "./keeps.js";
 import { nextRender, sizeObserver } from "./rendering.js";
 import { recordInteraction } from "./interaction-log.js";
+import { aborted } from "./abort.js";
 
 // A page can carry many samples. Their child documents each import the runtime;
 // presenting them together can exhaust the browser's request pool before any child
@@ -54,20 +55,17 @@ const loadWaiters = [];
 let nextHost = 0;
 async function loadWithinLimit(work, signal) {
   signal.throwIfAborted();
-  if (loadingSamples === MAX_LOADING_SAMPLES)
-    await new Promise((resolve, reject) => {
-      const proceed = () => {
-        signal.removeEventListener("abort", cancel);
-        resolve();
-      };
-      const cancel = () => {
-        loadWaiters.splice(loadWaiters.indexOf(proceed), 1);
-        reject(signal.reason);
-      };
-      signal.addEventListener("abort", cancel, { once: true });
-      loadWaiters.push(proceed);
-    });
-  else loadingSamples++;
+  if (loadingSamples === MAX_LOADING_SAMPLES) {
+    const { promise: turn, resolve: proceed } = Promise.withResolvers();
+    loadWaiters.push(proceed);
+    await Promise.race([turn, aborted(signal)]);
+    // A slot handed over before the abort is this load's to run and release.
+    const waiting = loadWaiters.indexOf(proceed);
+    if (waiting !== -1) {
+      loadWaiters.splice(waiting, 1);
+      throw signal.reason;
+    }
+  } else loadingSamples++;
   let released = false;
   const release = () => {
     if (released) return;

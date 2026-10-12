@@ -14,6 +14,7 @@
  * quotation. A disconnect releases the child; moving the retained element within a
  * document does not reset its work. */
 import {
+  aborted,
   frameFor,
   whileConnected,
   keeps,
@@ -283,16 +284,11 @@ customElements.define(
     // which waits for the next document as it waits for the first. A newer
     // selection, Reset or removal supersedes it. The outer control remains the
     // keyboard stop while the child draws its view.
-    async showThread(id, { surface = "page", status, waiting } = {}) {
+    showThread(id, { surface = "page", status, waiting } = {}) {
       this.#viewOperation?.abort();
       const operation = new AbortController();
       this.#viewOperation = operation;
       const { signal } = operation;
-      let cancelled;
-      const cancellation = new Promise((resolve) => {
-        cancelled = () => resolve(false);
-        signal.addEventListener("abort", cancelled, { once: true });
-      });
       const select = (ready) =>
         ready
           .then(() =>
@@ -306,11 +302,7 @@ customElements.define(
               throw error;
             return select(this.#ready);
           });
-      try {
-        return await Promise.race([select(this.#ready), cancellation]);
-      } finally {
-        signal.removeEventListener("abort", cancelled);
-      }
+      return Promise.race([select(this.#ready), aborted(signal).then(() => false)]);
     }
 
     async reset() {

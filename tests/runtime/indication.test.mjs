@@ -85,6 +85,24 @@ test("a reference resolves in its own message before the page, and never in anot
   assert.equal(home(onPage), "page");
 });
 
+test("a keyed reference names the member its own scope holds, never an id", () => {
+  Object.assign(registry, {
+    "lf-scope": {},
+    "lf-member": { "x-unique": { name: "lf-scope" } },
+    "lf-keyed": { "x-refers": { for: { tag: "lf-member", key: "name" } } },
+  });
+  document.body.innerHTML = `<main>
+    <lf-scope data-home="mine"><lf-member name="tone"></lf-member>
+      <lf-scope data-home="nested"><lf-member name="size"></lf-member></lf-scope>
+      <p><lf-keyed for="tone"></lf-keyed></p></lf-scope>
+    <lf-scope data-home="theirs"><lf-member name="size" id="tone"></lf-member></lf-scope>
+  </main>`;
+  const keyed = document.querySelector("lf-keyed");
+  assert.equal(home(keyed), "mine");
+  keyed.setAttribute("for", "size");
+  assert.equal(home(keyed), "nothing", "a nested scope's member is not this scope's");
+});
+
 test("each driver holds one key per attribute, and the page wears the union", () => {
   document.body.innerHTML = "<main></main>";
   const main = document.querySelector("main");

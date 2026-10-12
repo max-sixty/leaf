@@ -625,8 +625,25 @@ def record_pickup(
     return record
 
 
+def deliverable(page: PageTransaction) -> list[dict]:
+    """The page's unacknowledged input a session of this Leaf may be handed: none on
+    a page whose log this Leaf may not write (`event_contracts.write_refusal`), where
+    `receive_batch` refuses its receipt. Handed over anyway, it stayed pending, so a
+    watch woke its session on every pass and a Codex watch opened a turn for it each
+    time. It waits for a Leaf that can write the page; the prompt hook names the
+    re-vendor that frees it (`hook_transport.remedies`). A page with nothing pending
+    is answered without loading its layer, since Codex asks after every tool call."""
+    pending = unacknowledged(page.events, page.cursor)
+    if not pending:
+        return []
+    from .event_contracts import write_refusal
+
+    return [] if write_refusal(page.page_dir) else pending
+
+
 class ReceiptRefused(Refused):
-    """Captured input no longer belongs to this receiver or page log."""
+    """Captured input no longer belongs to this receiver or page log, or sits on a
+    page whose log this Leaf may not write."""
 
 
 @contextmanager
@@ -642,8 +659,13 @@ def receive_batch(
     page is still the receiver's (`service.claim_names_session`), even between a
     restart's new generation and its claim, and an old envelope can be confirmed
     after ownership returns to its receiver. A receiver with no session takes
-    receipt only while no session holds the page.
+    receipt only while no session holds the page. Nor does one take it on a page
+    vendored at another protocol (`event_contracts.write_refusal`): its body could
+    record no pickup there, and every transport retires a refused receipt rather
+    than retrying it, leaving the input for a Leaf that can write the page.
     """
+    from .event_contracts import write_refusal
+
     # The page is already locked; keep lifecycle admission valid through pickup
     # and cursor commit. SessionEnd cannot cross between those writes.
     with (
@@ -657,6 +679,8 @@ def receive_batch(
             else page.claim_of(session_id) is None
         ):
             raise ReceiptRefused(f"delivery no longer owns its page: {page.page_dir}")
+        if refusal := write_refusal(page.page_dir):
+            raise ReceiptRefused(refusal)
         expected = {event["seq"]: event["id"] for event in batch["events"]}
         delivered = {event["seq"]: event for event in page.events}
         if not expected or any(

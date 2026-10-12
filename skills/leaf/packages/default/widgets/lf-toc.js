@@ -68,6 +68,8 @@ import {
   sizeObserver,
   whileConnected,
   wrote,
+  focused,
+  standingIn,
 } from "/runtime/widget-api.js";
 
 const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
@@ -161,10 +163,8 @@ customElements.define(
         depth: Math.min(Number(heading.localName.slice(1)) - floor, 4),
       }));
       const title = (pageTitle ? wrote(pageTitle).trim() : "") || "Top";
-      const focused = this.#sections.find(
-        ({ link }) => link === document.activeElement,
-      );
-      const restore = focused && holdFocus(this.#nav);
+      const held = this.#sections.find(({ link }) => link === focused());
+      const restore = held && holdFocus(this.#nav);
       // Each row and link binds itself to the item it renders, so a section holds the
       // row it measures whatever order Lit keeps the rows in.
       const start = { destination: startDestination };
@@ -218,9 +218,9 @@ customElements.define(
       // survives. The template renderer already retains focus through keyed moves.
       if (restore) {
         const continuation =
-          this.#sections.find(({ heading }) => heading === focused.heading) ??
+          this.#sections.find(({ heading }) => heading === held.heading) ??
           this.#sections.find(
-            ({ destination }) => destination.id === focused.destination.id,
+            ({ destination }) => destination.id === held.destination.id,
           );
         restore(continuation?.link);
       }
@@ -342,16 +342,12 @@ customElements.define(
 
     #rememberFocus() {
       const viewport = this.#nav.getBoundingClientRect();
-      const active = document.activeElement;
-      const focused = this.#nav.contains(active)
-        ? active.getBoundingClientRect()
-        : null;
+      const active = focused(document);
+      const shown = this.#nav.contains(active) ? active.getBoundingClientRect() : null;
       this.#navHeight = viewport.height;
       this.#focusedLink = active;
       this.#focusedVisible =
-        !!focused &&
-        focused.top >= viewport.top - 1 &&
-        focused.bottom <= viewport.bottom + 1;
+        !!shown && shown.top >= viewport.top - 1 && shown.bottom <= viewport.bottom + 1;
     }
 
     // Each fitted row's shift, by section index.
@@ -407,17 +403,17 @@ customElements.define(
         this.removeAttribute("data-lf-compact");
         this.setAttribute("data-lf-outline", "");
         if (
-          this.#nav.contains(document.activeElement) &&
-          this.#focusedLink === document.activeElement &&
+          standingIn(this.#nav) &&
+          this.#focusedLink === focused(document) &&
           this.#focusedVisible &&
           this.#nav.getBoundingClientRect().height < this.#navHeight - 1
         ) {
-          const focused = document.activeElement.getBoundingClientRect();
+          const link = focused(document).getBoundingClientRect();
           const viewport = this.#nav.getBoundingClientRect();
-          if (focused.bottom > viewport.bottom)
-            this.#nav.scrollTop += focused.bottom - viewport.bottom;
-          else if (focused.top < viewport.top)
-            this.#nav.scrollTop += focused.top - viewport.top;
+          if (link.bottom > viewport.bottom)
+            this.#nav.scrollTop += link.bottom - viewport.bottom;
+          else if (link.top < viewport.top)
+            this.#nav.scrollTop += link.top - viewport.top;
         }
         return shifts;
       }

@@ -59,7 +59,6 @@ import {
   keepsHidden,
   el,
   focusDestination,
-  focused,
   holdFocus,
   html,
   iconTemplate,
@@ -69,6 +68,7 @@ import {
   classMap,
   styleMap,
   offered,
+  pressIsKeyboardActivation,
   createRef,
   ref,
   render,
@@ -93,6 +93,7 @@ import {
   watchData,
   whileConnected,
   widgetController,
+  standingIn,
 } from "/runtime/widget-api.js";
 
 import { advancePlayback, mergeIntervals } from "./playback.js";
@@ -355,7 +356,7 @@ customElements.define(
           },
           {
             id: "trace.zoom-in",
-            keys: () => (timeline.contains(focused()) ? ["="] : []),
+            keys: () => (standingIn(timeline) ? ["="] : []),
             title: "zoom the timeline in",
             control: this.#zoomIn.value,
             when: () => this.#timeline.canZoomIn,
@@ -363,7 +364,7 @@ customElements.define(
           },
           {
             id: "trace.zoom-out",
-            keys: () => (timeline.contains(focused()) ? ["-"] : []),
+            keys: () => (standingIn(timeline) ? ["-"] : []),
             title: "zoom the timeline out",
             control: this.#zoomOut.value,
             when: () => this.#timeline.canZoomOut,
@@ -371,7 +372,7 @@ customElements.define(
           },
           {
             id: "trace.zoom-fit",
-            keys: () => (timeline.contains(focused()) ? ["0"] : []),
+            keys: () => (standingIn(timeline) ? ["0"] : []),
             title: "show the whole recording",
             control: this.#zoomFit.value,
             when: () => this.#timeline.canZoomOut,
@@ -380,7 +381,7 @@ customElements.define(
           {
             id: "trace.previous-event",
             keys: () =>
-              timeline.contains(focused()) ? [`Shift+${rowArrows(timeline)[0]}`] : [],
+              standingIn(timeline) ? [`Shift+${rowArrows(timeline)[0]}`] : [],
             title: "previous input or moment",
             when: () => this.#eventStop(-1) !== null,
             run: () => this.#navigate(this.#eventStop(-1)),
@@ -388,14 +389,14 @@ customElements.define(
           {
             id: "trace.next-event",
             keys: () =>
-              timeline.contains(focused()) ? [`Shift+${rowArrows(timeline)[1]}`] : [],
+              standingIn(timeline) ? [`Shift+${rowArrows(timeline)[1]}`] : [],
             title: "next input or moment",
             when: () => this.#eventStop(1) !== null,
             run: () => this.#navigate(this.#eventStop(1)),
           },
           {
             id: "trace.play",
-            keys: () => (timeline.contains(focused()) ? [" "] : []),
+            keys: () => (standingIn(timeline) ? [" "] : []),
             title: () => (this.#playing ? "pause recording" : "play recording"),
             control: this.#play.value,
             when: () => this.#items().length > 1,
@@ -1373,7 +1374,7 @@ customElements.define(
         const commit = (viewer) => {
           if (!current()) return;
           const retired = this.#picture;
-          const hadFocus = this.#viewport.value.contains(document.activeElement);
+          const hadFocus = standingIn(this.#viewport.value);
           this.#picture = viewer;
           // Leaf owns container resize so unchanged window signals leave the
           // inspected image alone. Viewer otherwise refits it on every signal.
@@ -1888,7 +1889,7 @@ customElements.define(
                           const pressed = this.#pressedPlay;
                           this.#playIntent =
                             pressed &&
-                            event.detail > 0 &&
+                            !pressIsKeyboardActivation(event) &&
                             event.pointerId === pressed.pointerId
                               ? pressed.pause
                               : null;

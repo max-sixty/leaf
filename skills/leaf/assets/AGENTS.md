@@ -387,11 +387,18 @@ keeps its own test says why beside it. Rows marked *lint* are enforced in
 
 | Question | Owner |
 | --- | --- |
-| Where the user stands: focus inside open shadow trees, or a label press holding them | `focus.js` `focused` |
+| Where the user stands: focus inside open shadow trees, or a label press holding them; asked in one tree, the node standing for it there | `focus.js` `focused`, `focused(tree)` (*lint*) |
+| Whether the user stands in a scope, across shadow trees and slots | `focus.js` `standingIn` (*lint*) |
+| The user's working place, read before something borrows it and handed back after | `history.js` `readPlace`, `returnPlace` |
+| Where a page walk starts, and which item it steps to from there | `standing-target.js` `walkOrigin`, `stepFrom` |
+| Which of two nodes the reader reaches first, across shadow trees | `shadow-tree.js` `renderedOrder`, `byRenderedOrder` |
+| Whether a node stands inside another across shadow trees, by composed parents or as rendered | `shadow-tree.js` `under`, `renderedUnder`, `composedParentNode` |
 | Put the user on an element, saying what moved them | `focus.js` `focusDestination(node, cause)` (*lint*) |
 | Place a node that may already stand somewhere, keeping the user's place in it | `dom-move.js` `move(parent, node, before)` (*lint*) |
 | Make a list of nodes, some already placed, a parent's children | `dom-children.js` `setChildren` |
 | Whether a control takes typed letters | `focus.js` `typesText`, `takesLetters` |
+| Which keys move a caret, and whether a key is Select All | `control-selectors.js` `CARET_KEYS`, `selectsAll` |
+| A hint map's walk and choose rows | `keyboard/hints.js` `createHintSession`, its session's walkRows |
 | Which focused control counts as the user's place: shown, and not under a stuck box | `user-place.js` `focusedInView` |
 | Whether a click came from the keyboard | `pointer.js` `pressIsKeyboardActivation` |
 | Whether a press is the plain one a control claims: primary button, no modifier | `pointer.js` `plainPress` |

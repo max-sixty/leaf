@@ -656,6 +656,7 @@
     let holder = breakout;
     let display;
     do {
+      // `renderedParent` spelled out: this classic script runs before any module loads.
       holder = holder.assignedSlot ?? holder.parentElement ?? holder.getRootNode().host;
       if (holder === main) break;
       display = getComputedStyle(holder).display;

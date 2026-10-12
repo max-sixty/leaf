@@ -33,7 +33,8 @@ import { keeps, keepsHidden, keepsText } from "./keeps.js";
 import { approvalReading, approve, toggleBtn, watchStatus } from "./banner.js";
 import { queueBtn } from "./drawers.js";
 import { keys } from "./keyboard/scopes.js";
-import { bannerRows, readStanding, watchBannerRows } from "./banner-toolbar.js";
+import { bannerRows, watchBannerRows } from "./banner-toolbar.js";
+import { readPlace } from "./history.js";
 import { readThreads } from "./thread/state.js";
 import { watchThreads } from "./thread/watch.js";
 import { threadAttention, workflowLabel } from "./thread/workflow.js";
@@ -60,9 +61,11 @@ import {
   onStanding,
   onUserInput,
   releaseFocus,
+  standingIn,
 } from "./focus.js";
 import { sizeObserver } from "./rendering.js";
 import { agentName, readApplication, watchSemantic } from "./semantic-state.js";
+import { renderedUnder } from "./shadow.js";
 
 const prefs = () => document.documentElement.lfChrome;
 // The Codex panel's tween: one strong ease-out for every change of size and fade.
@@ -1134,7 +1137,7 @@ export function createFloatingPanel({
       );
 
     // Moderate adds where the reader stands and the keys that act there.
-    const typing = host.contains(focused()) && focused()?.localName === "leaf-text";
+    const typing = standingIn(host) && focused()?.localName === "leaf-text";
     const keyWords = coarse()
       ? `${threads().length} threads`
       : thread
@@ -1176,7 +1179,7 @@ export function createFloatingPanel({
       description: () =>
         trail.length ? `Back from ${titleOf(trail.at(-1))}` : "Leave the comment field",
       title: () => (trail.length ? "back" : "leave field"),
-      when: () => trail.length > 0 || host.contains(focused()),
+      when: () => trail.length > 0 || standingIn(host),
       run: () => {
         if (trail.length) back();
         else releaseFocus();
@@ -1186,18 +1189,18 @@ export function createFloatingPanel({
   // Writing begins in the field and lasts while the user stays in the panel, so the
   // destination line stays put while they press Resolve or a filter.
   // Where the reader stood before stepping into the panel, which a row's command that
-  // acts on that place gets back (banner-toolbar.js, `readStanding`).
+  // acts on that place gets back (history.js, `readPlace`).
   let heldStanding = null;
   host.addEventListener(
     "pointerdown",
     () => {
-      if (!host.contains(focused())) heldStanding = readStanding();
+      if (!standingIn(host)) heldStanding = readPlace();
     },
     true,
   );
   onStanding((node, _cause, left) => {
-    const inside = host.contains(node);
-    if (inside && left && !host.contains(left)) heldStanding = readStanding(left);
+    const inside = Boolean(node) && renderedUnder(node, host);
+    if (inside && left && !renderedUnder(left, host)) heldStanding = readPlace(left);
     const next = inside ? writing || node.localName === "leaf-text" : false;
     if (next === writing && !inside) return;
     writing = next;

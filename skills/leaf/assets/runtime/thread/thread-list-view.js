@@ -38,7 +38,13 @@
    (#2387), which every later change to when a card leaves had to repeat and which
    committing had to rebuild from the drawn rows. */
 import { html, repeat, ref } from "../../vendor/browser-runtime.js";
-import { holdFocus, onStanding, focusDestination, focused } from "../focus.js";
+import {
+  holdFocus,
+  onStanding,
+  focusDestination,
+  focused,
+  standingIn,
+} from "../focus.js";
 import { RetainedFace } from "../retained-face.js";
 import { ThreadView } from "./thread-card.js";
 import { threadHoldsDraft } from "./replies.js";
@@ -331,7 +337,7 @@ class ThreadListView extends RetainedFace {
   // Forward gestures paint their complete generated result in their sending turn.
   async present(model) {
     const generation = ++this.#generation;
-    if (!this.#rollbackFocus && this.contains(focused())) {
+    if (!this.#rollbackFocus && standingIn(this)) {
       const node = focused();
       this.#rollbackFocus = {
         node,
@@ -399,7 +405,8 @@ class ThreadListView extends RetainedFace {
       if (row.kind !== "thread") {
         if (row.kind === "withdrawn") {
           const previous = this.#rows.find((drawn) => drawn.key === row.key);
-          if (previous?.node?.contains(focused())) this.#withdrawnFocus = row.key;
+          if (previous?.node && standingIn(previous.node))
+            this.#withdrawnFocus = row.key;
           rows.push({ ...row, node: null });
         } else rows.push(row);
         continue;

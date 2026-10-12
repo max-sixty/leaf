@@ -52,8 +52,7 @@ import {
   word,
 } from "./bindings.js";
 import { nativeActivationAt, nativeClaimAt } from "./text-entry.js";
-import { focused } from "../focus.js";
-import { hostIn, renderedParent } from "../shadow.js";
+import { renderedParent } from "../shadow.js";
 import { repaint } from "../repaint.js";
 import { keeps } from "../keeps.js";
 
@@ -772,11 +771,6 @@ const spoken = (row) => {
     return active.map(spokenBinding).join(" or ");
   return word(row.label) ?? active.map(spokenBinding).join(" or ");
 };
-
-// Document readings want the host of a control staged in a shadow tree. Retarget the
-// logical reading every time, so a label transaction and an ordinary shadow focus take
-// the same path and no painted surface invents its own exception.
-export const documentFocused = () => hostIn(focused(), document);
 
 // The element scopes covering a node, innermost first — the climb crosses a shadow
 // boundary the way `closest` climbs inside one, so a widget staging its controls in a

@@ -26,7 +26,7 @@ import { PENDING } from "./identity.js";
 /** @param {{token?: string}} message */
 export const isReaction = (message) => Boolean(message.token);
 /** @param {Pick<Message, "addressable">} message */
-export const isAddressable = (message) => message.addressable !== false;
+const isAddressable = (message) => message.addressable !== false;
 
 // A known thread can be opened and answered before the saved inventory arrives.
 // Its own settlement, rather than the collection's completeness, owns these offers.

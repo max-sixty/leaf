@@ -189,7 +189,7 @@ function settlements() {
 // tree or its shadow root, whose tag the standing outcome retires. Only this
 // document's holders are settled; a parsed revision's elements share their ids.
 function retiredSlot(el) {
-  const holder = el.parentElement ?? shadowHost(el.parentNode);
+  const holder = upFrom(el);
   if (!holder?.id || el.ownerDocument !== document) return false;
   const settlement = settlements().get(holder.id);
   return (

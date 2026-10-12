@@ -6,6 +6,7 @@ from interact_support import (
     PAGE,
     ROOT,
     check,
+    found,
     fragment_errors,
     publish,
 )
@@ -20,11 +21,13 @@ def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(
     """A settled group needs an id for its disclosure state. Once the whole
     unreferenced group leaves, its ids are advisory rather than an error."""
     registry = registry_storage.load_registry(page_dir)
-    assert "'id' is a dependency of 'settled'" in " ".join(
+    assert found(
         fragment_errors(
             '<lf-options settled><lf-option id="o1"><strong>A</strong></lf-option></lf-options>',
             registry,
-        )
+        ),
+        "attribute-schema",
+        keyword="dependentRequired",
     )
 
     group = (

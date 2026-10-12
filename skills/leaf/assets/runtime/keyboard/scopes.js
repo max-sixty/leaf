@@ -446,8 +446,7 @@ export function merge(sections, { title, when, at, liveInCommandReference, rows 
 /** Declare a scope's keys where the code implementing them is.
  *
  * `where` is the element focus must be inside, `title` names the scope in the command reference dialog
- * (null for one the reference has no room to name), `rows` are its bindings, or a
- * function of `where` returning them when the rows read the element they stand on, and the
+ * (null for one the reference has no room to name), `rows` are its bindings, and the
  * optional configuration carries `when` (whether the page has this scope at all) and
  * `escape: "inner"` when this scope owns a cancellation step ahead of every step the
  * ladder offers. A function in the fourth position is shorthand for `{when: function}`.
@@ -520,14 +519,7 @@ function detachScope(element, scope) {
 
 // Both element-bound keys and a reusable command capability declare the same scope.
 // Attachment decides when its scene is validated, not what a declaration may contain.
-// Rows given as a function of their element are read here, once per declaration; a
-// capability has no one element, since each projection stands on its own control.
-function declaredScope(title, rows, options, where = null) {
-  if (typeof rows === "function") {
-    if (!where)
-      throw new TypeError("A command capability's rows cannot name an element");
-    rows = rows(where);
-  }
+function declaredScope(title, rows, options) {
   const configuration =
     typeof options === "function" ? { when: options } : (options ?? {});
   if (typeof configuration !== "object")
@@ -551,7 +543,7 @@ export function keys(where, title, rows, options) {
   // A declaration this one replaces before its first paint is owed nothing: read at
   // the frame, a stale scope that refused would retract the element's standing
   // declaration along with itself.
-  return attachScope(where, declaredScope(title, rows, options, where)).rows;
+  return attachScope(where, declaredScope(title, rows, options)).rows;
 }
 
 // Template scopes use the same attachment as `keys`, made once per connection. A later
@@ -561,8 +553,8 @@ export function keys(where, title, rows, options) {
 // one element, not the page-wide reflection a new attachment asks for. Removing the
 // directive withdraws only its own attachment, including when Lit keeps the element.
 // Temporary disconnection restores that declaration on reconnection. Rows that read the
-// element they stand on, as a disclosure's toggle does, come as a function of it, since
-// the template declaring them renders that element.
+// element they stand on, as a disclosure's toggle does, come as a function of it, called
+// on each render, since the template declaring them renders that element.
 export const commandsOn = directive(
   class extends AsyncDirective {
     #element;
@@ -581,7 +573,11 @@ export const commandsOn = directive(
       this.#declaration =
         rows === undefined && isCommandScope(title)
           ? title.scope
-          : declaredScope(title, rows, options, part.element);
+          : declaredScope(
+              title,
+              typeof rows === "function" ? rows(part.element) : rows,
+              options,
+            );
       if (this.isConnected) this.reconnected();
       return nothing;
     }

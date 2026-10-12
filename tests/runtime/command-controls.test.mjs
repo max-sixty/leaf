@@ -872,7 +872,6 @@ test("a template scope's rows read the element the template renders", async () =
   paintKeys();
   reflectKeys();
   assert.match(summary.getAttribute("aria-keyshortcuts"), /ArrowLeft/);
-  assert.throws(() => commandScope("Projected", () => []), /cannot name an element/);
   root.remove();
 });
 

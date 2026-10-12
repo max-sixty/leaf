@@ -120,10 +120,11 @@ export function registerReadingRegion({ id, host, body }) {
 // (`--lf-reading-region: layout`): a child of `main`, or the only child of one that is
 // not itself marked. Each is registered like any other region, so what it holds is
 // carried by it rather than by the page, and its posture is read from whether it
-// scrolls. Its id is its element's id where it has one, so a neighbour's arrival or
-// removal never renames it, and its place among the unnamed ones otherwise, in a
-// namespace of its own. Chrome layout asks on every pass, since a revision can replace
-// `main`'s children and a resize can change which of them the stylesheet marks.
+// scrolls. Its id is the authored id of the box or, for an only child, of the child of
+// `main` holding it, as a sidebar's `aside` names the block it holds, so a neighbour's
+// arrival or removal never renames it; an unnamed one takes its place among the unnamed
+// ones, in a namespace of its own. Chrome layout asks on every pass, since a revision can
+// replace `main`'s children and a resize can change which of them the stylesheet marks.
 const layoutRegions = new Map();
 const marked = (box) =>
   box.checkVisibility() &&
@@ -132,16 +133,16 @@ export function syncLayoutRegion() {
   const main = pageDocument();
   const bodies = main
     ? [...main.children].flatMap((child) => {
-        if (marked(child)) return [child];
+        if (marked(child)) return [[child, child.id]];
         const only = child.childElementCount === 1 ? child.firstElementChild : null;
-        return only && marked(only) ? [only] : [];
+        return only && marked(only) ? [[only, only.id || child.id]] : [];
       })
     : [];
   let unnamed = 0;
   const ids = new Map(
-    bodies.map((body) => [
+    bodies.map(([body, name]) => [
       body,
-      body.id ? `lf-region:layout#${body.id}` : `lf-region:layout@${unnamed++}`,
+      name ? `lf-region:layout#${name}` : `lf-region:layout@${unnamed++}`,
     ]),
   );
   for (const [body, region] of layoutRegions)

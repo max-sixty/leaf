@@ -151,6 +151,7 @@ import { PAGE_SCOPE, tabStore } from "./storage.js";
 import { initialOrigin, restoreInitialSource, unmarkedCopy } from "./initial-render.js";
 import { alignInlineText } from "./text-alignment.js";
 import { el, layoutChanged, reveal } from "./widget-elements.js";
+import { settleResidency } from "./content-layout.js";
 import { keeps } from "./keeps.js";
 import { returnToBannerControl, showNews } from "./banner-toolbar.js";
 import { allButCommandReference, pageScope } from "./keyboard/register.js";
@@ -1623,6 +1624,7 @@ export function createVersionController({
           // A revision ends every hold, whether or not the reader's intent lets the
           // view be restored: its own handoff places the reader.
           releaseHolds();
+          settleResidency();
           syncLayout();
           if (currentIntent()) {
             restoreView(view, currentIntent);

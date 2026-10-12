@@ -2,7 +2,7 @@
 # sidebar as its own grid to keep the track beside the body at 900px (0 of 3); the
 # change 3 of 3. Later made to fail a sticky track: base at eee4a2d6d stuck the
 # `aside` itself (0 of 3), the change 3 of 3. Since the Layout sticks and bounds the
-# track itself, it fails a page that writes its own sticking instead.
+# one block a track holds, it fails a page that writes its own sticking instead.
 # The completed-log and live-stream contrast only guarded in the 2026-10-07
 # scrolling-policy comparison: both wordings passed those choices on both harnesses.
 description: sidebar-page-at-900px

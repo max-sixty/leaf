@@ -2749,6 +2749,14 @@ def test_a_sidebar_pages_track_stays_in_view_only_beside_the_body(browser, serve
         ("", in_track, "", "", (1440, 900), False),
         ("", block + "</aside><aside><p>Owners.</p>", "", "", (900,), False),
         ("", block + "<p>Owners.</p>", "", "", (900,), False),
+        (
+            "#body { flex: 0 0 400px } #track { flex: 0 0 420px; margin-inline-start: auto }",
+            block,
+            "",
+            "",
+            (900,),
+            False,
+        ),
     )
     for css, track, lead, after, widths, sticks in cases:
         source = leaf_page(
@@ -2779,6 +2787,46 @@ def test_a_sidebar_pages_track_stays_in_view_only_beside_the_body(browser, serve
             assert at["position"] != "sticky", case
             assert at["top"] < 0, case
             assert at["scroller"] != "block", case
+
+
+def test_a_revision_keeps_the_readers_place_in_a_sidebar_tracks_block(browser, serve):
+    """A track's block is a reading region named by its own id, or by its track's where it
+    has none, so a neighbour never renames it. A revision that replaces the track keeps
+    the reader where they were in the block: the replacement stands beside the body, so
+    the block scrolls, before the reader's place returns."""
+    paragraphs = "".join(f"<p id='f{n}'>Follow-up {n} to check.</p>" for n in range(60))
+    body = "<div id='body'>" + "<p>Body paragraph. " * 600 + "</p></div>"
+    regions = """async () => (await window.__lfRuntimeImport('/runtime/reading-regions.js'))
+      .readingRegions().map((region) => region.id)"""
+
+    def source(track, block=""):
+        return leaf_page(
+            "a sidebar page",
+            f"<header><h1>Review</h1></header><aside id='{track}'><div{block}>"
+            f"{paragraphs}</div></aside>{body}",
+            layout="sidebar",
+        )
+
+    page = open_page(browser, serve(source("track")))
+    resized(page, 900, 600)
+    expect(page.locator("#track")).to_have_attribute("data-lf-beside", "")
+    assert "lf-region:layout#track" in page.evaluate(regions)
+
+    page = open_page(browser, live_url(serve(source("track", " id='block'"))))
+    resized(page, 900, 600)
+    expect(page.locator("#track")).to_have_attribute("data-lf-beside", "")
+    page.evaluate("scrollTo(0, 1500)")
+    page.locator("#block").evaluate("block => { block.scrollTop = 1000; }")
+    scroll_settled(page)
+    read = "() => document.getElementById('f30').getBoundingClientRect().top"
+    before = page.evaluate(read)
+
+    stamp_page(serve.page_dir, source("new-track", " id='block'"), "rename the track")
+    wait_for_revision(page, 2)
+    expect(page.locator("#new-track")).to_have_attribute("data-lf-beside", "")
+    scroll_settled(page)
+    assert "lf-region:layout#block" in page.evaluate(regions)
+    assert page.evaluate(read) == pytest.approx(before, abs=2)
 
 
 @pytest.mark.parametrize("rail", [True, False])

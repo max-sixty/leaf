@@ -39,6 +39,14 @@ function readResidency() {
 export function scheduleResidency() {
   if (residencyOpen) residencyPending ||= nextRender(residencyPass);
 }
+// A revision returns the reader to their place once its document stands, and where that
+// place is depends on the residents' postures: a sidebar page's track that a revision
+// replaced is not yet marked beside its body, so its block would not yet scroll and the
+// place would land in the page. The revision reads them first (version.js, `land`); a
+// scheduled pass still follows.
+export function settleResidency() {
+  if (residencyOpen) readResidency();
+}
 // The same read also says how far each breakout's holder stands in from the column
 // (prepaint.js, `indents`), and two later causes move that without moving the column,
 // each read where it happens, before the frame paints it. A breakout a revision or a

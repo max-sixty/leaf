@@ -145,8 +145,8 @@ def test_completed_record_has_a_render_correction_loop_without_a_seeded_decision
             '<meta name="description" content="A completed rollout record."></head>'
             '<body><main class="layout-sidebar"><header><h1>Completed rollout</h1>'
             f'<p id="version">Version {len(calls)}</p>'
-            '</header><aside id="checks" style="align-self:stretch">'
-            '<div style="position:sticky;top:var(--lf-top)"><h2>Checks</h2>'
+            '</header><aside id="checks">'
+            "<div><h2>Checks</h2>"
             '<p>Five passed. One failed.</p><lf-toc id="contents"></lf-toc></div></aside>'
             '<section id="log"><h2>Rollout log</h2>'
             + "<p>Completed rollout entry.</p>" * 40

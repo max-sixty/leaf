@@ -1,5 +1,6 @@
 """Version corpus, registry, message, and export tests."""
 
+import copy
 import json
 import os
 import re
@@ -344,12 +345,14 @@ def test_question_context_frames_any_number_of_independent_sources(page_dir):
         )
     )
     settled = first.replace(" choose", " choose settled")
-    assert (
-        fragment_errors(
-            f'<lf-ask id="decision-settled"><h2>Chosen</h2>{settled}</lf-ask>',
-            registry,
-        )
-        == []
+    settled_ask = f'<lf-ask id="decision-settled"><h2>Chosen</h2>{settled}</lf-ask>'
+    assert fragment_errors(settled_ask, registry) == []
+    # The registry's `retired` is what says the flag ended an asked Question; a flag
+    # that merely stops a widget asking leaves the context framing nothing.
+    unretired = copy.deepcopy(registry)
+    del unretired["lf-options"]["x-awaits"]["retired"]
+    assert '<lf-options id="g-one"> (line 1) asks only where settled is absent' in (
+        " ".join(fragment_errors(settled_ask, unretired))
     )
     # A quoted Ask is a mention, and its widgets ask nothing by design.
     assert (

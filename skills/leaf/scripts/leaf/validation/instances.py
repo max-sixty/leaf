@@ -157,12 +157,12 @@ def unasked(rec: dict, entry: dict) -> str:
     """The `x-awaits.when` conditions a widget never met, worded for the author, or
     "" where it asks, was asked, or can be made to ask.
 
-    A condition that only requires an attribute absent is how an author retires a
-    Question already asked, such as a settled decision kept with its context, so
-    failing it leaves the widget counted. One that requires an attribute present or
-    a value is how the widget opts into asking; one a recorded value writes can
-    still be met by a gesture."""
-    when = entry["x-awaits"].get("when") or {}
+    The flag `x-awaits.retired` names is how an author ends a Question already
+    asked, such as a settled decision kept with its context, so failing on it alone
+    leaves the widget counted. A condition a recorded value writes can still be met
+    by a gesture."""
+    awaits = entry["x-awaits"]
+    when = awaits.get("when") or {}
     recorded = {
         (spec.get("record") or {}).get("attr")
         for spec in entry.get("x-state", {}).values()
@@ -170,11 +170,13 @@ def unasked(rec: dict, entry: dict) -> str:
     }
     return " and ".join(
         " or ".join(
-            f"{attr} is present" if value is True else f"{attr}={json_value(value)}"
+            f"{attr} is {'present' if value else 'absent'}"
+            if isinstance(value, bool)
+            else f"{attr}={json_value(value)}"
             for value in values
         )
         for attr, values in when.items()
-        if values != [False]
+        if attr != awaits.get("retired")
         and attr not in recorded
         and not asking(rec["attrs"], {attr: values})
     )

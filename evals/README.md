@@ -153,5 +153,5 @@ the website.
 
 ```sh
 pnpm run test:evals
-uv run pytest tests/test_eval.py tests/test_scenario_eval.py tests/test_usability_eval.py tests/test_arrangement_eval.py -q -n0
+uv run pytest tests/model/test_eval.py tests/model/test_scenario_eval.py tests/*/test_usability_eval.py tests/*/test_arrangement_eval.py -q -n0
 ```

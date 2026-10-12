@@ -180,7 +180,7 @@ representative desktop viewport.
   `runtime/composing/surface.js`). A re-render that replaces a box's node hands its
   words and caret to the replacement. Checks: `tests/words_watch.js`, through which the
   suite's browser fixture fails any test whose page loses typed words without a key or
-  press, and `typed_box_findings` in `tests/test_render_gate.py`, which scrolls every
+  press, and `typed_box_findings` in `tests/*/test_render_gate.py`, which scrolls every
   corpus page to both ends and back with each typed box open. Owner: the default
   package's `composing/floating-response.js` for where the box floats.
 

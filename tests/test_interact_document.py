@@ -303,7 +303,7 @@ def test_a_sample_child_stages_its_revision_without_fsync(page_dir, monkeypatch)
     document = artifact_model.read_revision(page_dir, parent.revision).document
     samples = samples_model.Samples()
     identity = samples.create(
-        page_dir, artifact, document, [], {"sources": {}}, "practice", False, None
+        page_dir, artifact, document, [], {"sources": {}}, "practice", None
     )
     try:
         child = samples.pages[identity].directory

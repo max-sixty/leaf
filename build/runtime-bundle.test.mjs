@@ -19,7 +19,6 @@ test("prepared kernels preserve native packages, shared state, and stampable gen
     "runtime/vendor-bridge.js": 'export { state } from "./state.js";',
     "runtime/widget-api.js": 'export { state } from "./state.js";',
     "runtime/check-api.js": 'export { state } from "./state.js";',
-    "runtime/interaction-gallery-frame.js": 'export { state } from "./state.js";',
     "runtime/media.js":
       'export { state } from "./state.js"; export { rendered } from "../vendor/browser-runtime.js";',
     "runtime/layer-client.js":

@@ -1303,12 +1303,9 @@ export default [
     },
   },
   {
-    // These are the two boundaries that load authored/package modules, whose paths
-    // are data rather than runtime dependencies. Literal imports still enter the graph.
-    files: [
-      "skills/leaf/assets/runtime/interaction-gallery-playback.js",
-      "skills/leaf/assets/runtime/widget-loader.js",
-    ],
+    // This is the boundary that loads authored/package modules, whose paths are
+    // data rather than runtime dependencies. Literal imports still enter the graph.
+    files: ["skills/leaf/assets/runtime/widget-loader.js"],
     rules: {
       "no-restricted-syntax": [
         "error",

@@ -25,7 +25,6 @@ import { frameworkPaths, inFramework } from "./browser/build.mjs";
 
 export const runtimeEntries = [
   "leaf.js",
-  "runtime/interaction-gallery-frame.js",
   "runtime/layer-client.js",
   "runtime/media.js",
   "runtime/widget-api.js",

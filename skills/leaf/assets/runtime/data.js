@@ -8,8 +8,8 @@
    the newest snapshot when it differs from the last delivered or the departure
    interrupted that paint's returned promise; a finished paint, failed or not, stands,
    so a refusal is not reported twice. Contract, publication, or validity changes
-   redeliver; overlapping
-   reads await the same in-flight rendering before stamping the version presented. Its
+   redeliver; overlapping reads await the same in-flight rendering before stamping the
+   version presented. Its
    synchronous time readings refresh independently of data delivery. The returned
    cleanup's `refresh()` repaints the last delivered reading through the same clock
    tracking, without admitting or delivering a newer source. Modules project the

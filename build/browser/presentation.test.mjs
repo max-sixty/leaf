@@ -7,14 +7,11 @@ import {
   PRESENTATION_HELD,
 } from "./presentation.ts";
 
-const deferred = () => {
-  let resolve;
-  let reject;
-  const promise = new Promise((accept, refuse) => {
-    resolve = accept;
-    reject = refuse;
-  });
-  return { promise, resolve, reject };
+// Present `value` and settle its ticket with `proof` at once.
+const presented = (handle, value, proof) => {
+  const presentation = handle.present(value);
+  presentation.resolve(proof);
+  return presentation.ready;
 };
 
 const setup = () => {
@@ -31,19 +28,17 @@ test("a superseded value cannot complete the current region", async () => {
   const renderer = {};
   const publication = coordinator.begin(document, 0);
   const handle = coordinator.attach("widget", renderer);
-  const older = deferred();
-  const newer = deferred();
-  const olderPresentation = handle.present("older", older.promise);
-  const newerPresentation = handle.present("newer", newer.promise);
+  const olderPresentation = handle.present("older");
+  const newerPresentation = handle.present("newer");
   coordinator.seal(publication);
 
-  older.resolve("older proof");
-  await olderPresentation;
+  olderPresentation.resolve("older proof");
+  await olderPresentation.ready;
   assert.equal(coordinator.read().presentedEpoch, -1);
   assert.equal(coordinator.committed("widget", renderer, "older"), null);
 
-  newer.resolve("newer proof");
-  await newerPresentation;
+  newerPresentation.resolve("newer proof");
+  await newerPresentation.ready;
   assert.equal(coordinator.read().presentedEpoch, 0);
   assert.deepEqual(coordinator.committed("widget", renderer, "newer"), {
     document,
@@ -58,21 +53,66 @@ test("a superseded value cannot complete the current region", async () => {
   });
 });
 
+test("a handle releases the holds it supersedes and leaves running paints to report", async () => {
+  const { coordinator, failures } = setup();
+  const document = {};
+  const publication = coordinator.begin(document, 0);
+  const handle = coordinator.attach("widget", {});
+  const hold = handle.present("held");
+  const running = handle.present("painting");
+  const paint = Promise.withResolvers();
+  running.resolve(paint.promise);
+  // The newer presentation settled the hold its renderer left open.
+  await hold.ready;
+
+  const latest = handle.present("latest");
+  coordinator.seal(publication);
+  const error = new Error("superseded paint failed");
+  paint.reject(error);
+  await running.ready;
+  assert.deepEqual(failures, [error]);
+
+  // So does disconnecting the renderer.
+  handle.disconnect();
+  await latest.ready;
+  assert.equal(await coordinator.whenPresented(document, 0), "presented");
+});
+
+test("a paint that claims its own region again still reports its own failure", async () => {
+  const { coordinator, failures } = setup();
+  const publication = coordinator.begin({}, 0);
+  const schedule = createPresentationSchedule((callback) => callback);
+  const error = new Error("first paint failed");
+  let first = true;
+  const presenter = schedule.presenter({
+    attach: () => coordinator.attach("thread", {}),
+    paint: (value) => {
+      if (!first) return value;
+      first = false;
+      void presenter.sync("again");
+      return Promise.reject(error);
+    },
+  });
+  void presenter.sync("first");
+  coordinator.seal(publication);
+  await schedule.passed().catch(() => {});
+  assert.deepEqual(failures, [error]);
+});
+
 test("a disconnected renderer retires its work and ignores a late completion", async () => {
   const { coordinator, failures } = setup();
   const document = {};
   const renderer = {};
   const publication = coordinator.begin(document, 0);
   const handle = coordinator.attach("widget", renderer);
-  const work = deferred();
-  const presentation = handle.present("value", work.promise);
+  const presentation = handle.present("value");
   coordinator.seal(publication);
   handle.disconnect();
 
   await new Promise(queueMicrotask);
   assert.equal(await coordinator.whenPresented(document, 0), "presented");
-  work.resolve("obsolete proof");
-  await presentation;
+  presentation.resolve("obsolete proof");
+  await presentation.ready;
   assert.equal(coordinator.committed("widget", renderer, "value"), null);
   assert.deepEqual(failures, []);
 });
@@ -84,21 +124,19 @@ test("a replacement renderer must complete in place of the retired instance", as
   const newRenderer = {};
   const publication = coordinator.begin(document, 0);
   const oldHandle = coordinator.attach("widget", oldRenderer);
-  const oldWork = deferred();
-  const oldPresentation = oldHandle.present("value", oldWork.promise);
+  const oldPresentation = oldHandle.present("value");
   coordinator.seal(publication);
 
   oldHandle.disconnect();
   const newHandle = coordinator.attach("widget", newRenderer);
-  const newWork = deferred();
-  const newPresentation = newHandle.present("value", newWork.promise);
+  const newPresentation = newHandle.present("value");
   await new Promise(queueMicrotask);
-  oldWork.resolve("old proof");
-  await oldPresentation;
+  oldPresentation.resolve("old proof");
+  await oldPresentation.ready;
   assert.equal(coordinator.read().presentedEpoch, -1);
 
-  newWork.resolve("new proof");
-  await newPresentation;
+  newPresentation.resolve("new proof");
+  await newPresentation.ready;
   assert.equal(coordinator.read().presentedEpoch, 0);
   assert.equal(coordinator.committed("widget", oldRenderer, "value"), null);
   assert.equal(
@@ -113,8 +151,7 @@ test("a required replacement reopens readiness after its predecessor retires", a
   const oldRenderer = {};
   const publication = coordinator.begin(document, 0);
   const oldHandle = coordinator.attach("widget", oldRenderer);
-  const oldWork = deferred();
-  const oldPresentation = oldHandle.present("same", oldWork.promise);
+  const oldPresentation = oldHandle.present("same");
   coordinator.seal(publication);
 
   oldHandle.disconnect();
@@ -124,8 +161,7 @@ test("a required replacement reopens readiness after its predecessor retires", a
 
   const newRenderer = {};
   const replacement = coordinator.attach("widget", newRenderer);
-  const replacementWork = deferred();
-  const replacementPresentation = replacement.present("same", replacementWork.promise);
+  const replacementPresentation = replacement.present("same");
   const readiness = coordinator.whenPresented(document, 0);
   let ready = false;
   void readiness.then(() => {
@@ -135,13 +171,13 @@ test("a required replacement reopens readiness after its predecessor retires", a
   assert.equal(ready, false);
   assert.deepEqual(coordinator.read().pending, ["widget"]);
 
-  oldWork.resolve("obsolete proof");
-  await oldPresentation;
+  oldPresentation.resolve("obsolete proof");
+  await oldPresentation.ready;
   assert.equal(ready, false);
   assert.equal(coordinator.committed("widget", oldRenderer, "same"), null);
 
-  replacementWork.resolve("replacement proof");
-  await replacementPresentation;
+  replacementPresentation.resolve("replacement proof");
+  await replacementPresentation.ready;
   assert.equal(await readiness, "presented");
   assert.equal(coordinator.read().presentedEpoch, 0);
   assert.equal(
@@ -156,17 +192,15 @@ test("an equal-value replacement repairs an already presented epoch", async () =
   const oldRenderer = {};
   const publication = coordinator.begin(document, 0);
   const oldHandle = coordinator.attach("widget", oldRenderer);
-  await oldHandle.present("same", "old proof");
+  await presented(oldHandle, "same", "old proof");
   coordinator.seal(publication);
   assert.equal(await coordinator.whenPresented(document, 0), "presented");
 
   oldHandle.disconnect();
-  const obsoleteWork = deferred();
-  const obsoletePresentation = oldHandle.present("same", obsoleteWork.promise);
+  const obsoletePresentation = oldHandle.present("same");
   const newRenderer = {};
   const replacement = coordinator.attach("widget", newRenderer);
-  const replacementWork = deferred();
-  const replacementPresentation = replacement.present("same", replacementWork.promise);
+  const replacementPresentation = replacement.present("same");
   const readiness = coordinator.whenPresented(document, 0);
   let ready = false;
   void readiness.then(() => {
@@ -176,13 +210,13 @@ test("an equal-value replacement repairs an already presented epoch", async () =
   assert.equal(ready, false);
   assert.deepEqual(coordinator.read().pending, ["widget"]);
 
-  obsoleteWork.resolve("obsolete proof");
-  await obsoletePresentation;
+  obsoletePresentation.resolve("obsolete proof");
+  await obsoletePresentation.ready;
   assert.equal(ready, false);
   assert.equal(coordinator.committed("widget", oldRenderer, "same"), null);
 
-  replacementWork.resolve("replacement proof");
-  await replacementPresentation;
+  replacementPresentation.resolve("replacement proof");
+  await replacementPresentation.ready;
   assert.equal(await readiness, "presented");
   assert.equal(coordinator.read().presentedEpoch, 0);
   assert.equal(
@@ -196,7 +230,7 @@ test("begin reuses the active publication when the semantic epoch is unchanged",
   const document = {};
   const publication = coordinator.begin(document, 0);
   const handle = coordinator.attach("widget", {});
-  await handle.present("value", "proof");
+  await presented(handle, "value", "proof");
   coordinator.seal(publication);
 
   assert.equal(coordinator.begin(document, 0), publication);
@@ -209,19 +243,17 @@ test("an asynchronous descendant joins a sealed barrier", async () => {
   const document = {};
   const publication = coordinator.begin(document, 0);
   const parent = coordinator.attach("parent", {});
-  const parentWork = deferred();
-  const parentPresentation = parent.present("parent value", parentWork.promise);
+  const parentPresentation = parent.present("parent value");
   coordinator.seal(publication);
 
   const child = coordinator.attach("child", {});
-  const childWork = deferred();
-  const childPresentation = child.present("child value", childWork.promise);
-  parentWork.resolve("parent proof");
-  await parentPresentation;
+  const childPresentation = child.present("child value");
+  parentPresentation.resolve("parent proof");
+  await parentPresentation.ready;
   assert.deepEqual(coordinator.read().pending, ["child"]);
 
-  childWork.resolve("child proof");
-  await childPresentation;
+  childPresentation.resolve("child proof");
+  await childPresentation.ready;
   assert.equal(coordinator.read().presentedEpoch, 0);
 });
 
@@ -233,25 +265,22 @@ test("a newer epoch carries unchanged work and supersedes changed work", async (
   const first = coordinator.begin(document, 0);
   const stable = coordinator.attach("stable", stableRenderer);
   const changed = coordinator.attach("changed", changedRenderer);
-  const stableWork = deferred();
-  const oldChangedWork = deferred();
-  const stablePresentation = stable.present("same", stableWork.promise);
-  const oldChangedPresentation = changed.present("old", oldChangedWork.promise);
+  const stablePresentation = stable.present("same");
+  const oldChangedPresentation = changed.present("old");
   coordinator.seal(first);
 
   const second = coordinator.begin(document, 1);
-  const newChangedWork = deferred();
-  const newChangedPresentation = changed.present("new", newChangedWork.promise);
+  const newChangedPresentation = changed.present("new");
   coordinator.seal(second);
-  stableWork.resolve("stable proof");
-  await stablePresentation;
-  oldChangedWork.resolve("old proof");
-  await oldChangedPresentation;
+  stablePresentation.resolve("stable proof");
+  await stablePresentation.ready;
+  oldChangedPresentation.resolve("old proof");
+  await oldChangedPresentation.ready;
   assert.deepEqual(coordinator.read().pending, ["changed"]);
   assert.equal(coordinator.committed("changed", changedRenderer, "old"), null);
 
-  newChangedWork.resolve("new proof");
-  await newChangedPresentation;
+  newChangedPresentation.resolve("new proof");
+  await newChangedPresentation.ready;
   assert.equal(await coordinator.whenPresented(document, 1), "presented");
   assert.equal(
     coordinator.committed("stable", stableRenderer, "same")?.semanticEpoch,
@@ -270,7 +299,7 @@ test("only the current publication seal can present work completed before sealin
   const current = coordinator.begin(document, 1);
   const renderer = {};
   const handle = coordinator.attach("widget", renderer);
-  await handle.present("value", "proof");
+  await presented(handle, "value", "proof");
 
   assert.equal(coordinator.read().presentedEpoch, -1);
   assert.equal(coordinator.seal(older), false);
@@ -285,8 +314,7 @@ test("a prior document cannot complete or retain waiters in its replacement", as
   const oldPublication = coordinator.begin(oldDocument, 4);
   const renderer = {};
   const handle = coordinator.attach("widget", renderer);
-  const oldWork = deferred();
-  const oldPresentation = handle.present("old", oldWork.promise);
+  const oldPresentation = handle.present("old");
   coordinator.seal(oldPublication);
   const oldWait = coordinator.whenPresented(oldDocument, 4);
 
@@ -295,8 +323,8 @@ test("a prior document cannot complete or retain waiters in its replacement", as
   coordinator.seal(newPublication);
   assert.equal(await oldWait, "superseded");
   assert.equal(await coordinator.whenPresented(newDocument, 0), "presented");
-  oldWork.resolve("old proof");
-  await oldPresentation;
+  oldPresentation.resolve("old proof");
+  await oldPresentation.ready;
   assert.equal(coordinator.committed("widget", renderer, "old"), null);
   assert.equal(coordinator.read().document, newDocument);
 });
@@ -307,16 +335,15 @@ test("a failed presentation reports once, installs fail-soft proof, and settles"
   const publication = coordinator.begin(document, 0);
   const renderer = {};
   const handle = coordinator.attach("widget", renderer);
-  const work = deferred();
   const fallback = [];
-  const presentation = handle.present("value", work.promise, (reason) => {
+  const presentation = handle.present("value", (reason) => {
     fallback.push(reason);
     return "fallback proof";
   });
   coordinator.seal(publication);
   const error = new Error("renderer failed");
-  work.reject(error);
-  await presentation;
+  presentation.reject(error);
+  await presentation.ready;
 
   assert.deepEqual(fallback, [error]);
   assert.deepEqual(failures, [error]);
@@ -344,11 +371,12 @@ test("a failed presentation and fail-soft report both failures", async () => {
     "widget presentation failed",
   );
   const retaining = new Error("committed view could not be restored");
-  const presentation = handle.present("value", Promise.reject(rendering), () => {
+  const presentation = handle.present("value", () => {
     throw retaining;
   });
+  presentation.reject(rendering);
   coordinator.seal(publication);
-  await assert.rejects(presentation, (error) => {
+  await assert.rejects(presentation.ready, (error) => {
     assert.equal(error, failures[0]);
     return true;
   });
@@ -372,9 +400,10 @@ test("an unhandled presentation failure keeps its region pending", async () => {
   const renderer = {};
   const handle = coordinator.attach("document", renderer);
   const error = new Error("document rendering failed");
-  const presentation = handle.present("value", Promise.reject(error));
+  const presentation = handle.present("value");
+  presentation.reject(error);
   coordinator.seal(publication);
-  await assert.rejects(presentation, error);
+  await assert.rejects(presentation.ready, error);
 
   assert.deepEqual(failures, [error]);
   assert.equal(coordinator.read().presentedEpoch, -1);
@@ -388,27 +417,15 @@ test("current readiness follows a publication opened before its continuation", a
   let current = { document, semanticEpoch: 0 };
   const firstPublication = coordinator.begin(document, 0);
   const renderer = coordinator.attach("widget", {});
-  let releaseFirst;
-  const first = renderer.present(
-    "first",
-    new Promise((resolve) => {
-      releaseFirst = resolve;
-    }),
-  );
+  const first = renderer.present("first");
   coordinator.seal(firstPublication);
 
   const stale = coordinator.whenPresented(document, 0);
-  let releaseSecond;
   let second;
   stale.then(() => {
     current = { document, semanticEpoch: 1 };
     const secondPublication = coordinator.begin(document, 1);
-    second = renderer.present(
-      "second",
-      new Promise((resolve) => {
-        releaseSecond = resolve;
-      }),
-    );
+    second = renderer.present("second");
     coordinator.seal(secondPublication);
   });
   let ready = false;
@@ -423,8 +440,8 @@ test("current readiness follows a publication opened before its continuation", a
     false,
   );
 
-  releaseFirst();
-  await first;
+  first.resolve();
+  await first.ready;
   await Promise.resolve();
   assert.equal(ready, false);
   assert.equal(
@@ -432,8 +449,8 @@ test("current readiness follows a publication opened before its continuation", a
     false,
   );
   assert.deepEqual(coordinator.read().pending, ["widget"]);
-  releaseSecond();
-  await second;
+  second.resolve();
+  await second.ready;
   assert.equal(await readiness, "presented");
 });
 
@@ -443,27 +460,15 @@ test("current readiness follows a same-epoch renderer replacement", async () => 
   const current = { document, semanticEpoch: 0 };
   const publication = coordinator.begin(document, 0);
   const firstRenderer = coordinator.attach("widget", {});
-  let releaseFirst;
-  const first = firstRenderer.present(
-    "value",
-    new Promise((resolve) => {
-      releaseFirst = resolve;
-    }),
-  );
+  const first = firstRenderer.present("value");
   coordinator.seal(publication);
 
   const stale = coordinator.whenPresented(document, 0);
-  let releaseReplacement;
   let replacement;
   stale.then(() => {
     firstRenderer.disconnect();
     const nextRenderer = coordinator.attach("widget", {});
-    replacement = nextRenderer.present(
-      "value",
-      new Promise((resolve) => {
-        releaseReplacement = resolve;
-      }),
-    );
+    replacement = nextRenderer.present("value");
   });
   let ready = false;
   const readiness = coordinator
@@ -473,13 +478,13 @@ test("current readiness follows a same-epoch renderer replacement", async () => 
       return outcome;
     });
 
-  releaseFirst();
-  await first;
+  first.resolve();
+  await first.ready;
   await Promise.resolve();
   assert.equal(ready, false);
   assert.deepEqual(coordinator.read().pending, ["widget"]);
-  releaseReplacement();
-  await replacement;
+  replacement.resolve();
+  await replacement.ready;
   assert.equal(await readiness, "presented");
   assert.equal(
     coordinator.currentPresented(() => current),
@@ -494,20 +499,8 @@ test("scoped readiness does not wait for an unrelated deferred region", async ()
   const publication = coordinator.begin(document, 0);
   const page = coordinator.attach("page-widget", {});
   const thread = coordinator.attach("thread-widget", {});
-  let releasePage;
-  const pagePresentation = page.present(
-    "page",
-    new Promise((resolve) => {
-      releasePage = resolve;
-    }),
-  );
-  let releaseThread;
-  const threadPresentation = thread.present(
-    "thread",
-    new Promise((resolve) => {
-      releaseThread = resolve;
-    }),
-  );
+  const pagePresentation = page.present("page");
+  const threadPresentation = thread.present("thread");
   coordinator.seal(publication);
 
   let ready = false;
@@ -517,13 +510,13 @@ test("scoped readiness does not wait for an unrelated deferred region", async ()
       ready = true;
       return outcome;
     });
-  releaseThread();
-  await threadPresentation;
+  threadPresentation.resolve();
+  await threadPresentation.ready;
   assert.equal(await readiness, "presented");
   assert.equal(ready, true);
   assert.deepEqual(coordinator.read().pending, ["page-widget"]);
-  releasePage();
-  await pagePresentation;
+  pagePresentation.resolve();
+  await pagePresentation.ready;
 });
 
 test("a domain-scoped wait retires when its value is superseded in the same epoch", async () => {
@@ -532,13 +525,7 @@ test("a domain-scoped wait retires when its value is superseded in the same epoc
   const current = { document, semanticEpoch: 0 };
   const publication = coordinator.begin(document, 0);
   const data = coordinator.attach("data:feed:rows", {});
-  let releaseOlder;
-  const older = data.present(
-    1,
-    new Promise((resolve) => {
-      releaseOlder = resolve;
-    }),
-  );
+  const older = data.present(1);
   coordinator.seal(publication);
 
   let wanted = true;
@@ -547,12 +534,13 @@ test("a domain-scoped wait retires when its value is superseded in the same epoc
     ["data:feed:rows"],
   );
   wanted = false;
-  const newer = data.present(2, undefined);
+  const newer = data.present(2);
+  newer.resolve();
 
   assert.equal(await readiness, "superseded");
-  await newer;
-  releaseOlder();
-  await older;
+  await newer.ready;
+  older.resolve();
+  await older.ready;
 });
 
 const flushed = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -593,10 +581,7 @@ test("a reading held open does not keep the next one off the page", async () => 
   const publication = coordinator.begin(document, 0);
   const schedule = createPresentationSchedule((callback) => callback);
   const painted = [];
-  let release;
-  const held = new Promise((resolve) => {
-    release = resolve;
-  });
+  const { promise: held, resolve: release } = Promise.withResolvers();
   const presenter = schedule.presenter({
     attach: () => coordinator.attach("thread", renderer),
     paint: async (value, current) => {
@@ -810,7 +795,7 @@ test("a paint that fails after a newer claim supersedes it still reports", async
   const document = {};
   const publication = coordinator.begin(document, 0);
   const schedule = createPresentationSchedule((callback) => callback);
-  const slow = deferred();
+  const slow = Promise.withResolvers();
   const renderer = {};
   let first = true;
   const presenter = schedule.presenter({
@@ -861,10 +846,12 @@ for (const order of ["passive-first", "input-first"]) {
         }
       };
     });
+    const { coordinator } = setup();
+    coordinator.begin({}, 0);
     const painted = [];
     const presenter = (name) =>
       schedule.presenter({
-        attach: () => null,
+        attach: () => coordinator.attach(name, {}),
         paint: () => painted.push([name, context]),
       });
     const passive = presenter("passive");
@@ -909,17 +896,16 @@ test("region readiness observes completion and same-epoch replacement without ot
   const current = () => publication;
   const first = coordinator.attach("widget", {});
   const other = coordinator.attach("data", {});
-  const pending = deferred();
-  const painting = first.present("initial", pending.promise);
-  void other.present("data", new Promise(() => {}));
+  const painting = first.present("initial");
+  other.present("data");
   const seen = [];
   const stop = coordinator.subscribe(() => {
     seen.push(coordinator.currentRegionsPresented(current, ["widget"]));
   });
   assert.equal(coordinator.currentRegionsPresented(current, ["widget"]), false);
   coordinator.seal(publication);
-  pending.resolve();
-  await painting;
+  painting.resolve();
+  await painting.ready;
   assert.equal(coordinator.currentRegionsPresented(current, ["widget"]), true);
   assert.equal(coordinator.currentPresented(current), false);
   assert.equal(seen.at(-1), true);
@@ -927,17 +913,15 @@ test("region readiness observes completion and same-epoch replacement without ot
   const replacement = coordinator.attach("widget", {});
   assert.equal(coordinator.currentRegionsPresented(current, ["widget"]), false);
   assert.equal(seen.at(-1), false);
-  const ready = deferred();
-  const replacementPaint = replacement.present("replacement", ready.promise);
+  const replacementPaint = replacement.present("replacement");
   first.disconnect();
   assert.equal(coordinator.currentRegionsPresented(current, ["widget"]), false);
-  ready.resolve();
-  await replacementPaint;
+  replacementPaint.resolve();
+  await replacementPaint.ready;
   assert.equal(coordinator.currentRegionsPresented(current, ["widget"]), true);
   assert.equal(seen.at(-1), true);
 
-  const reopened = deferred();
-  void replacement.present("reopened", reopened.promise);
+  replacement.present("reopened");
   assert.equal(coordinator.currentRegionsPresented(current, ["widget"]), false);
   replacement.disconnect();
   assert.equal(coordinator.currentRegionsPresented(current, ["widget"]), false);
@@ -969,7 +953,7 @@ test("a failing proof observer cannot fail or starve renderer completion", async
     observed = coordinator.currentRegionsPresented(current, ["widget"]);
   });
   coordinator.seal(publication);
-  await handle.present("visible", undefined);
+  await presented(handle, "visible", undefined);
   assert.equal(observed, true);
   assert.equal(coordinator.currentPresented(current), true);
   assert.ok(failures.every((reason) => reason.message === "observer broke"));

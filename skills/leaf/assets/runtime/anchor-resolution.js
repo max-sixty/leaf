@@ -137,13 +137,26 @@ export function requireReference(verb, owner, attribute) {
     );
 }
 
-// The element an `x-refers` attribute names: in the owner's own authored document
-// first, so a widget in a message finds its message's element before a page element
-// with the same id, as the server's request check does, and then in the page beside
-// it, which a message's widget may name.
+// The element an `x-refers` attribute names. A keyed contract names the member whose
+// key holds the value inside the owner's nearest enclosing scope, the scope the
+// member's x-unique declares for that key. Any other names an id: in the owner's own
+// authored document first, so a widget in a message finds its message's element before
+// a page element with the same id, as the server's request check does, and then in the
+// page beside it, which a message's widget may name.
 export function referencedProjection(owner, attribute) {
   const id = owner.getAttribute(attribute);
   if (!id) return null;
+  const { tag, key } = registry[owner.localName]["x-refers"][attribute];
+  if (tag) {
+    const within = registry[tag]["x-unique"][key];
+    const scopeOf = (element) => element.parentElement?.closest(within) ?? null;
+    const scope = scopeOf(owner);
+    return (
+      [...(scope?.querySelectorAll(tag) ?? [])].find(
+        (member) => scopeOf(member) === scope && member.getAttribute(key) === id,
+      ) ?? null
+    );
+  }
   const scope = authoredScope(owner);
   const page = pageDocument();
   return elementById(id, scope) ?? (scope === page ? null : elementById(id, page));

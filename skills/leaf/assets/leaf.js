@@ -443,7 +443,6 @@ app = mountApplication({
   accompaniedThread: (...args) => landing.accompaniedThread(...args),
   accompanyThread: (...args) => landing.accompanyThread(...args),
   threadAvailable: !offlineInteractive,
-  reportPageError,
   createEngagement,
   targetPickerOpen: () => targets.targetPickerOpen(),
   wireInput: inputs.wireInput,

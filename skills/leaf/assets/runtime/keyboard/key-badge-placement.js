@@ -51,6 +51,7 @@ const rect = (left, top, right, bottom, sourceTop = top) =>
 export function keyBadgePlacement() {
   const clips = new Map();
   const covered = bannerFoot();
+  const room = { ...layoutWindow(), top: covered };
   const chrome = bottomChromeBoxes();
   const kept = [...chrome];
 
@@ -61,17 +62,11 @@ export function keyBadgePlacement() {
   // that read it would lose members as it armed and swap codes as its own legend grew. A
   // chip that would land there is moved by the placement pass instead (`spreadHints`,
   // hints.js), which keeps the route where dropping the member loses it.
-  const edges = layoutWindow();
-  const clearBox = (box, sourceTop = box?.top) =>
-    box
-      ? rect(
-          Math.max(box.left, 0),
-          Math.max(box.top, covered),
-          Math.min(box.right, edges.right),
-          Math.min(box.bottom, edges.bottom),
-          sourceTop,
-        )
-      : null;
+  const clearBox = (box, sourceTop = box?.top) => {
+    if (!box) return null;
+    const { left, top, right, bottom } = intersect(box, room);
+    return rect(left, top, right, bottom, sourceTop);
+  };
 
   // The same, less the boxes chrome paints over the page: each blocker divides a box
   // crossing it into the space above, below, before, or after it, and the largest part
@@ -159,16 +154,11 @@ export function keyBadgePlacement() {
         : painted
             .map((part) => part.getBoundingClientRect())
             .filter((part) => overlaps(part, box))
-            .map((part) => ({
-              left: Math.max(part.left, box.left),
-              top: Math.max(part.top, box.top),
-              right: Math.min(part.right, box.right),
-              bottom: Math.min(part.bottom, box.bottom),
-            }));
+            .map((part) => intersect(part, box));
     return (aims.length ? aims : [box]).some((aim) => {
       const onTop = elementFromPointAcross(
-        clamp((aim.left + aim.right) / 2, 0, edges.right - 1),
-        clamp((aim.top + aim.bottom) / 2, covered, edges.bottom - 1),
+        clamp((aim.left + aim.right) / 2, 0, room.right - 1),
+        clamp((aim.top + aim.bottom) / 2, covered, room.bottom - 1),
       );
       if (!member) return !inChrome(onTop);
       return exposure === "self"

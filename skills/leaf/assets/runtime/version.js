@@ -63,7 +63,7 @@
  */
 import { nextRender } from "./rendering.js";
 import { whileConnected } from "./arrivals.js";
-import { pageUrl, revisionLabel, runtime } from "./context.js";
+import { LIVE_ROOT, layerRoot, pageUrl, revisionLabel, runtime } from "./context.js";
 import {
   documentWidgetDigests,
   servedExecutable,
@@ -123,7 +123,7 @@ import {
   shownRegionBounds,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
-import { LIVE_ROOT, PAGE_SCOPE, layerRoot, tabStore } from "./storage.js";
+import { PAGE_SCOPE, tabStore } from "./storage.js";
 import { initialOrigin, restoreInitialSource, unmarkedCopy } from "./initial-render.js";
 import { alignInlineText } from "./text-alignment.js";
 import { el, layoutChanged, quoted, reveal } from "./widget-elements.js";

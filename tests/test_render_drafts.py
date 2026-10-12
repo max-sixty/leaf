@@ -4798,8 +4798,7 @@ def test_the_browser_pages_the_document_with_space(browser, serve):
     assert up < down, "the browser did not page the document back up"
 
 
-@pytest.mark.parametrize(("down", "up"), [("d", "u"), ("j", "k")])
-def test_the_reading_keys_accumulate_and_reverse(browser, serve, down, up):
+def test_the_reading_keys_accumulate_and_reverse(browser, serve):
     """d/u move 60% of the visible page; j/k take small steps through the same glide.
     The page sets scroll-behavior: smooth on the box, as an authored page may —
     a step whose writes ride that rule instead of stating `instant` never lands.
@@ -4818,8 +4817,40 @@ def test_the_reading_keys_accumulate_and_reverse(browser, serve, down, up):
     measures from where the user left the box, not from the goal it dropped, and a
     glide that ignored the taking presses on to that goal and fails both reads.
     Pressing on at the foot moves nothing and banks nothing, so u from there
-    is one step back."""
+    is one step back. Both pairs of keys walk the same page in turn, each from its top."""
     page = open_page(browser, serve(SMOOTH_LONG_PAGE))
+    assert page.evaluate(
+        "() => document.scrollingElement.scrollHeight > document.scrollingElement.clientHeight * 3"
+    ), "the page is too short for these steps to be told apart"
+    # A callback's frame timestamp may predate performance.now() in the key handler.
+    # Make that browser timing deterministic: a negative first fraction used to write
+    # above the page, get clamped to zero, then cancel the glide as if the user moved.
+    page.evaluate(
+        """downs => {
+      const raf = requestAnimationFrame;
+      let stale = false;
+      addEventListener('keydown', event => {
+        if (downs.includes(event.key)) stale = true;
+      }, {capture: true});
+      window.requestAnimationFrame = callback => {
+        const firstAfterPress = stale;
+        stale = false;
+        return raf(now => callback(firstAfterPress ? -1 : now));
+      };
+    }""",
+        ["d", "j"],
+    )
+
+    for down, up in (("d", "u"), ("j", "k")):
+        page.evaluate(
+            "() => document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})"
+        )
+        reading_keys_walk(page, down, up)
+
+
+def reading_keys_walk(page, down, up):
+    """Step, double-step, reverse, take the box mid-glide and press past the foot
+    with `down` and `up`, from the top of the page."""
     step = (
         60
         if down == "j"
@@ -4828,27 +4859,6 @@ def test_the_reading_keys_accumulate_and_reverse(browser, serve, down, up):
             " document.scrollingElement.clientHeight - parseFloat(s.scrollPaddingTop)"
             " - parseFloat(s.scrollPaddingBottom)) * 0.6; }"
         )
-    )
-    assert page.evaluate(
-        "() => document.scrollingElement.scrollHeight > document.scrollingElement.clientHeight * 3"
-    ), "the page is too short for these steps to be told apart"
-    # A callback's frame timestamp may predate performance.now() in the key handler.
-    # Make that browser timing deterministic: a negative first fraction used to write
-    # above the page, get clamped to zero, then cancel the glide as if the user moved.
-    page.evaluate(
-        """down => {
-      const raf = requestAnimationFrame;
-      let stale = false;
-      addEventListener('keydown', event => {
-        if (event.key === down) stale = true;
-      }, {capture: true});
-      window.requestAnimationFrame = callback => {
-        const firstAfterPress = stale;
-        stale = false;
-        return raf(now => callback(firstAfterPress ? -1 : now));
-      };
-    }""",
-        down,
     )
 
     def rests_at(act, expected):

@@ -109,6 +109,7 @@ import { readingRegionFor } from "../reading-regions.js";
 
 import { keys, paintKeys } from "../keyboard/scopes.js";
 import { pageRung, pageScope } from "../keyboard/register.js";
+import { nativeLayerHolding } from "../keyboard/layer-stack.js";
 
 import { annotationsHidden, watchAnnotations } from "./annotation-layer.js";
 import { repaint } from "../repaint.js";
@@ -259,14 +260,16 @@ export function createMarginProjection({
   let highlighted = null;
   let highlightFrame = 0;
   let rovingFrame = 0;
-  // A modal or contextual thread surface temporarily owns focus without ending the
-  // document interaction beneath it. Preserve that context so its commands remain
-  // true and its owning margin entry can receive focus when the surface closes.
+  // A native layer over the page (a modal, or a popover) or a contextual thread surface
+  // temporarily owns focus without ending the document interaction beneath it. Preserve
+  // that context so its commands remain true and its owning margin entry can receive
+  // focus when the surface closes. A side surface standing beside the page, such as
+  // Questions, is somewhere else the user went.
   const inRetainedContext = (node) =>
     node instanceof Element &&
-    (Boolean(node.closest("dialog[open]")) ||
-      preview.contains(node) ||
-      (panelIsOpen() && panel.contains(node)));
+    (Boolean(nativeLayerHolding(node)) ||
+      under(node, preview) ||
+      (panelIsOpen() && under(node, panel)));
   function readingMarginEntry(entry, kind) {
     const marker = hosts.get(entry.key)?.marker;
     if (marker && !marker.hidden && primaryReading(entry)?.kind === kind) return marker;
@@ -753,11 +756,7 @@ export function createMarginProjection({
       if (!under(left, host) || (node && under(node, host))) continue;
       nextRender(refreshHighlight);
       const current = host.lfEntry;
-      if (
-        current &&
-        expandedOptionsKey === current.key &&
-        !inRetainedContext(node && hostIn(node, document))
-      )
+      if (current && expandedOptionsKey === current.key && !inRetainedContext(node))
         setOptionsOpen(current, false);
     }
   });

@@ -3,9 +3,10 @@
 The public gallery shows a real first viewport for each example, but the site build
 deliberately needs no browser. These JPEGs live under `examples/` in
 max-sixty/leaf-assets (`leaf_dev.leaf_assets`). This command captures them through the
-website's Leaf server with an isolated state home, validates the draft's catalog and
-assets together, then publishes the asset commit and updates Leaf's exact pin and
-catalog links. Host pages are not part of the captured scene.
+website's Leaf server with an isolated state home, builds the site from the draft
+assets, whose catalog then names the new stills (`leaf_dev.docs`), then publishes the
+asset commit and moves Leaf's exact pin. Host pages are not part of the captured
+scene.
 
     uv run leaf-dev refresh-previews    (or `wt refresh-previews`)
 """
@@ -29,7 +30,7 @@ from playwright.sync_api import Page, sync_playwright
 from leaf_dev import site as site_build
 from leaf_dev.browser import load, tab
 from leaf_dev.example_data import catalog_sources
-from leaf_dev.leaf_assets import catalog_updates, pinned_assets, publish, stage
+from leaf_dev.leaf_assets import pinned_assets, publish, stage
 
 VIEWPORT = (1120, 700)
 # docs/index.html and docs/examples.html reserve this 8:5 box before a preview loads.
@@ -155,7 +156,6 @@ def refresh_previews() -> None:
             site_build.OUT,
             site_build.prepared_leaf(site_build.OUT),
             assets=checkout.path,
-            source_markup=catalog_updates(checkout.path),
         )
         revision = publish(checkout, "Refresh generated example previews")
         click.echo(f"  max-sixty/leaf-assets@{revision}")

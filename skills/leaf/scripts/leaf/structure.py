@@ -362,12 +362,17 @@ class SourceDocument:
             current = current.parent
         return (1, 0)
 
+    def offsets(self, span) -> tuple[int, int]:
+        """Where one of the parser's source spans starts and ends in this source, so
+        a caller can splice the source at an element's own tags."""
+        return (
+            self._source_index(span.start_line, span.start_col),
+            self._source_index(span.end_line, span.end_col),
+        )
+
     def _span_source(self, span) -> str:
-        return self._source[
-            self._source_index(span.start_line, span.start_col) : self._source_index(
-                span.end_line, span.end_col
-            )
-        ]
+        start, end = self.offsets(span)
+        return self._source[start:end]
 
     @staticmethod
     def _source_element(element) -> bool:

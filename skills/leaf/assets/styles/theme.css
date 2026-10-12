@@ -1077,8 +1077,7 @@ dd { margin: 0 0 8px 0; }
  * to one width, so the same four strings measure identically with the property and
  * without it, and stating it there would be a declaration that could never be
  * wrong and never do anything. */
-.eyebrow, .tag, figcaption, caption, th:not([scope="row"]), .facts dt,
-.lf-error {
+.eyebrow, .tag, figcaption, caption, th:not([scope="row"]), .facts dt {
   font-family: var(--sans); font-variant-numeric: tabular-nums; }
 
 /* The compact face a small label rides in, set in the chip tokens (:root) that every
@@ -1557,15 +1556,6 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
     height: 16px; padding: 0 3px; box-sizing: border-box; border-radius: 999px;
     border: 1px solid var(--paper); background: var(--ink); color: var(--paper);
     font: 600 10px/14px var(--sans); text-align: center; }
-/* Where a widget upgrade fails, it fails soft into this box. */
-.lf-error { border: 1px solid var(--danger); background: var(--danger-tint);
-            color: var(--danger-ink); border-radius: var(--r); padding: 8px 12px;
-            font-size: var(--t-5); white-space: normal; --lf-block-frame: 1; }
-/* The box sets `white-space: normal`, so the source inside it restores preformatting —
-   and, being later and equally specific, outranks the sheet's print wrap above until it
-   answers paper itself. */
-.lf-error pre { margin: 8px 0 0; white-space: pre; }
-@media print { .lf-error pre { white-space: pre-wrap; } }
 
 /* A pane is one task region: an optional header, one body element, an optional footer,
  * with no generated wrappers. It is whatever element declares `x-reading-role: pane`,

@@ -11573,6 +11573,8 @@ def test_a_diff_recovers_from_each_failure_on_the_next_good_source(browser, serv
         rendered(page)
         expect(error).to_have_count(1)
         expect(error).to_be_visible()
+        # Dressed as the failure box in the document is, not as plain text.
+        expect(error).to_have_css("border-top-style", "solid")
         data_model.cmd_data_set(serve.page_dir, "review-patch", good)
         told(page)
         rendered(page)

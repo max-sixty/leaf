@@ -1866,7 +1866,8 @@ def test_a_playground_dresses_each_sample_child_and_never_its_own_page(browser, 
       let sampling = true;
       const tick = () => {
         const note = document.getElementById('child-note');
-        if (note) paints.push(getComputedStyle(note).color);
+        if (note && getComputedStyle(note).visibility === 'visible')
+          paints.push(getComputedStyle(note).color);
         if (sampling) requestAnimationFrame(tick);
       };
       requestAnimationFrame(tick);

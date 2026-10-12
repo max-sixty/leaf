@@ -135,4 +135,3 @@ def work_state(
         else activity["workflows"]
     )
     return WorkState(durable, activity, workflows, reply, present)
-

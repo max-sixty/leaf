@@ -120,7 +120,9 @@ def test_required_approval_is_a_question_for_its_exact_stamp_until_approved(page
         {"kind": "page"},
         {"kind": "approval", "version": 1},
     )
-    assert {item["question"]["source"]["kind"] for item in queue["queues"]["on_you"]} == {
+    assert {
+        item["question"]["source"]["kind"] for item in queue["queues"]["on_you"]
+    } == {
         "widget",
         "approval",
     }

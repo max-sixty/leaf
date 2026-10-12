@@ -10589,9 +10589,7 @@ def test_an_ask_under_the_open_panel_is_shown_beside_it_or_by_clearing_it(
         "<figure><p>The hedge shelters the feeders.</p></figure>" if side_track else ""
     )
     options_style = (
-        "<style>#spot { width: 40%; margin-left: 60%; }</style>"
-        if side_track
-        else ""
+        "<style>#spot { width: 40%; margin-left: 60%; }</style>" if side_track else ""
     )
     url = serve(
         leaf_page(

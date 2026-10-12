@@ -28,6 +28,9 @@
   // origin keeps it out of its parent's DOM and storage; native network APIs keep
   // their ordinary browser behavior. Only presentation values use the private port.
   if (root.hasAttribute("data-lf-sample")) {
+    // The parent supplies a playground's dress asynchronously. Keep the child out of
+    // view until its root wears that dress, including on a Reset replacement.
+    root.style.visibility = "hidden";
     if (window.lfSampleBridge) {
       root.lfSample = window.lfSampleBridge;
       root.lfSample.install();
@@ -100,6 +103,7 @@
         port.postMessage({ type: "connected", nonce });
         bridge.install();
         dress(settings.dress);
+        root.style.removeProperty("visibility");
         readyResolve();
         for (const value of queued.splice(0)) port.postMessage(value);
       };

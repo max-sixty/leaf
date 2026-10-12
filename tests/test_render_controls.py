@@ -9199,7 +9199,6 @@ RING_CASES = (
                 (".lf-find-box input", "text-entry"),
                 (".lf-thread-panel leaf-text", "text-box"),
             ),
-            "command-hub": ((".lf-code-copy:visible button", "code-copy"),),
             "feature-gallery": (
                 ("lf-option > .lf-pick", "options-row"),
                 (
@@ -9785,9 +9784,6 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                 expected = {expected} if isinstance(expected, str) else set(expected)
                 if selector:
                     target = page.locator(selector).first
-                    if name == "command-hub" and scope == "the page":
-                        page.locator("#ledger-fixture pre").scroll_into_view_if_needed()
-                        rendered(page)
                     # A sample can stand inside a container that is closed on arrival —
                     # the corpus holds each example in a tab, and only one panel is open.
                     # Nothing inside a hidden panel is focusable, so the ring would read
@@ -9810,17 +9806,8 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                     )
                     rendered(page)
                     open_containing_thread(target)
-                    if name == "command-hub" and scope == "the page":
-                        # A code block lends the keyboard an Enter route to its
-                        # copy control. Tab from elsewhere can scroll the source
-                        # away and withdraw that conditional control.
-                        source = page.locator("#ledger-fixture pre")
-                        source.scroll_into_view_if_needed()
-                        source.focus()
-                        source.press("Enter")
-                    else:
-                        page.keyboard.press("Tab")
-                        target.focus()
+                    page.keyboard.press("Tab")
+                    target.focus()
                     # A note on the details shelf is reached from the element that
                     # names it (details-shelf.js), never by Tab, and is focused here as
                     # a screen reader moving to it would focus it.

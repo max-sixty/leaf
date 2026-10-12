@@ -1615,7 +1615,7 @@ def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
     assert "copy code" in shortcut_bar_text(page)
     page.keyboard.press("Tab")
     expect(page.locator("#code-link")).to_be_focused()
-    # The block's Copy answers on the block alone; its link keeps Enter.
+    # A link inside the block keeps its Enter from the block's Copy.
     on_link = shortcut_bar_text(page)
     assert "Follow" in on_link and "copy code" not in on_link, on_link
     page.keyboard.press("Enter")

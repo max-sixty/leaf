@@ -325,9 +325,17 @@ html[data-lf-floating-chrome] .lf-chrome {
     .lf-fp-stage {
       display: none;
     }
+    /* The leaf fills the folded box, which is all of it a press can reach. */
     .lf-fp-row {
-      min-height: var(--lf-fp-folded);
-      padding: calc((var(--lf-fp-folded) - 32px) / 2);
+      min-height: 0;
+      padding: 0;
+    }
+    .lf-fp-leaf {
+      width: var(--lf-fp-folded);
+      min-width: 0;
+      height: var(--lf-fp-folded);
+      min-height: 0;
+      border-radius: var(--lf-fp-radius);
     }
     .lf-fp-leaf .lf-dot {
       --lf-mark-w: 20px;
@@ -366,6 +374,13 @@ html[data-lf-floating-chrome] .lf-chrome {
   .lf-fp-news-dot {
     top: -3px;
     left: -3px;
+  }
+  /* With no count beside it, the dot takes the count's corner. */
+  .lf-fp-badge:not([data-shown]) ~ .lf-fp-news-dot {
+    left: auto;
+    right: -3px;
+  }
+  .lf-fp-news-dot {
     width: 8px;
     height: 8px;
     border-radius: 50%;

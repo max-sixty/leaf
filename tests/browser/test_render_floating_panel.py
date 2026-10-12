@@ -89,6 +89,9 @@ def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve
         page.keyboard.press("ControlOrMeta+Enter")
     reply = events_model.read_events(serve.page_dir)[-1]
     assert (reply["kind"], reply["parent"]) == ("reply", comment["id"])
+    # The box empties as the reply leaves, and the counts take Send's place again.
+    expect(page.locator(".lf-fp-send")).to_be_hidden()
+    expect(page.locator(".lf-fp-questions")).to_be_visible()
 
     settle = page.locator(".lf-fp-settle")
     with sending(page, "the resolve"):
@@ -107,9 +110,9 @@ def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve
 
 def test_threads_filter_in_place_and_hold_news_until_asked(browser, serve):
     """The thread mark opens Threads at Unread while a thread has news, and the
-    inventory keeps its height whichever filter stands, so the filter just pressed
-    stays under the pointer. A reply that arrives while its thread is open waits behind
-    New reply."""
+    inventory keeps its height whichever filter stands, and as a thread arrives, so the
+    filter just pressed, and Close at the view's head, stay under the pointer. A reply
+    that arrives while its thread is open waits behind New reply."""
     url = serve(LONG_PAGE, comments=3)
     root = panel_comment(serve.page_dir, "Is the window long enough?")
     append_carried_log_record(
@@ -132,13 +135,19 @@ def test_threads_filter_in_place_and_hold_news_until_asked(browser, serve):
     expect(inventory.locator(".lf-fp-thread")).to_have_count(1)
     settled(page)
     unread_box = inventory.bounding_box()
-    all_filter = page.locator(".lf-fp-filters button", has_text="All")
+    all_filter = page.locator(".lf-fp-filters button", has_text="Open")
     before = all_filter.bounding_box()
     all_filter.click()
     expect(inventory.locator(".lf-fp-thread")).to_have_count(4)
     settled(page)
     assert inventory.bounding_box() == unread_box
     assert all_filter.bounding_box() == before
+    close = page.locator(".lf-fp-close").bounding_box()
+    panel_comment(serve.page_dir, "Who watches the weekend?")
+    told(page)
+    expect(inventory.locator(".lf-fp-thread")).to_have_count(5)
+    settled(page)
+    assert page.locator(".lf-fp-close").bounding_box() == close
 
     inventory.locator(".lf-fp-thread", has_text="Is the window long enough?").click()
     reader = page.locator(".lf-fp-view[data-view=thread]")
@@ -163,9 +172,9 @@ def test_threads_filter_in_place_and_hold_news_until_asked(browser, serve):
 
 
 def test_the_panel_folds_to_the_leaf_and_stays_folded(browser, serve):
-    """Folding to the leaf, from the leaf's menu, is a choice the panel keeps across a
-    reload, until the leaf is pressed again; `c` still reaches the page's field, and
-    Go-to's Threads door opens the panel's own Threads."""
+    """Folding to the leaf, from the leaf's menu or its key, is a choice the panel
+    keeps across a reload, until the leaf is pressed again; `c` still reaches the
+    page's field, and Go-to's Threads door opens the panel's own Threads."""
     url = serve(LONG_PAGE, comments=1)
     page = floating(browser, url)
     page.locator(".lf-fp-leaf").click()
@@ -182,6 +191,10 @@ def test_the_panel_folds_to_the_leaf_and_stays_folded(browser, serve):
     expect(page.locator(".lf-fp-menu")).to_be_hidden()
 
     page.locator("body").focus()
+    page.keyboard.press(".")
+    expect(panel).to_have_attribute("data-rest", "mark")
+    page.keyboard.press(".")
+    expect(panel).to_have_attribute("data-rest", "row")
     page.keyboard.press("c")
     expect(field(page)).to_be_focused()
     page.keyboard.press("Escape")
@@ -220,6 +233,9 @@ def test_questions_are_answered_where_they_are_read(browser, serve):
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
     expect(cards.first.locator(".lf-fp-answer", has_text="Shim")).to_be_visible()
     expect(chip).to_contain_text("2")
+    # The pressed Undo is gone, and Escape still puts the view away.
+    page.keyboard.press("Escape")
+    expect(view).to_have_count(0)
 
 
 def test_versions_travel_and_approval_open_in_the_panel(browser, serve):

@@ -184,7 +184,8 @@ Full-page dialogs were liked but are not this project.
 ## Intended departures from the prototype
 
 Reviewers get this list, so that a departure on it is not reported as a
-shortfall. Add each improvement you make, with its reason.
+shortfall. Add each improvement you make, with its reason. Where an item here and
+"The overhaul" above disagree, the overhaul holds; the items it replaced say so.
 
 - **The resting row holds the comment field.** The Leaf arrangement rests as the
   mark with counts and opens the field on the first click. The user asked for
@@ -194,29 +195,32 @@ shortfall. Add each improvement you make, with its reason.
   for the box back on 11 October. So everything except the resting row follows
   the Leaf arrangement: the mark, its menu, and how everything opens above the
   row.
-- **The box resizes from its foot, one tween.** The card follows its content's
-  height with the Codex panel's 300 ms `cubic-bezier(.23,1,.32,1)`, the row staying
-  put; the leaving view fades out (80 ms) before the arriving one fades in. The
-  prototype's views slid sideways; this reads as one box.
-- **The focused field shows a quiet ground, not a frame.** A dark frame around the
-  field was the previous attempt's "form" look.
-- **While the field holds the caret or words, it takes the whole row,** and the counts
-  stand on the line naming where the words go, as the prototype seats them; a draft
-  keeps that layout when the caret leaves, so nothing moves under the next press.
-- **In a thread the destination line reads "Reply in this thread · to {agent}"**
-  rather than repeating the title the row above already shows.
+- **The box resizes from its foot, in one step, and its surface follows.** The row
+  stays put; the leaving view fades out (80 ms) before the arriving one fades in, and
+  the surface layer follows the box's outline by a clip on the Codex panel's 300 ms
+  `cubic-bezier(.23,1,.32,1)`. (The first build tweened the card's height; a layout
+  tween's last frame landed outside CI's input window as a shift.)
+- **The focused field shows no frame and no ground**: the line naming where the words
+  go opens above it. A dark frame around the field was the previous attempt's "form"
+  look.
+- **While the user types, Send stands in the counts' place;** the counts come back
+  when the caret leaves, and the line naming where the words go stays while the field
+  holds words. (Replaces the first build's counts on the destination line.)
+- **In a thread the destination line reads "Reply in {thread} · to {agent}",** since
+  the thread's name now heads the view rather than standing just above the field.
 - **A short thread reserves its "New reply · Show" slot,** so arriving news moves
   nothing.
 - **Answers are the widget's own choices** (a multiple-choice ask shows its options and
   Done), recorded exactly as on the page; Questions has On you / On {agent} / Done.
 - **Messages draw with Leaf's own reader** (the panel is a registered thread
   presentation), so asks, reactions and HTML replies work in the panel.
-- **The menu carries the banner's whole inventory,** drawn from each contributor's
-  declared row, so Questions, Undo and About this page appear there too.
+- **The menu carries the banner's inventory,** drawn from each contributor's declared
+  row, less what the row and its views already hold (Threads, Questions, the page
+  comment, approval); Navigate, Annotations and About open as views of their rows.
 - **On a phone, a count at rest is its number beside an icon,** so the agent's status
   keeps the field ("numbers next to icons rather than saying whole words").
-- **Passing notices stand centred at the window's head,** since the panel's foot is
-  where the user writes and its height changes.
+- **Passing notices are said in the empty field** (the overhaul); a walk's position
+  still stands centred at the window's head.
 
 ## What went wrong last time
 

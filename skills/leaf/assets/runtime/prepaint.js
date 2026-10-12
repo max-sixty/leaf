@@ -229,7 +229,6 @@
         else root.setAttribute(name, value);
     };
     write("data-lf-floating-chrome", floating ? "" : null);
-    write("data-lf-chrome-rest", floating ? chrome.rest : null);
   };
   for (const [name, key] of Object.entries(chromeKeys)) {
     const value = userStore.get(key);

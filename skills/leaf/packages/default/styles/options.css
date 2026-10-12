@@ -284,6 +284,10 @@
    --lf-card-state-room: 80px;
    & > :is(lf-option, .lf-another) { padding-inline-start: var(--sp-3); }
    & > lf-option { padding-bottom: var(--sp-3); }
+   /* The field holds the card it becomes, so it takes the card's inset rather than the
+    * cell floor: the row stays the same height when the add lands, as the row form's
+    * does. */
+   & > .lf-another:not([hidden]) { padding-block: var(--sp-3); }
    /* A float is the exclusion, rather than margin on one authored child: every chip and
     * title line that reaches the status band wraps around the same reserved rectangle. */
    & > lf-option::before { content: ""; float: inline-end;
@@ -500,11 +504,13 @@
     overflow: clip;
     /* Where the runtime runs, the authored options paint before their generated Add
      * and Done cells. Keep their rows occupied until upgrade so the next block stays
-     * put. The form needs more room in a card because its action seat sits inside the
-     * card inset. */
-    --lf-add-cell-height: 32px;
+     * put. The form is one line of the option face inside the inset of the option it
+     * becomes: a row's 5px around var(--t-5)/1.5, a card's --sp-3 around
+     * var(--t-4)/1.6 (`--lf-option-font`). */
+    --lf-add-cell-height: calc(1.5 * var(--t-5) + 2 * 5px);
     --lf-done-cell-height: 32px;
-    &:has(> lf-option > strong) { --lf-add-cell-height: 44px; }
+    &:has(> lf-option > strong) {
+      --lf-add-cell-height: calc(1.6 * var(--t-4) + 2 * var(--sp-3)); }
     &:where([data-lf-interactive] *)::after { content: "";
       display: block; height: var(--lf-missing-cells, 0px); }
     &:not(:where(.lf-chrome *)):not(:has(> .lf-another)) {

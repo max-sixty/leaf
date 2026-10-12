@@ -16823,6 +16823,50 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(claimed, capsys)
     leases_model.release_lease(lease)
 
 
+def test_a_pick_of_an_added_option_settles_without_writing_the_option_in(claimed):
+    """An option the user added stands in its group from the log, where the user put
+    it, so no version has to place it in the markup. A pick of it is owed a stamped
+    version all the same, and a version that leaves the option out settles it; a
+    version still marking an authored option `chosen` does not."""
+    source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>').replace(
+        '<lf-option id="flag-first">', '<lf-option id="flag-first" chosen>'
+    )
+    (claimed / "index.html").write_text(source)
+    publish(claimed)
+    for action, detail in [
+        ("add", {"option": "choice-option-mine", "text": "Neither yet."}),
+        ("choose", {"value": ["choice-option-mine"]}),
+    ]:
+        picked = append_command(
+            claimed,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": "choice",
+                "action": action,
+                "detail": detail,
+            },
+        )
+    assert {"kind": "markup", "action": picked["id"]} in [
+        workflow["answer"] for workflow in owed(state_json(claimed))
+    ]
+
+    (claimed / "index.html").write_text(source.replace("Ship dark.", "Ship it dark."))
+    assert stamp(claimed, "Still marks flag-first").exit_code == 0
+    assert [workflow["input"] for workflow in owed(state_json(claimed))] == [
+        picked["id"]
+    ]
+
+    (claimed / "index.html").write_text(
+        source.replace(
+            '<lf-option id="flag-first" chosen>', '<lf-option id="flag-first">'
+        )
+    )
+    assert stamp(claimed, "Neither yet").exit_code == 0
+    assert state_json(claimed)["workflows"] == []
+
+
 @pytest.mark.parametrize("declared", ["shipped", "done-only"])
 def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared):
     """A multiple-choice Ask finishes with Done. Until then a tick is the user's

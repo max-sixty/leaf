@@ -870,8 +870,10 @@ option the user added:
         without an edit.
     - when: {"allOf": [{"required": ["action"], "properties": {"action": {"const": "add"}}}, {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["scope"], "properties": {"scope": {"const": "thread"}}}}}}]}
       text: >-
-        When you write it into the markup, the added option becomes an ordinary
-        lf-option in the group, keeping the id and words the event gives.
+        Every later version keeps the added option in its group where the user put
+        it, after the authored options, so leave it out of the markup. A pick of
+        it is taken in by your next stamped version; mark only authored options
+        `chosen`.
     - when: {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["scope"], "properties": {"scope": {"const": "thread"}}}}}}
       text: >-
         If you need clarification, ask in a thread on the picked option. To override

@@ -731,6 +731,9 @@
     & > lf-option {
       padding-bottom: var(--sp-3);
     }
+    & > .lf-another:not([hidden]) {
+      padding-block: var(--sp-3);
+    }
     & > lf-option::before {
       content: "";
       float: inline-end;
@@ -899,10 +902,10 @@
     border: 1px solid var(--border-2);
     border-radius: var(--r);
     overflow: clip;
-    --lf-add-cell-height: 32px;
+    --lf-add-cell-height: calc(1.5 * var(--t-5) + 2 * 5px);
     --lf-done-cell-height: 32px;
     &:has(> lf-option > strong) {
-      --lf-add-cell-height: 44px;
+      --lf-add-cell-height: calc(1.6 * var(--t-4) + 2 * var(--sp-3));
     }
     &:where([data-lf-interactive] *)::after {
       content: "";

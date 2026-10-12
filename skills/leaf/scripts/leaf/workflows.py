@@ -21,7 +21,8 @@ Answers are one of:
   attempt.
 - `{"kind": "markup", "action": <action>}` — a page action that is part of its
   widget's answered Question and the authored markup does not yet record, answered by
-  a stamped version that writes it in.
+  a stamped version that writes it in. A pick of an option the user added is the
+  log's to hold, so the stamped version takes that part in without writing it.
 
 Two kinds of update have workflows with no answer of their own. An update a
 newer one in the same thread covers is answered through the newest, whose one
@@ -159,6 +160,11 @@ def page_action_unsettled(
     records it. The version must follow the action in the log and supersede the
     revision it was made on; a note stamped over the very revision the user
     acted on was written before the action reached anyone.
+
+    An option the user added stands in its group from the log, where the user put
+    it, and no version has to write it in. So a pick naming one names an element
+    the markup need not hold: the markup records the authored part of the pick, and
+    a later version's note takes in the part only the log holds.
     """
     _widget, unit, _verb = coordinate
     byid = page.document.by_id
@@ -168,15 +174,22 @@ def page_action_unsettled(
     reading = recorded_state(
         coordinate, source, spec, document, document, page.registry, page.projection
     )
-    recorded = reading is not NO_RECORD and reading[0] == reading[1]
-    if owed and reading is not NO_RECORD:
-        return not recorded
     versioned = any(
         event["kind"] == "note"
         and event["seq"] > source["seq"]
         and event["revision"] > source["revision"]
         for event in page.events
     )
+    if reading is NO_RECORD:
+        return not versioned
+    shown, left = reading
+    logged = False
+    if spec["record"]["kind"] == "attribute":
+        logged = any(identity not in byid for identity in left)
+        left = [identity for identity in left if identity in byid]
+    recorded = shown == left
+    if owed:
+        return not recorded or (logged and not versioned)
     return not versioned and not recorded
 
 

@@ -984,9 +984,11 @@ STILL = """
   }
 """
 STILL_TREE = f"async () => {{ {STILL} return tree.scrollTop; }}"
-LANDED_ROW = """async () => {
+LANDED_ROW = (
+    "async () => {"
+    + STILL
+    + """
   const {landingBand} = await window.__lfRuntimeImport('/runtime/geometry.js');
-  """ + STILL + """
   const rows = tree.querySelectorAll('.lf-trace-node');
   const row = rows[rows.length - 1].getBoundingClientRect();
   const box = tree.getBoundingClientRect();
@@ -995,6 +997,7 @@ LANDED_ROW = """async () => {
   const bottom = Math.min(band.bottom, box.top + tree.clientTop + tree.clientHeight);
   return {open: tree.open, row: [row.top, row.bottom], shown: [top, bottom]};
 }"""
+)
 
 
 def scrolled_closed_tree(browser, serve, motion):

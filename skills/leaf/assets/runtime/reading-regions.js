@@ -71,7 +71,7 @@ const live = (region) => region?.host?.isConnected && region.body?.isConnected;
 const concealed = (region) =>
   region.host.hidden ||
   region.host.closest?.("[hidden], [aria-hidden='true']") !== null ||
-  (region.body instanceof HTMLDetailsElement && !region.body.open);
+  region.body.matches("details:not([open])");
 
 const hidden = (region) =>
   !live(region) || concealed(region) || shownRect(region.host, new Map()) === null;

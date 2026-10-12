@@ -684,7 +684,9 @@ def test_a_split_drag_keeps_a_panes_reading(browser, serve):
     """
     source = READING_REGIONS_PAGE.replace(
         '<p id="left-start">Left start with enough words to preserve this landmark.</p>',
-        "<p id='left-start'>" + "Left start words rewrap as the pane narrows. " * 60 + "</p>",
+        "<p id='left-start'>"
+        + "Left start words rewrap as the pane narrows. " * 60
+        + "</p>",
     ).replace("</style>", "#left-reading > div { overflow-anchor: none; }</style>", 1)
     page = open_page(browser, serve(source))
     left = page.locator("#left-reading > :not(header, footer)")

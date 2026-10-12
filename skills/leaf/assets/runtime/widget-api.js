@@ -161,7 +161,6 @@ export {
   compoundReadingRegionId,
   preserveReadingRegions,
   readingPosture,
-  readingRegion,
   registerReadingRegion,
   scrollerFor,
   showReadingSubject,

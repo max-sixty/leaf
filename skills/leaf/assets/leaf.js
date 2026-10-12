@@ -23,7 +23,7 @@ import {
   PRESENTATION,
 } from "./runtime/presentation.js";
 import { PAGE_PAINT_ATTRIBUTE, pagePresented } from "./runtime/page-paint.js";
-import { nextFrame, renderingState } from "./runtime/rendering.js";
+import { nextFrame, renderingState, stopRendering } from "./runtime/rendering.js";
 import { observeQueuedWork } from "./runtime/queued-work.js";
 import { mountApplication } from "./runtime/application.js";
 import { approvalBlockingQuestions } from "./runtime/questions/model.js";
@@ -913,12 +913,25 @@ if (!offlineInteractive) {
 
 // Widget commands belong to interactive documents, including offline exports.
 // The register admits page and chrome commands only in a live document.
-mountKeyboard({
+const unmountKeyboard = mountKeyboard({
   goToSequenceActive: goToSequence.goToSequenceActive,
   setGoToSequence: goToSequence.setGoToSequence,
   reactArmed: reactions.isReactArmed,
   setReact: reactions.setReact,
 });
+// A page declared failed (`lf-startup-failed`) is its readable fallback from then on
+// (prepaint.js), so the runtime stops reading it of its own accord: no more rendering
+// passes and no page keys. Each read the page again, the repaint frame and a key both
+// asking where the user stands, and on a page whose words are refused (passages.js,
+// `elementOver`) every frame and every key threw the refusal again.
+window.addEventListener(
+  "lf-startup-failed",
+  () => {
+    stopRendering();
+    unmountKeyboard();
+  },
+  { once: true },
+);
 
 const initialStateRead = beginRead();
 if (!offlineInteractive) {

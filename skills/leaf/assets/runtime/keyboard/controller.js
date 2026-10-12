@@ -85,4 +85,6 @@ export function mountKeyboard({
       setGoToSequence(false);
     }
   });
+  // Unmounting takes the page's keys away; what is left is the browser's own.
+  return () => document.removeEventListener("keydown", press);
 }

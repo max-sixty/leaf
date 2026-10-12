@@ -295,18 +295,35 @@ export const pageWords = (node) => Boolean(node) && !inChrome(node) && !inUi(nod
 // nothing at all — naming neither the widget that staged the text nor what was wrong
 // with it. A refusal whose message is a property name reaches its author as the runtime
 // being broken, which is the one thing it isn't.
+//
+// The refusal is final, and this is the one place that makes it so. Every reader of the
+// page's words passes through here, so whichever reaches the bare text first declares
+// the page failed (`lf-startup-failed`), as the page's own fault, which no server
+// update fixes: the readable fallback shows at once, the notice says the page has a
+// problem, and the runtime stops rendering and taking page keys (leaf.js), whose
+// frames and keys each read the page again and threw this again. A reader that still
+// reaches it, such as a renderer answering a later publication, is handed the same
+// refusal, which a report that has carried it once drops (`reportCarried`).
+let refusal = null;
 export const elementOver = (n) => {
   if (n.parentElement) return n.parentElement;
+  if (refusal) throw refusal;
   const host = shadowHost(n.getRootNode());
   const at = host
     ? `<${host.localName}${host.id ? ` id="${host.id}"` : ""}>`
     : "a module";
-  throw new Error(
+  refusal = new Error(
     `${at} staged bare text into a shadow root: ` +
       `${JSON.stringify(n.data.trim().slice(0, 40).trim())} has no element over it, ` +
       `so the page holds no block, cell or fence for it. Give a module's rendered ` +
       `words an element to sit in.`,
   );
+  window.dispatchEvent(
+    new CustomEvent("lf-startup-failed", {
+      detail: { reason: refusal.message, error: refusal, page: true },
+    }),
+  );
+  throw refusal;
 };
 // The widget a reading belongs to. `.lf-ui` says the runtime built this rather than the
 // author, and a reading rooted at the document takes that straight: everything the layer

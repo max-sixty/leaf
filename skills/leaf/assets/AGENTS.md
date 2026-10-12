@@ -224,12 +224,15 @@ reaches. `runtime/prepaint.js` runs first, inline in the head after the canonica
 link, in every document the runtime runs in, served or exported. It marks the root
 `data-lf-interactive`, so the themes give each widget its upgraded box, and takes the
 mark off when the runtime could not start because something it needs did not arrive
-(naming why in `data-lf-startup-error`), so the themes give back the readable fallback
-for every widget at once; it declares the page's storage scope; and it decides which
+or the page declared it failed (naming why in `data-lf-startup-error`), so the themes
+give back the readable fallback for every widget at once, and the runtime stops
+rendering and taking page keys (`leaf.js`); it declares the page's storage scope; and it decides which
 member an `x-views` holder opens on. `runtime/bootstrap.js` runs next, in a served
 page only, before any resource the page loads. It marks the page live
 (`data-lf-live`), so the theme reserves the chrome's room; it shows a startup failure
-and waits for a server that can start the page, even if the module graph never loads;
+and waits for a server that can start the page, even if the module graph never loads,
+or says the page has a problem where the fault is the page's own, as words a module
+staged where the page cannot read them;
 and it holds page keys pressed before presentation. Content modules import only
 `runtime/widget-api.js`, the public helper surface; owners never reach back
 through it or the entry module. Owners are constructed with explicit capabilities

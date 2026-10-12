@@ -9397,7 +9397,7 @@ def test_a_file_row_a_revision_brings_reads_its_cut_path(browser, serve):
     data_model.cmd_data_set(serve.page_dir, "review-patch", patch_manifest(rename))
     context = browser.new_context(viewport={"width": 390, "height": 844})
     page = open_page(browser, url, context=context)
-    expect(page.locator("lf-diff .lf-diff-rename")).to_have_count(1)
+    expect(page.locator("lf-diff .lf-diff-metadata")).to_have_count(1)
     data_model.cmd_data_set(serve.page_dir, "review-patch", patch_manifest(regular))
     told(page)
     rendered(page)
@@ -10456,7 +10456,7 @@ def test_print_wraps_diff_lines_and_keeps_file_headers_in_place(browser, serve):
         MULTI_HUNK_PATCH + "\ndiff --git a/old.py b/new.py\nsimilarity index 100%\n"
         "rename from old.py\nrename to new.py\n",
     )
-    expect(page.locator("lf-diff .lf-diff-rename")).to_be_visible()
+    expect(page.locator("lf-diff .lf-diff-metadata")).to_be_visible()
 
     cut = page.evaluate(DIFF_CLIPPING)
     assert cut["rows"] > 20, f"nothing to read: {cut}"

@@ -12624,14 +12624,14 @@ def test_restore_selection_failed_datum_hydration_leaves_history_untouched(
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     page.keyboard.press("Escape")
     page.locator("lf-diff summary").click()
+    # Evidence admission precedes listing; delay the textual preparation that
+    # selection travel needs after the new closed file has been presented.
     page.evaluate("""() => {
-      const fetch = window.fetch.bind(window);
-      window.fetch = (input, init) => {
-        const url = new URL(input instanceof Request ? input.url : String(input), location.href);
-        if (url.pathname === '/api/deferred') return new Promise(resolve => {
-          window.releaseSelectionDatum = () => resolve(fetch(input, init));
-        });
-        return fetch(input, init);
+      const host = document.querySelector('#patch');
+      const prepare = host.prepareEntry;
+      host.prepareEntry = async function(...args) {
+        await new Promise(resolve => { window.releaseSelectionDatum = resolve; });
+        return prepare.apply(this, args);
       };
     }""")
     data_model.cmd_data_set(
@@ -12641,7 +12641,9 @@ def test_restore_selection_failed_datum_hydration_leaves_history_untouched(
             "files": [
                 {
                     "path": "app.py",
-                    "kind": "patch",
+                    "operation": "modify",
+                    "hunkCount": 1,
+                    "binary": False,
                     "additions": 1,
                     "deletions": 1,
                     "patch": patch.replace("amber", "violet"),

@@ -787,7 +787,7 @@ DIFF_ROW_PLACEMENT = """() => {
     const root = document.querySelector('lf-diff').shadowRoot;
     const files = [...root.querySelectorAll('.lf-diff-file')];
     const lifts = files.map((file) => {
-        const row = file.querySelector(':scope > details, :scope > .lf-diff-rename');
+        const row = file.querySelector(':scope > details, :scope > .lf-diff-metadata');
         return Math.round(row.getBoundingClientRect().top
                           - file.getBoundingClientRect().top);
     });

@@ -282,8 +282,7 @@ WRITERS = {"action": "user", "report": "agent"}
 
 def verb_writer(spec: dict) -> str:
     """The side that writes one x-state verb: `agent` where it says so, else `user`.
-    The browser's `adoptRegistry` resolves the same default at intake, and
-    `tests/verb_writer_cases.json` holds both to it."""
+    The browser reads it from `$states` (`stamp_states`)."""
     return spec.get("writer", "user")
 
 
@@ -431,6 +430,28 @@ def retirement_slots(registry: dict) -> dict:
         for owner in entry["x-owners"]:
             slots.setdefault(owner, {}).setdefault(outcome, []).append(tag)
     return slots
+
+
+def stamp_states(registry: dict) -> dict:
+    """Write `$states` into a validated vocabulary: tag → verb → {`writer`, the side
+    `verb_writer` names; `definition`, the operation `state_definition` records on an
+    admitted event}, for every x-state verb.
+
+    Each composition stamps it (`registry.layer.stamp_composition`), so the browser
+    compares an event's recorded operation with this definition, and reads a verb's
+    writer, rather than deriving either a second time."""
+    registry["$states"] = {
+        tag: {
+            verb: {
+                "writer": verb_writer(spec),
+                "definition": state_definition(tag, entry, spec),
+            }
+            for verb, spec in state_specs(entry)
+        }
+        for tag, entry in registry.items()
+        if is_element_name(tag) and entry.get("x-state")
+    }
+    return registry
 
 
 def stamp_decisions(registry: dict) -> dict:

@@ -4719,6 +4719,50 @@ def test_co_located_headings_share_the_current_title_and_lens_position(browser, 
     assert alignment["lens"] == pytest.approx(alignment["label"], abs=2), alignment
 
 
+def test_the_lens_follows_the_scroll_without_a_scroll_timeline(browser, serve):
+    """A browser without `ScrollTimeline`, as Firefox ships, still shows the reader's place.
+
+    The same page in a context with the API removed draws the lens where the scroll
+    timeline draws it, at the top, the middle and the foot of the document."""
+    source = leaf_page(
+        "contents lens without a scroll timeline",
+        """
+<h1>A migration read in every browser</h1>
+<aside class="sidebar"><lf-toc id="lens-contents"></lf-toc></aside>
+<section><h2 id="prepare">Prepare</h2><div style="height: 900px"></div></section>
+<section><h2 id="move">Move</h2><div style="height: 1400px"></div></section>
+<section><h2 id="verify">Verify</h2><div style="height: 700px"></div></section>
+""",
+    )
+    url = serve(source)
+
+    def lens_track(init_script=None):
+        page = open_page(browser, url, init_script=init_script)
+        resized(page, 1400, 900)
+        lens = page.locator("#lens-contents .lf-toc-window")
+        expect(lens).to_be_visible()
+        track = []
+        for fraction in (0, 0.5, 1):
+            page.evaluate(
+                "fraction => { const s = document.scrollingElement; "
+                "s.scrollTop = (s.scrollHeight - s.clientHeight) * fraction; "
+                "return new Promise(done => requestAnimationFrame("
+                "() => requestAnimationFrame(done))); }",
+                fraction,
+            )
+            box = lens.bounding_box()
+            track.append((box["y"], box["height"]))
+        page.close()
+        return track
+
+    native = lens_track()
+    fallback = lens_track("delete globalThis.ScrollTimeline;")
+    assert native[2][0] > native[0][0] + 300, native
+    for (native_top, native_height), (top, height) in zip(native, fallback):
+        assert top == pytest.approx(native_top, abs=1), (native, fallback)
+        assert height == pytest.approx(native_height, abs=1), (native, fallback)
+
+
 def test_a_route_taller_than_the_map_returns_to_an_open_outline(browser, serve):
     """A route that cannot physically fit keeps every heading in one honest form."""
     sections = "\n".join(

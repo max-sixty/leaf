@@ -96,15 +96,18 @@ declared, is refused until `leaf page init` re-vendors it.
 
 ## Composition stamps
 
-Every composition writes two facts the browser reads instead of deriving
+Every composition writes these facts the browser reads instead of deriving
 (`registry/layer.stamp_composition`):
 
 - `$decisions`, each widget's deciding `x-state` verb and the member tags each of its
   outcomes retires;
+- `$states`, each `x-state` verb's writer and the operation definition an admitted
+  event records, which the browser compares a recorded definition with;
 - `$marks`, each declaration a stylesheet reads, with the attribute it is painted as,
   the attribute an occurrence overrides it with, and whether it holds in a thread
   message, and whether an idiom may declare it (`schema.DECLARED_MARKS`).
 
 `page init` stamps them into the layer, and a page's composition stamps them again
-over its own declarations, overwriting any declared `$decisions` or `$marks`.
+over its own declarations, overwriting any declared `$decisions`, `$states` or
+`$marks`.
 Delivery paints a page document's marks from the same table.

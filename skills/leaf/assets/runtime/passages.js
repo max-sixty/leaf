@@ -99,15 +99,6 @@
    examines open roots and catches promised words that are absent, clipped, or hidden.
    It also catches a module that replaces declared words after the shared render
    passes. */
-// The page's own text blocks: what a user takes in as one unit of prose, and the
-// grain every question about "where in the document is this" is answered at — which
-// passage they are reading, where a walk over Questions starts, what a version diff
-// compares, and which block holds a change the user has to see in context. A plain
-// constant at module scope rather than a member of the passages object, because a
-// consumer built before that object exists is otherwise reduced to holding a thunk for
-// a string that never varies.
-export const TEXT_BLOCK =
-  "p,li,h1,h2,h3,h4,h5,h6,td,th,pre,blockquote,dd,dt,figcaption,summary";
 
 import {
   SAID,
@@ -125,7 +116,7 @@ import {
 import { decisionFor, registry } from "./registry.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { readApplication } from "./semantic-state.js";
-import { COLLAPSE } from "./collapse.js";
+import { COLLAPSE, TEXT_BLOCK } from "./passage-facts.js";
 import { textUnits } from "./text-alignment.js";
 import { excerptWords } from "./words.js";
 

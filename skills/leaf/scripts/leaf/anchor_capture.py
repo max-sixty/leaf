@@ -2,13 +2,14 @@
 
 from .passages import collapse, page_passages, section_span
 from .registry.contract import visual_parts
+from .registry.kernel import kernel_passages
 from .structure import SourceDocument
 
 # Initial context shared with browser capture. The CLI already requires a unique
 # quote; a browser selection identifies an occurrence and may grow this context to
 # its semantic fences until the shared resolver identifies that exact span. Both
 # readers accept that complete context, and neither guesses by document order.
-CONTEXT = 24
+CONTEXT = kernel_passages()["context"]
 
 
 def enclosing_section(owner: list, lo: int, hi: int):
@@ -37,10 +38,11 @@ def occurrences(text: str, quote: str, lo: int, hi: int, fences=frozenset()) -> 
 def _context(passages, lo: int, hi: int) -> tuple[str, str]:
     """The trimmed words before `lo` and after `hi`, each reaching only to the nearest
     passage-cell fence: the file side of `passages.js.neighbourhood`, which capture
-    stores and resolution compares against."""
+    stores and resolution compares against. The text is collapsed, so the space is
+    the only collapse character left to trim; Python's own whitespace is wider."""
     text, fences = passages.text, passages.fences
-    before = text[max([0, *[f for f in fences if f <= lo]]) : lo].strip()
-    after = text[hi : min([len(text), *[f for f in fences if f >= hi]])].strip()
+    before = text[max([0, *[f for f in fences if f <= lo]]) : lo].strip(" ")
+    after = text[hi : min([len(text), *[f for f in fences if f >= hi]])].strip(" ")
     return before, after
 
 

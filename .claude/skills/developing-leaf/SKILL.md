@@ -89,6 +89,14 @@ that input and buys nothing the agent's next attempt would not. Handle a malform
 case only where it would otherwise pass silently into state the user relies on, such
 as an admitted event or a stored decision.
 
+What one Leaf module writes for another is not input: the browser reading the
+server's answer, the Worker reading the manifest its build wrote, a caller reading what
+admission accepted. The reader uses it directly, and the producer's own tests hold its
+shape. The exception is a record an older Leaf left in the state home, which root
+`AGENTS.md`, "Stage", has the reader tolerate. Recovery from a state no Leaf writer
+produces goes the same way: delete it with the test that manufactures the state to
+reach it.
+
 ## Explore an open design
 
 Whenever the user is to choose among designs for a visual or interaction

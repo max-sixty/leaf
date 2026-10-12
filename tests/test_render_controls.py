@@ -1408,7 +1408,9 @@ def test_tab_wraps_through_a_full_view_sample(browser, serve):
     frame = sample.locator("iframe")
     child = frame.element_handle().content_frame()
     sample.get_by_role("button", name="Full view", exact=True).click()
-    expect(sample.get_by_role("button", name="Return to page", exact=True)).to_be_focused()
+    expect(
+        sample.get_by_role("button", name="Return to page", exact=True)
+    ).to_be_focused()
     first = sample.get_by_role("button", name="Reset", exact=True)
     first.focus()
 

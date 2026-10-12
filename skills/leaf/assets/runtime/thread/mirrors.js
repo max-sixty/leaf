@@ -115,7 +115,9 @@ export function registerMirrorConsumer(owner, render, { commands }) {
       if (active && owner.isConnected) void reconcile();
     });
   };
-  const stop = watchThreads(owner, update);
+  // The watcher holds the reconcile it started, so a departure that cuts it short
+  // owes the reading again on return.
+  const stop = watchThreads(owner, () => reconcile());
   const handle = Object.freeze({
     update,
     unregister() {

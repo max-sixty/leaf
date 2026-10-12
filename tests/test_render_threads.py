@@ -23,6 +23,7 @@ from leaf import leases as leases_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import thread as thread_model
+from leaf.read_state import content_version
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -181,7 +182,7 @@ def test_held_news_keeps_an_agent_header_and_resizes_its_notice(browser, serve):
     reachable beside the root message's reaction and the thread's Resolve action.
     """
     url = serve(PANEL_PAGE)
-    root = append_carried_log_record(
+    opening = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -190,7 +191,19 @@ def test_held_news_keeps_an_agent_header_and_resizes_its_notice(browser, serve):
             "revision": 1,
             "text": "Which jobs should start first?",
         },
-    )["id"]
+    )
+    root = opening["id"]
+    # This test measures the held replies; the opening agent comment is already read.
+    # Its long-name arrival notice would otherwise expire during the phone layout
+    # measurement and replace the status text with an unrelated reply notice.
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "read",
+            "author": "user",
+            "messages": [{"message": root, "version": content_version(opening)}],
+        },
+    )
     page = open_page(browser, url)
     resized(page, 1440, 900)
     page.locator(".lf-threads-toggle").click()
@@ -2837,6 +2850,16 @@ def test_comment_on_the_page_starts_a_thread_from_a_card_under_the_banner(
     page.locator("main").click(position={"x": 4, "y": 4})
     assert not card.evaluate(is_open)
     expect(box).to_have_js_property("value", "Kept for later")
+    # A second press on the control puts the card away, and it stays away: the press
+    # is on the card's own opener, so it is not also a press outside the card that
+    # closes it before the control's press opens it again.
+    control.click()
+    expect(box).to_be_focused()
+    control.click()
+    one_frame(page)
+    assert not card.evaluate(is_open)
+    expect(control).to_have_attribute("aria-expanded", "false")
+    expect(control).to_be_focused()
 
     # A refused send restores the editor on the words it handed back.
     page.route(
@@ -7056,6 +7079,63 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
         f"the thread below rose {stood['y'] - risen['y']:.1f}px where the resolved "
         f"thread held {room:.1f}px"
     )
+
+
+def test_the_arrows_and_t_walk_one_list_of_threads(browser, serve):
+    """The arrows, `t` and the position they report count the same threads: every card
+    the user can step onto, one kept in the list as news from elsewhere included, and
+    not a card folding out, which is room about to go. Counted by the arrows alone, a
+    fold made `Home` say "1 of 4" where `t` walked three threads, and the arrows'
+    position left out the "shown" a narrowed list's `t` says."""
+    page = open_page(browser, serve(LONG_PAGE, comments=4), init_script=HOLD_MOTION)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    kept, folding, third, fourth = [
+        e["id"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "comment"
+    ]
+    card = lambda id: page.locator(f'.lf-threads > [data-id="{id}"]')
+    card(kept).locator(".lf-thread-summary").click()
+    append_carried_log_record(
+        serve.page_dir,
+        {"kind": "resolve", "author": "agent", "agent": "Codex", "parent": kept},
+    )
+    told(page)
+    expect(card(kept).locator(".lf-thread-news")).to_be_visible()
+    card(folding).locator(".lf-thread-summary").click()
+    card(folding).locator(".lf-resolve").click()
+    round_trip(page)
+    assert page.evaluate("() => window.__lfHeld.length") == 1
+    expect(card(kept)).to_be_visible()
+
+    position = page.locator(".lf-walk-position")
+    for key, at, label in [
+        ("Home", kept, "Thread 1 of 3"),
+        ("t", third, "Thread 2 of 3"),
+        ("t", fourth, "Thread 3 of 3"),
+        ("ArrowUp", third, "Thread 2 of 3"),
+        ("ArrowUp", kept, "Thread 1 of 3"),
+        ("End", fourth, "Thread 3 of 3"),
+        ("Shift+T", third, "Thread 2 of 3"),
+    ]:
+        page.keyboard.press(key)
+        expect(card(at).locator(":scope > .lf-thread-summary")).to_be_focused()
+        expect(position).to_have_text(label)
+
+    # A narrowed list says so in both walks' positions, `n`/`N` walking a search.
+    page.get_by_role("searchbox", name="Find in threads").fill("Comment")
+    page.keyboard.press("Enter")
+    expect(card(third).locator(":scope > .lf-thread-summary")).to_be_focused()
+    expect(position).to_have_text("Thread 1 of 2 shown")
+    for key, at, label in [
+        ("ArrowDown", fourth, "Thread 2 of 2 shown"),
+        ("Shift+N", third, "Thread 1 of 2 shown"),
+        ("End", fourth, "Thread 2 of 2 shown"),
+    ]:
+        page.keyboard.press(key)
+        expect(card(at).locator(":scope > .lf-thread-summary")).to_be_focused()
+        expect(position).to_have_text(label)
 
 
 def test_a_folding_thread_keeps_the_card_under_the_pointer_put(browser, serve):

@@ -17,11 +17,13 @@
    arriving while the user writes in the card opens it again through its Resume writing
    route (drafts.js).
 
-   The card is an auto popover, so a press outside puts it away. Escape is its own row in
-   the register, so the shortcut line says whether the words stay. Either way focus goes
-   back to where the card was opened from: the control, or, for a key such as `c` that
-   opens it from the page, the control too, since the key runs the control's press
-   (keyboard/dispatch.js). On a phone the control stands behind More in its words, and
+   The card is an auto popover and the control its declared invoker (`popovertarget`), so
+   a press outside puts it away, and so does a second press on the control, which the
+   browser does not count as a press outside. Escape is its own row in the register, so
+   the shortcut line says whether the words stay. Either way focus goes back to where the
+   card was opened from: the control, or, for a key such as `c` that opens it from the
+   page, the control too, since `open` stands the user on the control's door before the
+   card shows. On a phone the control stands behind More in its words, and
    the card spans the window under the banner. The box takes words offline too: the
    offline banner says a comment will not send, not that there is nowhere to write it.
 
@@ -97,12 +99,16 @@ export function createPageComment({
     keeps(control, "aria-expanded", String(event.newState === "open")),
   );
 
-  // The control's press is the same `open` as `c`, or a second press putting the card
-  // away; opened with the control as its source, the card does not count a press on the
-  // control as one outside it.
-  control.addEventListener("click", () => {
-    if (cardIsOpen()) closeNativeLayer(card);
-    else open();
+  // The control is the card's invoker, so the browser never counts its press as one
+  // outside the card, and a press while the card stands puts it away. A press opening the
+  // card is `open`, the same as `c`'s: the browser's opening comes after every listener on
+  // the press, with no turn left to put focus in the box, short of an autofocus that
+  // scrolls a sample's frame into view.
+  control.popoverTargetElement = card;
+  control.addEventListener("click", (event) => {
+    if (cardIsOpen()) return;
+    event.preventDefault();
+    open();
   });
   registerBannerControl({
     key: "page-comment",

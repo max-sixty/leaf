@@ -50,6 +50,8 @@ comparison reads per metric across columns.
 `uv run leaf-dev eval-pairs RUN...` judges an authored task's samples in two columns
 side by side, each pair in both orders, and counts a winner only when both orders
 name it. Run each column the same number of times; the Nth samples pair.
+`uv run leaf-dev eval-report PAGE RUN...` then writes a Leaf page showing each pair's
+final screens side by side with what each sample spent and what the judge said.
 
 `pnpm run eval:view` opens Promptfoo's viewer on every run recorded on
 this machine, each named by branch, commits and cases. It shows each sample's

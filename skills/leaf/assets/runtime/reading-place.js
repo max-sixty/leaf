@@ -19,10 +19,11 @@
  *
  * Whoever remembers a place owns when to take it and where to keep it: version
  * continuity (version.js) across revisions, reading-region shifts and the subjects a
- * region shows in turn, a root tab set (lf-tabs) for each of its views. History's working-place checkpoints separately own
- * an entry's viewport offset (history.js). `readingBlock` is the first block on screen
- * in one region or the page; `pageReadingBlock` is the block the user is reading,
- * where a walk starts, and `landingPlace` is where a let-go puts them. `openingPassage`
+ * region shows in turn, a root tab set (lf-tabs) for each of its views. History's
+ * working-place checkpoints separately own an entry's viewport offset (history.js).
+ * `readingBlock` is the first block on screen in one region or the page;
+ * `pageReadingBlock` is the block the user is reading, where a walk starts, and
+ * `landingPlace` is where a let-go puts them. `openingPassage`
  * gives travel the passage its destination draws first, using the same rendered words
  * as the visible landmarks. It is independent of the viewport, so scrolling through a tall landing
  * does not turn a later passage into the trip's original arrival.

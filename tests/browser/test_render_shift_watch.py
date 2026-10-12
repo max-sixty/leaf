@@ -17,8 +17,6 @@ from render_harness import (
     judge_watches,
     leaf_page,
     open_page,
-    resized,
-    scroll_settled,
     take_browser_errors,
 )
 
@@ -45,22 +43,6 @@ def paint(page):
     """Let Chrome paint before sampling native layout shifts."""
     page.evaluate(PAINTED)
     page.screenshot()
-
-
-def held_stretch(page):
-    """Idle frames the sensor keeps unchanged readings for, on a CPU as slow as a CI
-    runner's, so a credited move that follows is compared from a held frame
-    (`shift_watch.js`, "Unchanged frames") with the frame timing CI has."""
-    page.context.new_cdp_session(page).send(
-        "Emulation.setCPUThrottlingRate", {"rate": 6}
-    )
-    page.evaluate(
-        """count => new Promise((done) => {
-          const next = () => (--count ? requestAnimationFrame(next) : done());
-          requestAnimationFrame(next);
-        })""",
-        60,
-    )
 
 
 def field_page(browser, key=""):
@@ -2937,87 +2919,6 @@ def test_new_anchor_relation_cannot_credit_scroll_before_activation(browser, mod
     assert any(expected in error for error in errors), errors
 
 
-# Each fault runs the clean placement and its quiet judgement first, which is the
-# control a separate faultless case would add.
-@pytest.mark.parametrize("fault", ["holder", "child", "missing-source"])
-def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, fault):
-    source = leaf_page(
-        "Floating tenure",
-        """<p id="subject" style="position:fixed;left:100px;top:100px;width:40px;height:20px;margin:0">Anchor</p><div id="host" style="position:fixed;left:0;top:0;width:600px;height:500px"><div id="holder" style="position:fixed;left:140px;top:100px;width:100px;height:60px"><textarea id="field" style="width:80px;height:20px"></textarea></div></div><div id="evidence" style="position:fixed;left:10px;top:400px;width:300px;height:60px;background:red"></div>""",
-        layout=None,
-    )
-    page = open_page(browser, serve(source))
-    initial = page.locator("#holder").bounding_box()
-    state = page.evaluate("""async()=>{
-      const module=await window.__lfRuntimeImport('/runtime/annotation-overlay/floating.js'); const ui=await module.floatingUi();const holder=document.querySelector('#holder'),subject=document.querySelector('#subject'),host=document.querySelector('#host'); let plane='page';
-      const selected=()=>module.floatingSelections().find(s=>s.floating===holder);
-      const owner=module.floatingPlacement({floating:holder,update:()=>void place()});
-      async function place(){owner.begin();const answer=await owner.position(ui.computePosition,subject,{placement:'right-start',middleware:[]},()=>plane,subject);if(answer)owner.stand(answer);}
-      owner.watch(subject,subject,ui.autoUpdate);await place(); const first=selected();
-      if(!first||first.plane!=='page')throw Error('First placement was not supported page');
-      const original=holder.getBoundingClientRect();host.style.transform='translateX(0)';await place();const unsupported=selected();const nested=holder.getBoundingClientRect();const nativeNonwindow=holder.offsetParent===host;
-      host.style.removeProperty('transform');plane='window';await place();const second=selected();
-      if(!second)throw Error('Supported window placement missing');
-      owner.stop();const stopped=selected();owner.watch(subject,subject,ui.autoUpdate);await place();const third=selected();
-      window.reviewOwner=owner;window.reviewPlace=place;
-      return {absentUnsupported:unsupported===undefined,unchanged:original.x===nested.x&&original.y===nested.y&&original.width===nested.width&&original.height===nested.height,nativeNonwindow,window:second.plane,newTenure:first.tenure!==second.tenure,sameSubject:first.subject===second.subject,sameAnchor:first.anchor===second.anchor,absentStopped:stopped===undefined,newStoppedTenure:second.tenure!==third.tenure,sameStoppedSubject:second.subject===third.subject};
-    }""")
-    assert state == {
-        "absentUnsupported": True,
-        "unchanged": True,
-        "nativeNonwindow": True,
-        "window": "window",
-        "newTenure": True,
-        "sameSubject": True,
-        "sameAnchor": True,
-        "absentStopped": True,
-        "newStoppedTenure": True,
-        "sameStoppedSubject": True,
-    }, state
-    if fault == "missing-source":
-        # A source measurement may be absent: preserve the rejected inputs without
-        # granting motion credit merely because the surface still has an owner.
-        page.evaluate("""() => {
-          const entry = document.querySelector('script[data-lf-entry]');
-          const readings = entry.lfFloatingSelections;
-          entry.lfFloatingSelections = () => readings().map(s => ({...s, scrollOffsets:null}));
-        }""")
-    paint(page)
-    assert page.locator("#holder").bounding_box() == initial
-    judge_watches()
-    assert take_browser_errors(page) == []
-    page.keyboard.press("Shift")
-    paint(page)
-    page.evaluate(
-        """fault=>{document.querySelector(fault==='child'?'#field':'#holder').style.marginLeft='80px';document.querySelector('#evidence').style.marginLeft='40px'}""",
-        fault,
-    )
-    page.screenshot()
-    judge_watches()
-    errors = take_browser_errors(page)
-    assert any("textarea#field moved without input" in error for error in errors), (
-        errors
-    )
-    if fault == "missing-source":
-        error = next(e for e in errors if "textarea#field moved without input" in e)
-        evidence = shift_evidence(error)
-        assert any(
-            not comparison["scroll_terms"]
-            and any(
-                attachment["owner"] == "div#holder"
-                and attachment["before"]["plane"] == "window"
-                and attachment["after"]["plane"] == "window"
-                and attachment["before"]["scrollOffsets"] is None
-                and attachment["after"]["scrollOffsets"] is None
-                and attachment["after_surface"]["left"]
-                - attachment["before_surface"]["left"]
-                == 80
-                for attachment in comparison["scroll_attachments"]
-            )
-            for comparison in evidence["comparisons"]
-        ), evidence
-
-
 @pytest.mark.parametrize("mode", ["pointer", "keyboard"])
 @pytest.mark.parametrize("fault", ["", "late", "synthetic"])
 def test_native_activation_owns_its_release_not_later_motion(browser, mode, fault):
@@ -3322,92 +3223,6 @@ def test_owned_native_finish_records_the_applied_endpoint(browser, fault, fill):
         assert all("moved without input" in error for error in errors), errors
     else:
         assert not errors, errors
-
-
-# The clean run is zoomed, where crediting has the scale to get wrong; the fault control
-# needs no zoom to fail.
-@pytest.mark.parametrize("fault, zoom", [(False, 2), (True, 1)])
-def test_viewport_constrained_attachment_credits_only_its_source_scroll(
-    browser, serve, fault, zoom
-):
-    """Opposite viewport clamps retain source travel, never extra child movement."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Viewport attachment scroll",
-                '<p id="subject" style="position:absolute;left:100px;top:500px;'
-                'margin:0;width:80px;height:30px">Exact subject</p>'
-                '<div id="holder" style="visibility:hidden;position:fixed;'
-                'width:200px;height:60px;margin:0;background:white">'
-                '<textarea id="field" style="width:160px;height:30px"></textarea></div>'
-                '<div style="height:2400px"></div>',
-                head=f"<style>html {{zoom:{zoom}}}</style>",
-                layout=None,
-            )
-        ),
-    )
-    resized(page, 900, 600)
-    source_top = page.locator("#subject").evaluate(
-        "node => node.getBoundingClientRect().top + scrollY"
-    )
-    page.evaluate("top => scrollTo({top, behavior:'instant'})", source_top - 70)
-    scroll_settled(page)
-    page.evaluate(
-        """async zoom => {
-      const module = await window.__lfRuntimeImport('/runtime/annotation-overlay/floating.js');
-      const ui = await module.floatingUi();
-      const subject = document.querySelector('#subject'), holder = document.querySelector('#holder');
-      const boundary = {x:0, y:100, width:900, height:100 * zoom};
-      const owner = module.floatingPlacement({floating:holder, update:()=>void place()});
-      async function place() {
-        owner.begin();
-        const answer = await owner.position(ui.computePosition, subject,
-          {placement:'right-start',middleware:[ui.shift({boundary:[],rootBoundary:boundary,crossAxis:true})]},
-          answer => ({edge:answer.middlewareData.shift.y > 0 ? 'top' : 'bottom', at:answer.middlewareData.shift.y > 0 ? 100 : 100 + 100 * zoom}), subject);
-        if (answer) owner.stand(answer);
-      }
-      owner.watch(subject,subject,ui.autoUpdate);
-      await place();
-      window.constrainedSelection = () => module.floatingSelections().find(item => item.floating === holder);
-      holder.style.removeProperty('visibility');
-    }""",
-        zoom,
-    )
-    paint(page)
-    judge_watches()
-    assert take_browser_errors(page) == []
-    before = page.locator("#field").bounding_box()
-    assert page.locator("#subject").bounding_box()["y"] == pytest.approx(70)
-    assert page.locator("#holder").bounding_box()["y"] == pytest.approx(100)
-    assert page.evaluate("constrainedSelection().plane") == "window"
-    page.evaluate(
-        """([fault, top]) => {
-          scrollTo({top, behavior:'instant'});
-          if (fault) {
-            const field = document.querySelector('#field');
-            field.style.position = 'relative';
-            field.style.top = '20px';
-          }
-        }""",
-        [fault, source_top - (70 + 100 * zoom)],
-    )
-    page.wait_for_function(
-        "top => constrainedSelection().edges.top === 'bottom' && holder.getBoundingClientRect().top === top",
-        arg=100 + 40 * zoom,
-    )
-    scroll_settled(page)
-    paint(page)
-    assert page.locator("#subject").bounding_box()["y"] == pytest.approx(
-        70 + 100 * zoom
-    )
-    assert page.locator("#holder").bounding_box()["y"] == pytest.approx(100 + 40 * zoom)
-    assert page.locator("#field").bounding_box()["y"] - before["y"] == pytest.approx(
-        (40 + (20 if fault else 0)) * zoom
-    )
-    judge_watches()
-    if fault:
-        consume_browser_errors(page, "textarea#field moved without input")
 
 
 FRAMES = """count => new Promise((done) => {

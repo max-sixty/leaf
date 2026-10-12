@@ -62,7 +62,6 @@ from render_cases_layout import (
     QUESTIONS,
     RESIZE_LOOP_EVENT,
     SCROLLED_CONTAINER,
-    SHADOW_HOST_PAGE,
     SHOT_SRC,
     SHOTS,
     SIDENOTE_IN_A_WIDGET,
@@ -2635,25 +2634,115 @@ def test_the_readiness_wait_names_the_stage_a_page_still_owes(browser, serve):
     wait_until_ready(page)
 
 
-def test_the_render_gate_catches_a_lying_verbatim_and_an_undeclared_shadow_root(
-    browser, serve, tmp_path, monkeypatch
+def test_the_render_gate_holds_project_widgets_to_their_declarations(
+    browser, serve, tmp_path, monkeypatch, declared_reading_package
 ):
-    """Bug-back for two module contracts the gate enforces: a declaration that says
-    x-verbatim while the module renders other words in the body's stead (quotes
-    would strand on words the screen no longer shows), and a module attaching a
-    shadow root its declaration doesn't declare (the passage walk crosses only the
-    declared ones, so an undeclared root's words anchor astray)."""
+    """Bug-backs for the module contracts the gate enforces, one project widget each,
+    on one page.
+
+    `lf-callout` declares x-verbatim while its module renders other words in the
+    body's stead (quotes would strand on words the screen no longer shows), and
+    attaches a shadow root its declaration doesn't declare (the passage walk crosses
+    only the declared ones, so an undeclared root's words anchor astray).
+
+    `lf-dusk` replaces its words in the dark scheme only, so the verbatim check runs in
+    each color scheme and reports it once, there.
+
+    `lf-stager` breaks the other thing a declaration promises: that the words arrive.
+    Both word passes stop at a shadow boundary on purpose — which widgets the page
+    holds is the document's question — so an element a module stages into its own
+    tree keeps its declarations and gets neither pass, and the failure is silence: no
+    error, no missing box. It stages a declared lf-reading, whose declaration names
+    both keys, and the gate is asked for each. A staged element rather than a module
+    that wipes its own body after the passes have run, which is the same failure by
+    the reachable-today route: that one is a race with the next poll for the painted
+    half, and a bug-back that has to win a race is a bug-back that reports the machine.
+
+    `lf-veil` is the host case of that failure: its declarations are on the element that
+    stages the tree, so both passes find it and write into a light DOM the shadow root
+    hides. It is the half a reading of the markup cannot see. `textContent` returns a
+    hidden light-DOM span and `querySelector` finds it, so a check written against the
+    markup passes on a page whose user is handed neither word. Asking `says()` for the
+    words and a box for the clipped one is what tells the two apart — the layer's own
+    reading enters a declared root in the host's stead, and a span rendered nowhere
+    has no rects."""
     monkeypatch.chdir(tmp_path)
+    package = tmp_path / ".leaf"
     _author_lying_callout(tmp_path)
+    for tag in ("lf-dusk", "lf-stager", "lf-veil"):
+        add_test_widget(package, tag, upgrade=True)
+    registry_path = package / "registry.json"
+    declarations = json.loads(registry_path.read_text())
+    for tag in ("lf-stager", "lf-veil"):
+        # Each module shows a tree of its own rather than the body, and declares it.
+        declarations[tag].pop("x-verbatim")
+        declarations[tag]["x-shadow"] = True
+    veil = declarations["lf-veil"]
+    veil["properties"]["label"] = {"type": "string"}
+    veil["properties"]["urgent"] = {"type": "boolean"}
+    veil["x-says"] = {"label": "before"}
+    veil["x-paints"] = ["urgent"]
+    registry_path.write_text(json.dumps(declarations, indent=2))
+    modules = {
+        "lf-dusk": (
+            "  connectedCallback() {\n"
+            "    if (!once(this)) return;\n"
+            '    if (matchMedia("(prefers-color-scheme: dark)").matches)\n'
+            '      this.textContent = "Dark replacement.";\n'
+            "  }\n"
+        ),
+        "lf-stager": (
+            "  connectedCallback() {\n"
+            "    if (!once(this)) return;\n"
+            '    const staged = document.createElement("lf-reading");\n'
+            '    staged.id = "staged-reading";\n'
+            '    staged.setAttribute("label", "09:00");\n'
+            '    staged.setAttribute("state", "failure");\n'
+            '    staged.textContent = "The feeder stopped.";\n'
+            "    shadowStage(this, [staged]);\n"
+            "  }\n"
+        ),
+        "lf-veil": (
+            "  connectedCallback() {\n"
+            "    if (!once(this)) return;\n"
+            '    const stage = document.createElement("p");\n'
+            '    stage.textContent = "The feeder stopped overnight.";\n'
+            "    shadowStage(this, [stage]);\n"
+            "  }\n"
+        ),
+    }
+    for tag, body in modules.items():
+        (package / "widgets" / f"{tag}.js").write_text(
+            'import { once, shadowStage } from "/runtime/widget-api.js";\n'
+            f'customElements.define("{tag}", class extends HTMLElement {{\n'
+            + body
+            + "});\n"
+        )
+    source = CUSTOM_WIDGET_PAGE.replace(
+        "</main>",
+        '<lf-dusk id="dusk-note"><strong>Heads up</strong> Read in both schemes.'
+        "</lf-dusk>\n"
+        '<lf-stager id="staged-note"><strong>Heads up</strong> Staged.</lf-stager>\n'
+        '<lf-veil id="veiled-note" label="Escalated" urgent>'
+        "<strong>Heads up</strong> Clipped words.</lf-veil>\n</main>",
+    )
 
     failures = render_gate_model.render_version(
-        browser, serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+        browser, serve(source, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     ).failures
 
-    assert any("x-verbatim" in f for f in failures), failures
-    assert any("shadow roots the registry doesn't declare" in f for f in failures), (
-        failures
-    )
+    def reported(*parts):
+        return [f for f in failures if all(part in f for part in parts)]
+
+    assert reported("x-verbatim", "custom-note"), failures
+    assert reported("shadow roots the registry doesn't declare"), failures
+    dusk = reported("x-verbatim", "dusk-note")
+    assert len(dusk) == 1, failures
+    assert dusk[0].startswith("[dark]"), dusk
+    assert reported('never says "09:00"'), failures
+    assert reported('paints state="failure" and says nothing'), failures
+    assert reported('never says "Escalated"'), failures
+    assert reported('paints urgent="" and says nothing'), failures
 
 
 def test_the_render_gate_checks_custom_controls_at_their_form_boundary(browser, serve):
@@ -2713,32 +2802,6 @@ def test_the_render_gate_checks_undeclared_shadow_roots_inside_thread_chrome(
     assert render_checks_model.evaluate_probe(page, "undeclaredShadowRoots", {}) == [
         "<reply-widget>"
     ]
-
-
-def test_the_render_gate_checks_verbatim_words_in_each_color_scheme(
-    browser, serve, tmp_path, monkeypatch
-):
-    monkeypatch.chdir(tmp_path)
-    add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
-    module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
-    module.write_text(
-        'import { once } from "/runtime/widget-api.js";\n'
-        'customElements.define("lf-callout", class extends HTMLElement {\n'
-        "  connectedCallback() {\n"
-        "    if (!once(this)) return;\n"
-        '    if (matchMedia("(prefers-color-scheme: dark)").matches)\n'
-        '      this.textContent = "Dark replacement.";\n'
-        "  }\n"
-        "});\n"
-    )
-
-    failures = render_gate_model.render_version(
-        browser, serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    ).failures
-
-    dishonest = [failure for failure in failures if "x-verbatim" in failure]
-    assert len(dishonest) == 1, failures
-    assert dishonest[0].startswith("[dark]"), dishonest
 
 
 def test_anonymous_verbatim_owners_keep_distinct_page_and_reply_provenance(
@@ -3039,105 +3102,6 @@ def test_verbatim_wrapper_owns_prose_and_order_but_not_nested_widget_rendering(
     assert all("honest-shell" not in failure for failure in dishonest)
     assert sum("prose-shell" in failure for failure in dishonest) == 2
     assert sum("order-shell" in failure for failure in dishonest) == 2
-
-
-def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
-    browser, serve, tmp_path, monkeypatch, declared_reading_package
-):
-    """Bug-back for the other thing a declaration promises: that the words arrive. Both
-    word passes stop at a shadow boundary on purpose — which widgets the page holds is
-    the document's question — so an element a module stages into its own tree keeps its
-    declarations and gets neither pass, and the failure is silence: no error, no missing
-    box, nothing a reading of the drawn page can tell from an attribute with nothing to
-    say. Here a project widget stages a declared child, whose declaration names both keys, and
-    the gate is asked for each.
-
-    A staged element rather than a module that wipes its own body after the passes have
-    run, which is the same failure by the reachable-today route: that one is a race with
-    the next poll for the painted half, and a bug-back that has to win a race is a
-    bug-back that reports the machine."""
-    monkeypatch.chdir(tmp_path)
-    add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
-    registry_path = tmp_path / ".leaf" / "registry.json"
-    declarations = json.loads(registry_path.read_text())
-    # The fixture's x-verbatim claim is about a body this module no longer shows, and
-    # the gate says so on its own; declaring the root keeps this test's finding the
-    # only one about the tree.
-    declarations["lf-callout"].pop("x-verbatim")
-    declarations["lf-callout"]["x-shadow"] = True
-    registry_path.write_text(json.dumps(declarations, indent=2))
-    module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
-    module.write_text(
-        'import { once, shadowStage } from "/runtime/widget-api.js";\n'
-        "customElements.define(\n"
-        '  "lf-callout",\n'
-        "  class extends HTMLElement {\n"
-        "    connectedCallback() {\n"
-        "      if (!once(this)) return;\n"
-        '      const staged = document.createElement("lf-reading");\n'
-        '      staged.id = "staged-reading";\n'
-        '      staged.setAttribute("label", "09:00");\n'
-        '      staged.setAttribute("state", "failure");\n'
-        '      staged.textContent = "The feeder stopped.";\n'
-        "      shadowStage(this, [staged]);\n"
-        "    }\n"
-        "  },\n"
-        ");\n"
-    )
-
-    failures = render_gate_model.render_version(
-        browser, serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    ).failures
-
-    assert any('never says "09:00"' in f for f in failures), failures
-    assert any('paints state="failure" and says nothing' in f for f in failures), (
-        failures
-    )
-
-
-def test_the_render_gate_catches_a_shadow_host_whose_own_words_never_render(
-    browser, serve, tmp_path, monkeypatch
-):
-    """Bug-back for the half a reading of the markup cannot see. `textContent` returns a
-    hidden light-DOM span and `querySelector` finds it, so a check written against the
-    markup passes on a page whose user is handed neither word. Asking `says()` for the
-    words and a box for the clipped one is what tells the two apart — the layer's own
-    reading enters a declared root in the host's stead, and a span rendered nowhere has
-    no rects."""
-    monkeypatch.chdir(tmp_path)
-    add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
-    registry_path = tmp_path / ".leaf" / "registry.json"
-    declarations = json.loads(registry_path.read_text())
-    declaration = declarations["lf-callout"]
-    declaration.pop("x-verbatim")  # the module shows a tree of its own, not the body
-    declaration["x-shadow"] = True
-    declaration["properties"]["label"] = {"type": "string"}
-    declaration["properties"]["urgent"] = {"type": "boolean"}
-    declaration["x-says"] = {"label": "before"}
-    declaration["x-paints"] = ["urgent"]
-    registry_path.write_text(json.dumps(declarations, indent=2))
-    module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
-    module.write_text(
-        'import { once, shadowStage } from "/runtime/widget-api.js";\n'
-        "customElements.define(\n"
-        '  "lf-callout",\n'
-        "  class extends HTMLElement {\n"
-        "    connectedCallback() {\n"
-        "      if (!once(this)) return;\n"
-        '      const stage = document.createElement("p");\n'
-        '      stage.textContent = "The feeder stopped overnight.";\n'
-        "      shadowStage(this, [stage]);\n"
-        "    }\n"
-        "  },\n"
-        ");\n"
-    )
-
-    failures = render_gate_model.render_version(
-        browser, serve(SHADOW_HOST_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    ).failures
-
-    assert any('never says "Escalated"' in f for f in failures), failures
-    assert any('paints urgent="" and says nothing' in f for f in failures), failures
 
 
 # The page's longest scroller, the one its reader spends the scroll in.

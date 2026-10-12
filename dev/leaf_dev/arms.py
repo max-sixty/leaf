@@ -167,7 +167,11 @@ def build_source(arm: Path, state: Path, source: Path, page: Path) -> None:
     """Build the authored `source` into the page directory `page` with the arm's own
     launcher under the state home `state`. The checkout is an arm too: `ROOT` runs
     its working tree."""
-    prepare_page(page, read_fixture(source), partial(run_leaf, arm, state, check=True))
+    prepare_page(
+        page,
+        read_fixture(source, runtime=arm, env=environment(XDG_STATE_HOME=str(state))),
+        partial(run_leaf, arm, state, check=True),
+    )
 
 
 @contextmanager

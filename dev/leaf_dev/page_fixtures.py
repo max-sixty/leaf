@@ -147,7 +147,14 @@ def composition_inputs(path: Path) -> list[Path]:
     return docs.inputs(path) if path.parent == docs.DOCS else []
 
 
-def read_fixture(source: Path) -> PageFixture:
+def read_fixture(
+    source: Path, *, runtime: Path = ROOT, env: dict[str, str] | None = None
+) -> PageFixture:
+    """Read authored companions using the runtime that will consume produced data.
+
+    Source and runtime are independent: a paired preview can share one authored input
+    while each arm supplies its own package producer and matching data contract.
+    """
     seed = seed_log(source)
     files = page_files(source)
     return PageFixture(
@@ -155,7 +162,7 @@ def read_fixture(source: Path) -> PageFixture:
         page_files=files if files.is_dir() else None,
         packages=tuple(source_packages(source)),
         media=media_source(source),
-        data=tuple(data_operations(source)),
+        data=tuple(data_operations(source, runtime=runtime, env=env)),
         versions=tuple(example_versions(source)),
         seed=seed if seed.is_file() else None,
     )

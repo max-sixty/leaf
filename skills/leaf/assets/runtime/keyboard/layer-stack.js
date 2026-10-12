@@ -14,7 +14,9 @@
    completed native transition, and carries an opening whose earlier declarations this
    module was not yet listening for. An opening arrives once, so a declaration naming a
    layer the stack already holds leaves its entry where the arrival put it, however many
-   more times that same opening is declared. Dismissal stays each layer's own `popover`
+   more times that same opening is declared. The entry keeps the toggle's `source`, the
+   control the layer was opened from, however it opened: `showPopover({source})`,
+   `popovertarget`, or `commandfor`. Dismissal stays each layer's own `popover`
    or `closedby` value. A popover opened declaratively inside a shadow root nobody staged
    fires a `toggle` this module cannot hear, so it never reaches the stack; `shadowStage`
    is the declared route for a widget's shadow tree.
@@ -59,7 +61,7 @@ function prune() {
 // top: `toggle` is queued rather than synchronous, so moving a layer on that last
 // declaration would make it the newest thing on the stack after something else opened over
 // it. A closed entry is pruned and an actual reopening joins at the top.
-function pushNativeLayer(node) {
+function pushNativeLayer(node, source = null) {
   const at = entries.findIndex((entry) => entry.root === node);
   const standing = at < 0 ? null : entries[at];
   if (standing?.active()) return;
@@ -73,6 +75,7 @@ function pushNativeLayer(node) {
     active: () => held(node),
     fromNowhere: !holding || holding === document.body,
     opener: holding && holding !== document.body ? holding : null,
+    source,
   });
 }
 
@@ -183,7 +186,7 @@ export function watchLayers(root) {
   // the patched prototype. Nonmodal show() entries are pruned by held().
   const opened = (event) => {
     if (event.newState === "open" && event.target?.matches?.("[popover], dialog"))
-      pushNativeLayer(event.target);
+      pushNativeLayer(event.target, event.source);
   };
   root.addEventListener("beforetoggle", opened, true);
   root.addEventListener("beforetoggle", closing, true);
@@ -217,17 +220,11 @@ export function nativeModalAdmits(node) {
   );
 }
 
-// The control that names `root` as its `popovertarget`: the platform's own record of
-// which button opens a popover, which a scripted reopening hands back as its source.
-const declaredInvoker = (root) =>
-  root.id
-    ? root.getRootNode().querySelector(`[popovertarget="${CSS.escape(root.id)}"]`)
-    : null;
-
 // Raising a native ancestor appends it above its standing descendants. Re-seat those
-// same layers after its transition, in their native order; their owners and retained
-// nodes keep the reading and the eventual return. The browser state changes in one
-// turn, before any queued close event can see a descendant left closed.
+// same layers after its transition, in their native order and from the sources they
+// opened from; their owners and retained nodes keep the reading and the eventual return.
+// The browser state changes in one turn, before any queued close event can see a
+// descendant left closed.
 export function transitionNativeAncestor(root, transition) {
   const descendants = nativeLayers().filter(
     (layer) => layer.root !== root && renderedUnder(layer.root, root),
@@ -238,7 +235,7 @@ export function transitionNativeAncestor(root, transition) {
       for (const layer of descendants.toReversed()) closeNativeLayer(layer.root);
       transition();
       for (const layer of descendants)
-        showNativeLayer(layer.root, { source: declaredInvoker(layer.root) });
+        showNativeLayer(layer.root, { source: layer.source });
     },
     () => held?.(),
   );

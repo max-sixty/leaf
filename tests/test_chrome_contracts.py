@@ -3376,6 +3376,42 @@ def test_auxiliary_posture_keeps_live_browser_state(engine, request, serve):
         assert kept, width
 
 
+def test_a_popover_reseated_by_the_panel_stays_on_its_source(browser, serve):
+    """A widget in a thread hangs a popover from its button, opened through the package
+    API with the button as its source, which anchors it. Resizing the panel into
+    covering re-seats the popover, and it reopens from the same source, so it still
+    hangs from the button rather than landing wherever an unanchored popover falls. No
+    shipped popover with a source stays open across a re-seat: this is the package
+    route."""
+    page = open_page(browser, serve(LONG_PAGE, comments=1))
+    resized(page, 1200, 800)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    door = page.locator(".lf-thread[open] .lf-msg").first.evaluate_handle("""async message => {
+      const {showNativeLayer} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const door = Object.assign(document.createElement('button'), {textContent: 'Details'});
+      const popover = Object.assign(document.createElement('div'),
+        {id: 'widget-popover', popover: 'auto', textContent: 'Widget details'});
+      // Out of flow, so the thread's own lines keep their places.
+      door.style.position = 'absolute';
+      popover.style.cssText = 'position-area: bottom span-right; margin: 0';
+      message.append(door, popover);
+      showNativeLayer(popover, {source: door});
+      return door;
+    }""")
+    popover = page.locator("#widget-popover")
+    hangs = """([door, popover]) => {
+      const from = door.getBoundingClientRect(), box = popover.getBoundingClientRect();
+      return Math.abs(box.top - from.bottom) < 1 && Math.abs(box.left - from.left) < 1;
+    }"""
+    expect(popover).to_be_visible()
+    assert page.evaluate(hangs, [door, popover.element_handle()])
+    resized(page, 390, 800)
+    assert popover.evaluate("el => el.closest('dialog').matches(':modal')")
+    expect(popover).to_be_visible()
+    assert page.evaluate(hangs, [door, popover.element_handle()])
+
+
 @pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
 def test_send_room_moves_to_every_line_only_while_the_field_scrolls(
     engine, request, serve

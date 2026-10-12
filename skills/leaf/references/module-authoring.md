@@ -397,7 +397,9 @@ A widget's own layer, such as a list it opens over its contents, records where i
 opened from with `openLayer(layer)` as it opens, which reads where the user stands.
 Open a native modal dialog or popover with `showNativeLayer(layer, {source})`;
 `modal: false` opens a nonmodal dialog. It suppresses the native opening's automatic
-focus inside a sample; use `focusDestination` for the intended arrival. Close a
+focus inside a sample; use `focusDestination` for the intended arrival. A popover keeps
+its `source` when the runtime re-seats it, as it does when a panel starts or stops
+covering the page. Close a
 native dialog or popover with `closeNativeLayer(layer)`, which prevents the native
 return from taking input from the containing page. A layer
 closes with `closeLayer(close, land)`: `close` hides it, and `land` puts a user who stood

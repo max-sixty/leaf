@@ -29,8 +29,8 @@ function residencyPass(time) {
   readResidency();
 }
 function readResidency() {
-  const changed = document.documentElement.lfInitial.residency();
-  watchHolders();
+  const { changed, holders } = document.documentElement.lfInitial.residency();
+  watchHolders(holders);
   if (changed) layoutChanged(pageDocument());
   readFinished?.(changed);
   if (changed) repaintPage();
@@ -54,45 +54,56 @@ const BREAKOUT = '[data-lf-space]:not([data-lf-space="column"])';
 const bringsBreakout = (node) =>
   node.nodeType === Node.ELEMENT_NODE &&
   (node.matches(BREAKOUT) || node.querySelector(BREAKOUT) !== null);
-// The holders the last reading measured that still hold one of the breakouts it read
-// there, each with the width it last reported: the observer watches exactly these, so a
-// holder a revision removed, or one whose breakouts went, stops delivering. A removal
-// alone moves no breakout that stays, so it reconciles the watch without a reading, in
-// the microtask the removal queues, before the removed box could report its zero width.
-const holderWidths = new Map();
+// The one record of the holders a reading measured, kept only to watch them: each with
+// the width it last reported, and the breakouts the reading found in it, held weakly.
+// A reading replaces the record with exactly the holders it measured. A removal alone
+// moves no breakout that stays, so it drops, without a reading and in the microtask it
+// queues, each holder no longer connected or no longer holding one of its breakouts,
+// before a removed box could report its zero width. Nothing removed stays held: a
+// removed holder held a removed breakout, so that removal drops it, and a breakout is
+// never held but through a WeakRef.
+const watched = new Map();
 const holderSizes = sizeObserver((entries) => {
   let widened = false;
   for (const { target, contentBoxSize } of entries) {
-    if (!holderWidths.has(target)) continue;
+    const holder = watched.get(target);
+    if (!holder) continue;
     const width = contentBoxSize[0].inlineSize;
-    if (Math.abs(width - holderWidths.get(target)) > 0.5) widened = true;
-    holderWidths.set(target, width);
+    if (Math.abs(width - holder.width) > 0.5) widened = true;
+    holder.width = width;
   }
   if (widened) readIndents();
 });
-// A breakout moved elsewhere arrives there too, and that arrival takes a reading, so a
-// breakout the reading saw still connected is still its holder's.
-const holds = (holder, held) =>
-  holder.isConnected && held.breakouts.some((breakout) => breakout.isConnected);
+const unwatch = (holder) => {
+  watched.delete(holder);
+  holderSizes.unobserve(holder);
+};
 // A holder is observed from the width the reading measured, so its first report is a
 // change only if one came after that reading.
-function watchHolders() {
-  const holders = document.documentElement.lfInitial.indentHolders();
-  for (const holder of holderWidths.keys()) {
-    const held = holders.get(holder);
-    if (held && holds(holder, held)) continue;
-    holderWidths.delete(holder);
-    holderSizes.unobserve(holder);
-  }
-  for (const [holder, held] of holders) {
-    if (holderWidths.has(holder) || !holds(holder, held)) continue;
-    holderWidths.set(holder, held.width);
-    holderSizes.observe(holder);
+function watchHolders(holders) {
+  for (const holder of watched.keys()) if (!holders.has(holder)) unwatch(holder);
+  for (const [holder, { width, breakouts }] of holders) {
+    const refs = breakouts.map((breakout) => new WeakRef(breakout));
+    if (watched.has(holder)) watched.get(holder).breakouts = refs;
+    else {
+      watched.set(holder, { width, breakouts: refs });
+      holderSizes.observe(holder);
+    }
   }
 }
+// A breakout moved elsewhere arrives there too, and that arrival takes a reading, so a
+// breakout still connected is still its holder's.
+function releaseHolders() {
+  for (const [holder, { breakouts }] of watched)
+    if (
+      !holder.isConnected ||
+      !breakouts.some((breakout) => breakout.deref()?.isConnected)
+    )
+      unwatch(holder);
+}
 function readIndents() {
-  const changed = document.documentElement.lfInitial.indents();
-  watchHolders();
+  const { changed, holders } = document.documentElement.lfInitial.indents();
+  watchHolders(holders);
   if (!changed) return;
   layoutChanged(pageDocument());
   repaintPage();
@@ -114,7 +125,7 @@ export function openResidency({ onRead }) {
       )
         readIndents();
       else if (records.some((record) => [...record.removedNodes].some(bringsBreakout)))
-        watchHolders();
+        releaseHolders();
     }).observe(main, {
       childList: true,
       subtree: true,

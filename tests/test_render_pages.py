@@ -2620,6 +2620,42 @@ def test_a_breakout_moved_in_after_load_re_lands_before_it_paints(browser, serve
     assert at["moved"]["left"] > before + 20, ("the holder was not padded", at)
     for edge in ("left", "right"):
         assert at["wide"][edge] == pytest.approx(at["control"][edge], abs=1), at
+    if how != "insert":
+        return
+    # A holder a revision brings and then takes away again, with no reading after the
+    # removal to replace one, is held by nothing the runtime keeps. An authored holder
+    # is no test of this, since the authored copy of the document maps back to every
+    # node the page was written with (prepaint.js, `origins`), nor is a table, which
+    # other owners release on their next frame.
+    with held_frames(page):
+        page.evaluate("""async () => {
+          // Let a frame requested before the hold run, so no reading follows below.
+          await new Promise((resolve) => {
+            const observer = new ResizeObserver(() => {
+              observer.disconnect();
+              setTimeout(resolve);
+            });
+            observer.observe(document.body);
+          });
+          const lf = document.documentElement.lfInitial;
+          window.lfReadings = 0;
+          for (const name of ['residency', 'indents']) {
+            const read = lf[name];
+            lf[name] = () => (window.lfReadings++, read());
+          }
+          const main = document.querySelector('main');
+          main.insertAdjacentHTML('beforeend', '<ul><li id="gone">Gone'
+            + '<div data-lf-space="wide">Wide.</div></li></ul>');
+          const gone = document.getElementById('gone');
+          await null;
+          if (!window.lfWatchedHolder(gone)) throw new Error('never watched');
+          window.lfRemovedHolder = new WeakRef(gone);
+          gone.parentElement.remove();
+        }""")
+        page.context.new_cdp_session(page).send("HeapProfiler.collectGarbage")
+        assert page.evaluate(
+            "() => [window.lfReadings, window.lfRemovedHolder.deref() === undefined]"
+        ) == [1, True]
 
 
 def test_a_sample_fills_the_room_its_authored_width_takes(browser, serve):
@@ -4400,7 +4436,7 @@ def test_margin_residency_verifies_authored_tracks_and_retries_changed_css(
       const observer = new MutationObserver(records => writes += records.length);
       observer.observe(document.body, {attributes: true, attributeFilter: ['style']});
       const owner = document.documentElement.lfInitial;
-      const changed = owner.residency() || owner.residency();
+      const changed = owner.residency().changed || owner.residency().changed;
       await new Promise(requestAnimationFrame);
       observer.disconnect();
       return {changed, writes};

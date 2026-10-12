@@ -570,14 +570,14 @@
     while (holder !== main && getComputedStyle(holder).display === "contents");
     return holder;
   };
-  // The holders the last reading measured, each with the width of its content box and
-  // the breakouts it holds, which content-layout.js watches for a change: a class or
-  // style that pads a holder moves its breakout without inserting anything.
-  const indentHolders = new Map();
+  // Returns whether any breakout's indent changed, and the holders it measured, each
+  // with its content box's width and the breakouts it holds, for content-layout.js to
+  // watch: a class or style that pads a holder moves its breakout without inserting
+  // anything. The reading keeps none of them.
   const indents = () => {
-    indentHolders.clear();
+    const holders = new Map();
     const main = document.querySelector("body > main");
-    if (!main) return false;
+    if (!main) return { changed: false, holders };
     const grows = document.body.hasAttribute("data-lf-column-shell");
     const readings = [];
     let column = null;
@@ -591,10 +591,10 @@
       column ??= contentEdges(main);
       const holder = holderOf(breakout, main);
       const edges = contentEdges(holder);
-      const held = indentHolders.get(holder);
+      const held = holders.get(holder);
       if (held) held.breakouts.push(breakout);
       else
-        indentHolders.set(holder, {
+        holders.set(holder, {
           width: edges.right - edges.left,
           breakouts: [breakout],
         });
@@ -618,11 +618,12 @@
         else removeRuntimeRootStyle(breakout, property);
         changed = true;
       }
-    return changed;
+    return { changed, holders };
   };
   const residency = () => {
     const seated = seat();
-    return indents() || seated;
+    const { changed, holders } = indents();
+    return { changed: changed || seated, holders };
   };
 
   // The id a URL fragment spells, for location.hash and for a link's href alike, from
@@ -650,7 +651,6 @@
     authoredShell: (node) => sourceShells.get(node) ?? sources.get(node) ?? node,
     residency,
     indents,
-    indentHolders: () => indentHolders,
     skipped,
     register(tag, render) {
       // The widget loader imports unregistered producers for later revisions and

@@ -76,7 +76,8 @@ class PageSource(Protocol):
         the source error activation met."""
 
     def state_reading(self, reading: str, state: dict) -> str:
-        """The token a complete state response carries, from `state_read`'s."""
+        """Finalize the state's source-specific refresh facts and return its token,
+        from `state_read`'s."""
 
 
 @dataclass(frozen=True)

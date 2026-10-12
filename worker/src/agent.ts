@@ -4,9 +4,8 @@
  * The fetch handler hands an accepted event that owes a reply to `dispatchAgentTask`,
  * which reserves the source's capacity and asks the user's container to start the
  * turn, or to write the rate-limit or startup failure receipt the user reads in its
- * place. `prewarmContainer` starts a container ahead of the first event. Every record
- * these and the model proxy write goes through `leafAgentLog`, whose fields
- * `worker/README.md`, "Hosted turns", describes.
+ * place. Every record these and the model proxy write goes through `leafAgentLog`,
+ * whose fields `worker/README.md`, "Hosted turns", describes.
  */
 
 import { getContainer } from "@cloudflare/containers";
@@ -165,42 +164,5 @@ export async function dispatchAgentTask(
         error: errorName(receiptError),
       });
     }
-  }
-}
-
-export async function prewarmContainer(
-  env: Env,
-  id: string,
-  reference: string,
-  route: string,
-  sourceId: string,
-): Promise<void> {
-  const started = Date.now();
-  leafAgentLog("container_prewarm_started", { reference, route });
-  try {
-    const allowed = await env.SOURCE_AGENT_RATE_LIMITER.limit({
-      key: `prewarm:${sourceId}`,
-    });
-    if (!allowed.success) {
-      leafAgentLog("container_prewarm_denied", {
-        reference,
-        route,
-        durationMs: Date.now() - started,
-      });
-      return;
-    }
-    await getContainer(env.PAGES, id).start();
-    leafAgentLog("container_prewarm_completed", {
-      reference,
-      route,
-      durationMs: Date.now() - started,
-    });
-  } catch (error) {
-    leafAgentLog("container_prewarm_failed", {
-      reference,
-      route,
-      durationMs: Date.now() - started,
-      error: errorName(error),
-    });
   }
 }

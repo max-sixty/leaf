@@ -7,7 +7,6 @@ import re
 import sys
 import time
 from collections.abc import Callable, Collection
-from datetime import UTC, datetime
 from pathlib import Path
 from stat import S_ISDIR, S_ISREG
 from typing import NamedTuple
@@ -321,7 +320,7 @@ def active_descriptor(page_dir: Path, events: list) -> dict | None:
         events,
         url=f"/revisions/{path.name}",
         executable=reading.manifest["executable"],
-        activated_at=datetime.fromtimestamp(path.stat().st_mtime, UTC).isoformat(),
+        activated_at=reading.activated_at,
     )
 
 

@@ -18,7 +18,6 @@ interface DeploymentConfig {
   durable_objects: {
     bindings: Array<{ name: string; class_name: string }>;
   };
-  vars: { AGENT_PREWARM: string };
   migrations: Array<{
     tag: string;
     new_sqlite_classes?: string[];
@@ -83,7 +82,6 @@ describe("deployment configuration", () => {
     expect(dev.migrations).toEqual(config.migrations);
     expect(dev.observability).toEqual(config.observability);
     expect(dev.ratelimits).toEqual(config.ratelimits);
-    expect(dev.vars).toEqual(config.vars);
     expect(dev.analytics_engine_datasets).toEqual([
       { binding: "WEBSITE_EVENTS", dataset: "leaf_website_events_dev" },
     ]);
@@ -97,8 +95,7 @@ describe("deployment configuration", () => {
     expect(devContainer.instance_type).toBe("basic");
   });
 
-  it("prewarms users and bounds their task starts and model calls", () => {
-    expect(config.vars.AGENT_PREWARM).toBe("true");
+  it("bounds users’ task starts and model calls", () => {
     expect(config.ratelimits).toEqual([
       {
         name: "SOURCE_AGENT_RATE_LIMITER",

@@ -67,14 +67,17 @@ from leaf.codex import (
     stop_app_server,
 )
 from leaf.delivery import read_delivery, stream_reply_target
+from leaf.files import latest_revision, revision_path
 from leaf.harness import EmbeddedHarness
 from leaf.hosting import LeafHTTPServer
 from leaf.http import PageEndpoint, PostRoute, scope_page_urls
 from leaf.layer import incompatible_layer
 from leaf.leases import release_lease, take_lease, waiter_lease_path
 from leaf.page_memory import Slot, memo
+from leaf.page_snapshot import capture_page_snapshot
 from leaf.refusals import Refused
 from leaf.registry.storage import layer_metadata, load_registry
+from leaf.revision_artifact import read_revision
 from leaf.revision_delivery import Delivery
 from leaf.revisioning import activate_source
 from leaf.schema import PAGE_ROUTE_DIRS, VENDORED_FILES
@@ -773,6 +776,8 @@ class WebsiteCodexHarness:
                 env={
                     **os.environ,
                     APP_SERVER_ENV: self.endpoint,
+                    "LEAF": LEAF_COMMAND,
+                    "LEAF_HOST_LAUNCHER": LEAF_COMMAND,
                     # The contract says `leaf`, so that name has to be this
                     # install's launcher ahead of any other on the PATH. A login
                     # shell rebuilds PATH from the system's profile, which is why
@@ -1499,8 +1504,17 @@ def initial_state(
     view_revision: int | None = None,
 ) -> dict:
     """Build the canonical state shared by users before any private mutation."""
+    revision = latest_revision(page_dir)
+    captured = capture_page_snapshot(
+        page_dir,
+        read_revision(page_dir, revision).document,
+        revision,
+        url=f"/revisions/{revision_path(page_dir, revision).name}",
+        process=False,
+    )
     state = PageStateService(
         page_dir,
+        source=captured,
         preview=preview_metadata(page_dir),
         publication={**PUBLICATION, "kind": kind},
     ).page_state(view_revision)
@@ -1543,6 +1557,10 @@ def close_on_signal(agent_harness: WebsiteCodexHarness) -> None:
 def main(port: int) -> None:
     os.environ.setdefault("LEAF_AGENT", WEBSITE_AGENT)
     site_root = Path(os.environ.get("LEAF_SITE_ROOT", "/app/site"))
+    os.environ["LEAF_SITE_ROOT"] = str(site_root)
+    from leaf_website.storage import restore
+
+    restore(site_root)
     agent_harness = WebsiteCodexHarness()
     httpd = LeafHTTPServer(("0.0.0.0", port), site_endpoint(site_root, agent_harness))
     log_agent("container_http_ready", port=httpd.server_address[1])

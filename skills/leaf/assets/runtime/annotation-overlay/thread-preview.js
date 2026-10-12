@@ -124,7 +124,7 @@ export function createThreadPreview({
   const previewList = el("div", "lf-margin-preview-list");
   // Carried by its grip, the card stands where the user drops it, relative to what it is
   // about, at the width it was carried at, until its placement chooses afresh.
-  const grip = surfaceGrip({
+  const carry = surfaceGrip({
     surface: preview,
     bounds: () => commentBoundary({ region: previewSession?.region }),
     dropped(box) {
@@ -140,7 +140,7 @@ export function createThreadPreview({
       placeThreadPreview();
     },
   });
-  preview.append(grip, previewList);
+  preview.append(carry.grip, previewList);
   let previewRegionMounted = false;
   // The card's transcript is re-rendered on every reading of its thread; a message holds
   // the user's place in it under the event id it is rendered with (user-place.js).
@@ -283,6 +283,7 @@ export function createThreadPreview({
     previewSession.away = false;
   }
   function retirePreviewSession() {
+    carry.placed();
     const session = previewSession;
     if (!session) return;
     carryCommentFrame(null);
@@ -546,6 +547,7 @@ export function createThreadPreview({
         const { scale } = session.side.landed(position);
         // An unchanged declaration is the browser's own no-op, and `keeps` is the rest's.
         placementDriver.stand(position);
+        carry.placed();
         const card = placementDriver.clientBox(position);
         session.away = card.bottom <= boundary.top || card.top >= boundary.bottom;
         // Leaving with what it is about, the card passes under the chrome, which stacks

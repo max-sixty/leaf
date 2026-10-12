@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -54,6 +54,7 @@ class PageSnapshot:
     revision_names: dict[int, str]
     others: tuple[dict, ...]
     reading: str
+    source_error: str | None = None
 
     # A capture answers what a page server asks of its page
     # (`served_state.service.PageSource`), from what it froze, and takes no writes.
@@ -112,9 +113,12 @@ class PageSnapshot:
 
     @contextmanager
     def state_read(self, *, with_token: bool = False):
-        yield self.context, self.reading, None
+        yield self.context, self.reading, self.source_error
 
     def state_reading(self, reading: str, state: dict) -> str:
+        # A frozen reading cannot advance on its clock. Refresh is driven by
+        # a successor publication, never a deadline within this same input.
+        state["activity"]["next_transition_at"] = None
         return reading
 
 
@@ -125,11 +129,21 @@ def capture_page_snapshot(
     *,
     url: str,
     artifact: RevisionArtifact | None = None,
+    transaction: PageTransaction | None = None,
+    process: bool = True,
 ) -> PageSnapshot:
-    """Freeze a candidate and every page authority it is projected against."""
+    """Freeze a candidate and every page authority it is projected against.
+
+    A host publishing from an existing transition lends its held transaction;
+    other callers take the page's append lease for the complete capture.
+    """
     if artifact is not None and artifact.html != document.data:
         raise ValueError("preview artifact does not contain the checked document")
-    with PageTransaction(page_dir) as page:
+    with (
+        nullcontext(transaction)
+        if transaction is not None
+        else PageTransaction(page_dir) as page
+    ):
         events = tuple(copy.deepcopy(page.events))
         revisions = list_revisions(page_dir)
         versions = tuple(copy.deepcopy(version_descriptors(list(events), revisions)))
@@ -192,15 +206,21 @@ def capture_page_snapshot(
         revision_names[revision] = (
             artifact_name(revision, artifacts[revision]) + ".html"
         )
-        present, live_stream = presence_with_activity(page_dir, list(events))
-        others = tuple(copy.deepcopy(other_leaves(page_dir)))
+        present, live_stream = presence_with_activity(
+            page_dir, list(events), process=process
+        )
+        others = tuple(copy.deepcopy(other_leaves(page_dir))) if process else ()
         observed_at = now_iso()
         snapshot_active = document_descriptor(
             revision,
             list(events),
             url=url,
             executable=selected.executable,
-            activated_at=observed_at,
+            activated_at=(
+                shown.activated_at
+                if shown is not None and shown.digest == selected.digest
+                else observed_at
+            ),
         )
         taken = time.time()
     files_reading = hashlib.sha256(

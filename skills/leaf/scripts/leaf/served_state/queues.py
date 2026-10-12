@@ -16,9 +16,7 @@ subject and the thread it stands in, and whether the agent has it in hand now
 not gone quiet or stopped. An ask item keeps its canonical record, and a to-do item
 the fields a row draws. Each done item adds how it ended (`state`: an ask the user
 answered, here or elsewhere, is `done`, a withdrawn one `dropped`), when (`ended`),
-and the outcome's detail, which for an ask is its agent end's. `held` lists the
-open asks no one owes now, such as a resolved thread's, as items, so the browser can put one on Questions while a gesture
-it sent reopens that thread (`after`, `served_state.browser`), and selects nothing.
+and the outcome's detail, which for an ask is its agent end's.
 """
 
 
@@ -78,7 +76,6 @@ def queues(
     to-dos and resends keep their own completion routes. An update handed back in a
     thread is that thread's resend, and one handed back outside any thread is its
     own."""
-    owed = {ask["id"] for ask in asks["user"]}
     questions = [_ask_item(ask) for ask in asks["user"]]
     questions += [_todo_item(todo) for todo in todos if todo["owner"] == "user"]
     questions += [
@@ -136,9 +133,4 @@ def queues(
         }
         for todo in ended_todos
     ]
-    held = [
-        _ask_item(ask)
-        for ask in asks["all"]
-        if ask["status"] == "open" and ask["id"] not in owed
-    ]
-    return {"questions": questions, "tasks": tasks, "done": done, "held": held}
+    return {"questions": questions, "tasks": tasks, "done": done}

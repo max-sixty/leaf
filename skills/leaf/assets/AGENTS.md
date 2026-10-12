@@ -331,10 +331,10 @@ and every `.lf-ui` control unless they name a widget or the layer's vocabulary
 (`runtime/page-sheets.js`). The chrome's root and native `.lf-ui-face` defaults
 state the face they would otherwise inherit from the page; imported components
 receive theme variables, preserving their own state presentation.
-`runtime/chrome.css` and `runtime/marks.css` stay unlayered, apart from
-`chrome.css`'s form-control reset in `lf-reset`, below every layer that chooses a face.
-Their paint lies over the page, so they are adopted after page and package sheets and win by their
-selectors. `runtime/marks.css` is adopted by the document and shadow stages. A `:has()` whose rightmost compound carries no class, id, attribute, or
+`runtime/stylesheets.js` owns chrome and mark precedence, including the overridable
+indication default in `runtime/marks.css`. Chrome and apparatus marks are adopted
+after page and package sheets. `runtime/marks.css` is adopted by the document and
+shadow stages. A `:has()` whose rightmost compound carries no class, id, attribute, or
 type restyles every element on ordinary runtime writes
 (`test_no_has_rule_restyles_the_whole_document`); key a repeated type by a class
 its owner writes. A `:has()` on the chrome root, `body` or `html` is read again on

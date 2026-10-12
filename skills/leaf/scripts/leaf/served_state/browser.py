@@ -10,14 +10,13 @@ from ..history import history, wants_history
 from ..passages import SourceReading
 from ..projection import (
     FrozenThreadReading,
-    StateProjection,
     canonical_reports,
     page_reading,
 )
-from ..questions import approval_blocking, answer_verbs, closed_thread, collection
+from ..questions import approval_blocking, collection
 from ..registry.contract import state_definition, state_specs
-from ..thread_context import thread_memberships
 from ..schema import WIDGET_KINDS
+from ..thread_context import thread_memberships
 from .context import PageRead
 from .document import browser_document, browser_undo_candidates
 from .queues import queues
@@ -101,31 +100,6 @@ def _apply_thread_attention(
             }
         else:
             thread["attention"] = None
-
-
-def _closes(
-    pages: list[tuple[dict, dict, StateProjection]], threads: dict
-) -> dict[str, dict]:
-    """Each widget an answer on would close a thread (`questions.closed_thread`):
-    that thread, the verbs that answer (`questions.answer_verbs`), and the outcome
-    that withdraws the request instead (`x-withdrawn-as`), which closes nothing.
-    `pages` are each document's records by id, registry and projection; an answer
-    closes the thread `threads` holds under that exact id, as `build_threads` reads
-    it. The browser places an action it has not sent yet in the
-    thread it would close by this, as `thread_memberships` places a logged one by its
-    admitted meaning (`event_meaning.answer_meaning`)."""
-    closes = {}
-    for by_id, registry, projection in pages:
-        for widget, record in by_id.items():
-            entry = registry.get(record["tag"], {})
-            name = closed_thread(record, entry, projection)
-            if name and name in threads:
-                closes[widget] = {
-                    "thread": name,
-                    "verbs": sorted(answer_verbs(entry)),
-                    "withdrawn_as": entry.get("x-withdrawn-as"),
-                }
-    return closes
 
 
 def _state_definitions(registry: dict, records) -> dict[str, dict[str, dict]]:
@@ -251,13 +225,6 @@ def browser_state(
             "basis": {"revision": revision, "through_seq": through_seq},
             "state_definitions": _state_definitions(
                 page.registry, page.document.by_id.values()
-            ),
-            "closes": _closes(
-                [
-                    (page.document.by_id, page.registry, projection),
-                    (thread_reading.by_id, active_registry, thread_projection),
-                ],
-                threads,
             ),
             "document": document,
             "reports": canonical_reports(projection),

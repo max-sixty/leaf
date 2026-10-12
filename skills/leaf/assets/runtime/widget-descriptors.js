@@ -55,7 +55,12 @@ const declaredAncestors = (element) => {
   return ancestors;
 };
 
-// Whether an x-exhibit element holds this one, strictly within it (`quoted`).
+// Whether an element stands strictly inside an x-exhibit widget in the authored
+// document, so what it holds is quoted material rather than controls (`quoted` below).
+// The exhibit itself is no mention, as the server reads it (`questions.quoted_in`);
+// `tests/exhibit_cases.json` holds both runtimes to one set of cases. Asked of
+// authored parents, so a widget layout has moved still answers for where it was
+// written.
 const quotedBy = (element) => {
   for (let node = parentOf(element); node; node = parentOf(node))
     if (runtime.registry[node.localName]?.["x-exhibit"]) return true;
@@ -129,6 +134,16 @@ export function widgetDescriptor(owner) {
   byElement.set(owner, replacement);
   return replacement;
 }
+
+// Mention, not use: a widget inside one the registry marks x-exhibit is quoted
+// material. An interactive widget consults this before wiring anything that would carry
+// input back (a choose path, a drag grip), so an exhibit never takes the user's edits.
+// Presentational upgrades and view state run regardless — a quoted diagram still
+// renders, a quoted settled group still collapses. The answer is the one its
+// controller's actions read, the descriptor's, or the same rule for an element with
+// no descriptor.
+export const quoted = (element) =>
+  widgetDescriptor(element)?.quoted ?? quotedBy(element);
 
 export const descriptorStillMatches = (owner, descriptor) =>
   owner.id === descriptor.id && owner.localName === descriptor.tag;

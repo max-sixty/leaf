@@ -17,12 +17,10 @@ from leaf.registry.storage import read_page_registry
 from leaf.revision_artifact import ArtifactError, RevisionArtifact, capture_artifact
 from leaf.sample_content import initial_sample_events
 from leaf.schema import VENDORED_FILES
-from leaf.structure import LF_META, SourceDocument, links_with_rel, script_kind
+from leaf.structure import LF_META, SourceDocument, script_kind
 from leaf.styles import (
     css_syntax_errors,
-    inline_presentation_override_errors,
     inline_style_at,
-    scroller_css_advice,
 )
 from leaf.thread_context import thread_ids, thread_structure
 from leaf.validation.instances import (
@@ -37,7 +35,6 @@ from leaf.validation.markup import (
     media_errors,
     page_boundary_errors,
     structure_errors,
-    unarranged_main,
     unpointable_blocks,
 )
 from leaf.validation.source_history import (
@@ -120,20 +117,6 @@ def _document_errors(page_dir: Path, parser) -> list[str]:
 
     errors.extend(document_declaration_errors(parser))
 
-    for link in links_with_rel(parser.links, "canonical"):
-        errors.append(
-            f'<link rel="canonical"> (line {link["line"]}): the served document names '
-            "the page root itself, and a page whose head declares a second address "
-            "leaves a crawler to choose between them. Write the title and description; "
-            "the address is delivery's."
-        )
-
-    for encoding in parser.encoding_metas:
-        errors.append(
-            f"<meta charset> (line {encoding['line']}) belongs to delivery; "
-            "Leaf declares UTF-8 before authored head content"
-        )
-
     for meta in parser.named_metas:
         if not meta["name"].startswith("lf-"):
             continue  # ordinary document metadata: a title, a description, a card
@@ -194,7 +177,7 @@ def _presentation_errors(parser) -> list[str]:
         errors.extend(
             css_syntax_errors(inline["style"], inline_style_at(inline), block=True)
         )
-    return errors + inline_presentation_override_errors(parser)
+    return errors
 
 
 def _source_advice(
@@ -203,7 +186,6 @@ def _source_advice(
     stored_data: dict,
     revision: PredecessorReading,
     dropped_ids: list[str],
-    artifact: RevisionArtifact | None,
 ) -> list[str]:
     """Report non-blocking drift after every error-producing phase has run."""
     return [
@@ -224,10 +206,6 @@ def _source_advice(
         ),
         *(f"data source unreadable: {error}" for error in data_errors(stored_data)),
         *unpointable_blocks(parser),
-        *unarranged_main(parser),
-        *scroller_css_advice(
-            parser, artifact.page_stylesheets if artifact is not None else {}
-        ),
     ]
 
 
@@ -318,7 +296,6 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
         stored_data,
         revision,
         dropped_advice,
-        artifact,
     )
     reanchors, anchor_advice = revision_reanchors(
         events, reading, revision, candidate_revision=revision.candidate

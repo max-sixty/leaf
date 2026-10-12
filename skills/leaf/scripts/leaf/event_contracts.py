@@ -46,7 +46,7 @@ from leaf.registry.contract import (
 from leaf.registry.kernel import kernel_event_kinds, kernel_event_ownership
 from leaf.registry.reactions import reaction_tokens
 from leaf.registry.schema import json_value, schema_error
-from leaf.registry.storage import layer_metadata
+from leaf.registry.storage import load_registry
 from leaf.schema import MESSAGE_KINDS, WIDGET_KINDS
 from leaf.structure import review_mode
 from leaf.tasks import task_error
@@ -814,7 +814,7 @@ def admitted_event(view, events: list, event: dict) -> dict:
     registry = admitting_registry(view, event, events)
     # The kernel's records are this Leaf's own, whichever Leaf vendored the page: no
     # layer can change them, and a page at this protocol reads what they add
-    # (`layer.PROTOCOL`).
+    # (`registry.kernel.kernel_protocol`).
     contracts = kernel_event_kinds()
     if error := command_error(event, contracts):
         raise EventRefused(error)
@@ -859,12 +859,14 @@ def write_refusal(page_dir: Path) -> str | None:
     page was vendored at another protocol (`layer.incompatible_layer`). A writer
     that must not fail on a page it cannot write, such as a hook, asks this first."""
     try:
-        layer = layer_metadata(page_dir)
+        registry = load_registry(page_dir)
     except RegistryError:
+        registry = None
+    if registry is None:
         # A broken or missing candidate registry does not invalidate an active
         # revision's captured vocabulary. Admission will read that vocabulary.
         return None
-    return incompatible_layer(page_dir, layer)
+    return incompatible_layer(page_dir, registry)
 
 
 def append_admitted(page, event: dict, *, view=None) -> tuple[dict, bool]:

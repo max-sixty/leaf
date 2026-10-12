@@ -465,19 +465,19 @@ def install_payload(destination):
 
 
 def vendored_at_another_protocol(page_dir: Path) -> int:
-    """Record another page protocol in the page's layer, and return it.
+    """Record another page protocol in the page's vendored `$events`, and return it.
 
     The state a breaking Leaf update leaves a page in: its layer is the one an
     earlier `page init` copied, at a number this Leaf no longer speaks. Only the
-    stamp changes, which is all the comparison reads, and it is replaced rather
-    than written through, as every file a lent page may share with its template
-    has to be.
+    number changes, which is all the comparison reads, and the file is replaced
+    rather than written through, as every file a lent page may share with its
+    template has to be.
     """
     stamp = page_dir / "registry.json"
     registry = json.loads(stamp.read_text(encoding="utf-8"))
     foreign = 999
-    assert registry["$layer"]["protocol"] != foreign
-    registry["$layer"]["protocol"] = foreign
+    assert registry["$events"]["protocol"] != foreign
+    registry["$events"]["protocol"] = foreign
     cleanup_model.write_json(stamp, registry)
     return foreign
 

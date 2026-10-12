@@ -262,7 +262,7 @@ def prepare(
                         f"{workflow_harness(harness)}/{arm}/workflow"
                         if executor
                         else f"{harness}/{arm}"
-                        + ("/instructions" if instructions else "")
+                        + (f"/instructions:{instructions}" if instructions else "")
                     )
                     if label not in providers:
                         if executor:

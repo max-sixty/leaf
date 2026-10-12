@@ -5,6 +5,7 @@ from typing import NamedTuple
 
 from leaf.events import (
     action_rests_on,
+    action_retracted,
     active_summaries,
     build_threads,
     conversation_turns,
@@ -239,8 +240,10 @@ def thread_memberships(
 
     Leaf owns the relation because each event kind names its thread in a
     different way. Some name none directly: a later action on one widget
-    supersedes its earlier answer, an undo inherits the gesture's membership, and
-    a version note can retract what an answer rested on.
+    supersedes the earlier answers there that still stand, an undo inherits the
+    gesture's membership, and a version note can retract what an answer rested on.
+    An answer taken back or retracted no longer stands, so nothing later at its
+    coordinate changes the thread it closed.
 
     This is the shared join for wait delivery, sampled thread closures, and the
     browser state, which serves it so the browser files an unsent undo or action
@@ -251,29 +254,36 @@ def thread_memberships(
     rather than every thread it changed.
     """
     memberships: dict[str, list[str]] = {}
-    settled_by_coordinate: dict[tuple, list[str]] = {}
-    settling_actions: list[tuple[dict, str]] = []
+    # The answers at each coordinate that a later gesture there could still unseat:
+    # an undo takes one out, and so does a version note retracting what it rested on,
+    # after which a later action at its coordinate leaves the thread it closed alone.
+    answers: dict[tuple, dict[str, tuple[dict, str]]] = {}
+    floors: dict[str, int] = {}
     for event in events:
         if event["kind"] == "undo":
             named = memberships.get(event["undoes"], [])
+            for held in answers.values():
+                held.pop(event["undoes"], None)
         else:
             named = event_threads(event, names, widgets)
         if event["kind"] == "action":
-            coordinate = event_coordinate(event)
-            named = [*named, *settled_by_coordinate.get(coordinate, [])]
-            if answered := event["meaning"].get("answer"):
-                settled_by_coordinate.setdefault(coordinate, []).append(answered)
-                settling_actions.append((event, answered))
+            held = answers.setdefault(event_coordinate(event), {})
+            named = [*named, *(answered for _, answered in held.values())]
+            # An answer a version had already retracted on arrival, as from a tab
+            # still showing an older version, never stands.
+            answered = event["meaning"].get("answer")
+            if answered and not action_retracted(event, floors, within):
+                held[event["id"]] = (event, answered)
         elif event["kind"] == "note" and (restated := set(event.get("restated", []))):
-            named = [
-                *named,
-                *(
-                    answered
-                    for action, answered in settling_actions
-                    if event["revision"] > action["revision"]
-                    and restated.intersection(action_rests_on(action, within))
-                ),
-            ]
+            for identity in restated:
+                floors[identity] = max(floors.get(identity, 0), event["revision"])
+            for held in answers.values():
+                for action_id, (action, answered) in list(held.items()):
+                    if event["revision"] > action["revision"] and restated.intersection(
+                        action_rests_on(action, within)
+                    ):
+                        named = [*named, answered]
+                        del held[action_id]
         memberships[event["id"]] = list(dict.fromkeys(named))
     return memberships
 

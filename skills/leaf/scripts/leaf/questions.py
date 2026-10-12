@@ -344,18 +344,6 @@ def previously_requested(
     return False
 
 
-def closed_thread(rec: dict, entry: dict, projection: StateProjection) -> str | None:
-    """The thread an answer on this widget closes: its authored `resolves`, read
-    while the widget still asks under `projection`, as a name `thread_names`
-    resolves. Admission reads it with the answering action standing
-    (`event_meaning.answer_meaning`); the browser places an action it has not sent yet
-    by the current reading (`served_state.browser`, `closes`)."""
-    awaits = entry.get("x-awaits")
-    if awaits is None or not asking(replayed_attrs(rec, projection), awaits.get("when")):
-        return None
-    return rec["attrs"].get("resolves")
-
-
 def answer_verbs(entry: dict) -> dict:
     """Each x-state verb whose standing state answers this widget's local Question,
     mapped to the condition that state has to meet (x-awaits.answered)."""
@@ -805,7 +793,9 @@ class _QuestionReducer:
                 key=lambda event: event["seq"],
                 default=None,
             )
-            text = element_name(self.nodes[surface["attrs"]["id"]], self.registry) or None
+            text = (
+                element_name(self.nodes[surface["attrs"]["id"]], self.registry) or None
+            )
             records.append(
                 {
                     "id": "widget:" + unit,

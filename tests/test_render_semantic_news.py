@@ -11,7 +11,7 @@ from render_cases_interaction import (
     PANEL_PAGE,
     panel_comment,
 )
-from render_harness import FEATURE_GALLERY, open_page, told
+from render_harness import open_page, told
 
 
 def test_new_reply_and_user_question_share_one_notice_without_moving_focus(
@@ -38,10 +38,8 @@ def test_new_reply_and_user_question_share_one_notice_without_moving_focus(
     expect(toggle).to_be_focused()
 
 
-def test_gallery_new_information_sample_preserves_focus(browser, serve):
-    page = open_page(browser, serve(FEATURE_GALLERY))
-    guide = page.locator("#bg-thread-notices")
-    expect(guide).to_contain_text("status-line notice")
+def test_a_new_agent_comment_is_announced_without_moving_focus(browser, serve):
+    page = open_page(browser, serve(PANEL_PAGE))
     toggle = page.locator(".lf-threads-toggle")
     toggle.focus()
     expect(toggle).to_be_focused()

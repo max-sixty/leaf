@@ -163,6 +163,19 @@ export function closeNativeLayer(layer) {
   );
 }
 
+// Each native layer once it has opened or closed, in the document or any stage, where
+// `toggle` does not reach the document: what a modal admits changes with it
+// (`nativeModalAdmits`). Returns the call that stops listening.
+const changeListeners = new Set();
+export function watchLayerChanges(listener) {
+  changeListeners.add(listener);
+  return () => changeListeners.delete(listener);
+}
+const changed = (event) => {
+  if (!event.target?.matches?.("[popover], dialog")) return;
+  for (const listener of changeListeners) listener(event);
+};
+
 export function watchLayers(root) {
   if (watchedRoots.has(root)) return;
   watchedRoots.add(root);
@@ -175,6 +188,7 @@ export function watchLayers(root) {
   root.addEventListener("beforetoggle", opened, true);
   root.addEventListener("beforetoggle", closing, true);
   root.addEventListener("toggle", opened, true);
+  root.addEventListener("toggle", changed, true);
 }
 
 watchLayers(document);

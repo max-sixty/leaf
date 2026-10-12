@@ -34,10 +34,14 @@ from render_cases_interaction import (
     LIST_ORDER,
     LIST_STATE,
     PANEL_PAGE,
+    PHOTO_THREAD,
+    PROJECTOR_THREAD,
     SEATED_ASK_LAYER,
     SEATED_ASK_WIDGETS,
     SEATED_QUESTION_PAGE,
     THREAD_DIFF_PAGE,
+    WORKSHOP_THREAD_EVENTS,
+    WORKSHOP_THREADS_PAGE,
     live_url,
     panel_comment,
 )
@@ -272,13 +276,15 @@ def test_gallery_pending_title_opens_when_the_reader_requests_it(browser, serve)
     )
 
 
-def test_gallery_thread_rows_name_action_in_existing_status(browser, serve):
-    page = open_page(browser, serve(FEATURE_GALLERY))
+def test_thread_rows_name_action_in_existing_status(browser, serve):
+    page = open_page(
+        browser, serve(WORKSHOP_THREADS_PAGE, events=WORKSHOP_THREAD_EVENTS)
+    )
     resized(page, 1440, 900)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
 
-    asked = page.locator('.lf-thread[data-id="2be2443f0bb6cc49fc86b52f340e6073"]')
+    asked = page.locator(f'.lf-thread[data-id="{PHOTO_THREAD}"]')
     expect(asked.locator(":scope > .lf-thread-summary .lf-thread-status")).to_have_text(
         "On you to answer"
     )
@@ -335,7 +341,7 @@ def test_gallery_thread_rows_name_action_in_existing_status(browser, serve):
     asked.locator(":scope > .lf-thread-summary").focus()
     asked.locator(":scope > .lf-thread-summary").press("Enter")
     expect(asked).to_have_attribute("open", "")
-    resolved = page.locator('.lf-thread[data-id="bab3cdfcfb8c02aacbb27da731de947a"]')
+    resolved = page.locator(f'.lf-thread[data-id="{PROJECTOR_THREAD}"]')
     expect(
         resolved.locator(":scope > .lf-thread-summary .lf-thread-status")
     ).to_have_text("✓ Resolved by Codex")

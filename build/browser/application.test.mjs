@@ -108,7 +108,6 @@ const state = (taken, events = []) => ({
         reports: [],
         published_at: null,
         queues: { questions: [], tasks: [], done: [] },
-        closes: {},
         approval_blocking: [],
         state_definitions: { "lf-choice": { decide: DECIDE } },
         document: {
@@ -657,83 +656,37 @@ test("every thread gesture the ledger holds names the thread it stands in", () =
   assert.deepEqual(gestured(action("move")), []);
 });
 
-test("an action that would close a thread concerns that thread, before and after the log has it", () => {
-  // A page suggestion that answers a thread stands in no thread, but accepting it
-  // closes the one that asked, so the news that thread holds back shows with it.
-  const served = servedReading("suggestion closes a thread");
+test("an answer concerns the thread it closes from the reading that logs it", () => {
+  // A page suggestion that answers a thread stands in no thread, so accepting it draws
+  // nothing there until the log closes the thread. The reading that does files the
+  // acceptance under that thread, and the news the thread holds back shows with it.
   const app = createSemanticApplication();
   app.identify(1);
-  app.adopt(served);
-  const decide = {
-    kind: "action",
-    widget: "sug-refill",
-    action: "decide",
-    detail: { outcome: "accept" },
-    revision: 1,
-  };
-  app.enqueue({ ...decide, attempt: "accept" }, "now");
-  assert.deepEqual(app.read().effective.thread.gestured, ["e1"]);
-
-  // Rejecting it withdraws the request and closes nothing, as the log will file it.
-  const rejecting = createSemanticApplication();
-  rejecting.identify(1);
-  rejecting.adopt(served);
-  rejecting.enqueue(
-    { ...decide, detail: { outcome: "reject" }, attempt: "reject" },
+  app.adopt(servedReading("suggestion closes a thread"));
+  app.enqueue(
+    {
+      kind: "action",
+      widget: "sug-refill",
+      action: "decide",
+      detail: { outcome: "accept" },
+      revision: 1,
+      attempt: "accept",
+    },
     "now",
   );
-  assert.deepEqual(rejecting.read().effective.thread.gestured, []);
-
-  // Taking back the logged acceptance, or rejecting in its place, concerns the thread
-  // it closed, which either one reopens.
+  assert.deepEqual(app.read().effective.thread.gestured, []);
   const logged = servedReading("suggestion accepted");
   const accepted = logged.events.at(-1);
-  const after = () => {
-    const app = createSemanticApplication();
-    app.identify(1);
-    const declaration = {
-      "x-state": { decide: { unit: "widget", writer: "user" } },
-    };
-    app.captureDocument({
-      ...app.read().document,
-      registry: { "lf-suggestion": declaration },
-      authored: new Map([
-        [
-          "sug-refill",
-          {
-            tag: "lf-suggestion",
-            specs: new Map([["decide", { unit: "widget" }]]),
-            state: { decide: { action: null, value: null, detail: {} } },
-          },
-        ],
-      ]),
-      descriptors: new Map([
-        [
-          "sug-refill",
-          {
-            id: "sug-refill",
-            tag: "lf-suggestion",
-            document: { kind: "page", revision: 1 },
-            declaration,
-            parent: null,
-            ancestors: [],
-            quoted: false,
-          },
-        ],
-      ]),
-    });
-    app.adopt(logged);
-    return app;
-  };
-  const undoing = after();
+  app.accept("accept", accepted);
+  app.adopt(logged);
+  assert.deepEqual(app.read().effective.thread.gestured, ["e1"]);
+
+  // Taking the acceptance back concerns the thread it closed, which the undo reopens.
+  const undoing = createSemanticApplication();
+  undoing.identify(1);
+  undoing.adopt(logged);
   undoing.enqueue({ kind: "undo", undoes: accepted.id, attempt: "take-back" }, "now");
   assert.deepEqual(undoing.read().effective.thread.gestured, ["e1"]);
-  const replacing = after();
-  replacing.enqueue(
-    { ...decide, detail: { outcome: "reject" }, attempt: "instead" },
-    "now",
-  );
-  assert.deepEqual(replacing.read().effective.thread.gestured, ["e1"]);
 });
 
 test("a refused local message publishes one failed workflow before retirement", () => {

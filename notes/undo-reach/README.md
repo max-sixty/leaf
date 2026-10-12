@@ -185,8 +185,8 @@ keep the preview running as their handoff contract requires. Follow `/developing
 fresh page and log; answer pending feedback before restarting.
 
 `bin/leaf page check --render` on the page passes on main's runtime as of
-e2fdf6ee2. It still advises against the `.sim-page` scroller; that scroller is the
-simulated viewport the "What's in view" rule depends on, so it stays.
+e2fdf6ee2. Its `.sim-page` scroller is the simulated viewport the "What's in view"
+rule depends on, so it stays.
 
 ## Next steps
 

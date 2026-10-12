@@ -398,6 +398,12 @@ def claude_environment(home: Path, **extra: str) -> dict[str, str]:
     return env
 
 
+def instruction_context(payload: Path, source: str) -> str:
+    """An arm's instruction source, retaining the origin of relative references."""
+    path = payload / source
+    return f"Instructions from {path}:\n\n" + path.read_text()
+
+
 def retire_sessions(payload: Path, state: Path) -> None:
     """End this sample's generations and join detached delivery retirement.
 

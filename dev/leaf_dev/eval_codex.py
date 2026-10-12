@@ -194,7 +194,13 @@ class CodexChild:
         options = {}
         values = iter(args)
         for name in values:
-            if name not in {"--tools", "--plugin-dir", "--resume", "--json-schema"}:
+            if name not in {
+                "--tools",
+                "--plugin-dir",
+                "--resume",
+                "--json-schema",
+                "--append-system-prompt",
+            }:
                 raise ValueError(f"unsupported Codex eval option: {name}")
             options[name] = next(values)
         self.options = options
@@ -282,6 +288,8 @@ class CodexChild:
             }
             if session := self.options.get("--resume"):
                 params["threadId"] = session
+            if instructions := self.options.get("--append-system-prompt"):
+                params["developerInstructions"] = instructions
             self.task.thread = self.task.request(
                 "thread/resume" if session else "thread/start", params
             )["thread"]["id"]

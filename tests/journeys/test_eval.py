@@ -32,6 +32,13 @@ def test_authoring_repetitions_isolate_tools_and_grade_the_saved_page(
         assert env["LEAF"] == str(ROOT / "bin/leaf")
         assert dirs == [ROOT]
         assert harness == "claude-code"
+        if len(observed) < 2:
+            source = ROOT / sources[len(observed)]
+            injected = args[args.index("--append-system-prompt") + 1]
+            assert injected == f"Instructions from {source}:\n\n" + source.read_text()
+            assert (out.parent / "instructions.txt").read_text() == injected
+        else:
+            assert "--append-system-prompt" not in args
         assert "Use the provided capture" in request
         assert str(page / "index.html") in request
         assert json.loads((page / "registry.json").read_text())["lf-shot"]["required"]
@@ -76,14 +83,18 @@ def test_authoring_repetitions_isolate_tools_and_grade_the_saved_page(
     monkeypatch.setattr(authoring_eval, "run_agent", run_agent)
     evidence_dirs = [tmp_path / name for name in ("first", "second")]
     responses = []
-    for evidence in evidence_dirs:
+    sources = [
+        ".claude/skills/developing-leaf/SKILL.md",
+        ".claude/skills/ui-sweep/SKILL.md",
+    ]
+    for evidence, source in zip(evidence_dirs, sources, strict=True):
         evidence.mkdir()
         responses.append(
             authoring_eval.execute(
                 "Use the provided capture",
                 ROOT,
                 evidence,
-                {"case": case},
+                {"case": case, "instructions": source},
                 harness="claude-code",
                 shots=tmp_path / "screenshots" / evidence.name,
             )

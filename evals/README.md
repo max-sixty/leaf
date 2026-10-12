@@ -122,17 +122,21 @@ rendering. Keep source and reading probes for decisions that need no writable
 artifact. Use complete tasks for revisions, user feedback and delivery rounds.
 Authoring adds page initialization, tool turns and a render check to each sample;
 `setup_seconds`, native trace accounting and Promptfoo's `latencyMs` expose those
-costs separately. Each sample has its own temp directory, though native tool
-permissions are the same unrestricted permissions the complete-task executors
-use, rather than a filesystem sandbox.
+costs separately. Each sample has its own temp directory. Native tool permissions
+match the complete-task executors: Codex allows native tools without approval;
+on macOS, Claude Code's sandbox prevents writes to shared temporary paths while
+allowing its owned directories, as described under **Isolation**.
 
 Internal instruction cases exercise developing Leaf itself; `/developing-leaf`,
 "Score an instruction change", owns when to use one. They declare
 `metadata.instructions`, a source path in
-that arm. The native provider receives its contents and source file location as
+that arm. The agent receives its contents and source file location as
 system/developer context, retaining the origin of its linked references;
-the case grades the resulting behavior. These columns end in `/instructions:` and
-that path, so cases injecting different files never share a provider.
+the case grades the resulting behavior. Read-only probe columns end in
+`/instructions:` and that path, so cases injecting different files never share
+a provider. An authoring case resolves and injects the source separately for every
+sample, retaining it as `instructions.txt` beside its native trace; its column keeps
+the `/authoring` suffix.
 Shipped-skill cases instead let the agent load its skill and references. Both kinds
 score the resulting answer against the task. Reading a named file is not a scored
 requirement; native traces retain tool calls for diagnosing instruction loading.
@@ -144,8 +148,8 @@ this path. These scores measure the judge, not the agent's behavior.
 
 A complete task instead names `metadata.executor`, a `leaf_dev` module, and
 `metadata.scenario`, a key of that module's `CASES`. The executor builds fixtures, runs the agent
-through resumed phases or live user rounds, and returns a boolean per deterministic check; its
-`expected_checks` declares the check names, which become one assertion each, so a
+through resumed phases or live user rounds, and returns a boolean per deterministic check.
+Its `expected_checks` declares the check names, which become one assertion each, so a
 check that never ran fails rather than disappearing. An executor may also declare
 `rubrics`: text `llm-rubric` or screenshot `agent-rubric` assertions. A
 deterministic check reads a fact the page or the trace states; anything said in
@@ -154,6 +158,9 @@ prose, a reply or a passage on the page, goes to the text judge. A text rubric's
 as one phase's reply or one paragraph, in place of the whole output. A screenshot executor lists captures beside the request
 they answer and writes them to the supplied `shots` directory, the only place its
 judge may read. `metadata.conditions` and `metadata.harnesses` restrict where it runs.
+
+`metadata.authoring` and `metadata.executor` select distinct execution modes;
+declaring both on a case, including through inherited variant metadata, is an error.
 
 | Executor | Runs |
 | --- | --- |

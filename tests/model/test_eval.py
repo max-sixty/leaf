@@ -130,6 +130,66 @@ def test_library_cases_supply_a_task_and_native_promptfoo_assertions(address):
     assert all(assertion["type"] and assertion["value"] for assertion in case["assert"])
 
 
+def test_catalog_rejects_execution_modes_conflicting_after_variant_inheritance(
+    tmp_path, monkeypatch
+):
+    from leaf_dev import eval as module
+
+    path = tmp_path / "evals" / "example" / "case.yaml"
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "metadata": {"authoring": True},
+                "variants": {
+                    "workflow": {"metadata": {"executor": "leaf_dev.arrangement_eval"}}
+                },
+            }
+        )
+    )
+    monkeypatch.setattr(module, "ROOT", tmp_path)
+    with pytest.raises(
+        click.ClickException, match="eval case example/workflow:.*declare only one"
+    ):
+        catalog()
+
+
+def test_authoring_instruction_sources_stay_per_sample_with_the_task(
+    tmp_path, monkeypatch
+):
+    from leaf_dev import eval as module
+
+    sources = {
+        "first": ".claude/skills/developing-leaf/SKILL.md",
+        "second": ".claude/skills/ui-sweep/SKILL.md",
+    }
+    monkeypatch.setattr(
+        module,
+        "catalog",
+        lambda: {
+            address: {
+                "metadata": {"authoring": True, "instructions": source},
+                "vars": {"prompt": f"{address} task"},
+                "assert": [{"type": "javascript", "value": "true"}],
+            }
+            for address, source in sources.items()
+        },
+    )
+    config = prepare(
+        list(sources),
+        {"candidate": tmp_path / "arm"},
+        tmp_path / "scratch",
+        ("claude-code",),
+        ("leaf",),
+        tmp_path / "samples",
+    )
+    assert len(config["providers"]) == 1
+    for test in config["tests"]:
+        address = test["metadata"]["case"]
+        assert test["metadata"]["instructions"] == sources[address]
+        assert test["vars"]["prompt"] == f"{address} task"
+
+
 @pytest.mark.usefixtures("codex_cli")
 def test_native_columns_isolate_each_harness_and_arm(tmp_path, monkeypatch):
     login = tmp_path / "harness-login"

@@ -49,6 +49,7 @@ from leaf_dev.arms import (
     codex_program,
     environment,
     install_codex_plugin,
+    instruction_context,
 )
 from leaf_dev.leaf_assets import pinned_copy
 
@@ -80,7 +81,14 @@ def catalog() -> dict[str, dict]:
             task,
             *(f"{task}/{name}" for name in source.get("variants", {})),
         ]:
-            cases[address] = context_case(source, address)
+            case = context_case(source, address)
+            metadata = case.get("metadata", {})
+            if metadata.get("authoring") and metadata.get("executor"):
+                raise click.ClickException(
+                    f"eval case {address}: metadata.authoring and metadata.executor "
+                    "select different execution modes; declare only one"
+                )
+            cases[address] = case
     return cases
 
 
@@ -286,10 +294,8 @@ def prepare(
                                     if harness == ClaudeCodeHarness.name
                                     else "developer_instructions"
                                 )
-                                source = payload / instructions
-                                configured["config"][field] = (
-                                    f"Instructions from {source}:\n\n"
-                                    + source.read_text()
+                                configured["config"][field] = instruction_context(
+                                    payload, instructions
                                 )
                         providers[label] = {**configured, "label": label}
                     labels.append(label)

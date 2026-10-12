@@ -18,7 +18,14 @@ from pathlib import Path
 from leaf.media import media_name
 
 from leaf_dev import ROOT
-from leaf_dev.arms import completed, run_agent, run_leaf, scratch, trace_summary
+from leaf_dev.arms import (
+    completed,
+    instruction_context,
+    run_agent,
+    run_leaf,
+    scratch,
+    trace_summary,
+)
 from leaf_dev.leaf_assets import pinned_copy
 
 
@@ -67,6 +74,14 @@ def execute(
     shots: Path | None = None,
 ) -> dict:
     started = time.monotonic()
+    context = (
+        instruction_context(payload, metadata["instructions"])
+        if metadata.get("instructions")
+        else None
+    )
+    instructions = ("--append-system-prompt", context) if context is not None else ()
+    if context is not None:
+        (evidence / "instructions.txt").write_text(context)
     with scratch(payload) as cwd:
         page, state = cwd / "page", cwd / "state"
         task = metadata["case"].split("/", 1)[0]
@@ -96,6 +111,7 @@ def execute(
             trace = run_agent(
                 cwd,
                 request,
+                *instructions,
                 "--plugin-dir",
                 str(payload),
                 out=evidence / "stream.jsonl",

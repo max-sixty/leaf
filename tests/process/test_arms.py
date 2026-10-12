@@ -1,5 +1,6 @@
 """Scratch ownership joins native resources before their state home disappears."""
 
+import os
 import subprocess
 
 from leaf_dev import ROOT
@@ -57,3 +58,47 @@ with flocked(adapter_start_lock_path(session)):
         if process is not None and process.poll() is None:
             process.terminate()
             process.communicate(timeout=10)
+
+
+def test_codex_accepts_native_instruction_context_without_starting_a_model(
+    tmp_path, monkeypatch
+):
+    """Use the installed native server; suppress only the model turn request."""
+    from leaf_dev.codex_task import Task
+    from leaf_dev.eval_codex import CodexChild
+
+    monkeypatch.setenv(
+        "PATH", f"{ROOT / 'node_modules/.bin'}{os.pathsep}{os.environ['PATH']}"
+    )
+    login = tmp_path / "login"
+    login.mkdir()
+    (login / "auth.json").write_text("{}")
+    monkeypatch.setenv("CODEX_HOME", str(login))
+    calls, prompts = [], []
+    request = Task.request
+
+    def observe(task, method, params):
+        calls.append((method, params))
+        return request(task, method, params)
+
+    monkeypatch.setattr(Task, "request", observe)
+    monkeypatch.setattr(
+        Task, "say", lambda task, prompt, schema: prompts.append(prompt)
+    )
+    cwd = tmp_path / "cwd"
+    cwd.mkdir()
+    context = "Instructions from /arm/instructions.md:\n\nAuthor with native context."
+    with CodexChild(
+        cwd,
+        "Write a page",
+        "--append-system-prompt",
+        context,
+        stderr=tmp_path / "err.txt",
+        limit=10,
+        timed_out=tmp_path / "timed-out",
+        env={"XDG_STATE_HOME": str(tmp_path / "state")},
+    ) as child:
+        assert child.task.thread
+    assert prompts == ["Write a page"]
+    assert calls[0][0] == "thread/start"
+    assert calls[0][1]["developerInstructions"] == context

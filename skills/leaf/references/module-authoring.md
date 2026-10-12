@@ -100,8 +100,11 @@ over most of the image, and outlines `{x, y, width, height, side, kind}` drawn o
 `before` image (`a`) or the `after` image (`b`) around content that `changed` or
 `moved`. `differenceKind(reading)` classifies a reading as `identical`, `throughout`,
 `slight` or `areas`; `describeDifference(reading)` words it for the reader, and
-`countAreas(regions)` counts the changed and moved areas, each once. The comparison is
-experimental; `lf-shot` is the worked example.
+`countAreas(regions)` counts the changed and moved areas, each once.
+`compareImagePixels(a, b)` reads the same pair pixel by pixel and returns
+`{width, height, data}`, black RGBA whose alpha is opaque where a pixel changed by as
+much as an outline needs, faint where it changed less, and clear elsewhere, for use as a
+mask. The comparison is experimental; `lf-shot` is the worked example.
 
 ### Lit exports
 

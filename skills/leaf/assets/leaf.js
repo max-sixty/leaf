@@ -23,14 +23,13 @@ import {
   PRESENTATION,
 } from "./runtime/presentation.js";
 import { PAGE_PAINT_ATTRIBUTE, pagePresented } from "./runtime/page-paint.js";
-import { nextFrame, renderingState } from "./runtime/rendering.js";
+import { nextFrame, renderingState, observePreparations } from "./runtime/rendering.js";
 import { observeQueuedWork } from "./runtime/queued-work.js";
 import { mountApplication } from "./runtime/application.js";
 import { approvalBlockingQuestions } from "./runtime/questions/model.js";
 import { beginRead } from "./runtime/state-feed.js";
 import {
   applicationState,
-  observeWidgetPreparations,
   whenApplicationPresented,
 } from "./runtime/semantic-state.js";
 import { createEngagement } from "./runtime/composing/engagement.js";
@@ -197,7 +196,7 @@ if (validationEntry) {
   validationEntry.lfReadiness = pageReadiness;
   validationEntry.lfRenderingState = renderingState;
   validationEntry.lfObserveQueuedWork = observeQueuedWork;
-  validationEntry.lfObserveWidgetPreparations = observeWidgetPreparations;
+  validationEntry.lfObserveWidgetPreparations = observePreparations;
   validationEntry.lfNativeLayers = nativeLayers;
 }
 

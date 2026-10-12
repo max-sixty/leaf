@@ -4,12 +4,10 @@ import sys
 from pathlib import Path
 
 from leaf.event_log import read_events
-from leaf.files import list_revisions
 from leaf.layer import payload_provenance, provenance_label, same_leaf
 from leaf.leases import page_locked
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import layer_metadata
-from leaf.revision_artifact import read_revision
 
 from .source import check_source
 

@@ -5,7 +5,7 @@ import test from "node:test";
 import { initialRender, initialOrigin } from "/runtime/initial-render.js";
 import { unmarkedCopy } from "/runtime/initial-render.js";
 import { tabStore } from "/runtime/storage.js";
-import { bindVocabulary, normalizeDeclarations } from "/runtime/widget-contexts.js";
+import { bindVocabulary } from "/runtime/widget-contexts.js";
 import { addressableLabel } from "/runtime/anchor-resolution.js";
 import { adoptRegistry, registry, stateSpecs } from "/runtime/registry.js";
 import {
@@ -191,7 +191,7 @@ test("each publication selects its own widgets while native and widget selectors
     [101, "choose"],
     [102, "pick"],
   ]) {
-    const declarations = normalizeDeclarations({
+    const declarations = {
       $layer: { generation: `publication-${revision}` },
       "lf-publication-parent": {},
       "lf-publication-owner": { "x-state": { [verb]: { record: {} } } },
@@ -205,7 +205,7 @@ test("each publication selects its own widgets while native and widget selectors
         "x-example": "<table></table>",
         "x-space": "wide",
       },
-    });
+    };
     const root = document.createElement("main");
     root.innerHTML =
       '<lf-publication-parent id="parent"><table id="native"><tbody><tr><td><lf-publication-owner id="owner" checked>Decision</lf-publication-owner></td></tr></tbody></table></lf-publication-parent>';
@@ -230,7 +230,7 @@ test("each publication selects its own widgets while native and widget selectors
     [roots[0], "choose"],
   ])
     assert.deepEqual(
-      stateSpecs(root).map(({ tag, verb, spec }) => [tag, verb, spec.writer]),
-      [["lf-publication-owner", verb, "user"]],
+      stateSpecs(root).map(({ tag, verb, spec }) => [tag, verb, spec.record]),
+      [["lf-publication-owner", verb, {}]],
     );
 });

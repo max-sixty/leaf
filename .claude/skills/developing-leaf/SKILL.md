@@ -56,6 +56,7 @@ installation instructions and complete references.
 | [Impeccable](https://github.com/pbakaus/impeccable#installation) | `/impeccable critique` for hierarchy, grouping and clarity; `audit` for technical UI quality. Its focused workflows include `layout`, `typeset`, `clarify`, `adapt`, `harden` and `distill`. |
 | [Web Design Guidelines](https://github.com/vercel-labs/agent-skills/tree/main/skills/web-design-guidelines) | `/web-design-guidelines` for interface conventions, accessibility, navigation, forms and motion. |
 | [Frontend Design](https://github.com/anthropics/skills/tree/main/skills/frontend-design) | `/frontend-design` for new compositions or an intentional redesign. |
+| [Emil Kowalski's skills](https://github.com/emilkowalski/skills) | `review-animations` for motion: easing, duration, what moves on a keyboard action, and which properties animate. It refuses model invocation, so read its `SKILL.md` and `STANDARDS.md`. `/break-ui` for realistic worst-case content through a page's own data, such as long names, one item or none; it builds a demo-data toggle into the UI it tests, which stays out of a shipped page. |
 
 ## Leave taste to the authoring agent
 
@@ -403,9 +404,10 @@ contexts another retained case already covers. The leading comment records the
 case's origin and whether it distinguished the instructions.
 
 The prompt never states the behavior under test. A prompt pointing at a file beyond
-the references names that file from the skill's base directory. Grade a fixed form
-with a `regex` assertion, and a judgment with an `llm-rubric` assertion whose `value`
-states the passing reading without requiring particular wording.
+the references names that file from the skill's base directory. Grade what the agent
+wrote with an `llm-rubric` assertion whose `value` states the passing reading without
+requiring particular wording, and keep `regex` for a literal such as a command name or
+a URL (`evals/README.md`, "Case format").
 
 Run cold, a case that states the situation plainly usually passes on both arms: the
 failing session had its own earlier turns or a competing instruction pulling the

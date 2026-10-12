@@ -39,7 +39,7 @@ representative desktop viewport.
   answer another, the owner sets a token describing the box and the reader keys on it
   with a style query: `--lf-full-height` (this box's children have a definite height
   to fill; it does not inherit), `--lf-wide-page` (the page spans the window),
-  `--lf-resident` (what sits in the column's margin), and `--lf-density` (the working
+  `--lf-resident` (what sits in the column's margin, or beside a sidebar page's body), and `--lf-density` (the working
   setting, for what a width alone cannot decide). A width needs no token, since a size
   query on the reader's own container answers it. Before adding a token, ask whether a
   hand-written page giving the same box would want the same answer; if not, the token
@@ -331,10 +331,10 @@ and every `.lf-ui` control unless they name a widget or the layer's vocabulary
 (`runtime/page-sheets.js`). The chrome's root and native `.lf-ui-face` defaults
 state the face they would otherwise inherit from the page; imported components
 receive theme variables, preserving their own state presentation.
-`runtime/chrome.css` and `runtime/marks.css` stay unlayered, apart from
-`chrome.css`'s form-control reset in `lf-reset`, below every layer that chooses a face.
-Their paint lies over the page, so they are adopted after page and package sheets and win by their
-selectors. `runtime/marks.css` is adopted by the document and shadow stages. A `:has()` whose rightmost compound carries no class, id, attribute, or
+`runtime/stylesheets.js` owns chrome and mark precedence, including the overridable
+indication default in `runtime/marks.css`. Chrome and apparatus marks are adopted
+after page and package sheets. `runtime/marks.css` is adopted by the document and
+shadow stages. A `:has()` whose rightmost compound carries no class, id, attribute, or
 type restyles every element on ordinary runtime writes
 (`test_no_has_rule_restyles_the_whole_document`); key a repeated type by a class
 its owner writes. A `:has()` on the chrome root, `body` or `html` is read again on
@@ -414,12 +414,14 @@ keeps its own test says why beside it. Rows marked *lint* are enforced in
 | Whether a place is already shown, and the room a landing needs | `landing-scroll.js` `alreadyShown`, `landingRoom` |
 | Bring something into view without scrolling the page around it | `landing-scroll.js` `scrollIntoView` (*lint*) |
 | Open or close a native modal or popover | `keyboard/layer-stack.js` `showNativeLayer`, `closeNativeLayer` (*lint*) |
-| Which native layers are open, and whether a modal admits a node | `keyboard/layer-stack.js` `nativeLayers`, `nativeModalAdmits` |
+| Whether a node is an open native layer, of which kind, or stands in one as rendered | `shadow-tree.js` `nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding` (*lint*) |
+| Which native layers are open, in opening order, and whether a modal admits a node | `keyboard/layer-stack.js` `nativeLayers`, `nativeModalAdmits` |
 | The element a URL fragment names | `anchor-resolution.js` `fragmentTarget` |
 | The language a file path means | `syntax.js` `langForPath`, from the registry's `$languages` |
 | Paint on the next frame, or watch a size | `rendering.js` `nextRender`, `nextFrame`, `sizeObserver` (*lint*) |
 | Write a DOM value only when it changed | `keeps.js` `keeps` |
 | Threads, workflow, attention, asks, settlement | the server's folds, under "One writer for each fact" |
+| Which asks a region of the page holds | `questions/place.js` `asksIn` |
 
 ### Facts both runtimes know
 
@@ -481,9 +483,10 @@ contains its source, prompt, typed answer, status and next actor. The browser
 selects each widget answer from the same local-inclusive state its controls draw,
 without folding its `x-awaits.answered` completion rule again. A required-version
 approval is another ask source: its local approval or undo updates its contained
-answer and status immediately, with refusal restoring the admitted reading. Thread attention
-(`needs_user` or `waiting`) changes locally for unresolved sends; a refusal restores
-the admitted reading. Asks derive their queue rows directly, while to-dos hold
+answer and status immediately, with refusal restoring the admitted reading. While a
+reply, rewrite, settlement or settling reaction is unresolved, its thread's attention and the asks
+in it the user owes are what the server read that gesture leaving them (each served
+thread's `after`); a refusal restores the admitted reading. Asks derive their queue rows directly, while to-dos hold
 explicit committed work. Every state read has
 one `through_seq`, and version comparison asks `/api/view` at the sequence
 already applied. A page widget's projection stops at the current revision; a
@@ -523,8 +526,8 @@ visible change").
 
 ## Working on the runtime
 
-`../references/module-authoring.md`, "Template rendering", owns container ownership
-and how placements keep the user's place. Paints whose contract requires the current
+`../references/module-authoring.md`, "Template rendering" and "Retained nodes", own
+container ownership and how placements keep the user's place. Paints whose contract requires the current
 turn use `render`; `LitElement` schedules updates on a microtask and belongs only to
 runtime faces that permit that delay.
 

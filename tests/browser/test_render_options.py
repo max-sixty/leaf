@@ -561,6 +561,17 @@ def test_ask_addresses_are_screen_only_apparatus(browser, serve):
     expect(badges.first).to_be_hidden()
 
 
+# Whether a cell draws the joined group's hairline: a visible 1px ring around it, painted
+# in order over the cell before it. Read with its colour, since a transparent shadow draws
+# no line at all, and with its position, since an unpositioned cell paints under the
+# neighbour it should draw over.
+CASTS_HAIRLINE = r"""el => {
+  const s = getComputedStyle(el);
+  const cast = /(rgba?\([^)]*\)) 0px 0px 0px 1px/.exec(s.boxShadow);
+  return Boolean(cast) && !/rgba\([^)]*,\s*0\)/.test(cast[1]) && s.position !== 'static';
+}"""
+
+
 def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     """The offer is the group's, made once, rather than a word written on every member.
 
@@ -588,19 +599,15 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     assert page.locator("#opt-shim").evaluate(edge) == 0, (
         "an option still draws its own border, so the group reads as cards standing apart"
     )
-    # The hairline belongs to the upper neighbour, so a child that floats inside the
-    # group on a margin of its own — the thread question's Done press — is never
-    # handed a recolored top edge.
-    below = """el => { const s = getComputedStyle(el);
-                       return s.borderBottomStyle === 'none' ? 0 : parseFloat(s.borderBottomWidth); }"""
-    assert page.locator("#opt-shim").evaluate(below) == 1, (
+    # Each cell casts the hairline onto the cell before it, so the line takes no room
+    # and the group's clip takes what the first cell casts past the frame.
+    assert page.locator("#opt-stage").evaluate(CASTS_HAIRLINE), (
         "the cells share no hairline, so the set reads as one box rather than as cells"
     )
     # The group's last child is the cell the module appends for the user's own
-    # option, so the last authored option still draws its line — against that cell,
-    # not the group's border.
-    assert page.locator("#approach > :last-child").evaluate(below) == 0, (
-        "the group's last child draws a line against the group's own border"
+    # option, and its line stands above it, against the last authored option.
+    assert page.locator("#approach > :last-child").evaluate(CASTS_HAIRLINE), (
+        "the user's own option is not divided from the authored ones"
     )
 
     option = page.locator("#opt-shim")
@@ -958,6 +965,7 @@ def test_a_choose_group_on_a_wide_page_draws_its_cells_to_its_own_frame(browser,
     page = open_page(browser, serve(WIDE_ASK_PAGE), context=context)
     readings = page.evaluate(
         """() => ['cell-cards', 'cell-rows', 'page-cards'].map((id) => {
+          const casts = CASTS_PLACEHOLDER;
           const group = document.getElementById(id);
           const box = group.getBoundingClientRect();
           const inner = box.right - parseFloat(getComputedStyle(group).borderRightWidth);
@@ -973,12 +981,12 @@ def test_a_choose_group_on_a_wide_page_draws_its_cells_to_its_own_frame(browser,
               return {
                 what: cell.id || cell.className || cell.tagName.toLowerCase(),
                 short: inner - cell.getBoundingClientRect().right,
-                divider: parseFloat(getComputedStyle(cell).borderBottomWidth),
+                divider: casts(cell),
                 mark: mark ? inner - mark.getBoundingClientRect().right : null,
               };
             }),
           };
-        })"""
+        })""".replace("CASTS_PLACEHOLDER", CASTS_HAIRLINE)
     )
     for group in readings:
         # The premise: the frame the group stands in is wider than the measure, which
@@ -988,7 +996,7 @@ def test_a_choose_group_on_a_wide_page_draws_its_cells_to_its_own_frame(browser,
         assert len(options) == 2 and len(group["cells"]) > 2, group
         short = [cell for cell in group["cells"] if abs(cell["short"]) > 0.5]
         assert not short, f"#{group['id']}'s cells stop short of its frame: {short}"
-        assert all(cell["divider"] > 0 for cell in group["cells"][:-1]), group
+        assert all(cell["divider"] for cell in group["cells"][1:]), group
         # A card hangs its mark at the frame's end; a row hangs its at the leading edge
         # (test_every_row_hangs_its_mark_at_the_same_column), so only its hairline
         # has the frame's end to reach.
@@ -1258,15 +1266,19 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
     question answered reads its answer back as part of what was asked."""
     page = open_page(browser, serve(ASK_PAGE))
 
-    # One row per option in both forms: a single column with no template stated, so
-    # the joined control below is a list whatever the options hold. The display is
-    # asserted with the track count because "none".split(" ") is also one entry — a
-    # group that lost `display: grid` entirely (and the hairline gaps with it) would
-    # answer 1 as convincingly as the single-column control does.
-    tracks = """el => { const s = getComputedStyle(el);
-                        return [s.display, s.gridTemplateColumns.split(' ').length]; }"""
-    assert page.locator("#jobs").evaluate(tracks) == ["grid", 1]
-    assert page.locator("#bracket").evaluate(tracks) == ["grid", 1]
+    # One row per option in both forms where nothing lays the group across, so the
+    # joined control below is a list whatever the options hold: every cell spans the
+    # frame.
+    one_per_row = """el => {
+      const s = getComputedStyle(el);
+      const inner = el.getBoundingClientRect().width
+        - parseFloat(s.borderLeftWidth) - parseFloat(s.borderRightWidth);
+      const cells = [...el.children].filter((c) => c.checkVisibility());
+      return cells.length > 2
+        && cells.every((c) => Math.abs(c.getBoundingClientRect().width - inner) < 0.5);
+    }"""
+    assert page.locator("#jobs").evaluate(one_per_row)
+    assert page.locator("#bracket").evaluate(one_per_row)
 
     # Under `choose` the group is one control in every form, and the list was the form
     # that went without: rows draw no border, no fill and no rule between them, so at
@@ -1274,27 +1286,19 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
     # arrives after the user has already had to guess where to aim. The group's edge
     # and the cells' hairlines are what a user sees before committing the pointer, and
     # they are the same two rules a card group has always had.
-    #
-    # The hairline is read as the border it is drawn as. It was read off the cell's
-    # box-shadow, which is where a row's status stripe rode and not where any line
-    # between two rows has ever been: the assertion passed on a transparent stripe and
-    # would have passed on a group with no line between its rows at all.
     edge = """el => { const s = getComputedStyle(el);
                       return s.borderTopStyle === 'none' ? 0 : parseFloat(s.borderTopWidth); }"""
-    hairline = """el => { const s = getComputedStyle(el);
-                          return s.borderBottomStyle === 'none'
-                                   ? 0 : parseFloat(s.borderBottomWidth); }"""
     assert page.locator("#jobs").evaluate(edge) > 0, (
         "a list offering a pick draws no edge, so nothing says the rows are answerable"
     )
-    assert page.locator("#job-mounts").evaluate(hairline) > 0, (
+    assert page.locator("#job-heater").evaluate(CASTS_HAIRLINE), (
         "a row draws no box of its own, so its bounds show only under the pointer"
     )
     # And the shape is the offer, so a list that asks nothing wears none of it.
     assert page.locator("#ordered").evaluate(edge) == 0, (
         "a list with no pick to take was drawn as a control anyway"
     )
-    assert page.locator("#ord-mounts").evaluate(hairline) == 0, (
+    assert not page.locator("#ord-mounts").evaluate(CASTS_HAIRLINE), (
         "a row nobody can press draws cell edges anyway"
     )
 

@@ -189,6 +189,7 @@ variants:
   # so the answer is genuinely one set. Both arms passed 3/3 at e1c3d2b3d. A
   # blunter rule (one Question per item, never a multi-select across items)
   # passed 0/4, posing six separate Asks; the dependence wording passed 4/4.
+  # Reworded by #2506 (one ask); at 3fe3eb0af it passed 1/1 on Claude Code.
   dispatch-two-of-six:
     metadata:
       purpose: 'Asks: a choice constrained across items stays one ask whose answer is the set.'

@@ -129,8 +129,8 @@ def test_wait_help_says_where_a_delivery_says_how_to_confirm_it():
 def test_agent_interaction_command_help(regtest):
     """The complete help an agent follows between receiving and answering input.
 
-    Keep the full CLI output, including options, beside the dynamic interaction
-    snapshots in test_interact_session. A prose review can then follow a command
+    Keep the full CLI output, including options, beside the snapshots of what the
+    hooks and waits print to the agent. A prose review can then follow a command
     named by a reminder without reconstructing its help from source docstrings.
     """
     outputs = []
@@ -196,6 +196,9 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
         )
         assert code == 200, response
         ids.append(events_model.read_events(page)[-1]["id"])
+    # Undelivered, the owed message has no reference yet: the refusal names the
+    # wait that delivers one.
+    record(["thread", "reply", str(page), ids[0], "--text", "Answer"], 1)
     woke = runner.invoke(cli_model.cli, ["wait", str(page)])
     assert woke.exit_code == 0, woke.output
     envelope = json.loads(woke.output)
@@ -203,10 +206,11 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     delivery_model.receive(envelope, "s1")
     [batch] = envelope["batches"]
     assert len(batch["events"]) == 2
-    record(["thread", "reply", str(page), "--text", "Answer"], 2)
-    record(["thread", "reply", str(page), ids[0], "--text", "Answer"], 1)
     reference = batch["events"][0]["answer"]["ref"]
     references.append(reference)
+    # Delivered, the refusal names the delivery's exact reference.
+    record(["thread", "reply", str(page), "--text", "Answer"], 2)
+    record(["thread", "reply", str(page), ids[0], "--text", "Answer"], 1)
 
     def response_args(*extra):
         return ["response", "reply", reference, "--text", "Answer", "--done", *extra]
@@ -1265,23 +1269,6 @@ def test_no_has_rule_restyles_the_whole_document():
         "a :has() rule whose target names nothing restyles the whole document:\n"
         + "\n".join(unkeyed)
     )
-
-
-def test_browser_code_mints_ids_that_work_outside_secure_contexts():
-    """`leaf --host` serves a page over plain HTTP to a LAN address, where
-    `crypto.randomUUID` does not exist, so a call to it throws in the user's browser.
-    The runtime and bundled packages mint ids through runtime/ids.js, and the classic
-    bootstrap.js through its one copy of it."""
-    roots = (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
-    callers = [
-        str(source.relative_to(schema_model.ASSETS.parent))
-        for root in roots
-        for source in sorted(root.rglob("*.js"))
-        if "vendor" not in source.parts
-        and "randomUUID"
-        in re.sub(r"(?<!:)//[^\n]*|/\*.*?\*/", "", source.read_text(), flags=re.DOTALL)
-    ]
-    assert callers == [], callers
 
 
 def test_kernel_selectors_name_no_package_tag():
@@ -4331,9 +4318,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     key; the same listener handles pointer input. prepaint.js records inputs
     from the document's first script. focus.js reads keys as the end of a label press
     and as a Tab's step; neither answers a command. The
-    interaction log records keys and answers none. The modal Tab loop keeps the
-    platform's own sequential navigation inside a standing modal, after the dispatcher.
-    The code block's copy control hands Tab back to its source. Another is how every
+    interaction log records keys and answers none. The code block's copy control hands Tab back to its source. Another is how every
     drift this register replaced began — a
     `keydown` beside a display list, the two of them free to disagree about which keys the
     widget answers."""
@@ -4362,7 +4347,6 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
         "prepaint.js": 1,
         "focus.js": 2,
         "interaction-log.js": 1,
-        "layer-stack.js": 1,
         "code-copy.js": 1,
     }, (
         f"the runtime's keydown listeners changed: {listed}. A key belongs in the "

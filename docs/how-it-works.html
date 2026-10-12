@@ -1301,8 +1301,10 @@ flowchart LR
               <li id="updates-written-question">
                 <strong><code>leaf response reply … --ask</code></strong> A prose ask
                 for the user, which stays open until they reply or settle it with a
-                reaction. The thread reads <em>On you to answer</em>, and the ask joins
-                the user's Questions, in the Questions panel.
+                reaction, or the agent ends it with <code>leaf task end</code>: as
+                answered elsewhere when the user answered in chat, or as withdrawn. The
+                thread reads <em>On you to answer</em>, and the ask joins the user's
+                Questions, in the Questions panel.
               </li>
               <li id="updates-written-on-you">
                 <strong><code>leaf task open … --on user</code></strong> Something the
@@ -2994,7 +2996,7 @@ flowchart TD
                   <td>Move through threads</td>
                   <td>
                     <kbd>t</kbd> advances; <kbd>Shift</kbd> + <kbd>t</kbd> goes back.
-                    The walk stops at either end.
+                    Past either end, the walk comes round to the other.
                   </td>
                 </tr>
                 <tr>
@@ -3245,7 +3247,8 @@ flowchart TD
                   <tr>
                     <td>At the first or last thread</td>
                     <td>
-                      The walk stays at that end rather than wrapping to the other end.
+                      The next step comes round to the other end, and the walk's count
+                      flashes to mark it.
                     </td>
                   </tr>
                   <tr>

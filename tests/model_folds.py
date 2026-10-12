@@ -30,7 +30,7 @@ reading it returns is caused by the markup and the log the test wrote and by
 nothing else on the machine.
 """
 
-from interact_support import ModelPage, model_layer
+from interact_support import ModelPage, model_layer, served_thread
 from leaf.event_contracts import admitted_event
 from leaf.files import document_descriptor, version_descriptors
 from leaf.passages import SourceReading
@@ -197,7 +197,7 @@ def reading(
 
 def threads(state: dict) -> dict:
     """Threads by id, as the panel is handed them."""
-    return {thread["id"]: thread for thread in state["thread"]["threads"]}
+    return {thread["id"]: thread for thread in served_thread(state)["threads"]}
 
 
 def projected(state: dict, revision: int) -> dict:

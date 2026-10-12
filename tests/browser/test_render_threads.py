@@ -20,6 +20,7 @@ from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import leases as leases_model
+from leaf import media as media_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import thread as thread_model
@@ -2504,15 +2505,22 @@ def test_a_poll_accounted_settlement_repaints_before_its_post_response(
 
 def test_a_sent_page_comment_closes_and_a_refusal_restores_its_draft(browser, serve):
     """Long comments and attachments leave no empty card after Send. Refusal restores
-    the editor and its media while the send still owns the user's intent."""
+    the editor and its media while the send still owns the user's intent. The card
+    hangs from the banner, so an attachment joins below the words, leaving them put."""
     page = open_page(browser, serve(LONG_PAGE))
     card = page.locator(".lf-page-comment-card")
     box = page_comment(page)
     send = card.locator(".lf-compose-submit")
     draft = "\n".join(f"Page comment line {n}" for n in range(14))
     write(box, draft)
+    field = card.locator(".lf-compose-field")
+    written = field.bounding_box()
     paste_image(box, (example_media() / "051bee487bfb5d13.png").read_bytes())
     expect(card.locator(".lf-composer-media img")).to_be_visible()
+    shelf = card.locator(".lf-composer-media").bounding_box()
+    attached = field.bounding_box()
+    assert attached["y"] == written["y"], "the attachment moved the words"
+    assert shelf["y"] >= attached["y"] + attached["height"], "the shelf is not below"
     held = []
 
     def hold(route):
@@ -2886,13 +2894,21 @@ def test_original_image_link_has_a_standalone_target(browser, serve):
     expect(page.locator("#image")).to_be_focused()
 
 
+# A diagram that states no size of its own, only a shape, as Mermaid writes one.
+DIAGRAM_SVG = (
+    b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">'
+    b'<rect width="400" height="200" fill="#cde"/></svg>'
+)
+DIAGRAM = media_model.media_name(DIAGRAM_SVG, ".svg")
+
+
 @pytest.mark.parametrize("offline", [False, True])
 def test_linked_images_zoom_and_return_to_the_report(browser, serve, tmp_path, offline):
     """An authored image link inspects in place, including in the offline artifact."""
     url = serve(
         leaf_page(
             "Screenshot report",
-            """
+            f"""
       <h1>Screenshot report</h1>
       <figure id="screenshot"><a href="/media/051bee487bfb5d13.png">
         <img src="/media/051bee487bfb5d13.png" width="1800" height="746"
@@ -2900,25 +2916,69 @@ def test_linked_images_zoom_and_return_to_the_report(browser, serve, tmp_path, o
         <figcaption>Release output after the fix.</figcaption></figure>
       <p><a id="other" href="#context"><img src="/media/051bee487bfb5d13.png"
         alt="Go to the context"></a></p>
+      <figure id="diagram"><a href="/media/{DIAGRAM}">
+        <img src="/media/{DIAGRAM}" alt="Release flow"></a></figure>
       <section id="context"><h2>Context</h2><p>The release passed.</p></section>
     """,
-        )
+        ),
+        media={f"media/{DIAGRAM}": DIAGRAM_SVG},
     )
     if offline:
         out = tmp_path / "image-report.html"
         exporting_model.cmd_export(serve.page_dir, out, None)
         url = out.as_uri()
     page = open_page(browser, url)
+    viewer = page.get_by_role("dialog", name="Image preview")
+    if not offline:
+        # Until PhotoSwipe arrives the viewer shows no image, so the image's first
+        # box is PhotoSwipe's, here where the viewport's height binds the fit.
+        held = []
+        page.route("**/photoswipe.esm.js", lambda route: held.append(route))
+        resized(page, 1440, 500)
+        page.locator("#screenshot a").click()
+        holding(page, held, 1, "the image tools")
+        expect(viewer.locator("img:visible")).to_have_count(0)
+        held.pop().continue_()
+        fitted = viewer.locator("img.pswp__img")
+        expect(fitted).to_be_visible()
+        stage = viewer.locator(".lf-media-viewer-stage").bounding_box()
+        box = fitted.bounding_box()
+        assert box["y"] >= stage["y"] + 16
+        assert box["y"] + box["height"] <= stage["y"] + stage["height"] - 16 + 1
+        page.unroute("**/photoswipe.esm.js")
+        page.keyboard.press("Escape")
+        expect(viewer).to_be_hidden()
+    # The diagram fills the room it fits in, not the browser's 300x150 stand-in, even
+    # a room narrower than that stand-in, and zooms past that fit for a closer look.
+    fills = """() => {
+      const stage = document.querySelector('.lf-media-viewer-stage');
+      const inset = getComputedStyle(stage);
+      const room = [
+        stage.clientWidth - parseFloat(inset.paddingLeft) - parseFloat(inset.paddingRight),
+        stage.clientHeight - parseFloat(inset.paddingTop) - parseFloat(inset.paddingBottom),
+      ];
+      const box = document.querySelector('.lf-media-viewer .pswp__img')
+        .getBoundingClientRect();
+      return [box.width, box.height].some((side, i) => Math.abs(side - room[i]) < 1);
+    }"""
+    resized(page, 320, 500)
+    page.locator("#diagram a").click()
+    expect(viewer.locator("img.pswp__img")).to_be_visible()
+    assert page.evaluate(fills)
+    expect(
+        viewer.get_by_role("button", name="Zoom to actual size", exact=True)
+    ).to_be_enabled()
+    page.keyboard.press("Escape")
+    expect(viewer).to_be_hidden()
     for width in (1440, 390):
         resized(page, width, 900)
         image_link = page.locator("#screenshot a")
         image_link.scroll_into_view_if_needed()
-        before = page.evaluate("({url:location.href,scroll:scrollY})")
         # Enter follows the authored link's same inspection route as a tap.
         page.keyboard.press("Tab")
         image_link.focus()
+        before = page.evaluate("({url:location.href,scroll:scrollY})")
         image_link.press("Enter")
-        viewer = page.get_by_role("dialog", name="Image preview")
         expect(viewer).to_be_visible()
         zoom = viewer.get_by_role("button", name="Zoom to actual size", exact=True)
         expect(zoom).to_be_enabled()
@@ -3991,9 +4051,14 @@ def test_a_reaction_list_opens_from_a_trigger_under_the_thread_panel(browser, se
     resized(page, 1280, 800)
     thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
     expect(thread).to_be_visible()
+    message = thread.locator(".lf-msg.agent")
+    # A resize preserves the page's reading place, which can leave this reply above
+    # the viewport; put its trigger where the panel will cover it.
+    message.locator(".lf-react-trigger").evaluate(
+        "trigger => scrollBy({top: trigger.getBoundingClientRect().top - 400, behavior: 'instant'})"
+    )
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    message = thread.locator(".lf-msg.agent")
     covered = message.locator(".lf-react-trigger").evaluate(
         """trigger => {
           const box = trigger.getBoundingClientRect();
@@ -4113,7 +4178,7 @@ def test_walking_to_a_thread_shows_the_replies_it_held(
     user walks away and back to that thread with t/T. The walk away closes the card and
     the walk back opens it, and an opening moves every card after it anyway, so the card
     opens with what it held, landed where the newest reply shows. Pressing onto the
-    thread the user already stands in, at the end of the list, moves them nowhere, so
+    thread the user already stands in, the only one the walk has, moves them nowhere, so
     its news stays held; leaving the thread with Shift+Tab and walking back onto its
     card, which stood open throughout ("return"), arrives there, and shows it, as a
     press on its title from there does ("pressed"). One reply fits with the root;
@@ -4124,9 +4189,11 @@ def test_walking_to_a_thread_shows_the_replies_it_held(
     the later publication keeps the choice it sent."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Keep the discussion here.")
-    other = panel_comment(serve.page_dir, "A thread to walk to. " * 30)
-    for n in range(12):
-        panel_comment(serve.page_dir, f"A later thread {n}. " * 8)
+    other = None
+    if walk != "onto":
+        other = panel_comment(serve.page_dir, "A thread to walk to. " * 30)
+        for n in range(12):
+            panel_comment(serve.page_dir, f"A later thread {n}. " * 8)
     context = browser.new_context(
         viewport={"width": 800, "height": 900}, reduced_motion="reduce"
     )
@@ -4136,7 +4203,7 @@ def test_walking_to_a_thread_shows_the_replies_it_held(
     order = page.locator(".lf-threads > .lf-thread").evaluate_all(
         "cards => cards.map(card => card.dataset.id)"
     )
-    assert order[:2] == [root, other]
+    assert order[:2] == ([root, other] if other else [root])
     thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
     summary = thread.locator(".lf-thread-summary")
     if thread.get_attribute("open") is None:
@@ -9510,8 +9577,8 @@ def test_sending_flashes_only_the_new_message(browser, serve, surface):
 @pytest.mark.parametrize(
     ("surface", "how"),
     # Every surface once, the two routes alternating where both reach Send. The
-    # anchored composer's Tab walks its field and response options (`response.tab`),
-    # so its Send takes no keyboard press; Enter is that route. `pause` stands one
+    # anchored composer's Tab from its field opens its response options
+    # (`comment.options`), so its Send takes no keyboard press; Enter is that route. `pause` stands one
     # Tab past Send, which the keyboard route proves.
     [
         ("card", "pointer"),
@@ -9949,6 +10016,46 @@ def test_a_reply_box_whose_thread_leaves_the_diff_takes_the_user_to_its_card(
     expect(reply).to_have_js_property("value", "Half a thought")
     page.keyboard.press("ControlOrMeta+z")
     expect(reply).to_have_js_property("value", "")
+
+
+def test_a_reply_box_whose_thread_returns_to_the_diff_takes_the_user_back(
+    browser, serve
+):
+    """The patch a thread was written on comes back while the user types in its
+    margin card, and the thread takes its seat on the diff line again. The card
+    closing under the user landed them on the banner, so the next letters ran page
+    commands. They go on in the same editor on the diff line, at the same caret, with
+    its undo history."""
+    url, root = seated_thread(serve, "diff", 2)
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    inline = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    box = inline.locator(":scope > .lf-thread-reply leaf-text")
+    box.scroll_into_view_if_needed()
+    write(box, "Half a thought")
+    data_model.cmd_data_set(
+        serve.page_dir, "review-patch", SEAT_DIFF + "@@ -9 +9 @@\n-old = 1\n+new = 1\n"
+    )
+    told(page)
+    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+    reply = card.locator(":scope > .lf-thread-reply leaf-text")
+    expect(reply).to_be_focused()
+    page.keyboard.type(" more")
+    reply.evaluate("box => box.setSelectionRange(4, 4)")
+    data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
+    told(page)
+    expect(card).to_be_hidden()
+    expect(box).to_be_focused()
+    expect(box).to_have_js_property("value", "Half a thought more")
+    assert box.evaluate("box => [box.selectionStart, box.selectionEnd]") == [4, 4]
+    page.keyboard.type(" tr")
+    expect(box).to_have_js_property("value", "Half tr a thought more")
+    expect(box).to_be_focused()
+    # The same editor came back, so undo walks back through the card's typing too.
+    page.keyboard.press("ControlOrMeta+z")
+    expect(box).to_have_js_property("value", "Half a thought more")
+    page.keyboard.press("ControlOrMeta+z")
+    expect(box).to_have_js_property("value", "Half a thought")
 
 
 @pytest.mark.parametrize(

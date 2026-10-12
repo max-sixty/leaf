@@ -1,7 +1,6 @@
 """HTTP event and service-address tests."""
 
 import errno
-import fcntl
 import html
 import http.client
 import http.cookiejar
@@ -42,6 +41,7 @@ from interact_support import (
     declare_work,
     fetch,
     live_versions,
+    lock_contention,
     neighbour_page,
     page_state,
     publish,
@@ -5274,20 +5274,7 @@ def test_stamp_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_d
     )
     entered = threading.Event()
     release = threading.Event()
-    requested = threading.Event()
     original = publishing_model.check_source
-    native_flock = fcntl.flock
-
-    def observed_flock(fd, operation):
-        if (
-            threading.current_thread() is writer
-            and operation == fcntl.LOCK_EX
-            and not requested.is_set()
-        ):
-            with pytest.raises(BlockingIOError):
-                native_flock(fd, operation | fcntl.LOCK_NB)
-            requested.set()
-        return native_flock(fd, operation)
 
     def paused_check(*args, **kwargs):
         entered.set()
@@ -5316,8 +5303,12 @@ def test_stamp_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_d
     assert entered.wait(STATED_TIMEOUT), (
         "the publisher never reached its held source check"
     )
-    writer = threading.Thread(target=lambda: append_command(page_dir, action))
-    monkeypatch.setattr(fcntl, "flock", observed_flock)
+    writer = threading.Thread(
+        target=lambda: append_command(page_dir, action), name="browser-writer"
+    )
+    requested = lock_contention(
+        monkeypatch, page_dir / "events.jsonl", by="browser-writer"
+    )
     try:
         writer.start()
         assert requested.wait(STATED_TIMEOUT), (

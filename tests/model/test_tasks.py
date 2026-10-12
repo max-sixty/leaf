@@ -2,25 +2,41 @@
 hand, and the two queues say what is on the user and what is on the agent."""
 
 import json
+import re
+from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
 from interact_support import (
     FLOW_PAGE,
     PAGE,
+    _start,
+    _status,
     append_carried_log_record,
     append_command,
     asks_on_user,
+    delivered,
+    page_packages,
+    page_state,
     publish,
+    record_claim,
     response_reference,
+    served_thread,
+    serving,
     stamp,
     state_json,
 )
 from leaf import cli as cli_model
+from leaf import delivery as delivery_model
 from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
+from leaf import files as files_model
+from leaf import schema as schema_model
+from leaf import service as service_model
+from leaf import session as session_model
 from leaf import tasks as tasks_model
 from leaf.served_state.page import full_state
+from leaf_dev.page_fixtures import package_selection_args
 
 
 def leaf(*args):
@@ -389,7 +405,7 @@ def test_user_queue_selects_widget_and_prose_questions(page_dir, sessionless):
     served = full_state(page_dir, events_model.read_events(page_dir))
     named_question = next(
         message
-        for thread in served["browser"]["thread"]["threads"]
+        for thread in served_thread(served["browser"])["threads"]
         for message in thread["msgs"]
         if message["id"] == question["id"]
     )
@@ -413,7 +429,7 @@ def test_user_queue_selects_widget_and_prose_questions(page_dir, sessionless):
     served = full_state(page_dir, events_model.read_events(page_dir))
     [answered] = [
         entry
-        for entry in served["browser"]["thread"]["asks"]["all"]
+        for entry in served_thread(served["browser"])["asks"]["all"]
         if entry["source"]["id"] == question["id"]
     ]
     assert (answered["status"], answered["answer"]["event"]["id"]) == (
@@ -452,10 +468,11 @@ def test_an_opening_question_retains_its_answer_in_the_question_inventory(
         },
     )
     served = full_state(page_dir, events_model.read_events(page_dir))
-    [thread] = served["browser"]["thread"]["threads"]
+    [thread] = served_thread(served["browser"])["threads"]
     assert thread["user_prompt"] == {"message": question["id"], "version": edit["id"]}
     assert [
-        entry["source"]["id"] for entry in served["browser"]["thread"]["asks"]["user"]
+        entry["source"]["id"]
+        for entry in served_thread(served["browser"])["asks"]["user"]
     ] == [question["id"]]
     answer = append_carried_log_record(
         page_dir,
@@ -468,10 +485,10 @@ def test_an_opening_question_retains_its_answer_in_the_question_inventory(
         },
     )
     served = full_state(page_dir, events_model.read_events(page_dir))
-    assert served["browser"]["thread"]["threads"][0]["user_prompt"] is None
+    assert served_thread(served["browser"])["threads"][0]["user_prompt"] is None
     assert served["browser"]["todos"] == []
     assert served["browser"]["ended_todos"] == []
-    [ended] = served["browser"]["thread"]["asks"]["all"]
+    [ended] = served_thread(served["browser"])["asks"]["all"]
     assert (ended["source"]["id"], ended["status"], ended["answer"]["event"]["id"]) == (
         question["id"],
         "answered",
@@ -484,7 +501,7 @@ def test_an_opening_question_retains_its_answer_in_the_question_inventory(
         served = full_state(page_dir, events_model.read_events(page_dir))
         assert [
             entry["source"]["id"]
-            for entry in served["browser"]["thread"]["asks"]["user"]
+            for entry in served_thread(served["browser"])["asks"]["user"]
         ] == [question["id"]]
         assert served["browser"]["ended_todos"] == []
 
@@ -540,7 +557,7 @@ def test_a_question_ends_at_the_reaction_that_settles_it(page_dir):
         == "answered"
     )
     served = full_state(page_dir, events_model.read_events(page_dir))
-    [answered] = served["browser"]["thread"]["asks"]["all"]
+    [answered] = served_thread(served["browser"])["asks"]["all"]
     assert (answered["status"], answered["answer"]["event"]["id"]) == (
         "answered",
         keep["id"],
@@ -980,48 +997,78 @@ def test_the_user_ends_only_explicit_user_work_and_not_a_question(page_dir):
     assert state_json(page_dir)["todos"][-1]["id"] == mine["id"]
 
 
-def test_widget_question_ends_through_its_source_and_prose_end_withdraws_request(
-    page_dir,
-):
-    """Widget Questions follow source state; an agent can withdraw prose without answering."""
+def test_widget_question_ends_through_its_source_and_agent_ends_a_prose_ask(page_dir):
+    """Widget Questions follow source state. The agent ends a prose ask `done` when the
+    user answered it elsewhere and `dropped` when it no longer applies; neither
+    invents the user's answer, and `failed` says nothing about an ask."""
     asking(page_dir)
     [ask] = asks_on_user(state_json(page_dir))
-    comment = append_carried_log_record(
-        page_dir,
-        {"kind": "comment", "author": "user", "revision": 1, "text": "Which colour?"},
-    )
-    question = written(
-        leaf(
-            "response",
-            "reply",
-            response_reference(page_dir, comment["id"]),
-            "--text",
-            "Warm or cool?",
-            "--ask",
+    asked = []
+    for text in ("Which colour?", "Which font?"):
+        comment = append_carried_log_record(
+            page_dir,
+            {"kind": "comment", "author": "user", "revision": 1, "text": text},
         )
-    )
+        asked.append(
+            "reply:"
+            + written(
+                leaf(
+                    "response",
+                    "reply",
+                    response_reference(page_dir, comment["id"]),
+                    "--text",
+                    "Warm or cool?",
+                    "--ask",
+                )
+            )["id"]
+        )
+    answered_elsewhere, dropped = asked
     refused = leaf("task", "end", page_dir, ask["id"], "dropped", "Decided in chat")
     assert refused.exit_code != 0
     assert "is a widget ask; its source owns the answer" in refused.output
     assert "retire it in the document" in refused.output
-    assert asks_on_user(state_json(page_dir)) == [ask]
+    refused = leaf("task", "end", page_dir, answered_elsewhere, "failed", "No reply")
+    assert refused.exit_code != 0
+    assert "a prose ask ends `done`" in refused.output
+    assert [item["id"] for item in state_json(page_dir)["queues"]["questions"]] == [
+        ask["id"],
+        *asked,
+    ]
 
-    written(
-        leaf(
-            "task", "end", page_dir, "reply:" + question["id"], "done", "Asked in chat"
-        )
-    )
+    written(leaf("task", "end", page_dir, answered_elsewhere, "done", "Warm, in chat"))
+    written(leaf("task", "end", page_dir, dropped, "dropped", "Font is fixed"))
     state = state_json(page_dir)
     assert [item["id"] for item in state["queues"]["questions"]] == [ask["id"]]
-    assert state["threads"][0]["attention"] is None
+    assert [thread["attention"] for thread in state["threads"]] == [None, None]
+    refused = leaf("task", "end", page_dir, dropped, "done", "Asked again")
+    assert refused.exit_code != 0
+    assert f"ask {dropped!r} is already withdrawn" in refused.output
+
     served = full_state(page_dir, events_model.read_events(page_dir))
     assert served["browser"]["ended_todos"] == []
-    [ended] = served["browser"]["thread"]["asks"]["all"]
-    assert (ended["id"], ended["status"], ended["answer"]) == (
-        "reply:" + question["id"],
-        "withdrawn",
-        None,
-    )
+    ended = {
+        record["id"]: (
+            record["status"],
+            record["answer"],
+            record["end"]["detail"],
+            record["end"]["event"]["author"],
+        )
+        for record in served_thread(served["browser"])["asks"]["all"]
+    }
+    assert ended == {
+        answered_elsewhere: ("answered_elsewhere", None, "Warm, in chat", "agent"),
+        dropped: ("withdrawn", None, "Font is fixed", "agent"),
+    }
+    [view] = served["browser"]["views"].values()
+    done = {
+        item["id"]: (item["state"], item["detail"], item["ended"] is not None)
+        for item in view["queues"]["done"]
+        if item["kind"] == "ask"
+    }
+    assert done == {
+        answered_elsewhere: ("done", "Warm, in chat", True),
+        dropped: ("dropped", "Font is fixed", True),
+    }
 
     append_command(
         page_dir,
@@ -1090,3 +1137,476 @@ def test_a_version_can_remove_a_target_while_its_tasks_stay_open(page_dir):
     for task in (theirs, mine):
         written(leaf("task", "end", page_dir, task["id"], "dropped", "Renamed"))
     assert state_json(page_dir)["todos"] == []
+
+
+def test_a_start_names_the_exact_move_and_covers_its_threads_answer(page_dir):
+    """`task start` takes the id a delivery names, which for a reply in a thread is
+    that reply's id, and that move reads Working. A correction the user adds keeps its
+    own receipt, and the start still covers it: the thread's one reply answers both,
+    so the Stop hook reads the newest input as started (`started_by`)."""
+    first = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "id": "first", "author": "user", "text": "Use A."},
+    )
+    append_carried_log_record(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": first["id"],
+            "responds": first["id"],
+            "text": "Which A?",
+        },
+    )
+    answer = append_carried_log_record(
+        page_dir,
+        {"kind": "reply", "author": "user", "parent": first["id"], "text": "A1."},
+    )
+    [workflow] = page_state(page_dir)["workflows"]
+    assert workflow["answer"]["to"] == answer["id"]
+
+    started = _start(page_dir, answer["id"], "Answering the comment")
+    assert started.exit_code == 0, started.output
+    record = json.loads(started.output.splitlines()[-1])
+    assert (record["kind"], record["item"]) == ("start", answer["id"])
+    [workflow] = page_state(page_dir)["workflows"]
+    assert (workflow["input"], workflow["stage"], workflow["detail"]) == (
+        answer["id"],
+        "working",
+        "Answering the comment",
+    )
+    # The thread's answered root is no move the agent owes.
+    assert _start(page_dir, first["id"], "Still on it").exit_code != 0
+
+    correction = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": first["id"],
+            "text": "Correction: use B.",
+        },
+    )
+    assert _start(page_dir, answer["id"], "Still on it").exit_code == 0
+    workflows = page_state(page_dir)["workflows"]
+    assert [(item["input"], item["stage"]) for item in workflows] == [
+        (answer["id"], "working"),
+        (correction["id"], "sent"),
+    ]
+    newest = workflows[-1]
+    assert newest["answer"]["for"] == correction["id"]
+    assert [start["seq"] for start in newest["started_by"]] == [
+        events_model.read_events(page_dir)[-1]["seq"]
+    ]
+
+
+def test_a_start_on_a_page_move_holds_that_move_and_not_a_later_one(page_dir):
+    """A start on a page widget's move holds that move; a later move on the widget,
+    which supersedes it, is not in hand until the agent starts it."""
+    version = page_dir / "index.html"
+    version.write_text(
+        PAGE.replace("<lf-options>", '<lf-options id="choice" choose>', 1)
+    )
+    publish(page_dir)
+    chosen = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "choice",
+            "action": "choose",
+            "detail": {"value": ["flag-first"]},
+        },
+    )
+
+    result = _start(page_dir, chosen["id"], "Building the flag")
+
+    assert result.exit_code == 0, result.output
+    [workflow] = page_state(page_dir)["workflows"]
+    assert (workflow["input"], workflow["subject"], workflow["stage"]) == (
+        chosen["id"],
+        {"kind": "widget", "id": "choice"},
+        "working",
+    )
+    later = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "choice",
+            "action": "choose",
+            "detail": {"value": ["backfill-first"]},
+        },
+    )
+    assert [
+        (item["input"], item["stage"])
+        for item in page_state(page_dir)["workflows"]
+        if item["input"] is not None
+    ] == [(later["id"], "sent")]
+
+
+def test_a_start_is_one_log_record_read_at_the_banner_and_the_move(
+    page_dir, capsys, monkeypatch
+):
+    """`leaf task start` writes one record, in the log rather than the status file:
+    the page's banner reads its line, and so does the receipt on the move it names,
+    under the user's own words. A pickup leaves it standing, a `waiting` declaration
+    puts it down, and the move's answer ends it."""
+    append_carried_log_record(
+        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "why?"}
+    )
+    assert "neither an open to-do of yours nor an update you owe an answer to" in (
+        _start(page_dir, "nope", "reading the traces").output
+    )
+    assert _start(page_dir, "c1", "").exit_code != 0
+
+    monkeypatch.setenv("LEAF_AGENT", "Trace reader")
+    started = _start(page_dir, "c1", "reading the traces")
+    assert started.exit_code == 0, started.output
+    record = json.loads(started.output.splitlines()[-1])
+    assert (record["item"], record["text"], record["agent"]) == (
+        "c1",
+        "reading the traces",
+        "Trace reader",
+    )
+    assert "work" not in (files_model.read_json(page_dir / "status.json") or {})
+    live = page_state(page_dir)
+    assert "claims" not in live
+    [workflow] = live["workflows"]
+    assert (workflow["stage"], workflow["detail"], workflow["agent"]) == (
+        "working",
+        "reading the traces",
+        "Trace reader",
+    )
+    assert live["activity"]["detail"] == "reading the traces"
+
+    # A waiting line answers nothing on the thread, but it puts the start down: the
+    # move is no longer in hand until the agent starts it again.
+    assert _status(page_dir, "waiting", "look at v2").exit_code == 0
+    assert [item["stage"] for item in page_state(page_dir)["workflows"]] == ["sent"]
+    assert _start(page_dir, "c1", "reading the traces").exit_code == 0
+
+    # Nor does a pickup replace the start: it is a durable transport fact about the
+    # exact user events.
+    serving(page_dir, 1)
+    append_carried_log_record(
+        page_dir,
+        {
+            "kind": "reply",
+            "id": "c2",
+            "author": "user",
+            "parent": "c1",
+            "text": "and this?",
+        },
+    )
+    state = page_state(page_dir)
+    assert [
+        (workflow["input"], workflow["stage"]) for workflow in state["workflows"]
+    ] == [("c1", "working"), ("c2", "sent")]
+    activity = state["activity"]
+    assert (activity["counts"]["total"], activity["counts"]["active"]) == (1, 0)
+    assert service_model.claim_page(page_dir)
+    assert session_model.cmd_wait(page_dir) == 0
+    delivered(capsys)
+    pickup = events_model.read_events(page_dir)[-1]
+    assert pickup["kind"] == "pickup"
+    assert pickup["events"] == ["c1", "c2"]
+    assert [
+        (workflow["input"], workflow["stage"])
+        for workflow in page_state(page_dir)["workflows"]
+    ] == [("c1", "working"), ("c2", "picked_up")]
+
+    # The reply that answers the thread ends the start with the moves it answers.
+    assert (
+        CliRunner()
+        .invoke(
+            cli_model.cli,
+            [
+                "response",
+                "reply",
+                "--done",
+                response_reference(page_dir, "c2"),
+                "--text",
+                "Because.",
+            ],
+        )
+        .exit_code
+        == 0
+    )
+    assert page_state(page_dir)["workflows"] == []
+
+
+def test_a_widget_task_outlives_its_seat_and_its_widget(page_dir):
+    """An admitted task stays open when its widget or work seat disappears."""
+    work_page = PAGE.replace(
+        "</section>",
+        '<lf-board id="rollout"><lf-column id="rollout-now" label="Now">\n'
+        '  <lf-card id="rollout-card"><strong>Ship the rollout</strong> '
+        "Check the fallback before cutover.</lf-card>\n"
+        "</lf-column></lf-board>\n</section>",
+    )
+    (page_dir / "index.html").write_text(work_page)
+    publish(page_dir)
+    opened = CliRunner().invoke(
+        cli_model.cli,
+        ["task", "open", str(page_dir), "rollout-card", "Check the rollout"],
+    )
+    assert opened.exit_code == 0, opened.output
+    task = json.loads(opened.output.splitlines()[-1])
+
+    # Replacing the prose widget with a data widget removes its x-work seat, but the
+    # page-edge margin entry remains attached to the same live subject, so the task
+    # survives this unrelated version.
+    without_seat = re.sub(
+        r'<lf-board id="rollout">.*?</lf-board>',
+        '<div id="rollout"><div id="rollout-now">'
+        '<lf-diagram id="rollout-card"><pre>graph LR\n  A --> B\n</pre></lf-diagram>'
+        "</div></div>",
+        work_page,
+        count=1,
+        flags=re.DOTALL,
+    )
+    (page_dir / "index.html").write_text(without_seat)
+    changed = stamp(page_dir, "Changed presentation")
+    assert changed.exit_code == 0, changed.output
+    assert [item["id"] for item in state_json(page_dir)["todos"]] == [task["id"]]
+
+    # Removing the subject itself would remove the margin entry. Publication refuses
+    # that silent loss until the version names the task it completes.
+    without_target = re.sub(
+        r'<lf-diagram id="rollout-card">.*?</lf-diagram>',
+        "",
+        without_seat,
+        count=1,
+        flags=re.DOTALL,
+    )
+    (page_dir / "index.html").write_text(without_target)
+    dropped = stamp(page_dir, "Removed")
+    assert dropped.exit_code == 0, dropped.output
+    assert [item["id"] for item in state_json(page_dir)["todos"]] == [task["id"]]
+    (page_dir / "index.html").write_text(
+        without_target.replace("<title>t</title>", "<title>t · completed</title>")
+    )
+    finished = stamp(page_dir, "Removed", completes=("rollout-card",))
+    assert finished.exit_code == 0, finished.output
+    assert state_json(page_dir)["todos"] == []
+
+
+def test_revendoring_can_change_x_work_while_the_target_holds_a_task(page_dir):
+    """x-work admits a task on a widget; it is not the task's only later seat.
+
+    Re-vendoring can remove that declaration while the live widget remains, because
+    the page-edge margin entry continues to present the task already admitted.
+    """
+    work_page = PAGE.replace(
+        "</section>",
+        '<lf-board id="rollout"><lf-column id="rollout-now" label="Now">\n'
+        '  <lf-card id="rollout-card"><strong>Ship the rollout</strong></lf-card>\n'
+        "</lf-column></lf-board>\n</section>",
+    )
+    (page_dir / "index.html").write_text(work_page)
+    publish(page_dir)
+    opened = CliRunner().invoke(
+        cli_model.cli,
+        ["task", "open", str(page_dir), "rollout-card", "Check the rollout"],
+    )
+    assert opened.exit_code == 0, opened.output
+    card = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())[
+        "lf-card"
+    ]
+    card.pop("x-work")
+    layer = Path.cwd() / ".leaf"
+    layer.mkdir()
+    (layer / "registry.json").write_text(json.dumps({"lf-card": card}))
+
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            *package_selection_args((*page_packages(), "./.leaf")),
+            str(page_dir),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    registry = json.loads((page_dir / "registry.json").read_text())
+    assert "x-work" not in registry["lf-card"]
+    [task] = state_json(page_dir)["todos"]
+    assert task["subject"] == {"kind": "widget", "id": "rollout-card"}
+
+
+def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_dir):
+    """A completion move can arrive from a live revision after another is active.
+
+    A version note older than the move cannot answer it. The agent can start the move
+    all the same, and the next version that records it settles the move and ends the
+    start with it.
+    """
+    work_page = PAGE.replace(
+        "<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1
+    )
+    (page_dir / "index.html").write_text(work_page)
+    publish(page_dir)
+    (page_dir / "index.html").write_text(
+        work_page.replace("<title>t</title>", "<title>t · v2</title>")
+    )
+    advanced = stamp(page_dir, "Checked the surrounding plan")
+    assert advanced.exit_code == 0, advanced.output
+
+    # The user still has r1 open after r2 became active. That move is new work,
+    # not something the earlier r2 note could already have answered.
+    answer = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "plan-choice",
+            "action": "answer",
+            "detail": {},
+        },
+    )
+    before_state = page_state(page_dir)
+    before_pickup = before_state["activity"]
+    acknowledgments = before_state["workflows"]
+    assert any(receipt["input"] == answer["id"] for receipt in acknowledgments)
+    assert before_pickup["kind"] == "away"
+    assert before_pickup["counts"]["total"] == 1
+    assert [item["answer"] for item in before_pickup["obligations"]] == [
+        {"kind": "markup", "action": answer["id"]}
+    ]
+
+    claim = record_claim(page_dir)
+    with service_model.PageTransaction(page_dir) as transaction:
+        delivery_model.record_pickup(
+            transaction,
+            [answer],
+            session=claim["id"],
+            turn=claim["turn"],
+        )
+    after_pickup = page_state(page_dir)["activity"]
+    assert after_pickup["kind"] == "working"
+    assert after_pickup["counts"]["handling"] == 1
+    assert [item["input"] for item in after_pickup["obligations"]] == [answer["id"]]
+
+    claimed = _start(page_dir, answer["id"], "checking the completed choice")
+    assert claimed.exit_code == 0, claimed.output
+    [working_receipt] = page_state(page_dir)["workflows"]
+    assert working_receipt["stage"] == "working"
+    (page_dir / "index.html").write_text(
+        work_page.replace("<title>t</title>", "<title>t · v3</title>")
+    )
+    answered = stamp(page_dir, "Answered the completed choice")
+    assert answered.exit_code == 0, answered.output
+
+    acknowledgments = page_state(page_dir)["workflows"]
+    assert not any(receipt["input"] == answer["id"] for receipt in acknowledgments)
+
+
+@pytest.mark.parametrize("target", ["effort", "flag-first"])
+def test_only_a_declared_widget_work_seat_is_admitted(page_dir, target):
+    """A content model says what authors may put inside a widget, not whether core
+    may add local chrome there. Inline prose has no block slot, and a prose option is
+    itself the click target of its holder; neither becomes a seat by inference."""
+    version = page_dir / "index.html"
+    version.write_text(
+        PAGE.replace(
+            '<small class="tag">effort: low</small>',
+            '<lf-gloss id="effort" tip="A short task.">effort: low</lf-gloss>',
+        )
+    )
+    publish(page_dir)
+
+    claimed = CliRunner().invoke(
+        cli_model.cli,
+        ["task", "open", str(page_dir), target, "Check the estimate"],
+    )
+    assert claimed.exit_code == 1
+    assert "has no work seat" in claimed.output
+
+
+def test_a_start_is_settled_by_log_order_not_a_second_precision_clock(page_dir):
+    """A reply can land in the same timestamp second as the start. The reply that
+    answers the move ends the start by the log alone, without asking two equal
+    wall-clock strings which happened first."""
+    comment = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "id": "c1", "author": "user", "text": "why?"},
+    )
+    started = _start(page_dir, comment["id"], "checking")
+    assert started.exit_code == 0, started.output
+    start = json.loads(started.output.splitlines()[-1])
+
+    append_carried_log_record(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": comment["id"],
+            "responds": comment["id"],
+            "text": "Because the retry won.",
+            "ts": start["ts"],
+        },
+    )
+    assert page_state(page_dir)["workflows"] == []
+
+
+def test_reopening_a_thread_reveals_its_started_move(page_dir):
+    """Resolution hides a thread's moves while reopening restores an unanswered one,
+    still in hand under the start that named it."""
+    comment = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "id": "c1", "author": "user", "text": "why?"},
+    )
+    assert _start(page_dir, comment["id"], "checking").exit_code == 0
+    append_carried_log_record(
+        page_dir,
+        {"kind": "resolve", "author": "agent", "parent": comment["id"]},
+    )
+    append_carried_log_record(
+        page_dir,
+        {"kind": "unresolve", "author": "user", "parent": comment["id"]},
+    )
+
+    [workflow] = page_state(page_dir)["workflows"]
+    assert (workflow["input"], workflow["stage"]) == (comment["id"], "working")
+
+
+def test_a_put_down_start_holds_no_input_in_hand(page_dir):
+    """A `waiting` declaration puts down the start before it, so admission no longer
+    counts the started move as work in hand: a later edit on its widget stays quiet,
+    as it did before the start, and wakes nobody."""
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</section>",
+            '<lf-draft id="draft"><pre>Blue room.</pre></lf-draft></section>',
+        )
+    )
+    publish(page_dir)
+
+    def edit(text):
+        return append_command(
+            page_dir,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": "draft",
+                "action": "edit",
+                "detail": {"value": text},
+            },
+        )
+
+    first = edit("Green room.")
+    assert not first["attention"]
+    assert _start(page_dir, first["id"], "Reading the draft").exit_code == 0
+    declared = CliRunner().invoke(
+        cli_model.cli, ["status", str(page_dir), "waiting", "Read it over"]
+    )
+    assert declared.exit_code == 0, declared.output
+    [workflow] = page_state(page_dir)["workflows"]
+    assert (workflow["input"], workflow["stage"]) == (first["id"], "sent")
+    assert not edit("Red room.")["attention"]

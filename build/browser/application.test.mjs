@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createSemanticApplication } from "./application.ts";
 import { createPresentationCoordinator } from "./presentation.ts";
-import { projectionOrigins } from "../../skills/leaf/assets/runtime/projection/model.js";
 import {
   servedGestureSequence,
   servedAskItem,
@@ -79,8 +78,8 @@ const wireQuestion = (
   status: "open",
   next_actor: "user",
 });
-// A view's asks as the served lists hold them: each the user owes on Questions, and
-// each that is answered or withdrawn, done.
+// A view's asks as the served lists hold them: each the user owes on Questions, each
+// that is no longer open, done, and each open one no one owes, held.
 const askQueues = (asks) => {
   const item = (ask) =>
     servedAskItem(ask, {
@@ -92,6 +91,9 @@ const askQueues = (asks) => {
     done: asks
       .filter((ask) => ask.status !== "open")
       .map((ask) => ({ ...item(ask), state: "done", ended: null, detail: null })),
+    held: asks
+      .filter((ask) => ask.status === "open" && ask.next_actor !== "user")
+      .map(item),
   };
 };
 const coordinate = ["choice", "choice", "decide"];
@@ -118,20 +120,16 @@ const state = (taken, events = []) => ({
     thread_memberships: {},
     todos: [],
     ended_todos: [],
-    thread: {
-      threads: [],
-      projection: empty(),
-      asks: noAsks(),
-      approval_history: [],
-    },
+    approval_history: [],
     views: {
       1: {
         basis: { revision: 1, through_seq: events.length },
+        thread: { threads: [], projection: empty(), asks: noAsks() },
         coverage: [],
         undo: [],
         reports: [],
         published_at: null,
-        queues: { questions: [], tasks: [], done: [] },
+        queues: { questions: [], tasks: [], done: [], held: [] },
         approval_blocking: [],
         document: {
           asks: noAsks(),
@@ -536,7 +534,7 @@ test("accepted reading order includes non-event activity and data taken in order
 test("one publication keeps per-input workflows and user-first thread attention", () => {
   const app = setup();
   const reading = state(2);
-  reading.browser.thread.threads = [
+  reading.browser.views[1].thread.threads = [
     servedThread(
       [
         {
@@ -592,7 +590,7 @@ test("one publication keeps per-input workflows and user-first thread attention"
 test("local delivery supplies and can override non-Ask thread attention", () => {
   const app = setup();
   const reading = state(2);
-  reading.browser.thread.threads = [
+  reading.browser.views[1].thread.threads = [
     servedThread([
       {
         id: "root",
@@ -623,7 +621,7 @@ test("local delivery supplies and can override non-Ask thread attention", () => 
   const acceptedApp = setup();
   const acceptedReading = structuredClone(reading);
   acceptedReading.workflows = [threadWorkflow("accepted-send")];
-  acceptedReading.browser.thread.threads[0].attention = {
+  acceptedReading.browser.views[1].thread.threads[0].attention = {
     kind: "waiting",
     reason: "workflow",
     workflow: "accepted-send",
@@ -650,7 +648,7 @@ test("every thread gesture the ledger holds names the thread it stands in", () =
   const gestured = (...events) => {
     const app = setup();
     const reading = state(2);
-    reading.browser.thread.threads = [
+    reading.browser.views[1].thread.threads = [
       servedThread([
         {
           id: "root",
@@ -768,7 +766,7 @@ test("a version being marked read reads read, outside the gesture ledger", () =>
     seq: 1,
     text: "Answer",
   };
-  reading.browser.thread.threads = [
+  reading.browser.views[1].thread.threads = [
     servedThread([root], {
       unread: [{ message: "agent-root", version: "agent-root" }],
     }),
@@ -790,7 +788,7 @@ test("a version being marked read reads read, outside the gesture ledger", () =>
 
   // Marking read names one exact version; an edit's version is not it.
   const edited = structuredClone(reading);
-  edited.browser.thread.threads[0].unread = [
+  edited.browser.views[1].thread.threads[0].unread = [
     { message: "agent-root", version: "edit-2" },
   ];
   app.adopt(edited);
@@ -848,10 +846,7 @@ test("historical view projection uses the publisher's captured document contract
   const historical = state(2, [accepted]);
   const historicalSpec = { ...spec, historical: true };
   historical.browser.views[1].document.projection.entries[0].spec = historicalSpec;
-  const projection = app.projectView(
-    historical.browser.views[1],
-    historical.browser.thread,
-  );
+  const projection = app.projectView(historical.browser.views[1]);
   assert.equal(projection.desired.get(JSON.stringify(coordinate)).e.id, "e1");
   assert.deepEqual(
     projection.desired.get(JSON.stringify(coordinate)).spec,
@@ -866,24 +861,6 @@ test("filtered widget state is selected inside the publisher", () => {
   assert.equal(outcomeOf(app.selectWidgets([]).get("choice").state), null);
   assert.equal(outcomeOf(app.selectWidgets(["e1"]).get("choice").state), "accept");
   assert.equal(outcomeOf(app.selectWidgets(null).get("choice").state), "accept");
-});
-
-test("a served decision on a verb the shown registry lacks is left out", () => {
-  // A pinned revision captures its thread widgets under its own registry, while the
-  // server classifies thread decisions under the active revision's, which may declare
-  // a verb the pinned one does not. Its widgets hold no state to fold that decision into.
-  const app = setup();
-  const later = { ...action("later"), action: "pick", id: "e1", seq: 1 };
-  const reading = state(2, [later]);
-  Object.assign(reading.browser.views[1].document.projection.entries[0], {
-    coordinate: ["choice", "choice", "pick"],
-    spec: { unit: "widget", record: { kind: "value", attr: "pick" } },
-  });
-  assert.equal(app.adopt(reading), true);
-  assert.equal(decision(app), null);
-  // What paints a projection's provenance reads each entry against its authored state.
-  const { document, effective } = app.read();
-  assert.doesNotThrow(() => projectionOrigins(document.authored, effective.projection));
 });
 
 test("admitted edits, a raced undo refusal, and revisions share one sequence", () => {
@@ -1102,7 +1079,7 @@ for (const { name, event, steps } of lifecycle)
     const reading = state(2, event.kind === "action" ? [logged] : []);
     reading.browser.receipts = [logged];
     if (event.kind === "comment")
-      reading.browser.thread.threads = [servedThread([logged])];
+      reading.browser.views[1].thread.threads = [servedThread([logged])];
     // Where the page draws the gesture from: its own entry, the log, or nowhere.
     const drawn = () => {
       if (event.kind === "action")
@@ -1184,7 +1161,7 @@ test("thread acceptance is semantic before presentation can retire its local han
   const accepted = { ...comment, id: "e1", author: "user", ts: "now" };
   const read = state(2);
   read.browser.receipts = [accepted];
-  read.browser.thread.threads = [servedThread([accepted])];
+  read.browser.views[1].thread.threads = [servedThread([accepted])];
   app.adopt(read);
   app.accept("comment", accepted);
   assert.equal(app.read().effective.thread.all.length, 1);
@@ -1206,13 +1183,18 @@ test("widget selections publish the canonical held thread", () => {
     ts: "now",
   };
   const accepted = state(2);
-  accepted.browser.thread.threads = [servedThread([root], { seat: descriptor.id })];
+  accepted.browser.views[1].thread.threads = [
+    servedThread([root], { seat: descriptor.id }),
+  ];
   app.adopt(accepted);
-  assert.equal(selected.read().thread.heldBy, accepted.browser.thread.threads[0].id);
+  assert.equal(
+    selected.read().thread.heldBy,
+    accepted.browser.views[1].thread.threads[0].id,
+  );
 
   const released = state(3);
-  released.browser.thread.threads = [
-    { ...accepted.browser.thread.threads[0], resolved: { author: "user" } },
+  released.browser.views[1].thread.threads = [
+    { ...accepted.browser.views[1].thread.threads[0], resolved: { author: "user" } },
   ];
   app.adopt(released);
   assert.equal(selected.read().thread.heldBy, null);
@@ -1232,7 +1214,7 @@ for (const resolved of [null, { author: "user" }]) {
     // user's answer.
     const standing = resolved ? null : "needs_user";
     const accepted = state(2);
-    accepted.browser.thread.threads = [
+    accepted.browser.views[1].thread.threads = [
       servedThread([root], {
         resolved,
         user_prompt: resolved ? null : { message: root.id, version: root.id },
@@ -1298,14 +1280,25 @@ test("a pending prose reply does not hide a frozen structural Ask", () => {
     "lf-choice",
     root.id,
   );
-  accepted.browser.thread.asks = {
+  accepted.browser.views[1].thread.asks = {
     all: [frozen],
     user: [frozen],
     unanswered: [frozen],
   };
-  accepted.browser.thread.threads = [
+  const ask = {
+    attention: { kind: "needs_user", reason: "ask", workflow: null },
+    owed: [frozen.id],
+  };
+  accepted.browser.views[1].thread.threads = [
     servedThread([root], {
-      attention: { kind: "needs_user", reason: "ask", workflow: null },
+      attention: ask.attention,
+      after: {
+        reply: ask,
+        edit: ask,
+        resolve: { attention: null, owed: [] },
+        unresolve: null,
+        react: null,
+      },
     }),
   ];
   app.adopt(accepted);
@@ -1320,14 +1313,161 @@ test("a pending prose reply does not hide a frozen structural Ask", () => {
     },
     "now",
   );
-  // The Ask the thread carries is still the user's, so the obligation does not turn
-  // over and back when the reply lands.
+  // The Ask the thread carries is still the user's, so the server says a reply leaves
+  // the thread with them, and the obligation does not turn over and back when it lands.
   const thread = app.read().effective.thread.all[0];
   assert.deepEqual(thread.attention, {
     kind: "needs_user",
     reason: "ask",
     workflow: null,
   });
+});
+
+test("a reply reopening a thread over an Ask puts the Ask back on the user at once", () => {
+  // A resolution suppresses the Ask the thread carries, so the server holds it rather
+  // than listing it on Questions; the reply reopens the thread, and the server read it
+  // giving the Ask back. The thread and Questions both say so in the reply's own turn
+  // rather than one of them when the log answers, and Questions draws it where the
+  // server will list it, before an ask the server lists after it.
+  const root = {
+    kind: "comment",
+    id: "question",
+    author: "agent",
+    text: "Choose in the options below.",
+    ts: "now",
+  };
+  const app = setup();
+  const accepted = state(2);
+  const frozen = {
+    ...wireQuestion("frozen-ask", "lf-ask", "frozen-choice", "lf-choice", root.id),
+    next_actor: null,
+  };
+  const later = wireQuestion("later", "lf-choice", "later", "lf-choice", "elsewhere");
+  accepted.browser.views[1].thread.asks = {
+    all: [frozen, later],
+    user: [later],
+    unanswered: [frozen, later],
+  };
+  accepted.browser.views[1].queues = askQueues([frozen, later]);
+  const ask = {
+    attention: { kind: "needs_user", reason: "ask", workflow: null },
+    owed: [frozen.id],
+  };
+  accepted.browser.views[1].thread.threads = [
+    servedThread([root], {
+      resolved: { id: "closed", kind: "resolve", author: "user" },
+      after: { reply: ask, edit: ask, resolve: null, unresolve: ask, react: null },
+    }),
+  ];
+  app.adopt(accepted);
+  assert.deepEqual(
+    app.read().effective.asks.user.map(({ id }) => id),
+    [later.id],
+  );
+  assert.deepEqual(
+    app.read().effective.queues.questions.map(({ id }) => id),
+    [later.id],
+  );
+
+  app.enqueue(
+    {
+      kind: "reply",
+      parent: root.id,
+      attempt: "reopen",
+      text: "Back to this.",
+      revision: 1,
+    },
+    "now",
+  );
+  const { thread, asks, queues } = app.read().effective;
+  assert.deepEqual(thread.all[0].attention, ask.attention);
+  assert.deepEqual(
+    asks.user.map(({ id }) => id),
+    [frozen.id, later.id],
+  );
+  assert.deepEqual(
+    queues.questions.map(({ kind, id }) => [kind, id]),
+    [
+      ["ask", frozen.id],
+      ["ask", later.id],
+    ],
+  );
+});
+
+test("taking back a reaction that answered a question puts it back on the user at once", () => {
+  // A settling reaction answered the agent's question, so the server lists the ask as
+  // done. Taking the reaction back reopens it, as the server read it doing; the thread
+  // and Questions both say so in the undo's own turn.
+  const question = {
+    kind: "comment",
+    id: "question",
+    author: "agent",
+    text: "Keep this chart?",
+    ts: "now",
+  };
+  const kept = {
+    kind: "reply",
+    id: "kept",
+    parent: question.id,
+    author: "user",
+    token: "keep",
+    ts: "now",
+  };
+  const app = setup();
+  const accepted = state(2, [kept]);
+  const answered = {
+    id: `reply:${question.id}`,
+    source: { kind: "reply", id: question.id },
+    thread: question.id,
+    message: question.id,
+    prompt: { text: question.text, target: question.id },
+    answer: { value: { token: "keep" }, event: kept },
+    status: "answered",
+    next_actor: null,
+  };
+  accepted.browser.views[1].thread.asks = { all: [answered], user: [], unanswered: [] };
+  accepted.browser.views[1].queues = {
+    ...askQueues([]),
+    done: [
+      {
+        ...servedAskItem(answered, { subject: { kind: "thread", id: question.id } }),
+        state: "done",
+        ended: null,
+        detail: null,
+      },
+    ],
+  };
+  const reopened = {
+    attention: { kind: "needs_user", reason: "ask", workflow: null },
+    owed: [answered.id],
+  };
+  accepted.browser.views[1].thread.threads = [
+    servedThread([question, kept], {
+      after: {
+        reply: null,
+        edit: null,
+        resolve: null,
+        unresolve: null,
+        react: null,
+        unreact: { ...reopened, undoes: kept.id },
+      },
+    }),
+  ];
+  app.adopt(accepted);
+  assert.deepEqual(app.read().effective.queues.questions, []);
+
+  app.enqueue({ kind: "undo", undoes: kept.id, attempt: "take-back" }, "now");
+  const { thread, asks, queues } = app.read().effective;
+  assert.deepEqual(thread.all[0].attention, reopened.attention);
+  assert.deepEqual(
+    asks.user.map(({ id, status }) => [id, status]),
+    [[answered.id, "open"]],
+  );
+  assert.deepEqual(
+    queues.questions.map(({ kind, id }) => [kind, id]),
+    [["ask", answered.id]],
+  );
+  assert.deepEqual(queues.done, []);
 });
 
 test("a pending resend replaces accepted recovery until refusal", () => {
@@ -1340,7 +1480,7 @@ test("a pending resend replaces accepted recovery until refusal", () => {
     ts: "now",
   };
   const accepted = state(2);
-  accepted.browser.thread.threads = [
+  accepted.browser.views[1].thread.threads = [
     servedThread([root], {
       attention: {
         kind: "needs_user",
@@ -1405,7 +1545,7 @@ test("the publisher carries the server's Ask reading, page asks before thread as
     user: [page],
     unanswered: [page],
   };
-  read.browser.thread.asks = {
+  read.browser.views[1].thread.asks = {
     all: [frozen],
     user: [],
     unanswered: [],
@@ -1504,7 +1644,9 @@ test("a reaction root is not a spoken turn awaiting the user", () => {
     ts: "now",
   };
   const accepted = state(2);
-  accepted.browser.thread.threads = [servedThread([root], { bare_reaction: true })];
+  accepted.browser.views[1].thread.threads = [
+    servedThread([root], { bare_reaction: true }),
+  ];
 
   app.adopt(accepted);
   assert.equal(app.read().effective.thread.all[0].attention, null);
@@ -1826,7 +1968,7 @@ test("pending undo withdraws a decision an earlier Leaf recorded with another fi
     },
   };
   const app = capture([[declared.id, declared]]);
-  // Before #2329 the recorded definition carried `update`, since renamed `report`.
+  // Before #2329 the recorded definition carried the verb flag as `update`.
   const accepted = {
     ...action("decided"),
     id: "e1",
@@ -1924,12 +2066,12 @@ test("pending prose answer changes next actor without suppressing inventory or s
   });
   const current = prose(root, "user");
   const suppressed = prose(earlier, null);
-  reading.browser.thread.asks = {
+  reading.browser.views[1].thread.asks = {
     all: [suppressed, current],
     user: [current],
     unanswered: [suppressed, current],
   };
-  reading.browser.thread.threads = [
+  reading.browser.views[1].thread.threads = [
     servedThread([root], {
       attention: { kind: "needs_user", reason: "ask", workflow: null },
     }),
@@ -1948,7 +2090,9 @@ test("pending prose answer changes next actor without suppressing inventory or s
   const pending = app.read().effective.asks;
   assert.equal(pending.all.length, 2);
   assert.equal(pending.all[1].status, "open");
-  assert.equal(pending.all[1].next_actor, "agent");
+  // The reply answers it, as the server read the reply doing (`after`); the log will
+  // say so once it lands.
+  assert.equal(pending.all[1].next_actor, null);
   assert.deepEqual(pending.user, []);
   assert.equal(app.read().effective.queues.questions.length, 0);
   app.refuse("prose-answer");

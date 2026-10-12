@@ -1,3 +1,4 @@
+@import "./floating-panel.css";
 /* The comment layer's private stylesheet: everything the runtime draws that is not
    the document, from banner to shortcut bar. The boot module (leaf.js) adopts it as a
    constructed sheet, so it stands in no head node and a version activation's head
@@ -754,8 +755,14 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   /* A covering auxiliary surface takes the whole window: the banner is one of the inert siblings,
      not an available strip above it. Its shared scrim therefore stands above the banner
      and below the active surface. Chrome-owned targeting and native top-layer dialogs
-     keep their higher planes so a command inside the auxiliary surface can still show its aim. */
-  .lf-auxiliary-envelope { position: absolute; inset: 0 auto auto 0; width: 100vw; height: 100vh;
+     keep their higher planes so a command inside the auxiliary surface can still show its aim.
+     The envelope itself is an empty box at the document's origin, so what it holds
+     positions itself against the window (fixed) or that origin (absolute, by top and
+     left), never by a right or bottom inset, a percentage or a wrapping width that
+     would read the envelope's size. A window-sized transparent box stood over the
+     page's first screen for anything reading the page by hit-testing, so axe measured
+     the contrast of none of the words under it. */
+  .lf-auxiliary-envelope { position: absolute; inset: 0 auto auto 0; width: 0; height: 0;
     max-width: none; max-height: none; margin: 0; padding: 0; border: 0; overflow: visible;
     background: transparent; color: inherit; pointer-events: none; }
   .lf-auxiliary-envelope::backdrop { background: transparent; }
@@ -1388,15 +1395,20 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-media-viewer-actions { display: flex; align-items: center; gap: 12px; }
   .lf-media-viewer-original { display: inline-flex; align-items: center; justify-content: center; }
   .lf-media-viewer-zoom { min-width: 4em; }
+  /* The stage's content box is the image's fit area, which PhotoSwipe's padding reads
+     (media.js). */
   .lf-media-viewer-stage { position: relative; min-width: 0; min-height: 0; overflow: hidden;
-    display: grid; place-items: center; padding: 16px; box-sizing: border-box; background: transparent; }
-  /* Match PhotoSwipe's default backdrop while its manipulation module loads.
+    padding: 16px; box-sizing: border-box; background: transparent; }
+  /* Match PhotoSwipe's default backdrop while its module loads and the image decodes.
      Once it takes over, its backdrop alone dims the page. */
-  .lf-media-viewer-stage:has(> img) {
+  .lf-media-viewer-stage:has(> .lf-media-viewer-probe) {
     background: color-mix(in srgb, var(--paper) 80%, transparent); }
-  .lf-media-viewer-stage > img { display: block; max-width: 100%; max-height: 100%;
-    object-fit: contain; }
-  .lf-media-viewer-stage > img, .lf-media-viewer .pswp__img {
+  /* Reads the image's size and whether its file states one (media.js). */
+  .lf-media-viewer-probe { position: absolute; width: 1px; height: 0; overflow: hidden;
+    visibility: hidden; }
+  .lf-media-viewer-probe > img { display: block; width: auto; height: auto; min-width: 0;
+    max-width: none; max-height: none; }
+  .lf-media-viewer .pswp__img {
     outline: 1px solid var(--border-2); box-shadow: 0 8px 24px var(--shade); }
   .lf-media-viewer .pswp { position: absolute; --pswp-bg: var(--paper); --pswp-root-z-index: 0; }
   .lf-media-viewer-caption { position: relative; z-index: 1501; background: var(--card);

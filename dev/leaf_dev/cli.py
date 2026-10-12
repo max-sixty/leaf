@@ -22,6 +22,7 @@ COMMANDS = {
     "flake": "flake",
     "eval": "eval",
     "eval-pairs": "eval_pairs",
+    "eval-report": "eval_report",
     "eval-ui-review": "review_detection_eval",
     "keydocs": "keydocs",
     "preview": "preview",

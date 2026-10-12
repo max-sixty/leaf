@@ -14,9 +14,11 @@
    declares its public page root because a website module may live under an immutable
    release URL shared with a sample. All three resolve
    the same canonical `/media/…` text without rewriting durable content. The viewer's
-   native dialog remains a retained chrome node. Its fitted image appears synchronously
-   while the manipulation module loads. A queued close from an earlier opening
-   leaves a reopened viewer's image and focus intact. */
+   native dialog remains a retained chrome node. The image first appears in PhotoSwipe,
+   once its module has loaded and the image has decoded, since PhotoSwipe needs the
+   image's size up front; a second renderer shown meanwhile would have to agree with
+   it on every box. A queued close from an earlier opening leaves a reopened viewer's
+   image and focus intact. */
 
 import { html, render } from "../vendor/browser-runtime.js";
 import { offlineInteractive, pageUrl, runtimeResource } from "./context.js";
@@ -187,7 +189,10 @@ const open = (url, alt, from) => {
   inspector = null;
   openLayer(mediaViewer, from);
   presentViewer({ url, alt });
-  render(html`<img src=${url} alt=${alt} />`, stage);
+  render(
+    html`<span class="lf-media-viewer-probe"><img src=${url} alt="" /></span>`,
+    stage,
+  );
   const description =
     from.dataset.lfMediaCaption ||
     from.closest("figure")?.querySelector("figcaption")?.textContent.trim() ||
@@ -197,23 +202,37 @@ const open = (url, alt, from) => {
   keepsText(viewerZoom, "100%");
   if (!mediaViewer.open) showNativeLayer(mediaViewer);
   focusDestination(viewerClose, "move");
-  const image = stage.querySelector("img");
-  Promise.all([imageTools(), image.decode()]).then(
+  const probe = stage.querySelector(".lf-media-viewer-probe > img");
+  Promise.all([imageTools(), probe.decode()]).then(
     ([PhotoSwipe]) => {
       // A delayed load belongs only to the image the reader still has open.
       if (attempt !== opening || !mediaViewer.open) return;
+      // In a 1px column an image keeps a width its file states; one that states none
+      // (an SVG with only a viewBox, or Mermaid's percentage width) narrows to the
+      // column, and its natural size is a stand-in of its shape at 300px. Such an
+      // image takes the size that covers the screen in either orientation, so it fits
+      // below 100% in any window and zooms past its fit.
+      const { naturalWidth: width, naturalHeight: height } = probe;
+      const cover =
+        Math.max(window.screen.width, window.screen.height) / Math.min(width, height);
+      const size =
+        probe.getBoundingClientRect().width > 1
+          ? { width, height }
+          : { width: width * cover, height: height * cover };
       render(null, stage);
       const current = new PhotoSwipe({
-        dataSource: [
-          { src: url, width: image.naturalWidth, height: image.naturalHeight, alt },
-        ],
+        dataSource: [{ src: url, alt, ...size }],
         appendToEl: mediaViewer,
-        paddingFn: () => ({
-          top: mediaViewer.querySelector(".lf-media-viewer-head").offsetHeight + 16,
-          right: 16,
-          bottom: caption.offsetHeight + 16,
-          left: 16,
-        }),
+        paddingFn: (viewport) => {
+          const box = stage.getBoundingClientRect();
+          const inset = getComputedStyle(stage);
+          return {
+            top: box.top + parseFloat(inset.paddingTop),
+            right: viewport.x - box.right + parseFloat(inset.paddingRight),
+            bottom: viewport.y - box.bottom + parseFloat(inset.paddingBottom),
+            left: box.left + parseFloat(inset.paddingLeft),
+          };
+        },
         secondaryZoomLevel: 1,
         close: false,
         zoom: false,
@@ -233,7 +252,7 @@ const open = (url, alt, from) => {
       inspector = current;
       current.on("keydown", (event) => {
         // PhotoSwipe owns only native panning in the active viewer. Leaf owns zoom,
-        // cancellation, scopes and the modal Tab loop (layer-stack.js). Its document
+        // cancellation and scopes, and Tab stays the browser's. Its document
         // listener must never act behind a newer layer or reinterpret text typed there.
         const key = event.originalEvent;
         if (
@@ -264,7 +283,7 @@ const open = (url, alt, from) => {
       if (attempt !== opening || !mediaViewer.open) return;
       keepsText(
         caption,
-        `Image controls unavailable: ${error.message}. Open Original to inspect the file.`,
+        `Image preview unavailable: ${error.message}. Open Original to see the file.`,
       );
       keepsHidden(caption, false);
     },

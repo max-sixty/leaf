@@ -6,10 +6,10 @@
    Comment gestures. They pass a stable target from `aimTargetAt` or the visual provider
    into this surface. A whole item or picture names its authored id, while a visual part
    adds its declared token. Comment opens the compact field; Tab from it, or `e` while it
-   stands unfocused, extends that field with the other response margin entries. Tab,
-   Shift-Tab, and the arrow keys then
-   wrap through the visible margin entries. Escape folds the extension; Escape from the field
-   hides the draft.
+   stands unfocused, extends that field with the other response margin entries. The arrow
+   keys then wrap through the visible margin entries, and Tab and Shift-Tab are the
+   browser's, leaving the bar past either end. Escape folds the extension; Escape from
+   the field hides the draft.
    The same anchor resolves both states against the target's geometry.
 
    The bar a selection or keyboard-selected addressable raises is `.lf-fab-bar`: the
@@ -587,6 +587,7 @@ export function createResponseSurface({
     rank: BANNER_CONTROL_RANK.commentSelection,
     seat: "gesture",
     present: false,
+    row: { label: "Comment on selection", group: "annotate" },
   });
   const offerSelection = (anchor) => {
     selectionOffered = Boolean(anchor);

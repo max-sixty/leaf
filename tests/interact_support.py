@@ -12,6 +12,7 @@ import http.client
 import http.cookiejar
 import json
 import os
+import re
 import secrets
 import shlex
 import shutil
@@ -34,10 +35,13 @@ import psutil
 import pytest
 import yaml
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND
+from conftest import CLAUDE_IDENTITY, LEAF_COMMAND
 from leaf import cli as cli_model
 from leaf import codex as codex_model
+from leaf import codex_adapter as codex_adapter_model
+from leaf import codex_state as codex_state_model
 from leaf import data as data_model
+from leaf import delivery as delivery_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -53,6 +57,7 @@ from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import server_rows as server_rows_model
 from leaf import service as service_model
+from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
@@ -67,6 +72,8 @@ from pytest_regtest.snapshot_handler import (
     BaseSnapshotHandler,
     SnapshotHandlerRegistry,
 )
+from websockets.sync.server import serve as serve_websocket
+from websockets.sync.server import unix_serve as serve_unix_websocket
 
 ROOT = Path(__file__).parent.parent
 # The checkout and the payload a harness installs are one tree now; PLUGIN_ROOT still
@@ -661,6 +668,12 @@ def page_state(d):
     return served_page.full_state(d, events)
 
 
+def served_thread(browser: dict) -> dict:
+    """The frozen threads as the one view `browser` serves reads them."""
+    [view] = browser["views"].values()
+    return view["thread"]
+
+
 @pytest.fixture
 def native_codex_chat(tmp_path):
     """Publish a native chat's validated source through its ordinary prompt hook."""
@@ -1076,8 +1089,8 @@ def _report_without_upgrade(registry):
     registry["lf-test-task"]["x-upgrade"] = False
 
 
-def _user_verb_report(registry):
-    registry["lf-options"]["x-state"]["choose"]["report"] = True
+def _user_verb_text(registry):
+    registry["lf-options"]["x-state"]["choose"]["text"] = True
 
 
 def _agent_verb_answers(registry):
@@ -2149,3 +2162,291 @@ def consume_pending_input(session_id):
     payload = delivery.freeze_delivery(batches)
     delivery.receive_held(payload, session_id, state.session_record(session_id))
     return payload
+
+
+def claim_and_wait_command(page: Path) -> str:
+    """Explicit ownership handoff followed by its ordinary observing wait."""
+    return (
+        shlex.join([*LEAF_COMMAND, "page", "claim", str(page)])
+        + " && "
+        + shlex.join([*LEAF_COMMAND, "wait", str(page)])
+    )
+
+
+def last_deliverable_seq(page_dir: Path) -> int:
+    """The last event a wait can print, excluding page-owned pickup records."""
+    return service_model.unacknowledged(events_model.read_events(page_dir), 0)[-1][
+        "seq"
+    ]
+
+
+def delivered(capsys) -> tuple[dict, dict, list[dict]]:
+    """Read and confirm the complete input a direct wait printed."""
+    return woken(capsys.readouterr().out)
+
+
+def woken(output: str, session: str | None = None) -> tuple[dict, dict, list[dict]]:
+    """Receive an explicit wait's envelope or a native hook watch's wake.
+
+    Explicit waits confirm their own captured input; a native watch hands its
+    pending input through the hook transport.
+    """
+    lines = output.splitlines()
+    start = next((i for i, line in enumerate(lines) if line.startswith("{")), None)
+    if start is not None:
+        payload = json.loads("\n".join(lines[start:]))
+        assert payload["acknowledge"] is not None
+        delivery_model.receive(
+            payload, session or session_model.session_harness().session
+        )
+    else:
+        assert "has new input" in output, output
+        payload = consume_pending_input(
+            session or session_model.session_harness().session
+        )
+        assert payload["acknowledge"] is None
+    assert payload["format"] == delivery_model.DELIVERY_FORMAT
+    [batch] = payload["batches"]
+    return payload, batch, batch["events"]
+
+
+def continued(output: str | dict) -> str:
+    """What a Claude Code session's Stop hook continues the turn with. It speaks
+    through the harness's non-error channel, so the user reads "Stop hook additional
+    context" rather than "Stop hook error"."""
+    answer = json.loads(output) if isinstance(output, str) else output
+    assert "decision" not in answer, answer
+    assert answer["hookSpecificOutput"]["hookEventName"] == "Stop"
+    return answer["hookSpecificOutput"]["additionalContext"]
+
+
+def printed(output: str) -> tuple[dict, dict, list[dict]]:
+    """Read the one delivery a wait printed, for a harness whose wait is its watcher
+    (a bare shell, a Codex watcher): its reader confirms it with `wait --ack`."""
+    payload = json.loads(output)
+    assert payload["format"] == delivery_model.DELIVERY_FORMAT
+    assert payload["acknowledge"] is not None
+    [batch] = payload["batches"]
+    return payload, batch, batch["events"]
+
+
+@pytest.fixture
+def codex_loop(monkeypatch):
+    """A Codex task running its own `leaf wait`/`leaf wait --ack` loop, the harness
+    session whose wait prints each delivery for its reader to confirm. This process,
+    and every command it spawns, carries the task's identity in place of Claude
+    Code's. Call the value with a page to record the task's claim on it: a claim
+    taken from here would look for a codex process above the suite and find none."""
+    for name in CLAUDE_IDENTITY:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("CODEX_THREAD_ID", "codex-thread")
+    return lambda page: record_claim(
+        page, id="codex-thread", harness="codex", agent="Codex"
+    )
+
+
+def freeze_events(page_dir: Path, events: list[dict]) -> dict:
+    """Freeze selected page events through the harness-neutral delivery boundary."""
+    with service_model.PageTransaction(page_dir) as transaction:
+        stored = {event["id"]: event for event in transaction.events}
+        batch = delivery_model.batch_data(
+            page_dir,
+            transaction,
+            [stored[event["id"]] for event in events],
+        )
+    return delivery_model.freeze_delivery(
+        [batch], acknowledge=session_model.wait_acknowledgement(None)
+    )
+
+
+def delivery_through(page_dir: Path, seq: int) -> str:
+    """Freeze the complete deliverable prefix used to arrange a received fixture."""
+    events = service_model.unacknowledged(events_model.read_events(page_dir), 0)
+    return freeze_events(
+        page_dir, [event for event in events if event["seq"] <= int(seq)]
+    )["id"]
+
+
+def receive_through(page_dir: Path, seq: int) -> None:
+    harness = session_model.session_harness()
+    with service_model.PageTransaction(page_dir) as page:
+        held = harness is not None and page.claim_of(harness.session) is not None
+    if not held:
+        service_model.claim_page(page_dir)
+    delivery_model.receive_delivery(delivery_through(page_dir, seq))
+
+
+def delivered_ref(page_dir: Path, input_id: str) -> str:
+    """The `answer.ref` the page's log recorded for a received input, checked to
+    resolve to that input in its delivery's envelope."""
+    events = events_model.read_events(page_dir)
+    ref = delivery_model.current_responses(page_dir, events)[input_id]["ref"]
+    assert delivery_model.response_address(ref)["input"]["id"] == input_id
+    return ref
+
+
+@pytest.fixture(name="app_server")
+def app_server_fixture():
+    """Serve an App Server stand-in for one handler, until the test ends.
+
+    The observer under test connects over a real websocket, so a test that made its
+    own server owned three things: the server, the thread serving it, and the stop
+    that ends both. One of them ran that stop on the last line of the test body,
+    which is the line a failing assertion never reaches — the thread then served on
+    for the rest of the worker, holding its socket, under later tests that had
+    nothing to do with it.
+
+    Returns the endpoint to connect to: a loopback port, or the Unix socket path the
+    caller names.
+    """
+    serving = []
+
+    def serve(handle, socket_path=None) -> str:
+        server = (
+            serve_unix_websocket(handle, str(socket_path))
+            if socket_path
+            else serve_websocket(handle, "127.0.0.1", 0)
+        )
+        worker = threading.Thread(target=server.serve_forever, daemon=True)
+        worker.start()
+        serving.append((server, worker))
+        return (
+            f"unix://{socket_path}"
+            if socket_path
+            else f"ws://127.0.0.1:{server.socket.getsockname()[1]}"
+        )
+
+    yield serve
+    for server, worker in reversed(serving):
+        server.shutdown()
+        worker.join(timeout=STATED_TIMEOUT)
+
+
+def codex_records(session_id: str) -> list[tuple[Path, dict]]:
+    directory = codex_state_model.delivery_dir(session_id)
+    return [
+        (path, files_model.read_json(path)) for path in sorted(directory.glob("*.json"))
+    ]
+
+
+def _observer() -> codex_adapter_model.TaskConnection:
+    """An observer that has not connected, so a test feeds it notifications itself."""
+    connection = codex_adapter_model.TaskConnection("ws://127.0.0.1:1", "codex-thread")
+    connection.connected.set()
+    return connection
+
+
+def _delivery_item(payload: dict) -> dict:
+    """The transcript item a turn carrying one App Server delivery holds."""
+    return {
+        "id": "delivery",
+        "type": "functionCallOutput",
+        "name": "leaf_delivery",
+        "output": json.dumps(payload),
+    }
+
+
+def _codex_delivery(page_dir, text="Answer this"):
+    append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": text}
+    )
+    return codex_model.prepare_codex_delivery(
+        page_dir,
+        harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid()),
+    )
+
+
+# A page whose suggestion answers c1, which is the one shipped shape where the
+# gesture that settles a thread is made on a widget standing outside it.
+SETTLING_PAGE = PAGE.replace(
+    '<div id="plan-choice-decision">',
+    '<lf-suggestion id="sug-refill" resolves="c1">\n'
+    "  <lf-old><p>The manual sightings log.</p></lf-old>\n"
+    "  <lf-new><p>Switch the north feeder to thistle.</p></lf-new>\n"
+    '</lf-suggestion>\n<div id="plan-choice-decision">',
+)
+
+
+SETTLING_DECISION = {
+    "kind": "comment",
+    "id": "c1",
+    "author": "user",
+    "revision": 1,
+    "anchor": {"section": "plan-choice-decision"},
+    "drawing": {
+        "format": "leaf-drawing/3",
+        "strokes": [[[-20, 74], [50, 10], [120, 74]]],
+        "box": [640.5, 96],
+        "viewport": [1200, 900],
+        "scheme": "light",
+    },
+}
+
+
+SETTLING_ACCEPT = {
+    "kind": "action",
+    "author": "user",
+    "revision": 1,
+    "widget": "sug-refill",
+    "action": "decide",
+    "detail": {"outcome": "accept"},
+}
+
+
+def _settling_page(page_dir):
+    (page_dir / "index.html").write_text(SETTLING_PAGE)
+    append_carried_log_record(page_dir, dict(SETTLING_DECISION))
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
+    publish(page_dir)
+    serving(page_dir, 1)
+
+
+# One authored id for the group, so an action can name it. Its options already
+# carry ids, which is what lets a floor land inside the widget rather than on it.
+PICKS_PAGE = PAGE.replace("<lf-options>", '<lf-options id="picks">')
+
+
+def _interaction_prompt_evidence(page, value):
+    """Keep complete output, replacing only run-specific identities and times."""
+    events = events_model.read_events(page)
+    identities = {event["id"]: f"event-{event['seq']}" for event in events}
+
+    def stable(item):
+        if isinstance(item, dict):
+            return {
+                key: "<time>"
+                if key in {"ts", "created_at"}
+                else "<attempt>"
+                if key == "attempt"
+                else "<claim-session>"
+                if key == "claim" and child is not None
+                else stable(child)
+                for key, child in item.items()
+            }
+        if isinstance(item, list):
+            return [stable(child) for child in item]
+        if isinstance(item, str):
+            item = item.replace(str(page), "<page>")
+            item = re.sub(
+                r'(<leaf-delivery id=")[0-9a-f]{8}(" operation="delivery read" />)',
+                r"\1<delivery>\2",
+                item,
+            )
+            for source, replacement in identities.items():
+                item = item.replace(source, replacement)
+            return Prose(item) if " " in item or "\n" in item else item
+        return item
+
+    return stable(value)
+
+
+def _watched(page_dir):
+    """A claimed page this session watches, so only its debts reach the hooks."""
+    session_model.cmd_waiting(page_dir, "")
+    session = service_model.page_claim(page_dir)
+    lease = leases_model.take_lease(
+        leases_model.waiter_lease_path(page_dir, session["id"])
+    )
+    assert lease
+    return lease

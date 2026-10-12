@@ -31,6 +31,7 @@
    a connected field builds its editor, so a page whose card never opens builds none.
    Until then it holds its draft unconnected. */
 import { showNativeLayer, closeNativeLayer } from "../keyboard/layer-stack.js";
+import { isNativeLayer } from "../shadow-tree.js";
 import { el } from "../widget-elements.js";
 import { iconElement } from "../icons.js";
 import { textField } from "../composing/text-field.js";
@@ -83,7 +84,7 @@ export function createPageComment({
 
   const hint = () => (designModeActive() ? "Comment on the design" : NAME);
   const holds = () => Boolean(loadDraft("general")?.trim());
-  const cardIsOpen = () => card.matches(":popover-open");
+  const cardIsOpen = () => isNativeLayer(card);
   keys(card, "In the page comment card", [
     {
       id: "comment.card-close",
@@ -115,6 +116,7 @@ export function createPageComment({
     control,
     rank: BANNER_CONTROL_RANK.pageComment,
     seat: { desk: "row", phone: "menu" },
+    row: { label: "Comment on the page", group: "page" },
   });
 
   function open() {
@@ -153,6 +155,7 @@ export function createPageComment({
       accessibleName: hint,
       sends: "send",
       sendBtn: send,
+      mediaBelow: true,
       save: (text) => saveDraft("general", text),
       send: (_text, raw, owns) => {
         let flight = null;

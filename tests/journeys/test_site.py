@@ -119,11 +119,15 @@ def pages_under(directory):
     return pages
 
 
+def heading(source: str) -> str:
+    """The words of the h1 an authored source carries, as the parser reads them."""
+    return " ".join(SourceDocument(source).tree.select_one("h1").text.split())
+
+
 def example_title(stem: str) -> str:
     """The h1 an example's own source carries, so a retitled example cannot strand a
     test on its old words."""
-    source = (EXAMPLES / f"{stem}.html").read_text(encoding="utf-8")
-    return re.search(r"<h1>(.*?)</h1>", source, re.DOTALL).group(1).strip()
+    return heading((EXAMPLES / f"{stem}.html").read_text(encoding="utf-8"))
 
 
 def authored_examples():
@@ -1068,11 +1072,10 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
         wait_until_ready(page)
         assert page.evaluate("document.compatMode") == "CSS1Compat", name
         source = (DOCS / name).read_text(encoding="utf-8")
-        expected_title = re.search(r"<title>(.*?)</title>", source, re.DOTALL)
-        expected_h1 = re.search(r"<h1>(.*?)</h1>", source, re.DOTALL)
-        assert expected_title and expected_h1
-        assert page.title() == expected_title.group(1).strip(), name
-        expect(page.locator("h1")).to_have_text(expected_h1.group(1).strip())
+        expected_title = SourceDocument(source).title.strip()
+        assert expected_title
+        assert page.title() == expected_title, name
+        expect(page.locator("h1")).to_have_text(heading(source))
         expect(page.locator(".lf-chrome")).to_have_count(1)
         expect(page.locator("script[data-lf-server]")).to_have_count(1)
         expect(page.locator('link[rel="stylesheet"]')).to_have_count(1)
@@ -1084,7 +1087,7 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
         state = page.evaluate("() => fetch('api/state').then(r => r.json())")
         assert state["publication"] == {
             "kind": "product",
-            "agent": "The agent",
+            "agent": "Agent",
             "install_url": "/#install",
         }
         if name == "how-it-works.html":
@@ -1385,12 +1388,12 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
             f"Showing v{newest}"
         )
         expect(page.locator(".lf-status-text")).to_have_text(
-            "This is an example on the Leaf website. The agent replies and "
+            "This is an example on the Leaf website. Agent replies and "
             "revises this private copy. Other examples Install Leaf"
         )
         if source == FEATURE_GALLERY:
             samples = page.locator("#bg-interactions lf-sample")
-            expect(samples).to_have_count(4)
+            expect(samples).to_have_count(3)
             for sample in samples.all():
                 sample.evaluate("async sample => { await sample.ready; }")
         if source.stem in framed:
@@ -1502,7 +1505,7 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
     page_dir, url = served_example("triage-board")
     page = open_page(browser, url)
     expect(page.locator(".lf-banner .lf-status-text")).to_have_text(
-        "This is an example on the Leaf website. The agent replies and revises "
+        "This is an example on the Leaf website. Agent replies and revises "
         "this private copy. Other examples Install Leaf"
     )
     assert page.locator(".lf-banner .lf-status-text a").evaluate_all(
@@ -1515,7 +1518,7 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
     state = page.evaluate("() => fetch('api/state').then(r => r.json())")
     assert state["publication"] == {
         "kind": "example",
-        "agent": "The agent",
+        "agent": "Agent",
         "install_url": "/#install",
     }
     assert state["browser"]["todos"] == []

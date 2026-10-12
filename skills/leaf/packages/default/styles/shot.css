@@ -92,6 +92,16 @@
  * row on a 360px phone, where it wraps to two lines between the links. */
 :scope:is(lf-shot) .lf-shotdelta { grid-area: 1 / 3; justify-self: center;
     padding-inline: 4px; text-align: center; line-height: 1.2; }
+/* With `pixels` the reading is the press that opens the Pixels view, drawn as a chip so
+ * it reads as one, and pressed as the endpoint labels are, in the warning colour its
+ * paint takes. */
+:scope:is(lf-shot) .lf-shotdelta[role="button"] { display: flex; align-items: center;
+    padding-block: 3px; padding-inline: 8px; border-radius: var(--r);
+    box-shadow: inset 0 0 0 1px var(--rule); outline-offset: -2px; }
+:scope:is(lf-shot) .lf-shotdelta[role="button"]:hover { background: var(--chip); }
+:scope:is(lf-shot) .lf-shotdelta[role="button"][aria-pressed="true"] {
+    color: var(--warn-ink); background: var(--warn-tint);
+    box-shadow: inset 0 0 0 1px var(--warn), inset 0 -3px var(--warn-ink); }
 :scope:is(lf-shot) .lf-shotcap[data-lf-state] { outline-offset: -2px; }
 :scope:is(lf-shot) .lf-shotcap[data-lf-state="before"] {
     --lf-shot-side-tint: var(--del-tint); --lf-shot-side-ink: var(--danger-ink); }
@@ -104,8 +114,8 @@
 :scope:is(lf-shot) .lf-shotcap[aria-pressed="false"] {
     color: var(--muted); box-shadow: none; }
 /* In a split both frames are visible, so both labels carry their side's color
-   while neither wears the selected fill or underline. */
-:scope:is(lf-shot):not(:has(.lf-shotcap[aria-pressed="true"])) .lf-shotcap {
+   while neither wears the selected fill or underline. The Pixels view shows neither. */
+:scope:is(lf-shot):not([data-lf-shot-view="pixels"], :has(.lf-shotcap[aria-pressed="true"])) .lf-shotcap {
     color: var(--lf-shot-side-ink); }
 /* Where the pair differs: each frame outlines its own regions where they sit in it, so
    content that moved is marked at its old place in before and its new place in after,
@@ -130,9 +140,27 @@
    describes wrong, so the rail raises those readings. */
 :scope:is(lf-shot) .lf-shotdelta:is([data-lf-shot-delta="identical"], [data-lf-shot-delta="slight"]) {
     color: var(--warn-ink); font-weight: 650; }
-/* The outlines, and the count they make up, show where the pair asks for them. */
-:scope:is(lf-shot):not([outlines]) :is(.lf-shotdiff, .lf-shotdelta[data-lf-shot-delta="areas"]) {
+/* The outlines, and the count they make up, show where the pair asks for them; a pair
+   with `pixels` keeps its press, which then names its view. */
+:scope:is(lf-shot):not([outlines]) .lf-shotdiff,
+:scope:is(lf-shot):not([outlines], [pixels]) .lf-shotdelta[data-lf-shot-delta="areas"] {
     display: none; }
+
+/* The Pixels view stands over the comparison in the pair's frame: the after image
+   faded to grey, and over it the warning colour painted through the changed pixels'
+   mask (`changedPixels`), opaque where a pixel moved far and faint where it moved a
+   little. The mask has the pair's size, as the frame does, so the paint lands on the
+   pixels it marks at every width. The view comes before the rail in the tree, so the
+   sticky rail, at the same z-index, stays over it. */
+:scope:is(lf-shot) > .lf-shotpixels { display: none; position: relative; grid-area: 2 / 1;
+    z-index: 1; overflow: clip; cursor: pointer;
+    border: 1px solid var(--rule); border-radius: 0 0 var(--r) var(--r);
+    background: var(--card); }
+:scope:is(lf-shot)[data-lf-shot-view="pixels"] > .lf-shotpixels { display: block; }
+:scope:is(lf-shot) > .lf-shotpixels > img { position: absolute; top: 0; left: 0;
+    width: 100%; height: auto; filter: grayscale(1); opacity: .28; }
+:scope:is(lf-shot) > .lf-shotpixels > span { position: absolute; inset: 0;
+    background: var(--warn); mask: var(--lf-shot-pixels) 0 0 / 100% 100% no-repeat; }
 
 /* Before the progressive flip comparison arrives the image is the native target. */
 :scope:is(lf-shot) > input.lf-shotflip { display: none; grid-area: 2 / 1; z-index: 2;
@@ -163,7 +191,8 @@
     box-shadow: none !important; }
   :scope:is(lf-shot) .lf-shotcap[data-lf-state="before"]::after { content: " · top"; }
   :scope:is(lf-shot) .lf-shotcap[data-lf-state="after"]::after { content: " · bottom"; }
-  :scope:is(lf-shot) > input.lf-shotflip { display: none; }
+  :scope:is(lf-shot) > input.lf-shotflip,
+  :scope:is(lf-shot) > .lf-shotpixels { display: none !important; }
   :scope:is(lf-shot) > .lf-shotrail { height: auto; }
   :scope:is(lf-shot) > .lf-shotcomparison { display: block; aspect-ratio: auto; border: 0;
     overflow: visible; }

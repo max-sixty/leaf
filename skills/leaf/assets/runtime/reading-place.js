@@ -106,7 +106,11 @@ const drawsLandmark = (parent) => {
   return Boolean(box?.checkVisibility({ opacityProperty: true }));
 };
 const blockWords = new WeakMap();
-function* renderedBlocks(blocks) {
+// Each block's drawn words, with the union of their boxes. With `within`, a block whose
+// own box lies wholly above or below that band is passed over before its words are
+// measured, so a reading of the screen costs the blocks near it rather than every block
+// above it. A block with no box of its own (display: contents) is measured.
+function* renderedBlocks(blocks, within = null) {
   const reading = pageText();
   if (!blockWords.has(reading)) {
     const words = new Map();
@@ -120,7 +124,13 @@ function* renderedBlocks(blocks) {
   const drawn = new Map();
   const range = document.createRange();
   for (const block of blocks) {
+    // Skipped content stays unmeasured: asking for a box inside it lays it out.
     if (inChrome(block) || skipped(block)) continue;
+    if (within) {
+      const own = block.getBoundingClientRect();
+      if (own.height && (own.bottom <= within.top || own.top >= within.bottom))
+        continue;
+    }
     const boxes = [],
       runs = [];
     let run = null;
@@ -176,7 +186,7 @@ export function* blocksOnScreen(region = null, blocks = textBlocks()) {
     region && effectiveScroller(region) === pageScroller
       ? shownWindow({ within: shown })
       : shown;
-  for (const [block, rect, runs] of renderedBlocks(blocks)) {
+  for (const [block, rect, runs] of renderedBlocks(blocks, bounds)) {
     if (region ? !under(block, region.body) : effectiveScroller(block) !== pageScroller)
       continue;
     const clips = new Map();

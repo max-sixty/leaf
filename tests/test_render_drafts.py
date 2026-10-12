@@ -321,6 +321,49 @@ def test_a_heading_above_a_flowing_pane_keeps_its_place_as_the_window_changes_wi
         ), width
 
 
+def test_a_scroll_the_frame_after_a_layout_change_moves_a_held_page(browser, serve):
+    """After a width change the page holds the reader's place and applies it again as
+    the layout settles. A page script that grows the layout and scrolls a frame later
+    has moved the page: it keeps that scroll through the next layout change rather than
+    returning to the held place."""
+    lines = "".join(
+        f"<p>Line {n} of a long page, long enough to read as a passage of its own.</p>"
+        for n in range(200)
+    )
+    page = open_page(browser, serve(leaf_page("Held page", lines)))
+    resized(page, 1280, 800)
+    rendered(page)
+    page.mouse.move(400, 400)
+    page.mouse.wheel(0, 2000)
+    page.wait_for_function("document.scrollingElement.scrollTop > 1500")
+    scroll_settled(page)
+    rendered(page)
+    resized(page, 700, 800)
+    rendered(page)
+    moved = page.evaluate(
+        """async () => {
+          const frame = () => new Promise(r => requestAnimationFrame(() => r()));
+          const room = document.createElement('div');
+          room.style.height = '200px';
+          document.querySelector('main').append(room);
+          await frame();
+          await frame();
+          document.scrollingElement.scrollBy(0, 400);
+          return document.scrollingElement.scrollTop;
+        }"""
+    )
+    scroll_settled(page)
+    rendered(page)
+    scrolled = "document.scrollingElement.scrollTop"
+    assert page.evaluate(scrolled) == pytest.approx(moved, abs=2)
+    page.evaluate(
+        "document.querySelector('main').append("
+        "Object.assign(document.createElement('p'), {textContent: 'More.'}))"
+    )
+    rendered(page)
+    assert page.evaluate(scrolled) == pytest.approx(moved, abs=2)
+
+
 @pytest.mark.parametrize("bounded", [False, True])
 def test_typing_in_a_visible_inline_reply_keeps_the_reading_position(
     browser, serve, bounded

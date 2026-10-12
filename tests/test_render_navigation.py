@@ -674,52 +674,92 @@ def test_workspace_posture_changes_keep_each_panes_reading(browser, serve):
     expect(page.locator("#right-subject")).to_be_focused()
 
 
-def test_a_restore_cut_short_by_a_pane_keeps_the_readers_place_for_the_return(
-    browser, serve
-):
-    """Narrow, the reader reads a pane's first line low in the window, below a header
-    that wraps to many lines. Widened, the pane scrolls on its own and starts higher, and
-    at its top it cannot lower that line to where it stood. That is the runtime's move,
-    not the reader's, so narrowing again returns the line to where they left it."""
-    source = READING_REGIONS_PAGE.replace(
-        "<header><h1>Reading workspace</h1></header>",
-        "<header><h1>Reading workspace</h1><p>"
-        + " ".join(
-            ["A header long enough to wrap to many lines at a phone's width."] * 12
-        )
-        + "</p></header>",
-    )
-    page = open_page(browser, serve(source))
+CUT_SHORT_PAGE = READING_REGIONS_PAGE.replace(
+    "<header><h1>Reading workspace</h1></header>",
+    "<header><h1>Reading workspace</h1><p>"
+    + " ".join(["A header long enough to wrap to many lines at a phone's width."] * 12)
+    + "</p></header>",
+)
+LEFT_START_BELOW = """async (id) => {
+  const {landingBand} = await window.__lfRuntimeImport('/runtime/geometry.js');
+  return document.getElementById(id ?? 'left-start').getBoundingClientRect().top
+    - landingBand(document.scrollingElement).top;
+}"""
+
+
+def cut_short(page):
+    """Narrow, read the left pane's first line low in the window, then widen so the pane
+    scrolls on its own, already at its top and short of that line. Returns how far below
+    the band the reader had the line."""
     left = page.locator("#left-reading")
     resized(page, 520, 900)
     pane_posture(page, left, "flow")
     rendered(page)
-    below = """async () => {
-      const {landingBand} = await window.__lfRuntimeImport('/runtime/geometry.js');
-      return document.getElementById('left-start').getBoundingClientRect().top
-        - landingBand(document.scrollingElement).top;
-    }"""
     page.evaluate("document.scrollingElement.scrollTo(0, 0)")
     rendered(page)
-    # The reader scrolls the page a little with the wheel over the pane, which names it
-    # as where they read.
+    # The wheel over the pane names it as where the reader reads.
     box = page.locator("#left-start").bounding_box()
     page.mouse.move(box["x"] + 10, box["y"] + 5)
     page.mouse.wheel(0, 60)
     page.wait_for_function("document.scrollingElement.scrollTop > 0")
     scroll_settled(page)
     rendered(page)
-    read = page.evaluate(below)
-
+    read = page.evaluate(LEFT_START_BELOW)
     resized(page, 1200, 900)
     pane_posture(page, left, "bounded")
     rendered(page)
-    assert page.evaluate(below) < read - 40, "the pane should start higher, cut short"
+    assert page.evaluate(LEFT_START_BELOW) < read - 40, "the pane should be cut short"
+    return read
 
+
+def test_a_restore_cut_short_by_a_pane_keeps_the_readers_place_for_the_return(
+    browser, serve
+):
+    """Widened, the pane cannot lower the reader's line to where it stood. That is the
+    runtime's move, not the reader's, so narrowing again returns the line to where they
+    left it."""
+    page = open_page(browser, serve(CUT_SHORT_PAGE))
+    read = cut_short(page)
     resized(page, 520, 900)
-    pane_posture(page, left, "flow")
+    pane_posture(page, page.locator("#left-reading"), "flow")
     rendered(page)
-    assert page.evaluate(below) == pytest.approx(read, abs=2)
+    assert page.evaluate(LEFT_START_BELOW) == pytest.approx(read, abs=2)
+
+
+@pytest.mark.parametrize("move", ["script", "fragment", "back"])
+def test_a_box_holding_a_restored_place_still_follows_the_reader(browser, serve, move):
+    """A place the runtime restored holds only until someone else moves the box: a
+    page's script, fragment travel, or Back.
+    The box keeps that move through the next layout change, and the next narrowing
+    starts from it rather than from the place the runtime held."""
+    page = open_page(browser, serve(CUT_SHORT_PAGE))
+    read = cut_short(page)
+    body = page.locator("#left-reading > :not(header, footer)")
+    if move == "script":
+        body.evaluate("body => { body.scrollTop += 300; }")
+        moved = body.evaluate("body => body.scrollTop")
+        scroll_settled(page)
+        rendered(page)
+        # A later layout change applies no held place over the move.
+        page.evaluate(
+            "document.querySelector('#right-reading > div').append("
+            "Object.assign(document.createElement('p'), {textContent: 'More.'}))"
+        )
+        rendered(page)
+        assert body.evaluate("body => body.scrollTop") == pytest.approx(moved, abs=2)
+    else:
+        page.evaluate("location.hash = 'left-landmark'")
+        rendered(page)
+        expect(page.locator("#left-landmark")).to_be_in_viewport()
+        if move == "back":
+            page.evaluate("location.hash = 'left-end'")
+            rendered(page)
+            page.go_back()
+            rendered(page)
+    resized(page, 520, 900)
+    pane_posture(page, page.locator("#left-reading"), "flow")
+    rendered(page)
+    assert page.evaluate(LEFT_START_BELOW) < read - 100, "the held place came back"
 
 
 def test_a_tall_local_comment_survives_its_panes_posture_and_return(browser, serve):

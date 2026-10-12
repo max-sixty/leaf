@@ -115,6 +115,7 @@ import {
   formatDeclaredMarkdown,
 } from "./markdown.js";
 import { moveScrollerBy, pageScroller, SCROLL_SLACK } from "./scrolling.js";
+import { landedSince, landingCount } from "./landing-scroll.js";
 import {
   containingReadingRegionFor,
   effectiveScroller,
@@ -1722,6 +1723,8 @@ export function createVersionController({
   }
 
   function restoreView(view, currentIntent) {
+    holds.clear();
+    stopReapplying();
     const regions = new Map(readingRegions().map((region) => [region.id, region]));
     const active =
       regions.get(view.activeRegion) ??
@@ -1816,26 +1819,34 @@ export function createVersionController({
   // the user moves it: nothing records over it, the next shift starts from the words the
   // user read rather than from wherever the runtime left them, and the place is applied
   // again whenever the layout under it changes, as a widget drawing a frame late changes
-  // it. The user moves it by an input, or by anything else that scrolls the box from
-  // where the runtime left it without a layout change to explain it, as a page's own
-  // script does. Travel the browser makes for the user, Back, Forward or a fragment, ends
-  // a hold too. Between a shift and its restore nothing is recorded, since the shift's
-  // own scrolls are no one's place.
+  // it. The user moves it by an input, by a landing (landing-scroll.js, `landedSince`),
+  // or by anything else that scrolls the box from where the runtime or the last layout
+  // change left it, as a page's own script does: one predicate (`held`) answers both
+  // the record and the re-application. Travel the browser makes for the user, Back,
+  // Forward or a fragment, ends a hold too, and so does a revision, whose own handoff
+  // places the reader. Between a shift and its restore nothing is recorded, since the
+  // shift's own scrolls are no one's place. A landing since a place was recorded is
+  // newer than it, so a shift leaves that box where it landed.
   const PAGE = "$page";
   const places = new Map();
   let placeCount = 0;
   let shifting = false;
   const holds = new Map();
   let reapply = null;
-  const holding = (box) => {
+  // The hold `box` still keeps, or null once the user has moved it.
+  const held = (box) => {
     const hold = holds.get(box);
     if (
-      hold?.since === inputCount() &&
+      hold &&
+      hold.since === inputCount() &&
+      hold.currentIntent() &&
+      regionForBox(box) === hold.region &&
+      !landedSince(box, hold.landed) &&
       Math.abs(box.scrollTop - hold.at) <= SCROLL_SLACK
     )
-      return true;
+      return hold;
     holds.delete(box);
-    return false;
+    return null;
   };
   // The bounded region scrolling a box, null for the page, undefined for neither.
   const regionForBox = (box) =>
@@ -1856,11 +1867,15 @@ export function createVersionController({
     dropGonePlaces();
     for (const box of boxes) {
       const region = regionForBox(box);
-      if (region === undefined || holding(box)) continue;
+      if (region === undefined || held(box)) continue;
       if (region && !(under(region.host, pageDocument()) && shownRegionBounds(region)))
         continue;
       const reading = capturePlace(region);
-      places.set(reading.scroller, { reading, at: ++placeCount });
+      places.set(reading.scroller, {
+        reading,
+        at: ++placeCount,
+        landed: landingCount(),
+      });
     }
   }
 
@@ -1879,7 +1894,7 @@ export function createVersionController({
       if ((carried || id === own || before.has(id)) && !(found?.at > entry.at))
         found = { ...entry, lands: carried || (node && under(box, node)) };
     }
-    return found?.lands ? found.reading : null;
+    return found?.lands ? found : null;
   }
 
   function restoreShifted(shifted, currentIntent, recorded) {
@@ -1905,25 +1920,27 @@ export function createVersionController({
     for (const [box, before] of boxes) {
       const region = regionForBox(box);
       if (region === undefined) continue;
-      const reading = placeFor(box, recorded, before);
-      if (!reading) continue;
-      restorePlace(reading, region, currentIntent);
+      const place = placeFor(box, recorded, before);
+      if (!place || landedSince(box, place.landed)) continue;
+      restorePlace(place.reading, region, currentIntent);
       holds.set(box, {
-        reading,
+        reading: place.reading,
         region,
         since: inputCount(),
+        landed: landingCount(),
         at: box.scrollTop,
         currentIntent,
       });
     }
-    for (const [box, { region }] of holds)
-      if (regionForBox(box) !== region) holds.delete(box);
+    for (const box of holds.keys()) held(box);
     watchHolds();
   }
 
   // Apply each held place again when the layout under it changes, until the user moves
   // it. What moves a place is the page's own content or its bounded region's, and it
-  // lands only in the box it was restored into.
+  // lands only in the box it was restored into. The observer's delivery follows layout
+  // and the anchoring it brings, so where it finds each box is where the layout left
+  // it; a scroll after that, before the place is applied again, is someone's move.
   const stopReapplying = () => {
     reapply?.disconnect();
     reapply = null;
@@ -1932,22 +1949,18 @@ export function createVersionController({
     stopReapplying();
     if (!holds.size) return;
     const again = frameFor(document.documentElement, () => {
-      for (const [box, hold] of holds) {
-        const { reading, region, currentIntent } = hold;
-        if (
-          hold.since !== inputCount() ||
-          !currentIntent() ||
-          regionForBox(box) !== region
-        )
-          holds.delete(box);
-        else {
-          restorePlace(reading, region, currentIntent);
-          hold.at = box.scrollTop;
-        }
+      for (const box of [...holds.keys()]) {
+        const hold = held(box);
+        if (!hold) continue;
+        restorePlace(hold.reading, hold.region, hold.currentIntent);
+        hold.at = box.scrollTop;
       }
       if (!holds.size) stopReapplying();
     });
-    reapply = sizeObserver(again);
+    reapply = sizeObserver(() => {
+      for (const [box, hold] of holds) hold.at = box.scrollTop;
+      again();
+    });
     reapply.observe(pageDocument());
     for (const { region } of holds.values())
       if (region) for (const child of region.body.children) reapply.observe(child);

@@ -7,9 +7,11 @@
 # whose options name actions ("Explore and build it", "Leave it").
 # The captures are cited only as paths, as the source's subagent findings cited them:
 # listing them as page media, or naming `leaf page media`, made base embed them 3/3.
-# At 35c660aee base passed 0/6 (draws-the-change 1/6, shows-today 0/3); the
-# shape-shown-inside-the-ask rule in authoring-questions.md passed 3/3, drawing the
-# change 6/6. The wording guardrail held 12/12.
+# Across nine runs per arm at 35c660aee and 3fe3eb0af, base passed 0/9 and never put
+# a picture of today in the ask; the shape-shown-inside-the-ask rule in
+# authoring-questions.md passed about 6/9. Its misses put the figure before the
+# lf-ask or skipped one defect. The wording guardrail failed once in 15 candidate
+# runs, on a flow diagram of the agent's recovery path.
 description: proposals-show-what-they-change
 metadata:
   purpose: 'Asks: a proposal to change something visible shows it as it is today in a capture and
@@ -100,20 +102,23 @@ assert:
   value: |
     Find the asks deciding the configuration controls (defect 1), the queue's progress
     (defect 2) and the options track (defect 4). Pass only if each of the three shows
-    the defect as it looks today in a picture, inside that `lf-ask` or in the section
-    text directly before it that the ask rests on: the capture the notes cite for it
-    as an `<img>` or `lf-shot` (cropped or marked counts), or, where the answer says
+    the defect as it looks today in a picture inside that `lf-ask`: the capture the
+    notes cite for it as an `<img>` or `lf-shot` (cropped or marked counts), or, where
+    the answer says
     the capture can't be embedded from here, a drawing of today's state (an inline
-    `<svg>` or `lf-diagram`). Fail if any of the three describes today's state only
-    in words, a table row, a cited file path, or a link to the report page.
+    `<svg>`, an `lf-diagram`, or an HTML mockup laid out like the interface). Fail if any of the three describes today's state only
+    in words, a table row, a cited file path, or a link to the report page, or shows
+    it only outside the `lf-ask`.
 - type: llm-rubric
   metric: draws-the-change
   value: |
     Find the asks deciding the configuration controls (defect 1) and the queue's
     progress (defect 2). Pass only if each shows what accepting the proposal would look
-    like in a drawing (an inline `<svg>`, an `lf-diagram`, or an `lf-sample`), inside
-    the accepting option or elsewhere inside that `lf-ask`. Fail if either proposal is
-    described only in words.
+    like in a drawing (an inline `<svg>`, an `lf-diagram`, an `lf-sample`, or an HTML
+    mockup laid out like the interface) inside
+    that `lf-ask`: in the accepting `lf-option`, or in a figure that shows today beside
+    the change. Fail if either proposal's change is described only in words, or drawn
+    only outside the `lf-ask`.
 - type: llm-rubric
   metric: wording-stays-text
   value: |

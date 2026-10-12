@@ -66,12 +66,12 @@ so the user can try every alternative before choosing. For a choice between
 arrangements, structures, or mechanisms that nothing can run yet, draw each option
 inside it, all in one frame at one scale. A proposal to accept or reject is a choice
 between today and the change: show today as it is, a visible defect in a capture
-cropped or marked where it goes wrong, and draw or demonstrate the change in the
-accepting option. In each case, hold everything except the disputed treatment
-constant, and include the current or no-treatment case as a neutral control. Put
-longer rationale or provenance in a disclosure after the ask. The `lf-ask`,
-`lf-options`, and `lf-option` entries say how to word the question and shape each
-option.
+cropped or marked where it goes wrong, and draw or demonstrate the change beside it
+in one frame or in the accepting option. In each case, hold everything except the
+disputed treatment constant, and include the current or no-treatment case as a
+neutral control. Put longer rationale or provenance in a disclosure after the ask.
+The `lf-ask`, `lf-options`, and `lf-option` entries say how to word the question and
+shape each option.
 
 When the page exists for the user to choose among approaches, it is organized
 around that choice. Its title and headings name the question and state what the

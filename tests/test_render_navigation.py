@@ -1579,131 +1579,6 @@ def test_a_nested_pane_footer_travels_in_the_outer_region_that_contains_it(
     assert sibling.evaluate("el => el.scrollTop") == 0
 
 
-def test_the_feature_gallery_exercises_the_injected_core_surfaces(
-    browser, serve, live_leaf
-):
-    """Core chrome is a gallery journey, not merely present around its samples.
-
-    Each core surface opens on the gallery and shows the gallery's own content: its
-    Ask in Questions, its open, resolved, and media threads in Threads, its
-    earlier version, the other open page, and at phone width its Page Map. How each
-    surface behaves belongs to that surface's own tests."""
-    live_leaf("second", "A second Leaf page")
-    page = open_page(browser, serve(FEATURE_GALLERY))
-    resized(page, 1600, 900)
-    expect(page.locator(".lf-banner-status")).not_to_be_empty()
-
-    banner_control(page, ".lf-queue").click()
-    map_ask = page.locator("button.lf-queue-row").filter(
-        has_text="Which map should the sample team carry?"
-    )
-    expect(map_ask).to_have_count(1)
-    expect(map_ask).to_have_attribute("data-lf-kind", "question")
-    map_ask.click()
-    expect(page.locator("#bg-choice-ask")).to_be_focused()
-    banner_control(page, ".lf-queue").click()
-    page.locator("#bg-question-api > summary").click()
-    page.get_by_role("button", name="Read current Question", exact=True).click()
-    reading = json.loads(page.locator("#bg-question-reading").inner_text())
-    assert reading["id"] == "widget:bg-choice"
-    assert reading["source"]["id"] == "bg-choice"
-    assert reading["prompt"]["target"] == "bg-choice-ask"
-    assert reading["status"] == "open"
-
-    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
-    banner_control(page, ".lf-threads-toggle").click()
-    expect(page.locator(".lf-thread-panel")).to_be_visible()
-    page.locator(".lf-thread-filter-toggle").click()
-    # The narrowing offers a status only while some thread holds it.
-    resolved = page.locator('[data-filter-value="resolved"]')
-    expect(resolved).to_be_enabled()
-    resolved.click()
-    expect(
-        page.locator('.lf-thread[data-resolved="true"]:not([hidden])')
-    ).not_to_have_count(0)
-    page.locator('[data-filter-value="open"]').click()
-    media_thread = page.locator(
-        '.lf-thread[data-id="2be2443f0bb6cc49fc86b52f340e6073"]'
-    )
-    media_thread.locator(".lf-thread-summary").click()
-    media_thread.locator(".lf-message-media").click()
-    viewer = page.get_by_role("dialog", name="Image preview")
-    expect(viewer.locator("img")).to_have_attribute(
-        "src", "/media/051bee487bfb5d13.png"
-    )
-    page.keyboard.press("Escape")
-    expect(viewer).to_be_hidden()
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-thread-panel")).to_be_hidden()
-
-    banner_control(page, ".lf-version").click()
-    expect(
-        page.locator('.lf-version-menu .lf-version-row[data-lf-version="1"]')
-    ).to_be_visible()
-    page.keyboard.press("Escape")
-
-    banner_control(page, ".lf-others").click()
-    expect(page.locator("a.lf-others-row")).to_contain_text("A second Leaf page")
-    page.keyboard.press("Escape")
-
-    resized(page, 390, 900)
-    page.evaluate("scrollTo(0, 0)")
-    expect(page.locator("#bg-sidebar")).to_be_hidden()
-    # A phone drops the contents spine out of the flow rather than stacking it above
-    # the reading, so the page's first section still opens within the first screen;
-    # left in the flow it lands a screen below the fold. Which section that is belongs
-    # to the gallery's authored order: naming one heading here made a section added
-    # above it read as a layout failure.
-    expect(page.locator("#bg-view-threads > section").first).to_be_in_viewport()
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
-    expect(page.get_by_role("dialog", name="Page Map", exact=True)).to_be_visible()
-
-
-def _accepted_gallery_proposal(browser, serve):
-    """Open the gallery after choosing inside and accepting the nested proposal."""
-    url = serve(FEATURE_GALLERY)
-    page = open_page(browser, url)
-    old = page.locator("#bg-nested-change > lf-old")
-    expect(old).to_be_visible()
-    page.locator("#bg-route-river").click()
-    round_trip(page)
-    suggestion_control(page, "bg-nested-change", "accept").click()
-    round_trip(page)
-    expect(page.locator("#bg-nested-change")).to_have_attribute(
-        "data-lf-state", "accept"
-    )
-    return url, page
-
-
-def test_the_feature_gallery_hides_an_accepted_proposal_slot(browser, serve):
-    """An accepted block proposal hides the slot retired by its decision."""
-    _, page = _accepted_gallery_proposal(browser, serve)
-    expect(page.locator("#bg-nested-change > lf-old")).to_be_hidden()
-
-
-def test_the_feature_gallery_keeps_a_choice_when_its_proposal_is_undone(browser, serve):
-    """The composed page keeps nested user work through an outer undo and reload."""
-    url, page = _accepted_gallery_proposal(browser, serve)
-    suggestion_control(page, "bg-nested-change", "undo").click()
-    round_trip(page)
-
-    expect(page.locator("#bg-nested-change")).not_to_have_attribute(
-        "data-lf-state", "accept"
-    )
-    expect(page.locator("#bg-nested-change > lf-old")).to_be_visible()
-    expect(page.locator("#bg-route lf-option[chosen]")).to_have_attribute(
-        "id", "bg-route-river"
-    )
-    page.close()
-
-    page = open_page(browser, url)
-    expect(page.locator("#bg-nested-change > lf-old")).to_be_visible()
-    expect(page.locator("#bg-route lf-option[chosen]")).to_have_attribute(
-        "id", "bg-route-river"
-    )
-
-
 # The gallery sections a preview may name, and the page tab each opens.
 GALLERY_DESTINATIONS = {
     "bg-core-surfaces": "Decisions",
@@ -1715,18 +1590,28 @@ GALLERY_DESTINATIONS = {
 }
 
 
-def test_the_feature_gallery_sections_are_stable_preview_destinations(browser, serve):
-    """A preview can name its subject directly instead of asking the user to find it.
+def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_leaf):
+    """The gallery is a journey through the core, not merely its samples beside it.
 
-    Arriving at a fragment the gallery holds in a closed tab is one runtime path
-    whichever section it names, so one arrival proves it; what differs per section is
-    only which tab holds it, which the same page answers for every destination."""
+    A preview can name a gallery section directly: arriving at a fragment held in a
+    closed tab is one runtime path whichever section it names, so one arrival proves
+    it, and the same page answers which tab holds every other destination. Each core
+    surface then opens and shows the gallery's own content: its Ask in Questions, its
+    open, resolved, and media threads in Threads, its earlier version, the other open
+    page, and at phone width its Page Map. Live external data, overflowing tabs, the
+    Threads tab's presets operating a sample's panel, sign-off gating, design comments
+    and transport refusal are real journeys on it too.
+
+    One page carries all of them because opening the gallery is most of their cost;
+    how each surface behaves belongs to that surface's own tests."""
+    live_leaf("second", "A second Leaf page")
     destination = "#bg-external-data"
     root = live_url(serve(FEATURE_GALLERY))
     page = open_page(browser, root + destination)
-    expect(
-        page.locator("#bg-gallery-tabs").get_by_role("tab", name="Data & work")
-    ).to_have_attribute("aria-selected", "true")
+    gallery_tab = page.locator("#bg-gallery-tabs").get_by_role
+    expect(gallery_tab("tab", name="Data & work")).to_have_attribute(
+        "aria-selected", "true"
+    )
     # The handover key is exchanged for a cookie before the address is shown.
     expect(page).to_have_url(root.split("?", 1)[0] + destination)
     expect(page.locator(":target")).to_have_attribute("id", destination[1:])
@@ -1764,12 +1649,248 @@ def test_the_feature_gallery_sections_are_stable_preview_destinations(browser, s
     ), targets
     assert len({target["href"] for target in targets}) == len(targets), targets
 
+    # One captured source supplies a following view under its authored label.
+    live = page.locator("#bg-source-live")
+    original = (
+        '[route]\nname = "covered terrace"\ndistance_km = 1.8\nstatus = "sample"\n'
+    )
+    expect(live.locator("code")).to_have_text(original)
+    expect(live.locator("figcaption")).to_have_text(
+        "feature-gallery-source.toml · lines 1–4"
+    )
+    changed = '[route]\nname = "river path"\ndistance_km = 2.1\nstatus = "updated"\n'
+    data_model.cmd_data_set(serve.page_dir, "gallery-source", changed)
+    expect(live.locator("code")).to_have_text(changed)
+    expect(page.locator("#bg-measurement-guide")).to_contain_text(
+        "measurement is behind its source"
+    )
 
-def test_the_feature_gallery_exercises_core_user_workflows(browser, serve):
-    """Sign-off gating, design comments, and transport refusal are real core journeys."""
-    page = open_page(browser, live_url(serve(FEATURE_GALLERY)))
+    # The overflowing tab set, with working pointer and key routes at desktop width.
+    resized(page, 1200, 900)
+    gallery_tab("tab", name="Page & layout").click()
+    tabs = page.locator("#bg-rollout-tabs")
+    strip = tabs.locator(":scope > .lf-tabstrip")
+    tabs.scroll_into_view_if_needed()
+    choices = tabs.get_by_role("tab")
+    expect(choices).to_have_count(6)
+    expect(choices.first).to_have_attribute("aria-selected", "true")
+    assert strip.evaluate("el => el.scrollWidth > el.clientWidth")
+    strip.locator('.lf-tabstrip-scroll[data-to="end"] > span').click()
+    page.wait_for_function(
+        "document.querySelector('#bg-rollout-tabs > .lf-tabstrip').scrollLeft > 0"
+    )
+    expect(choices.first).to_have_attribute("aria-selected", "true")
+    # The keyboard reaches a tab from the pointer control without requiring that
+    # control to take a separate stop; End then brings the last section into view.
+    choices.first.click()
+    page.keyboard.press("End")
+    expect(choices.last).to_be_focused()
+    expect(choices.last).to_have_attribute("aria-selected", "true")
+    expect(page.locator("#bg-rollout-handoff-text")).to_be_visible()
+    page.keyboard.press("Home")
+    page.keyboard.press("ArrowRight")
+    expect(choices.nth(1)).to_be_focused()
+    expect(choices.nth(1)).to_have_attribute("aria-selected", "true")
+    expect(page.locator("#bg-rollout-scope-text")).to_be_visible()
+
+    # The core chrome, each surface showing the gallery's own content.
+    resized(page, 1600, 900)
+    expect(page.locator(".lf-banner-status")).not_to_be_empty()
+    banner_control(page, ".lf-queue").click()
+    map_ask = page.locator("button.lf-queue-row").filter(
+        has_text="Which map should the sample team carry?"
+    )
+    expect(map_ask).to_have_count(1)
+    expect(map_ask).to_have_attribute("data-lf-kind", "question")
+    map_ask.click()
+    expect(page.locator("#bg-choice-ask")).to_be_focused()
+    banner_control(page, ".lf-queue").click()
+    page.locator("#bg-question-api > summary").click()
+    page.get_by_role("button", name="Read current Question", exact=True).click()
+    reading = json.loads(page.locator("#bg-question-reading").inner_text())
+    assert reading["id"] == "widget:bg-choice"
+    assert reading["source"]["id"] == "bg-choice"
+    assert reading["prompt"]["target"] == "bg-choice-ask"
+    assert reading["status"] == "open"
+
+    gallery_tab("tab", name="Threads").click()
+    banner_control(page, ".lf-threads-toggle").click()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
+    page.locator(".lf-thread-filter-toggle").click()
+    # The narrowing offers a status only while some thread holds it.
+    resolved = page.locator('[data-filter-value="resolved"]')
+    expect(resolved).to_be_enabled()
+    resolved.click()
+    expect(
+        page.locator('.lf-thread[data-resolved="true"]:not([hidden])')
+    ).not_to_have_count(0)
+    page.locator('[data-filter-value="open"]').click()
+    media_thread = page.locator(
+        '.lf-thread[data-id="2be2443f0bb6cc49fc86b52f340e6073"]'
+    )
+    media_thread.locator(".lf-thread-summary").click()
+    media_thread.locator(".lf-message-media").click()
+    viewer = page.get_by_role("dialog", name="Image preview")
+    expect(viewer.locator("img")).to_have_attribute(
+        "src", "/media/051bee487bfb5d13.png"
+    )
+    page.keyboard.press("Escape")
+    expect(viewer).to_be_hidden()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
+
+    # The Threads tab's presets operate a real panel in a sample and survive its Reset.
+    frame = page.frame_locator("#bg-panel-sample iframe")
+    panel = frame.locator(".lf-thread-panel")
+    expect(panel).to_be_hidden()
+    page.locator('#bg-panel-presets [data-view="overview"]').click()
+    expect(panel).to_be_visible()
+    expect(frame.locator(".lf-thread")).to_have_count(5)
+    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(4)
+
+    page.keyboard.press("Tab")
+    you_button = page.locator('#bg-panel-presets [data-view="you"]')
+    expect(you_button).to_be_focused()
+    assert you_button.evaluate("element => element.matches(':focus-visible')")
+    page.keyboard.press("Space")
+    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(2)
+    expect(you_button).to_be_focused()
+
+    for view, thread, visible, title in (
+        ("you", "2be2443f0bb6cc49fc86b52f340e6073", 2, "Workshop room photo"),
+        ("resolved", "bab3cdfcfb8c02aacbb27da731de947a", 1, "Projector map"),
+        ("summary", "9ee465bb3f9c1fa309ea9cb1767fa365", 4, "Afternoon workshop"),
+        ("progress", "bg-progress-question", 4, "Schedule checks"),
+        (
+            "overview",
+            "72e031c5bf0d485ba9054628e09869d4",
+            4,
+            "Is lunch provided, or should attendees make their own plans?",
+        ),
+    ):
+        button = page.locator(f'#bg-panel-presets [data-view="{view}"]')
+        button.click()
+        expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(visible)
+        expect(frame.locator(f'.lf-thread[data-id="{thread}"]')).to_have_attribute(
+            "open", ""
+        )
+        topic = frame.locator(f'.lf-thread[data-id="{thread}"] .lf-thread-topic')
+        expect(topic).to_be_visible()
+        expect(topic).to_have_text(title)
+        assert topic.evaluate("element => element.getBoundingClientRect().width") > 40
+        if view == "progress":
+            card = frame.locator(f'.lf-thread[data-id="{thread}"]')
+            checkpoint = card.locator(".lf-thread-checkpoint")
+            expect(checkpoint.locator(".lf-summary-label")).to_have_count(0)
+            expect(checkpoint.locator(".lf-summary-text")).to_have_count(0)
+            earlier = checkpoint.locator(".lf-summary-originals")
+            expect(earlier).to_be_hidden()
+            expand = card.get_by_role("button", name="Show 2 progress messages")
+            page.locator("#bg-panel-sample").scroll_into_view_if_needed()
+            expect(expand).to_be_in_viewport()
+            expand.click()
+            expect(earlier).to_be_visible()
+            expect(earlier).to_contain_text("Checking the total practice time.")
+            expect(earlier).to_contain_text(
+                "Checking the break and closing discussion."
+            )
+            collapse = card.get_by_role("button", name="Hide 2 progress messages")
+            expect(collapse).to_be_focused()
+            expect(collapse).to_be_in_viewport()
+            page.keyboard.press("Enter")
+            expect(earlier).to_be_hidden()
+            expect(
+                card.locator(".lf-thread-transcript > .lf-msg").last
+            ).to_contain_text("The workshop fits, including a fifteen-minute break.")
+
+    page.locator('#bg-panel-presets [data-view="you"]').click()
+    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(2)
+    find = frame.get_by_role("searchbox", name="Find in threads")
+    find.click()
+    find.fill("xyz-nothing")
+    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(0)
+    page.locator('#bg-panel-presets [data-view="resolved"]').click()
+    resolved = frame.locator('.lf-thread[data-id="bab3cdfcfb8c02aacbb27da731de947a"]')
+    expect(frame.get_by_role("searchbox", name="Find in threads")).to_have_value("")
+    expect(
+        frame.locator('[data-filter-kind="status"][data-filter-value="resolved"]')
+    ).to_have_attribute("aria-pressed", "true")
+    expect(resolved).to_have_attribute("open", "")
+    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(1)
+    expect(frame.locator(".lf-thread-filter-toggle")).to_have_attribute(
+        "aria-expanded", "false"
+    )
+    page.locator('#bg-panel-presets [data-view="resolved"]').click()
+    expect(resolved).to_have_attribute("open", "")
+    page.locator('#bg-panel-presets [data-view="you"]').click()
+    page.locator('#bg-panel-presets [data-view="resolved"]').click()
+    expect(resolved).to_have_attribute("open", "")
+    page.locator("#bg-panel-sample").get_by_role(
+        "button", name="Reset", exact=True
+    ).click()
+    page.locator("#bg-panel-sample").evaluate("async sample => { await sample.ready; }")
+    expect(panel).to_be_visible()
+    expect(frame.locator(".lf-thread")).to_have_count(5)
+    expect(
+        frame.locator('.lf-thread[data-id="bab3cdfcfb8c02aacbb27da731de947a"]')
+    ).to_have_attribute("open", "")
+    # Latest commands and Reset cancel pending presentation across the port.
+    result = page.locator("#bg-panel-sample").evaluate(
+        """sample => Promise.all([
+          sample.showThread('2be2443f0bb6cc49fc86b52f340e6073',
+            {surface: 'panel', waiting: 'user'}),
+          sample.showThread('bab3cdfcfb8c02aacbb27da731de947a',
+            {surface: 'panel', status: 'resolved'})
+        ])"""
+    )
+    assert result == [False, True]
+    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(1)
+    expect(
+        frame.locator(".lf-thread[open]:not([hidden]) .lf-thread-topic")
+    ).to_have_text("Projector map")
+    result = page.locator("#bg-panel-sample").evaluate(
+        """async sample => {
+          const old = sample.showThread('2be2443f0bb6cc49fc86b52f340e6073',
+            {surface: 'panel', waiting: 'user'});
+          await sample.reset();
+          return old;
+        }"""
+    )
+    assert result is False
+    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(1)
+    expect(
+        frame.locator(".lf-thread[open]:not([hidden]) .lf-thread-topic")
+    ).to_have_text("Projector map")
+
+    banner_control(page, ".lf-version").click()
+    expect(
+        page.locator('.lf-version-menu .lf-version-row[data-lf-version="1"]')
+    ).to_be_visible()
+    page.keyboard.press("Escape")
+
+    banner_control(page, ".lf-others").click()
+    expect(page.locator("a.lf-others-row")).to_contain_text("A second Leaf page")
+    page.keyboard.press("Escape")
+
+    resized(page, 390, 900)
+    page.evaluate("scrollTo(0, 0)")
+    expect(page.locator("#bg-sidebar")).to_be_hidden()
+    # A phone drops the contents spine out of the flow rather than stacking it above
+    # the reading, so the page's first section still opens within the first screen;
+    # left in the flow it lands a screen below the fold. Which section that is belongs
+    # to the gallery's authored order: naming one heading here made a section added
+    # above it read as a layout failure.
+    expect(page.locator("#bg-view-threads > section").first).to_be_in_viewport()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    page_map = page.get_by_role("dialog", name="Page Map", exact=True)
+    expect(page_map).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page_map).to_be_hidden()
+
+    # Sign-off gating, a design comment, and a transport refusal.
     resized(page, 1280, 900)
-
+    gallery_tab("tab", name="Decisions").click()
     approve = page.locator(".lf-signoff")
     expect(approve).to_have_text("Approve version")
     expect(approve).to_be_disabled()
@@ -1778,6 +1899,7 @@ def test_the_feature_gallery_exercises_core_user_workflows(browser, serve):
     )
 
     option = page.locator("#bg-choice-street")
+    page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("l")
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     option.scroll_into_view_if_needed()
@@ -1833,6 +1955,59 @@ def test_the_feature_gallery_exercises_core_user_workflows(browser, serve):
     expect(retry).to_have_count(0)
 
     consume_browser_errors(page, "400")
+
+
+# A proposal whose new text carries a Question of its own.
+NESTED_PROPOSAL_PAGE = leaf_page(
+    "nested proposal",
+    """<h1 id="t">Practice walk</h1>
+<lf-suggestion id="walk-change">
+  <lf-old><p>Keep the practice walk indoors.</p></lf-old>
+  <lf-new>
+    <p>Take the practice walk outside.</p>
+    <lf-ask id="route-ask">
+      <h2>Which route should the walk follow?</h2>
+      <lf-options id="route" choose>
+        <lf-option id="route-garden">Through the garden</lf-option>
+        <lf-option id="route-river">Along the river</lf-option>
+      </lf-options>
+    </lf-ask>
+  </lf-new>
+</lf-suggestion>""",
+)
+
+
+def test_undoing_a_proposal_keeps_the_choice_made_inside_it(browser, serve):
+    """An accepted block proposal hides the slot its decision retires, and undoing it
+    brings the slot back while the choice made inside the proposal stands, through a
+    reload."""
+    url = serve(NESTED_PROPOSAL_PAGE)
+    page = open_page(browser, url)
+    old = page.locator("#walk-change > lf-old")
+    expect(old).to_be_visible()
+    page.locator("#route-river").click()
+    round_trip(page)
+    suggestion_control(page, "walk-change", "accept").click()
+    round_trip(page)
+    expect(page.locator("#walk-change")).to_have_attribute("data-lf-state", "accept")
+    expect(old).to_be_hidden()
+
+    suggestion_control(page, "walk-change", "undo").click()
+    round_trip(page)
+    expect(page.locator("#walk-change")).not_to_have_attribute(
+        "data-lf-state", "accept"
+    )
+    expect(old).to_be_visible()
+    expect(page.locator("#route lf-option[chosen]")).to_have_attribute(
+        "id", "route-river"
+    )
+    page.close()
+
+    page = open_page(browser, url)
+    expect(page.locator("#walk-change > lf-old")).to_be_visible()
+    expect(page.locator("#route lf-option[chosen]")).to_have_attribute(
+        "id", "route-river"
+    )
 
 
 def test_a_render_that_keeps_an_external_link_gives_back_the_mark_it_dropped(
@@ -1905,27 +2080,6 @@ def test_a_stage_built_before_its_host_arrives_holds_its_links_and_bounds(
         }"""
     )
     assert held == {"target": "_blank", "marked": True, "scroller": True, "atEnd": True}
-
-
-def test_the_feature_gallery_exercises_live_external_data(browser, serve):
-    """One captured source supplies a following view under its authored label."""
-    page = open_page(browser, live_url(serve(FEATURE_GALLERY)))
-    live = page.locator("#bg-source-live")
-    original = (
-        '[route]\nname = "covered terrace"\ndistance_km = 1.8\nstatus = "sample"\n'
-    )
-
-    expect(live.locator("code")).to_have_text(original)
-    expect(live.locator("figcaption")).to_have_text(
-        "feature-gallery-source.toml · lines 1–4"
-    )
-
-    changed = '[route]\nname = "river path"\ndistance_km = 2.1\nstatus = "updated"\n'
-    data_model.cmd_data_set(serve.page_dir, "gallery-source", changed)
-    expect(live.locator("code")).to_have_text(changed)
-    expect(page.locator("#bg-measurement-guide")).to_contain_text(
-        "measurement is behind its source"
-    )
 
 
 @pytest.mark.parametrize("viewport", [(1440, 900), (390, 844)])
@@ -2162,42 +2316,11 @@ def test_an_offscreen_thread_card_arrives_with_its_anchor(
     expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
 
 
-def test_thread_navigation_lands_after_resizing_an_open_reply(browser, serve):
-    """A fixed card cannot reveal itself by scrolling its already-visible passage away."""
-    page = open_page(browser, live_url(serve(FEATURE_GALLERY)))
-    resized(page, 1280, 720)
-    card = page.locator(".lf-margin-preview")
-    thread = card.get_by_role("group", name="Thread, Is lunch provided", exact=False)
-    # The walk reaches the lunch thread wherever the gallery's order puts it.
-    for _ in range(4):
-        page.keyboard.press("t")
-        scroll_settled(page)
-        if thread.count() and thread.evaluate("el => el === document.activeElement"):
-            break
-    expect(thread).to_be_focused()
-    page.keyboard.press("t")
-    expect(
-        card.get_by_role("group", name="Thread, Workshop room photo")
-    ).to_be_focused()
-    scroll_settled(page)
-    page.keyboard.press("Enter")
-    expect(page.get_by_role("textbox", name="Reply", exact=True)).to_be_focused()
-    resized(page, 390, 844)
-    scroll_settled(page)
-    page.keyboard.press("Escape")
-    page.keyboard.press("Shift+t")
-    expect(thread).to_be_focused()
-    scroll_settled(page)
-    expect(thread).to_be_in_viewport(ratio=1)
-    page.keyboard.press("c")
-    reply = page.get_by_role("textbox", name="Reply", exact=True)
-    expect(reply).to_be_focused()
-    scroll_settled(page)
-    expect(reply).to_be_in_viewport(ratio=1)
-
-
 def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
-    """A contextual thread has one side, and leaves and returns with its anchor."""
+    """A contextual thread has one side, and leaves and returns with its anchor.
+
+    The same gallery then holds the walk through a resize: a fixed card cannot reveal
+    itself by scrolling its already-visible passage away."""
     page = open_page(browser, live_url(serve(FEATURE_GALLERY)))
     page.emulate_media(reduced_motion="reduce")
     resized(page, 1440, 900)
@@ -2326,6 +2449,41 @@ def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
     page.keyboard.press("c")
     expect(reply).to_be_focused()
     page.wait_for_function(shown)
+
+    # Let go of the card and start the next walk from the top of the page.
+    for _ in range(3):
+        page.keyboard.press("Escape")
+    page.evaluate(RELEASE_FOCUS)
+    page.evaluate("() => scrollTo(0, 0)")
+    resized(page, 1280, 720)
+    card = page.locator(".lf-margin-preview")
+    thread = card.get_by_role("group", name="Thread, Is lunch provided", exact=False)
+    # The walk reaches the lunch thread wherever the gallery's order puts it.
+    for _ in range(4):
+        page.keyboard.press("t")
+        scroll_settled(page)
+        if thread.count() and thread.evaluate("el => el === document.activeElement"):
+            break
+    expect(thread).to_be_focused()
+    page.keyboard.press("t")
+    expect(
+        card.get_by_role("group", name="Thread, Workshop room photo")
+    ).to_be_focused()
+    scroll_settled(page)
+    page.keyboard.press("Enter")
+    expect(page.get_by_role("textbox", name="Reply", exact=True)).to_be_focused()
+    resized(page, 390, 844)
+    scroll_settled(page)
+    page.keyboard.press("Escape")
+    page.keyboard.press("Shift+t")
+    expect(thread).to_be_focused()
+    scroll_settled(page)
+    expect(thread).to_be_in_viewport(ratio=1)
+    page.keyboard.press("c")
+    reply = page.get_by_role("textbox", name="Reply", exact=True)
+    expect(reply).to_be_focused()
+    scroll_settled(page)
+    expect(reply).to_be_in_viewport(ratio=1)
 
 
 def test_a_pane_frame_comment_preview_is_not_confined_to_its_body(browser, serve):
@@ -2819,37 +2977,6 @@ def test_the_gallery_tab_set_uses_the_boundary_of_its_composition(
         expect(tabs.get_by_role("tab").nth(1)).to_have_attribute(
             "aria-selected", "true"
         )
-
-
-def test_the_gallery_overflow_tabs_reveal_and_open_review_sections(browser, serve):
-    """The gallery offers overflowing tabs at desktop, with working pointer and key routes."""
-    page = open_page(browser, live_url(serve(FEATURE_GALLERY)) + "#bg-tab-set")
-    resized(page, 1200, 900)
-    tabs = page.locator("#bg-rollout-tabs")
-    strip = tabs.locator(":scope > .lf-tabstrip")
-    tabs.scroll_into_view_if_needed()
-    choices = tabs.get_by_role("tab")
-    expect(choices).to_have_count(6)
-    expect(choices.first).to_have_attribute("aria-selected", "true")
-    assert strip.evaluate("el => el.scrollWidth > el.clientWidth")
-
-    strip.locator('.lf-tabstrip-scroll[data-to="end"] > span').click()
-    page.wait_for_function(
-        "document.querySelector('#bg-rollout-tabs > .lf-tabstrip').scrollLeft > 0"
-    )
-    expect(choices.first).to_have_attribute("aria-selected", "true")
-    # The keyboard reaches a tab from the pointer control without requiring that
-    # control to take a separate stop; End then brings the last section into view.
-    choices.first.click()
-    page.keyboard.press("End")
-    expect(choices.last).to_be_focused()
-    expect(choices.last).to_have_attribute("aria-selected", "true")
-    expect(page.locator("#bg-rollout-handoff-text")).to_be_visible()
-    page.keyboard.press("Home")
-    page.keyboard.press("ArrowRight")
-    expect(choices.nth(1)).to_be_focused()
-    expect(choices.nth(1)).to_have_attribute("aria-selected", "true")
-    expect(page.locator("#bg-rollout-scope-text")).to_be_visible()
 
 
 def color_cue_markup():
@@ -16010,10 +16137,11 @@ def test_a_user_at_the_top_of_the_document_is_one_press_from_the_chrome(browser,
     The press is what is asserted rather than the link's presence: a skip link that is in
     the DOM and does not land anybody is the failure this is about, one step later.
 
-    On the corpus, because a page of plain paragraphs would put the chrome one Tab away
-    on its own and this would pass with the link taken out.
+    On the PR walkthrough, which opens on its contents links, because a page of plain
+    paragraphs would put the chrome one Tab away on its own and this would pass with
+    the link taken out.
     """
-    example = next(e for e in EXAMPLES if e.stem == "corpus")
+    example = next(e for e in EXAMPLES if e.stem == "pr-walkthrough")
     page = open_page(browser, serve(example))
     page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("Tab")
@@ -16332,14 +16460,49 @@ def test_an_ask_in_a_reply_is_where_the_user_stands_once_answered(browser, serve
     expect(page.locator("#cache-disk")).not_to_have_attribute("chosen", "")
 
 
+# A Question, a link for the target picker, and a sample that declares its own digit,
+# the three kinds of key the quick-shortcut preference covers.
+QUICK_SHORTCUTS_PAGE = leaf_page(
+    "quick shortcuts",
+    """<h1 id="t">Quick shortcuts</h1>
+<lf-ask id="map-ask">
+  <h2>Which map should the team carry?</h2>
+  <lf-options id="map" choose>
+    <lf-option id="map-street">Street map</lf-option>
+    <lf-option id="map-trail">Trail map</lf-option>
+  </lf-options>
+</lf-ask>
+<p id="lead">Read <a href="#t">the title</a> before choosing.</p>
+<div id="note-sample" tabindex="0">
+  <button id="note-focus" type="button">Write sample note</button>
+  <label>Sample note <input id="note" type="text" /></label>
+</div>""",
+    head="""<script type="module">
+  import { commands } from "/runtime/widget-api.js";
+  const note = document.querySelector("#note");
+  commands(document.querySelector("#note-sample"), "In the note sample", [
+    {
+      id: "note.focus",
+      contextKeys: ["1"],
+      control: document.querySelector("#note-focus"),
+      bindingBadge: null,
+      title: "Write note",
+      description: "Focus the sample note",
+      run: () => note.focus(),
+    },
+  ]);
+</script>""",
+)
+
+
 def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, serve):
     """One persistent policy covers page keys, contextual digits and their hints."""
-    page = open_page(browser, serve(FEATURE_GALLERY))
+    page = open_page(browser, serve(QUICK_SHORTCUTS_PAGE))
     reference = page.locator(".lf-command-reference")
     setting = page.get_by_role("checkbox", name="Quick keyboard shortcuts", exact=True)
-    note = page.locator("#bg-shortcut-note")
-    button = page.locator("#bg-shortcut-focus-note")
-    sample = page.locator("#bg-local-shortcuts")
+    note = page.locator("#note")
+    button = page.locator("#note-focus")
+    sample = page.locator("#note-sample")
 
     def settings():
         page.locator(".lf-banner-more").click()
@@ -16372,9 +16535,10 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     page.keyboard.type("Sent with quick shortcuts off")
     page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator(".lf-page-comment-card")).to_be_hidden()
-    # This page's gesture step displaces the row control while the card is open.
-    # Its visible More door receives focus when Send closes the card.
-    expect(page.locator(".lf-banner-more")).to_be_focused()
+    # Send closing the card hands focus to the card's own door.
+    expect(
+        page.get_by_role("button", name="Comment on the page", exact=True)
+    ).to_be_focused()
     told(page)
     assert any(
         event.get("text") == "Sent with quick shortcuts off"
@@ -16413,10 +16577,10 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     expect(native_target).to_have_count(0)
     page.keyboard.press("Escape")
     rendered(page)
-    street = page.locator("#bg-choice-street")
-    trail = page.locator("#bg-choice-trail")
+    street = page.locator("#map-street")
+    trail = page.locator("#map-trail")
     street.locator(".lf-pick").focus()
-    expect(page.locator("#bg-choice")).not_to_have_attribute(
+    expect(page.locator("#map")).not_to_have_attribute(
         "aria-keyshortcuts", re.compile(r"(?:^| )1(?: |$)")
     )
     page.keyboard.press("1")
@@ -16445,7 +16609,7 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     setting.check()
     page.keyboard.press("Escape")
     street.locator(".lf-pick").focus()
-    expect(page.locator("#bg-choice")).to_have_attribute(
+    expect(page.locator("#map")).to_have_attribute(
         "aria-keyshortcuts", re.compile(r"(?:^| )1(?: |$)")
     )
     page.keyboard.press("1")

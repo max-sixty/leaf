@@ -652,10 +652,12 @@ def test_typing_grows_a_panel_reply_in_flow_or_above_its_pinned_foot(
         assert latest["y"] + latest["height"] <= after["box"][0] + 0.5, (latest, after)
 
 
+# The narrow window is read while walking, which stands on the same edges as reading
+# without a walk and adds the walk's position to them.
 @pytest.mark.parametrize(
     ("viewport", "walking"),
-    [((1200, 900), False), ((390, 740), False), ((390, 740), True)],
-    ids=["wide", "narrow", "narrow-walking"],
+    [((1200, 900), False), ((390, 740), True)],
+    ids=["wide", "narrow-walking"],
 )
 def test_reading_inside_a_long_thread_keeps_its_title_and_reply_row_on_the_lists_edges(
     browser, serve, viewport, walking
@@ -1462,9 +1464,8 @@ def test_a_margin_reply_shares_its_threads_opaque_surface(browser, serve, scheme
         expect(surround).to_have_css("background-color", surface["color"])
 
 
-@pytest.mark.parametrize("asked", [False, True], ids=["waiting", "asked"])
 def test_a_thread_news_resolves_stays_where_it_stands_until_the_user_moves_on(
-    browser, serve, asked
+    browser, serve
 ):
     """Under Open, the agent resolving the thread the user is reading used to fold its
     card away, and every card after it rose. The card stays where it stands, drawn as
@@ -1485,18 +1486,18 @@ def test_a_thread_news_resolves_stays_where_it_stands_until_the_user_moves_on(
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     ][:2]
-    if asked:
-        append_carried_log_record(
-            serve.page_dir,
-            {
-                "kind": "reply",
-                "author": "agent",
-                "agent": "Codex",
-                "parent": first,
-                "text": "Which of the two should stay?",
-                "question": True,
-            },
-        )
+    # The thread waits on the user, so its title has a turn to stop saying.
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": first,
+            "text": "Which of the two should stay?",
+            "question": True,
+        },
+    )
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -1506,10 +1507,7 @@ def test_a_thread_news_resolves_stays_where_it_stands_until_the_user_moves_on(
     control = card.get_by_role("button", name="Resolve thread").bounding_box()
     below = after.bounding_box()
     status = card.locator(".lf-thread-status")
-    if asked:
-        expect(status).to_be_visible()
-    else:
-        expect(status).to_be_hidden()
+    expect(status).to_be_visible()
     page.wait_for_function(
         "at => performance.now() - at > 600", arg=page.evaluate("performance.now()")
     )

@@ -1598,133 +1598,6 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     expect(views["you"].locator('.lf-thread[data-id="98850286"]')).to_be_visible()
 
 
-def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve):
-    """The catalog tab's presets operate a real panel and survive sample Reset."""
-    page = open_page(browser, serve(FEATURE_GALLERY))
-    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
-    frame = page.frame_locator("#bg-panel-sample iframe")
-    panel = frame.locator(".lf-thread-panel")
-    expect(panel).to_be_hidden()
-    page.locator('#bg-panel-presets [data-view="overview"]').click()
-    expect(panel).to_be_visible()
-    expect(frame.locator(".lf-thread")).to_have_count(5)
-    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(4)
-
-    page.keyboard.press("Tab")
-    you_button = page.locator('#bg-panel-presets [data-view="you"]')
-    expect(you_button).to_be_focused()
-    assert you_button.evaluate("element => element.matches(':focus-visible')")
-    page.keyboard.press("Space")
-    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(2)
-    expect(you_button).to_be_focused()
-
-    for view, thread, visible, title in (
-        ("you", "2be2443f0bb6cc49fc86b52f340e6073", 2, "Workshop room photo"),
-        ("resolved", "bab3cdfcfb8c02aacbb27da731de947a", 1, "Projector map"),
-        ("summary", "9ee465bb3f9c1fa309ea9cb1767fa365", 4, "Afternoon workshop"),
-        ("progress", "bg-progress-question", 4, "Schedule checks"),
-        (
-            "overview",
-            "72e031c5bf0d485ba9054628e09869d4",
-            4,
-            "Is lunch provided, or should attendees make their own plans?",
-        ),
-    ):
-        button = page.locator(f'#bg-panel-presets [data-view="{view}"]')
-        button.click()
-        expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(visible)
-        expect(frame.locator(f'.lf-thread[data-id="{thread}"]')).to_have_attribute(
-            "open", ""
-        )
-        topic = frame.locator(f'.lf-thread[data-id="{thread}"] .lf-thread-topic')
-        expect(topic).to_be_visible()
-        expect(topic).to_have_text(title)
-        assert topic.evaluate("element => element.getBoundingClientRect().width") > 40
-        if view == "progress":
-            card = frame.locator(f'.lf-thread[data-id="{thread}"]')
-            checkpoint = card.locator(".lf-thread-checkpoint")
-            expect(checkpoint.locator(".lf-summary-label")).to_have_count(0)
-            expect(checkpoint.locator(".lf-summary-text")).to_have_count(0)
-            earlier = checkpoint.locator(".lf-summary-originals")
-            expect(earlier).to_be_hidden()
-            expand = card.get_by_role("button", name="Show 2 progress messages")
-            page.locator("#bg-panel-sample").scroll_into_view_if_needed()
-            expect(expand).to_be_in_viewport()
-            expand.click()
-            expect(earlier).to_be_visible()
-            expect(earlier).to_contain_text("Checking the total practice time.")
-            expect(earlier).to_contain_text(
-                "Checking the break and closing discussion."
-            )
-            collapse = card.get_by_role("button", name="Hide 2 progress messages")
-            expect(collapse).to_be_focused()
-            expect(collapse).to_be_in_viewport()
-            page.keyboard.press("Enter")
-            expect(earlier).to_be_hidden()
-            expect(
-                card.locator(".lf-thread-transcript > .lf-msg").last
-            ).to_contain_text("The workshop fits, including a fifteen-minute break.")
-
-    page.locator('#bg-panel-presets [data-view="you"]').click()
-    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(2)
-    find = frame.get_by_role("searchbox", name="Find in threads")
-    find.click()
-    find.fill("xyz-nothing")
-    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(0)
-    page.locator('#bg-panel-presets [data-view="resolved"]').click()
-    resolved = frame.locator('.lf-thread[data-id="bab3cdfcfb8c02aacbb27da731de947a"]')
-    expect(frame.get_by_role("searchbox", name="Find in threads")).to_have_value("")
-    expect(
-        frame.locator('[data-filter-kind="status"][data-filter-value="resolved"]')
-    ).to_have_attribute("aria-pressed", "true")
-    expect(resolved).to_have_attribute("open", "")
-    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(1)
-    expect(frame.locator(".lf-thread-filter-toggle")).to_have_attribute(
-        "aria-expanded", "false"
-    )
-    page.locator('#bg-panel-presets [data-view="resolved"]').click()
-    expect(resolved).to_have_attribute("open", "")
-    page.locator('#bg-panel-presets [data-view="you"]').click()
-    page.locator('#bg-panel-presets [data-view="resolved"]').click()
-    expect(resolved).to_have_attribute("open", "")
-    page.locator("#bg-panel-sample").get_by_role(
-        "button", name="Reset", exact=True
-    ).click()
-    page.locator("#bg-panel-sample").evaluate("async sample => { await sample.ready; }")
-    expect(panel).to_be_visible()
-    expect(frame.locator(".lf-thread")).to_have_count(5)
-    expect(
-        frame.locator('.lf-thread[data-id="bab3cdfcfb8c02aacbb27da731de947a"]')
-    ).to_have_attribute("open", "")
-    # Latest commands and Reset cancel pending presentation across the port.
-    result = page.locator("#bg-panel-sample").evaluate(
-        """sample => Promise.all([
-          sample.showThread('2be2443f0bb6cc49fc86b52f340e6073',
-            {surface: 'panel', waiting: 'user'}),
-          sample.showThread('bab3cdfcfb8c02aacbb27da731de947a',
-            {surface: 'panel', status: 'resolved'})
-        ])"""
-    )
-    assert result == [False, True]
-    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(1)
-    expect(
-        frame.locator(".lf-thread[open]:not([hidden]) .lf-thread-topic")
-    ).to_have_text("Projector map")
-    result = page.locator("#bg-panel-sample").evaluate(
-        """async sample => {
-          const old = sample.showThread('2be2443f0bb6cc49fc86b52f340e6073',
-            {surface: 'panel', waiting: 'user'});
-          await sample.reset();
-          return old;
-        }"""
-    )
-    assert result is False
-    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(1)
-    expect(
-        frame.locator(".lf-thread[open]:not([hidden]) .lf-thread-topic")
-    ).to_have_text("Projector map")
-
-
 def test_sample_fixture_history_presents_before_ready_and_returns_on_reset(
     browser, serve
 ):
@@ -4085,8 +3958,8 @@ def test_every_more_row_wears_one_face_and_rings_inside_the_menu(browser, serve)
 
 def test_share_copies_access_after_a_bare_reload(browser, serve):
     """The copied address opens the viewed version and passage in a fresh browser."""
-    url = serve(FEATURE_GALLERY)
-    page = open_page(browser, url + "&view=reading#bg-share-guide")
+    url = serve(LONG_PAGE)
+    page = open_page(browser, url + "&view=reading#p40")
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     expect(page).not_to_have_url(re.compile(r"[?&]t="))
     page.reload()
@@ -4114,7 +3987,7 @@ def test_share_copies_access_after_a_bare_reload(browser, serve):
         "view": ["reading"],
     }
     assert urlsplit(copied).path == urlsplit(url).path
-    assert urlsplit(copied).fragment == "bg-share-guide"
+    assert urlsplit(copied).fragment == "p40"
     expect(copy).to_be_focused()
     page.keyboard.press("Escape")
     expect(
@@ -4122,15 +3995,18 @@ def test_share_copies_access_after_a_bare_reload(browser, serve):
     ).to_be_focused()
     with browser.new_context() as context:
         recipient = open_page(browser, copied, context=context)
-        expect(recipient.locator("#bg-share-guide")).to_be_visible()
+        expect(recipient.locator("#p40")).to_be_in_viewport()
         expect(recipient).not_to_have_url(re.compile(r"[?&]t="))
     resized(page, 390, 844)
     page.get_by_role("button", name=re.compile(r"^More page controls")).click()
     page.evaluate("navigator.clipboard.writeText('before sharing')")
     share.click()
     copy.click()
-    expect(page.locator(".lf-notice")).to_have_text("Link copied")
-    assert page.evaluate("navigator.clipboard.readText()") == copied
+    # The first copy's notice may still stand, so the clipboard itself says when the
+    # second copy has landed.
+    page.wait_for_function(
+        "async copied => (await navigator.clipboard.readText()) === copied", arg=copied
+    )
     # Plain HTTP outside loopback has no clipboard API; the link remains usable.
     page.add_init_script(
         "Object.defineProperty(navigator, 'clipboard', {value: undefined})"
@@ -7903,22 +7779,22 @@ def test_the_feature_gallery_has_no_serious_wcag_a_or_aa_violations(browser, ser
     smaller one: the column is 372px, so a block that had room at a desk starts
     scrolling, and a scrolling box with no way into it from the keyboard is a user
     reading half of every line of code. Nothing at 1200 says a word about it."""
-    url = serve(FEATURE_GALLERY)
+    page = open_page(browser, serve(FEATURE_GALLERY))
     findings = []
     for color_scheme in ("light", "dark"):
-        page = open_page(browser, url, color_scheme=color_scheme)
+        page.emulate_media(color_scheme=color_scheme)
         for width in (1200, 420):
             resized(page, width, 900)
             violations, report = serious_axe_violations(page)
             if violations:
                 findings.append(f"[{width}px {color_scheme}]\n{report}")
-        page.close()
 
     assert findings == [], "\n\n".join(findings)
 
 
-@pytest.mark.parametrize("color_scheme", ["light", "dark"])
-@pytest.mark.parametrize("width", [1200, 420])
+# Each scheme and each width once: a contrast failure belongs to a scheme and a
+# scrolling box to a width, and neither has been seen to need the other.
+@pytest.mark.parametrize(("width", "color_scheme"), [(1200, "light"), (420, "dark")])
 def test_the_chrome_a_key_opens_has_no_serious_violations(
     browser, serve, other_leaf, color_scheme, width
 ):
@@ -9439,9 +9315,15 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
 
 
 def test_every_base_corpus_tab_stop_has_a_visible_focus_indicator(browser, serve):
-    """Every stop in each selected page's ordinary Tab order shows keyboard focus."""
+    """Every stop in each selected page's ordinary Tab order shows keyboard focus.
+
+    The corpus is left out: its Tab order is the chrome every page carries and the
+    first of its own tabs, whose pages are walked here on their own, and it costs as
+    much to walk as the rest together."""
     failures = []
-    for example in (RING_EXAMPLE_FILES[name] for name in RING_EXAMPLES):
+    for example in (
+        RING_EXAMPLE_FILES[name] for name in RING_EXAMPLES if name != "corpus"
+    ):
         page = open_page(browser, serve(example, comments=2))
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)

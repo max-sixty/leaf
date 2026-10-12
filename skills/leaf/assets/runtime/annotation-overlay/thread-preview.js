@@ -36,7 +36,13 @@ import { spokenSubject } from "../contribution-model.js";
 import { labelWords } from "../words.js";
 import { THREAD_CARD } from "./margin-layout.js";
 import { mapButton } from "../page-map-dialog.js";
-import { focusDestination, holdFocus, onStanding, focused } from "../focus.js";
+import {
+  focusDestination,
+  holdFocus,
+  onStanding,
+  focused,
+  standingIn,
+} from "../focus.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { closeControl, el, offer } from "../widget-elements.js";
 import { keeps, keepsHidden, keepsText, layoutPx } from "../keeps.js";
@@ -429,7 +435,7 @@ export function createThreadPreview({
       strongestWorkflow(latest.workflows)?.stage === "sending";
     const drafting = Boolean(
       replyEditor?.checkVisibility() &&
-      (replyEditor.closest(".lf-thread-reply").contains(focused(document)) ||
+      (standingIn(replyEditor.closest(".lf-thread-reply")) ||
         replyEditor.value !== "" ||
         sending),
     );

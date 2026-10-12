@@ -98,6 +98,7 @@ import {
   focused,
   closeLayer,
   rove,
+  standingIn,
 } from "../focus.js";
 
 import { el, offer } from "../widget-elements.js";
@@ -932,7 +933,7 @@ export function createMarginProjection({
     // none does (focus.js, `onStanding`).
     const primary = host.present(projection);
     const options = host.options;
-    const lostOptionFocus = focus.focusedOption && !options.contains(focused(document));
+    const lostOptionFocus = focus.focusedOption && !standingIn(options);
     if (!projection.hasOptions && (focused() === more || lostOptionFocus)) {
       const destination = primary ?? (primaryReading(entry) ? marker : null);
       if (destination === marker && marker.hidden) marker.lfTakeFocus = true;
@@ -1067,7 +1068,7 @@ export function createMarginProjection({
       host.lfTarget = targetFor(entry);
       marker.lfEntry = entry;
       const focus = {
-        focusedOption: Boolean(host.options?.contains(focused(document))),
+        focusedOption: Boolean(host.options && standingIn(host.options)),
         // The entry the user stands on, by its contribution's key, across the projection
         // that may replace its control (focus.js, keyed `holdFocus`).
         restore: holdFocus(host, { key: "data-lf-margin-entry-identity" }),
@@ -1233,7 +1234,7 @@ export function createMarginProjection({
   function closePreview(land = letGo) {
     const button = card.selection()?.control;
     const at = focused();
-    const heldInside = preview.contains(at) && !carryingReply(at);
+    const heldInside = standingIn(preview) && !carryingReply(at);
     closeLayer(() => card.close(), heldInside && (() => land(button)));
     paintKeys();
   }

@@ -609,8 +609,8 @@ export const standingReadsRule = {
         )
           context.report({ node, message: STANDING_READ_MESSAGE });
       },
-      // `scope.contains(focused())` stops at a shadow root and misses a node slotted
-      // into the scope, where `standingIn(scope)` climbs as rendered.
+      // `scope.contains(focused())`, in either reading, stops at a shadow root and misses a
+      // node slotted into the scope, where `standingIn(scope)` climbs as rendered.
       CallExpression(node) {
         const { callee, arguments: args } = node;
         if (
@@ -620,8 +620,7 @@ export const standingReadsRule = {
           args.length === 1 &&
           args[0].type === "CallExpression" &&
           args[0].callee.type === "Identifier" &&
-          args[0].callee.name === "focused" &&
-          args[0].arguments.length === 0
+          args[0].callee.name === "focused"
         )
           context.report({
             node,

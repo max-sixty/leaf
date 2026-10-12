@@ -897,7 +897,7 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
     closeLayer(
       () => {
         if (commandReferenceDialog.open) closeNativeLayer(commandReferenceDialog);
-        if (commandReferenceDialog.contains(focused(document))) deepFocus()?.blur();
+        if (standingIn(commandReferenceDialog)) deepFocus()?.blur();
         repaint();
       },
       handingBack && (() => handBack(restore)),

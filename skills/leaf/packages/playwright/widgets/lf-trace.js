@@ -59,7 +59,6 @@ import {
   keepsHidden,
   el,
   focusDestination,
-  focused,
   holdFocus,
   html,
   iconTemplate,
@@ -1375,7 +1374,7 @@ customElements.define(
         const commit = (viewer) => {
           if (!current()) return;
           const retired = this.#picture;
-          const hadFocus = this.#viewport.value.contains(focused(document));
+          const hadFocus = standingIn(this.#viewport.value);
           this.#picture = viewer;
           // Leaf owns container resize so unchanged window signals leave the
           // inspected image alone. Viewer otherwise refits it on every signal.

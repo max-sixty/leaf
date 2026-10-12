@@ -69,6 +69,7 @@ import {
   whileConnected,
   wrote,
   focused,
+  standingIn,
 } from "/runtime/widget-api.js";
 
 const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
@@ -402,7 +403,7 @@ customElements.define(
         this.removeAttribute("data-lf-compact");
         this.setAttribute("data-lf-outline", "");
         if (
-          this.#nav.contains(focused(document)) &&
+          standingIn(this.#nav) &&
           this.#focusedLink === focused(document) &&
           this.#focusedVisible &&
           this.#nav.getBoundingClientRect().height < this.#navHeight - 1

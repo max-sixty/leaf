@@ -53,6 +53,7 @@ test("a frame's own document is its page's question", () => {
 
 test("whether the user stands in a scope is standingIn's question", () => {
   assert.equal(reports("if (panel.contains(focused())) go();"), 1);
+  assert.equal(reports("if (panel.contains(focused(document))) go();"), 1);
   assert.equal(reports("if (standingIn(panel)) go();"), 0);
   assert.equal(reports("if (panel.contains(node)) go();"), 0);
 });

@@ -85,7 +85,7 @@ async function arriveAtThread(next, destinations, panelIsOpen, threadsBox, inten
     return Boolean(await openPageThread(next.dataset.id, { part: "thread", intent }));
   if (!intent()) return false;
   threadsBox.revealNavigation(next.dataset.id);
-  const standing = next.contains(focused(document));
+  const standing = standingIn(next);
   focusThread(next, "move");
   if (standing) landWalkedThread(next, threadsBox);
   scrollToThread(next.dataset.id, { keep: true });

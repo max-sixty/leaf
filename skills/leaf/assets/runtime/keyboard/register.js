@@ -26,6 +26,7 @@ import {
   word,
 } from "./bindings.js";
 import { focused } from "../focus.js";
+import { coarsePointer } from "../pointer.js";
 import { paintKeys, scopesFor, watchCommandScopes } from "./scopes.js";
 // Native activation reads declarations without assembling or validating the keyboard
 // during feature construction. Both element and page commands share one control owner.
@@ -281,8 +282,9 @@ export function pageScopes() {
 }
 // The presses a finger reaches through a banner control rather than a key (AGENTS.md,
 // "Touch routes"): each a page command declares, in line order, and each a scope's rows
-// declare, scope by scope in STACK order, the focused element's own scopes at ELEMENTS,
-// so the first that stands is the one the user is innermost in. Read from the live
+// declare, scope by scope in STACK order, so the first that stands is the one the user is
+// innermost in. The focused element's own scopes stand at ELEMENTS, under a finger only:
+// their steps stand in for a control the widget draws for a pointer. Read from the live
 // register, since a scope may join or leave it.
 export function touchPresses() {
   pageScopes();
@@ -292,7 +294,9 @@ export function touchPresses() {
     ),
     steps: STACK.flatMap((name) =>
       (name === ELEMENTS
-        ? scopesFor(focused())
+        ? coarsePointer.matches
+          ? scopesFor(focused())
+          : []
         : typeof name === "string"
           ? (scopes.get(name) ?? [])
           : []

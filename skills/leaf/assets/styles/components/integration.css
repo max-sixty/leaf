@@ -11,8 +11,10 @@
 :host-context(html[data-lf-draw-mode]):host-context(main) [data-lf-runtime] * {
   cursor: auto !important; }
 /* Copy floats over the code's corner without changing its box or scrolling text.
-   Pointer and keyboard intent reveal it. A finger shows none before it lands, so touch
-   never draws the control and copies through the banner's step (code-copy.js). */
+   Pointer and keyboard intent reveal it. A finger shows none before it lands, so a live
+   page never draws the control for one and copies through the banner's step
+   (code-copy.js). An export has no banner, so there a finger keeps the control, which
+   hides while the user stands in the source so covered words can be read. */
 :root {
   --lf-code-copy-size: max(32px, var(--aim-floor));
 }
@@ -34,8 +36,13 @@ pre:hover + .lf-code-copy,
 .lf-code-copy-hover,
 .lf-code-copy-focused,
 .lf-code-copy:is(:hover, [data-lf-focus-within]) { opacity: 1; }
+@media (pointer: coarse) {
+  :root[data-lf-live] .lf-code-copy { display: none; }
+}
 @media (pointer: coarse), (hover: none) {
-  .lf-code-copy { display: none; }
+  :root:not([data-lf-live]) .lf-code-copy { opacity: 1; }
+  :root:not([data-lf-live]) :is(pre[data-lf-focus] + .lf-code-copy, .lf-code-copy.lf-code-copy-focused) {
+    opacity: 0; pointer-events: none; }
 }
 .lf-code-copy::part(button) {
   width: var(--lf-code-copy-size);

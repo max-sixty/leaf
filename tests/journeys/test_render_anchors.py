@@ -415,6 +415,12 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
             # the block's aria-keyshortcuts.
             pre.focus()
             assert "copy code" in shortcut_bar_text(page)
+            # The corner control serves a pointer, so the banner keeps its own row.
+            expect(
+                page.locator(".lf-banner-actions").get_by_role(
+                    "button", name="Copy code", exact=True
+                )
+            ).to_have_count(0)
             expect(pre).to_have_attribute("aria-keyshortcuts", "Enter")
             page.keyboard.press("?")
             page.keyboard.press("?")

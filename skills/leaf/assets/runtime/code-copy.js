@@ -11,10 +11,12 @@
    inside the code keeps its own Enter (`nativeActivationAt`), and a document block's
    control stays out of the Tab sequence. Focus need not be on the control, so every
    copy's result also takes the status line.
-   A finger shows no intent before it lands, so on touch the control never shows: shown
-   at rest it covered the ends of the first lines, and room made for it would move the
-   page's content (`../AGENTS.md`, "Nothing Leaf draws moves the page's content").
-   Entering the source by touch stands the user on it, and the banner offers its Copy. */
+   A finger shows no intent before it lands, so a live page never shows the control to
+   one: shown at rest it covered the ends of the first lines, and room made for it would
+   move the page's content (`../AGENTS.md`, "Nothing Leaf draws moves the page's content").
+   Entering the source by touch stands the user on it, and the banner offers its Copy. An
+   export has no banner, so there the control stays shown to a finger and hides while
+   the user stands in the source. */
 import { offer } from "./widget-elements.js";
 import { watchArrivals } from "./arrivals.js";
 import {

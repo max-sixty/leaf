@@ -446,9 +446,11 @@ export function merge(sections, { title, when, at, liveInCommandReference, rows 
  *
  * `where` is the element focus must be inside, `title` names the scope in the command reference dialog
  * (null for one the reference has no room to name), `rows` are its bindings, and the
- * optional configuration carries `when` (whether the page has this scope at all) and
- * `escape: "inner"` when this scope owns a cancellation step ahead of every step the
- * ladder offers. A function in the fourth position is shorthand for `{when: function}`.
+ * optional configuration carries `when` (whether the page has this scope at all), `at`
+ * (whether the user stands in it, for an element whose subtree holds other things to
+ * stand on, such as a code block's links), and `escape: "inner"` when this scope owns a
+ * cancellation step ahead of every step the ladder offers. A function in the fourth
+ * position is shorthand for `{when: function}`.
  *
  * A scope's `when` and a row's `when` are different questions, and keeping them apart is
  * what lets one declaration feed both surfaces. The scope's is the capability — does this
@@ -521,7 +523,7 @@ function declaredScope(title, rows, options) {
     typeof options === "function" ? { when: options } : (options ?? {});
   if (typeof configuration !== "object")
     throw new TypeError("A command scope's options must be an object");
-  const { when, escape } = configuration;
+  const { when, at, escape } = configuration;
   if (escape !== undefined && escape !== "inner")
     throw new TypeError(
       `A command scope's Escape ownership must be \"inner\", got ${String(escape)}`,
@@ -530,6 +532,7 @@ function declaredScope(title, rows, options) {
     title,
     rows: checked(rows, title ?? "a scope"),
     when,
+    at,
     escape,
   };
 }

@@ -1197,6 +1197,11 @@ def test_visual_review_source_reorder_keeps_the_focused_case_draft(browser, serv
     assert (
         field.evaluate("node => [node.selectionStart, node.selectionEnd]") == selection
     )
+    # The editor kept is the one typed into, so its undo history came with it.
+    page.keyboard.press("ControlOrMeta+z")
+    expect(field).not_to_have_js_property(
+        "value", "Keep this draft while the case order changes"
+    )
 
 
 def test_visual_review_selected_caption_owns_its_activation_keys(browser, serve):

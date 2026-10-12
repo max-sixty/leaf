@@ -1719,7 +1719,7 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
         expect(host.locator("lf-shot img").first).to_have_js_property(
             "naturalWidth", 780
         )
-        rendered(page)
+        rendered(page, facts=("updatesSettled",))
         shown = host.locator("lf-shot").bounding_box()
 
         stale_svg = (

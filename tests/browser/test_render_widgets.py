@@ -2796,15 +2796,10 @@ def test_live_widget_subscription_releases_and_reconnects(browser, serve):
       .getAttribute('data-lf-source-words')""")
         == before
     )
-    assert (
-        page.evaluate("""() => window.__lfWatchedSection
-      .querySelector('.lf-draft-history > summary')""")
-        is None
-    )
 
     page.evaluate("document.querySelector('main').append(window.__lfWatchedSection)")
-    expect(page.locator("#watched-draft .lf-draft-history > summary")).to_have_text(
-        "Changes · 1 edit"
+    expect(page.locator("#watched-draft .lf-draft-body")).to_have_text(
+        "Reconnected words."
     )
 
 

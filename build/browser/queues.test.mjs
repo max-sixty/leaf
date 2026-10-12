@@ -91,7 +91,7 @@ test("a follow-up sent in a thread stands for the answer it was owed", () => {
   );
 });
 
-test("prose sent beside an ask takes it off the user until the log answers", () => {
+test("prose sent beside an ask leaves it on the user until the log answers", () => {
   const { app } = adopted("queues on both sides");
   const asked = published(app).questions.find(
     (item) => item.kind === "ask" && item.ask.source.kind === "reply",
@@ -106,9 +106,13 @@ test("prose sent beside an ask takes it off the user until the log answers", () 
     },
     "now",
   );
-  assert.ok(!published(app).questions.some((item) => item.id === asked.id));
+  // Whether the prose answers the ask is the server's reading; the send itself is
+  // the agent's to answer at once.
+  assert.ok(published(app).questions.some((item) => item.id === asked.id));
+  assert.ok(published(app).tasks.some((item) => item.id === "pending:a4"));
   app.refuse("a4");
   assert.ok(published(app).questions.some((item) => item.id === asked.id));
+  assert.ok(!published(app).tasks.some((item) => item.id === "pending:a4"));
 });
 
 test("a pending widget gesture changes no ask membership", () => {

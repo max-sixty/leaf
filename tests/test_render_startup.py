@@ -943,7 +943,13 @@ def test_a_restored_auxiliary_surface_leaves_the_page_where_it_painted(
             + content
             + "</template></lf-sample>"
         )
-    url = serve(leaf_page("Restored surface", content, layout="wide" if wide else None))
+    url = serve(
+        leaf_page(
+            "Restored surface",
+            f"<div>{content}</div>" if wide else content,
+            layout="sidebar" if wide else None,
+        )
+    )
     context = browser.new_context(viewport={"width": window, "height": 900})
     priming = context.new_page()
     priming.goto(url, wait_until="load")

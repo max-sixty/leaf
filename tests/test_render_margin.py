@@ -97,28 +97,31 @@ pytestmark = pytest.mark.main
 
 
 def test_column_width_does_not_clear_a_sidenote(browser, serve):
-    """Column is the ordinary prose measure, so explicitly naming it must not move a
-    paragraph below a sidenote that ordinary neighboring paragraphs flow beside."""
+    """Column is the ordinary prose measure, so a block allocated it, such as a
+    callout, must not drop below a sidenote that ordinary neighboring paragraphs flow
+    beside."""
     source = leaf_page(
         "Column beside sidenote",
         """
 <h1 id="title">Column beside sidenote</h1>
-<aside class="sidenote" id="note"><p>Supporting context in the margin.</p></aside>
+<aside class="sidenote" id="note"><p>Supporting context in the margin, long enough to
+run several lines beside the prose and the callout that follow it.</p></aside>
 <p id="before">The first line of ordinary prose.</p>
-<p id="column" data-width="column">The explicitly column-width line.</p>
+<aside class="callout" id="column"><p>A callout keeps the column.</p></aside>
 <p id="after">The following line of ordinary prose.</p>
 """,
     )
     page = open_page(browser, serve(source))
     resized(page, 1400, 900)
-    tops = page.evaluate(
-        """() => Object.fromEntries(['before', 'column', 'after'].map(id => [
-          id, document.getElementById(id).getBoundingClientRect().top
-        ]))"""
+    expect(page.locator("#note")).to_have_css("float", "right")
+    expect(page.locator("#column")).to_have_attribute("data-lf-space", "column")
+    at = page.evaluate(
+        """() => ({
+          column: document.getElementById('column').getBoundingClientRect().top,
+          note: document.getElementById('note').getBoundingClientRect().bottom,
+        })"""
     )
-    assert tops["column"] - tops["before"] == pytest.approx(
-        tops["after"] - tops["column"], abs=1
-    )
+    assert at["column"] < at["note"], at
 
 
 COMMENT_ON_ASK = {
@@ -9528,16 +9531,16 @@ PANE_FILLER = "".join(
 )
 PANE_PAGE = leaf_page(
     "Release pane",
-    f"""<h1>Release</h1>
+    f"""<div><h1>Release</h1>
 <lf-pane id="evidence" label="Evidence"><div id="pane-body">
 {PANE_FILLER}
 <section id="pane-sec"><h2>Rollout</h2><p>One.</p><p>Two.</p><p>Three.</p><p>Four.</p>
 </section>
 {PANE_FILLER}
 </div></lf-pane>
-{PANE_FILLER}""",
+{PANE_FILLER}</div>""",
     head="<style>#pane-body { height: 420px; overflow: auto; }</style>",
-    layout="wide",
+    layout="sidebar",
 )
 
 
@@ -9585,7 +9588,7 @@ def test_a_card_a_panes_edge_holds_stays_put_as_the_pane_scrolls(browser, serve)
 
 NESTED_PANE_PAGE = leaf_page(
     "Nested panes",
-    f"""<h1>Release</h1>
+    f"""<div><h1>Release</h1>
 <lf-pane id="evidence" label="Evidence"><div id="pane-body">
 {PANE_FILLER}
 <div id="inner" data-bound="start" style="height: 700px">
@@ -9595,9 +9598,9 @@ NESTED_PANE_PAGE = leaf_page(
 {PANE_FILLER}{PANE_FILLER}
 </div>
 {PANE_FILLER}
-</div></lf-pane>""",
+</div></lf-pane></div>""",
     head="<style>#pane-body { height: 300px; overflow: auto; }</style>",
-    layout="wide",
+    layout="sidebar",
 )
 
 
@@ -9798,16 +9801,16 @@ def _comment_on(section, text="A comment on this.", quote=None):
     ("main", "body", "place"),
     [
         ('<main class="layout-column">', "<body>", "rail"),
-        ('<main class="layout-wide">', "<body>", "pin"),
-        ('<main class="layout-wide">', '<body data-rail="right">', "rail"),
+        ('<main class="layout-sidebar">', "<body>", "pin"),
+        ('<main class="layout-sidebar">', '<body data-rail="right">', "rail"),
         ('<main class="layout-column">', '<body data-rail="none">', "pin"),
     ],
-    ids=["column", "wide", "wide-keeps-the-rail", "column-gives-it-up"],
+    ids=["column", "sidebar", "sidebar-keeps-the-rail", "column-gives-it-up"],
 )
 def test_the_page_form_decides_the_rail_and_body_can_say_otherwise(
     browser, serve, main, body, place
 ):
-    """A column page keeps a rail beside its column and a wide page does not: its markers
+    """A column page keeps a rail beside its column and a sidebar page does not: its markers
     stand as pins on their blocks. `data-rail` on `body` turns either round: `right`
     gives up the rail's width at the shell's right edge, and `none` keeps the margin for
     the page's own residents. Only `right` takes room from the page, and only above a
@@ -9815,7 +9818,8 @@ def test_the_page_form_decides_the_rail_and_body_can_say_otherwise(
     source = (
         leaf_page(
             "rail by form",
-            '<h1 id="t">Rail by form</h1><p id="p">A paragraph with a comment on it.</p>',
+            '<div><h1 id="t">Rail by form</h1>'
+            '<p id="p">A paragraph with a comment on it.</p></div>',
         )
         .replace('<main class="layout-column">', main)
         .replace("<body>", body)
@@ -9844,10 +9848,10 @@ def test_a_pin_on_one_shape_of_a_drawing_stands_on_that_shape(browser, serve):
     )
     source = leaf_page(
         "a drawing's parts",
-        '<h1 id="t">Parts</h1><figure id="fig" data-width="wide">'
+        '<div><h1 id="t">Parts</h1><figure id="fig" data-width="wide">'
         '<svg class="drawing" viewBox="0 0 1000 200" role="img">'
-        f"<title>Three shapes</title>{shapes}</svg></figure>",
-        layout="wide",
+        f"<title>Three shapes</title>{shapes}</svg></figure></div>",
+        layout="sidebar",
     )
     page = open_page(
         browser, serve(source, events=[_comment_on("left"), _comment_on("right")])
@@ -9875,11 +9879,11 @@ def test_a_pin_stands_after_its_run_of_text_rather_than_over_it(browser, serve):
     line, over none of the paragraph's words."""
     source = leaf_page(
         "a suggestion's pin",
-        '<h1 id="t">Notes</h1><p id="p">The status column is the '
+        '<div><h1 id="t">Notes</h1><p id="p">The status column is the '
         '<lf-suggestion id="s"><lf-old>release\'s only visual change</lf-old>'
         "<lf-new>only change to the run list</lf-new></lf-suggestion>.</p>"
-        "<p>The next paragraph starts a new subject.</p>",
-        layout="wide",
+        "<p>The next paragraph starts a new subject.</p></div>",
+        layout="sidebar",
     )
     page = open_page(browser, serve(source))
     resized(page, 1440, 900)
@@ -10233,7 +10237,9 @@ def test_a_choice_s_pin_stands_on_none_of_its_option_cards(browser, serve, optio
         '<lf-ask id="a"><h2>Close #1176 as won\'t-fix?</h2>'
         f'<lf-options id="o" choose>{options}</lf-options></lf-ask>'
     )
-    page = open_page(browser, serve(leaf_page("a choice", body, layout="wide")))
+    page = open_page(
+        browser, serve(leaf_page("a choice", f"<div>{body}</div>", layout="sidebar"))
+    )
     page.locator("#o-leave lf-option-control").click()
     row = page.locator('.lf-margin-cluster[data-lf-margin-for="o"]')
     expect(row).to_have_attribute("data-lf-place", "pin")
@@ -10256,11 +10262,11 @@ def test_a_pin_on_a_contents_target_stands_at_its_last_part(browser, serve):
     stands at the corner of every part together, and shows while they do."""
     source = leaf_page(
         "a contents target",
-        '<h1 id="t">Pair</h1><div style="display: flex; gap: 24px">'
+        '<div><h1 id="t">Pair</h1><div style="display: flex; gap: 24px">'
         '<div id="pair" style="display: contents">'
         '<p style="flex: 1">The first half.</p><p style="flex: 1">The second half.</p>'
-        "</div></div>",
-        layout="wide",
+        "</div></div></div>",
+        layout="sidebar",
     )
     page = open_page(browser, serve(source, events=[_comment_on("pair")]))
     resized(page, 1440, 900)
@@ -10278,9 +10284,8 @@ def test_a_pin_on_a_contents_target_stands_at_its_last_part(browser, serve):
 
 
 def test_a_workspace_page_keeps_no_rail(browser, serve):
-    """The workspace Layout stands in the wide page's frame, which leaves no room beside
-    it for a rail, so a comment in a pane stands on its block as a pin, as it does on
-    `<main class="layout-wide">`."""
+    """A workspace takes the window, which leaves no room beside it for a rail, so a
+    comment in a pane stands on its block as a pin, as it does on a sidebar page."""
     source = leaf_page(
         "workspace page",
         '<header><h1 id="t">Workspace</h1></header>'
@@ -10769,15 +10774,15 @@ def test_a_pin_keeps_clear_of_controls_slotted_into_its_reading_region(browser, 
     """A native control in a slotted Ask takes presses before the Ask's overlay pin."""
     source = leaf_page(
         "A slotted Ask",
-        '<h1>Reading region</h1><div id="reader-host">'
+        '<div><h1>Reading region</h1><div id="reader-host">'
         '<lf-ask id="slotted-ask">'
         "<h3>Which channel?</h3>"
         '<button id="ask-help" style="position:absolute; top:0; right:0; '
         'width:120px; height:44px">Explain channels</button>'
         '<lf-options id="channel" choose><lf-option id="email">Email</lf-option>'
-        '<lf-option id="chat">Chat</lf-option></lf-options></lf-ask></div>',
+        '<lf-option id="chat">Chat</lf-option></lf-options></lf-ask></div></div>',
         head="<style>#slotted-ask { position:relative; height:180px; margin:0; }</style>",
-        layout="wide",
+        layout="sidebar",
     )
     page = open_page(browser, serve(source))
     page.evaluate("""async () => {

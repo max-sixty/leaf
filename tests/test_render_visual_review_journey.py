@@ -355,7 +355,6 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
         leaf_page(
             "authenticated navigation review",
             '<lf-visual-review id="journey" source="journey-run"></lf-visual-review>',
-            layout="wide",
         ),
         packages=("visual-review",),
     )

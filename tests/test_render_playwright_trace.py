@@ -78,7 +78,6 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
         leaf_page(
             "Release journey",
             '<h1>Release review</h1><lf-trace id="journey" source="release-trace"></lf-trace>',
-            layout="wide",
         ),
         packages=("playwright",),
     )
@@ -1105,7 +1104,6 @@ def test_trace_comparison_pairs_authored_results_across_delayed_sources(browser,
         leaf_page(
             "Matched results",
             f'<h1>Matched results</h1><lf-trace-compare id="feeds">{viewers}</lf-trace-compare>',
-            layout="wide",
         ),
         packages=("playwright",),
         media=media,
@@ -2111,7 +2109,6 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
         leaf_page(
             "Dense trace review",
             f'<h1>Dense trace review</h1><lf-trace id="journey" source="dense-trace">{members}</lf-trace>',
-            layout="wide",
         ),
         packages=("playwright",),
         media=media,
@@ -2306,7 +2303,6 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
             "Numbered trace moments",
             f'<h1>Numbered trace moments</h1><lf-trace id="journey" source="numbered-trace">{members}</lf-trace>'
             f'<lf-sample id="quoted-recording" label="Recording example"><lf-trace id="quoted-journey" source="numbered-trace">{members}</lf-trace></lf-sample>',
-            layout="wide",
         ),
         packages=("playwright",),
         media=media,
@@ -2450,7 +2446,6 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
         leaf_page(
             "Recording boundary",
             f'<h1>Recording boundary</h1><lf-trace id="boundary" source="boundary-trace">{boundary_members}</lf-trace>',
-            layout="wide",
         ),
         packages=("playwright",),
     )
@@ -3095,7 +3090,6 @@ def test_trace_images_stand_at_their_own_capture_times(browser, serve):
         leaf_page(
             "Capture times",
             '<h1>Capture times</h1><lf-trace id="journey" source="timed-trace"></lf-trace>',
-            layout="wide",
         ),
         packages=("playwright",),
         media=media,

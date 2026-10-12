@@ -19,7 +19,7 @@
    `u` remains paired with `d` in whichever reading region the user stands in. */
 import { nextRender, sizeObserver } from "../rendering.js";
 import { seenRect, shownBand } from "../geometry.js";
-import { intersect } from "../rect.js";
+import { hasArea, intersect } from "../rect.js";
 import { SLIDE_END } from "../motion.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { moved } from "./model.js";
@@ -74,12 +74,12 @@ function frameBand() {
     x += box.left + frame.clientLeft;
     y += box.top + frame.clientTop;
     const cut = (rect) => {
-      band = {
-        left: Math.max(band.left, rect.left - x),
-        top: Math.max(band.top, rect.top - y),
-        right: Math.min(band.right, rect.right - x),
-        bottom: Math.min(band.bottom, rect.bottom - y),
-      };
+      band = intersect(band, {
+        left: rect.left - x,
+        top: rect.top - y,
+        right: rect.right - x,
+        bottom: rect.bottom - y,
+      });
     };
     for (
       let ancestor = renderedParent(frame);
@@ -96,7 +96,7 @@ function frameBand() {
       const shown = shownBand(ancestor);
       if (shown) cut(shown);
     }
-    if (band.right <= band.left || band.bottom <= band.top) return null;
+    if (!hasArea(band)) return null;
     current = owner;
   }
   return band;

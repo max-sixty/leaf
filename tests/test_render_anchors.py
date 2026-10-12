@@ -207,7 +207,8 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
                 clearTimeout(timer);
             }
         };
-        const fab = document.querySelector('.lf-fab-input');
+        // The composer's field joins the page at its first open.
+        const fab = () => document.querySelector('.lf-fab-input');
         const speaks = el => {
             const near = el.closest('.lf-ui, [data-lf-said]');
             return !near || near.matches('[data-lf-said]');
@@ -262,7 +263,7 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
             range = pageRange(sel);
             // Counted, not shrugged off: a selection the button declines to offer is
             // a passage silently outside this sweep, and the sweep is the coverage.
-            if (fab.style.display !== 'block') {
+            if (fab()?.style.display !== 'block') {
                 skipped.push(range.toString().replace(/\\s+/g, ' ').trim().slice(0, 70));
                 continue;
             }

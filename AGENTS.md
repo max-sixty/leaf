@@ -364,5 +364,6 @@ loaded module, a vendored file, or the install's size, are not on their own a re
 for a change.
 
 Land through a pull request or with `wt merge`, which squash-merges to `main`.
-`/developing-leaf` covers landing with a red gate; Tend sessions follow
+A failing check the change doesn't cause blocks nothing (`tests/AGENTS.md`, "Run
+what the change needs"). Tend sessions follow
 **Landing** in `.claude/skills/running-tend/SKILL.md`.

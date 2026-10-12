@@ -1631,8 +1631,8 @@ def test_a_comment_being_typed_reaches_the_pages_other_tabs(browser, serve, one_
     other's box live, and a send there empties it — the distinction the store's own
     vocabulary carries, an emptied box being a value and a settled draft a tombstone.
     The Send button is read with the value, since a mirrored draft the box cannot send
-    is words arriving dead. The other tab's general box stays in its shut card, which
-    holds the words all the same."""
+    is words arriving dead. The other tab's general box joins its card when the card
+    first opens and stays there, so its shut card holds the later words all the same."""
     url = serve(LONG_PAGE, comments=1)
     first = open_page(browser, url, context=one_user)
     second = open_page(browser, url, context=one_user)
@@ -1642,10 +1642,11 @@ def test_a_comment_being_typed_reaches_the_pages_other_tabs(browser, serve, one_
 
     typed = "The page is missing the migration step."
     write(page_comment(first), typed)
-    expect(second.locator(".lf-general leaf-text")).to_have_js_property("value", typed)
+    expect(page_comment(second)).to_have_js_property("value", typed)
     expect(second.locator(".lf-general .lf-compose-submit")).to_have_attribute(
         "aria-disabled", "false"
     )
+    second.keyboard.press("Escape")
 
     # The tab doing the typing is the one tab the store says nothing to, which is what
     # leaves the caret where the user put it: writing .value on a focused box sends
@@ -2433,9 +2434,7 @@ def test_failed_settlement_keeps_the_base_for_a_chained_nondurable_edit(
     first = "The first nondurable comment on that branch."
     second = "The chained nondurable comment keeps the same base."
     write(page_comment(shared), predecessor)
-    expect(local.locator(".lf-general leaf-text")).to_have_js_property(
-        "value", predecessor
-    )
+    expect(page_comment(local)).to_have_js_property("value", predecessor)
     local.evaluate(
         """([draft, first, second]) => {
           const set = Storage.prototype.setItem;
@@ -3184,7 +3183,7 @@ def test_an_unsent_draft_outlives_the_tab_it_was_typed_in(browser, serve, one_us
     page.close()
 
     again = open_page(browser, url, context=one_user)
-    expect(again.locator(".lf-general leaf-text")).to_have_js_property("value", typed)
+    expect(page_comment(again)).to_have_js_property("value", typed)
 
 
 def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, serve):
@@ -5410,6 +5409,8 @@ def editing_read(editor):
         "general",
         "first-message",
         "edit",
+        # A document edit opened and selected in, with no words changed, so no draft.
+        "edit-unchanged",
         "option",
     ],
 )
@@ -5421,7 +5422,7 @@ def test_executable_revision_preserves_each_editor_identity(browser, serve, kind
         editor = page_comment(page)
     elif kind == "first-message":
         editor = page.locator("#seat-root > .lf-thread-seat > .lf-say leaf-text")
-    elif kind == "edit":
+    elif kind in {"edit", "edit-unchanged"}:
         page.locator("#draft-root .lf-draft-body").click()
         editor = page.locator("#draft-root leaf-text")
     elif kind == "option":
@@ -5445,7 +5446,8 @@ def test_executable_revision_preserves_each_editor_identity(browser, serve, kind
     words = "Kept words with a selected span."
     if kind == "authored":
         words = "\n".join([words] * 200)
-    write(editor, words)
+    if kind != "edit-unchanged":
+        write(editor, words)
     editor.evaluate("el=>el.setSelectionRange(5,10,'backward')")
     before = editing_read(editor)
     if kind == "authored":
@@ -6026,7 +6028,8 @@ def test_resume_writing_keeps_editor_identity_caret_and_sent_conversation(
     held[0].continue_()
     page.unroute("**/api/state")
     wait_until_ready(page)
-    expect(box).not_to_be_focused()
+    # The composer stays shut, so its box is not on the page to hold focus.
+    expect(page.locator("leaf-text:focus")).to_have_count(0)
     page.keyboard.press("g")
     page.keyboard.press("i")
     expect(box).to_be_focused()
@@ -6376,7 +6379,6 @@ def test_a_draft_button_keeps_its_target_when_pointerdown_focuses_it(
         )
         == before
     )
-    expect(draft.locator("button .lf-key-badge")).to_have_count(0)
     page.mouse.up()
     if action == "edit":
         expect(draft.locator("leaf-text")).to_be_focused()

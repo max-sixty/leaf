@@ -1321,7 +1321,7 @@ def test_the_ask_walk_lands_an_ask_in_a_bounded_log_at_the_log_top(browser, serv
     scroll_settled(page)
     after = page.evaluate("() => document.scrollingElement.scrollTop")
     assert after == pytest.approx(before, abs=1), f"the page moved {after - before}px"
-    # At the log's top, less the room the Ask's ring takes above it.
+    # Leave the Ask's focus ring inside the bounded log's visible edge.
     landed = page.evaluate(
         """() => { const q = document.getElementById('q');
           return q.getBoundingClientRect().top
@@ -9458,9 +9458,11 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
     expect(page.get_by_role("button", name="? more", exact=True)).to_have_attribute(
         "aria-keyshortcuts", "?"
     )
-    expect(page.locator(".lf-general leaf-text")).to_have_attribute(
+    # The page's box joins its card at the card's first open.
+    expect(page_comment(page)).to_have_attribute(
         "aria-keyshortcuts", "Enter Meta+Enter Control+Enter"
     )
+    page.keyboard.press("Escape")
     expect(page.locator("#live-question .lf-another leaf-text")).to_have_attribute(
         "aria-keyshortcuts", "Enter Meta+Enter Control+Enter"
     )
@@ -13410,9 +13412,6 @@ def test_reactionless_other_responses_can_turn_the_compact_field_into_a_suggesti
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     expect(box).not_to_be_focused()
     expect(box).to_have_attribute("placeholder", "Comment… c")
-    expect(page.locator(".lf-general leaf-text")).to_have_attribute(
-        "placeholder", "Comment on the page"
-    )
     page.keyboard.press("c")
     expect(box).to_be_focused()
     expect(box).to_have_attribute("placeholder", re.compile(r"^Comment… .*⏎$"))
@@ -14431,6 +14430,9 @@ def test_a_passage_selection_keeps_native_copy_and_context_menu(browser, serve):
 def test_focus_paint_releases_every_text_box_crossed_before_a_frame(browser, serve):
     """A synchronous input sync cannot hide an intermediate focus from repaint."""
     page = open_page(browser, serve(INLINE_PAGE, comments=2))
+    # The page's box joins its card at the card's first open, and stays.
+    page_comment(page)
+    page.keyboard.press("Escape")
     page.locator(".lf-threads-toggle").click()
     general = page.locator(".lf-general leaf-text")
     replies = page.locator(".lf-thread leaf-text")
@@ -14728,7 +14730,6 @@ def test_a_field_names_no_key_to_a_finger(browser, serve):
     page = open_page(browser, serve(INLINE_PAGE, comments=2), context=context)
     assert page.evaluate("() => matchMedia('(pointer: coarse)').matches")
     general = page.locator(".lf-general leaf-text")
-    expect(general).to_have_attribute("placeholder", "Comment on the page")
     page_comment(page)
     expect(general).to_have_attribute("placeholder", "Comment on the page")
     page.keyboard.press("Escape")

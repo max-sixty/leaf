@@ -1,17 +1,17 @@
 # For a direct local landing, `wt merge` runs these checks after rebasing, so the tree
-# they check is the one that becomes main. They are the gates a pull request's `lint`
-# and `test` jobs run on the code. The website's delivery checks — the site build, the
+# they check is the one that becomes main. They are the gates a pull request's combined
+# `lint` job runs on the code. The website's delivery checks — the site build, the
 # Worker's dry-run deploy, and the Chrome pass over the bundled release — stay with
 # `publish-site`, which runs them before it deploys: together they take minutes and a
 # Docker daemon, and here they would run beside a suite that is sensitive to load.
 #
-# A hook that rewrites (prettier, ruff-format, the bundle rebuild) fails the merge and
-# leaves the rewrite uncommitted in the worktree. Read it, then `wt merge` again — the
-# squash sweeps it in.
+# Lint checks fail without rewriting files. A bundle rebuild that changes tracked
+# bytes fails the merge and leaves its rewrite uncommitted in the worktree. Read it,
+# then `wt merge` again — the squash sweeps it in.
 #
 # Separate blocks rather than one table, because a table runs its commands together: the
-# lint rewrites the tree the suite reads, and the bundle rebuild needs the install the
-# first block makes and replaces bundles the suite copies into pages.
+# bundle rebuild needs the install the first block makes and replaces bundles the
+# suite copies into pages.
 #
 # Setup waits for any background preparation, then verifies the dependencies the
 # suite reads. It owns installation and serialization for both entry points.

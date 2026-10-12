@@ -10,9 +10,10 @@ const strokes = [
   ],
 ];
 
-test("the page accepts the drawings the door accepts", () => {
-  // The bounds the door's schema states in registry.json: a record the page refused
-  // would drop ink the log holds, and one it alone accepted would be refused on send.
+test("the page accepts the drawings the door accepts, and a draft's", () => {
+  // The bounds are the door's schema in registry.json, which the page's copy is
+  // generated from. The page also takes a draft's shape, whose `box` is optional and
+  // which may carry `at`; `sentDrawing` sends the door the comment's shape.
   const drawnIn = { viewport: [1280, 720], scheme: "light" };
   const drawing = (fields) => ({
     format: DRAWING_FORMAT,
@@ -23,6 +24,7 @@ test("the page accepts the drawings the door accepts", () => {
   for (const accepted of [
     {},
     { box: [640.5, 96] },
+    { at: [1, 0, 0, 1, 12, -40] },
     { frame: { root: "svg", path: [] } },
     {
       frame: {

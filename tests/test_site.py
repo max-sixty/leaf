@@ -694,9 +694,7 @@ def test_a_nested_page_keeps_one_draft_across_its_version_addresses(
 
     opened(page, f"{url}versions/v1.html")
     expect(page.locator(".lf-version")).to_have_text("Showing v1")
-    expect(
-        page.locator(".lf-page-comment-card .lf-general leaf-text")
-    ).to_have_js_property("value", "Kept across addresses")
+    expect(page_comment(page)).to_have_js_property("value", "Kept across addresses")
 
 
 def test_the_published_notification_example_runs_its_authored_module(

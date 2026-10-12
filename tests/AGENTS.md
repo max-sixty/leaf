@@ -75,10 +75,13 @@ whose own lines the change edits.
 Before handing over, run the tests that hold the behavior you changed, in any file and
 nightly ones included, named by node id or `-k`; find them by reading which tests
 exercise the code the change touches. Run `pnpm run test:runtime` too when the change
-reaches the runtime. A change lands only on a green landing gate, which runs the broad
+reaches the runtime. A change lands through a landing gate, which runs the broad
 selection: a pull request's `test` job, or `wt merge`'s pre-merge. A failure there
-that your selection missed is the gate doing its job; fix it and push. Every other
-nightly test is CI's to report: the `test` job in `ci.yaml` runs the complete suite
+that the change causes is the gate doing its job, even one your selection missed; fix
+it and push. A failure it doesn't cause, such as a test main's latest run also fails,
+blocks nothing and calls for no rerun: say so in the pull request and land it. `wt
+merge` refuses on any failure, so such a change lands through a pull request. Every
+other nightly test is CI's to report: the `test` job in `ci.yaml` runs the complete suite
 once main moves, and `tend-ci-fix` answers what it fails. That trade is the user's
 choice (2026-10-04): a pull request can land green and break a nightly test it never
 ran, and main can stay red while `tend-ci-fix` repairs it, so a red main is no reason

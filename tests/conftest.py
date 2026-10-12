@@ -39,12 +39,7 @@ __all__ = ["LEAF_COMMAND"]
 signal.signal(signal.SIGINT, signal.default_int_handler)
 # Domain test modules import their assertions explicitly. Register only the modules
 # that own fixtures once for the complete suite.
-pytest_plugins = (
-    "interact_support",
-    "render_harness",
-    "render_cases_layout",
-    "render_cases_navigation",
-)
+pytest_plugins = ("interact_support", "render_harness")
 
 
 # The layer a page carries is the same bytes in every fixture, and the file it
@@ -289,7 +284,14 @@ def pytest_collection_modifyitems(config, items):
     A change that moves a browser behaviour usually edits the test that holds it, so both
     landing gates add the nightly tests whose own lines the change touches
     (`--nightly-changed-since`): those run before it lands, and CI's `test` job runs
-    the rest on main after."""
+    the rest on main after.
+
+    Selecting by the code a change touches would catch more, but this design makes
+    that map coarse. Browser tests reach code through a served page, not imports, so
+    the map would have to come from recorded Python and Chrome coverage. Nearly every
+    browser test loads the same runtime and server, so a change there, about half of
+    recent commits, would select close to the complete suite, and coverage cannot say
+    which CSS rules a test relied on."""
     selected = (
         config.getoption("keyword")
         or config.getoption("markexpr")

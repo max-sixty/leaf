@@ -1,23 +1,22 @@
 /* Generated from skills/leaf/assets/styles/chrome.css by build/styles.mjs. */
 /* skills/leaf/assets/styles/floating-panel.css */
-html[data-lf-floating-chrome] .lf-chrome {
-  .lf-banner,
-  .lf-shortcut-bar {
-    display: none !important;
-  }
-  .lf-bottom-status {
-    top: calc(12px + var(--lf-safe-top));
-    bottom: auto;
-    right: auto;
-    left: 50%;
-    translate: -50% 0;
-  }
-}
 @scope (.lf-chrome) {
+  html[data-lf-floating-chrome] :scope {
+    .lf-banner,
+    .lf-shortcut-bar {
+      display: none !important;
+    }
+    .lf-bottom-status {
+      top: calc(12px + var(--lf-safe-top));
+      bottom: auto;
+      right: auto;
+      left: 50%;
+      translate: -50% 0;
+    }
+  }
   .lf-floating-panel {
     --lf-fp-surface: light-dark(#fffefb, #2a2925);
     --lf-fp-ring: color-mix(in srgb, var(--ink) light-dark(13%, 22%), transparent);
-    --lf-fp-shadow: light-dark(rgb(20 18 12 / 0.18), rgb(0 0 0 / 0.5));
     --lf-fp-hover: color-mix(in srgb, var(--ink) 5%, transparent);
     --lf-fp-inset: 6px;
     --lf-fp-radius: 14px;
@@ -42,8 +41,8 @@ html[data-lf-floating-chrome] .lf-chrome {
     border-radius: var(--lf-fp-radius);
     box-shadow:
       0 0 0 0.5px var(--lf-fp-ring),
-      0 16px 32px -10px var(--lf-fp-shadow),
-      0 2px 6px -2px rgb(20 18 12 / 0.06);
+      0 16px 32px -10px var(--shade),
+      0 2px 6px -2px var(--shade);
   }
   .lf-fp-inner {
     flex: none;
@@ -632,7 +631,7 @@ html[data-lf-floating-chrome] .lf-chrome {
     padding: 7px 12px;
     border-radius: 9px;
     background: var(--lf-fp-surface);
-    box-shadow: 0 0 0 0.5px var(--lf-fp-ring), 0 8px 20px -8px rgb(20 18 12 / 0.18);
+    box-shadow: 0 0 0 0.5px var(--lf-fp-ring), 0 8px 20px -8px var(--shade);
     color: var(--muted);
     font-size: var(--t-6);
     pointer-events: none;

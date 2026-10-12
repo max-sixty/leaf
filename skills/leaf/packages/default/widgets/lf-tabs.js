@@ -399,12 +399,12 @@ customElements.define(
             : !answered
               ? only
                 ? "Unanswered"
-                : `${done.length} of ${asks.length} Questions answered`
+                : `${done.length} of ${asks.length} answered`
               : only
                 ? answer
                   ? `Answered: ${answer}`
                   : "Answered"
-                : `All ${asks.length} Questions answered`,
+                : `All ${asks.length} answered`,
         ]
           .filter(Boolean)
           .join(". ");

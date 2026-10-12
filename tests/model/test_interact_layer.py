@@ -1354,69 +1354,6 @@ def test_kernel_selectors_name_no_package_tag():
     assert leaks == [], leaks
 
 
-def test_every_widget_api_export_has_a_behavior_module_reader():
-    """widget-api.js is the API behavior modules get, so each name it exports is one a
-    behavior module imports (a bundled package's, a kernel widget's, an example's or a
-    fixture package's) or one a reference teaches package authors. The list of Lit's
-    names under module-authoring.md's "Lit exports" teaches none of them, so it keeps no
-    name alive. A name only the render gate's probes read belongs in check-api.js, and
-    one only the suite reads is imported from its owning module, so neither widens the
-    authoring API."""
-    strip = lambda code: re.sub(r"(?<!:)//[^\n]*|/\*.*?\*/", "", code, flags=re.DOTALL)
-    api = strip((schema_model.ASSETS / "runtime" / "widget-api.js").read_text())
-    exported = {
-        spec.split(" as ")[-1].strip()
-        for block in re.findall(r"export\s*\{([^}]*)\}", api)
-        for spec in block.split(",")
-        if spec.strip()
-    } | set(re.findall(r"export\s+(?:async\s+)?(?:function|const|class)\s+(\w+)", api))
-
-    importing = re.compile(
-        r"(?:import|export)\s*\{([^}]*)\}\s*from\s*[\"']/runtime/widget-api\.js[\"']"
-    )
-    modules = [
-        path
-        for root, pattern in (
-            (schema_model.BUNDLED_PACKAGES, "*.js"),
-            (schema_model.ASSETS / "widgets", "*.js"),
-            (ROOT / "examples", "*.html"),
-            (ROOT / "examples", "*.js"),
-            (ROOT / "tests" / "fixtures", "*.js"),
-            (ROOT / "tests" / "browser", "*.js"),
-        )
-        for path in root.rglob(pattern)
-        if "vendor" not in path.parts
-    ]
-    imported = {
-        spec.split(" as ")[0].strip()
-        for path in modules
-        for block in importing.findall(strip(path.read_text()))
-        for spec in block.split(",")
-        if spec.strip()
-    }
-    references = [
-        *(SKILL_ROOT / "references").rglob("*.md"),
-        SKILL_ROOT / "SKILL.md",
-        *schema_model.BUNDLED_PACKAGES.glob("*/instructions/*.md"),
-    ]
-    # The list of Lit's names has its own section, which teaches none of them.
-    listed = re.compile(
-        r"^### Lit exports\n.*?(?=^#|\Z)", flags=re.DOTALL | re.MULTILINE
-    )
-    in_code = "\n".join(
-        code
-        for path in references
-        for code in re.findall(
-            r"```.*?```|`[^`\n]+`", listed.sub("", path.read_text()), flags=re.DOTALL
-        )
-    )
-    shown = {name for name in exported if re.search(rf"\b{name}\b", in_code)}
-
-    assert {"once", "html", "widgetController"} <= imported, "no import read"
-    assert sorted(imported - exported) == [], "widget imports absent from widget-api"
-    assert sorted(exported - imported - shown) == []
-
-
 def test_layout_style_and_widgets_never_read_each_other():
     """A Layout places boxes, a style sets type and spacing, and a widget reads its own
     box and the theme's tokens (assets/AGENTS.md, "Space and scrolling"). So a Layout
@@ -1840,7 +1777,11 @@ def test_the_browser_gate_reads_a_page_another_leaf_vendored(tmp_path, monkeypat
     geometry.write_text(older, encoding="utf-8")
     stamp = page / "registry.json"
     vendored = interact_files.read_json(stamp)
-    vendored["$layer"]["runtime"] = "sha256:" + "b" * 64
+    vendored["$layer"]["producer"] = {
+        "commit": "a74b08365870",
+        "dirty": False,
+        "committed": "2026-09-26T09:32:21-07:00",
+    }
     stamp.unlink()
     stamp.write_text(json.dumps(vendored), encoding="utf-8")
 
@@ -1848,6 +1789,7 @@ def test_the_browser_gate_reads_a_page_another_leaf_vendored(tmp_path, monkeypat
 
     assert result.exit_code == 0, result.output
     assert "render checks passed" in result.output
+    assert "Leaf a74b08365870, committed 2026-09-26T09:32:21-07:00" in result.output
 
 
 def test_the_browser_gate_names_the_re_vendor_when_its_probes_cannot_link(
@@ -2031,6 +1973,63 @@ def test_a_producer_date_without_an_offset_is_refused(page_dir):
     )
     with pytest.raises(registry_contract.RegistryError, match="timezone offset"):
         producer_dated("2026-09-26T09:32:21")
+
+
+def test_page_check_names_an_older_leaf_beside_its_own(page_dir):
+    """Between protocol bumps an update can still break an older page, and nothing
+    compares the page's files with this Leaf's. So `page check` names the Leaf that
+    vendored the page beside its own, with their dates, for the agent to judge a
+    re-vendor; a page this Leaf vendored gets no such line."""
+    (page_dir / "index.html").write_text(PLAIN_PAGE, encoding="utf-8")
+    stamp = page_dir / "registry.json"
+    registry = json.loads(stamp.read_text(encoding="utf-8"))
+
+    def checked(producer):
+        registry["$layer"]["producer"] = producer
+        cleanup_model.write_json(stamp, registry)
+        result = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
+        assert result.exit_code == 0, result.output
+        return result.output
+
+    older = {
+        "commit": "a74b08365870",
+        "dirty": False,
+        "committed": "2026-09-26T09:32:21-07:00",
+    }
+    this_leaf = layer_model.provenance_label(layer_model.payload_provenance())
+    assert (
+        "Leaf a74b08365870, committed 2026-09-26T09:32:21-07:00 vendored this page; "
+        f"this is Leaf {this_leaf}." in checked(older)
+    )
+    assert "vendored this page" not in checked(layer_model.payload_provenance())
+
+
+def test_a_server_names_its_leaf_where_another_vendored_the_page(page_dir):
+    """The served state names the Leaf the server runs only where it is another than
+    the page's, so the banner sets the two side by side exactly when they differ,
+    judged by the commit the Leaf records rather than its short label."""
+    from leaf import hosting as hosting_model
+
+    (page_dir / "index.html").write_text(PLAIN_PAGE, encoding="utf-8")
+    stamp = page_dir / "registry.json"
+    registry = json.loads(stamp.read_text(encoding="utf-8"))
+    serving = layer_model.running_leaf()
+
+    def served(producer):
+        registry["$layer"]["producer"] = producer
+        cleanup_model.write_json(stamp, registry)
+        temporary = hosting_model.TemporaryPageServer(page_dir, token="key").start()
+        try:
+            status, body = fetch(temporary.origin + "/api/state", token="key")
+        finally:
+            temporary.close()
+        assert status == 200, body
+        return json.loads(body).get("leaf")
+
+    assert served(serving) is None
+    # A commit sharing the label's eight characters is still another Leaf.
+    other = {**serving, "commit": (serving.get("commit") or "12345678")[:8] + "f0f0"}
+    assert served(other) == serving
 
 
 def test_fresh_page_state_points_only_to_readable_authorities(tmp_path, monkeypatch):

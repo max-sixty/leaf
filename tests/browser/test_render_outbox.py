@@ -581,9 +581,9 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
             break
         page.wait_for_timeout(25)
     errors = take_browser_errors(page)
-    assert [error for error in errors if "400" not in error] == [reported.value.text], (
-        errors
-    )
+    assert [error for error in errors if not error.startswith("400 ")] == [
+        reported.value.text
+    ], errors
 
 
 def test_a_failed_background_presentation_keeps_the_new_undo_authority(browser, serve):

@@ -30,9 +30,10 @@ jobs:
   # can require `test`. This check succeeds only after the complete test gate does.
   lint:
     needs: test
+    if: always()
     runs-on: ubuntu-24.04
     steps:
-      - run: 'true'
+      - run: test '${{ needs.test.result }}' = success
 
   test:
     concurrency:

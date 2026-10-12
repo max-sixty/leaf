@@ -5,7 +5,7 @@
  * keyboard intent can refresh it before an observer task. Control departure releases
  * its observation through the same arrivals door as the other chrome owners; its
  * weakly retained binding restores that observation when the control returns. */
-import { pagePlaneRect, scrollContainer, shownParts } from "./geometry.js";
+import { nearObserver, nearWindow, scrollContainer, shownParts } from "./geometry.js";
 import { hostIn, renderedParent } from "./shadow.js";
 import { scrollsContent } from "./scroll-motion.js";
 import { watchArrivals } from "./arrivals.js";
@@ -193,24 +193,12 @@ export const anchorHolder = (anchor) => contentStarts.get(anchor)?.scroller ?? a
 export const anchorName = (el) => nameAnchor(anchorReading(el));
 
 // Anchored controls cost layout even when their source is hidden or far down the page.
-// Observe the source once, shared by every control standing against it. The extra room
-// brings controls into layout before ordinary scrolling carries their source on screen;
-// continuous positioning remains the browser's, rather than a scroll callback's.
+// Observe the source once, shared by every control standing against it, for whether it
+// is near (geometry.js, `nearWindow`); continuous positioning remains the browser's,
+// rather than a scroll callback's.
 const views = new Map();
 const viewedNodes = new WeakMap();
 let viewObserver;
-
-function nearWindow(target) {
-  if (!target.checkVisibility()) return false;
-  const box = pagePlaneRect(target.getBoundingClientRect(), target, new Map());
-  if (!box) return false;
-  return (
-    box.bottom >= -600 &&
-    box.top <= innerHeight + 600 &&
-    box.right >= -600 &&
-    box.left <= innerWidth + 600
-  );
-}
 
 export function refreshAnchorView(node) {
   const binding = viewedNodes.get(node);
@@ -259,25 +247,22 @@ export function anchorView(node, target, changed) {
       arrive: resumeAnchorView,
       leave: releaseAnchorView,
     });
-    viewObserver = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          const view = views.get(entry.target);
-          if (!view) continue;
-          const near = entry.isIntersecting && entry.target.checkVisibility();
-          const changed = view.near !== near;
-          view.near = near;
-          for (const [node, notify] of view.nodes) {
-            if (!node.isConnected || !entry.target.isConnected) {
-              releaseAnchorView(node);
-              continue;
-            }
-            if (changed) notify();
+    viewObserver = nearObserver((entries) => {
+      for (const entry of entries) {
+        const view = views.get(entry.target);
+        if (!view) continue;
+        const near = entry.isIntersecting && entry.target.checkVisibility();
+        const changed = view.near !== near;
+        view.near = near;
+        for (const [node, notify] of view.nodes) {
+          if (!node.isConnected || !entry.target.isConnected) {
+            releaseAnchorView(node);
+            continue;
           }
+          if (changed) notify();
         }
-      },
-      { rootMargin: "600px" },
-    );
+      }
+    });
   }
   view = views.get(target);
   if (!view) {

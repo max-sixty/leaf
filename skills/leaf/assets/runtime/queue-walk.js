@@ -46,7 +46,7 @@ import { pageCommand, pageScope } from "./keyboard/register.js";
 import { documentFocused, paintKeys } from "./keyboard/scopes.js";
 import { coarsePointer } from "./pointer.js";
 import { questionHolding, placeOf, walkOrigin } from "./standing-target.js";
-import { elementById, inChrome } from "./passages.js";
+import { elementById, inChrome, pageDocument } from "./passages.js";
 import { hostIn, inUi, under } from "./shadow.js";
 import { readQuestions } from "./questions/model.js";
 import { questionPlace } from "./questions/place.js";
@@ -90,7 +90,7 @@ const sameStop = (a, b) => a.kind === b.kind && a.id === b.id;
 // top-level heading, or its first element.
 const pageHead = () =>
   [...document.querySelectorAll("h1")].find((heading) => !inChrome(heading)) ??
-  document.querySelector("main") ??
+  pageDocument() ??
   document.body.firstElementChild;
 
 export function createQueueWalk({

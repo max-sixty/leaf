@@ -1,7 +1,8 @@
 /* This module owns the shared readings of visible boxes and clipping, how much of the
  * window the page shows, and the one conversion from viewport boxes to
  * document-positioned chrome. */
-import { renderedParent, uiInside, under, upFrom } from "./shadow.js";
+import { excludedByInert, renderedParent, uiInside, under, upFrom } from "./shadow.js";
+import { nativeModalAdmits } from "./keyboard/layer-stack.js";
 import {
   clippingAxes,
   hasArea,
@@ -38,11 +39,15 @@ import { watchScrolls } from "./arrivals.js";
      the user sees (`motionBand`), which scroll anchoring makes a different question;
    - `whenNone` to hear when one of those readings stops holding for all of something;
    - `clippedRect` for an element's box the caller has adjusted;
-   - `pagePlaneRect` for the same box in the document plane, which the window does
-     not cut;
+   - `nearWindow` and `nearObserver` for whether a box standing against something
+     belongs in layout yet;
    - `paintClips` for what cuts paint standing over an element, each cut in the plane
      of the box it belongs to;
-   - `clippedContents` when the subject has no element box of its own.
+   - `clippedContents` when the subject has no element box of its own;
+   - `placeBox` and `clippedPlace` for a destination that is an element or a Range;
+   - `presented`, `frameView`, `containingView` and `holdingFrames` for whether the
+     page puts a box before the user at all, what the pages holding this one show of
+     its window, and which frames hold it.
 
    `skipped` is asked first by a reading that can leave out a box the browser is not
    drawing, since reading one in skipped content forces that content's style and layout.
@@ -89,16 +94,22 @@ export const declareBottomBar = (boxes) => {
   bottomBar = boxes;
 };
 export const bannerFoot = () => banner?.getBoundingClientRect().bottom ?? 0;
+// The layout viewport's box, less the scrollbars the root draws at its edges, where
+// nothing the page shows stands: `innerWidth` and `innerHeight` count a classic
+// scrollbar. Every reading of the whole window's box starts here, `doc`'s for a sample
+// asking it of its containing page.
+export const layoutWindow = (doc = document) => ({
+  left: 0,
+  top: 0,
+  right: doc.documentElement.clientWidth,
+  bottom: doc.documentElement.clientHeight,
+});
 export function shownWindow({ within = null, gap = 0, viewport = "visual" } = {}) {
+  const layout = layoutWindow();
   const { offsetLeft, offsetTop, width, height } =
     viewport === "visual"
       ? window.visualViewport
-      : {
-          offsetLeft: 0,
-          offsetTop: 0,
-          width: document.documentElement.clientWidth,
-          height: document.documentElement.clientHeight,
-        };
+      : { offsetLeft: 0, offsetTop: 0, width: layout.right, height: layout.bottom };
   const left = Math.max(offsetLeft, within?.left ?? -Infinity) + gap;
   const right = Math.min(offsetLeft + width, within?.right ?? Infinity) - gap;
   const top = Math.max(offsetTop, bannerFoot(), within?.top ?? -Infinity) + gap;
@@ -381,13 +392,7 @@ export function shownBand(el) {
   // The root element's border box travels with the document, while its scrollport stays
   // pinned to the viewport. Every other scroller's visible band can be derived from its
   // own box; the root is the platform-defined exception.
-  if (el === doc.scrollingElement)
-    return {
-      left: 0,
-      top: 0,
-      right: doc.documentElement.clientWidth,
-      bottom: doc.documentElement.clientHeight,
-    };
+  if (el === doc.scrollingElement) return layoutWindow(doc);
   const s = doc.defaultView.getComputedStyle(el);
   const axes = clippingAxes(s);
   if (!axes.x && !axes.y) return null;
@@ -434,7 +439,7 @@ export function shownBand(el) {
 // hold (scroll-motion.js, `scrollsContent`), and of the boxes that hold sticky headers
 // (`scrollContainer`). `userScrollport` is the same test without `hidden`: what the
 // user, rather than a script, can scroll, which keyboard stops and edge marks read
-// (reach.js, `paintSlot`).
+// (reach.js, `paintSlot`), and the render checks asking what a reader can reach.
 export const scrollport = (overflow) => /^(auto|scroll|hidden)$/.test(overflow);
 export const userScrollport = (overflow) => /^(auto|scroll)$/.test(overflow);
 export const scrollsBy = ({ overflowX, overflowY }) =>
@@ -454,23 +459,34 @@ export const scrollContainer = (box) =>
 // the header is pushed up with it and the reading still counts its height as covered. A
 // header sticks in a box that scrolls, so a box that only clips (`overflow: clip`, paint
 // containment) has none over it. A box that scrolls starts `--lf-top` again for what it
-// holds, so it is read where it stands, at its parent; a header's holder puts the
-// stacked value on a box that does not scroll (theme.css, at `--lf-top`).
-const edgeInset = (el, scroller, slot, padding) => {
-  if (!scrollContainer(scroller) || el === scroller) return 0;
-  const at = el.nodeType === 1 && scrolls(el) ? upFrom(el) : el;
+// holds, so the value is read past every box between `el` and `scroller` that scrolls,
+// at the parent of the outermost: inside a sideways scroller the value counts from that
+// scroller, and the headers over `scroller`'s band are those outside it. A header's
+// holder puts the stacked value on a box that does not scroll (theme.css, at `--lf-top`).
+const slotHolder = (el, scroller) => {
+  let at = el;
+  for (let box = el; box && box !== scroller; box = upFrom(box))
+    if (box.nodeType === 1 && scrolls(box)) at = upFrom(box);
+  return at;
+};
+// The inset read at `at`, the box where the slot counts from `scroller`.
+const insetAt = (at, scroller, slot, padding) => {
   const read = (box) =>
     Number.parseFloat(getComputedStyle(box).getPropertyValue(slot)) || 0;
   const inset = at?.nodeType === 1 ? read(at) : 0;
   if (inset <= read(scroller)) return 0;
   return (Number.parseFloat(getComputedStyle(scroller)[padding]) || 0) + inset;
 };
-export const headerInset = (el, scroller) =>
-  edgeInset(el, scroller, "--lf-top", "paddingTop");
+const TOP = ["--lf-top", "paddingTop"];
+const FOOT = ["--lf-bottom", "paddingBottom"];
+const edgeInset = (el, scroller, edge) =>
+  !scrollContainer(scroller) || el === scroller
+    ? 0
+    : insetAt(slotHolder(el, scroller), scroller, ...edge);
+export const headerInset = (el, scroller) => edgeInset(el, scroller, TOP);
 // The same reading at the foot, for a box sticking there (`--lf-bottom`, theme.css):
 // how far above the bottom of `scroller`'s band the view of `el` ends.
-const footerInset = (el, scroller) =>
-  edgeInset(el, scroller, "--lf-bottom", "paddingBottom");
+const footerInset = (el, scroller) => edgeInset(el, scroller, FOOT);
 export function visibleBand(scroller, item = null) {
   const band = shownBand(scroller);
   if (!band || !item) return band;
@@ -669,6 +685,67 @@ export function seenRect(item, clips) {
     ? { left: shown.left, top: room.top, right: shown.right, bottom: room.bottom }
     : null;
 }
+// Whether the page puts `node` before the user at all, before any question of where:
+// drawn and visible, not inert, inside the topmost modal, and not hidden with
+// `aria-hidden`. Exposure asks it of a message body and of each frame holding the page.
+export function presented(node) {
+  if (
+    !node.checkVisibility({ visibilityProperty: true }) ||
+    excludedByInert(node) ||
+    !nativeModalAdmits(node)
+  )
+    return false;
+  for (let at = node; at; at = renderedParent(at))
+    if (at.getAttribute?.("aria-hidden") === "true") return false;
+  return true;
+}
+// What this page shows of a frame it holds, in the frame's own viewport coordinates:
+// the frame's `seenRect`, within `within`, what the pages holding this one show of its
+// window (`containingView`), or null where the user sees none of it. The frame's page
+// cannot read this itself: only this page's module knows the banner, bottom bar and
+// occluders standing over the frame, which cut it as they cut any of this page's boxes.
+export function frameView(frame, within) {
+  const seen = seenRect(frame, new Map());
+  const shown = seen && intersect(seen, within);
+  if (!shown || !hasArea(shown)) return null;
+  const rect = frame.getBoundingClientRect();
+  const scaleX = rect.width / frame.offsetWidth || 1;
+  const scaleY = rect.height / frame.offsetHeight || 1;
+  const x = (at) => (at - rect.left) / scaleX - frame.clientLeft;
+  const y = (at) => (at - rect.top) / scaleY - frame.clientTop;
+  return {
+    left: x(shown.left),
+    top: y(shown.top),
+    right: x(shown.right),
+    bottom: y(shown.bottom),
+  };
+}
+// What the pages holding this one show of its window, in its own coordinates: the whole
+// window at the top, and in a same-origin frame what the holding page reads of that
+// frame (`frameView`), asked through the holder's document, where its own geometry
+// answers and asks its own holder in turn. Null where no holder answers: a cross-origin
+// holder hides the frame element, and one without Leaf declares none of its chrome, so
+// nothing it shows is evidence. An isolated sample's holder answers over the sample's
+// port instead (sample-visibility.js), from the same `frameView`.
+const FRAME_VIEW = Symbol.for("leaf.frameView");
+Object.defineProperty(document, FRAME_VIEW, {
+  value: (frame) => {
+    const within = presented(frame) && containingView();
+    return within ? frameView(frame, within) : null;
+  },
+});
+// The frames holding this page, innermost first, as far as same-origin holders reach.
+export function* holdingFrames() {
+  for (let frame = window.frameElement; frame;) {
+    yield frame;
+    frame = frame.ownerDocument.defaultView.frameElement;
+  }
+}
+export function containingView() {
+  const frame = window.frameElement;
+  if (!frame) return window === window.top ? layoutWindow() : null;
+  return frame.ownerDocument[FRAME_VIEW]?.(frame) ?? null;
+}
 // Where, in the window's coordinates, a change of size at `item` would move what the
 // user sees, as `{top, bottom}`, or null where it would move nothing seen. A change
 // moves everything after it in the boxes that scroll it, in every column, so the band
@@ -857,8 +934,30 @@ export function paintClips(item, box, clips, aboveSurfaces, held = false) {
 // The same walk for a box drawn in the document plane, which a root scroll carries with
 // the page: the page's own boxes cut it, and the window does not, so a box scrolled off
 // screen keeps its place for a reader asking how far away it stands.
-export const pagePlaneRect = (box, item, clips) =>
-  clipped(box, item, clips, false, false);
+const pagePlaneRect = (box, item, clips) => clipped(box, item, clips, false, false);
+// Whether a box Leaf stands against `target` belongs in layout: the target stands within
+// a screen of the window, and within 600px of being scrolled into each scroller around
+// it, so ordinary scrolling brings the box into layout before it carries the target on
+// screen. A box out of layout costs no layout pass, where boxes hidden beside the shown
+// ones made every pass revisit them all. `nearObserver` maintains the reading for the
+// anchored controls (css-anchors.js, `anchorView`) and paint sets (target-paint-geometry.js,
+// `paintSet`); `nearWindow` reads it at once for a first presentation, which cannot wait
+// for the observer's first task. It clips at each scroller exactly, so it calls near only
+// what the observer will, and the observer's first record adds the rest.
+export const nearObserver = (callback) =>
+  new IntersectionObserver(callback, { rootMargin: "100%", scrollMargin: "600px" });
+export function nearWindow(target, clips = new Map()) {
+  if (!target.checkVisibility()) return false;
+  const box = pagePlaneRect(shownBox(target), target, clips);
+  const { right: width, bottom: height } = layoutWindow();
+  return (
+    Boolean(box) &&
+    box.bottom >= -height &&
+    box.top <= 2 * height &&
+    box.right >= -width &&
+    box.left <= 2 * width
+  );
+}
 // The same walk for a box measured from what an element holds: a Range inside it. The
 // holder's own band stands over its contents, where it says nothing about the holder's
 // own box, so text scrolled out of the `pre` it sits in directly is text nobody sees.
@@ -874,9 +973,7 @@ function clipped(box, item, clips, held, inWindow = true) {
 // band is the window, which cuts nothing there, and only a header stuck over its top
 // does.
 function cutBy(box, cuts, root, inWindow) {
-  let shown = inWindow
-    ? intersect(box, { left: 0, top: 0, right: innerWidth, bottom: innerHeight })
-    : box;
+  let shown = inWindow ? intersect(box, layoutWindow()) : box;
   for (const { box: cut, band, axes, covered } of cuts) {
     if (!band) return null;
     const edges =
@@ -907,10 +1004,11 @@ function clipWalk(item, clips, held) {
   // declared shadow stage is still clipped by that host and by the page containers
   // outside it; stopping at the ShadowRoot would let chrome paint where the package
   // itself cannot.
-  // The box just inside each scroller, where the sticky headers over its top and footers
-  // over its foot are read (`headerInset`, `footerInset`): the item at its own scroller,
-  // and the scroller below at each one further out.
-  let inner = item;
+  // Where the sticky headers over each scroller's top and footers over its foot are read
+  // (`headerInset`, `footerInset`): the item, until a box that scrolls starts the slots
+  // again for what it holds, and that box's parent from there out. The walk passes every
+  // such box on its way, so it carries the place rather than climbing to it at each cut.
+  let holder = item;
   let escaped = false,
     containing = null;
   const cuts = [];
@@ -938,8 +1036,8 @@ function clipWalk(item, clips, held) {
     }
     if (escaped && a === containing) escaped = false;
     if (!escaped && (held || a !== item) && c.band) {
-      const covered = c.band.top + headerInset(inner, a);
-      const footed = c.band.bottom - footerInset(inner, a);
+      const covered = c.band.top + (c.scrolls ? insetAt(holder, a, ...TOP) : 0);
+      const footed = c.band.bottom - (c.scrolls ? insetAt(holder, a, ...FOOT) : 0);
       cuts.push({
         box: a,
         axes: c.axes,
@@ -952,8 +1050,8 @@ function clipWalk(item, clips, held) {
               ? { ...c.band, top: covered, bottom: footed }
               : c.band,
       });
-      if (c.scrolls) inner = a;
     }
+    if (c.scrolls) holder = upFrom(a);
     if (!escaped && c.positioned) {
       escaped = true;
       containing = c.block;
@@ -1000,7 +1098,7 @@ export const declareOccluder = (surface) => {
 // laid out beside the page, as the comment box is, keeps left of it, and a margin row it
 // reaches is one the user has lost (chrome-layout.js).
 export function rightCover() {
-  const edge = document.documentElement.clientWidth;
+  const edge = layoutWindow().right;
   let left = Infinity;
   for (const surface of occluders) {
     if (!standsNow(surface)) continue;
@@ -1030,12 +1128,8 @@ export function hides(surface, where) {
   const holder = placeHolder(where);
   if (!holder || !occluders.has(surface) || !standsNow(surface)) return false;
   if (under(holder, surface) || stackLevel(holder) >= stackLevel(surface)) return false;
-  const box = where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
-  const seen =
-    where instanceof Range
-      ? clippedContents(box, holder, clipsPast([surface]))
-      : clippedRect(box, holder, clipsPast([surface]));
-  const { left, right } = seen ?? box;
+  const box = placeBox(where);
+  const { left, right } = clippedPlace(where, clipsPast([surface]), box) ?? box;
   const column = standingBox(surface);
   const covered = Math.min(right, column.right) - Math.max(left, column.left);
   return covered > (right - left) / 2;
@@ -1052,6 +1146,15 @@ export const placeHolder = (where) =>
       ? where.startContainer
       : where.startContainer.parentElement
     : where;
+// A destination's box: a Range's own, or an element's shown box (`shownBox`).
+export const placeBox = (where) =>
+  where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
+// What the page's clips leave of a destination's `box`: a Range's walked from the
+// element holding it (`clippedContents`), an element's from itself (`clippedRect`).
+export const clippedPlace = (where, clips, box = placeBox(where)) =>
+  where instanceof Range
+    ? clippedContents(box, placeHolder(where), clips)
+    : clippedRect(box, where, clips);
 // Where a box stacks among the page's root-level layers: the z-index of its outermost
 // positioned ancestor that sets one, and above all of them in the top layer.
 export function stackLevel(node) {

@@ -41,7 +41,7 @@
 import { sizeObserver } from "./rendering.js";
 import { drawnEdge } from "./drawn-edge.js";
 import { standsBeside } from "./auxiliary-surfaces.js";
-import { rightCover } from "./geometry.js";
+import { layoutWindow, rightCover } from "./geometry.js";
 import { scheduleResidency } from "./content-layout.js";
 import { syncLayoutRegion } from "./reading-regions.js";
 
@@ -130,7 +130,7 @@ export function createChromeLayout({
         if (reply.checkVisibility())
           occupied = Math.max(
             occupied,
-            innerHeight - list.bottom + padding + box.height,
+            layoutWindow().bottom - list.bottom + padding + box.height,
           );
       }
     }

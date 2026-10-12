@@ -5101,13 +5101,11 @@ CARD_ROUTES = {
 
 @pytest.mark.parametrize("route", CARD_ROUTES.values(), ids=CARD_ROUTES.keys())
 def test_c_lands_where_its_badge_is_and_in_the_card_on_screen(browser, serve, route):
-    """One box wears `c`, and `c` lands in it; while a card is up, that box is its reply.
+    """A card's reply wears `c`; after letting go, the page control opens its box.
 
-    The badge and the press read the same destination, and the card's being up is part
-    of that destination rather than a second reading of where the user stands, so no
-    route may leave a card on screen whose reply `c` does not reach. The badge is read
-    where the user reads it, as a drawn key: the box's placeholder attribute is the
-    runtime's own record of the hint and says nothing about whether it shows.
+    The card's being up decides the reply destination. When it is gone, the banner's
+    page-comment control advertises `c` and creates its editor when pressed. The box's
+    placeholder is the runtime's own record of the hint, even while it is not drawn.
     """
     page = open_page(
         browser,
@@ -5127,15 +5125,21 @@ def test_c_lands_where_its_badge_is_and_in_the_card_on_screen(browser, serve, ro
         rendered(page)
 
     badged = page.locator("leaf-text[placeholder$=' c']")
+    card = page.locator(".lf-margin-preview")
+    if not card.is_visible():
+        expect(badged).to_have_count(0)
+        expect(page.locator(".lf-page-comment")).to_have_attribute(
+            "title", "Comment on the page (c)"
+        )
+        page.keyboard.press("c")
+        rendered(page)
+        expect(page.locator(".lf-page-comment-card leaf-text")).to_be_focused()
+        return
+
     expect(badged).to_have_count(1)
     box = badged.element_handle()
-    card = page.locator(".lf-margin-preview")
-    card_up = card.is_visible()
-    assert box.evaluate("box => Boolean(box.closest('.lf-margin-preview'))") == card_up
-    if card_up:
-        expect(
-            badged.locator(".lf-compose-placeholder > .lf-key-badge")
-        ).to_be_visible()
+    assert box.evaluate("box => Boolean(box.closest('.lf-margin-preview'))")
+    expect(badged.locator(".lf-compose-placeholder > .lf-key-badge")).to_be_visible()
     page.keyboard.press("c")
     rendered(page)
     assert box.evaluate("box => box === document.activeElement")

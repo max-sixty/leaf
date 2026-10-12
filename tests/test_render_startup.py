@@ -2075,6 +2075,34 @@ def test_a_root_module_failure_leaves_authored_document_readable(browser, serve)
     )
 
 
+def test_the_first_startup_fault_names_the_page(browser, serve):
+    """The first fault before presentation names the page, and later faults leave the
+    name alone. A page that cannot read its own words throws again on every repaint,
+    with the same words from the same line, so a later fault mostly restates the first
+    as a consequence of it."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.route(
+        "**/leaf.js",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="text/javascript",
+            body="for (const word of ['first fault', 'first fault', 'later fault'])"
+            " setTimeout(() => { throw new Error(word); });"
+            " setTimeout(() => { window.faulted = true; });",
+        ),
+    )
+    page.goto(serve(SHORT_SUGGESTION), wait_until="load")
+    page.wait_for_function("() => window.faulted")
+    root = page.locator("html")
+    expect(root).to_have_attribute("data-lf-startup-error", re.compile("first fault"))
+    assert (
+        root.evaluate("root => root.lfStartupException.message") == "first fault"
+    )
+    # The faults recur, so the page closes before they are consumed.
+    page.close()
+    consume_browser_errors(page, "first fault", "later fault")
+
+
 def test_a_page_the_suite_opens_has_read_the_log(browser, serve):
     """`open_page` promises a page that has finished becoming itself, and the log is half
     of what that means. The instrument is a refusal of the first `/api/state`. Replay then

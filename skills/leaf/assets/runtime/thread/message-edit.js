@@ -111,8 +111,13 @@ export function releaseMessageEdit(id, view) {
 // one editor shows it; and one rewrite stands open in a thread unless the user changed
 // its words, so another left as its message says it closes, whichever reader holds it.
 function openMessageEdit(id, view, panel, thread) {
-  for (const [other, holder] of [...open])
-    if (other !== id && holder.thread === thread) holder.view?.putEditAside();
+  for (const [other, holder] of [...open]) {
+    if (other === id || holder.thread !== thread) continue;
+    // One no view draws any longer closes as an editor would: words the user left as
+    // they were leave no draft to keep it open.
+    if (holder.view) holder.view.putEditAside();
+    else if (!draftHasContent(editContext(other))) open.delete(other);
+  }
   const displaced = open.get(id)?.view;
   open.set(id, { view, panel, thread });
   if (displaced && displaced !== view) displaced.closeEdit();

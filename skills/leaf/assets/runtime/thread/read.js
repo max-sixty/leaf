@@ -245,7 +245,7 @@ export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
     const registration = {
       body,
       id: message.id,
-      version: message.version ?? message.edited?.id ?? message.id,
+      version: message.version,
     };
     renderedBodies.set(body, registration);
     scheduleScan();

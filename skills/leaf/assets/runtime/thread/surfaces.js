@@ -7,7 +7,7 @@
    the widget itself for outlets with
    `owner.threadOutlets(targets, {signal, collection, onCommit})`, and the widget
    reaches its registration through `threadSurface(owner)` to say its seats changed
-   (`update()`) or to open a comment on one of its datums (`open(node, {origin})`). The selected page presentation registers explicitly
+   (`update()`) or to open a comment on one of its datums (`open(node)`). The selected page presentation registers explicitly
    (`placePageThreads`).
 
    A placement claims one Thread's page position, so reconciliation joins the core
@@ -88,8 +88,7 @@ export const threadSurface = (owner) =>
       const registration = registrations.get(owner);
       if (registration) update(registration);
     },
-    open: (node, options) =>
-      registrations.get(owner)?.handle.open(node, options) ?? false,
+    open: (node) => registrations.get(owner)?.handle.open(node) ?? false,
   });
 
 // The selected page presentation joins the same outlet and generation lifetime.
@@ -144,7 +143,7 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
       const thread = readThreads().threads.find((item) => item.key === key);
       return thread ? reveal(thread.id) : false;
     },
-    open(node, { origin = null } = {}) {
+    open(node) {
       if (!active) return false;
       const target = kind === "widget" ? datumAimTarget(node) : aimTargetAt(node);
       if (
@@ -157,7 +156,7 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
             ? `Thread surface ${owner.localName} can open only its own projected datum`
             : "The page Thread presentation needs an addressable source target",
         );
-      composition.open(target, { origin });
+      composition.open(target);
       return true;
     },
     update: () => update(registration),

@@ -5738,14 +5738,50 @@ def test_a_returning_subscriber_is_repainted_only_where_its_departure_cut_the_pa
     assert result == {"interrupted": 2, "kept": 2}
 
 
-def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
-    browser, serve
-):
-    """Source names are data, including names inherited by a plain JS object.
+def test_a_subscriber_that_failed_on_return_draws_the_next_reading(browser, serve):
+    """A source that changed while its widget was away is drawn on the return; a
+    callback that throws there is reported once and keeps its subscription, so the
+    next reading draws."""
+    page = open_page(browser, data_projection_page(serve))
+    result = page.evaluate(
+        """async () => {
+          const {watchData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {acceptData, notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
+          const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
+          const widget = document.querySelector('lf-feed');
+          const at = (revision) => {
+            const next = structuredClone(runtime.data);
+            next.version = revision;
+            next.sources.deployments.revision = revision;
+            return next;
+          };
+          const drawn = [];
+          let refuse = false;
+          const stop = watchData(widget, 'rows', (snapshot) => {
+            drawn.push(snapshot.revision);
+            if (refuse) throw new Error('return refused');
+          });
+          const parent = widget.parentNode;
+          const next = widget.nextSibling;
+          widget.remove();
+          await new Promise((resolve) => setTimeout(resolve));
+          acceptData(at('changed-away'), runtime.state.taken);
+          refuse = true;
+          parent.insertBefore(widget, next);
+          await new Promise((resolve) => setTimeout(resolve));
+          refuse = false;
+          acceptData(at('after-return'), runtime.state.taken);
+          await notifyDataSubscribers();
+          stop();
+          return drawn.slice(1);
+        }"""
+    )
+    assert result == ["changed-away", "after-return"]
+    assert len(consume_browser_errors(page, "return refused")) == 1
 
-    A subscriber is also a package mount boundary: if its first render fails, later
-    polls must not keep calling a listener whose widget never finished connecting.
-    """
+
+def test_data_subscriptions_use_own_keys(browser, serve):
+    """Source names are data, including names inherited by a plain JS object."""
     page = open_page(browser, data_projection_page(serve))
     result = page.evaluate(
         """async () => {
@@ -5766,17 +5802,6 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
           const captured = [];
           const stopCaptured = watchData(widget, 'rows', snapshot => { captured.push(snapshot); });
           widget.setAttribute('source', 'deployments');
-
-          let failedCalls = 0;
-          let message = null;
-          try {
-            watchData(widget, 'rows', () => {
-              failedCalls += 1;
-              throw new Error('mount failed');
-            });
-          } catch (error) {
-            message = error.message;
-          }
           const next = structuredClone(runtime.data);
           next.version = 'next-version';
           next.sources.deployments.revision = 'next-revision';
@@ -5786,7 +5811,7 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
           let unbound = 'not-called';
           const stopUnbound = watchData(widget, 'rows', snapshot => { unbound = snapshot; });
           stopUnbound();
-          return {currentRevision, unbound, absent, captured, failedCalls, message};
+          return {currentRevision, unbound, absent, captured};
         }"""
     )
     assert result == {
@@ -5794,8 +5819,6 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
         "unbound": None,
         "absent": None,
         "captured": [None],
-        "failedCalls": 1,
-        "message": "mount failed",
     }
 
 
@@ -5915,6 +5938,9 @@ def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_
             failed[name] = 0;
             stops.push(api[name](owner, () => {
               failed[name] += 1;
+              // A paint that fails later is told the same way as one that throws.
+              if (name === 'watchHistory')
+                return Promise.reject(new Error(`${name} paint failed`));
               throw new Error(`${name} paint failed`);
             }));
             await settle();
@@ -5947,9 +5973,8 @@ def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_
     errors = consume_browser_errors(page, "paint failed")
     reported = sorted(error.splitlines()[0] for error in errors)
     assert reported == sorted(
-        f"{prefix}Error: {name} paint failed"
+        f"leaf: paint failed for div#failing-{name}: {name} paint failed"
         for name in ["watchQuestions", "watchReports", "watchHistory"]
-        for prefix in ["", "leaf: "]
     )
 
 
@@ -6297,9 +6322,9 @@ def test_failed_clock_paints_do_not_starve_other_widgets_or_restart_polling(
 def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
     """The data stamp proves that every asynchronous subscriber has settled.
 
-    A rejected mount removes its listener and a later rejected update is reported at
-    that subscriber's boundary. Neither turns every subsequent poll into the same
-    page-wide read failure or prevents the accepted revision becoming ready.
+    A rejected mount and a later failed update are each reported once, at that
+    subscriber's paint. Neither turns every subsequent poll into the same page-wide
+    read failure or prevents the accepted revision becoming ready.
     """
     page = open_page(browser, data_projection_page(serve))
     result = page.evaluate(
@@ -6354,10 +6379,9 @@ def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
     assert result["throwingDeliveries"] == 2, result
     assert result["afterMount"] == result["before"], result
     assert result["afterUpdate"] == result["version"], result
-    errors = consume_browser_errors(page, "data subscriber failed")
+    errors = consume_browser_errors(page, "paint failed")
     assert {error.splitlines()[0] for error in errors} == {
-        "leaf: data subscriber failed for lf-feed#deployments input rows source deployments: "
-        + f"{message} projection failed"
+        f"leaf: paint failed for lf-feed#deployments: {message} projection failed"
         for message in ("mount", "update", "synchronous update")
     }
     assert len(errors) == 3 and all("\n" in error for error in errors), errors

@@ -1287,7 +1287,10 @@ def test_a_returning_controller_widget_draws_again_only_a_changed_reading(
     assert page.evaluate(leave_and_return) == {"drawn": 0, "failed": 1, "pending": []}
     errors = take_browser_errors(page)
     assert [error.splitlines()[0] for error in errors] == [
-        "leaf: Presentation failed: <lf-local> renderState threw: deliberate render failure"
+        (
+            "leaf: paint failed for lf-local#page-local: <lf-local> renderState threw: "
+            "deliberate render failure"
+        )
     ]
 
 
@@ -1566,7 +1569,10 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
     assert page.evaluate("window.__failedLocalRenders") == 1
     errors = take_browser_errors(page)
     assert [error.splitlines()[0] for error in errors] == [
-        "leaf: Presentation failed: <lf-local> renderState threw: deliberate render failure"
+        (
+            "leaf: paint failed for lf-local#page-local: <lf-local> renderState threw: "
+            "deliberate render failure"
+        )
     ]
     assert "Caused by: Error: deliberate render failure" in errors[0]
 

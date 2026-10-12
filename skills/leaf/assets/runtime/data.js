@@ -6,7 +6,8 @@
    contract, revision, run, updated, value, origin}`, or `null` while the bound source has no
    readable value. Subscriptions pause while their owner is absent, and a return
    delivers by the rule every returning paint follows (`readingPaint` in
-   `presence.js`). Contract, publication, or validity changes redeliver; overlapping
+   `presence.js`), which also reports a failing callback once and keeps its
+   subscription. Contract, publication, or validity changes redeliver; overlapping
    reads await the same in-flight rendering before stamping the version presented. Its
    synchronous time readings refresh independently of data delivery. The returned
    cleanup's `refresh()` repaints the last delivered reading through the same clock
@@ -85,7 +86,6 @@ export function watchData(element, input, callback) {
   // attribute mutation into an unvalidated rebind. Version activation mounts a new
   // element and therefore establishes a new subscription when authored markup changes.
   const source = element.getAttribute(declaration.source);
-  const failureContext = `data subscriber failed for ${element.localName}#${element.id} input ${input} source ${source}`;
   const paint = readingPaint(element, callback);
   const selectedSource = applicationState.select((root) =>
     source && Object.hasOwn(root.data.sources, source)
@@ -117,7 +117,7 @@ export function watchData(element, input, callback) {
   }
   // A null delivery stands until the accepted source reading changes, including
   // recovery from an incompatible contract without a new content revision.
-  const deliver = (snapshot, identity, mounting = false) => {
+  const deliver = (snapshot, identity) => {
     if (paint.owes(identity)) {
       if (snapshot)
         snapshot.origin = {
@@ -126,16 +126,13 @@ export function watchData(element, input, callback) {
           contract: declaration.contract,
           revision: snapshot.revision,
         };
-      const mount = presentation;
       const rendering = paint(identity, structuredClone(snapshot));
-      completion = Promise.resolve(rendering).catch((error) => {
-        reportPageError(error, failureContext);
-        if (mounting && presentation === mount) stop();
-      });
+      // The paint reported a failed callback; it does not hold the data version back.
+      completion = Promise.resolve(rendering).catch(() => {});
     }
     return completion;
   };
-  const update = (sourceStore, mounting = false) => {
+  const update = (sourceStore) => {
     const identity = readingIdentity(sourceStore);
     const incompatible = sourceStore && sourceStore.contract !== declaration.contract;
     if (incompatible && paint.owes(identity))
@@ -146,15 +143,8 @@ export function watchData(element, input, callback) {
     // The server validates values once. An incompatible named contract or an
     // invalid/missing value clears this seat, keeping its subscription for recovery.
     if (incompatible || !source || !sourceStore || !Object.hasOwn(sourceStore, "value"))
-      return deliver(null, identity, mounting);
-    return deliver({ source, ...sourceStore }, identity, mounting);
-  };
-  const updateSafely = (sourceStore) => {
-    try {
-      return update(sourceStore);
-    } catch (error) {
-      reportPageError(error, failureContext);
-    }
+      return deliver(null, identity);
+    return deliver({ source, ...sourceStore }, identity);
   };
   const stage = (sourceStore) => {
     const identity = readingIdentity(sourceStore);
@@ -168,33 +158,28 @@ export function watchData(element, input, callback) {
     const pending = pendingDelivery;
     if (!pending) return;
     pendingDelivery = null;
-    pending.ticket.resolve(updateSafely(pending.sourceStore));
+    pending.ticket.resolve(update(pending.sourceStore));
   }
   // A publisher selection captures this mount's source. Its initial subscription call
   // is the mount delivery; later accepted publications stage the selected value and its
   // presentation ticket synchronously, before that semantic epoch seals. Notification
-  // starts the staged paint only after activation has retained this document. A package
-  // that throws while mounting must not leave a subscription behind to fail every later
-  // publication.
+  // starts the staged paint only after activation has retained this document. A
+  // callback that fails, on its first reading or any later one, is reported by its paint
+  // (`readingPaint`) and keeps its subscription, so the next changed reading draws again.
   function connect() {
     if (stopped || stopSelection || !element.isConnected) return;
     presentation = attachApplicationPresentation(region, element);
     const mount = presentation;
-    try {
-      let mounting = true;
-      stopSelection = selectedSource.subscribe((sourceStore) => {
-        if (mounting) {
-          const rendering = update(sourceStore, true);
-          if (!stopped) mount.present(readingIdentity(sourceStore)).resolve(rendering);
-          return rendering;
-        }
-        stage(sourceStore);
-      });
-      mounting = false;
-    } catch (error) {
-      stop();
-      throw error;
-    }
+    let mounting = true;
+    stopSelection = selectedSource.subscribe((sourceStore) => {
+      if (mounting) {
+        const rendering = update(sourceStore);
+        if (!stopped) mount.present(readingIdentity(sourceStore)).resolve(rendering);
+        return rendering;
+      }
+      stage(sourceStore);
+    });
+    mounting = false;
     if (stopped) {
       stopSelection();
       stopSelection = null;

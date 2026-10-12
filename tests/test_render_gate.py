@@ -103,7 +103,6 @@ from render_harness import (
     LONG_PAGE,
     RECURRING_RESIZE_NOTICE,
     RELEASE_FOCUS,
-    REPLY_HOST_PAGE,
     TOKEN,
     _traffic,
     _until,
@@ -2401,7 +2400,17 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
     `lf-paint` on the page and frozen into a reply alike. A fallback is the control: it
     names an absent property but resolves to a shipped color in both schemes. The
     native SVG is the other control: a gradient reference is valid paint even though
-    it is not a color."""
+    it is not a color.
+
+    And the replay check reaches a decision made in the panel. `RELATIVE_REPLAYS`
+    applies every standing winner again and asks whether anything moved; a widget an
+    agent sent in a reply is folded by a projection of its own and replayed into a tree
+    the panel built, and the probe reads the validation state adapter, which returns
+    early when nothing is standing. No page the gate was ever run over held such an
+    action, so it was reporting clean on an empty list, and the population is asserted
+    before the gate is asked anything. Both of the group's verbs stand: `choose`
+    declares a record, so a second application that moved anything is a finding;
+    `answer` declares none, and is held to a second application not throwing."""
     monkeypatch.chdir(tmp_path)
     package = tmp_path / ".leaf"
     for tag in ("lf-anon", "lf-shell", "lf-paint"):
@@ -2513,6 +2522,14 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
             "<lf-piece>reply child</lf-piece> reply after</lf-shell>"
         ),
         "r-paint": '<lf-paint id="sent"></lf-paint>',
+        "r-list": (
+            '<lf-ask id="an-set-decision"><h3>What should I carry into the patch?</h3>'
+            '<lf-options id="an-set" choose multiple>'
+            '<lf-option id="an-chase">Chase them monthly</lf-option>'
+            '<lf-option id="an-clear">Clear the stall ourselves</lf-option>'
+            '<lf-option id="an-say">Say what the spinner is</lf-option>'
+            "</lf-options></lf-ask>"
+        ),
     }
     for reply, markup in replies.items():
         comment = f"c-{reply.removeprefix('r-')}"
@@ -2539,8 +2556,28 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
             },
         )
 
+    user = {"kind": "action", "author": "user", "revision": 1, "widget": "an-set"}
+    choose = {"action": "choose", "detail": {"value": ["an-chase", "an-say"]}}
+    append_command(serve.page_dir, user | choose)
+    # The Done press. Recordless, and the last word on the group.
+    append_command(serve.page_dir, user | {"action": "answer", "detail": {}})
+    # The population first: the probe returns clean for an empty list.
+    page = open_page(browser, url)
+    resized(page, 1280, 900)
+    standing = page.evaluate(
+        "async () => (await window.__lfRuntimeImport('/runtime/validation.js'))"
+        ".validationWidgetStates().flatMap(({widget, state}) =>"
+        " Object.values(state).map(standing => [widget.id, standing.action]))"
+    )
+    page.close()
+    assert ["an-set", "choose"] in standing and ["an-set", "answer"] in standing, (
+        f"the user's decisions are not among what the runtime hands the gate: "
+        f"{standing} — the replay would be handed nothing and report clean"
+    )
+
     failures = render_gate_model.render_version(browser, url).failures
 
+    assert not [f for f in failures if "an-set" in f], failures
     dishonest = [failure for failure in failures if "x-verbatim" in failure]
     anonymous = [failure for failure in dishonest if "lf-anon" in failure]
     assert len(anonymous) == 4, failures
@@ -5854,92 +5891,3 @@ def test_a_code_frame_trims_the_note_on_its_last_line(browser, serve):
         for finding in trapped
         if finding["tag"] == "pre" and not finding["chrome"]
     ], trapped
-
-
-def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, serve):
-    """`RELATIVE_REPLAYS` applies every standing winner again and asks whether anything
-    moved. It had never been pointed at a decision made in the panel.
-
-    A widget an agent sent in a reply is folded by a projection of its own
-    (`frozen_thread_reading`) and replayed into a tree the panel built, and the
-    probe reads the validation state adapter, which returns early when nothing is
-    standing. No
-    page the gate was ever run over held an action at all, so it was reporting
-    clean on an empty list. The population is therefore asserted before the gate
-    is asked anything.
-
-    Both of the group's verbs stand here, and only one of them can be held to much.
-    `choose` declares a record, so replaying it writes a state `shallowSigs` reads and
-    a second application that moved anything is a finding. `answer` declares none: the
-    Done press writes `aria-pressed` on a control the runtime built, which carries no
-    id and is not in that reading. What it is held to here is that a second application
-    does not throw, which is the other half of what the probe reports — its absoluteness
-    is still nobody's check."""
-    url = serve(REPLY_HOST_PAGE)
-    d = serve.page_dir
-    append_carried_log_record(
-        d,
-        {
-            "kind": "comment",
-            "id": "c-list",
-            "author": "user",
-            "revision": 1,
-            "text": "What should I carry into the patch?",
-        },
-    )
-    append_carried_log_record(
-        d,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "parent": "c-list",
-            "revision": 1,
-            "text": "Tick what belongs and press Done:",
-            "markup": (
-                '<lf-ask id="an-set-decision"><h3>What should I carry into the patch?</h3>'
-                '<lf-options id="an-set" choose multiple>'
-                '<lf-option id="an-chase">Chase them monthly</lf-option>'
-                '<lf-option id="an-clear">Clear the stall ourselves</lf-option>'
-                '<lf-option id="an-say">Say what the spinner is</lf-option>'
-                "</lf-options></lf-ask>"
-            ),
-        },
-    )
-    append_command(
-        d,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "an-set",
-            "action": "choose",
-            "detail": {"value": ["an-chase", "an-say"]},
-        },
-    )
-    # The Done press. Recordless, and the last word on the group.
-    append_command(
-        d,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "an-set",
-            "action": "answer",
-            "detail": {},
-        },
-    )
-    # The population first: the probe returns clean for an empty list, which is exactly
-    # how a decision made in the panel went unread for as long as it did.
-    page = open_page(browser, url)
-    resized(page, 1280, 900)
-    standing = page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/validation.js')).validationWidgetStates()"
-        ".flatMap(({widget, state}) => Object.values(state).map(standing => [widget.id, standing.action]))"
-    )
-    assert ["an-set", "choose"] in standing and ["an-set", "answer"] in standing, (
-        f"the user's decisions are not among what the runtime hands the gate: "
-        f"{standing} — the replay below would be handed nothing and report clean"
-    )
-    page.close()
-
-    assert render_gate_model.render_version(browser, url).failures == []

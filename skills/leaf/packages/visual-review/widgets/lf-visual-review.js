@@ -216,12 +216,12 @@ customElements.define(
               ${offered("lf-vr-inspector-choice", true)}
               value=${value}
               appearance="button"
-              ${commandsOn("On visual evidence", [
+              ${commandsOn("On visual evidence", (radio) => [
                 {
                   id: `visual.${kind}.${value}`,
                   keys: PRESS,
                   title: text.toLowerCase(),
-                  run: () => focused().click(),
+                  run: () => radio.click(),
                 },
               ])}
               >${text}</wa-radio

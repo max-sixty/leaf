@@ -3672,6 +3672,45 @@ def test_a_revision_retires_every_declared_identity_it_removes(browser, serve):
     assert not {"gone-ask", "gone-options", "gone-yes"} & set(descriptors)
 
 
+def test_a_revision_releases_the_served_markup_it_removes(browser, serve):
+    """Markup the page was served with leaves memory once a revision removes it. The
+    served baseline's source copy routes each copied node to the live node it came
+    from, so holding that copy past the revision that replaced it kept every served
+    node alive for the rest of the session. A host painted before modules run is
+    included, since the first-paint coordinator copies it separately."""
+    first = leaf_page(
+        "Served",
+        '<h1>Served</h1><section id="served"><h2>Served section</h2>'
+        '<lf-activity id="served-feed"></lf-activity><p>Served words.</p></section>',
+    )
+    second = leaf_page("Revised", "<h1>Revised</h1><p>Revised words.</p>")
+    page = open_page(browser, live_url(serve(first)))
+    page.evaluate(
+        """() => {
+          window.__held = ['served', 'served-feed'].map(
+            (id) => new WeakRef(document.getElementById(id)));
+          // The control: a removed node nothing else holds, so a collection that
+          // clears it has run.
+          const control = document.createElement('p');
+          document.body.append(control);
+          control.remove();
+          window.__control = new WeakRef(control);
+        }"""
+    )
+    stamp_page(serve.page_dir, second, "remove the served section")
+    wait_for_revision(page, 2)
+    cdp = page.context.new_cdp_session(page)
+    try:
+        cdp.send("HeapProfiler.collectGarbage")
+    finally:
+        cdp.detach()
+    assert page.evaluate("() => window.__control.deref() === undefined")
+    held = page.evaluate(
+        "() => window.__held.map((ref) => ref.deref()?.id).filter(Boolean)"
+    )
+    assert held == [], f"the revision left the served {held} in memory"
+
+
 @pytest.mark.parametrize("subject", ["paragraph", "diff", "selection"])
 def test_a_live_revision_updates_the_closed_questions_door(browser, serve, subject):
     """Unrelated questions arrive while an anchored comment keeps its native editor."""

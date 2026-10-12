@@ -546,7 +546,9 @@ export function keys(where, title, rows, options) {
 // declaration — title, rows, callbacks and availability — in place of the last, owing
 // one reading of this element alone, so an unchanged render costs that one element.
 // Removing the directive withdraws only its own attachment, including when Lit keeps
-// the element. Temporary disconnection restores that declaration on reconnection.
+// the element. Temporary disconnection restores that declaration on reconnection. Rows
+// that read the element they stand on, as a disclosure's toggle does, come as a function
+// of it, called on each render, since the template declaring them renders that element.
 export const commandsOn = directive(
   class extends AsyncDirective {
     #element;
@@ -565,7 +567,11 @@ export const commandsOn = directive(
       this.#declaration =
         rows === undefined && isCommandScope(title)
           ? title.scope
-          : declaredScope(title, rows, options);
+          : declaredScope(
+              title,
+              typeof rows === "function" ? rows(part.element) : rows,
+              options,
+            );
       if (this.isConnected) this.reconnected();
       return nothing;
     }

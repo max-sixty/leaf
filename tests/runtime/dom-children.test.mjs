@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { patchRetains, patchTree, setChildren } from "/runtime/dom-children.js";
+import {
+  patchRetains,
+  patchTree,
+  setChildLists,
+  setChildren,
+} from "/runtime/dom-children.js";
 import { under } from "/runtime/shadow.js";
 import { shadowStage } from "/runtime/shadow-stage.js";
 import { failSoftUnreported } from "/runtime/widget-upgrade.js";
@@ -180,6 +185,44 @@ test("child reordering works without moveBefore and accepts new nodes", () => {
     const c = document.createElement("input");
     setChildren(parent, [c, a, b]);
     assert.deepEqual([...parent.children], [c, a, b]);
+  } finally {
+    Element.prototype.moveBefore = nativeMove;
+  }
+});
+
+// happy-dom has no moveBefore, the browser's move that keeps a node's native state, so
+// this one records each node it moves. A node removed first, by a list it left before
+// the list it joins placed it, arrives from a detached tree and cannot take it.
+test("a node changing lists moves straight across, keeping its native state", () => {
+  const nativeMove = Element.prototype.moveBefore;
+  const kept = [];
+  Element.prototype.moveBefore = function (node, before) {
+    kept.push(node);
+    return this.insertBefore(node, before);
+  };
+  try {
+    const row = document.createElement("div");
+    const menu = document.createElement("div");
+    // The field's old group leaves the lists as the field moves to the menu.
+    const group = document.createElement("section");
+    const field = document.createElement("input");
+    const other = document.createElement("input");
+    group.append(field);
+    row.append(group, other);
+    document.body.replaceChildren(row, menu);
+    setChildLists([
+      [row, [other]],
+      [menu, [field]],
+    ]);
+    assert.deepEqual([...row.childNodes], [other]);
+    assert.deepEqual([...menu.childNodes], [field]);
+    assert.deepEqual(kept, [field]);
+    setChildLists([
+      [row, [field, other]],
+      [menu, []],
+    ]);
+    assert.deepEqual([...row.childNodes], [field, other]);
+    assert.deepEqual(kept, [field, field]);
   } finally {
     Element.prototype.moveBefore = nativeMove;
   }

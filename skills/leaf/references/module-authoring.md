@@ -145,7 +145,11 @@ and receive semantic state through `widgetController`, without a reactive copy o
 that state.
 
 Templates own generated containers or bounded ranges, rather than authored
-children. Key rows with `repeat` to retain their nodes across reorders.
+children. `repeat` keys template rows and keeps a row's nodes across reorders, but
+builds a row that moves to another `repeat` afresh, detaching any retained node in it,
+so place lists of nodes the module retains itself with `setChildren`, and lists that
+trade nodes the user may stand in with `setChildLists`, which moves each straight
+across.
 
 Every placement of a retained node, by `render`, `repeat`, `setChildren` or
 `move`, keeps the user standing in it. Within one composed root it uses native
@@ -213,7 +217,11 @@ A behavior module follows these rules:
   In templates, `commandsOn(title, rows, options)` attaches that same command scope
   to its element. It attaches once per connection, takes the current declaration on
   each render, and withdraws its attachment when the directive leaves; projected
-  commands on the element remain.
+  commands on the element remain. When rows read the element they stand on, pass a
+  function of that element in place of the rows:
+  `commandsOn(title, (summary) => [{ keys: () => DISCLOSE(summary), … }])`. It runs
+  on each render, so it only builds rows. Declare a template's scope there rather
+  than looking its element up after rendering.
 
 Each helper's header under `runtime/` explains its contract.
 
@@ -970,8 +978,11 @@ checks connection again before painting. Returning permits fresh scheduling; it 
 not replay cancelled work.
 
 Both helpers decide departures at the arrival mutation batch: a move within that
-batch retains resources. Teardown that must happen synchronously, such as cancelling
-a grab or removing hoisted dialog content, belongs in `disconnectedCallback`.
+batch retains resources. A connecting or returning element's `start` runs only after
+every element that left before it has released, so a widget a revision replaces hands
+a registration only one element may hold, such as `registerThreadPresentation`, to its
+replacement. Teardown that must happen synchronously, such as cancelling a grab or
+removing hoisted dialog content, belongs in `disconnectedCallback`.
 
 ## Data subscriptions and projections
 
@@ -1024,7 +1035,9 @@ redeliver unchanged data to keep a timestamp current.
 `revision`. An unchanged source keeps that origin when another source changes.
 
 The renderer owns its nodes and their placement. Use `setChildren(parent, nodes)`
-for retained native nodes: it moves only what is out of place. For an individual
+for retained native nodes: it moves only what is out of place. Where nodes move
+between parents, place every list at once with `setChildLists([[parent, nodes], …])`,
+outer parents first. For an individual
 placement use `move(parent, node, before)`, with `null` to append;
 `repeat(records, keyOf, template)` retains keyed template rows. Each keeps native state
 as **Template rendering** describes. Leave
@@ -1187,7 +1200,8 @@ this.threads = mountThreadViews(this, (collection, surfaces) => {
 });
 ```
 
-The widget owns outlet creation and layout. Leaf requires every outlet to remain
+The widget owns outlet creation and layout, and Leaf owns the outlet's children.
+Leaf requires every outlet to remain
 inside its owner, and a consumer may render each Thread only once per callback.
 The handle's `update()` requests a new render after a local layout change.
 
@@ -1377,8 +1391,8 @@ starts at an on-screen datum where the widget draws no thread yet, since opening
 outlet would move what the user is reading: that thread waits in the margin until the
 user presses its marker, adds a turn of their own, or scrolls the datum out of the window.
 The composer may precede any Thread at its datum. The widget owns outlet creation,
-removal, and layout; it returns `null` for data that is filtered, collapsed, or not yet
-hydrated. An outlet the widget stops returning may still hold the composer the user is
+removal, and layout, and Leaf owns the outlet's children; it returns `null` for data
+that is filtered, collapsed, or not yet hydrated. An outlet the widget stops returning may still hold the composer the user is
 typing in, until core moves it at commit. Remove such an outlet only from a function
 passed to `onCommit`, which runs once this batch's placement commits, and keep every
 returned outlet in the document when the widget redraws the data around it; moving an

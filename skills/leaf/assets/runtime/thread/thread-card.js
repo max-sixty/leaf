@@ -24,6 +24,7 @@
    title gesture policy, outgoing fold paint and local draft repaint. Surfaces receive
    whole-thread geometry readings rather than descendant nodes. */
 import { nextRender, sizeObserver } from "../rendering.js";
+import { setChildren } from "../dom-children.js";
 import { holdFocus, focusDestination, focused, standsOn } from "../focus.js";
 import { html, render, repeat, nothing, ref } from "../../vendor/browser-runtime.js";
 import { turns, threadKey, threadSummary } from "./model.js";
@@ -745,14 +746,7 @@ export class ThreadView {
       const actions = marginControls
         ? [marginControls.nav, settlement, marginControls.close].filter(Boolean)
         : [settlement].filter(Boolean);
-      render(
-        repeat(
-          actions,
-          (node) => node,
-          (node) => node,
-        ),
-        this.#actions,
-      );
+      setChildren(this.#actions, actions);
       threadActions = actions.length || model.news ? this.#actions : null;
     }
     const describedRanges = summaryRanges(model.messages, model.summaries);

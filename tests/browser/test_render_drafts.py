@@ -725,11 +725,14 @@ def test_paging_down_from_a_landed_section_keeps_the_paged_passage(browser, serv
 # the page, as when they read by keyboard), how far to scroll, and a reading
 # `(step, band)` of where what they read stands, which may stray by `tolerance`. A
 # figure taller than the window draws no text on screen, so what the reader sees is
-# the part of it at the edge: how far through its height the edge cuts. Two columns
-# stack as the window narrows; the reader scrolls the right one. A nav of short labels
-# stands beside the text and stacks above it: the reader reads the text, whether the
-# pointer rests on the nav or nowhere. A wide exhibit lower on screen reaches into the
-# margin the pointer rests in, while the reader's paragraph stands at the edge.
+# the part of it at the edge: how far through its height the edge cuts. With its
+# caption on screen below it, the figure the edge cuts is still what they see. A box
+# that scrolls on its own, scrolled partway, stands at the edge as a figure does: its
+# words move with its own scroll, not the page's. Two columns stack as the window
+# narrows; the reader scrolls the right one. A nav of short labels stands beside the
+# text and stacks above it: the reader reads the text, whether the pointer rests on the
+# nav or nowhere. A wide exhibit lower on screen reaches into the margin the pointer
+# rests in, while the reader's paragraph stands at the edge.
 TWO_COLUMNS = (
     "<style>.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem }"
     " @media (width < 900px) { .cols { grid-template-columns: 1fr } }</style>"
@@ -798,6 +801,51 @@ EDGE_SHAPES = {
         }""",
         "tolerance": 0.01,
     },
+    "figure-above-caption": {
+        "content": "".join(
+            "<p>" + " ".join(f"p{n}w{i}" for i in range(150)) + "</p>" for n in range(6)
+        )
+        + '<svg id="edge" viewBox="0 0 100 120" style="display:block;width:100%;'
+        'height:auto">'
+        + "".join(
+            f'<rect x="0" y="{n * 10}" width="100" height="10"'
+            f' fill="hsl({n * 12} 60% 60%)"/>'
+            for n in range(12)
+        )
+        + "</svg><p>Figure 1. "
+        + " ".join(f"c{i}" for i in range(30))
+        + "</p>",
+        "pointer": "#edge",
+        "distance": f"""async () => {{
+          const box = document.getElementById('edge').getBoundingClientRect();
+          return box.top - ({LANDING_TOP}) + 0.4 * box.height;
+        }}""",
+        "reading": """(step, band) => {
+          const box = document.getElementById('edge').getBoundingClientRect();
+          return (band - box.top) / box.height;
+        }""",
+        "tolerance": 0.01,
+    },
+    "box-scrolling-alone": {
+        "content": "".join(
+            "<p>" + " ".join(f"p{n}w{i}" for i in range(60)) + "</p>" for n in range(6)
+        )
+        + '<div id="inner" tabindex="0" style="height: 420px; overflow: auto">'
+        + "".join(
+            "<p>" + " ".join(f"i{n}w{i}" for i in range(40)) + "</p>" for n in range(30)
+        )
+        + "</div><p>"
+        + " ".join(f"a{i}" for i in range(60))
+        + "</p>",
+        "setup": "document.getElementById('inner').scrollTop = 900",
+        "pointer": None,
+        "distance": landed_at("#inner", -200),
+        "reading": """(step, band) => {
+          const box = document.getElementById('inner').getBoundingClientRect();
+          return band - box.top;
+        }""",
+        "tolerance": 3,
+    },
     "right-column": {
         "content": TWO_COLUMNS,
         "pointer": "#r10",
@@ -839,14 +887,16 @@ EDGE_SHAPES = {
 @pytest.mark.parametrize("shape", list(EDGE_SHAPES))
 def test_a_width_change_keeps_what_stands_at_the_landing_edge(browser, serve, shape):
     """The reader scrolls until what they read stands at the landing edge: 40% of the
-    way into a figure taller than the window, a paragraph of the right column of two,
-    a paragraph of the text beside a nav of short labels, or a line partway into a
+    way into a figure, taller than the window or with its caption below it; partway
+    into a box that scrolls on its own; a paragraph of the right column of two; a
+    paragraph of the text beside a nav of short labels; or a line partway into a
     paragraph while the pointer rests in a margin that only a wide exhibit lower on
     screen reaches. As the window narrows and widens, the figure scales and columns
     stack, and at each width the reader still sees what they saw at the edge: the same
-    part of the figure, not its top where it stood nor the old offset; and the line or
-    paragraph they read, not the left column's, the nav's, or the exhibit's, which a
-    reading in document order or under the pointer alone would take."""
+    part of the figure or the box, not its top where it stood, the caption below it, a
+    line inside the box, nor the old offset; and the line or paragraph they read, not
+    the left column's, the nav's, or the exhibit's, which a reading in document order
+    or under the pointer alone would take."""
     case = EDGE_SHAPES[shape]
     filler = "".join(
         f"<p>Filler paragraph {n} keeps the page long enough to scroll freely.</p>"
@@ -862,6 +912,8 @@ def test_a_width_change_keeps_what_stands_at_the_landing_edge(browser, serve, sh
     )
     resized(page, 1200, 800)
     rendered(page)
+    if "setup" in case:
+        page.evaluate(case["setup"])
     distance = page.evaluate(case["distance"])
     if case["pointer"]:
         box = page.locator(case["pointer"]).bounding_box()

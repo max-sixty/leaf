@@ -1,25 +1,28 @@
 /* The user's place in a scroller, written down as a landmark rather than an offset.
  *
- * A place names the line at the scroller's landing edge: the first line whose middle
- * stands at or below the edge, read down the blocks on screen in document order,
- * quoted from its first character with the context a comment's capture gives a quote
- * (anchor-resolution.js, `anchorForPassage`), and that line's distance below the edge.
- * The lines above it in its paragraph can rewrap or be rewritten without moving the
- * line the reader sees. A heading is read whole, from its first word, wherever any of
- * it shows below the edge. A run of fewer than `QUOTABLE` characters, a nav's label or
- * a list of names, is apparatus beside the reading and names no place, nor do words in
- * a stuck box, which ride with every scroll. Where blocks stand side by side at that
- * line, as columns do, the line is taken from the one across the reader's column: where
- * their pointer last named their place, or failing that where focus stands. With no
- * line on screen, a drawing the edge cuts (a replaced element such as an image or an
- * svg, or a widget's custom element) is the place, with how far through its height the
- * edge cuts it, so the reader keeps seeing the same part of it as it scales; it is a
- * live node, held weakly, so a revision that replaces it loses it. Failing that, the
- * place is the first block's section; failing that, the raw offset, which only the same
- * scroller, at the same width and in the same revision, can take back: otherwise it
- * names other content, and the browser's own scroll anchoring keeps what the reader saw
- * better than it can. A bounded block following its newest entry has its end as its
- * place (`bounds.js`, `followingItsEnd`), however many entries have arrived since.
+ * A place names what stands at the scroller's landing edge. Where the edge cuts a
+ * drawing (a replaced element such as an image or an svg, or a widget's custom
+ * element) or a box that scrolls its words on its own without being a reading region,
+ * the place is that box and how far through its height the edge cuts it, so the reader
+ * keeps seeing the same part of it as it scales or as content arrives around it. It is
+ * a live node, held weakly, so a revision that replaces it loses it, and the line below
+ * it stands for it. Otherwise the place is the line at the edge: the first line whose
+ * middle stands at or below the edge, read down the blocks on screen in document
+ * order, quoted from its first character with the context a comment's capture gives a
+ * quote (anchor-resolution.js, `anchorForPassage`), and that line's distance below the
+ * edge. The lines above it in its paragraph can rewrap or be rewritten without moving
+ * the line the reader sees. A heading is read whole, from its first word, wherever any
+ * of it shows below the edge. A run of fewer than `QUOTABLE` characters, a nav's label
+ * or a list of names, is apparatus beside the reading and names no place, nor do words
+ * in a stuck box, which ride with every scroll, or in a box scrolling on its own. Where
+ * blocks stand side by side at that line, as columns do, the line is taken from the one
+ * across the reader's column: where their pointer last named their place, or failing
+ * that where focus stands. Failing a line, the place is the first block's section;
+ * failing that, the raw offset, which only the same scroller, at the same width and in
+ * the same revision, can take back: otherwise it names other content, and the browser's
+ * own scroll anchoring keeps what the reader saw better than it can. A bounded block
+ * following its newest entry has its end as its place (`bounds.js`, `followingItsEnd`),
+ * however many entries have arrived since.
  * `capturePlace` reads one, of the page or of a reading region, and `restorePlace`
  * returns the user to it: the passage is found again by its words, so a place survives
  * what moved the pixels under it — a new revision, a resize, a view that was hidden
@@ -50,6 +53,7 @@ import {
   landingBand,
   shownBox,
   shownWindow,
+  scrollport,
   skipped,
   stuckBox,
 } from "./geometry.js";
@@ -395,28 +399,57 @@ function lineAnchor(segments) {
   const anchor = anchorForPassage(quoted, range.commonAncestorContainer);
   return anchor.quote && !anchor.detached ? { anchor, range } : null;
 }
-// The drawing the landing edge cuts at `x`, and how far through its height the edge
-// cuts it; null where the edge stands in words, between blocks, or in a box that draws
-// nothing. The browser's hit test names it: the page's topmost element under that
-// point, past anything Leaf draws over the page, widened to the largest box around it
-// that holds no text block, so a chart is its host rather than a mark it drew, and a
-// picture whose caption is a block of its own is the picture.
-function drawnAt(body, x, edge, blocks) {
+// The box that scrolls `node`'s words on its own, outermost first, between it and `box`,
+// the scroller a place is read for: content taller than its own box, under an overflow
+// that scrolls. Where such a box is no reading region of its own, its words move with
+// its scroll as well as the page's, so they name no place in `box`.
+function scrollsAlone(node, box) {
+  let alone = null;
+  for (
+    let at = renderedParent(node);
+    at?.nodeType === 1 && at !== box;
+    at = renderedParent(at)
+  )
+    if (
+      at !== document.body &&
+      scrollport(getComputedStyle(at).overflowY) &&
+      at.scrollHeight > at.clientHeight
+    )
+      alone = at;
+  return alone;
+}
+// What the landing edge cuts at `x` when no words stand there, and how far through its
+// height the edge cuts it: a drawing, or a box scrolling on its own, whose words say
+// nothing about the page's place. Null where the edge stands in words, between blocks,
+// in a box that draws nothing, or in another scroller's region. The browser's hit test
+// names it: the page's topmost element under that point, past anything Leaf draws over
+// the page. A drawing is widened to the largest box around it that holds no text
+// block, so a chart is its host rather than a mark it drew, and a picture whose caption
+// is a block of its own is the picture.
+function drawnAt(body, box, x, edge, blocks) {
   const holdsText = (element) => blocks.some((block) => under(block, element));
   for (const hit of document.elementsFromPoint(x, edge + 1)) {
     if (inChrome(hit) || inUi(hit)) continue;
-    if (hit === body || !under(hit, body) || passageBlock(hit) || holdsText(hit))
+    if (hit === body || !under(hit, body) || effectiveScroller(hit) !== box)
       return null;
-    let box = hit;
-    let drawing = draws(hit);
-    for (let up = upFrom(box); up && up !== body && !holdsText(up); up = upFrom(up)) {
-      box = up;
-      drawing ||= draws(up);
+    let found = scrollsAlone(hit, box);
+    if (!found) {
+      if (passageBlock(hit) || holdsText(hit)) return null;
+      let drawing = draws(hit);
+      found = hit;
+      for (
+        let up = upFrom(found);
+        up && up !== body && !holdsText(up);
+        up = upFrom(up)
+      ) {
+        found = up;
+        drawing ||= draws(up);
+      }
+      if (!drawing) return null;
     }
-    const rect = shownBox(box);
-    if (!drawing || !(rect.height && rect.top <= edge + 1 && rect.bottom > edge))
-      return null;
-    return { box, through: Math.max(0, (edge - rect.top) / rect.height) };
+    const rect = shownBox(found);
+    if (!(rect.height && rect.top <= edge + 1 && rect.bottom > edge)) return null;
+    return { box: found, through: Math.max(0, (edge - rect.top) / rect.height) };
   }
   return null;
 }
@@ -482,7 +515,7 @@ export function capturePlace(region = null, blocks = textBlocks()) {
   let sectioned = null;
   let line = null;
   for (const [block, rect, runs] of blocksOnScreen(region, blocks)) {
-    if (stuckBox(block)) continue;
+    if (stuckBox(block) || scrollsAlone(block, box)) continue;
     const section = closestAcross(block, ADDRESSABLE);
     sectioned ??= section && { block, rect, section };
     line = lineOf(block, rect, runs);
@@ -491,7 +524,12 @@ export function capturePlace(region = null, blocks = textBlocks()) {
   if (line && column !== null && !spans(line.block, line.rect, column)) {
     const row = { top: boxTop, bottom: line.bottom };
     for (const [block, rect, runs] of blocksOnScreen(region, blocks, row)) {
-      if (block === line.block || stuckBox(block) || !spans(block, rect, column))
+      if (
+        block === line.block ||
+        stuckBox(block) ||
+        scrollsAlone(block, box) ||
+        !spans(block, rect, column)
+      )
         continue;
       const beside = lineOf(block, rect, runs);
       if (beside && beside.landmark.range.getBoundingClientRect().top < line.bottom) {
@@ -530,14 +568,17 @@ export function capturePlace(region = null, blocks = textBlocks()) {
       landmark.range.getBoundingClientRect().top - boxTop,
       block,
     );
-  } else if (bounds) {
-    // With no line on screen, what the edge cuts in the reader's column, or in the
-    // middle of what the box shows, is what they see.
+  }
+  // What the edge cuts in the reader's column, or in the middle of what the box shows,
+  // is what they see there, ahead of the line below it, which stands for it where the
+  // node is gone.
+  if (bounds) {
+    // A pointer resting in the margin beside the box's contents names no column there.
     const across = shownBox(body);
-    const x =
-      column ??
-      (Math.max(across.left, bounds.left) + Math.min(across.right, bounds.right)) / 2;
-    const drawn = drawnAt(body, x, boxTop, blocks);
+    const left = Math.max(across.left, bounds.left);
+    const right = Math.min(across.right, bounds.right);
+    const x = column >= left && column <= right ? column : (left + right) / 2;
+    const drawn = drawnAt(body, box, x, boxTop, blocks);
     if (drawn) {
       named = drawn.box;
       view[DRAWN_PLACE] = { node: new WeakRef(drawn.box), through: drawn.through };
@@ -626,15 +667,15 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
       // Restoration keeps the reader's disclosures and chosen views: a landmark
       // the user has since concealed supplies no geometry, and nothing reopens
       // it. Explicit navigation reveals a destination before restoring a place.
-      const segments = drawnQuote(view);
       const drawn = drawnPlace(view);
-      if (segments.length) {
+      const segments = drawn && under(drawn.node, body) ? [] : drawnQuote(view);
+      if (drawn && under(drawn.node, body)) {
+        moveScrollerBy(box, drawn.top() - boxTop);
+      } else if (segments.length) {
         moveScrollerBy(
           box,
           rangeOf(segments).getBoundingClientRect().top - boxTop - view.quoteTop,
         );
-      } else if (drawn && under(drawn.node, body)) {
-        moveScrollerBy(box, drawn.top() - boxTop);
       } else if (!standing) {
         // An unresolved or concealed passage leaves live focus as the precise
         // destination; section and raw-offset fallbacks belong to readings without one.

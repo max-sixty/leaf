@@ -2,7 +2,7 @@
  * Pages own their task and worker vocabulary through $work.widgets; this reader
  * owns progress, assignments, report age and stopped-work meaning independently
  * of how a dashboard composes those facts. */
-import { declarationFor, layerFact, registry } from "./registry.js";
+import { declarationFor, registry } from "./registry.js";
 import { readQuestions } from "./questions/model.js";
 import { asksIn } from "./questions/place.js";
 import { elementById } from "./passages.js";
@@ -12,7 +12,9 @@ import { saidAt, reportSequence } from "./reports.js";
 import { widgetController } from "./widget-controller.js";
 import { addressableName } from "./addressable-names.js";
 
-const widgets = () => layerFact("$work")?.widgets ?? {};
+// Read in place, as `$states` is below: `layerFact` copies the declaration for a
+// package module, and a work reading asks for it once per element it walks.
+const widgets = () => registry.$work?.widgets ?? {};
 
 function specs(role) {
   return Object.entries(widgets()).filter(([, spec]) => spec?.role === role);

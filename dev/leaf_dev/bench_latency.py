@@ -1,9 +1,12 @@
 """Time how fast an open Leaf page answers, for BASE_REF's runtime and HEAD's.
 
     uv run leaf-dev bench-latency [BASE_REF]
+    uv run leaf-dev bench-latency --tree --page corpus --transition comment --runs 3
 
 BASE_REF defaults to the merge base with `main`; each arm is the plugin payload at its
-commit (`leaf_dev.arms.build_pair`), so commit what you want measured. Each arm
+commit (`leaf_dev.arms.build_pair`), so commit what you want measured. `--tree` times
+only the working tree as it stands, and with one page and transition it takes under
+a minute, cheap enough to run during a change; the full A/B takes many. Each arm
 builds and serves the triage board and the corpus from this checkout's examples, and
 both arms' tabs stay open in one headless Chrome, taking turns within each run. Each
 run reloads the page, opens the Threads panel, and times five transitions
@@ -17,7 +20,11 @@ A gesture's clock starts at its input event's timestamp; an agent write's at the
 modification of the file it writes, so the command's startup is left out. It stops at
 the first frame that paints the result (an init script samples after each frame's
 paint). A gesture's `sent` time is the first painted frame after its exact attempt
-was admitted and that application reading was presented. Requests and bytes, the
+was admitted and that application reading was presented, and its `answered` time is
+when the last byte of that POST's answer arrived, so `Sent` less `answered` is the
+page waiting for its main thread and applying the reading. Who held the main thread
+until the last goal is read from the long animation frames the page reports, by
+script owner, with the style and layout each forced. Requests and bytes, the
 primary comparison, are the resource entries the page started from then until it has
 stayed quiet for SETTLE_MS, or the whole new document after a reload; request bodies
 carry no entry. Completed finite freshness reads do, while an open SSE connection does
@@ -33,7 +40,7 @@ import tempfile
 import time
 from collections.abc import Callable
 from contextlib import AbstractContextManager, ExitStack, contextmanager, nullcontext
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
 
@@ -60,6 +67,8 @@ SOURCES = ("triage-board", "corpus")
 DEADLINE_S = 30
 # How long a page must stay quiet before its traffic for a transition is read.
 SETTLE_MS = 250
+# How many owners of the main thread to print per transition.
+OWNERS = 6
 # The triage content both sources carry: the passage the comment and the agent thread
 # stand on, and the cards each run moves one column left (the corpus keeps their ids).
 PASSAGE = "triage-lede"
@@ -121,6 +130,30 @@ def first_write(path: Path, command: list[str], env: dict) -> float:
     return written / 1e6
 
 
+def main_thread(frames: list[dict], start: float, end: float) -> dict:
+    """What the long animation frames spent between `start` and `end`: each owner's
+    script time and the style and layout it forced, and the frames' own rendering,
+    each counted for the part of it inside the window. A script's forced work has no
+    place of its own, so it is counted in the same share as the script. Frames under
+    50 ms are not reported, so this is a floor on the main thread's work, not its
+    total."""
+
+    def inside(begin: float, ms: float) -> float:
+        return max(0.0, min(end, begin + ms) - max(start, begin))
+
+    owners: dict[str, list[float]] = {}
+    render = 0.0
+    for frame in frames:
+        render += inside(frame["end"] - frame["render"], frame["render"])
+        for script in frame["scripts"]:
+            if not (ms := inside(script["start"], script["ms"])):
+                continue
+            spent = owners.setdefault(script["owner"], [0.0, 0.0])
+            spent[0] += ms
+            spent[1] += script["forced"] * ms / script["ms"]
+    return {"owners": owners, "render": render}
+
+
 @dataclass
 class Session:
     """One arm's page, its server, and the tab open on it."""
@@ -137,6 +170,17 @@ class Session:
     # What runs around a transition, from just before it starts until its first goal
     # is painted: nothing here, a profiler in `leaf-dev profile`.
     recording: Callable[[], AbstractContextManager] = nullcontext
+    # When the last byte of each event POST's answer arrived, by its attempt, in epoch
+    # milliseconds. A retry answers the same attempt; its later answer replaces.
+    answers: dict[str, float] = field(default_factory=dict)
+
+    def heard(self, request) -> None:
+        if request.method != "POST" or not request.url.endswith("/api/event"):
+            return
+        attempt = (request.post_data_json or {}).get("attempt")
+        if attempt:
+            timing = request.timing
+            self.answers[attempt] = timing["startTime"] + timing["responseEnd"]
 
     def command(self, *args: str) -> list[str]:
         return [str(self.arm_dir / "bin" / "leaf"), *args]
@@ -183,26 +227,34 @@ class Session:
         try:
             with self.recording():
                 start = act()
-                until(
+                watch = until(
                     self.page,
-                    "() => window.__leafBench.watch().goals[0].at !== null",
+                    "() => { const w = window.__leafBench.watch();"
+                    " return w.goals.every(g => g.at !== null) && w; }",
                     f"{self.arm} {transition} was never shown",
                 )
-            watch = until(
-                self.page,
-                "() => { const w = window.__leafBench.watch();"
-                " return w.goals.every(g => g.at !== null) && w; }",
-                f"{self.arm} {transition} was never shown",
-            )
             self.settle()
             traffic = self.page.evaluate("() => window.__leafBench.traffic()")
+            frames = self.page.evaluate("() => window.__leafBench.frames()")
         finally:
             self.page.evaluate("() => window.__leafBench.disarm()")
+        end = max(goal["at"] for goal in watch["goals"])
+        # The gesture's own POST: the attempt the probe bound its `delivered` goal to.
+        answered = next(
+            (
+                self.answers[goal["attempt"]]
+                for goal in watch["goals"]
+                if goal.get("attempt") in self.answers
+            ),
+            None,
+        )
         return {
             "page": self.source,
             "arm": self.arm,
             "transition": transition,
             **{goal["name"]: goal["at"] - start for goal in watch["goals"]},
+            **({"answered": answered - start} if answered else {}),
+            **main_thread(frames, start, end),
             **traffic,
         }
 
@@ -329,9 +381,11 @@ def served(browser: Browser, arm: str, arm_dir: Path, source: str, scratch: Path
             page.goto(address)  # The token sets the page cookie; later loads drop it.
             origin = address.split("?", 1)[0]
             url = f"{origin}#{PASSAGE}"
-            yield Session(
+            session = Session(
                 arm, source, arm_dir, state, page_dir, page, url, thread, task
             )
+            page.on("requestfinished", session.heard)
+            yield session
         finally:
             context.close()
 
@@ -344,35 +398,96 @@ def spread(values: list[float]) -> str:
 
 def row(source: str, transition: str, arm: str, runs: list[dict]) -> str:
     painted = spread([r["painted"] for r in runs])
+    answered = spread([r["answered"] for r in runs if "answered" in r])
     sent = spread([r["sent"] for r in runs if "sent" in r])
     requests = statistics.median(r["requests"] for r in runs)
     kb = statistics.median(r["bytes"] for r in runs) / 1000
     installs = ", ".join(sorted({r["install"] for r in runs}))
     return (
-        f"{source:13} {transition:10} {arm:4} {painted:>16} {sent:>16} "
+        f"{source:13} {transition:10} {arm:4} {painted:>16} {answered:>14} {sent:>16} "
         f"{requests:>8.0f} {kb:>7.1f}  {installs if transition == 'revision' else ''}"
     )
 
 
+def owners(runs: list[dict]) -> list[str]:
+    """The owners of the main thread's long frames, by mean script time per run."""
+    total: dict[str, list[float]] = {}
+    for run in runs:
+        for owner, (ms, forced) in run["owners"].items():
+            spent = total.setdefault(owner, [0.0, 0.0])
+            spent[0] += ms
+            spent[1] += forced
+    ranked = sorted(total.items(), key=lambda item: -item[1][0])
+    render = sum(r["render"] for r in runs) / len(runs)
+    return [
+        f"    {ms / len(runs):6.0f} {forced / len(runs):6.0f}  {owner}"
+        for owner, (ms, forced) in ranked[:OWNERS]
+    ] + [f"    {render:6.0f}         style, layout and paint after scripts"]
+
+
 @click.command()
 @click.argument("base_ref", required=False)
-def bench_latency(base_ref: str | None) -> None:
-    """Time an open page's answers, base vs HEAD.
+@click.option(
+    "--page",
+    "pages",
+    multiple=True,
+    type=click.Choice(SOURCES),
+    help="Time only this page; repeat for more. Default: all.",
+)
+@click.option(
+    "--transition",
+    "transitions",
+    multiple=True,
+    type=click.Choice(TRANSITIONS),
+    help="Time only this transition; repeat for more. Default: all.",
+)
+@click.option(
+    "--runs",
+    default=RUNS,
+    show_default=True,
+    # Each run moves its own card (`MOVES`).
+    type=click.IntRange(1, len(MOVES)),
+    help="Runs per arm.",
+)
+@click.option(
+    "--tree",
+    is_flag=True,
+    help="Time only this working tree, uncommitted edits included, with no base.",
+)
+def bench_latency(
+    base_ref: str | None,
+    pages: tuple[str, ...],
+    transitions: tuple[str, ...],
+    runs: int,
+    tree: bool,
+) -> None:
+    """Time an open page's answers, base vs HEAD, or this working tree alone.
 
     Times a page's answer to a gesture, an agent write, and a revision, on two
     pages, taking turns between BASE_REF's runtime and HEAD's; BASE_REF defaults to
     the merge base with main. Prints a table of median [min-max] milliseconds
-    to the painted frame, with the requests and bytes each caused; every run lands
-    in .tmp/bench-latency/.
+    to the painted frame, to the gesture's POST answer, and to the painted frame
+    of the server's reading (Sent), with the requests and bytes each caused, then
+    who held the main thread in that time. Every run lands in .tmp/bench-latency/.
+
+    To check a change as you make it, narrow it, for example
+    `--tree --page corpus --transition comment --runs 3`.
     """
+    if tree and base_ref:
+        raise click.UsageError("--tree times the working tree alone; drop BASE_REF")
+    pages = pages or SOURCES
+    transitions = transitions or TRANSITIONS
     out = run_directory(OUT)
     load_before = load_average()
     results = []
     with tempfile.TemporaryDirectory(prefix="leaf-bench-") as built:
         scratch = Path(built)
-        arms, commits = build_pair(base_ref, scratch)
+        if tree:
+            arms, commits = {"tree": ROOT}, {}
+        else:
+            arms, commits = build_pair(base_ref, scratch)
         with chrome() as browser:
-            for source in SOURCES:
+            for source in pages:
                 with ExitStack() as stack:
                     sessions = [
                         stack.enter_context(
@@ -380,12 +495,12 @@ def bench_latency(base_ref: str | None) -> None:
                         )
                         for arm, arm_dir in arms.items()
                     ]
-                    for run in range(RUNS):
+                    for run in range(runs):
                         # Alternate which arm goes first, so neither always meets
                         # the machine the other just loaded.
                         for session in sessions[:: 1 if run % 2 == 0 else -1]:
                             session.open()
-                            for transition in TRANSITIONS:
+                            for transition in transitions:
                                 result = getattr(session, transition)(run)
                                 results.append({**result, "run": run})
                                 click.echo(
@@ -397,22 +512,41 @@ def bench_latency(base_ref: str | None) -> None:
     (out / "results.json").write_text(
         json.dumps({"commits": commits, "results": results}, indent=1)
     )
-    click.echo(
-        f"base {commits['base'][:10]} vs head {commits['head'][:10]}, {RUNS} runs, "
-        f"Chrome {version}, {DESKTOP[0]}x{DESKTOP[1]}\n"
-        f"load average {load_before} before, {load_average()} after\n"
-        "times are median [min-max] from input or write to the painted frame\n"
-        f"{'page':13} {'transition':10} {'arm':4} {'painted ms':>16} "
-        f"{'Sent ms':>16} {'requests':>8} {'KB':>7}  install"
+    compared = (
+        "this working tree"
+        if tree
+        else f"base {commits['base'][:10]} vs head {commits['head'][:10]}"
     )
-    for source in SOURCES:
-        for transition in TRANSITIONS:
-            for arm in arms:
-                runs = [
-                    r
-                    for r in results
-                    if (r["page"], r["transition"], r["arm"])
-                    == (source, transition, arm)
-                ]
-                click.echo(row(source, transition, arm, runs))
+    click.echo(
+        f"{compared}, {runs} runs, Chrome {version}, {DESKTOP[0]}x{DESKTOP[1]}\n"
+        f"load average {load_before} before, {load_average()} after\n"
+        "times are median [min-max] ms from input or write to the painted frame\n"
+        f"{'page':13} {'transition':10} {'arm':4} {'painted':>16} {'answered':>14} "
+        f"{'Sent':>16} {'requests':>8} {'KB':>7}  install"
+    )
+    selected = [
+        (source, transition, arm, by)
+        for source in pages
+        for transition in transitions
+        for arm in arms
+        if (
+            by := [
+                r
+                for r in results
+                if (r["page"], r["transition"], r["arm"]) == (source, transition, arm)
+            ]
+        )
+    ]
+    for source, transition, arm, by in selected:
+        click.echo(row(source, transition, arm, by))
+    click.echo(
+        "\nmain thread in long frames to the last painted goal, mean ms per run:"
+        "\n    script forced  owner"
+    )
+    for source, transition, arm, by in selected:
+        # A transition with no long frame held the main thread for none of its time.
+        if any(r["owners"] or r["render"] for r in by):
+            click.echo(f"  {source} {transition} {arm}")
+            for line in owners(by):
+                click.echo(line)
     click.echo(f"details: {out / 'results.json'}")

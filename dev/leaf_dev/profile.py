@@ -6,11 +6,14 @@
 goes. It drives TRANSITION on this checkout's page exactly as the benchmark does
 (`leaf_dev.bench_latency.served`), RUNS times, each under a V8 CPU profile and a
 Chrome trace with style invalidation tracking, and reads the window from the last
-keydown (or the recording's start, for an agent write) to the frame the benchmark's
-probe marks as painting the result. It prints each run's main-thread tasks with the
-JS that dominated them, then per run: style and layout time and how much of it script
-forced, the forced style recalculations and the writes that invalidated style with
-the JS behind each, and JS by self and inclusive time.
+keydown (or the recording's start, for an agent write) to the last frame the
+benchmark's probe marks as painting one of the transition's goals: for a gesture,
+the server's reading presented (Sent), so the window holds the local draw, the wait
+for the POST's answer and the answer's application. It prints when each goal was
+painted and each run's main-thread tasks with the JS that dominated them, then per
+run: style and layout time and how much of it script forced, the forced style
+recalculations and the writes that invalidated style with the JS behind each, and JS
+by self and inclusive time.
 
 Tracing slows the page, so read proportions here and durations from the benchmark.
 Each run's `.trace.json` (DevTools or Perfetto) and `.cpuprofile` land in
@@ -147,7 +150,12 @@ def attribute(trace: Path, profile: Profile) -> dict:
     everything = (
         everything["traceEvents"] if isinstance(everything, dict) else everything
     )
-    end = min(e["ts"] for e in everything if e.get("name", "").startswith("lf-bench:"))
+    marks = {
+        e["name"].removeprefix("lf-bench:"): e["ts"]
+        for e in everything
+        if e.get("name", "").startswith("lf-bench:")
+    }
+    end = max(marks.values())
     events = [e for e in main_thread(everything) if e["ts"] <= end]
     spans = [e for e in events if e.get("ph") == "X"]
     keys = [
@@ -211,6 +219,7 @@ def attribute(trace: Path, profile: Profile) -> dict:
     own, inclusive = profile.functions(start, end)
     return {
         "window": end - start,
+        "marks": {name: at - start for name, at in marks.items()},
         "tasks": tasks,
         "render": render,
         "forced": forced,
@@ -242,9 +251,8 @@ def recorded(session, browser, name: str, runs: list, out: Path):
 
 def show(runs: list) -> None:
     for number, run in enumerate(runs, 1):
-        click.echo(
-            f"run {number}: {ms(run['window'])} ms from input to the painted frame"
-        )
+        painted = ", ".join(f"{name} {ms(at)}" for name, at in run["marks"].items())
+        click.echo(f"run {number}: ms from input to each painted goal: {painted}")
         for at, duration, paths in run["tasks"]:
             click.echo(
                 f"  {ms(at):7.1f} ms  task {ms(duration):6.1f} ms  {' | '.join(paths)}"
@@ -285,7 +293,7 @@ def profile(source: str, transition: str) -> None:
 
     Runs one `bench-latency` TRANSITION on SOURCE a few times on this working tree,
     under a CPU profiler and a Chrome trace, and prints the main-thread tasks up to
-    the painted frame, forced style and layout and the writes that invalidated
+    the last painted goal (Sent, for a gesture), forced style and layout and the writes that invalidated
     style, and JS by function. Each run's trace and CPU profile land in
     .tmp/profile/ for DevTools or Perfetto.
     """

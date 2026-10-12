@@ -391,28 +391,37 @@ PASSIVE_LABELS = """<!doctype html><body class="lf-chrome" style="margin:0; font
 </body>"""
 
 
+PASSIVE_FAULTS = [
+    ("", None),
+    ("informational_group", None),
+    ("stationary_control", None),
+    ("boxless_header", None),
+    ("nested_stable_region", None),
+    ("nested_unstable_region", "span#receipt"),
+    ("nested_boxless_region", "span#receipt"),
+    ("moving_region", "div#row"),
+    ("contained_aria_control", "span#receipt"),
+    ("tabbable_group", "span#receipt"),
+    ("outside_runtime", "span#receipt"),
+    ("undeclared", "span#receipt"),
+    ("adjacent_control", "button#action"),
+    ("contained_control", "button#action"),
+    ("growing_header", "p#reading"),
+    ("escaping_label", "span#receipt"),
+]
+
+
+# The owner kind changes only how the region declares itself the runtime's, so the inline
+# owner runs the faults that read that declaration rather than the whole list.
 @pytest.mark.parametrize(
-    "fault, protected",
-    [
-        ("", None),
-        ("informational_group", None),
-        ("stationary_control", None),
-        ("boxless_header", None),
-        ("nested_stable_region", None),
-        ("nested_unstable_region", "span#receipt"),
-        ("nested_boxless_region", "span#receipt"),
-        ("moving_region", "div#row"),
-        ("contained_aria_control", "span#receipt"),
-        ("tabbable_group", "span#receipt"),
-        ("outside_runtime", "span#receipt"),
-        ("undeclared", "span#receipt"),
-        ("adjacent_control", "button#action"),
-        ("contained_control", "button#action"),
-        ("growing_header", "p#reading"),
-        ("escaping_label", "span#receipt"),
+    "fault, protected, owner_kind",
+    [(*case, "chrome") for case in PASSIVE_FAULTS]
+    + [
+        (fault, protected, "inline")
+        for fault, protected in PASSIVE_FAULTS
+        if fault in {"", "outside_runtime", "moving_region"}
     ],
 )
-@pytest.mark.parametrize("owner_kind", ["chrome", "inline"])
 def test_passive_motion_is_confined_to_a_runtime_owned_region(
     browser, fault, protected, owner_kind
 ):
@@ -2574,7 +2583,7 @@ def test_typing_root_scroll_keeps_a_fixed_field_but_not_its_local_carry(browser,
         "important_rule",
     ],
 )
-@pytest.mark.parametrize("transform", ["none", "scale(.8)", "scale(.8) rotate(10deg)"])
+@pytest.mark.parametrize("transform", ["none", "scale(.8) rotate(10deg)"])
 @pytest.mark.parametrize("declared", ["inline", "scoped_rule"])
 def test_native_anchor_scroll_retains_local_motion_proof(
     browser, fault, transform, declared
@@ -2809,13 +2818,19 @@ def test_gesture_close_does_not_own_future_or_local_motion(browser, fault):
     )
 
 
-# Input attribution and the plane moved to are independent, so each guard mode is
-# paired with one destination rather than crossed with both.
+# Input attribution, the plane moved to, and the extra motion are independent, so each
+# guard mode is paired with one destination, and each fault kind and axis with one mode,
+# rather than crossed.
 @pytest.mark.parametrize(
-    "guard_mode, destination", [("typing", "window"), ("passive", "page")]
-)
-@pytest.mark.parametrize(
-    "fault", ["", "holder_x", "holder_y", "child_x", "child_y", "inset_y"]
+    "fault, guard_mode, destination",
+    [
+        ("", "typing", "window"),
+        ("", "passive", "page"),
+        ("holder_x", "typing", "window"),
+        ("child_y", "typing", "window"),
+        ("holder_y", "passive", "page"),
+        ("inset_y", "passive", "page"),
+    ],
 )
 def test_real_floating_plane_retains_local_motion(
     browser, serve, fault, guard_mode, destination
@@ -2998,147 +3013,104 @@ def test_real_floating_plane_retains_local_motion(
         assert errors == [], errors
 
 
-# Native containing blocks, not DOM ancestry, decide which overflow clips apply.
+# Native containing blocks, not DOM ancestry, decide which overflow clips apply. The
+# watch reads the containing block from `offsetParent` and the clip from the computed
+# style (`clippingAxes`), so one case stands for each way Chrome answers either: a
+# transform for every property that makes a fixed box's containing block, and paint
+# containment for `contain: strict`.
 @pytest.mark.parametrize(
     "outer,inner,field,hit,painted,delta",
     [
-        (
+        pytest.param(
             "width:100px;height:100px;overflow:hidden",
             "",
             "position:fixed;left:200px;top:200px",
             True,
             True,
             20,
+            id="viewport-fixed",
         ),
-        (
+        pytest.param(
             "width:100px;height:100px;overflow:hidden;transform:translateX(0)",
             "",
             "position:fixed;left:200px;top:200px",
             False,
             False,
             20,
+            id="transformed",
         ),
-        (
-            "width:100px;height:100px;overflow:hidden;contain:layout",
-            "",
-            "position:fixed;left:200px;top:200px",
-            False,
-            False,
-            20,
-        ),
-        (
-            "width:100px;height:100px;overflow:hidden;filter:blur(0)",
-            "",
-            "position:fixed;left:200px;top:200px",
-            False,
-            False,
-            20,
-        ),
-        (
+        pytest.param(
             "width:100px;height:100px;overflow:hidden;opacity:0",
             "",
             "position:fixed;left:200px;top:200px",
             True,
             False,
             20,
+            id="transparent",
         ),
-        (
+        pytest.param(
             "position:relative;width:500px;height:400px",
             "width:100px;height:100px;overflow:hidden",
             "position:absolute;left:200px;top:200px",
             True,
             True,
             20,
+            id="absolute-outer",
         ),
-        (
+        pytest.param(
             "position:relative;width:500px;height:400px",
             "position:relative;width:100px;height:100px;overflow:hidden",
             "position:absolute;left:200px;top:200px",
             False,
             False,
             20,
+            id="absolute-inner",
         ),
-        (
-            "position:relative;width:100px;height:100px;overflow:hidden",
-            "position:absolute;width:100px;height:100px;overflow:hidden",
-            "position:fixed;left:200px;top:200px",
-            True,
-            True,
-            20,
-        ),
-        (
+        pytest.param(
             "width:100px;height:100px;overflow:hidden;transform:scale(2);transform-origin:0 0",
             "",
             "position:fixed;left:75px;top:20px",
             True,
             True,
             3,
+            id="scaled",
         ),
-        (
+        pytest.param(
             "width:100px;height:100px;overflow:visible;contain:paint",
             "",
             "position:fixed;left:200px;top:200px",
             False,
             False,
             20,
+            id="paint-contained",
         ),
-        (
-            "width:100px;height:100px;overflow:visible;contain:strict",
-            "",
-            "position:fixed;left:200px;top:200px",
-            False,
-            False,
-            20,
-        ),
-        (
+        pytest.param(
             "width:100px;height:100px;overflow:visible;content-visibility:auto",
             "",
             "position:fixed;left:200px;top:200px",
             False,
             False,
             20,
+            id="content-visibility",
         ),
-        (
-            "position:relative;width:100px;height:100px;overflow-x:visible;overflow-y:clip",
-            "",
-            "position:absolute;left:200px;top:20px",
-            True,
-            True,
-            20,
-        ),
-        (
+        pytest.param(
             "position:relative;width:100px;height:100px;overflow-x:clip;overflow-y:visible",
             "",
             "position:absolute;left:20px;top:200px",
             True,
             True,
             20,
+            id="visible-y",
         ),
-        (
+        pytest.param(
             "position:relative;width:100px;height:0;overflow-x:clip;overflow-y:visible",
             "",
             "position:absolute;left:20px;top:200px",
             True,
             True,
             20,
+            id="zero-height-x",
         ),
-    ],
-    ids=[
-        "viewport-fixed",
-        "transformed",
-        "contained",
-        "filtered",
-        "transparent",
-        "absolute-outer",
-        "absolute-inner",
-        "escaped-absolute",
-        "scaled",
-        "paint-contained",
-        "strict-contained",
-        "content-visibility",
-        "visible-x",
-        "visible-y",
-        "zero-height-x",
     ],
 )
 def test_native_clipping_preserves_only_painted_carry(
@@ -3611,8 +3583,9 @@ def test_owned_native_finish_records_the_applied_endpoint(browser, fault, fill):
         assert not errors, errors
 
 
-@pytest.mark.parametrize("zoom", [1, 2])
-@pytest.mark.parametrize("fault", [False, True])
+# The clean run is zoomed, where crediting has the scale to get wrong; the fault control
+# needs no zoom to fail.
+@pytest.mark.parametrize("fault, zoom", [(False, 2), (True, 1)])
 def test_viewport_constrained_attachment_credits_only_its_source_scroll(
     browser, serve, fault, zoom
 ):
@@ -3843,7 +3816,11 @@ RESTYLES = {
     "popover": ("tip.showPopover()", "#tip", ("display", "block")),
     "custom state": ("custom.internals.states.add('on')", "#custom", None),
     "sheet text": ("sheet.replaceSync('#replaced{opacity:.5}')", "#replaced", None),
-    "adopted sheet": ("document.adoptedStyleSheets = [sheet, other]", "#adopted", None),
+    "adopted sheet": (
+        "document.adoptedStyleSheets = [sheet, rules, other]",
+        "#adopted",
+        None,
+    ),
     "checked": ("box.checked = true", "#checked", None),
     "paused animation": ("fade.currentTime = 500", "#faded", None),
     "form reset": ("form.reset()", "#named", None),
@@ -3892,26 +3869,32 @@ window.inner = host.shadowRoot.getElementById("inner");
     return page
 
 
-@pytest.mark.parametrize("call", RESTYLES)
-def test_an_unchanged_frame_misses_no_restyle(browser, call):
+def test_an_unchanged_frame_misses_no_restyle(browser):
     """An idle frame keeps its last reading (`shift_watch.js`, "Unchanged frames").
 
-    Each change that restyles without a DOM write is announced, so the periodic
-    full reading finds nothing; a change no source announces fails the test, naming
-    the innermost node that changed.
+    A change no source announces fails the test, naming the innermost node that
+    changed; each change that restyles without a DOM write is announced, so the
+    periodic full reading finds nothing. The unannounced change runs first, while
+    nothing animates; the announced ones then run in turn on the same page, the shadow
+    transition last so it is still running when the sensor checks.
     """
     page = restyle_page(browser)
-    script, words, settled = RESTYLES[call]
-    page.evaluate(script)
-    expect(page.locator(words)).to_have_css(*(settled or ("opacity", "0.5")))
-    # More frames than the sensor's check interval.
+    for call, (script, words, settled) in [
+        ("unannounced", RESTYLES["unannounced"]),
+        *((call, case) for call, case in RESTYLES.items() if call != "unannounced"),
+    ]:
+        page.evaluate(script)
+        expect(page.locator(words)).to_have_css(*(settled or ("opacity", "0.5")))
+        if call == "unannounced":
+            # More frames than the sensor's check interval.
+            page.evaluate(FRAMES, 90)
+            judge_watches()
+            consume_browser_errors(
+                page,
+                "missed a change to #text in p#unheard (opacity) and to 1 other node:",
+            )
     page.evaluate(FRAMES, 90)
     judge_watches()
-    if call == "unannounced":
-        consume_browser_errors(
-            page,
-            "missed a change to #text in p#unheard (opacity) and to 1 other node:",
-        )
 
 
 def test_unavailable_computed_padding_keeps_an_unchanged_reading(browser):

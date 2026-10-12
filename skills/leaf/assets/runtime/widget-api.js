@@ -39,12 +39,8 @@ export { dressSamples, wear } from "./dress.js";
 
 // `fragmentTarget(hash)` is the page element a URL fragment names, read as Leaf's own
 // arrivals and links read it.
-export {
-  addressableLabel,
-  addressableWord,
-  fragmentTarget,
-  projectedDatum,
-} from "./anchor-resolution.js";
+export { fragmentTarget, projectedDatum } from "./anchor-resolution.js";
+export { addressableLabel, addressableWord } from "./addressable-names.js";
 // The name Threads, the margin, and reactions give a comment's anchor.
 export { anchorLabel } from "./thread/messages.js";
 // The page's `main`, or the body of the message whose markup a node stands in.
@@ -205,13 +201,8 @@ export {
 } from "./motion.js";
 // `afterPresentation` is the package's whole route past presentation: it waits and
 // declares the arrival in one call, so a widget cannot defer without the page knowing.
-export {
-  PAGE_INTERFACE,
-  PRESENTATION,
-  afterPresentation,
-  isPagePaint,
-  quietWord,
-} from "./presentation.js";
+export { PAGE_INTERFACE, PRESENTATION, afterPresentation } from "./presentation.js";
+export { isPagePaint, quietWord } from "./declared-words.js";
 export { projectData } from "./application.js";
 export { copyCodeBlock } from "./code-copy.js";
 export { retainUserIntent } from "./user-intent.js";

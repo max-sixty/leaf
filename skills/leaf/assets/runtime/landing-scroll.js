@@ -29,14 +29,13 @@
  * `nearestScrollBy`), which fills the band with a tall destination partly in view, so a
  * fold the user goes to opens from its start.
  */
+import { localScrollBy, scrollAxes } from "./element-frame.js";
 import {
   landingBand,
-  localScrollBy,
   placeHolder,
   seenRect,
   shownBox,
   shownWindow,
-  scrollAxes,
   visibleBand,
 } from "./geometry.js";
 import { scrollersOf } from "./reading-regions.js";

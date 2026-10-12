@@ -74,7 +74,7 @@ export type ThreadGesture =
   | Extract<Command, { kind: "undo" }>;
 /** A logged message as a served thread holds it, naming the id of its current content
  * version (`read_state.content_version`): its latest rewrite's, else its own. */
-export type ServedMessage = MessageEvent & { content_version: string };
+type ServedMessage = MessageEvent & { content_version: string };
 export type Message = CompleteUnion<ServedMessage | LocalMessage | StreamingMessage> & {
   // The name it is drawn under where the server gives one (`thread.messageKey`).
   key?: string;

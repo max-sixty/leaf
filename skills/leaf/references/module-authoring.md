@@ -151,8 +151,9 @@ A behavior module follows these rules:
   whose commands the runtime owns. Check `quoted()` before wiring input and
   controller command availability before a semantic widget’s optimistic gesture.
   In templates, `commandsOn(title, rows, options)` attaches that same command scope
-  to its element. It reads the current declaration on each render and withdraws its
-  attachment when the directive leaves; projected commands on the element remain.
+  to its element. It attaches once per connection, takes the current declaration on
+  each render, and withdraws its attachment when the directive leaves; projected
+  commands on the element remain.
 
 Each helper's header under `runtime/` explains its contract.
 

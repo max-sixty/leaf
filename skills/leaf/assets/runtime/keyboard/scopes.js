@@ -157,8 +157,7 @@ function reflectButtons() {
       buttonBaselines.delete(control);
       controlAvailabilityOutput(control, BUTTON_AVAILABILITY);
       reflectElementShortcuts(control);
-      if (!elementScopes.has(control) && !projectedScopes.has(control))
-        forgetScopedElement(control);
+      forgetScopedElement(control);
     }
   }
   for (const [control, command] of commands) {
@@ -398,9 +397,11 @@ function rememberScopedElement(el) {
   scopeRefFor.set(el, ref);
   scopeRefs.add(ref);
 }
+// The reference stops enumerating an element once nothing stands on it: no local
+// declaration, no projected one, and no native button ownership still owed a handback.
 function forgetScopedElement(el) {
-  // Native ownership still owes a handback even after the last projected scope leaves.
-  if (buttonBaselines.has(el)) return;
+  if (elementScopes.has(el) || projectedScopes.has(el) || buttonBaselines.has(el))
+    return;
   const ref = scopeRefFor.get(el);
   if (ref) scopeRefs.delete(ref);
   scopeRefFor.delete(el);
@@ -496,7 +497,17 @@ function attachScope(where, declaration, { validateAtPaint = true } = {}) {
   if (validateAtPaint) unpainted.add(scope);
   wireDeclaredButtons(scope);
   paintKeys();
-  return scope.rows;
+  return scope;
+}
+
+// Withdraw an element's own declaration if `scope` is still the one standing there.
+// Projected scopes on the element stand. Returns whether anything was withdrawn.
+function detachScope(element, scope) {
+  if (elementScopes.get(element) !== scope) return false;
+  unpainted.delete(scope);
+  elementScopes.delete(element);
+  forgetScopedElement(element);
+  return true;
 }
 
 // Both element-bound keys and a reusable command capability declare the same scope.
@@ -521,22 +532,27 @@ function declaredScope(title, rows, options) {
 
 export function keys(where, title, rows, options) {
   if (rows === undefined && isCommandScope(title))
-    return attachScope(where, title.scope);
+    return attachScope(where, title.scope).rows;
   // A declaration this one replaces before its first paint is owed nothing: read at
   // the frame, a stale scope that refused would retract the element's standing
   // declaration along with itself.
-  return attachScope(where, declaredScope(title, rows, options));
+  return attachScope(where, declaredScope(title, rows, options)).rows;
 }
 
-// Template scopes use the same attachment as `keys`, replacing the whole declaration
-// on each paint: titles, rows, callbacks and availability all belong to that reading.
-// Removing the directive withdraws only its own attachment, including when Lit keeps
-// the element. Temporary disconnection restores that declaration on reconnection.
+// Template scopes use the same attachment as `keys`, made once per connection. A later
+// render hands the standing scope its latest declaration — title, rows, callbacks and
+// availability — and owes one reading of this element alone, which the next frame
+// takes as it takes a new declaration's first. An unchanged render therefore costs
+// that one element, not the page-wide reflection a new attachment asks for. A
+// declaration of another identity, such as a different `commandScope()` capability,
+// attaches afresh. Removing the directive withdraws only its own attachment, including
+// when Lit keeps the element. Temporary disconnection restores that declaration on
+// reconnection.
 export const commandsOn = directive(
   class extends AsyncDirective {
     #element;
-    #arguments;
-    #scope;
+    #declaration;
+    #scope = null;
     constructor(part) {
       super(part);
       if (part.type !== PartType.ELEMENT)
@@ -545,21 +561,32 @@ export const commandsOn = directive(
     render() {
       return nothing;
     }
-    update(part, args) {
+    update(part, [title, rows, options]) {
       this.#element = part.element;
-      this.#arguments = args;
+      this.#declaration =
+        rows === undefined && isCommandScope(title)
+          ? title.scope
+          : declaredScope(title, rows, options);
       if (this.isConnected) this.reconnected();
       return nothing;
     }
     reconnected() {
-      keys(this.#element, ...this.#arguments);
-      this.#scope = elementScopes.get(this.#element);
+      const scope = this.#scope;
+      if (
+        !scope ||
+        elementScopes.get(this.#element) !== scope ||
+        scope.identity !== this.#declaration.identity
+      ) {
+        this.#scope = attachScope(this.#element, this.#declaration);
+        return;
+      }
+      Object.assign(scope, this.#declaration, { validated: false });
+      wireDeclaredButtons(scope);
+      unpainted.add(scope);
+      repaint();
     }
     disconnected() {
-      if (elementScopes.get(this.#element) !== this.#scope) return;
-      unpainted.delete(this.#scope);
-      elementScopes.delete(this.#element);
-      if (!projectedScopes.has(this.#element)) forgetScopedElement(this.#element);
+      if (!detachScope(this.#element, this.#scope)) return;
       reflectElementShortcuts(this.#element);
       paintKeys();
     }
@@ -596,7 +623,7 @@ export function projectCommandScope(control, projector, capability = null) {
     projections.delete(projector);
     if (!projections.size) {
       projectedScopes.delete(control);
-      if (!elementScopes.has(control)) forgetScopedElement(control);
+      forgetScopedElement(control);
     }
     reflectElementShortcuts(control);
     return;
@@ -661,11 +688,7 @@ function reflectElementShortcuts(element) {
       // A local declaration is published before its first read. If that first reading
       // fails, retract only that declaration; a projected capability on the same element
       // remains independently valid and enumerable.
-      if (scope.el === element && !scope.validated) {
-        unpainted.delete(scope);
-        elementScopes.delete(element);
-        if (!projectedScopes.has(element)) forgetScopedElement(element);
-      }
+      if (scope.el === element && !scope.validated) detachScope(element, scope);
       throw error;
     }
     if (scope.el === element) scope.validated = true;

@@ -759,6 +759,53 @@ test("a lent hint inside a button keeps its out-of-flow seat after withdrawal", 
   }
 });
 
+test("a template scope's re-render runs its latest callbacks and reads only its own element", async () => {
+  const { html, render } = await import("/vendor/browser-runtime.js");
+  const other = document.createElement("button");
+  document.body.append(other);
+  keys(other, "Elsewhere", [{ id: "probe.elsewhere", keys: ["x"], title: "x" }]);
+  const root = document.createElement("section");
+  document.body.append(root);
+  const invoked = [];
+  const paint = (reading, available = true) =>
+    render(
+      html`<button
+        ${commandsOn("Template", [
+          {
+            id: "probe.template",
+            keys: ["y"],
+            title: "act",
+            when: () => available,
+            run: () => invoked.push(reading),
+          },
+        ])}
+      ></button>`,
+      root,
+    );
+  paint("first");
+  reflectFirstScopes();
+  reflectKeys();
+  const element = root.querySelector("button");
+  assert.equal(element.getAttribute("aria-keyshortcuts"), "y");
+
+  const read = other.getAttribute;
+  let otherReads = 0;
+  other.getAttribute = (...args) => (otherReads++, read.apply(other, args));
+  paint("second", false);
+  reflectFirstScopes();
+  reflectKeys();
+  assert.equal(otherReads, 0, "a re-render reads no other scoped element");
+  assert.equal(element.getAttribute("aria-keyshortcuts"), null);
+  paint("third");
+  reflectFirstScopes();
+  reflectKeys();
+  assert.equal(element.getAttribute("aria-keyshortcuts"), "y");
+  commandsWithin(root)[0].row.run();
+  assert.deepEqual(invoked, ["third"]);
+  root.remove();
+  other.remove();
+});
+
 test("template scopes follow current rows and retire without removing projected commands", async () => {
   const { html, nothing, render } = await import("/vendor/browser-runtime.js");
   const root = document.createElement("section");

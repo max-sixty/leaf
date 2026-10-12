@@ -1,6 +1,7 @@
 """Shared interaction browser-integration cases and readings."""
 
 import json
+import re
 from datetime import datetime, timedelta
 
 from browser_sources import browser_source
@@ -8,6 +9,7 @@ from interact_support import add_test_widget, append_carried_log_record, append_
 from leaf.schema import ELEMENT_ID
 from render_harness import (
     EXAMPLES,
+    FEATURE_GALLERY,
     TOKEN,
     leaf_page,
 )
@@ -1403,3 +1405,173 @@ def seated_ask_module(*, seat_attribute=None):
 SEATED_ASK_MODULE = seated_ask_module()
 SEATED_ASK_LAYER = {SEATED_ASK_TAG: SEATED_ASK_ENTRY}
 SEATED_ASK_WIDGETS = {f"{SEATED_ASK_TAG}.js": SEATED_ASK_MODULE}
+
+
+# A block proposal whose new text holds a Question of its own.
+NESTED_PROPOSAL_PAGE = leaf_page(
+    "nested proposal",
+    """
+<h1 id="title">Workshop</h1>
+<lf-suggestion id="nested-change">
+  <lf-old><p>Keep the practice walk indoors.</p></lf-old>
+  <lf-new>
+    <p>Take the practice walk outside.</p>
+    <lf-ask id="route-ask">
+      <h4>Which route should the walk follow?</h4>
+      <lf-options id="route" choose>
+        <lf-option id="route-garden">Through the garden</lf-option>
+        <lf-option id="route-river">Along the river</lf-option>
+      </lf-options>
+    </lf-ask>
+  </lf-new>
+</lf-suggestion>
+""",
+)
+
+
+# Three anchored threads in reading order: one with only its opening question, one
+# whose newest turn is a question on the user, and one resolved; prose after them
+# lets the page scroll past every thread.
+WORKSHOP_THREADS_PAGE = leaf_page(
+    "workshop threads",
+    """
+<h1 id="title">Workshop agenda</h1>
+<p id="p-lunch">The workshop schedule leaves lunch open.</p>
+<p id="p-agenda">The sample agenda has room for one more topic.</p>
+<p id="p-projector">The room has a projector.</p>
+"""
+    + "\n".join(
+        f"<p id='after-{i}'>Paragraph {i}. " + "Filler. " * 30 + "</p>"
+        for i in range(24)
+    ),
+)
+LUNCH_THREAD = "72e031c5bf0d485ba9054628e09869d4"
+PHOTO_THREAD = "2be2443f0bb6cc49fc86b52f340e6073"
+PROJECTOR_THREAD = "bab3cdfcfb8c02aacbb27da731de947a"
+WORKSHOP_THREAD_EVENTS = tuple(
+    {"author": "agent", "agent": "Codex", **event}
+    for event in (
+        {
+            "kind": "comment",
+            "revision": 1,
+            "id": LUNCH_THREAD,
+            "anchor": {"section": "p-lunch"},
+            "text": "Is lunch provided, or should attendees make their own plans?",
+            "ts": "2026-09-02T00:12:33-07:00",
+        },
+        {
+            "kind": "comment",
+            "revision": 1,
+            "id": PHOTO_THREAD,
+            "anchor": {"section": "p-agenda"},
+            "text": "I moved the practice exercise before lunch.",
+            "ts": "2026-09-02T00:12:33-07:00",
+        },
+        {
+            "kind": "thread_title",
+            "thread": PHOTO_THREAD,
+            "title": "Workshop room photo",
+            "ts": "2026-09-02T00:12:33-07:00",
+        },
+        {
+            "kind": "reply",
+            "parent": PHOTO_THREAD,
+            "responds": PHOTO_THREAD,
+            "question": True,
+            "text": "Does the room photo show enough, or should I reshoot it wider?",
+            "ts": "2026-09-02T00:12:56-07:00",
+        },
+        {
+            "kind": "comment",
+            "revision": 1,
+            "id": PROJECTOR_THREAD,
+            "anchor": {"section": "p-projector"},
+            "text": "Can the facilitator show a map?",
+            "ts": "2026-09-02T00:12:33-07:00",
+        },
+        {
+            "kind": "thread_title",
+            "thread": PROJECTOR_THREAD,
+            "title": "Projector map",
+            "ts": "2026-09-02T00:12:33-07:00",
+        },
+        {
+            "kind": "reply",
+            "parent": PROJECTOR_THREAD,
+            "responds": PROJECTOR_THREAD,
+            "text": "Yes, the projector takes a laptop.",
+            "ts": "2026-09-02T00:13:01-07:00",
+        },
+        {
+            "kind": "resolve",
+            "parent": PROJECTOR_THREAD,
+            "ts": "2026-09-02T00:13:02-07:00",
+        },
+    )
+)
+
+
+GALLERY_THREAD_TEXT = "Gallery thread: I moved the practice exercise before lunch"
+
+
+def serve_interaction_gallery(serve):
+    """Serve the feature gallery's interaction runner and only what it reads.
+
+    The runner's subject is its own section, so the rest of the gallery, a thousand
+    elements and nine other live samples, is load these tests pay for nothing. The
+    section is read from the gallery's source, so the replays are the gallery's own,
+    and it stands in a page view behind another one, as it does there: a view
+    selected or scrolled to is the crossing the runner plays from. The first view
+    holds the paragraph the Send-a-comment and Threads replays import their thread
+    from, with that thread seeded on it. The stage's size and scale, which every
+    replay's geometry rests on, are the gallery's own rules, so they come along: each
+    top-level rule of its style sheet that names an interaction class.
+    """
+    source = FEATURE_GALLERY.read_text(encoding="utf-8")
+    section = re.search(
+        r'<section\s+class="interaction-gallery".*?</section>', source, re.DOTALL
+    )
+    assert section is not None, "the feature gallery lost its interaction section"
+    sheet = re.search(r"<style>(.*?)</style>", source, re.DOTALL)[1]
+    rules = "".join(
+        rule for rule in re.split(r"(?<=\n      \}\n)", sheet) if "interaction" in rule
+    )
+    assert ".interaction-frame[data-interaction-ready]" in rules, rules
+    html = leaf_page(
+        "Interaction gallery",
+        head=f"<style>{rules}</style>",
+        body=f"""
+<h1>Interaction gallery</h1>
+<lf-tabs id="bg-gallery-tabs">
+  <lf-tab id="bg-view-threads" label="Threads">
+    <p id="bg-thread-text">The sample agenda has room for one more topic.</p>
+  </lf-tab>
+  <lf-tab id="bg-view-interactions" label="Interactions">{section[0]}</lf-tab>
+</lf-tabs>
+""",
+    )
+    return serve(
+        html,
+        events=[
+            {
+                "kind": "comment",
+                "author": "agent",
+                "agent": "Codex",
+                "revision": 1,
+                "text": f"{GALLERY_THREAD_TEXT} and left the rest of the fictional "
+                "agenda unchanged. React to this reply or answer with a note.",
+                "anchor": {
+                    "section": "bg-thread-text",
+                    "quote": "The sample agenda has room for one more topic.",
+                },
+                "id": PHOTO_THREAD,
+            },
+            {
+                "kind": "thread_title",
+                "author": "agent",
+                "agent": "Codex",
+                "thread": PHOTO_THREAD,
+                "title": "Workshop room photo",
+            },
+        ],
+    )

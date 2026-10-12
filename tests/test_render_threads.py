@@ -34,10 +34,14 @@ from render_cases_interaction import (
     LIST_ORDER,
     LIST_STATE,
     PANEL_PAGE,
+    PHOTO_THREAD,
+    PROJECTOR_THREAD,
     SEATED_ASK_LAYER,
     SEATED_ASK_WIDGETS,
     SEATED_QUESTION_PAGE,
     THREAD_DIFF_PAGE,
+    WORKSHOP_THREAD_EVENTS,
+    WORKSHOP_THREADS_PAGE,
     live_url,
     panel_comment,
 )
@@ -255,88 +259,6 @@ def test_held_news_keeps_an_agent_header_and_resizes_its_notice(browser, serve):
     news.click()
     expect(thread.locator(".lf-msg")).to_have_count(3)
     expect(thread.locator(".lf-thread-news")).to_have_count(0)
-
-
-# Three anchored threads in reading order: one with only its opening question, one
-# whose newest turn is a question on the user, and one resolved; prose after them
-# lets the page scroll past every thread.
-WORKSHOP_THREADS_PAGE = leaf_page(
-    "workshop threads",
-    """
-<h1 id="title">Workshop agenda</h1>
-<p id="p-lunch">The workshop schedule leaves lunch open.</p>
-<p id="p-agenda">The sample agenda has room for one more topic.</p>
-<p id="p-projector">The room has a projector.</p>
-"""
-    + "\n".join(
-        f"<p id='after-{i}'>Paragraph {i}. " + "Filler. " * 30 + "</p>"
-        for i in range(24)
-    ),
-)
-LUNCH_THREAD = "72e031c5bf0d485ba9054628e09869d4"
-PHOTO_THREAD = "2be2443f0bb6cc49fc86b52f340e6073"
-PROJECTOR_THREAD = "bab3cdfcfb8c02aacbb27da731de947a"
-WORKSHOP_THREAD_EVENTS = tuple(
-    {"author": "agent", "agent": "Codex", **event}
-    for event in (
-        {
-            "kind": "comment",
-            "revision": 1,
-            "id": LUNCH_THREAD,
-            "anchor": {"section": "p-lunch"},
-            "text": "Is lunch provided, or should attendees make their own plans?",
-            "ts": "2026-09-02T00:12:33-07:00",
-        },
-        {
-            "kind": "comment",
-            "revision": 1,
-            "id": PHOTO_THREAD,
-            "anchor": {"section": "p-agenda"},
-            "text": "I moved the practice exercise before lunch.",
-            "ts": "2026-09-02T00:12:33-07:00",
-        },
-        {
-            "kind": "thread_title",
-            "thread": PHOTO_THREAD,
-            "title": "Workshop room photo",
-            "ts": "2026-09-02T00:12:33-07:00",
-        },
-        {
-            "kind": "reply",
-            "parent": PHOTO_THREAD,
-            "responds": PHOTO_THREAD,
-            "question": True,
-            "text": "Does the room photo show enough, or should I reshoot it wider?",
-            "ts": "2026-09-02T00:12:56-07:00",
-        },
-        {
-            "kind": "comment",
-            "revision": 1,
-            "id": PROJECTOR_THREAD,
-            "anchor": {"section": "p-projector"},
-            "text": "Can the facilitator show a map?",
-            "ts": "2026-09-02T00:12:33-07:00",
-        },
-        {
-            "kind": "thread_title",
-            "thread": PROJECTOR_THREAD,
-            "title": "Projector map",
-            "ts": "2026-09-02T00:12:33-07:00",
-        },
-        {
-            "kind": "reply",
-            "parent": PROJECTOR_THREAD,
-            "responds": PROJECTOR_THREAD,
-            "text": "Yes, the projector takes a laptop.",
-            "ts": "2026-09-02T00:13:01-07:00",
-        },
-        {
-            "kind": "resolve",
-            "parent": PROJECTOR_THREAD,
-            "ts": "2026-09-02T00:13:02-07:00",
-        },
-    )
-)
 
 
 def test_gallery_pending_title_opens_when_the_reader_requests_it(browser, serve):

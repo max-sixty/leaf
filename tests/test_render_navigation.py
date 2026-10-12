@@ -15,11 +15,14 @@ from playwright.sync_api import expect
 from render_cases_interaction import (
     ASKS_PAGE,
     HOLD_MOTION,
+    NESTED_PROPOSAL_PAGE,
     PANEL_PAGE,
     QUEUE_ROW_SAYS,
     SEATED_ASK_LAYER,
     SEATED_ASK_WIDGETS,
     SEATED_QUESTION_PAGE,
+    WORKSHOP_THREAD_EVENTS,
+    WORKSHOP_THREADS_PAGE,
     executable_revision,
     live_url,
     panel_comment,
@@ -107,10 +110,6 @@ from render_harness import (
     told,
     wait_for_revision,
     write,
-)
-from test_render_threads import (
-    WORKSHOP_THREAD_EVENTS,
-    WORKSHOP_THREADS_PAGE,
 )
 
 pytestmark = pytest.mark.main
@@ -1662,28 +1661,6 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     expect(page.get_by_role("dialog", name="Page Map", exact=True)).to_be_visible()
-
-
-# A block proposal whose new text holds a Question of its own.
-NESTED_PROPOSAL_PAGE = leaf_page(
-    "nested proposal",
-    """
-<h1 id="title">Workshop</h1>
-<lf-suggestion id="nested-change">
-  <lf-old><p>Keep the practice walk indoors.</p></lf-old>
-  <lf-new>
-    <p>Take the practice walk outside.</p>
-    <lf-ask id="route-ask">
-      <h4>Which route should the walk follow?</h4>
-      <lf-options id="route" choose>
-        <lf-option id="route-garden">Through the garden</lf-option>
-        <lf-option id="route-river">Along the river</lf-option>
-      </lf-options>
-    </lf-ask>
-  </lf-new>
-</lf-suggestion>
-""",
-)
 
 
 def test_a_choice_inside_a_proposal_survives_its_undo(browser, serve):

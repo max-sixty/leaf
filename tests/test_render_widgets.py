@@ -32,6 +32,7 @@ from render_cases_interaction import (
     COLLAPSED_PAGE,
     HOLD_MOTION,
     MESSAGE_ROOM_PAGE,
+    NESTED_PROPOSAL_PAGE,
     PROPOSED_PAGE,
     QUEUE_ROW_SAYS,
     REBUILT_INLINE_PAGE,
@@ -116,7 +117,6 @@ from render_harness import (
     wait_for_revision,
     write,
 )
-from test_render_navigation import NESTED_PROPOSAL_PAGE
 
 DRAG_HELD = (
     "async () => (await window.__lfRuntimeImport("

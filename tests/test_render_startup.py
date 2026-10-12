@@ -43,6 +43,7 @@ from render_cases_interaction import (
     SUGGESTION_PAGE,
     executable_revision,
     live_url,
+    serve_interaction_gallery,
 )
 from render_cases_layout import (
     SHADOWED_DIFF,
@@ -112,7 +113,6 @@ from render_harness import (
     watched,
     write,
 )
-from test_site import serve_interaction_gallery
 
 DRAG_HELD = (
     "async () => (await window.__lfRuntimeImport("

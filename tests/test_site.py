@@ -45,9 +45,9 @@ from leaf_dev import site as site_build
 from leaf_dev.example_data import catalog_sources, data_operations, example_versions
 from leaf_dev.leaf_assets import pinned_assets, raw_prefix, specification
 from leaf_dev.page_fixtures import source_packages
-from model_folds import leaf_page
 from PIL import Image
 from playwright.sync_api import expect
+from render_cases_interaction import GALLERY_THREAD_TEXT, serve_interaction_gallery
 from render_cases_layout import banner_control
 
 # The suite's own page primitives, so a navigation here waits on what every other
@@ -78,7 +78,7 @@ DEVELOPER_PAGES = tuple(sorted((EXAMPLES / "developer").glob("*.html")))
 # The theme's paper, light and dark, as the browser reports a background.
 PAPER = {"light": "rgb(250, 249, 245)", "dark": "rgb(25, 24, 21)"}
 PHONE = {"width": 390, "height": 844}
-GALLERY_THREAD_TEXT = "Gallery thread: I moved the practice exercise before lunch"
+
 
 # The module-scoped build and host are one shared setup, so they belong to one
 # xdist work unit rather than being rebuilt independently on every worker.
@@ -108,72 +108,6 @@ def sample_allocation(page, url, template):
 
     page.route("**/api/samples", allocated)
     return allocation
-
-
-GALLERY_THREAD = "2be2443f0bb6cc49fc86b52f340e6073"
-
-
-def serve_interaction_gallery(serve):
-    """Serve the feature gallery's interaction runner and only what it reads.
-
-    The runner's subject is its own section, so the rest of the gallery, a thousand
-    elements and nine other live samples, is load these tests pay for nothing. The
-    section is read from the gallery's source, so the replays are the gallery's own,
-    and it stands in a page view behind another one, as it does there: a view
-    selected or scrolled to is the crossing the runner plays from. The first view
-    holds the paragraph the Send-a-comment and Threads replays import their thread
-    from, with that thread seeded on it. The stage's size and scale, which every
-    replay's geometry rests on, are the gallery's own rules, so they come along: each
-    top-level rule of its style sheet that names an interaction class.
-    """
-    source = FEATURE_GALLERY.read_text(encoding="utf-8")
-    section = re.search(
-        r'<section\s+class="interaction-gallery".*?</section>', source, re.DOTALL
-    )
-    assert section is not None, "the feature gallery lost its interaction section"
-    sheet = re.search(r"<style>(.*?)</style>", source, re.DOTALL)[1]
-    rules = "".join(
-        rule for rule in re.split(r"(?<=\n      \}\n)", sheet) if "interaction" in rule
-    )
-    assert ".interaction-frame[data-interaction-ready]" in rules, rules
-    html = leaf_page(
-        "Interaction gallery",
-        head=f"<style>{rules}</style>",
-        body=f"""
-<h1>Interaction gallery</h1>
-<lf-tabs id="bg-gallery-tabs">
-  <lf-tab id="bg-view-threads" label="Threads">
-    <p id="bg-thread-text">The sample agenda has room for one more topic.</p>
-  </lf-tab>
-  <lf-tab id="bg-view-interactions" label="Interactions">{section[0]}</lf-tab>
-</lf-tabs>
-""",
-    )
-    return serve(
-        html,
-        events=[
-            {
-                "kind": "comment",
-                "author": "agent",
-                "agent": "Codex",
-                "revision": 1,
-                "text": f"{GALLERY_THREAD_TEXT} and left the rest of the fictional "
-                "agenda unchanged. React to this reply or answer with a note.",
-                "anchor": {
-                    "section": "bg-thread-text",
-                    "quote": "The sample agenda has room for one more topic.",
-                },
-                "id": GALLERY_THREAD,
-            },
-            {
-                "kind": "thread_title",
-                "author": "agent",
-                "agent": "Codex",
-                "thread": GALLERY_THREAD,
-                "title": "Workshop room photo",
-            },
-        ],
-    )
 
 
 def pages_under(directory):

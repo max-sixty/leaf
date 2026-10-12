@@ -22,7 +22,6 @@ import {
   layerHeaders,
   admitResponse,
   reportCarried,
-  reportPageError,
   sessionIsActive,
 } from "./layer-client.js";
 
@@ -113,7 +112,8 @@ export function createStateFeed({
   // the drag's release; time-dependent paints remember their own displayed readings.
   async function tick() {
     if (stateApplying()) return;
-    await tickClock(reportPageError);
+    // A repaint through a reading paint has already reported its own failure.
+    await tickClock(reportCarried);
     if (stateApplying()) return;
     document.dispatchEvent(new Event("lf-tick"));
   }

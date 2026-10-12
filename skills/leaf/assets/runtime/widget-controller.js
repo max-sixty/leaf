@@ -7,7 +7,8 @@
    proof. Subscriptions belong to the owner; removal pauses them, and reconnecting
    restores preparation and draws the reading by the rule every returning paint follows
    (`readingPaint` in presence.js): only a reading that changed while away draws
-   again, and a render that failed is not reported twice. Time readings in the render
+   again, and a render that failed is reported once, by that paint, and shows the
+   fail-soft box its presentation falls back to. Time readings in the render
    claim a fresh draw through the same publication. Registered preparation also holds full
    rendering readiness until completion or removal; queued updates can independently
    settle while it waits. Local editing defers the render
@@ -180,22 +181,20 @@ function createWidgetController(owner) {
   );
 
   // Each presentation commits its ticket, so a reading that draws nothing, as on a
-  // return to an unchanged reading, still settles the region.
+  // return to an unchanged reading, still settles the region. A failed draw settles it
+  // with the fail-soft box; the paint has already reported the failure.
   const presentRender = (reading, draw = () => paint(reading, reading)) => {
     if (!owner.isConnected) return;
     const handle = render();
-    let failure = null;
+    let drawing;
     try {
-      draw();
+      drawing = draw();
     } catch (error) {
-      failure = error;
+      drawing = Promise.reject(error);
     }
-    if (!handle) return;
-    const presenting = handle.present(reading, (reason) =>
-      failSoftUnreported(owner, reason),
-    );
-    if (failure) presenting.reject(failure);
-    else presenting.resolve();
+    handle
+      ?.present(reading, (reason) => failSoftUnreported(owner, reason))
+      .resolve(drawing);
   };
 
   // A held reading leaves its ticket open; the next presentation or the handle's

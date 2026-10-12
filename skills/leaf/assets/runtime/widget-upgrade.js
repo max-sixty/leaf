@@ -53,7 +53,7 @@ export function failSoft(el, err, source) {
 }
 
 // The box alone, for the presentation coordinator's fallback: the coordinator reports
-// every failure it falls back from itself, so this path must not report it again.
+// any failure it falls back from that no paint reported, so this path reports nothing.
 export function failSoftUnreported(el, err) {
   showFailure(el, `<${widgetOf(el).localName}> failed: ${err?.message || err}`);
 }

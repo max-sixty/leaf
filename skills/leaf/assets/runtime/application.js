@@ -55,7 +55,8 @@ const app = () => {
 
 export function mountApplication(dependencies) {
   if (application) throw new Error("Leaf application mounted twice");
-  setPresentationFailureReporter(reportPageError);
+  // A renderer's rejection reaches the coordinator after a paint may have reported it.
+  setPresentationFailureReporter(reportCarried);
   const { ledger } = commandDispatch;
   watchPendingTraffic(applicationState.select((root) => root.effective.sending));
   const hasPending = () => ledger.snapshot().length > 0;

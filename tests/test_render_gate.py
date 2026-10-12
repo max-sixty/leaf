@@ -282,7 +282,7 @@ def _panel(name: str) -> str:
     return f'<section class="panel" id="{name}"><h2>{name}</h2><p>Words.</p></section>'
 
 
-def test_the_render_gate_fails_a_wide_page_that_scrolls_sideways_only_between_viewports(
+def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewports(
     browser, serve
 ):
     """A body beside its track, and a row that spills only from 600 to 900px: both fixed
@@ -301,7 +301,6 @@ def test_the_render_gate_fails_a_wide_page_that_scrolls_sideways_only_between_vi
 <div id="strip"><button>Summary</button><button>Release scope</button>
 <button>Owner handoff</button></div>
 """,
-        layout="wide",
         head="""<style>
 #tracks { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
 @media (min-width: 600px) and (max-width: 900px) { #mid-spill { white-space: nowrap; } }
@@ -2179,23 +2178,22 @@ def test_the_render_gate_holds_project_widgets_to_their_declarations(
     each color scheme and reports it once, there.
 
     `lf-stager` breaks the other thing a declaration promises: that the words arrive.
-    Both word passes stop at a shadow boundary on purpose — which widgets the page
-    holds is the document's question — so an element a module stages into its own
-    tree keeps its declarations and gets neither pass, and the failure is silence: no
-    error, no missing box. It stages a declared lf-reading, whose declaration names
-    both keys, and the gate is asked for each. A staged element rather than a module
-    that wipes its own body after the passes have run, which is the same failure by
-    the reachable-today route: that one is a race with the next poll for the painted
-    half, and a bug-back that has to win a race is a bug-back that reports the machine.
+    The word pass stops at a shadow boundary on purpose — which widgets the page holds
+    is the document's question — so an element a module stages into its own tree keeps
+    its declarations and gets no pass, and the failure is silence: no error, no missing
+    box. It stages a declared lf-reading whose declaration names an x-says word, and
+    the gate is asked for it. A staged element rather than a module that wipes its own
+    body after the pass has run, which is the same failure by a route that races the
+    module's own render, and a bug-back that has to win a race is a bug-back that
+    reports the machine.
 
     `lf-veil` is the host case of that failure: its declarations are on the element that
-    stages the tree, so both passes find it and write into a light DOM the shadow root
+    stages the tree, so the pass finds it and writes into a light DOM the shadow root
     hides. It is the half a reading of the markup cannot see. `textContent` returns a
     hidden light-DOM span and `querySelector` finds it, so a check written against the
-    markup passes on a page whose user is handed neither word. Asking `says()` for the
-    words and a box for the clipped one is what tells the two apart — the layer's own
-    reading enters a declared root in the host's stead, and a span rendered nowhere
-    has no rects."""
+    markup passes on a page whose user is never handed the word. Asking `says()` for
+    the words is what tells the two apart — the layer's own reading enters a declared
+    root in the host's stead."""
     monkeypatch.chdir(tmp_path)
     package = tmp_path / ".leaf"
     _author_lying_callout(tmp_path)
@@ -2209,9 +2207,7 @@ def test_the_render_gate_holds_project_widgets_to_their_declarations(
         declarations[tag]["x-shadow"] = True
     veil = declarations["lf-veil"]
     veil["properties"]["label"] = {"type": "string"}
-    veil["properties"]["urgent"] = {"type": "boolean"}
     veil["x-says"] = {"label": "before"}
-    veil["x-paints"] = ["urgent"]
     registry_path.write_text(json.dumps(declarations, indent=2))
     modules = {
         "lf-dusk": (
@@ -2227,7 +2223,6 @@ def test_the_render_gate_holds_project_widgets_to_their_declarations(
             '    const staged = document.createElement("lf-reading");\n'
             '    staged.id = "staged-reading";\n'
             '    staged.setAttribute("label", "09:00");\n'
-            '    staged.setAttribute("state", "failure");\n'
             '    staged.textContent = "The feeder stopped.";\n'
             "    shadowStage(this, [staged]);\n"
             "  }\n"
@@ -2284,7 +2279,7 @@ customElements.define("field-host", class extends HTMLElement {{
             '<lf-dusk id="dusk-note"><strong>Heads up</strong> Read in both schemes.'
             "</lf-dusk>\n"
             '<lf-stager id="staged-note"><strong>Heads up</strong> Staged.</lf-stager>\n'
-            '<lf-veil id="veiled-note" label="Escalated" urgent>'
+            '<lf-veil id="veiled-note" label="Escalated">'
             "<strong>Heads up</strong> Clipped words.</lf-veil>\n</main>",
         )
     )
@@ -2307,9 +2302,7 @@ customElements.define("field-host", class extends HTMLElement {{
     assert len(dusk) == 1, failures
     assert dusk[0].startswith("[dark]"), dusk
     assert reported('never says "09:00"'), failures
-    assert reported('paints state="failure" and says nothing'), failures
     assert reported('never says "Escalated"'), failures
-    assert reported('paints urgent="" and says nothing'), failures
     # Delivery serves media under the revision, so the issue names that URL.
     assert sorted(
         re.sub(r'url="[^"]*(/media/[^"]+)"', r'url="\1"', failure)
@@ -4562,10 +4555,11 @@ def test_a_table_fills_its_declared_allocation_or_frame_and_a_bare_one_keeps_its
     browser, serve
 ):
     """A table directly in a panel runs its rules to the panel's inner edge, where they
-    used to stop short and read as a table cut off. An explicit allocation, on the
-    table or its figure, also sizes the painted rows, not just their scrollport.
-    The same table with no allocation keeps to what its columns hold. A table too
-    wide for the panel still scrolls inside it.
+    used to stop short and read as a table cut off. An explicit allocation on the
+    table's figure also sizes the painted rows, not just their scrollport. The same
+    table with no allocation keeps to what its columns hold, and so does one granted the
+    room itself, which is a limit rather than a size: its rows stand where the prose
+    starts. A table too wide for the panel still scrolls inside it.
     Code in a cell is set relative to the cell's text rather than at the chip size."""
     page = open_page(browser, serve(FRAMED_TABLES_PAGE))
     measured = page.evaluate(
@@ -4578,7 +4572,8 @@ def test_a_table_fills_its_declared_allocation_or_frame_and_a_bare_one_keeps_its
         const bare = document.querySelector('#bare'), framed = document.querySelector('#framed');
         const wide = document.querySelector('#wide-framed');
         const cell = framed.querySelector('td'), code = cell.querySelector('code');
-        const allocated = ['allocated', 'figure-table'].map(id => {
+        const own = document.querySelector('#allocated');
+        const allocated = ['figure-table'].map(id => {
             const table = document.getElementById(id);
             return Math.round(inner(table) - rowEnd(table));
         });
@@ -4586,6 +4581,9 @@ def test_a_table_fills_its_declared_allocation_or_frame_and_a_bare_one_keeps_its
             allocated,
             framedShort: Math.round(inner(framed.parentElement) - rowEnd(framed)),
             bareShort: Math.round(inner(bare.parentElement) - rowEnd(bare)),
+            ownShort: Math.round(inner(own) - rowEnd(own)),
+            ownStart: Math.round(own.querySelector('tr').getBoundingClientRect().left
+                - bare.querySelector('tr').getBoundingClientRect().left),
             wideScrolls: wide.scrollWidth - wide.clientWidth,
             wideInside: Math.round(inner(wide.parentElement) - wide.getBoundingClientRect().right),
             codeRatio: parseFloat(getComputedStyle(code).fontSize)
@@ -4596,6 +4594,7 @@ def test_a_table_fills_its_declared_allocation_or_frame_and_a_bare_one_keeps_its
     assert abs(measured["framedShort"]) <= 1, measured
     assert all(abs(short) <= 1 for short in measured["allocated"]), measured
     assert measured["bareShort"] > 100, "the bare table fills its column"
+    assert measured["ownShort"] > 100 and measured["ownStart"] == 0, measured
     assert measured["wideScrolls"] > 0 and measured["wideInside"] >= 0, measured
     assert measured["codeRatio"] == pytest.approx(0.9, abs=0.01), measured
     assert root_overflow(page) == 0

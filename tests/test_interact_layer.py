@@ -5330,7 +5330,7 @@ def test_package_check_refuses_a_malformed_reaction_token(tmp_path, monkeypatch,
     result = runner.invoke(cli_model.cli, ["package", "check", ".leaf"])
 
     assert result.exit_code != 0
-    assert "$reactions.tokens must map lowercase token names" in result.output
+    assert "$reactions.tokens.nod" in result.output
 
 
 def test_the_register_is_the_only_way_a_key_enters_the_runtime():
@@ -5351,10 +5351,10 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     key; the same listener handles pointer input. prepaint.js records inputs
     from the document's first script. focus.js reads keys as the end of a label press
     and as a Tab's step; neither answers a command. The
-    interaction log records keys and answers none. A covering surface's Tab loop keeps
-    the platform's own sequential navigation inside it. The code block's copy control
-    hands Tab back to its source, and the block's Enter moves to that control, which no
-    register row declares. Another is how every drift this register replaced began — a
+    interaction log records keys and answers none. The modal Tab loop keeps the
+    platform's own sequential navigation inside a standing modal, after the dispatcher.
+    The code block's copy control hands Tab back to its source. Another is how every
+    drift this register replaced began — a
     `keydown` beside a display list, the two of them free to disagree about which keys the
     widget answers."""
     layer = ROOT / "skills/leaf"
@@ -5382,8 +5382,8 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
         "prepaint.js": 1,
         "focus.js": 2,
         "interaction-log.js": 1,
-        "auxiliary-surfaces.js": 1,
-        "code-copy.js": 2,
+        "layer-stack.js": 1,
+        "code-copy.js": 1,
     }, (
         f"the runtime's keydown listeners changed: {listed}. A key belongs in the "
         "register (keys(el, title, rows)), which is what lets a surface promise it."

@@ -25,10 +25,6 @@ export function createThreadActions({
       drawing,
       suggestion,
     } = command;
-    if (text !== undefined && typeof text !== "string")
-      throw new TypeError("A Thread comment needs text");
-    if (typeof attempt !== "string" || !attempt)
-      throw new TypeError("A Thread comment attempt must be a non-empty string");
     if (!text && !drawing) return null;
     const delivery = post({
       kind: "comment",
@@ -51,10 +47,7 @@ export function createThreadActions({
   };
 
   const reply = (key, text, { attempt } = {}) => {
-    if (typeof text !== "string") throw new TypeError("A Thread reply needs text");
     if (!text) return null;
-    if (attempt !== undefined && (typeof attempt !== "string" || !attempt))
-      throw new TypeError("A Thread reply attempt must be a non-empty string");
     const thread = find(key);
     if (!thread?.offers.reply) return null;
     return post({
@@ -69,8 +62,6 @@ export function createThreadActions({
   // The user rewriting a message of their own (`message-edit.js`), written over the
   // revision `base` names. Words the message already says, and none, send nothing.
   const edit = (key, messageId, text, { attempt, base } = {}) => {
-    if (typeof text !== "string") throw new TypeError("A message edit needs text");
-    if (typeof base !== "string") throw new TypeError("A message edit needs its base");
     const thread = find(key);
     if (!thread || thread.settling) return null;
     const message = thread.msgs.find((item) => item.id === messageId);

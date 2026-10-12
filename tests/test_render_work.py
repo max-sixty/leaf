@@ -157,9 +157,7 @@ def test_atlas_report_waits_behind_a_stationary_refresh_control(browser, serve):
     # A native form output here consumes activation instead of opening details.
     page.locator("#w-1 .atlas-worker-state").click()
     expect(page.locator("#w-1 > details")).to_have_attribute("open", "")
-    # A visible status already speaks the fact; x-paints would add it twice.
     expect(page.locator("#ground-corpus > .atlas-task-state")).to_have_text("done")
-    expect(page.locator("#ground-corpus > .lf-quiet")).to_have_count(0)
     report = page.locator("#w-1 .atlas-worker-report")
     before = report.inner_text()
     report.scroll_into_view_if_needed()

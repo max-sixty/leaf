@@ -30,7 +30,6 @@ from render_cases_interaction import (
     EXHIBIT_EXTENT,
     INLINE_CASE_PAGE,
     NESTED_ASK_PAGE,
-    PAINTED_PAGE,
     SAMPLE_EXAMPLES,
     SETTLED_ASK_PAGE,
     STACKED_OPTIONS_PAGE,
@@ -1118,7 +1117,7 @@ WIDE_PROSE = (
 )
 WIDE_ASK_PAGE = leaf_page(
     "Options on a wide page",
-    f"""
+    f"""<div>
 <h1>Where sessions live</h1>
 <div id="layout">
 <section id="body">
@@ -1142,10 +1141,10 @@ WIDE_ASK_PAGE = leaf_page(
 <lf-options id="page-cards" choose>
   <lf-option id="pc-platform"><strong>Platform</strong> They run the store.</lf-option>
   <lf-option id="pc-accounts"><strong>Accounts</strong> They own the table.</lf-option>
-</lf-options></lf-ask>
+</lf-options></lf-ask></div>
 """,
     head=regions_side_by_side("layout", "2fr 1fr"),
-    layout="wide",
+    layout="sidebar",
 )
 
 
@@ -2022,40 +2021,6 @@ def test_long_chip_labels_stay_inside_a_narrow_column(browser, serve):
         assert geometry["lines"] > 1, (
             f"{chip_selector} should wrap its long identifier: {geometry}"
         )
-
-
-def test_what_a_widget_paints_it_says_to_a_user_listening(browser, serve):
-    """A module-free widget's paint-only fact is spoken without changing its copy."""
-    declaration = {
-        "description": "A state whose meaning is expressed through tint alone.",
-        "type": "object",
-        "x-upgrade": False,
-        "properties": {"id": {"type": "string"}, "status": {"enum": ["blocked"]}},
-        "required": ["id", "status"],
-        "additionalProperties": False,
-        "x-content": "markup",
-        "x-paints": ["status"],
-    }
-    page = open_page(
-        browser, serve(PAINTED_PAGE, layer_registry={"lf-test-signal": declaration})
-    )
-    assert "blocked" in page.locator("#painted").aria_snapshot()
-    quiet = page.locator("#painted .lf-quiet")
-    expect(quiet).to_have_count(1)
-    expect(quiet).to_have_text("blocked")
-    width, height, select_mode = quiet.evaluate(
-        """el => { const r = el.getBoundingClientRect();
-             return [r.width, r.height, getComputedStyle(el).userSelect]; }"""
-    )
-    assert width <= 1 and height <= 1, f"spoken status is painting {width}x{height}"
-    assert select_mode == "none", "spoken status would come away in a copy"
-    words = page.evaluate(
-        """() => { const el = document.getElementById('painted');
-             const r = document.createRange(); r.selectNodeContents(el);
-             getSelection().removeAllRanges(); getSelection().addRange(r);
-             return getSelection().toString(); }"""
-    )
-    assert "Waiting on the brackets" in words and "blocked" not in words
 
 
 def test_a_multiple_page_ask_waits_for_done(browser, serve):

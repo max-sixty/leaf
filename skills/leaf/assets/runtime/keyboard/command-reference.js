@@ -22,7 +22,11 @@
    The catalog is deliberately frozen while open. A command that becomes live waits until
    the next opening; one that becomes unavailable is rejected by fresh dispatch and causes
    the reference to reopen with an explanation. */
-import { showNativeLayer, closeNativeLayer } from "./layer-stack.js";
+import {
+  showNativeLayer,
+  closeNativeLayer,
+  dismissPopoversOutside,
+} from "./layer-stack.js";
 import { scrollIntoView } from "../landing-scroll.js";
 import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
 
@@ -54,7 +58,6 @@ import {
 } from "./key-sequence.js";
 import {
   handBack,
-  tabStops,
   focusDestination,
   focused,
   closeLayer,
@@ -79,7 +82,6 @@ import { pageSelection } from "../composing/capture.js";
 import { availableCommandRoutes, userIn } from "./dispatch.js";
 import { reachScrollers } from "../reach.js";
 import { registerReadingRegion } from "../reading-regions.js";
-import { openPopovers } from "./layer-stack.js";
 
 export const commandReferenceDialog = document.createElement("dialog");
 commandReferenceDialog.id = "lf-command-reference";
@@ -843,9 +845,7 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
   const restore = handingBack ? openerOf(commandReferenceDialog) : null;
   if (fresh) {
     commandReferenceInvoke = invokeCommand;
-    for (const popover of openPopovers())
-      if (popover.popover !== "manual" && popover.matches(":popover-open"))
-        closeNativeLayer(popover);
+    dismissPopoversOutside(commandReferenceDialog);
     // The origin is read off the scene the reference leaves standing: hiding a popover
     // hands focus back to where the user stood when it opened, and that is the place
     // the reference owes them. A control, or nothing: a user working from the page
@@ -916,22 +916,6 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
     "move",
   );
   repaint();
-}
-
-function moveCommandReferenceFocus(dir) {
-  const stops = tabStops(commandReferenceDialog);
-  if (!stops.length) return focusDestination(commandReferenceDialog, "step");
-  const standing = focused();
-  const at = stops.indexOf(
-    standing === commandReferenceSearch.input ? commandReferenceSearch : standing,
-  );
-  const next =
-    at < 0
-      ? dir > 0
-        ? stops[0]
-        : stops.at(-1)
-      : stops[(at + dir + stops.length) % stops.length];
-  focusDestination(next, "step");
 }
 
 const commandButton = (id) =>
@@ -1013,15 +997,6 @@ pageScope("command reference", {
   at: () => commandReferenceOpen(),
   claims: EVERYTHING,
   rows: [
-    {
-      id: "command.reference.focus.walk",
-      keys: ["Tab", "Shift+Tab"],
-      description: "Move through the command reference",
-      title: "move",
-      repeat: true,
-      runFromCommandReference: false,
-      run: (binding) => moveCommandReferenceFocus(binding === "Tab" ? 1 : -1),
-    },
     {
       id: "command.reference.command.next",
       keys: ["ArrowDown"],

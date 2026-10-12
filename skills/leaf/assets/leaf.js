@@ -277,7 +277,8 @@ const auxiliarySurfaces = createAuxiliarySurfaces({
 });
 const navigation = createNavigation({
   panelElements,
-  openThreads: threadListController.openThreads,
+  threadCards: threadListController.threadCards,
+  openThreadsInPageOrder: threadListController.openThreadsInPageOrder,
   panelIsOpen,
   narrowing,
   coveringAuxiliaryScroller: auxiliarySurfaces.coveringScroller,
@@ -485,7 +486,6 @@ app = mountApplication({
   },
 });
 app.registerThreadPanel({
-  required: true,
   controller: threadListController,
   threadsBox,
   view: {
@@ -577,11 +577,11 @@ const standingTarget = createStandingTarget({
 
 panelKeys = createThreadPanelKeys({
   elements: panelElements,
-  openThreads: threadListController.openThreads,
   narrowing,
   setPanel: (...args) => threadPanelController.setPanel(...args),
   panelIsOpen,
   stepThread: (...args) => navigation.stepThread(...args),
+  threadPosition: () => navigation.threadPosition(),
 });
 pageComment = createPageComment({
   wireInput: inputs.wireInput,
@@ -908,7 +908,7 @@ if (!offlineInteractive) {
   document.body.append(chromeRoot);
   // Exports retain image inspection, but no page controls. Their other standing is
   // what a widget's own box shows, such as an options group's addition field.
-  mountRepaint({ paintInputs: inputs.paintInputs, reflectKeys });
+  mountRepaint({ paintInputs: inputs.paintInputs, reflectFirstScopes, reflectKeys });
 }
 
 // Widget commands belong to interactive documents, including offline exports.

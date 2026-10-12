@@ -11,7 +11,6 @@ from urllib.parse import urlsplit
 
 import jmespath
 from jmespath.exceptions import JMESPathError
-from referencing.exceptions import Unresolvable
 
 from .files import list_revisions
 from .refusals import Refused
@@ -397,11 +396,6 @@ def payload_error(source: str, contract: str, value, registry: dict) -> str | No
         return (
             f"source {source!r} contract {contract!r} could not validate its value: "
             "a recursive reference did not terminate"
-        )
-    except Unresolvable as error:
-        return (
-            f"source {source!r} contract {contract!r} could not validate its value: "
-            f"unresolved reference {error.ref!r}"
         )
     if error is None:
         try:

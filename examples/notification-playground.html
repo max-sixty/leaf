@@ -236,7 +236,6 @@
           "div",
           `notification-demo-feed notification-demo-${format.replace(" ", "-")}`,
         );
-        feed.setAttribute("aria-label", `${name} candidate`);
         figure.append(caption, feed);
         return { figure, feed, metric: caption.lastElementChild };
       }
@@ -374,9 +373,13 @@
   </head>
   <body>
     <main class="layout-workspace density-working" id="notification-workspace">
-      <lf-ask id="notification-ask" data-width="available">
+      <lf-ask id="notification-ask">
         <h1>Stress-test the deployment notification</h1>
-        <lf-playground id="notification-playground" submit-label="Create notification">
+        <lf-playground
+          id="notification-playground"
+          submit-label="Create notification"
+          data-width="available"
+        >
           <lf-playground-control
             name="events"
             label="Concurrent release events"

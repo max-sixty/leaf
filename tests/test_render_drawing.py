@@ -1549,11 +1549,11 @@ def test_an_unsent_drawing_survives_reload_before_it_has_words(browser, serve):
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "note"
 
 
-def test_a_malformed_anchored_drawing_draft_keeps_its_words_without_the_mark(
+def test_an_older_runtimes_anchored_drawing_draft_keeps_its_words_without_the_mark(
     browser, serve
 ):
-    """The selection draft has its own serialized envelope and applies the same
-    drawing validation before page presentation or submission."""
+    """A draft an older runtime saved holds a drawing in a format this one does not
+    draw, so its words come back and its mark neither shows nor sends."""
     page = open_page(browser, serve(TARGETS_PAGE))
     # The composer's draft is keyed on the passage it is on.
     ctx = "composer:" + json.dumps([["section", "prose"]], separators=(",", ":"))
@@ -1566,7 +1566,7 @@ def test_a_malformed_anchored_drawing_draft_keeps_its_words_without_the_mark(
               anchor,
               suggest: false,
               about: null,
-              drawing: {format: 'leaf-drawing/3', strokes: [[[0, 0]]]},
+              drawing: {format: 'leaf-drawing/2', strokes: [[[0, 0], [9, 9]]]},
               touched: Date.now(),
             }),
             attempt: record.attempt,

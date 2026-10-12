@@ -4558,7 +4558,7 @@ def test_an_interrupted_stream_reply_finishes_after_the_claim_advances(page_dir)
         "Partial answer",
         "interrupted",
     )
-    assert "reply_bindings" not in stream_state
+    assert "reply_reservations" not in stream_state
 
 
 def test_provider_reservation_refuses_unaddressed_competing_writes(page_dir):
@@ -4629,7 +4629,7 @@ def test_a_delivery_reserves_its_final_before_provider_execution(page_dir):
             identity={"agent": "Codex", "session": "codex-thread"},
         )
 
-    with pytest.raises(RuntimeError, match="already bound to another delivery"):
+    with pytest.raises(RuntimeError, match="already reserved by another delivery"):
         thread_model.reserve_delivery_reply("codex-thread", "delivery-2", target)
 
 
@@ -4669,7 +4669,7 @@ def test_a_delivery_bound_final_cannot_append_after_claim_transfer(page_dir):
     }
     thread_model.reserve_delivery_reply("successor-thread", "delivery-2", successor)
     with service_model.PageTransaction(page_dir) as page:
-        assert page.status["stream"]["reply_bindings"][comment["id"]] == {
+        assert page.status["stream"]["reply_reservations"][comment["id"]] == {
             "session": "successor-thread",
             "attempt": service_model.delivery_reply_attempt("delivery-2"),
             "turn": "turn-1",
@@ -4871,13 +4871,13 @@ def test_a_turn_that_ended_unseen_is_recorded_without_reopening(page_dir):
     assert service_model.page_claim(page_dir) == closed
 
 
-def test_a_reply_binding_lapses_when_a_turn_it_does_not_name_opens(page_dir):
-    """A binding hands its move's answer to the turn it names, and to no other.
+def test_a_reply_reservation_lapses_when_a_turn_it_does_not_name_opens(page_dir):
+    """A reply reservation hands its move's answer to the turn it names, and no other.
 
     The observer bound the delivery's reply to its turn and then lost the
     connection with the turn still running. While that turn is the claim's, the
     turn's own messages owe the answer. Once a later turn opens without the
-    App Server client taking the binding over, nothing says those messages will be
+    App Server client taking the reservation over, nothing says those messages will be
     committed, so the move is answered with `leaf thread reply` again, and a
     client that reconnects and commits the delivery turn's final message after
     all yields to that answer.
@@ -4950,8 +4950,8 @@ def test_a_reply_binding_lapses_when_a_turn_it_does_not_name_opens(page_dir):
     ] == ["Answered in the later turn"]
 
 
-def test_a_reply_binding_lapses_when_its_turn_closes(page_dir):
-    """A turn that has ended writes nothing more, so its binding lapses with it.
+def test_a_reply_reservation_lapses_when_its_turn_closes(page_dir):
+    """A turn that has ended writes nothing more, so its reservation lapses with it.
 
     The observer bound the delivery's reply to its turn and then lost the
     connection. When the session's turn closes without an App Server client committing the
@@ -5038,7 +5038,7 @@ def test_the_prompt_hook_and_the_observer_open_one_codex_turn(page_dir, capsys):
     assert (owed["stage"], owed["condition"]) == ("picked_up", None)
 
 
-def test_reconnect_closes_a_completed_stream_binding(page_dir):
+def test_reconnect_closes_a_completed_stream_reservation(page_dir):
     _codex_delivery(page_dir)
     cleanup_model.prompt_turn("codex-thread", "turn-complete")
     observer = _observer()
@@ -5198,12 +5198,12 @@ def test_a_busy_codex_task_keeps_its_delivery_for_a_later_turn(
         },
     ],
 )
-def test_a_refused_turn_gives_up_the_seat_it_reserved(
+def test_a_refused_turn_gives_up_the_reply_it_reserved(
     page_dir, app_server, task_connection, refusal
 ):
     """A provider that refuses before executing has started nothing.
 
-    The reserved seat is what stops any other writer answering the user while the
+    The reply reservation is what stops any other writer answering the user while the
     provider is about to. A start that certainly did not happen gives it up, because
     until it does the user has neither an answer nor anything able to say one is
     not coming.
@@ -5247,12 +5247,12 @@ def test_a_refused_turn_gives_up_the_seat_it_reserved(
     )
 
 
-def test_an_unacknowledged_turn_keeps_the_seat_it_reserved(
+def test_an_unacknowledged_turn_keeps_the_reply_it_reserved(
     page_dir, app_server, task_connection
 ):
     """A request whose answer never came back may have started a turn.
 
-    Nothing here can tell, so the seat stays reserved: no other writer may answer
+    Nothing here can tell, so the reply stays reserved: no other writer may answer
     for a delivery a running turn might be about to answer itself. The observer
     adopts that turn the moment it says anything, and the delivery record stays
     offered until it does.
@@ -5275,7 +5275,7 @@ def test_a_reply_that_cannot_be_written_still_closes_its_turn(page_dir, monkeypa
     """The page stops saying the agent is working, however the reply went.
 
     `AppServerReplyStream` guards only the commit of a completed answer: setting the
-    state and releasing the binding open a page transaction of their own, and the
+    state and releasing the reservation open a page transaction of their own, and the
     turn's own work may have left that page unopenable. The turn has ended either
     way, and until its Leaf turn closes and its activity reading comes off, the
     page tells its user the agent is still working until the claim's
@@ -5313,8 +5313,8 @@ def test_a_reply_that_cannot_be_written_still_closes_its_turn(page_dir, monkeypa
     assert (files_model.read_json(page_dir / "status.json").get("stream") or {}).get(
         "activity"
     ) is None
-    # The seat goes back too: a reply that faulted part-written holds one nothing
-    # will ever commit, and every other writer waits behind it.
+    # The reservation is released too: a reply that faulted part-written holds one
+    # nothing will ever commit, and every other writer waits behind it.
     assert not thread_model.delivery_reply_reserved(
         "codex-thread", payload["id"], target
     )
@@ -5328,8 +5328,8 @@ def test_an_observed_turn_whose_reply_cannot_be_written_still_closes(
     A turn the observer binds is one nobody else is following — a pointer the task
     picked up, or a delivery whose adapter died mid-turn — so its ending is the only
     one that turn gets. The reply write can fault on the page the turn left behind,
-    and the turn is over either way: the page stops reading working, and the seat
-    goes back for whatever writer tells the user what happened.
+    and the turn is over either way: the page stops reading working, and the reply
+    reservation is released for whatever writer tells the user what happened.
     """
     prepared = _codex_delivery(page_dir)
     payload = prepared.payload
@@ -5750,7 +5750,7 @@ def test_a_terminated_page_server_stops_its_title_server(
 )
 def test_codex_activity_rejects_nonlocal_or_invalid_app_servers(endpoint):
     with pytest.raises(Refused, match="local|valid"):
-        codex_model.check_app_server_endpoint(endpoint)
+        codex_model.app_server_socket_path(endpoint)
 
 
 def test_unheld_activity_drops_interaction_claims_from_the_same_reading(
@@ -10868,7 +10868,7 @@ def test_an_uncertain_app_server_start_recovers_by_delivery_identity(
     def start_delivery(payload):
         session_id = "codex-thread"
         attempted.append(payload)
-        # The seat an uncertain start reserved stays reserved, because a turn
+        # The reply an uncertain start reserved stays reserved, because a turn
         # carrying this delivery may be running.
         thread_model.reserve_delivery_reply(
             session_id, payload["id"], codex_model.stream_reply_target(payload)
@@ -12742,6 +12742,32 @@ start_server(live, harness=session_harness())
         cleanup_model.end_session("codex-thread")
 
 
+def spawn_codex_adapter(spawn, program, **options) -> subprocess.Popen:
+    """Run `leaf codex run` as `leaf codex start` does, accepting its announcement,
+    so the adapter returns holding its leases with its start committed."""
+    caller, end = socket.socketpair()
+    adapter = spawn(
+        [
+            *LEAF_COMMAND,
+            "codex",
+            "run",
+            "--codex-path",
+            str(program),
+            "--handshake",
+            str(end.fileno()),
+        ],
+        pass_fds=(end.fileno(),),
+        **options,
+    )
+    end.close()
+    caller.settimeout(STATED_TIMEOUT)
+    with caller, caller.makefile("rb") as reader:
+        assert json.loads(reader.readline()) == {}
+        caller.sendall(b"\n")
+        assert json.loads(reader.readline()) == {}
+    return adapter
+
+
 def test_a_codex_adapter_whose_start_was_never_committed_exits(
     codex_claimed_page, spawn, codex_env, tmp_path
 ):
@@ -12785,8 +12811,9 @@ def test_codex_adapter_exits_when_delivery_retries_outlive_its_claim(
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
     session_model.cmd_waiting(page, "comment on the prototype")
-    adapter = spawn(
-        [*LEAF_COMMAND, "codex", "run", "--codex-path", str(program)],
+    adapter = spawn_codex_adapter(
+        spawn,
+        program,
         env=codex_env
         | {
             "CODEX_THREAD_ID": "codex-thread",
@@ -12843,8 +12870,9 @@ def test_codex_adapter_keeps_transferred_input_unreceived(
     program, log = fake_codex_cli(tmp_path)
     session_model.cmd_waiting(page, "comment on the prototype")
     queue_wait = tmp_path / "held-queue"
-    adapter = spawn(
-        [*LEAF_COMMAND, "codex", "run", "--codex-path", str(program)],
+    adapter = spawn_codex_adapter(
+        spawn,
+        program,
         env=codex_env
         | {
             "CODEX_THREAD_ID": "codex-thread",
@@ -14794,7 +14822,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     # A bound move can be answered by its provider final or an explicit addressed
     # reply. The proactive thread writer still refuses an owed move.
     with service_model.PageTransaction(claimed) as page:
-        page.bind_delivery_reply(session["id"], asked["id"], "a1")
+        page.reserve_delivery_reply(session["id"], asked["id"], "a1")
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     reason = continued(capsys.readouterr().out)
     assert (
@@ -14803,7 +14831,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     ) in reason
     assert "leaf thread reply <page>" not in reason
     with service_model.PageTransaction(claimed) as page:
-        page.clear_delivery_reply_binding(session["id"], asked["id"], "a1")
+        page.clear_delivery_reply_reservation(session["id"], asked["id"], "a1")
 
     # A reply clears it, and the thread stays open behind it: closing one is the
     # user's to do, so an open thread is not an unanswered one.
@@ -17613,7 +17641,7 @@ def test_summary_suggestions_only_accompany_new_input(claimed, older_texts, sugg
         },
     )
     receive_through(claimed, last_deliverable_seq(claimed))
-    assert delivery_model.pending_batches("s1") == []
+    assert not any(plan.batch for plan in hook_transport_model.read_plans("s1"))
 
     current = append_carried_log_record(
         claimed,
@@ -17647,7 +17675,7 @@ def test_summary_suggestions_only_accompany_new_input(claimed, older_texts, sugg
         {"to": current["id"], "for": current["id"]},
         "Proceed with the rollout.",
     )
-    assert delivery_model.pending_batches("s1") == []
+    assert not any(plan.batch for plan in hook_transport_model.read_plans("s1"))
     [plan] = hook_transport_model.read_plans("s1")
     assert not plan.owed
     assert plan.state["activity"]["obligations"] == []
@@ -17747,11 +17775,11 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, capsys):
     )
     prompt = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
     assert (
-        f"your start on {asked['id']} is older than its pickup"
+        f"your start on {asked['id']} came before this turn"
         in prompt["additionalContext"]
     )
     reason = _stop(capsys)
-    assert f"your start on {asked['id']} is older than its pickup" in reason
+    assert f"your start on {asked['id']} came before this turn" in reason
     assert f"`leaf response reply <answer.ref>` for {asked['id']}" in reason
 
     assert _start(claimed, asked["id"], "the second sketch").exit_code == 0
@@ -17777,7 +17805,7 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, capsys):
     consume_pending_input("s1")
     reason = _stop(capsys)
     assert f"`leaf response reply <answer.ref>` for {follow['id']}" in reason
-    assert f"your start on {asked['id']} is older than its pickup" in reason
+    assert f"your start on {asked['id']} came before this turn" in reason
     assert _start(claimed, follow["id"], "adding C").exit_code == 0
     assert _stop(capsys) is None
 
@@ -18443,10 +18471,11 @@ def test_one_subscription_commits_completion_before_the_start_response(
     ] == ["Already complete"]
 
 
-def test_an_uncertain_start_without_a_reply_seat_survives_adapter_restart(
+def test_an_uncertain_start_without_a_reply_reservation_survives_adapter_restart(
     page_dir, app_server, task_connection
 ):
-    """An action delivery has no reply seat that could prevent a duplicate start."""
+    """An action delivery has no reply reservation that could prevent a duplicate
+    start."""
     (page_dir / "index.html").write_text(
         PAGE.replace("<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1)
     )
@@ -19219,7 +19248,9 @@ def test_hook_snapshot_serializes_receipt_and_reply(claimed, monkeypatch):
     asked = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "why B?"}
     )
-    [batch] = delivery_model.pending_batches("s1")
+    [batch] = [
+        plan.batch for plan in hook_transport_model.read_plans("s1") if plan.batch
+    ]
     projected = hook_transport_model.read_page
     lock_proved = threading.Event()
     errors = []
@@ -19272,7 +19303,9 @@ def test_prompt_pickup_does_not_restamp_a_response_settled_after_planning(claime
     asked = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "Already handled"}
     )
-    [batch] = delivery_model.pending_batches("s1")
+    [batch] = [
+        plan.batch for plan in hook_transport_model.read_plans("s1") if plan.batch
+    ]
     delivery_model.receive_one(batch, "s1")
     plans = hook_transport_model.read_plans("s1")
     assert plans[0].acknowledged
@@ -20454,7 +20487,7 @@ def test_response_refuses_stale_replaced_foreign_and_reserved_inputs(
         page_dir, harness_model.EmbeddedHarness("owner", "Owner", os.getpid())
     )
     turn_ref = prepared.payload["batches"][0]["events"][0]["answer"]["ref"]
-    # Capture-time guidance does not grant custody before a binding exists.
+    # Capture-time guidance does not reserve the reply before a reservation exists.
     answer = thread_model.post_response(
         turn_ref, "Answer before reservation", identity={"session": "owner"}
     )
@@ -20833,8 +20866,11 @@ def test_addressed_progress_is_one_atomic_message_and_work_start(page_dir):
         page_dir, {"kind": "comment", "author": "user", "text": "Answer this"}
     )
     reference = response_reference(page_dir, comment)
+    # Progress is the Working line, so the kernel schema holds it to one line.
+    with pytest.raises(Refused, match="reply event is invalid"):
+        thread_model.post_response(reference, "Checking\nthe store.", ephemeral=True)
     progress = thread_model.post_response(
-        reference, "Checking the store.", ephemeral=True
+        reference, "Checking the store.\n", ephemeral=True
     )
     events = events_model.read_events(page_dir)
     assert [event["kind"] for event in events] == ["comment", "reply"]
@@ -20931,8 +20967,8 @@ def test_committed_answer_survives_a_newer_displayed_reply(page_dir):
     )
     status = files_model.read_json(page_dir / "status.json")["stream"]
     assert status["reply"]["text"] == "Newer opening"
-    assert newer["id"] in status["reply_bindings"]
-    assert comment["id"] not in status["reply_bindings"]
+    assert newer["id"] in status["reply_reservations"]
+    assert comment["id"] not in status["reply_reservations"]
 
 
 def test_bound_thread_refusal_routes_rich_content_to_addressed_reply(page_dir):
@@ -21051,7 +21087,7 @@ def test_markup_obligation_cannot_be_discharged_by_reply_or_reply_failure(page_d
 
 
 @pytest.mark.parametrize("retry", ["same", "different"])
-def test_retry_identity_cannot_take_current_provider_custody(
+def test_retry_identity_cannot_take_a_standing_reply_reservation(
     page_dir, monkeypatch, retry
 ):
     revisioning_model.activate_source(page_dir)

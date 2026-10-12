@@ -256,15 +256,6 @@ const resolutionControl = (thread) =>
     : null;
 
 function prepareLanding({ held = null, box, route = null }) {
-  if (
-    route &&
-    (!(route.target instanceof Element) ||
-      typeof route.line !== "string" ||
-      !route.line.trim())
-  )
-    throw new TypeError(
-      "landInThread return route needs an element target and a non-empty line",
-    );
   held ??= box && closestAcross(box, SAYS_IN);
   if (!held) return false;
   if (route && !held.hasAttribute("tabindex")) {

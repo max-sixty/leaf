@@ -1223,7 +1223,9 @@ def test_coalesced_rendering_jobs_keep_their_own_input_source(
             const {bindQueuedWork}=await __lfRuntimeImport('/runtime/queued-work.js');
             const {createPresentationSchedule}=await __lfRuntimeImport('/vendor/browser-runtime.js');
             const presentations=createPresentationSchedule(bindQueuedWork);
-            schedule=callback=>presentations.presenter({attach:()=>null,paint:callback}).sync(null);
+            // This test observes scheduling, so a ticket that accepts the paint is enough.
+            const attach=()=>({present:()=>({resolve:()=>{},ready:Promise.resolve()})});
+            schedule=callback=>presentations.presenter({attach,paint:callback}).sync(null);
           }
           const passive=lfInputWork.capture(()=>schedule(()=>{
             document.getElementById('passive').remove();window.passiveDone=true;
@@ -1267,7 +1269,9 @@ def test_a_rendering_jobs_returned_async_tail_stays_passive(browser, serve, sche
         const {bindQueuedWork}=await __lfRuntimeImport('/runtime/queued-work.js');
         const {createPresentationSchedule}=await __lfRuntimeImport('/vendor/browser-runtime.js');
         const presentations=createPresentationSchedule(bindQueuedWork);
-        schedule=callback=>presentations.presenter({attach:()=>null,paint:callback}).sync(null);
+        // This test observes scheduling, so a ticket that accepts the paint is enough.
+        const attach=()=>({present:()=>({resolve:()=>{},ready:Promise.resolve()})});
+        schedule=callback=>presentations.presenter({attach,paint:callback}).sync(null);
       }
       document.getElementById('send').onclick=()=>schedule(async()=>{
         await new Promise(resolve=>window.finishTail=resolve);

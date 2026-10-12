@@ -57,12 +57,6 @@ from .structure import VOID_TAGS, SourceDocument, pre_body
 # Retirement drops and rewriting substitutes rather than fencing, because that is what
 # each leaves on the screen. A fence says the reading doesn't know what stands there, and
 # in both of these it knows exactly.
-#
-# x-paints is the key that writes into an upgraded element and belongs in none of this.
-# Its word is clipped to nothing and marked as the runtime's (.lf-quiet, .lf-ui), so the
-# browser's own reading of the page skips it exactly as this one never sees it: the two
-# readings agree by both being silent, and a fence would be room reserved for words no
-# user on either side can reach.
 
 # The characters a whitespace run is made of, as the browser's reading collapses them
 # (registry.json's `$passages.collapse` says why the set is spelled out).
@@ -295,9 +289,7 @@ class _PassageParser:
         self.owner = []  # per character: the tuple of enclosing ids
         self.fences = set()  # indices a quote may not span
         self.retired = {}  # id under a retired slot → the suggestion whose decision did it
-        self.rewritten = {}  # id whose body the user rewrote → the verb that did it
         self.gone = {}  # decided id whose decision left it empty → the outcome that did it
-        self.shown = {}  # id whose data body this reading withheld → the words in it
         # id → the ids enclosing it, outermost first, itself last. Structure, not
         # words: an element is somewhere on the page whether or not it says
         # anything, which is what the containment questions downstream ask (see
@@ -310,7 +302,7 @@ class _PassageParser:
         self.bearing = (
             set()
         )  # ids still showing something: text under them, or a surviving child
-        self.stack = []  # [{"tag", "id", "ids", "skip", "shows", "sub", "opaque", "editable", "fenced", "retired_by", "tb", "block", "tail"}]
+        self.stack = []  # [{"tag", "id", "ids", "skip", "sub", "opaque", "editable", "fenced", "retired_by", "tb", "block", "tail"}]
         self._uid = 0
         self._block = None  # the block the last character came from
         self._space = False  # a separator waiting for a character to follow it
@@ -465,22 +457,6 @@ class _PassageParser:
         # through this element's x-state, so an id in the dict is the whole test:
         # the fold decides, this pass only applies.
         sub = self.rewrites.get(attrs_d.get("id")) if not silenced else None
-        # The element whose data body this reading is withholding, carried down to
-        # everything under it. The page shows whatever its module made of that body, so a
-        # quote landing inside one is told where it landed rather than told the page never
-        # said it — a claim wider than this reading can make. Only where the body still
-        # stands: a retired or rewritten one is `retired`/`rewritten`'s to answer for, and
-        # each of those names the act that did it.
-        shows = (
-            None
-            if own_wall or sub is not None
-            else (parent["shows"] if parent else None)
-            or (
-                attrs_d.get("id")
-                if opaque and entry.get("x-content") == "data"
-                else None
-            )
-        )
         frame = {
             "tag": tag,
             "id": attrs_d.get("id"),
@@ -489,7 +465,6 @@ class _PassageParser:
             "skip": silenced
             or sub is not None
             or (opaque and entry.get("x-content") == "data"),
-            "shows": shows,
             "sub": sub,
             "retired_by": retired_by,
             "opaque": opaque,
@@ -524,14 +499,13 @@ class _PassageParser:
         elif sub is not None:
             # The body's own write path, so a quote across the element's edge sees
             # the same adjacency the screen shows — no fence, nothing withheld.
-            verb, their_text = sub
+            _verb, their_text = sub
             if entry.get("x-text-format") == "markdown":
                 frame["skip"] = False
                 feed_markdown(self, their_text)
                 frame["skip"] = True
             else:
                 self._write(their_text, frame["block"], frame["ids"])
-            self.rewritten[frame["id"]] = verb
 
     def handle_data(self, data):
         frame = self.stack[-1] if self.stack else None
@@ -542,8 +516,6 @@ class _PassageParser:
         )
         if not frame["skip"]:
             self._write(data, frame["block"], frame["ids"])
-        elif frame["shows"]:
-            self.shown[frame["shows"]] = self.shown.get(frame["shows"], "") + data
 
     def handle_endtag(self, tag):
         # Every caller walks a parsed tree or replays a declared child, so ends arrive
@@ -560,9 +532,7 @@ class Passages(NamedTuple):
     owner: list  # per character: the tuple of enclosing ids, outermost first
     fences: set  # indices a quote may not span: where a module may write
     retired: dict  # id under a retired slot → the suggestion whose decision did it
-    rewritten: dict  # id whose body the user rewrote → the verb that did it
     gone: dict  # decided id whose decision left it empty → the outcome that did it
-    shown: dict  # id whose data body this withheld → the words a module shows there
     enclosing: dict  # id → the ids enclosing it, outermost first, itself last
     verbatim: dict  # source provenance → compositional words with upgraded descendants as boundaries
 
@@ -606,10 +576,7 @@ def page_passages(
         parser.owner,
         parser.fences,
         parser.retired,
-        parser.rewritten,
         parser.gone,
-        # Collapsed the way `text` is, so one comparison answers for both.
-        {id: collapse(words) for id, words in parser.shown.items()},
         parser.enclosing,
         {wid: reading.reading() for wid, reading in parser.verbatim.items()},
     )

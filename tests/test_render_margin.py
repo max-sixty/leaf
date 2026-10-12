@@ -97,28 +97,31 @@ pytestmark = pytest.mark.main
 
 
 def test_column_width_does_not_clear_a_sidenote(browser, serve):
-    """Column is the ordinary prose measure, so explicitly naming it must not move a
-    paragraph below a sidenote that ordinary neighboring paragraphs flow beside."""
+    """Column is the ordinary prose measure, so a block allocated it, such as a
+    callout, must not drop below a sidenote that ordinary neighboring paragraphs flow
+    beside."""
     source = leaf_page(
         "Column beside sidenote",
         """
 <h1 id="title">Column beside sidenote</h1>
-<aside class="sidenote" id="note"><p>Supporting context in the margin.</p></aside>
+<aside class="sidenote" id="note"><p>Supporting context in the margin, long enough to
+run several lines beside the prose and the callout that follow it.</p></aside>
 <p id="before">The first line of ordinary prose.</p>
-<p id="column" data-width="column">The explicitly column-width line.</p>
+<aside class="callout" id="column"><p>A callout keeps the column.</p></aside>
 <p id="after">The following line of ordinary prose.</p>
 """,
     )
     page = open_page(browser, serve(source))
     resized(page, 1400, 900)
-    tops = page.evaluate(
-        """() => Object.fromEntries(['before', 'column', 'after'].map(id => [
-          id, document.getElementById(id).getBoundingClientRect().top
-        ]))"""
+    expect(page.locator("#note")).to_have_css("float", "right")
+    expect(page.locator("#column")).to_have_attribute("data-lf-space", "column")
+    at = page.evaluate(
+        """() => ({
+          column: document.getElementById('column').getBoundingClientRect().top,
+          note: document.getElementById('note').getBoundingClientRect().bottom,
+        })"""
     )
-    assert tops["column"] - tops["before"] == pytest.approx(
-        tops["after"] - tops["column"], abs=1
-    )
+    assert at["column"] < at["note"], at
 
 
 COMMENT_ON_ASK = {
@@ -1726,6 +1729,8 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
     stale = sample("update stale")
     fallback = sample("working · fallback")
     expect(resting).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
+    expect(resting).not_to_have_attribute("data-lf-turn", re.compile(".+"))
+    expect(sample("on you")).to_have_attribute("data-lf-turn", "user")
     expect(picked_up).to_have_attribute("data-lf-agent-workflow", "picked_up")
     expect(picked_up).to_have_css(
         "border-top-color",
@@ -2654,6 +2659,43 @@ def test_the_page_map_dialog_walks_its_rows_from_the_search(browser, serve):
     expect(thread).to_contain_text("Map note 12")
     page.keyboard.press("c")
     expect(thread.locator("leaf-text")).to_be_focused()
+
+
+def test_tab_wraps_inside_the_page_map(browser, serve):
+    """The Page Map is modal, so Tab holds the user inside it: past its last stop the
+    browser would carry them out to its own interface, and the map takes them back to
+    its first stop instead, as Shift+Tab from the first takes them to the last."""
+    page = open_page(browser, serve(PAGE_MAP_PAGE, events=PAGE_MAP_EVENTS))
+    resized(page, 1440, 600)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    dialog = page.get_by_role("dialog", name="Page Map", exact=True)
+    search = dialog.get_by_role(
+        "searchbox", name="Find an action, status, or location in Page Map"
+    )
+    expect(search).to_be_focused()
+
+    def stays_inside():
+        assert dialog.evaluate("dialog => dialog.matches(':focus-within')"), (
+            "Tab left the Page Map"
+        )
+
+    page.keyboard.press("Shift+Tab")
+    stays_inside()
+    last = page.evaluate_handle("() => document.activeElement")
+    page.keyboard.press("Tab")
+    expect(search).to_be_focused()
+    walked = []
+    for _ in range(40):
+        page.keyboard.press("Tab")
+        stays_inside()
+        walked.append(page.evaluate("() => document.activeElement.className"))
+        if page.evaluate("last => document.activeElement === last", last):
+            break
+    else:
+        raise AssertionError(f"Tab never reached the map's last stop: {walked}")
+    page.keyboard.press("Tab")
+    expect(search).to_be_focused()
 
 
 def test_the_chrome_names_an_ask_by_its_question(browser, serve):
@@ -3968,6 +4010,129 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     workflow = working_thread.locator(".lf-msg-sending", has_text="Working")
     expect(workflow).to_have_text("Working")
     expect(workflow).to_have_attribute("title", f"Working · {detail}")
+
+
+@pytest.mark.parametrize("annotations", ["margin", "page"])
+def test_each_seat_agrees_with_the_page_map_on_a_controls_receipt(
+    browser, serve, annotations
+):
+    """A package control's receipt reads the same wherever its target's controls sit.
+
+    The target's agent work rides on its primary control, and every other control shows
+    the receipt its contribution gave it. The contrast is a control that gives up the
+    primary seat: it goes back to its own receipt, and the new primary takes the work,
+    in the margin or a page's own annotation view as in the Page Map.
+    """
+    source = ASK_PAGE
+    if annotations == "page":
+        source = source.replace("<body>", '<body data-annotations="page">')
+    page = open_page(
+        browser,
+        live_url(
+            serve(
+                source,
+                events=[
+                    {**COMMENT_ON_ASK, "id": "1" * 32},
+                    {
+                        **COMMENT_ON_ASK,
+                        "id": "2" * 32,
+                        "text": "Check the return visit too.",
+                    },
+                ],
+            )
+        ),
+    )
+    resized(page, 1440, 900)
+    roots = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    record_claim(serve.page_dir)
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        delivery_model.record_pickup(transaction, roots)
+    claimed = CliRunner().invoke(
+        cli_model.cli,
+        ["task", "start", str(serve.page_dir), roots[0]["id"], "Checking the visit."],
+    )
+    assert claimed.exit_code == 0, claimed.output
+    told(page)
+    if annotations == "margin":
+        seat = page.locator('[data-lf-margin-for="bracket"]')
+        expect(seat.locator(":scope > .lf-margin-marker")).to_have_attribute(
+            "data-lf-agent-workflow", "working"
+        )
+    else:
+        seat = page.locator("#receipt-view")
+        page.evaluate("""async () => {
+          const {consumeAnnotations} =
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const box = document.createElement('aside');
+          box.id = 'receipt-view';
+          document.querySelector('#bracket').after(box);
+          consumeAnnotations(box, (entries, view) => {
+            box.replaceChildren();
+            for (const entry of entries) {
+              const row = document.createElement('div');
+              row.dataset.lfGen = '1';
+              box.append(row);
+              row.append(...view.controls(entry));
+              view.place(entry, row);
+            }
+          });
+        }""")
+    page.evaluate("""async () => {
+      const {contributionEntry, registerContribution} =
+        await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
+      const ownReceipt = runtime.workflows.find(item => item.stage === 'picked_up');
+      let approving = false;
+      const contribution = registerContribution({
+        key: 'receipt-probe', target: document.querySelector('#bracket'),
+        read: () => ({entries: [
+          ...(approving ? [contributionEntry({key: 'approve', icon: 'check',
+            label: 'Approve', rank: 'complete'})] : []),
+          contributionEntry({key: 'edit', icon: 'edit', label: 'Edit',
+            workflowReceipt: ownReceipt}),
+        ]}), activate: () => {}
+      });
+      window.offerApproval = () => {
+        approving = true;
+        contribution.update({immediate: true});
+      };
+    }""")
+
+    def receipts():
+        seated = {
+            key: seat.locator(f'[data-lf-margin-entry-key="{key}"]').get_attribute(
+                "data-lf-agent-workflow"
+            )
+            for key in ("approve", "edit")
+            if seat.locator(f'[data-lf-margin-entry-key="{key}"]').count()
+        }
+        page.keyboard.press("g")
+        page.keyboard.press("Shift+m")
+        dialog = page.locator(".lf-page-map-dialog")
+        expect(dialog).to_be_visible()
+        rows = dialog.locator("[data-lf-map-margin-entry]")
+        mapped = {
+            key: rows.filter(has_text=label).get_attribute("data-lf-agent-workflow")
+            for key, label in (("approve", "Approve"), ("edit", "Edit"))
+            if rows.filter(has_text=label).count()
+        }
+        page.keyboard.press("Escape")
+        expect(dialog).to_be_hidden()
+        return seated, mapped
+
+    carrying = {"edit": "working"}
+    expect(seat.locator('[data-lf-margin-entry-key="edit"]')).to_have_attribute(
+        "data-lf-agent-workflow", "working"
+    )
+    assert receipts() == (carrying, carrying)
+    page.evaluate("window.offerApproval()")
+    expect(seat.locator('[data-lf-margin-entry-key="approve"]')).to_have_count(1)
+    displaced = {"approve": "working", "edit": "picked_up"}
+    assert receipts() == (displaced, displaced)
 
 
 def _margin_entry_paint(control):
@@ -7470,6 +7635,39 @@ def test_a_card_walked_off_the_unfolded_cluster_lands_on_the_page(browser, serve
     expect(preview).to_be_hidden()
 
 
+def test_going_to_a_side_surface_folds_the_cluster_the_user_left(browser, serve):
+    """Unfolded options stay open while a layer over the page holds the user, since
+    that layer hands them back to the cluster as it closes. A side surface standing
+    beside the page is somewhere else they went, so going to Questions folds the
+    options, though Questions stands in the same native dialog as the chrome's layers."""
+    page = open_page(browser, serve(ACTION_PAGE, events=[COMMENT_ON_SUGGESTION]))
+    resized(page, 1440, 900)
+    item = page.locator('[data-lf-margin-for="sug-refill"]')
+    item.locator(":scope > .lf-margin-more").click()
+    expect(item).to_have_attribute("data-lf-options-open", "")
+    option = item.locator(".lf-margin-options .lf-margin-entry:visible").first
+    option.focus()
+
+    # The first ? expands the shortcut bar where the user stands; the second opens the
+    # reference over the page.
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    reference = page.locator(".lf-command-reference")
+    expect(reference).to_be_visible()
+    expect(item).to_have_attribute("data-lf-options-open", "")
+    page.keyboard.press("Escape")
+    expect(reference).to_be_hidden()
+    expect(option).to_be_focused()
+
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+q")
+    expect(page.locator("#lf-queue")).to_be_visible()
+    assert page.locator("#lf-queue").evaluate(
+        "panel => panel.matches(':focus-within') || panel === document.activeElement"
+    )
+    expect(item).not_to_have_attribute("data-lf-options-open", "")
+
+
 @pytest.mark.parametrize("second", ["note", "marker"])
 def test_a_second_press_into_a_standing_card_leaves_one_level_to_take_off(
     browser, serve, second
@@ -9259,16 +9457,16 @@ PANE_FILLER = "".join(
 )
 PANE_PAGE = leaf_page(
     "Release pane",
-    f"""<h1>Release</h1>
+    f"""<div><h1>Release</h1>
 <lf-pane id="evidence" label="Evidence"><div id="pane-body">
 {PANE_FILLER}
 <section id="pane-sec"><h2>Rollout</h2><p>One.</p><p>Two.</p><p>Three.</p><p>Four.</p>
 </section>
 {PANE_FILLER}
 </div></lf-pane>
-{PANE_FILLER}""",
+{PANE_FILLER}</div>""",
     head="<style>#pane-body { height: 420px; overflow: auto; }</style>",
-    layout="wide",
+    layout="sidebar",
 )
 
 
@@ -9316,7 +9514,7 @@ def test_a_card_a_panes_edge_holds_stays_put_as_the_pane_scrolls(browser, serve)
 
 NESTED_PANE_PAGE = leaf_page(
     "Nested panes",
-    f"""<h1>Release</h1>
+    f"""<div><h1>Release</h1>
 <lf-pane id="evidence" label="Evidence"><div id="pane-body">
 {PANE_FILLER}
 <div id="inner" data-bound="start" style="height: 700px">
@@ -9326,9 +9524,9 @@ NESTED_PANE_PAGE = leaf_page(
 {PANE_FILLER}{PANE_FILLER}
 </div>
 {PANE_FILLER}
-</div></lf-pane>""",
+</div></lf-pane></div>""",
     head="<style>#pane-body { height: 300px; overflow: auto; }</style>",
-    layout="wide",
+    layout="sidebar",
 )
 
 
@@ -9529,16 +9727,16 @@ def _comment_on(section, text="A comment on this.", quote=None):
     ("main", "body", "place"),
     [
         ('<main class="layout-column">', "<body>", "rail"),
-        ('<main class="layout-wide">', "<body>", "pin"),
-        ('<main class="layout-wide">', '<body data-rail="right">', "rail"),
+        ('<main class="layout-sidebar">', "<body>", "pin"),
+        ('<main class="layout-sidebar">', '<body data-rail="right">', "rail"),
         ('<main class="layout-column">', '<body data-rail="none">', "pin"),
     ],
-    ids=["column", "wide", "wide-keeps-the-rail", "column-gives-it-up"],
+    ids=["column", "sidebar", "sidebar-keeps-the-rail", "column-gives-it-up"],
 )
 def test_the_page_form_decides_the_rail_and_body_can_say_otherwise(
     browser, serve, main, body, place
 ):
-    """A column page keeps a rail beside its column and a wide page does not: its markers
+    """A column page keeps a rail beside its column and a sidebar page does not: its markers
     stand as pins on their blocks. `data-rail` on `body` turns either round: `right`
     gives up the rail's width at the shell's right edge, and `none` keeps the margin for
     the page's own residents. Only `right` takes room from the page, and only above a
@@ -9546,7 +9744,8 @@ def test_the_page_form_decides_the_rail_and_body_can_say_otherwise(
     source = (
         leaf_page(
             "rail by form",
-            '<h1 id="t">Rail by form</h1><p id="p">A paragraph with a comment on it.</p>',
+            '<div><h1 id="t">Rail by form</h1>'
+            '<p id="p">A paragraph with a comment on it.</p></div>',
         )
         .replace('<main class="layout-column">', main)
         .replace("<body>", body)
@@ -9575,10 +9774,10 @@ def test_a_pin_on_one_shape_of_a_drawing_stands_on_that_shape(browser, serve):
     )
     source = leaf_page(
         "a drawing's parts",
-        '<h1 id="t">Parts</h1><figure id="fig" data-width="wide">'
+        '<div><h1 id="t">Parts</h1><figure id="fig" data-width="wide">'
         '<svg class="drawing" viewBox="0 0 1000 200" role="img">'
-        f"<title>Three shapes</title>{shapes}</svg></figure>",
-        layout="wide",
+        f"<title>Three shapes</title>{shapes}</svg></figure></div>",
+        layout="sidebar",
     )
     page = open_page(
         browser, serve(source, events=[_comment_on("left"), _comment_on("right")])
@@ -9606,11 +9805,11 @@ def test_a_pin_stands_after_its_run_of_text_rather_than_over_it(browser, serve):
     line, over none of the paragraph's words."""
     source = leaf_page(
         "a suggestion's pin",
-        '<h1 id="t">Notes</h1><p id="p">The status column is the '
+        '<div><h1 id="t">Notes</h1><p id="p">The status column is the '
         '<lf-suggestion id="s"><lf-old>release\'s only visual change</lf-old>'
         "<lf-new>only change to the run list</lf-new></lf-suggestion>.</p>"
-        "<p>The next paragraph starts a new subject.</p>",
-        layout="wide",
+        "<p>The next paragraph starts a new subject.</p></div>",
+        layout="sidebar",
     )
     page = open_page(browser, serve(source))
     resized(page, 1440, 900)
@@ -9957,7 +10156,9 @@ def test_a_choice_s_pin_stands_on_none_of_its_option_cards(browser, serve, optio
         '<lf-ask id="a"><h2>Close #1176 as won\'t-fix?</h2>'
         f'<lf-options id="o" choose>{options}</lf-options></lf-ask>'
     )
-    page = open_page(browser, serve(leaf_page("a choice", body, layout="wide")))
+    page = open_page(
+        browser, serve(leaf_page("a choice", f"<div>{body}</div>", layout="sidebar"))
+    )
     page.locator("#o-leave lf-option-control").click()
     row = page.locator('.lf-margin-cluster[data-lf-margin-for="o"]')
     expect(row).to_have_attribute("data-lf-place", "pin")
@@ -9980,11 +10181,11 @@ def test_a_pin_on_a_contents_target_stands_at_its_last_part(browser, serve):
     stands at the corner of every part together, and shows while they do."""
     source = leaf_page(
         "a contents target",
-        '<h1 id="t">Pair</h1><div style="display: flex; gap: 24px">'
+        '<div><h1 id="t">Pair</h1><div style="display: flex; gap: 24px">'
         '<div id="pair" style="display: contents">'
         '<p style="flex: 1">The first half.</p><p style="flex: 1">The second half.</p>'
-        "</div></div>",
-        layout="wide",
+        "</div></div></div>",
+        layout="sidebar",
     )
     page = open_page(browser, serve(source, events=[_comment_on("pair")]))
     resized(page, 1440, 900)
@@ -10002,9 +10203,8 @@ def test_a_pin_on_a_contents_target_stands_at_its_last_part(browser, serve):
 
 
 def test_a_workspace_page_keeps_no_rail(browser, serve):
-    """The workspace Layout stands in the wide page's frame, which leaves no room beside
-    it for a rail, so a comment in a pane stands on its block as a pin, as it does on
-    `<main class="layout-wide">`."""
+    """A workspace takes the window, which leaves no room beside it for a rail, so a
+    comment in a pane stands on its block as a pin, as it does on a sidebar page."""
     source = leaf_page(
         "workspace page",
         '<header><h1 id="t">Workspace</h1></header>'
@@ -10493,15 +10693,15 @@ def test_a_pin_keeps_clear_of_controls_slotted_into_its_reading_region(browser, 
     """A native control in a slotted Ask takes presses before the Ask's overlay pin."""
     source = leaf_page(
         "A slotted Ask",
-        '<h1>Reading region</h1><div id="reader-host">'
+        '<div><h1>Reading region</h1><div id="reader-host">'
         '<lf-ask id="slotted-ask">'
         "<h3>Which channel?</h3>"
         '<button id="ask-help" style="position:absolute; top:0; right:0; '
         'width:120px; height:44px">Explain channels</button>'
         '<lf-options id="channel" choose><lf-option id="email">Email</lf-option>'
-        '<lf-option id="chat">Chat</lf-option></lf-options></lf-ask></div>',
+        '<lf-option id="chat">Chat</lf-option></lf-options></lf-ask></div></div>',
         head="<style>#slotted-ask { position:relative; height:180px; margin:0; }</style>",
-        layout="wide",
+        layout="sidebar",
     )
     page = open_page(browser, serve(source))
     page.evaluate("""async () => {

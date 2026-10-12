@@ -281,8 +281,6 @@ def task_error(
             return element_error(subject["id"])
         return None
     if kind == "start":
-        if error := start_line_error(event["text"]):
-            return error
         item = event["item"]
         if item in owed or any(task["id"] == item for task in log.owed):
             return None
@@ -349,13 +347,6 @@ def cmd_open(page_dir: Path, subject: str, title: str, owner: str) -> dict:
                     f"{subject!r} names no widget or element on this page; "
                     f"`{PAGE_SUBJECT}` names the page as a whole"
                 )
-            if named["kind"] == "thread":
-                raise Refused(
-                    f"{subject!r} is in a thread, where a reply asks the user "
-                    "(`--ask`) or promises your work (`--todo <title>`): "
-                    "`leaf response reply <answer.ref>`, or `leaf thread reply "
-                    "<page> <thread>` when no answer is owed"
-                )
             record, _ = append_admitted(
                 page,
                 {
@@ -370,18 +361,6 @@ def cmd_open(page_dir: Path, subject: str, title: str, owner: str) -> dict:
             return record
 
     return write(page_dir)
-
-
-def start_line_error(text: str) -> str | None:
-    """Why `text` cannot be a start's line, or None. The banner's dot already says
-    the agent is working; the line is the whole of what a start adds, and one
-    sentence is what the banner has room for."""
-    if not text.strip() or "\n" in text or "\r" in text:
-        return (
-            "a start's line names the work and its subject in one sentence, such as "
-            '"running the browser suite against the new banner"'
-        )
-    return None
 
 
 def take_in_hand(page, item: str, text: str, identity: dict) -> dict:
@@ -425,9 +404,6 @@ def cmd_start(page_dir: Path, item: str, text: str) -> dict:
     from .leases import contract_writer
     from .revisioning import activate_source
     from .service import PageTransaction
-
-    if error := start_line_error(text):
-        raise Refused(error)
 
     @contract_writer
     def write(page_dir: Path) -> dict:

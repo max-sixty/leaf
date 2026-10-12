@@ -21,6 +21,24 @@ turn. It observes the user's turns and Leaf delivery turns alike. Losing the
 connection disconnects the folds; reconnecting reconciles them with the provider's
 transcript, because a terminal task keeps running after this adapter disconnects.
 
+The adapter holds the task's wait lease and a lease of its own, since a generic wait
+lease cannot prove its output can enter a later Codex turn. Over App Server, a delivery
+start first resumes the task for fresh idle evidence; cached activity only holds an
+offer back. `TaskConnection` owns what an uncertain start and a dropped connection
+leave behind.
+
+Recovery reads the full, paginated provider history, because a summary or an unloaded
+item can neither settle an answer nor prove absence. Accepted or abandoned deliveries
+without a successful exact reply hydrate from it too, even when the first resume omits
+their turns or the user resolved the thread. When complete history and a fresh idle
+reading show no matching delivery, Leaf abandons its own attempt, releases its reply
+reservation, and reports that the delivery could not be confirmed and is not retried, without
+claiming that a provider turn failed (`codex.abandon_uncertain_delivery`). A manual
+reply retires an unknown offer through receipt recovery, even while disconnected. Only
+a start or the task's exact offered delivery introduces live authority, and an ordinary
+item notification updates only a fold matching the subscription's epoch. The
+interactive client continues to handle approvals and user-input requests.
+
 `codex.py` owns the protocol, the per-turn fold every App Server client runs, the
 delivery records, and the page writers both transports share. What is here is the
 process around them.
@@ -51,8 +69,8 @@ from .codex import (
     app_server_delivery_id,
     app_server_handshake,
     app_server_request,
+    app_server_socket_path,
     append_batch,
-    check_app_server_endpoint,
     delivery_records,
     delivery_stream_reply_target,
     offer_delivery,
@@ -141,9 +159,16 @@ class TaskConnection:
     binds the returned turn, then replays them in arrival order. Every provider
     turn has one fold, whether the user or Leaf started it.
 
-    A dropped connection is unknown provider state, never a failed turn. Resuming
-    reconciles running and completed turns from their exact delivery identities.
-    A persisted starting offer is never blindly repeated after an uncertain send.
+    A delivery record is marked `starting` before its request goes out. A start
+    whose response is lost is never sent blindly again, even after a restart or
+    with no reply reservation; a rejected stale snapshot never marks the
+    observer running. A dropped connection is unknown provider state, never a
+    failed turn: it disconnects the turn's reply and clears live activity without
+    inventing an ending or releasing a running turn's reservation. A later
+    provider completion settles that turn, and a later session turn withdraws its
+    reply reservation, so an explicit reply wins over a recovered final message.
+    Resuming reconciles running and completed turns from their exact delivery
+    identities.
     Live provider observations adopt the subscription's lifecycle token before
     fold selection. A resume response uses its pre-request token, so intervening
     notifications or a newer prompt win; exact historical answers settle without
@@ -154,7 +179,6 @@ class TaskConnection:
     """
 
     def __init__(self, endpoint: str, thread_id: str):
-        check_app_server_endpoint(endpoint)
         self.endpoint = endpoint
         self.thread_id = thread_id
         self.turns: dict[str, TurnFold] = {}
@@ -775,7 +799,7 @@ def _offer_queued_delivery(
         return False
     if connection is not None:
         return connection.start_delivery(prepared.payload)
-    # The embedded client reserves its reply seat independently of adapter intent.
+    # The embedded client makes its own reply reservation, whatever the adapter intends.
     # Read it outside the delivery lock: capture takes a page transaction first.
     target = stream_reply_target(prepared.payload)
     if target is not None and delivery_reply_reserved(
@@ -933,7 +957,7 @@ def preparing_adapter(
     session_id = harness.session
     app_server = app_server or os.environ.get(APP_SERVER_ENV)
     if app_server is not None:
-        check_app_server_endpoint(app_server)
+        app_server_socket_path(app_server)
     launch_lock = adapter_start_lock_path(session_id)
     with flocked(launch_lock):
         record = _running_adapter(session_id)

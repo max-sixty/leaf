@@ -44,13 +44,7 @@ function render(host, { tabStore, offer, keeps }) {
         min = Number(control.getAttribute("min"));
       const max = Number(control.getAttribute("max")),
         step = Number(control.getAttribute("step") ?? "1");
-      if (
-        ![value, min, max, step].every(Number.isFinite) ||
-        min >= max ||
-        step <= 0 ||
-        value < min ||
-        value > max
-      )
+      if (!Number.isFinite(value) || min >= max || value < min || value > max)
         throw new Error(`control ${name} has a value outside its range`);
       if (Math.abs((value - min) / step - Math.round((value - min) / step)) > 1e-9)
         throw new Error(`control ${name} has a value off its step`);

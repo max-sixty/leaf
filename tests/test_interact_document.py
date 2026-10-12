@@ -75,6 +75,8 @@ from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
 from leaf.refusals import Refused
+from leaf.registry.contract import RANK, detail_schema
+from leaf.registry.schema import schema_error
 from leaf.registry.storage import read_page_registry, require_registry
 from leaf.render_gate import readings as render_gate_readings
 from leaf.served_state.context import read_page
@@ -949,12 +951,18 @@ def test_rank_rules_match_the_browser_cases():
     """`tests/runtime/board-order.test.mjs` reads the same cases against
     `projection/model.js`, so the two runtimes rank authored units alike and the
     append door admits what a widget computes."""
-    assert projection_model.RANK.pattern == RANK_CASES["pattern"]
+    assert RANK == RANK_CASES["pattern"]
     for index, rank in RANK_CASES["authored"]:
         assert projection_model.authored_rank(index) == rank
-        assert projection_model.RANK.fullmatch(rank)
-    assert all(projection_model.RANK.fullmatch(r) for r in RANK_CASES["valid"])
-    assert not any(projection_model.RANK.fullmatch(r) for r in RANK_CASES["invalid"])
+        assert re.fullmatch(RANK, rank)
+    assert all(re.fullmatch(RANK, r) for r in RANK_CASES["valid"])
+    assert not any(re.fullmatch(RANK, r) for r in RANK_CASES["invalid"])
+    # The append door reads the rank through the detail schema, whose `pattern`
+    # searches rather than fully matches, so it must refuse the same cases.
+    board = model_layer()["lf-board"]
+    rank = detail_schema(board, board["x-state"]["move"])["properties"]["rank"]
+    assert not any(schema_error(rank, r) is None for r in RANK_CASES["invalid"])
+    assert all(schema_error(rank, r) is None for r in RANK_CASES["valid"])
 
 
 @pytest.mark.parametrize(
@@ -1806,20 +1814,6 @@ def test_suggestion_resolves_accepts_a_real_comment(page_dir):
     markup = '<lf-suggestion id="sug-a" resolves="c1"><lf-new><p>x</p></lf-new></lf-suggestion>'
     (page_dir / "index.html").write_text(before_choice(PAGE, markup))
     assert check(page_dir).exit_code == 0
-
-
-def test_suggestion_resolves_a_thread_whose_opening_comment_was_lost(page_dir):
-    """`resolves` names a thread by its id, which is the page state's `threads[].id`.
-    A torn line can lose the comment that opened a thread while its reply survives,
-    and the thread keeps the lost comment's id, so the suggestion an agent writes
-    from that id validates."""
-    append_carried_log_record(
-        page_dir,
-        {"kind": "reply", "author": "agent", "parent": "c0ffee", "text": "kept"},
-    )
-    markup = '<lf-suggestion id="sug-a" resolves="c0ffee"><lf-new><p>x</p></lf-new></lf-suggestion>'
-    (page_dir / "index.html").write_text(before_choice(PAGE, markup))
-    assert check(page_dir).exit_code == 0, check(page_dir).output
 
 
 def test_revising_suggestion_markup_preserves_its_recorded_answer(page_dir):
@@ -3374,31 +3368,6 @@ def test_the_manifest_reads_the_diff_patch_table(case):
     else:
         with pytest.raises(ValueError, match=re.escape(case["manifest"])):
             patch_manifest(case["patch"])
-
-
-def test_data_set_names_the_producer_when_nothing_arrives(page_dir, tmp_path):
-    """A producer that refuses its input writes nothing, and `data set` downstream
-    of it says so, pointing back at the producer's error rather than adding a JSON
-    parse error of its own. Nothing is stored."""
-    declare_data_input(page_dir, "builds", {"type": "object"}, contract="build-map")
-    empty = tmp_path / "builds.json"
-    empty.write_text("\n")
-
-    piped = CliRunner().invoke(
-        cli_model.cli, ["data", "set", str(page_dir), "builds"], input=""
-    )
-    filed = CliRunner().invoke(
-        cli_model.cli, ["data", "set", str(page_dir), "builds", "--file", str(empty)]
-    )
-
-    assert piped.exit_code == 1
-    assert piped.output == (
-        "Error: no value arrived on stdin; if a command piped into this one, it "
-        "likely failed, and its error above says why\n"
-    )
-    assert filed.exit_code == 1
-    assert f"{empty} is empty" in filed.output
-    assert "builds" not in read_page_data(page_dir)["sources"]
 
 
 def test_data_set_reads_a_structured_value_from_a_file(page_dir, tmp_path):

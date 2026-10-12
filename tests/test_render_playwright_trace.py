@@ -78,7 +78,6 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
         leaf_page(
             "Release journey",
             '<h1>Release review</h1><lf-trace id="journey" source="release-trace"></lf-trace>',
-            layout="wide",
         ),
         packages=("playwright",),
     )
@@ -972,8 +971,7 @@ def test_trace_bookmarks_jump_to_exact_evidence_in_page_flow(browser, serve):
     assert phone.evaluate("document.documentElement.scrollWidth <= innerWidth")
 
 
-LANDED_ROW = """async () => {
-  const {landingBand} = await window.__lfRuntimeImport('/runtime/geometry.js');
+STILL = """
   const tree = document.querySelector('#journey .lf-trace-tree');
   // Every scroller stands still for a while, so a late restore has had its turn.
   const where = () => [scrollY, tree.scrollTop].join();
@@ -983,6 +981,13 @@ LANDED_ROW = """async () => {
     still = now === last ? still + 1 : 0;
     last = now;
   }
+"""
+STILL_TREE = f"async () => {{ {STILL} return tree.scrollTop; }}"
+LANDED_ROW = (
+    "async () => {"
+    + STILL
+    + """
+  const {landingBand} = await window.__lfRuntimeImport('/runtime/geometry.js');
   const rows = tree.querySelectorAll('.lf-trace-node');
   const row = rows[rows.length - 1].getBoundingClientRect();
   const box = tree.getBoundingClientRect();
@@ -991,22 +996,15 @@ LANDED_ROW = """async () => {
   const bottom = Math.min(band.bottom, box.top + tree.clientTop + tree.clientHeight);
   return {open: tree.open, row: [row.top, row.bottom], shown: [top, bottom]};
 }"""
+)
 
 
-@pytest.mark.parametrize("motion", ["no-preference", "reduce"])
-def test_trace_moment_lands_its_saved_element_over_the_trees_reading(
-    browser, serve, motion
-):
-    """A Moment naming a saved element shows its row in the tree and the page.
+def scrolled_closed_tree(browser, serve, motion):
+    """A trace whose checkpoint's tree the reader scrolled, then closed.
 
-    The reader scrolled this checkpoint's tree and closed it, so opening the tree
-    has a reading to restore: lf-trace's own place for the checkpoint, and the
-    continuity reading of the region the opening hands from the point inspector to
-    the tree. The Moment's landing is newer than both and stands. Its checkpoint is
-    already shown, so no image decode delays the landing past either restore; that
-    delay is what let this pass on some runs. Smooth motion is cut short by any
-    later scroll write, so both motions run. A row inside the window but below the
-    tree's own box is not shown either.
+    Opening the tree hands its reading region from the point inspector to the tree's
+    own scroller, so the opening is a shift with a reading of the tree to restore.
+    Returns the reader's page, the trace widget, and where the reader left the tree.
     """
     source = ROOT / "examples/developer/playwright-trace-gallery.data.json"
     record = json.loads(source.read_text())["release-journey"]
@@ -1056,30 +1054,114 @@ def test_trace_moment_lands_its_saved_element_over_the_trees_reading(
     user.mouse.wheel(0, 40)
     user.wait_for_function("document.querySelector('#journey details').scrollTop > 0")
     rendered(user)
+    place = user.evaluate(STILL_TREE)
     summary.click()
     expect(tree).not_to_have_attribute("open", "")
     rendered(user)
-    saved = moments.get_by_role("button", name=re.compile("Saved element"))
+    return user, widget, place
+
+
+def assert_row_shown(landed):
+    (top, bottom), (shown_top, shown_bottom) = landed["row"], landed["shown"]
+    assert shown_top - 1 <= top and bottom <= shown_bottom + 1, landed
+
+
+@pytest.mark.parametrize("motion", ["no-preference", "reduce"])
+def test_trace_moment_lands_its_saved_element_over_the_trees_reading(
+    browser, serve, motion
+):
+    """A Moment naming a saved element shows its row in the tree and the page.
+
+    The reader scrolled this checkpoint's tree and closed it, so opening the tree
+    has a reading to restore. The Moment's landing is newer and stands. Its
+    checkpoint is already shown, so no image decode delays the landing past the
+    restore; that delay is what let this pass on some runs. Smooth motion is cut
+    short by any later scroll write, so both motions run. A row inside the window
+    but below the tree's own box is not shown either.
+    """
+    user, widget, _ = scrolled_closed_tree(browser, serve, motion)
+    saved = widget.locator(".lf-trace-bookmarks").get_by_role(
+        "button", name=re.compile("Saved element")
+    )
     saved.click()
     landed = user.evaluate(LANDED_ROW)
     assert landed["open"]
-    (top, bottom), (shown_top, shown_bottom) = landed["row"], landed["shown"]
-    assert shown_top - 1 <= top and bottom <= shown_bottom + 1, landed
+    assert_row_shown(landed)
 
     # The open tree back at its start, its top near the window's: the row is
     # inside the window, below what the tree shows.
     user.set_viewport_size({"width": 1280, "height": 900})
     rendered(user)
-    tree.evaluate(
+    widget.locator(".lf-trace-tree").evaluate(
         "tree => { tree.scrollTop = 0;"
         " scrollBy(0, tree.getBoundingClientRect().top - 120); }"
     )
     rendered(user)
     saved.evaluate("button => button.click()")
     landed = user.evaluate(LANDED_ROW)
-    context.close()
-    (top, bottom), (shown_top, shown_bottom) = landed["row"], landed["shown"]
-    assert shown_top - 1 <= top and bottom <= shown_bottom + 1, landed
+    user.context.close()
+    assert_row_shown(landed)
+
+
+def test_trace_tree_opened_by_the_browser_keeps_its_match(browser, serve):
+    """The browser's own opening of a closed tree onto a row keeps that row shown.
+
+    Find-in-page opens a closed disclosure onto its match and scrolls the match into
+    view itself, in one task and through no landing of Leaf's. That scroll is the
+    reader's, and the shift the opening announces a frame later must not return the
+    tree to where the reader left it. Headless Chrome has no find bar, and Leaf
+    intercepts a fragment navigation to travel there itself, so the page makes the
+    find's two moves: it opens the tree and scrolls the row into view natively.
+    """
+    user, widget, _ = scrolled_closed_tree(browser, serve, "reduce")
+    # The reader goes back to reading the page, which takes focus off the summary.
+    user.get_by_text("Review note 0 on").click()
+    rendered(user)
+    widget.locator(".lf-trace-node").last.evaluate(
+        "row => { row.closest('details').open = true;"
+        " row.scrollIntoView({block: 'nearest'}); }"
+    )
+    landed = user.evaluate(LANDED_ROW)
+    user.context.close()
+    assert landed["open"]
+    assert_row_shown(landed)
+
+
+def test_trace_tree_opens_at_each_checkpoints_reading(browser, serve):
+    """Opening the tree returns the reader to where they left this checkpoint's tree.
+
+    One scroll box shows every checkpoint's tree, and keeps the offset of whichever it
+    showed last; the reader's place is each checkpoint's own. Here they leave the After
+    tree scrolled and the Action tree at its end, the tree closed between, and open it
+    again on the After checkpoint.
+    """
+    user, widget, place = scrolled_closed_tree(browser, serve, "reduce")
+    tree = widget.locator(".lf-trace-tree")
+    summary = tree.locator("summary")
+    phase = widget.locator(".lf-trace-phase")
+    timeline = widget.get_by_role("group", name="Recording timeline", exact=True)
+    timeline.focus()
+    timeline.press("ArrowLeft")
+    expect(widget.locator(".lf-trace-tree-clock")).to_contain_text("Action checkpoint")
+    summary.click()
+    expect(tree).to_have_attribute("open", "")
+    tree.hover()
+    user.mouse.wheel(0, 2000)
+    user.wait_for_function(
+        "(place) => document.querySelector('#journey details').scrollTop > place",
+        arg=place,
+    )
+    rendered(user)
+    summary.click()
+    expect(tree).not_to_have_attribute("open", "")
+    timeline.focus()
+    timeline.press("ArrowRight")
+    expect(phase).to_contain_text("After checkpoint")
+    summary.click()
+    expect(tree).to_have_attribute("open", "")
+    opened = user.evaluate(STILL_TREE)
+    user.context.close()
+    assert opened == pytest.approx(place, abs=1)
 
 
 def test_trace_comparison_pairs_authored_results_across_delayed_sources(browser, serve):
@@ -1105,7 +1187,6 @@ def test_trace_comparison_pairs_authored_results_across_delayed_sources(browser,
         leaf_page(
             "Matched results",
             f'<h1>Matched results</h1><lf-trace-compare id="feeds">{viewers}</lf-trace-compare>',
-            layout="wide",
         ),
         packages=("playwright",),
         media=media,
@@ -2111,7 +2192,6 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
         leaf_page(
             "Dense trace review",
             f'<h1>Dense trace review</h1><lf-trace id="journey" source="dense-trace">{members}</lf-trace>',
-            layout="wide",
         ),
         packages=("playwright",),
         media=media,
@@ -2306,7 +2386,6 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
             "Numbered trace moments",
             f'<h1>Numbered trace moments</h1><lf-trace id="journey" source="numbered-trace">{members}</lf-trace>'
             f'<lf-sample id="quoted-recording" label="Recording example"><lf-trace id="quoted-journey" source="numbered-trace">{members}</lf-trace></lf-sample>',
-            layout="wide",
         ),
         packages=("playwright",),
         media=media,
@@ -2450,7 +2529,6 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
         leaf_page(
             "Recording boundary",
             f'<h1>Recording boundary</h1><lf-trace id="boundary" source="boundary-trace">{boundary_members}</lf-trace>',
-            layout="wide",
         ),
         packages=("playwright",),
     )
@@ -3095,7 +3173,6 @@ def test_trace_images_stand_at_their_own_capture_times(browser, serve):
         leaf_page(
             "Capture times",
             '<h1>Capture times</h1><lf-trace id="journey" source="timed-trace"></lf-trace>',
-            layout="wide",
         ),
         packages=("playwright",),
         media=media,

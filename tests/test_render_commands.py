@@ -26,7 +26,6 @@ from leaf.render_gate.page_code import run_page_code
 from playwright.sync_api import expect
 from render_cases_layout import (
     BADGE_CHROME,
-    PAINTED_IN_SILENCE_PAGE,
     SHORT_CHIP_PAGE,
     SHOT_PAGE,
     SHOT_SRC,
@@ -667,7 +666,6 @@ def test_a_wide_shot_owns_comparison_actions_in_its_native_rail(browser, serve, 
         "Inspect captured controls",
         '<h1>Inspect captured controls</h1><div style="overflow-x:auto;inline-size:100%">'
         f'<div style="inline-size:1280px;max-inline-size:none">{shot}</div></div>',
-        layout="wide",
     )
     page = open_page(
         browser,
@@ -1410,8 +1408,8 @@ def stage_reach_cases(page):
     )
 
 
-def test_render_reads_painted_facts_and_widget_chrome_where_they_stand(
-    browser, serve, tmp_path, monkeypatch, declared_reading_package
+def test_render_reads_widget_chrome_where_it_stands(
+    browser, serve, tmp_path, monkeypatch
 ):
     """The user's reading of a page, on one page.
 
@@ -1425,19 +1423,6 @@ def test_render_reads_painted_facts_and_widget_chrome_where_they_stand(
     silence available in every root, and the same word shown is still reported. A
     visible control and an otherwise identical one below an unscrollable clip keep the
     control-reachability reading non-vacuous.
-
-    The x-paints half, and the line it draws between two silences. A widget may paint
-    a fact — `state="failure"` is a visual state and no text node — and it owes a user
-    who is listening the same fact in words. The runtime writes that word, so what is
-    left to check is whether anything drew it. Asking is asking for a box, and only an
-    element that is being laid out has one to give: a disclosure nobody opened lays
-    out nothing, and its emptiness is the ancestor's answer rather than the widget's.
-    So a word drawn nowhere on a page that is on screen is reported, and the same
-    widget behind a fold is not, there being nothing to measure and the fold being the
-    user's to open. The other silence — a word the runtime never wrote — no fixture
-    can stage: `quietFacts` returns the attribute's own value or its name, so a
-    declared paint always gets its word, and the branch is reachable only by a
-    regression in `renderQuiet` itself, which the corpus holds.
 
     The chrome half, asked where the nesting turns over. A widget's chrome is a
     `.lf-ui` the widget put inside itself. A widget in a message is the other way up:
@@ -1466,8 +1451,6 @@ def test_render_reads_painted_facts_and_widget_chrome_where_they_stand(
             "      if (!once(this)) return;\n" + BADGE_CHROME,
         )
     )
-    start = PAINTED_IN_SILENCE_PAGE.index('<div id="open-group">')
-    painted = PAINTED_IN_SILENCE_PAGE[start : PAINTED_IN_SILENCE_PAGE.index("</main>")]
     narrow = solid_png(400, 300, (235, 215, 205))
     narrow_src = f"/media/{hashlib.sha256(narrow).hexdigest()[:16]}.png"
     pair = (
@@ -1478,12 +1461,10 @@ def test_render_reads_painted_facts_and_widget_chrome_where_they_stand(
     )
     start = CARRIED_PAGE.index('<lf-options id="carried">')
     carried = CARRIED_PAGE[start : CARRIED_PAGE.index("</lf-options>") + 13]
-    source = REPLY_HOST_PAGE.replace(
-        "</main>", carried + painted + pair + "</main>"
-    ).replace("</head>", "<style>.lf-quiet { display: none }</style></head>")
+    source = REPLY_HOST_PAGE.replace("</main>", carried + pair + "</main>")
     url = serve(
         source,
-        packages=(*EXAMPLE_PACKAGES, declared_reading_package),
+        packages=(*EXAMPLE_PACKAGES, "./.leaf"),
         media={
             **{SHOT_SRC[name]: data for name, data in SHOTS.items()},
             narrow_src: narrow,
@@ -1566,10 +1547,6 @@ def test_render_reads_painted_facts_and_widget_chrome_where_they_stand(
         (
             '<lf-option id=c-lax> puts "opens in a new tab" under .lf-ui, where no '
             "comment can reach it"
-        ),
-        (
-            '<lf-reading id=p-seen> paints state="failure" and says nothing a user '
-            "listening can hear"
         ),
     ], found
 

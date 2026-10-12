@@ -323,7 +323,7 @@ def test_a_bounded_document_reader_chains_wheel_at_its_edge(browser, serve, capt
 def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fit(
     browser, serve
 ):
-    """The workspace Layout takes the whole window, wider than the wide page's capped
+    """The workspace Layout takes the whole window, wider than a sidebar page's capped
     frame, and its height below the banner: each pane's body scrolls on its own. Its
     header is one row, the title with the status beside it, so the panes keep the
     window. A window too short to hold it hands the scroll to the page."""
@@ -337,7 +337,7 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     declared = open_page(
         browser,
         serve(
-            WORKSPACE_PAGE.replace('class="layout-workspace"', 'class="layout-wide"')
+            WORKSPACE_PAGE.replace('class="layout-workspace"', 'class="layout-sidebar"')
         ),
     )
     resized(declared, 1920, 720)
@@ -1078,10 +1078,10 @@ def test_back_to_a_fragment_the_page_has_hidden_since_lands_on_it(browser, serve
 
 
 def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
-    """Page tabs are sections of one page: on a wide page the header, the strip and the
-    open panel share main's left edge and the panel takes main's width."""
+    """Page tabs are sections of one page: on a sidebar page the header, the strip and
+    the open panel share main's left edge and the panel takes main's width."""
     source = ROOT_TABS_PAGE.read_text().replace(
-        '<main class="layout-column">', '<main class="layout-wide">', 1
+        '<main class="layout-column">', '<main class="layout-sidebar">', 1
     )
     page = open_page(browser, serve(source))
     resized(page, 1440, 900)
@@ -1114,7 +1114,7 @@ def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
     assert boxes["title"]["left"] == boxes["content"]["left"], boxes
 
 
-@pytest.mark.parametrize("layout", ["column", "wide", "workspace"])
+@pytest.mark.parametrize("layout", ["column", "sidebar", "workspace"])
 def test_wide_evidence_in_a_page_tab_takes_the_room_it_would_outside_one(
     browser, serve, layout
 ):
@@ -1122,24 +1122,35 @@ def test_wide_evidence_in_a_page_tab_takes_the_room_it_would_outside_one(
     open panel takes the box and the column widths its twin outside the set takes: at
     first paint, before the runtime has drawn the strip, then at a desktop window, with
     the thread panel open over it, and on a phone. A boxed set's panel draws a frame,
-    so the same table there stays inside it."""
+    so the same table there stays inside it. Each table has twelve columns, so on a
+    column page, where a table granted room takes what its columns need, it needs the
+    room."""
 
     def tables(where):
+        heads = "".join(f"<th>Case {i}</th>" for i in range(12))
+        cells = "<td>Result</td>" * 12
         return "".join(
-            f'<table id="{where}-{space}" data-width="{space}"><thead><tr><th>Case</th>'
-            "<th>Result</th></tr></thead><tbody><tr><td>One</td><td>Two</td></tr>"
-            "</tbody></table>"
+            f'<table id="{where}-{space}" data-width="{space}"><thead><tr>{heads}'
+            f"</tr></thead><tbody><tr>{cells}</tr></tbody></table>"
             for space in ("wide", "available")
         )
 
-    source = leaf_page(
-        "Evidence in page tabs",
+    content = (
         f'<h1 id="t">Evidence in page tabs</h1><p id="prose">Prose.</p>{tables("out")}'
         f'<lf-tabs id="root-tabs"><lf-tab id="compare" label="Compare">{tables("in")}'
         '</lf-tab><lf-tab id="notes" label="Notes"><p>Notes.</p></lf-tab></lf-tabs>'
         f'<section><lf-tabs id="boxed"><lf-tab id="boxed-open" label="Boxed">{tables("boxed")}'
         '</lf-tab><lf-tab id="boxed-other" label="Other"><p>Other.</p></lf-tab></lf-tabs>'
-        "</section>",
+        "</section>"
+    )
+    # A sidebar page with no aside holds one flow: the page's own CSS gives each block
+    # the row, and the tab set stays root, a direct child of main.
+    source = leaf_page(
+        "Evidence in page tabs",
+        content,
+        head="<style>main > * { flex-basis: 100%; }</style>"
+        if layout == "sidebar"
+        else "",
         layout=layout,
     )
     boot = []
@@ -11299,17 +11310,25 @@ DIFF_FORMS = (
 
 
 def test_a_diff_refresh_keeps_a_selection_in_unchanged_lines(browser, serve):
-    """A change in another hunk does not take the passage the reader selected: a raw
-    patch whose change inserts a line, and a manifest whose change does not."""
+    """A change in another hunk does not take the passage the reader selected, in a
+    raw patch and in a manifest: a change in place, one that inserts a line, and a hunk
+    added before the kept lines, which moves them down the listing while each keeps its
+    own gutter row."""
     url = two_diff_page(serve)
     for _, source, value in DIFF_FORMS:
         data_model.cmd_data_set(serve.page_dir, source, value(MULTI_HUNK_PATCH))
     page = open_page(browser, url)
-    for (diff, source, value), inserts_line in zip(DIFF_FORMS, (True, False)):
-        diff_refresh_keeps_selection(page, serve, diff, source, value, inserts_line)
+    patch, manifest = DIFF_FORMS
+    for (diff, source, value), edit in (
+        (patch, "inserted-line"),
+        (manifest, "in-place"),
+        (patch, "earlier-hunk"),
+        (manifest, "earlier-hunk"),
+    ):
+        diff_refresh_keeps_selection(page, serve, diff, source, value, edit)
 
 
-def diff_refresh_keeps_selection(page, serve, diff, source, value, inserts_line):
+def diff_refresh_keeps_selection(page, serve, diff, source, value, edit):
     """Select a word in an unchanged line of `diff`, change another hunk of `source`,
     and find the selection and every row's gutter pairing intact."""
     row = page.locator(f'{diff} [data-lf-datum=\'["app/handlers.py","new",41]\']')
@@ -11329,7 +11348,13 @@ def diff_refresh_keeps_selection(page, serve, diff, source, value, inserts_line)
     before = page.evaluate("() => getSelection().toString()")
     assert before == "second"
     patch = MULTI_HUNK_PATCH.replace("new first", "new beginning")
-    if inserts_line:
+    if edit == "earlier-hunk":
+        patch = patch.replace(
+            "@@ -40,5",
+            '@@ -20,2 +20,2 @@\n def line_20():\n-    return "old"\n+    return "new"\n'
+            "@@ -40,5",
+        )
+    if edit == "inserted-line":
         patch = patch.replace("@@ -1,5 +1,5 @@", "@@ -1,5 +1,6 @@").replace(
             '+    return "new beginning"\n',
             '+    return "new beginning"\n+    inserted = True\n',
@@ -11391,25 +11416,35 @@ def test_a_closed_diff_file_reads_current_evidence_across_source_forms(browser, 
         assert code.evaluate("node => node.scrollLeft") == 200, words
 
 
-def test_a_diff_recovers_when_a_failed_manifest_file_is_repaired(browser, serve):
-    """A failed render cannot authorize reuse of the evidence its error removed."""
+def test_a_diff_recovers_from_each_failure_on_the_next_good_source(browser, serve):
+    """A diff shows each failure, a failed file's or the whole patch's, where the reader
+    is looking, inside its shadow stage, and the next good source replaces it. A failed
+    render cannot authorize reuse of the evidence its error removed."""
     url = serve(LONG_LINE_DIFF_PAGE)
     good = patch_manifest(MULTI_HUNK_PATCH)
     data_model.cmd_data_set(serve.page_dir, "review-patch", good)
     page = open_page(browser, url)
-    bad = patch_manifest(MULTI_HUNK_PATCH)
-    bad["files"][0]["patch"] = "invalid diff"
-    data_model.cmd_data_set(serve.page_dir, "review-patch", bad)
-    told(page)
-    rendered(page)
-    expect(page.locator("lf-diff .lf-error")).to_be_visible()
-    data_model.cmd_data_set(serve.page_dir, "review-patch", good)
-    told(page)
-    rendered(page)
-    expect(page.locator("lf-diff .lf-error")).to_have_count(0)
-    expect(
-        page.locator('lf-diff [data-lf-datum=\'["app/handlers.py","new",2]\']')
-    ).to_contain_text("new first")
+    failed_file = patch_manifest(MULTI_HUNK_PATCH)
+    failed_file["files"][0]["patch"] = "invalid diff"
+    repeated_path = MULTI_HUNK_PATCH + MULTI_HUNK_PATCH
+    error = page.locator("lf-diff .lf-error")
+    for bad in (failed_file, repeated_path, repeated_path):
+        data_model.cmd_data_set(serve.page_dir, "review-patch", bad)
+        told(page)
+        rendered(page)
+        expect(error).to_have_count(1)
+        expect(error).to_be_visible()
+        # Dressed as the failure box in the document is, not as plain text.
+        expect(error).to_have_css("border-top-style", "solid")
+        data_model.cmd_data_set(serve.page_dir, "review-patch", good)
+        told(page)
+        rendered(page)
+        expect(error).to_have_count(0)
+        expect(
+            page.locator('lf-diff [data-lf-datum=\'["app/handlers.py","new",2]\']')
+        ).to_contain_text("new first")
+    errors = consume_browser_errors(page, "failed: unified diff repeats file path")
+    assert len(errors) == 2, errors
 
 
 def test_a_diff_file_keeps_focus_when_its_evidence_changes_kind(browser, serve):

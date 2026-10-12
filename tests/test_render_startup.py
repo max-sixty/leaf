@@ -413,9 +413,7 @@ def test_a_website_example_shows_its_public_session_reference(browser, serve):
     page.route("**/api/state*", identify)
     page.goto(url, wait_until="load")
     wait_until_ready(page)
-    expect(page.locator(".lf-banner .lf-status-detail")).not_to_contain_text(
-        "239383829012"
-    )
+    expect(page.locator(".lf-banner .lf-status-detail")).to_have_count(0)
     reference = page.locator(".lf-session-reference")
     expect(reference).not_to_be_visible()
     page.get_by_role("button", name="More page controls", exact=True).click()
@@ -942,7 +940,13 @@ def test_a_restored_auxiliary_surface_leaves_the_page_where_it_painted(
             + content
             + "</template></lf-sample>"
         )
-    url = serve(leaf_page("Restored surface", content, layout="wide" if wide else None))
+    url = serve(
+        leaf_page(
+            "Restored surface",
+            f"<div>{content}</div>" if wide else content,
+            layout="sidebar" if wide else None,
+        )
+    )
     context = browser.new_context(viewport={"width": window, "height": 900})
     priming = context.new_page()
     priming.goto(url, wait_until="load")
@@ -1483,7 +1487,7 @@ def test_a_pane_registers_the_body_it_holds_across_moves_and_revisions(browser, 
     )
     result = page.evaluate(
         """async () => {
-          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const leaf = await window.__lfRuntimeImport('/runtime/reading-regions.js');
           const main = document.querySelector('main');
           const pane = document.querySelector('#moving-pane');
           const first = leaf.readingRegion('moving-pane')?.body.id;
@@ -2389,10 +2393,13 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     # replayed onto it, so what the press restores is the accept, not a blank slate.
     undo(page)
     expect(page.locator("#sug-fix")).to_have_attribute("data-lf-state", "accept")
-    # The undo is no gesture on the thread, so its card stays where it stands, holding
-    # the resolution behind its notice.
-    expect(reopened.get_by_role("button", name="Resolved", exact=True)).to_be_visible()
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
+    # The undo concerns this thread, so its resolved card leaves Open as the user's
+    # own move. Resolved still offers the conversation and its settled state.
+    expect(reopened).not_to_be_visible()
+    page.locator(".lf-thread-filter-toggle").click()
+    page.locator('[data-filter-value="resolved"]').click()
+    expect(reopened).to_have_attribute("data-resolved", "true")
     # What the log holds is the three gestures and not one word about the thread:
     # it was reopened and closed again by that log being read.
     assert [
@@ -5802,7 +5809,8 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
 def test_projection_subscriptions_follow_their_owner_and_cancel_queued_reads(
     browser, serve
 ):
-    """Refresh acquires clock work; retiring a read cannot revive that subscription."""
+    """Refresh acquires clock work; a return reads nothing unchanged, though its time
+    readings tick again; retiring a read cannot revive that subscription."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
     result = page.evaluate(
         """async () => {
@@ -5854,6 +5862,8 @@ def test_projection_subscriptions_follow_their_owner_and_cancel_queued_reads(
           await changed(() => document.body.append(owner));
           await Promise.resolve();
           const resumed = calls;
+          await tickClock(message => { throw new Error(message); });
+          const ticked = calls;
           stop.refresh();
           const refreshed = calls;
           stop();
@@ -5864,7 +5874,7 @@ def test_projection_subscriptions_follow_their_owner_and_cancel_queued_reads(
           await tickClock(message => { throw new Error(message); });
           owner.remove();
           return {cancelled, initial, untracked, subscribed, clocked,
-            moved, detached, resumed, refreshed, stopped: calls};
+            moved, detached, resumed, ticked, refreshed, stopped: calls};
         }"""
     )
     assert result == {
@@ -5875,10 +5885,116 @@ def test_projection_subscriptions_follow_their_owner_and_cancel_queued_reads(
         "clocked": 3,
         "moved": 3,
         "detached": 3,
-        "resumed": 4,
+        "resumed": 3,
+        "ticked": 4,
         "refreshed": 5,
         "stopped": 5,
     }
+
+
+def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_cut_the_paint(
+    browser, serve
+):
+    """A projection reading that failed stands across a departure and return, so the
+    author is told once, as a data subscriber's is; a paint the departure cut short is
+    owed again."""
+    page = open_page(browser, serve(SUGGESTION_PAGE))
+    result = page.evaluate(
+        """async () => {
+          const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const settle = () => new Promise((resolve) => setTimeout(resolve));
+          const owned = (id) => {
+            const owner = document.createElement('div');
+            owner.id = id;
+            document.body.append(owner);
+            return owner;
+          };
+          const leaveAndReturn = async (owner) => {
+            owner.remove();
+            await settle();
+            document.body.append(owner);
+            await settle();
+          };
+          const failed = {};
+          const stops = [];
+          for (const name of ['watchQuestions', 'watchReports', 'watchHistory']) {
+            const owner = owned(`failing-${name}`);
+            failed[name] = 0;
+            stops.push(api[name](owner, () => {
+              failed[name] += 1;
+              throw new Error(`${name} paint failed`);
+            }));
+            await settle();
+            await leaveAndReturn(owner);
+          }
+          const owner = owned('pending-paint');
+          let paints = 0;
+          let finish;
+          const finished = new Promise((resolve) => { finish = resolve; });
+          stops.push(api.watchQuestions(owner, () => {
+            paints += 1;
+            return finished;
+          }));
+          await settle();
+          await leaveAndReturn(owner);
+          const interrupted = paints;
+          finish();
+          await finished;
+          await leaveAndReturn(owner);
+          const kept = paints;
+          for (const stop of stops) stop();
+          return {failed, interrupted, kept};
+        }"""
+    )
+    assert result == {
+        "failed": {"watchQuestions": 1, "watchReports": 1, "watchHistory": 1},
+        "interrupted": 2,
+        "kept": 2,
+    }
+    errors = consume_browser_errors(page, "paint failed")
+    reported = sorted(error.splitlines()[0] for error in errors)
+    assert reported == sorted(
+        f"{prefix}Error: {name} paint failed"
+        for name in ["watchQuestions", "watchReports", "watchHistory"]
+        for prefix in ["", "leaf: "]
+    )
+
+
+def test_a_held_reading_shows_once_unseen_after_its_owner_returns(browser, serve):
+    """A widget's held reading waits for its growth to go unseen across a departure
+    and return, though the return draws nothing again."""
+    page = open_page(browser, serve(SUGGESTION_PAGE))
+    result = page.evaluate(
+        """async () => {
+          const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const settle = () => new Promise((resolve) => setTimeout(resolve));
+          const owner = document.createElement('div');
+          const region = document.createElement('p');
+          region.textContent = 'Rows';
+          owner.append(region);
+          document.body.prepend(owner);
+          let current = 'first';
+          let shown = null;
+          let watching;
+          const held = new api.HeldReading(owner, () => [region], () => watching.refresh());
+          watching = api.watchQuestions(owner, () => { shown = held.hold(current); });
+          await settle();
+          current = 'second';
+          watching.refresh();
+          const waiting = shown;
+          owner.remove();
+          await settle();
+          document.body.prepend(owner);
+          await settle();
+          region.hidden = true;
+          for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame);
+          await settle();
+          watching();
+          owner.remove();
+          return {waiting, shown};
+        }"""
+    )
+    assert result == {"waiting": "first", "shown": "second"}
 
 
 def test_data_subscriptions_follow_their_owner_and_stop_permanently(browser, serve):
@@ -6592,7 +6708,7 @@ def test_page_thread_surface_owns_exact_source_elsewhere_in_main(browser, serve)
 
 
 def _hold_required_thread_panel(page):
-    """Hold actual required panel preparation without changing the semantic epoch."""
+    """Hold actual panel preparation without changing the semantic epoch."""
     page.evaluate("""async()=>{
       const [{createThreadPanelElements},{createThreadListController},
         {createThreadNarrowing},{threadList},app]=await Promise.all([
@@ -6614,7 +6730,7 @@ def _hold_required_thread_panel(page):
       let handle;
       const narrowing=createThreadNarrowing({view:elements.narrowingView,listRoot:elements.threadsBox,
         readThreads:threadList,ready:()=>true,repaint:()=>handle.update()});narrowing.mount();
-      handle=app.registerThreadPanel({controller,threadsBox:elements.threadsBox,required:true,view:{
+      handle=app.registerThreadPanel({controller,threadsBox:elements.threadsBox,view:{
         narrowing,panelIsOpen:()=>true,scrollToElement:()=>{},setThreadCounts:()=>{},onListChanged:()=>{},
         refreshAnchorHover:()=>{},travel:{showThread:()=>{},retainPanelLanding:()=>{},retainNarrowing:()=>{}}}});
       await app.refreshThread();

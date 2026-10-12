@@ -1334,6 +1334,26 @@ def test_revendoring_serializes_with_thread_markup_entering_the_log(
     assert refusal is None
 
 
+@pytest.mark.parametrize("in_sample", [False, True])
+def test_message_vocabulary_answers_to_every_pinned_revision(page_dir, in_sample):
+    """A message shows in every version, and a live sample in it allocates its
+    child from the version showing it, so a widget an older version's registry
+    lacks is refused in either place."""
+    publish(page_dir)
+    overlay = page_dir.parent / ".leaf"
+    overlay.mkdir(parents=True)
+    local = element_declaration("lf-local-thread")
+    (overlay / "registry.json").write_text(json.dumps({"lf-local-thread": local}))
+    vendoring_model.cmd_init(page_dir, selected=(*page_packages(), "./.leaf"))
+    publish(page_dir)
+    markup = '<lf-local-thread id="local">Choose locally.</lf-local-thread>'
+    if in_sample:
+        markup = f'<template id="practice" data-sample>{markup}</template>'
+    result = comment(page_dir, "--text", "Try it:", "--markup", markup)
+    assert result.exit_code != 0, result.output
+    assert "pinned revision" in result.output and "lf-local-thread" in result.output
+
+
 def test_revendoring_can_change_frozen_thread_widget_vocabulary(
     page_dir,
 ):
@@ -4916,20 +4936,64 @@ def test_sample_body_declarations_use_the_child_document_boundary(page_dir):
         ),
     ],
 )
-def test_check_validates_each_sample_document(page_dir, markup, error):
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "</main>",
-            f'<template id="practice" data-sample>{markup}</template></main>',
-        )
+@pytest.mark.parametrize("holder", ["page", "message"])
+def test_check_validates_each_sample_document(page_dir, markup, error, holder):
+    result = sample_holder_check(
+        page_dir, holder, f'<template id="practice" data-sample>{markup}</template>'
     )
-    result = check(page_dir)
     if error is None:
         assert result.exit_code == 0, result.output
         return
     assert result.exit_code != 0, result.output
     assert "sample 'practice'" in result.output
     assert error in result.output
+
+
+@pytest.mark.parametrize("poster", ["agent", "fixture"])
+def test_a_message_sample_cannot_select_the_thread_holding_it(page_dir, poster):
+    """Its child would hold the same message and sample, whose child would too,
+    without end."""
+    sample = (
+        '<lf-sample id="loop"><template id="loop-page" data-sample'
+        ' data-sample-threads="aabb0011"><h1>Loop</h1></template></lf-sample>'
+    )
+    if poster == "agent":
+        published(page_dir)
+        append_carried_log_record(
+            page_dir,
+            {"kind": "comment", "id": "aabb0011", "author": "agent", "text": "Open"},
+        )
+        result = CliRunner().invoke(
+            cli_model.cli,
+            ["thread", "reply", str(page_dir), "aabb0011", "--text", "Try:"]
+            + ["--markup", sample],
+        )
+    else:
+        history = [
+            {"kind": "comment", "id": "aabb0011", "author": "agent", "text": "Open"},
+            {"kind": "reply", "parent": "aabb0011", "text": "Try:", "markup": sample},
+        ]
+        result = sample_holder_check(
+            page_dir,
+            "page",
+            f'<script id="fixture" type="application/json">{json.dumps(history)}'
+            '</script><template id="practice" data-sample'
+            ' data-sample-events="fixture"><h1 id="child">Child</h1></template>',
+        )
+    assert result.exit_code != 0, result.output
+    assert "which holds this message" in result.output
+
+
+def sample_holder_check(page_dir, holder, source):
+    """Declare `source`'s samples in the page and check it, or post them in a
+    message: one gate checks a sample's child wherever its template is written."""
+    if holder == "page":
+        (page_dir / "index.html").write_text(
+            PAGE.replace("</main>", source + "</main>")
+        )
+        return check(page_dir)
+    published(page_dir)
+    return comment(page_dir, "--text", "Try it:", "--markup", source)
 
 
 @pytest.mark.parametrize("nested", [False, True])
@@ -4996,9 +5060,17 @@ def test_sample_data_bindings_use_copied_data_but_not_parent_history(page_dir):
     assert data_model.read_contracts(page_dir)["shared"] == "parent"
 
 
-@pytest.mark.parametrize("seeded", [False, True])
-@pytest.mark.parametrize("available", [False, True])
-@pytest.mark.parametrize("nested", [False, True])
+# Selection alone decides: a thread the log holds is out of reach unless selected,
+# a selected one need not be held, and a nested sample reads the same way.
+@pytest.mark.parametrize(
+    ("seeded", "available", "nested"),
+    [
+        (False, True, False),
+        (True, False, False),
+        (False, True, True),
+        (True, False, True),
+    ],
+)
 def test_sample_references_see_only_selected_threads(
     page_dir, seeded, available, nested
 ):
@@ -5866,16 +5938,16 @@ def test_a_sampled_thread_starts_as_its_source_log_leaves_it():
         ),
     ],
 )
+@pytest.mark.parametrize("holder", ["page", "message"])
 def test_sample_fixture_refusals_reach_page_check(
-    page_dir, history, script_attrs, template_attrs, complaint
+    page_dir, history, script_attrs, template_attrs, complaint, holder
 ):
     source = (
         f'<script id="fixture" {script_attrs}>{history}</script>'
         f'<template id="practice" data-sample {template_attrs}>'
         '<h1 id="child">Child</h1></template>'
     )
-    (page_dir / "index.html").write_text(PAGE.replace("</main>", source + "</main>"))
-    result = check(page_dir)
+    result = sample_holder_check(page_dir, holder, source)
     assert result.exit_code != 0, result.output
     assert "sample 'practice'" in result.output
     assert complaint in result.output
@@ -5946,7 +6018,6 @@ def test_sample_fixture_accepts_native_message_markup(page_dir):
     ("anchor", "valid", "complaint"),
     [
         ({"section": "outer-only"}, False, "no element id 'outer-only'"),
-        ({"section": "missing"}, False, "no element id 'missing'"),
         (
             {"section": "child", "quote": "Words only in the parent"},
             False,

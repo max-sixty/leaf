@@ -48,6 +48,7 @@ from interact_support import (
     declare_work,
     end_work,
     fetch,
+    fetch_hanging_up,
     fifo_writer,
     hold_status_read,
     install_payload,
@@ -8749,7 +8750,10 @@ def test_page_init_restarts_a_served_page_under_the_sessions_wait(
         with urllib.request.urlopen(state) as response:
             return response.headers["Leaf-Server"]
 
-    before = incarnation()
+    # The record names the serving incarnation, which its responses carry as
+    # `Leaf-Server`. Read the record rather than the server: a fetch the server
+    # closes leaves the port in TIME_WAIT, and the restart would wait that out.
+    before = server_model.running_server(page_dir)["server_id"]
     claim = service_model.page_claim(page_dir)
     generation = files_model.read_json(page_dir / "registry.json")["$layer"][
         "generation"
@@ -17012,7 +17016,7 @@ def test_init_restarts_a_served_page_onto_the_replacement_contract(
         "text": "Can the replacement route this?",
         "attempt": "replacement_route_1",
     }
-    status, body = fetch(endpoint, data=json.dumps(comment).encode(), token=None)
+    status, body = fetch_hanging_up(endpoint, json.dumps(comment).encode())
     assert status == 200, body
 
     project_layer = page_dir.parent / ".leaf"

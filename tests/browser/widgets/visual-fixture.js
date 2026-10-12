@@ -1,16 +1,17 @@
 /* A registered visual with staged reveals and explicit render-gate faults.
- * Every case shares the drawing and inventory; configuration changes only the
+ * Every case shares the drawing and inventory; configuration changes only the tag,
  * initial part visibility, opening fill, or a deliberately invalid surface. */
 import { once, registerVisualParts } from "/runtime/widget-api.js";
 
 export function defineVisualFixture({
+  tag = "lf-test-visual",
   staged = false,
   openingFill = "#dbeafe",
   repairFillOnReveal = false,
   outsideSurfaceFor = null,
 } = {}) {
   customElements.define(
-    "lf-test-visual",
+    tag,
     class extends HTMLElement {
       connectedCallback() {
         if (!once(this)) return;

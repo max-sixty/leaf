@@ -686,7 +686,14 @@ def _compose_and_append(
                     (active or 0) + 1,
                 )
     fragment = (
-        check_markup(page_dir, "reply", markup, events, page=prospective_page)
+        check_markup(
+            page_dir,
+            "reply",
+            markup,
+            events,
+            page=prospective_page,
+            thread=thread_id,
+        )
         if markup
         else None
     )

@@ -12,7 +12,9 @@ globalThis.requestAnimationFrame = (callback) => {
 };
 globalThis.cancelAnimationFrame = (id) => frames.delete(id);
 
-const { whileConnected, frameFor, readingPaint } = await import("/runtime/arrivals.js");
+const { whileConnected, frameFor } = await import("/runtime/arrivals.js");
+const { clocked, clockValue, readingPaint, tickClock } =
+  await import("/runtime/presence.js");
 const { observeQueuedWork } = await import("/runtime/queued-work.js");
 
 // A second observer acknowledges delivery of the same mutation batch as arrivals.
@@ -259,6 +261,38 @@ test("a returning owner draws a reading again only where its paint did not finis
       "slow once more",
       "refreshed on return",
     ]);
+  } finally {
+    paint.stop();
+    owner.remove();
+  }
+});
+
+test("a clock paint pauses while its owner is away and ticks again on its return", async () => {
+  const owner = document.createElement("section");
+  await mutate(() => document.body.append(owner));
+  let clock = 0;
+  const shown = [];
+  const paint = clocked(owner, () => shown.push(clockValue(() => clock)));
+  const tick = () =>
+    tickClock((message) => {
+      throw new Error(message);
+    });
+  try {
+    paint();
+    await mutate(() => owner.remove());
+    clock = 1;
+    await tick();
+    assert.deepEqual(shown, [0]);
+    await mutate(() => document.body.append(owner));
+    await tick();
+    assert.deepEqual(shown, [0, 1]);
+    // A stopped paint stays off the clock across a departure and return.
+    paint.stop();
+    await mutate(() => owner.remove());
+    await mutate(() => document.body.append(owner));
+    clock = 2;
+    await tick();
+    assert.deepEqual(shown, [0, 1]);
   } finally {
     paint.stop();
     owner.remove();

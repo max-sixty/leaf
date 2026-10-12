@@ -57,12 +57,6 @@ from .structure import VOID_TAGS, SourceDocument, pre_body
 # Retirement drops and rewriting substitutes rather than fencing, because that is what
 # each leaves on the screen. A fence says the reading doesn't know what stands there, and
 # in both of these it knows exactly.
-#
-# x-paints is the key that writes into an upgraded element and belongs in none of this.
-# Its word is clipped to nothing and marked as the runtime's (.lf-quiet, .lf-ui), so the
-# browser's own reading of the page skips it exactly as this one never sees it: the two
-# readings agree by both being silent, and a fence would be room reserved for words no
-# user on either side can reach.
 
 # The characters a whitespace run is made of, as the browser's reading collapses them
 # (registry.json's `$passages.collapse` says why the set is spelled out).

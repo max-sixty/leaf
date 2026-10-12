@@ -5092,8 +5092,8 @@ def test_resolving_an_early_thread_keeps_the_rest_in_place(browser, serve):
     ), "the thread after the one that resolved was reinserted under the typing"
 
 
-def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve):
-    """A failed child paint restores the retained card before retrying its reading."""
+def test_a_failed_thread_list_update_keeps_one_coherent_reading(browser, serve):
+    """A failed child paint restores the retained card until the next reading paints."""
     url = serve(LONG_PAGE, comments=2)
     roots = [
         event["id"]
@@ -5131,23 +5131,6 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
             }
             return node;
           };
-          const presentList = list.present.bind(list);
-          let release;
-          const held = new Promise(done => { release = done; });
-          list.present = async model => {
-            const candidate = model.rows.find(row =>
-              row.kind === 'thread' && row.descriptor.id === id)?.descriptor;
-            if (window.threadChildFailed && candidate?.resolved &&
-                !window.threadRetryReleased) {
-              window.threadRetryHeld = true;
-              await held;
-            }
-            return presentList(model);
-          };
-          window.releaseThreadRetry = () => {
-            window.threadRetryReleased = true;
-            release();
-          };
           window.threadListPresentation = presentation;
           window.committedThread = document.querySelector(
             `.lf-thread[data-id="${id}"]`
@@ -5172,7 +5155,7 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
         root,
     )
     page.wait_for_function(
-        "() => window.threadChildFailed && window.threadRetryHeld && "
+        "() => window.threadChildFailed && "
         "window.threadListPresentation.readApplicationPresentation().pending"
         ".includes('thread')",
     )
@@ -5201,8 +5184,15 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
     expect(page.locator(".lf-thread-view-summary")).to_have_text("1 open thread")
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 1")
+    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
+        "leaf: Presentation failed: injected thread-card failure"
+    ]
 
-    page.evaluate("window.releaseThreadRetry()")
+    holding(page, held_events, 2, "the gesture and the page's report of its failure")
+    for route in held_events:
+        route.continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
     page.wait_for_function(
         "() => !window.threadListPresentation.readApplicationPresentation().pending.length"
     )
@@ -5214,17 +5204,9 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
         'id => document.querySelector(`.lf-thread[data-id="${id}"]`) '
         "=== window.committedThread",
         root,
-    ), "successful retry replaced the retained card"
+    ), "the next reading replaced the retained card"
     expect(page.locator(".lf-thread-view-summary")).to_have_text("0 open threads")
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 0")
-    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
-        "leaf: Presentation failed: injected thread-card failure"
-    ]
-    holding(page, held_events, 2, "the gesture and the page's report of its failure")
-    for route in held_events:
-        route.continue_()
-    page.unroute("**/api/event")
-    round_trip(page)
 
 
 def test_a_failed_narrowing_restore_has_one_owned_presentation_error(browser, serve):
@@ -5338,10 +5320,7 @@ def test_a_failed_narrowing_view_restores_its_committed_list_and_keeps_the_input
         }"""
     )
     assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
-        (
-            "leaf: Presentation failed: Thread list presentation retry failed: "
-            "injected narrowing-view failure; injected narrowing-view failure"
-        )
+        "leaf: Presentation failed: injected narrowing-view failure"
     ]
 
     find.fill("")
@@ -5378,19 +5357,12 @@ def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, 
         """() => {
           const list = document.querySelector('leaf-thread-list');
           const render = list.render.bind(list);
-          let failures = 2;
+          let failures = 1;
           list.render = () => {
             const row = list.model.rows.find(({kind}) => kind === 'thread');
             if (row?.descriptor.visible && failures-- > 0)
               throw new Error('deliberate reveal failure');
             return render();
-          };
-          const retain = list.retainCommitted.bind(list);
-          let retentions = 0;
-          list.retainCommitted = (...args) => {
-            if (++retentions === 2)
-              throw new Error('deliberate retry retention failure');
-            return retain(...args);
           };
         }"""
     )
@@ -5404,13 +5376,7 @@ def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, 
           return readApplicationPresentation().pending.includes('thread');
         }"""
     )
-    expected = [
-        (
-            "leaf: Presentation failed: Thread list presentation and retention failed: "
-            "Thread list presentation retry failed: deliberate reveal failure; "
-            "deliberate reveal failure; deliberate retry retention failure"
-        )
-    ]
+    expected = ["leaf: Presentation failed: deliberate reveal failure"]
     assert [error.splitlines()[0] for error in take_browser_errors(page)] == expected
 
     routes = {route.request.post_data_json["kind"]: route for route in held}

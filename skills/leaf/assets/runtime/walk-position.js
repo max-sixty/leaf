@@ -133,8 +133,6 @@ export function rowWalk({
 // A keyboard walk has arrived. The caller still owns and announces the motion; this
 // records the owner's live reading so every such walk gets one boundary treatment.
 export function beginWalk(key, noun, read) {
-  if (!key || typeof read !== "function")
-    throw new Error("leaf: a walk position needs an owner and a reading");
   const position = read();
   if (!position) {
     clearTimeout(boundaryTimer);

@@ -142,13 +142,7 @@ const scopeRoot = (scope) => {
   const declared = scope.root ?? scope.el ?? document;
   return typeof declared === "function" ? declared() : declared;
 };
-const innerEscape = (scope, active) => {
-  if (scope.escape !== undefined && scope.escape !== "inner")
-    throw new TypeError(
-      `leaf: ${scope.title ?? "a scope"} has invalid Escape ownership ${String(scope.escape)}`,
-    );
-  return scope.escape === "inner" || scope.el === active;
-};
+const innerEscape = (scope, active) => scope.escape === "inner" || scope.el === active;
 // Every scope the user is standing in, innermost first. The whole list: what a nearer
 // scope takes out of reach is the walk's own business, and both walkers say it the same
 // way — a binding some nearer row has already named, or one a nearer scope claims. Cutting

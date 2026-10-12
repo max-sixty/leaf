@@ -57,20 +57,6 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
   if (!(owner instanceof Element))
     throw new TypeError("placeThreads needs an Element owner");
   if (kind === "widget") requireSurface(owner);
-  if (typeof render !== "function")
-    throw new TypeError("placeThreads needs a render callback");
-  if (typeof invalidate !== "function")
-    throw new TypeError("placeThreads needs an invalidation function");
-  if (
-    !composition ||
-    typeof composition.open !== "function" ||
-    typeof composition.active !== "function" ||
-    typeof composition.node !== "function" ||
-    typeof composition.seat !== "function" ||
-    typeof composition.restore !== "function" ||
-    typeof composition.outlet !== "function"
-  )
-    throw new TypeError("placeThreads needs composition presentation");
   if (registrations.has(owner))
     throw new Error(`placeThreads(${owner.localName}) registered twice`);
   const registration = {

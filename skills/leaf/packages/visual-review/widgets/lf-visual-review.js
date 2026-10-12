@@ -274,7 +274,6 @@ customElements.define(
     }
 
     #setScope(scope) {
-      if (!(scope in SCOPE)) return;
       if (scope === "focus" && !this.#focusAvailable()) {
         this.#renderInspector();
         return;
@@ -286,21 +285,20 @@ customElements.define(
     }
 
     #setMode(mode) {
-      if (!(mode in INSPECTION) || mode === this.#mode) return;
+      if (mode === this.#mode) return;
       this.#mode = mode;
       this.#paintInspection();
       notice(`${INSPECTION[mode]} view`);
     }
 
     #setScale(scale) {
-      if (!(scale in SCALE) || scale === this.#scale) return;
+      if (scale === this.#scale) return;
       this.#scale = scale;
       this.#paintInspection();
       notice(`${SCALE[scale]} evidence`);
     }
 
     #setOpacity(opacity) {
-      if (!Number.isFinite(opacity)) return;
       this.#opacity = Math.max(0, Math.min(100, opacity));
       this.#renderInspector();
       this.#inspectShots();

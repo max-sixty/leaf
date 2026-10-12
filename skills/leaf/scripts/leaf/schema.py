@@ -280,11 +280,6 @@ MEASURED_SCHEMA = {
     "additionalProperties": False,
 }
 
-_ATTRIBUTE_LIST = {
-    "type": "array",
-    "items": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-    "minItems": 1,
-}
 _ATTRIBUTE_NAME = {"type": "string", "pattern": f"^{HTML_NAME}$"}
 EXTENSION_SCHEMA = {
     "type": "object",
@@ -311,10 +306,6 @@ EXTENSION_SCHEMA = {
         "x-reading-role": {"enum": ["pane"]},
         "x-resident": {"enum": ["map"]},
         "x-measured": MEASURED_SCHEMA,
-        # Attributes the theme renders as paint alone — a status marker's tint or an
-        # event's kind. The runtime speaks each as a clipped word (renderQuiet), the
-        # value or, where a flag carries no value, the attribute's own name.
-        "x-paints": _ATTRIBUTE_LIST,
         "x-patch": {"enum": ["members"]},
         "x-owners": {
             "type": "array",
@@ -553,7 +544,6 @@ LAYER_FACTS_SCHEMA = {
 ATTRIBUTE_KEYS = (
     "x-language",
     "x-name",
-    "x-paints",
     "x-refers",
     "x-says",
     "x-tone",

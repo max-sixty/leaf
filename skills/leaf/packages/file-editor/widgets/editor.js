@@ -123,8 +123,7 @@ export function createEditor(
   } = {},
 ) {
   const editable = new Compartment(),
-    language = new Compartment(),
-    merge = new Compartment();
+    language = new Compartment();
   let readonly = readOnly,
     markdown = isMarkdown(filename),
     conflict = original,
@@ -137,15 +136,6 @@ export function createEditor(
       ...(readonly ? { tabindex: "0" } : {}),
     }),
   ];
-  const mergeExtension = () =>
-    conflict === null
-      ? []
-      : unifiedMergeView({
-          original: conflict,
-          mergeControls: false,
-          allowInlineDiffs: true,
-          gutter: false,
-        });
   const state = (value) =>
     EditorState.create({
       doc: value,
@@ -182,7 +172,16 @@ export function createEditor(
         }),
         editable.of(readonlyExtension()),
         EditorView.lineWrapping,
-        merge.of(mergeExtension()),
+        // A comparison is created with the disk version it shows and only ever moves
+        // to a later one (`setConflict`); the primary editor never shows one.
+        original === null
+          ? []
+          : unifiedMergeView({
+              original,
+              mergeControls: false,
+              allowInlineDiffs: true,
+              gutter: false,
+            }),
         Prec.highest(
           keymap.of([
             {
@@ -272,16 +271,13 @@ export function createEditor(
     },
     setConflict(value) {
       if (conflict === value) return;
-      const previous = conflict;
       conflict = value;
-      if (previous !== null && value !== null) {
-        const originalLength = getOriginalDoc(reading()).length;
-        const changes = ChangeSet.of(
-          { from: 0, to: originalLength, insert: value },
-          originalLength,
-        );
-        dispatch({ effects: originalDocChangeEffect(reading(), changes) });
-      } else dispatch({ effects: merge.reconfigure(mergeExtension()) });
+      const originalLength = getOriginalDoc(reading()).length;
+      const changes = ChangeSet.of(
+        { from: 0, to: originalLength, insert: value },
+        originalLength,
+      );
+      dispatch({ effects: originalDocChangeEffect(reading(), changes) });
     },
     connect() {
       if (view) return;

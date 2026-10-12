@@ -61,21 +61,6 @@ import { inPageOrder, inRecentOrder, pageOutline, threadSection } from "./placem
 import { threadSearchReading } from "./narrowing.js";
 import { threadReading } from "./thread-card.js";
 
-// A failed candidate can leave a coherent list on screen; the outer thread paint
-// promotes the retained proof only after its sibling surfaces have finished.
-export class RetainedThreadListError extends Error {
-  constructor(reason, proof) {
-    super(reason?.message ?? String(reason), { cause: reason });
-    this.name = "RetainedThreadListError";
-    this.proof = proof;
-  }
-}
-
-export function retainedThreadListProof(reason) {
-  if (!(reason instanceof RetainedThreadListError)) throw reason;
-  return reason.proof;
-}
-
 // A folding card is renamed out of the list's cards in the frame its thread settles.
 export function createThreadListController({ panel, threadsBox, narrowingView }) {
   const threadCards = () => [...threadsBox.querySelectorAll(":scope > .lf-thread")];
@@ -333,6 +318,8 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
     if (current()) reachScrollers(threadsBox);
   }
 
+  // A renderer exception puts the committed list back, so the panel stands on a coherent
+  // tree while the failure leaves its region pending.
   async function retainCommitted(current, candidate, reason) {
     if (!current()) return;
     try {
@@ -342,33 +329,6 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
         [reason, retaining],
         "Thread list presentation and retention failed",
       );
-    }
-  }
-
-  // A renderer exception can be transient (for example, a custom element upgrading in
-  // the same turn). Restore the committed list before one retry so a second render starts
-  // from a coherent tree. Only a retry that fully paints the candidate can prove the
-  // surrounding thread reading; a second failure leaves the region pending.
-  async function presentList(model, current) {
-    try {
-      if (!(await threadsBox.present(model)) || !current()) return null;
-      return { recovered: null };
-    } catch (error) {
-      if (!current()) return null;
-      await retainCommitted(current, model, error);
-      if (!current()) return null;
-      try {
-        if (!(await threadsBox.present(model)) || !current()) return null;
-      } catch (retrying) {
-        if (!current()) return null;
-        const failure = new AggregateError(
-          [error, retrying],
-          "Thread list presentation retry failed",
-        );
-        await retainCommitted(current, model, failure);
-        throw failure;
-      }
-      return { recovered: error };
     }
   }
 
@@ -384,11 +344,8 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
     const hold = takeScrollHold(commands.panelIsOpen);
     const incoming = incomingAtLatest(reading, commands.panelIsOpen, hold?.named);
     let held = true;
-    let recovered = null;
     try {
-      const candidate = await presentList(reading, current);
-      if (!candidate) return;
-      recovered = candidate.recovered;
+      if (!(await threadsBox.present(reading)) || !current()) return;
       // Newly connected frozen markup can supply the words a different thread's
       // quote names. Re-derive that batch reading through the same descriptor owner.
       const connected = rowModel(all, commands);
@@ -403,9 +360,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
       });
       if (changedQuotes) {
         reading = connected;
-        const refreshed = await presentList(reading, current);
-        if (!refreshed) return;
-        recovered ??= refreshed.recovered;
+        if (!(await threadsBox.present(reading)) || !current()) return;
       }
       // The surrounding thread batch commits this complete list with its sibling
       // seats. Frozen descendants already entered the application as authored source;
@@ -425,11 +380,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
     } finally {
       if (held) finishScrollHold(hold, commands.panelIsOpen);
     }
-    return {
-      recovered,
-      proof: threadsBox,
-      commit: () => threadsBox.commit(reading),
-    };
+    return { commit: () => threadsBox.commit(reading) };
   }
 
   async function renderThreadListUnavailable(text, commands) {
@@ -443,18 +394,15 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
       pageSeats: new Map(),
     });
     const hold = takeScrollHold(commands.panelIsOpen);
-    let recovered = null;
     try {
-      const candidate = await presentList(model, current);
-      if (!candidate) return;
-      recovered = candidate.recovered;
+      if (!(await threadsBox.present(model)) || !current()) return;
     } catch (error) {
       await retainCommitted(current, model, error);
       throw error;
     } finally {
       finishScrollHold(hold, commands.panelIsOpen);
     }
-    return { recovered, proof: threadsBox, commit: () => threadsBox.commit(model) };
+    return { commit: () => threadsBox.commit(model) };
   }
 
   const cancel = () => {

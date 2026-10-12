@@ -1840,24 +1840,25 @@ export function createVersionController({
   // scroller given no place keeps what the browser's anchoring left, moved with its
   // landing band.
   //
-  // Only the user moves their place, and a scroll is theirs when it ends as their
-  // choice (scrolling.js, `chosenSince`): a wheel, a key, a landing, a page's script or
-  // the browser's own travel, but not a clamp, an anchoring adjustment or a place
-  // keeper's write. A restore is the runtime's move: read back, it can name other words
-  // than the place it restored, and it can fall short of that place, cut off by its
-  // box's range, as a pane already at its top cannot lower its words to where the page
-  // had them, or a page cannot reach a passage below a widget still drawn at its old
-  // size. So a box the runtime restored holds the place it was given until someone
-  // moves it (`held`): input the reader aims at the box, or a scroll that carries the
-  // held landmark with it. Nothing records over a held box, so the next shift starts
-  // from the words the user read rather than from wherever the runtime left them, and
-  // while the shift's layout settles the place is applied again (`watchHolds`), as a
-  // widget drawing a frame late moves it. A revision ends every hold, since its own
-  // handoff places the reader. Between a shift and its restore nothing is recorded,
-  // since the shift's own scrolls are no one's place, and a box the reader chose a
-  // scroll in since its place was recorded is left where they chose. The end of a
-  // scroll a restore started is the runtime's, wherever layout carried the box before
-  // it (`writing`), and input counts for the box it scrolls, not the document.
+  // Only the user moves their place, and a scroll is theirs when it ends as their choice
+  // (scrolling.js, `chosenSince`): a wheel, a key, a landing, a page's script or the
+  // browser's own travel, but not a clamp, an anchoring adjustment or a place keeper's
+  // write. A restore is the runtime's move: read back, it can name other words than the
+  // place it restored, and it can fall short of that place, cut off by its box's range,
+  // as a pane already at its top cannot lower its words to where the page had them, or a
+  // page cannot reach a passage below a widget still drawn at its old size. So a box the
+  // runtime restored holds the place it was given until someone moves it (`held`): input
+  // the reader aims at the box, or a scroll that carries the held landmark with it.
+  // Leaving the window or opening the browser's find bar moves nothing, so neither ends
+  // a hold; the scroll find makes is read like any other. Nothing records over a held
+  // box, so the next shift starts from the words the user read rather than from wherever
+  // the runtime left them, and while the shift's layout settles the place is applied
+  // again (`watchHolds`), as a widget drawing a frame late moves it. A revision ends
+  // every hold, since its own handoff places the reader. Between a shift and its restore
+  // nothing is recorded, since the shift's own scrolls are no one's place, and a box the
+  // reader chose a scroll in since its place was recorded is left where they chose. The
+  // end of a scroll a restore started is the runtime's, wherever layout carried the box
+  // before it (`writing`), and input counts for the box it scrolls, not the document.
   //
   // A region can show one subject of several in turn (reading-regions.js,
   // `showReadingSubject`). The place of a subject leaving is kept by subject, and the
@@ -1875,8 +1876,9 @@ export function createVersionController({
   // the same distance, whoever made it and whether or not its sequence has ended yet.
   // Layout moves the words, under a box that stays or that anchoring moves to keep
   // something else still, by a distance of its own, and the next application puts them
-  // back. A scroll and a layout change in one frame read as layout, so the hold stays.
-  // A landmark the box no longer carries ends the hold.
+  // back. A scroll and a layout change in one frame are ambiguous: they read as
+  // layout's only while the shift's layout settles, and as someone's after that. A
+  // landmark the box no longer carries ends the hold.
   const held = (box) => {
     const hold = holds.get(box);
     if (!hold) return null;
@@ -1897,23 +1899,31 @@ export function createVersionController({
       });
     return null;
   };
-  // Whether the held place still stands in its box: null where it does or layout alone
-  // moved it, "carried" where a scroll took the landmark with the box, "gone" where the
-  // box no longer carries it.
+  // Whether the held place still stands in its box: null where it does, or where
+  // layout alone moved it; "carried" where a scroll took the landmark with the box;
+  // "gone" where the box no longer carries it. A box that scrolled while its landmark
+  // moved by another distance is layout's while the shift's layout settles, when
+  // anchoring answers a change the layout made, and someone's after that, as a script
+  // that scrolls as content grows above the reader. A landmark a widget is repainting is
+  // missing only for a moment while the layout settles, so the hold waits it out.
   const movedAway = (box, hold) => {
+    const settling = reapply !== null;
+    const node = placeNode(hold.reading);
+    if (!node) return settling ? null : "gone";
     // A landmark another box now carries, as a pane taking its words from the page, is
     // no place of this box's to hold.
-    const node = placeNode(hold.reading);
-    if (!node || boxOf(node) !== box) return "gone";
+    if (boxOf(node) !== box) return "gone";
     const now = placeOffset(hold.reading, hold.region);
-    if (now === null) return "gone";
+    if (now === null) return settling ? null : "gone";
     const scrolled = box.scrollTop - hold.top;
     const shifted = now - hold.offset;
-    if (Math.abs(shifted) <= SCROLL_SLACK) hold.top = box.scrollTop;
-    return Math.abs(scrolled) > SCROLL_SLACK &&
-      Math.abs(shifted + scrolled) <= SCROLL_SLACK
-      ? "carried"
-      : null;
+    if (Math.abs(shifted) <= SCROLL_SLACK) {
+      hold.top = box.scrollTop;
+      return null;
+    }
+    if (Math.abs(scrolled) <= SCROLL_SLACK) return null;
+    if (Math.abs(shifted + scrolled) <= SCROLL_SLACK) return "carried";
+    return settling ? null : "carried";
   };
   // The input count when the reader last aimed input at each box: a wheel or touch at
   // the box under it, a key at the box holding focus. A scroll the box passes on to the
@@ -1934,11 +1944,17 @@ export function createVersionController({
     chosenSince(box, Math.max(count, ownEnd.get(box) ?? 0));
   // The box an input scrolls: along the chain native scrolling follows from where it
   // lands, the first that can still move the wheel's way, so a pane at its end passes
-  // the wheel to the page around it. A wheel nothing can follow, and every other input,
-  // aims at the innermost box.
+  // the wheel to the page around it, unless it contains its overscroll. A wheel nothing
+  // can follow, and every other input, aims at the innermost box.
   const inputBox = (element, event) => {
     if (!element) return pageScroller;
-    const chain = [...scrollChainOf(element)];
+    const chain = [];
+    for (const box of scrollChainOf(element)) {
+      chain.push(box);
+      // The browser's own chaining rule: a box that contains its overscroll passes
+      // nothing on.
+      if (getComputedStyle(box).overscrollBehaviorY !== "auto") break;
+    }
     const innermost = chain[0] ?? pageScroller;
     if (event.type !== "wheel" || !event.deltaY) return innermost;
     const down = event.deltaY > 0;
@@ -2057,15 +2073,17 @@ export function createVersionController({
         currentIntent,
       });
     }
-    for (const box of holds.keys()) held(box);
+    // The layout is settling from here, so the holds are read under its window.
     watchHolds();
+    for (const box of [...holds.keys()]) held(box);
   }
 
   // Apply each held place again while the shift's layout settles, as a widget drawing
   // a frame late changes it, and only then: re-application exists for that late layout,
   // and outliving it would put back a place under whatever else changes the page. The
-  // window closes when Leaf's rendering reads settled (rendering.js, `renderingState`),
-  // or after `SETTLING` deliveries whatever happens. What moves a place is the page's
+  // window closes when Leaf's rendering reads settled (rendering.js, `renderingState`)
+  // and every region stands where it was last seen (`regionsSettled`), or after
+  // `SETTLING` deliveries whatever happens. What moves a place is the page's
   // own content or its bounded region's, and it lands only in the box it was restored
   // into.
   const SETTLING = 12;
@@ -2081,7 +2099,7 @@ export function createVersionController({
         const hold = held(box);
         if (!hold) continue;
         const now = placeOffset(hold.reading, hold.region);
-        if (now !== null && Math.abs(now - hold.offset) <= SCROLL_SLACK) continue;
+        if (now === null || Math.abs(now - hold.offset) <= SCROLL_SLACK) continue;
         const from = box.scrollTop;
         restorePlace(hold.reading, hold.region, hold.currentIntent);
         wrote(box, from);
@@ -2101,7 +2119,7 @@ export function createVersionController({
       nextAnimation(() => {
         if (reapply !== observer) return;
         const { updatesSettled, preparationsSettled } = renderingState();
-        if (updatesSettled && preparationsSettled) stopReapplying();
+        if (updatesSettled && preparationsSettled && regionsSettled()) stopReapplying();
         else settled();
       });
     settled();
@@ -2177,8 +2195,9 @@ export function createVersionController({
     if (phase === "shift") {
       const currentIntent = retainUserIntent();
       const recorded = new Map(places);
+      // The holds already standing stay under the window: this shift is more of the
+      // same settling, and its restore reopens the window for what it holds.
       shifting = true;
-      stopReapplying();
       nextRender(() => restoreShifted(shifted, currentIntent, recorded));
       return;
     }

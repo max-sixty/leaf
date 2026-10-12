@@ -854,12 +854,17 @@ def test_a_passage_read_in_a_flowing_pane_returns_after_the_panes_scroll_alone(
     assert page.evaluate(measure) == pytest.approx(below, abs=2)
 
 
-def test_a_wheel_in_a_box_is_no_choice_of_the_page_around_it(browser, serve):
+@pytest.mark.parametrize("overscroll", ["auto", "contain"])
+def test_a_wheel_in_a_box_is_no_choice_of_the_page_around_it(
+    browser, serve, overscroll
+):
     """The reader scrolls the page down to a box that scrolls on its own, turns the wheel
     in the box, and then layout scrolls the page without them, as content leaving below
     clamps it. The wheel was the box's, and the clamp no one's. Narrowed, the box flows
     into the page, as a page's own breakpoint lets it, and the page returns to the
-    passage the reader scrolled the box to, not to where layout left the page."""
+    passage the reader scrolled the box to, not to where layout left the page. A box that
+    contains its overscroll keeps even a wheel at its end, which the browser passes to
+    no one."""
     lines = "".join(
         f'<p id="log-{n}">Log line {n}, long enough to read as its own passage.</p>'
         for n in range(60)
@@ -872,7 +877,8 @@ def test_a_wheel_in_a_box_is_no_choice_of_the_page_around_it(browser, serve):
         "A box in a page",
         "<style>@media (width < 700px) {"
         " #log { block-size: auto !important; overflow: visible !important; } }</style>"
-        f'{opening}<div id="log" data-bound="start" style="block-size: 320px">{lines}'
+        f'{opening}<div id="log" data-bound="start"'
+        f' style="block-size: 320px; overscroll-behavior: {overscroll}">{lines}'
         "</div><div id='room' style='height: 1200px'></div>",
     )
     page = open_page(browser, serve(source))
@@ -891,6 +897,14 @@ def test_a_wheel_in_a_box_is_no_choice_of_the_page_around_it(browser, serve):
     page.wait_for_function("document.getElementById('log').scrollTop > 0")
     scroll_settled(page)
     rendered(page)
+    if overscroll == "contain":
+        # At the box's end, one more turn of the wheel goes nowhere.
+        log.evaluate("log => { log.scrollTop = log.scrollHeight; }")
+        scroll_settled(page)
+        rendered(page)
+        page.mouse.wheel(0, 300)
+        scroll_settled(page)
+        rendered(page)
     read = page.evaluate(
         """() => {
           const box = document.getElementById('log').getBoundingClientRect();

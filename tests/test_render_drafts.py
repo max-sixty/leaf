@@ -48,6 +48,7 @@ from render_harness import (
     LONG_PAGE,
     RELEASE_FOCUS,
     REPLY_HOST_PAGE,
+    ROOT,
     CutOff,
     _traffic,
     _until,
@@ -479,6 +480,46 @@ def test_a_script_scroll_moves_a_held_page(browser, serve, move):
             .scrollPaddingTop) || 0)"""
     )
     assert 0 <= after <= line + 60, (line, after)
+
+
+def test_a_script_scroll_as_content_grows_above_ends_the_hold(browser, serve):
+    """Long after a width change restored the gallery's place, one frame grows content
+    above the reader, which anchoring answers, and a script scrolls on. The box and its
+    landmark moved by different distances, which reads as layout's only while the
+    shift's layout settles; after that it is a move someone made, so the next width
+    change starts from where the script left the page, not from the held place."""
+    gallery = ROOT / "examples/developer/feature-gallery.html"
+    page = open_page(browser, serve(gallery))
+    resized(page, 390, 800)
+    rendered(page)
+    page.evaluate("location.hash = 'bg-side-list'")
+    rendered(page)
+    box = page.locator("#bg-side-list-guide").bounding_box()
+    page.mouse.move(box["x"] + 20, box["y"] + 5)
+    page.mouse.wheel(0, 8)
+    scroll_settled(page)
+    rendered(page)
+    resized(page, 1200, 800)
+    rendered(page)
+    heading = """() => document.querySelector('#bg-side-list h2').getBoundingClientRect().top
+      - (parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop) || 0)"""
+    held = page.evaluate(heading)
+    page.evaluate(
+        """() => new Promise(done => requestAnimationFrame(() => {
+          const late = document.createElement('div');
+          late.style.height = '300px';
+          const section = document.getElementById('bg-side-list');
+          section.parentNode.insertBefore(late, section);
+          document.scrollingElement.scrollBy(0, 400);
+          done();
+        }))"""
+    )
+    scroll_settled(page)
+    rendered(page)
+    assert page.evaluate(heading) < held - 300, "the script's scroll was undone"
+    resized(page, 390, 800)
+    rendered(page)
+    assert page.evaluate(heading) < held - 300, "the held place came back"
 
 
 def test_paging_down_from_a_landed_section_keeps_the_paged_passage(browser, serve):

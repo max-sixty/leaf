@@ -1825,18 +1825,17 @@ def test_an_export_draws_a_chart_whose_body_is_plot_code(browser, serve, tmp_pat
     expect(page.locator("#c .lf-error")).to_have_count(0)
 
 
-def test_an_export_keeps_its_quiet_words_off_screen(
-    browser, serve, tmp_path, declared_reading_package
-):
-    """A status word written for a user listening (`.lf-quiet`) is clipped on screen in
+def test_an_export_keeps_its_quiet_words_off_screen(browser, serve, tmp_path):
+    """A highlighted code line's spoken word (`.lf-quiet`) is clipped on screen in
     an export as in the live page. The rule that clips it once lived only in the
-    chrome's sheet, which an export never adopts, so status words in an exported file appeared on screen as well as their tint."""
+    chrome's sheet, which an export never adopts, so the word appeared on screen
+    beside the line's highlight."""
     serve(
         leaf_page(
             "Quiet words",
-            '<h1>Quiet words</h1><lf-reading id="m" state="done">Ship</lf-reading>',
-        ),
-        packages=(*EXAMPLE_PACKAGES, declared_reading_package),
+            '<h1>Quiet words</h1><lf-code id="m" hi="1">'
+            '<pre>print("ship")</pre></lf-code>',
+        )
     )
     out = tmp_path / "quiet.html"
     exporting_model.cmd_export(serve.page_dir, out, None)
@@ -1844,7 +1843,7 @@ def test_an_export_keeps_its_quiet_words_off_screen(
     page.goto(out.as_uri(), wait_until="load")
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     quiet = page.locator("#m .lf-quiet")
-    expect(quiet).to_have_count(1)
+    expect(quiet).to_have_text("highlighted")
     box = quiet.evaluate(
         "el => { const r = el.getBoundingClientRect();"
         " return [r.width, r.height, getComputedStyle(el).clipPath]; }"

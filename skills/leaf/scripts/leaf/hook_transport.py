@@ -48,7 +48,17 @@ confirms, it has confirmed nothing; it never waits on a lock past the deadline
 into the harness's timeout, and a page whose lock is still held then goes
 unconfirmed. What remains is a turn that ends just after it starts, as an
 interrupt can; its updates then read Picked up in a turn that ended, as an App
-Server turn's do."""
+Server turn's do.
+
+Confirmed input can still miss the context, as when Leaf's Claude Code hooks module
+calls this hook for a wake and finds its session ended before it appends the
+result (`hooks/claude-code.ts`). It is not offered again as new: an update that
+owes an answer stays owed on the page, and the next prompt or first Stop hook of
+whichever session owns the page then hands it over by pointer
+(`PagePlan.recovery`), while one that owes none is lost. Confirming
+only once the module has appended was rejected: a confirmation refused or never
+run after the append would leave input the turn already holds pending, and every
+later hook would offer it again as new."""
 
 import json
 import time

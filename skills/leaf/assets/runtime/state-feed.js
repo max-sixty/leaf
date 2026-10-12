@@ -14,6 +14,7 @@
    state-dependent controls remain unavailable. */
 
 import { countTraffic } from "./traffic.js";
+import { pagePresented } from "./page-paint.js";
 import { activityTransitionDue, tickClock } from "./presence.js";
 import {
   passiveSample,
@@ -47,13 +48,8 @@ async function readState(bound) {
     const signal = globalThis.AbortSignal.timeout(bound);
     let res;
     try {
-      const revision = runtime.currentRevision;
       res = await fetch(pageUrl("api/state"), {
-        headers: layerHeaders({
-          ...(Number.isInteger(revision) && {
-            "Leaf-View-Revision": String(revision),
-          }),
-        }),
+        headers: layerHeaders(),
         // Coalescing bounds concurrency; this bounds its other dimension. A proxy that
         // never answers cannot own the page's single read slot forever.
         signal,
@@ -65,12 +61,12 @@ async function readState(bound) {
       // recovery boundary.
       return null;
     }
-    if (res && !admitResponse(res)) return null;
+    if (!admitResponse(res)) return null;
     // A refusal is not state: the server answers a missing key with error-shaped JSON
     // at 401. A live server refusing the key and a dead one both leave the page
     // unreachable from here; the banner says which, since only the refused key has a
     // recourse the user takes (`runtime.keyRefused`).
-    if (!res?.ok) return null;
+    if (!res.ok) return null;
     try {
       return await res.json();
     } catch (error) {
@@ -104,14 +100,10 @@ export function beginRead() {
 // Failed state reads and crossed freshness observations retry on the clock. Freshness names a changed reading, but
 // cannot guarantee its state read succeeded. Healthy pages read state only on change.
 export function createStateFeed({
-  projectionDeferred,
-  retryProjection,
   stateApplying,
-  releasePending,
   invalidateDom,
   receiveState,
   prepareActivation,
-  notifyDataSubscribers,
   renderStatus,
 }) {
   let readAnswered = false;
@@ -124,15 +116,9 @@ export function createStateFeed({
     renderStatus(error);
   }
 
-  // The clock has no state to replay. Only an explicitly deferred projection needs
-  // another attempt; time-dependent paints remember their own displayed readings.
+  // The clock has no state to replay, and a projection a drag deferred is retried by
+  // the drag's release; time-dependent paints remember their own displayed readings.
   async function tick() {
-    const retried = projectionDeferred() && retryProjection();
-    if (stateApplying()) return;
-    if (retried) {
-      await releasePending();
-      await notifyDataSubscribers();
-    }
     if (stateApplying()) return;
     await tickClock(reportPageError);
     if (stateApplying()) return;
@@ -210,10 +196,7 @@ export function createStateFeed({
         }
       })().finally(() => {
         clearTimeout(waited);
-        reading = false;
-        if (!readQueued) return;
-        readQueued = false;
-        ask();
+        releaseSlot();
       });
       await Promise.race([settled, wait]);
       // An answer that arrived and could not be applied is a startup fault: the authored
@@ -246,6 +229,18 @@ export function createStateFeed({
     let reading = true;
     let readQueued = false;
     let applyingReads = 0;
+    // Give the read slot back, and start the trailing read a tick or freshness answer
+    // queued behind the read that held it.
+    const releaseSlot = () => {
+      reading = false;
+      if (!readQueued) return;
+      readQueued = false;
+      ask();
+    };
+    // Nothing is being read or applied: what the page shows is the latest it holds.
+    // The reading's own completions below ask less, since a newer read still in flight
+    // would otherwise hold a return open for as long as that read takes.
+    const feedQuiet = () => !reading && !applyingReads && !stateApplying();
     const askOnce = async () => {
       const returned = readingReturn();
       try {
@@ -296,12 +291,7 @@ export function createStateFeed({
         return;
       }
       reading = true;
-      void askOnce().finally(() => {
-        reading = false;
-        if (!readQueued) return;
-        readQueued = false;
-        ask();
-      });
+      void askOnce().finally(releaseSlot);
     };
     // Each visible document asks for a cheap reading, never holding a connection
     // between looks. State still travels through the coalesced read above, and an
@@ -340,19 +330,12 @@ export function createStateFeed({
           const observed = await response.text();
           if (listening === interval) {
             if (observed !== freshness && observed !== runtime.reading) ask();
-            else if (
-              returned !== null &&
-              observed === runtime.reading &&
-              !reading &&
-              !applyingReads &&
-              !stateApplying()
-            ) {
+            else if (returned !== null && observed === runtime.reading && feedQuiet()) {
               // There is no newer state to ask for. Still present what this tab
               // held before the absence, then protect its new baseline again.
               await invalidateDom();
               await present();
-              if (!reading && !applyingReads && !stateApplying())
-                completeReadingReturn(returned);
+              if (feedQuiet()) completeReadingReturn(returned);
             }
             freshness = observed;
           }
@@ -398,7 +381,7 @@ export function createStateFeed({
       // accept user input or durable updates.
       if (passiveSample) {
         const retry = () => {
-          if (document.body.hasAttribute("data-lf-presented")) return;
+          if (pagePresented()) return;
           if (!readAnswered) void ask();
           else void present();
           setTimeout(retry, TICK_MS);

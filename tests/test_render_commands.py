@@ -58,7 +58,7 @@ from render_harness import (
     shortcut_bar_text,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 def unnamed_browser():
@@ -904,12 +904,22 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     page.mouse.click(*image_point)
     expect(comparison).to_have_attribute("position", "100")
     comparison.evaluate("node => { node.position = 50; }")
-    handle.click()
-    expect(comparison).to_have_attribute("position", "50")
-
     before_caption = page.get_by_role(
         "button", name="before — the navigation rail", exact=True
     )
+    # A second finger does not replace the primary contact's input destination.
+    before_caption.focus()
+    handle.evaluate("""handle => handle.dispatchEvent(new PointerEvent('pointerdown', {
+      bubbles: true, composed: true, pointerId: 98, pointerType: 'touch',
+      isPrimary: false, button: 0
+    }))""")
+    expect(before_caption).to_be_focused()
+    handle.click()
+    expect(handle).to_be_focused()
+    expect(comparison).to_have_attribute("position", "50")
+    page.keyboard.press("ArrowRight")
+    expect(comparison).to_have_attribute("position", "51")
+
     after_caption = page.get_by_role(
         "button", name="after — the navigation rail", exact=True
     )
@@ -1014,7 +1024,7 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
           width: cs.outlineStyle === 'none' ? 0 : parseFloat(cs.outlineWidth),
         }}"""
     )
-    assert ring["name"] == "shot" and ring["width"] > 0
+    assert ring["name"] == "comparison-handle" and ring["width"] > 0
 
 
 def test_a_tall_shot_drags_where_it_was_grabbed_without_moving_the_page(browser, serve):
@@ -1390,12 +1400,7 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
     the declaration goes on the label (relabel), and an undeclared word under chrome is
     reported here.
 
-    The second one no marker can fix, which is why it reads differently: a word inside a
-    form control is unselectable in every engine, so a widget that reaches for <button>
-    has put its label somewhere the user cannot go. `selectableOffer` is the explicit
-    exception for such page words, and this says when a widget needed it.
-
-    Both are about a word the user was shown, so the check asks that first. A word
+    It is about a word the user was shown, so the check asks that first. A word
     the browser reads out and the page never paints, such as an aria-describedby
     target inside a shadow tree, is hidden with [hidden], the silence available in
     every root, and the same word shown is still reported."""
@@ -1464,12 +1469,20 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
     assert page.locator("#hidden-note").is_hidden()
     assert page.locator("#shown-offer, #clipped-offer").count() == 2
     assert page.locator("#shown-offer").is_visible()
+    # A label inside a form control no marker can reach is the suite's question of
+    # Leaf's own modules (`test_page_fixture_renders`), not the gate's.
+    assert render_checks_model.evaluate_probe(page, "wordsInFormControls") == [
+        (
+            '<lf-option id=c-lax> says "Lax, host-only" inside a form control, where '
+            "no selection can reach it"
+        )
+    ]
     page.close()
 
     found = render_gate_model.render_version(
         primed_browser, serve(CARRIED_PAGE)
     ).failures
-    assert len(found) == 8, found
+    assert len(found) == 6, found
     clipped = [f for f in found if "(#clipped-offer)" in f]
     assert len(clipped) == 2, found
     assert all(
@@ -1484,10 +1497,6 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
         (
             '<lf-option id=c-lax> puts "opens in a new tab" under .lf-ui, where no '
             "comment can reach it"
-        ),
-        (
-            '<lf-option id=c-lax> says "Lax, host-only" inside a form control, where no '
-            "selection can reach it"
         ),
     ], found
 
@@ -1633,10 +1642,12 @@ def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path, headless_shell):
         )
         assert run.returncode == 1, run.stdout + run.stderr
         # "needs Playwright" here would mean the shim dispatched the plain `uv run`.
-        # The report names the widget and gives the renderer's reason, not the source.
+        # The report names the widget and gives the renderer's reason.
         assert "Error: page code reported 1 error" in run.stderr
         assert '<lf-diagram id="d-broken"> failed:' in run.stderr
-        assert "is unsupported" in run.stderr
+        assert "No diagram type detected" in run.stderr
+        assert "/widgets/lf-diagram.js:" not in run.stderr
+        assert "leaf-unsupported" not in run.stderr
         assert "Ada,Review,3" not in run.stderr
 
 

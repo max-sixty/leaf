@@ -11,8 +11,8 @@ import json
 import re
 import secrets
 import time
-from collections.abc import Mapping
-from dataclasses import replace
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, replace
 from functools import partial
 from http.cookies import SimpleCookie
 from pathlib import Path
@@ -23,43 +23,31 @@ from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 from starlette.responses import Response
 
-from . import presence as presence_model
 from .data import (
     DataError,
     StaleDataError,
     deferred_value,
-    read_contracts,
-    read_data,
-    read_source,
 )
 from .event_endpoint import accept_event, event_fault, event_rejection
-from .event_log import read_events
 from .file_bindings import FileBindingError, StaleFileError, read_file, save_file
 from .files import (
-    latest_revision,
-    list_revisions,
     missing_revision,
-    published_versions,
-    revision_names,
     revision_num,
-    revision_path,
     stamped_version,
     version_num,
     version_revisions,
 )
 from .interaction_log import append_interactions, client_records
-from .layer import foreign_runtime
+from .layer import incompatible_layer
 from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
 from .passages import SourceReading
 from .refusals import Refused
-from .registry.storage import layer_metadata, require_registry
+from .registry.storage import layer_metadata
 from .render_checks import PROBE_SOURCES
 from .revision_artifact import (
     Resource,
     RevisionArtifact,
-    read_artifact,
-    read_revision,
 )
 from .revision_delivery import (
     Delivery,
@@ -70,7 +58,6 @@ from .revision_delivery import (
     layer_import_map,
     rebase_document,
 )
-from .revisioning import activate_source
 from .samples import Samples
 from .schema import (
     BINARY_TYPES,
@@ -80,13 +67,11 @@ from .schema import (
     REVISION_NAME,
     SERVED_PATH,
 )
-from .served_state import reading as served_reading
-from .served_state.service import PageStateService
+from .served_state.service import LivePage, PageSource, PageStateService
 from .server import preview_metadata
-from .service import PageTransaction
 from .state import now_iso
 from .structure import FRAME_ANCESTORS_CSP
-from .user_views import FRESH_FOR_S, observe_user_view, read_user_views
+from .user_views import observe_user_view
 
 # How deeply a POSTed body may nest its arrays and objects. What reads a body after the
 # parse recurses: schema validation runs into the interpreter's recursion limit a few
@@ -215,6 +200,22 @@ def page_delivery(
     )
 
 
+@dataclass(frozen=True)
+class PostRoute:
+    """One POST route: the gates it passes in order, then the handler that answers.
+
+    A gate returns the refusal that answers the request, or None to pass it on; the
+    handler takes what the route's path pattern captured. `body` names how the
+    request is read before the first gate: an uploaded image's bytes (`media`) or
+    one bounded JSON object. A route with `events` refuses and faults in the event
+    door's shape, which names the attempt (`event_endpoint`)."""
+
+    handler: Callable[..., Response]
+    gates: tuple[Callable[["PageEndpoint"], Response | None], ...] = ()
+    body: str = "json"
+    events: bool = False
+
+
 class PageEndpoint:
     """One request against one page, from its arrival to the response it becomes.
 
@@ -270,6 +271,9 @@ class PageEndpoint:
         # The generation this answer speaks, which a route narrows to the revision it
         # actually served.
         self.response_layer = self.layer
+        # The revision a POST's layer gate held it to (`_layer_gate`): the one the tab
+        # named, or the active one when it named none. None until that gate runs.
+        self.layer_revision: int | None = None
         # Set by `authorized` when the key arrived in the query.
         self.set_cookie = False
         # A declared body this request never drained. Those bytes would be read as the
@@ -301,6 +305,17 @@ class PageEndpoint:
         a second copy of it behind. Empty until a multiplexed transport has bound one.
         """
         return self.layer_identity["generation"] if self.layer_identity else ""
+
+    @property
+    def source(self) -> PageSource:
+        """The page every route reads: the capture this server was given, or the
+        bound page directory, read anew.
+
+        Derived rather than stored, like `layer`, because a multiplexed transport
+        binds the page directory in `_select_page`, after construction."""
+        if self.page_snapshot is not None:
+            return self.page_snapshot
+        return LivePage(self.page_dir, self.layer_identity)
 
     def interaction_owner(self) -> "PageEndpoint":
         """The durable authored page retaining every descendant sample's trace."""
@@ -375,8 +390,7 @@ class PageEndpoint:
     def _state_service(self) -> PageStateService:
         return PageStateService(
             self.page_dir,
-            page_snapshot=self.page_snapshot,
-            layer_identity=self.layer_identity,
+            source=self.source,
             preview=self.preview,
             publication=self.publication,
         )
@@ -435,25 +449,13 @@ class PageEndpoint:
                 raise ValueError(f"{name} is required")
         view_revision = self.requested_view_revision()
         if view_revision is not None:
-            revisions = (
-                set(self.page_snapshot.artifacts)
-                if self.page_snapshot is not None
-                else set(list_revisions(self.page_dir))
-            )
-            if view_revision not in revisions:
+            if view_revision not in self.source.revision_names:
                 raise ValueError(f"unknown view revision r{view_revision}")
             registry = self._registry(view_revision)
-        elif self.page_snapshot is not None:
-            registry = self.page_snapshot.context.registry
         else:
-            registry = require_registry(self.page_dir)
+            registry = self.source.active_registry()
         self.response_layer = registry["$layer"]["generation"]
-        if self.page_snapshot is not None:
-            reading = self.page_snapshot.context.data["sources"].get(source)
-        elif contract := read_contracts(self.page_dir).get(source):
-            reading = read_source(self.page_dir, source, contract, registry)
-        else:
-            reading = None
+        reading = self.source.data_source(source, registry)
         return deferred_value(
             reading, registry, source=source, revision=revision, key=key
         )
@@ -471,15 +473,9 @@ class PageEndpoint:
         Ordinary state reads and captured previews do not prove a user is looking.
         """
         self.housekeeping = True
-        if self.page_snapshot is not None:
-            reading = self.page_snapshot.reading
-        else:
-            reading = served_reading.join_reading(
-                served_reading.page_reading(self.page_dir),
-                presence_model.presence_reading(self.page_dir),
-            )
-            presence_model.renew_viewed(self.page_dir)
-        return self._content(200, "text/plain; charset=utf-8", reading.encode())
+        return self._content(
+            200, "text/plain; charset=utf-8", self.source.news().encode()
+        )
 
     @property
     def key_cookie(self) -> str:
@@ -630,9 +626,13 @@ class PageEndpoint:
 
         Reading and parsing can fail in different ways, all before a write is possible.
         Each earns a deterministic refusal; an unexpected exception remains inside
-        `_answer`, where the event outbox treats it as retryable.
+        `_answer`, where the event outbox treats it as retryable. A path no route
+        serves is never read, since `_post` answers it 404.
         """
-        if self.path == "/api/media":
+        selected = self._post_route()
+        if selected is None:
+            return {}, None
+        if selected[0].body == "media":
             return self._read_uploaded_media()
         # A declared length the door will not take, refused before the read rather
         # than after it: an event is prose, markup and passages, and a body past this
@@ -676,16 +676,23 @@ class PageEndpoint:
             return b"", "incomplete image body"
         return body, None
 
+    def _speaks_events(self) -> bool:
+        """Whether this request's route answers in the event door's shape."""
+        if self.method != "POST":
+            return False
+        selected = self._post_route()
+        return selected is not None and selected[0].events
+
     def _fault(self, error: str) -> Response:
         """Answer a fault in the shape spoken by the route that met it."""
-        if self.method == "POST" and self.path == "/api/event":
+        if self._speaks_events():
             status, body = event_fault(self.posted, error)
             return self._json(body, status)
         return self._json({"error": error}, 500)
 
     def _refuse(self, error: str, status: int = 400) -> Response:
         """Answer a refusal in the shape spoken by the route that produced it."""
-        if self.method == "POST" and self.path == "/api/event":
+        if self._speaks_events():
             status, body = event_rejection(self.posted, error, status)
             return self._json(body, status)
         return self._json({"error": error}, status)
@@ -815,42 +822,29 @@ class PageEndpoint:
         return response
 
     def _serve_root(self) -> Response:
-        if self.page_snapshot is not None:
-            revision = self.page_snapshot.context.active["revision"]
-            artifact = self.page_snapshot.artifacts[revision]
-            version = self.page_snapshot.context.active["version"]
-        else:
-            with PageTransaction(self.page_dir) as page:
-                activate_source(self.page_dir, transaction=page)
-                revision = latest_revision(self.page_dir)
-                if revision is None:
-                    return self._json({"error": missing_revision(self.page_dir)}, 404)
-                artifact = read_artifact(self.page_dir, revision)
-                version = stamped_version(page.events, revision)
-        return self._serve_document(artifact, revision, version)
+        served = self.source.served_document()
+        if served is None:
+            return self._json({"error": missing_revision(self.page_dir)}, 404)
+        return self._serve_document(*served)
 
     def _revision_name(self, revision: int) -> str:
-        if self.page_snapshot is not None:
-            return self.page_snapshot.revision_names[revision]
-        return revision_path(self.page_dir, revision).name
+        return self.source.revision_names[revision]
 
     def _artifact(self, revision: int) -> RevisionArtifact:
-        if self.page_snapshot is not None:
-            return self.page_snapshot.artifacts[revision]
-        return read_artifact(self.page_dir, revision)
+        return self.source.artifact(revision)
 
     def _reading(self, revision: int) -> SourceReading:
         """One revision's document under its captured vocabulary, without
         materializing its bundle."""
-        if self.page_snapshot is not None:
-            return self.page_snapshot.context.revision(revision)
-        return read_revision(self.page_dir, revision)
+        return self.source.revision(revision)
 
     def _registry(self, revision: int) -> dict:
         return self._reading(revision).registry
 
     def _artifact_root(self, revision: int) -> str:
-        name = self._revision_name(revision).removesuffix(".html")
+        return self._named_root(self._revision_name(revision).removesuffix(".html"))
+
+    def _named_root(self, name: str) -> str:
         return self.page_root.rstrip("/") + f"/revisions/{name}"
 
     def _document_asset_root(self, revision: int) -> str:
@@ -907,13 +901,8 @@ class PageEndpoint:
         )
         if match is None:
             return None
-        revision = int(match.group("revision"))
-        names = (
-            self.page_snapshot.revision_names
-            if self.page_snapshot is not None
-            else revision_names(self.page_dir)
-        )
-        if names.get(revision) != match.group("name") + ".html":
+        revision, name = int(match.group("revision")), match.group("name")
+        if self.source.revision_names.get(revision) != name + ".html":
             return None
         artifact = self._artifact(revision)
         self.response_layer = artifact.registry["$layer"]["generation"]
@@ -921,7 +910,7 @@ class PageEndpoint:
         resource = delivered_resource(
             artifact,
             logical,
-            DeliveryAddress(self.page_root, self._artifact_root(revision)),
+            DeliveryAddress(self.page_root, self._named_root(name)),
         )
         if resource is None:
             return None
@@ -941,18 +930,9 @@ class PageEndpoint:
             return served
         if path.startswith("/versions/"):
             version = version_num(Path(path).name)
-            events = (
-                list(self.page_snapshot.context.events)
-                if self.page_snapshot is not None
-                else read_events(self.page_dir)
-            )
+            events = self.source.events()
             mapping = version_revisions(events)
-            published = (
-                {item["version"] for item in self.page_snapshot.context.versions}
-                if self.page_snapshot is not None
-                else set(published_versions(self.page_dir, events))
-            )
-            if version not in published:
+            if version not in self.source.published_versions(events):
                 return self._json(
                     {"error": "not stamped yet; run `leaf page stamp` first"},
                     404,
@@ -964,42 +944,22 @@ class PageEndpoint:
                 return self._json({"error": "unknown revision resource"}, 404)
             name = Path(path).name
             revision = revision_num(name)
-            revisions = (
-                self.page_snapshot.context.revisions
-                if self.page_snapshot is not None
-                else set(list_revisions(self.page_dir))
-            )
-            if revision not in revisions:
+            if self.source.revision_names.get(revision) != name:
                 return self._json({"error": "unknown revision"}, 404)
-            expected_name = (
-                self.page_snapshot.revision_names.get(revision)
-                if self.page_snapshot is not None
-                else revision_path(self.page_dir, revision).name
-            )
-            if expected_name != name:
-                return self._json({"error": "unknown revision"}, 404)
-            artifact = self._artifact(revision)
-            events = (
-                list(self.page_snapshot.context.events)
-                if self.page_snapshot is not None
-                else read_events(self.page_dir)
-            )
             return self._serve_document(
-                artifact, revision, stamped_version(events, revision)
+                self._artifact(revision),
+                revision,
+                stamped_version(self.source.events(), revision),
             )
         if path == "/registry.json":
-            revision = (
-                self.page_snapshot.context.active["revision"]
-                if self.page_snapshot is not None
-                else latest_revision(self.page_dir)
-            )
+            revision = self.source.active_revision()
             if revision is None:
                 return None
             registry = self._registry(revision)
             self.response_layer = registry["$layer"]["generation"]
             return self._json(registry)
-        if self.page_snapshot is not None and path in self.page_snapshot.data_resources:
-            return self._resource_content(self.page_snapshot.data_resources[path])
+        if (resource := self.source.data_resources.get(path)) is not None:
+            return self._resource_content(resource)
         file = self.page_dir / path.lstrip("/")
         # The allowlist rejects traversal spellings; containment is the second
         # boundary for a page directory edited or symlinked after vendoring.
@@ -1016,7 +976,7 @@ class PageEndpoint:
     def _get(self) -> Response:
         path = self.path
         if match := re.fullmatch(r"/api/files/([^/]+)", path):
-            if self.page_snapshot is not None:
+            if not self.source.writable:
                 return self._refuse("Captured previews cannot read live files.", 403)
             try:
                 return self._json(read_file(self.page_dir, match[1]))
@@ -1031,11 +991,7 @@ class PageEndpoint:
         if path == "/api/news":
             return self._news()
         if path == "/api/user-view":
-            return self._json(
-                read_user_views(self.page_dir, latest_revision(self.page_dir))
-                if self.page_snapshot is None
-                else {"fresh_for_s": FRESH_FOR_S, "sessions": []}
-            )
+            return self._json(self.source.user_views())
         if path == "/api/state":
             # Versions pass through the endpoint's own view, so a preview state
             # agrees with the version it serves.
@@ -1079,184 +1035,211 @@ class PageEndpoint:
         return self._json({"error": "not found"}, 404)
 
     def _post(self) -> Response:
-        path = self.path
-        if match := re.fullmatch(r"/api/files/([^/]+)", path):
-            # File writes are mechanical editing, outside event admission and layer
-            # vocabulary. Only the mutable, authenticated, same-origin page writes.
-            try:
-                view_revision = self.requested_view_revision()
-            except ValueError as error:
-                return self._refuse(str(error))
-            if self.page_snapshot is not None or (
-                view_revision is not None
-                and view_revision != latest_revision(self.page_dir)
-            ):
-                return self._refuse("This view cannot edit live files.", 403)
-            expected_origin = f"{self.request.url.scheme}://{self.request.url.netloc}"
-            if self.headers.get("Origin") != expected_origin:
-                return self._refuse("File saving requires this page's origin.", 403)
-            if self.posted_error:
-                return self._refuse(self.posted_error)
-            try:
-                return self._json(save_file(self.page_dir, match[1], self.posted))
-            except StaleFileError as error:
-                return self._json({"error": str(error), "current": error.current}, 409)
-            except (FileBindingError, UnicodeEncodeError) as error:
-                return self._refuse(str(error))
-        if path not in {
-            "/api/event",
-            "/api/media",
-            "/api/samples",
-            "/api/interaction",
-            "/api/user-view",
-        }:
-            return self._json({"error": "not found"}, 404)
-        if path == "/api/user-view":
-            if self.posted_error:
-                return self._refuse(self.posted_error)
-            # Captured render previews are instruments, not the user's reading.
-            if self.page_snapshot is not None:
-                return self._content(204, "text/plain", b"")
-            revision = self.posted.get("revision")
-            revisions = list_revisions(self.page_dir)
-            if type(revision) is not int or revision not in revisions:
-                return self._refuse("unknown user view revision")
-            checks = self.posted.get("checks")
-            if isinstance(checks, dict) and checks.get("revision") not in revisions:
-                return self._refuse("unknown user view checks revision")
-            try:
-                observe_user_view(self.page_dir, self.posted)
-            except ValueError as error:
-                return self._refuse(str(error))
-            return self._content(204, "text/plain", b"")
-        if path == "/api/interaction":
-            if self.posted_error:
-                return self._refuse(self.posted_error)
-            session = self.posted.get("session")
-            entries = self.posted.get("entries")
-            if not isinstance(session, str) or not session:
-                return self._refuse("interaction requires a nonempty session")
-            if (
-                not isinstance(entries, list)
-                or not entries
-                or any(not isinstance(entry, dict) for entry in entries)
-            ):
-                return self._refuse("interaction requires a nonempty array of entries")
-            # Every sample directory is temporary, including a nested sample's
-            # parent. Retain all descendants in the authored page's trace, with
-            # their complete root-relative addresses surviving ancestor release.
-            owner = self.interaction_owner()
-            page = (
-                child_interaction_page(self.page_root, owner.page_root)
-                if owner is not self
-                else "/"
-            )
-            try:
-                records = client_records(session, page, entries)
-            except (TypeError, ValueError) as error:
-                return self._refuse(str(error))
-            append_interactions(owner.page_dir, records)
-            return self._content(204, "text/plain", b"")
-        # Preview requests have passed authentication and body preparation. An event
-        # refusal can therefore name its attempt; media uses the route's generic shape.
-        # A sample allocates an independent page from the frozen reading; it does
-        # not write to the preview's parent.
-        if self.page_snapshot is not None and path != "/api/samples":
+        """Answer a POST through the route its path selects: each of the route's
+        gates in order, the first refusal answering, then its handler."""
+        selected = self._post_route()
+        if selected is None:
+            return self._not_found()
+        route, arguments = selected
+        for gate in route.gates:
+            if (refusal := gate(self)) is not None:
+                return refusal
+        return route.handler(self, **arguments)
+
+    def _post_route(self) -> tuple["PostRoute", dict[str, str]] | None:
+        """The route this POST's path names, with the arguments its pattern
+        captured, or None for a path no route serves."""
+        for pattern, route in self.POST_ROUTES.items():
+            if match := re.fullmatch(pattern, self.path):
+                return route, match.groupdict()
+        return None
+
+    def _writable_gate(self) -> Response | None:
+        if not self.source.writable:
             return self._refuse("the preview server is read-only", 403)
+        return None
+
+    def _layer_gate(self) -> Response | None:
+        """Hold a write to the vocabulary the tab speaks.
+
+        The tab names the revision it reads in `Leaf-View-Revision`, or the active
+        one by naming none, and sends the layer generation it was built from. A
+        stale runtime gets the current generation instead of a verdict in a
+        vocabulary it no longer speaks; the body was already read, so the
+        connection stays reusable. The revision it held the write to is
+        `layer_revision`, which a handler reads rather than resolving the active
+        revision again after an activation may have moved it."""
         try:
             view_revision = self.requested_view_revision(header=True)
         except ValueError as error:
             return self._refuse(str(error))
-        revisions = (
-            self.page_snapshot.artifacts
-            if self.page_snapshot is not None
-            else list_revisions(self.page_dir)
-        )
-        if view_revision is not None and view_revision not in revisions:
+        if view_revision is None:
+            view_revision = self.source.active_revision()
+        elif view_revision not in self.source.revision_names:
             return self._refuse(f"unknown view revision r{view_revision}")
-        if view_revision is not None:
-            current_layer = self._registry(view_revision)["$layer"]["generation"]
-        else:
-            active_revision = (
-                self.page_snapshot.context.active["revision"]
-                if self.page_snapshot is not None
-                else latest_revision(self.page_dir)
-            )
-            current_layer = (
-                self._registry(active_revision)["$layer"]["generation"]
-                if active_revision is not None
-                else self.layer
-            )
-        self.response_layer = current_layer
-        if self.headers.get("Leaf-Layer") != current_layer:
-            # Preparation already consumed the body. A stale runtime needs the
-            # current generation, not a verdict in a vocabulary it no longer speaks.
-            return self._json({"layer": current_layer})
+        self.layer_revision = view_revision
+        self.response_layer = (
+            self._registry(view_revision)["$layer"]["generation"]
+            if view_revision is not None
+            else self.layer
+        )
+        if self.headers.get("Leaf-Layer") != self.response_layer:
+            return self._json({"layer": self.response_layer})
+        return None
+
+    def _body_gate(self) -> Response | None:
         if self.posted_error:
             return self._refuse(self.posted_error)
-        if path == "/api/samples":
-            template = self.posted.get("template")
-            passive = self.posted.get("passive", False)
-            if (
-                not isinstance(template, str)
-                or not template
-                or not isinstance(passive, bool)
-            ):
-                return self._refuse(
-                    "sample requires a template id and a boolean passive value"
-                )
-            revision = view_revision or active_revision
-            if revision is None:
-                return self._refuse("sample requires an active parent revision")
-            try:
-                if self.page_snapshot is not None:
-                    artifact = self._artifact(revision)
-                    events = list(self.page_snapshot.context.events)
-                    data = self.page_snapshot.context.data
-                    asset_root = self._sample_asset_root(revision)
-                else:
-                    with PageTransaction(self.page_dir) as page:
-                        artifact = self._artifact(revision)
-                        events = page.events
-                        data = read_data(self.page_dir, artifact.registry)
-                        asset_root = self._sample_asset_root(revision)
-                # Allocation validates and writes only the child's directory.
-                # Its parent reading is complete before releasing the log lease.
-                identity = self.server.samples.create(
-                    self.page_dir,
-                    artifact,
-                    self._reading(revision).document,
-                    events,
-                    data,
-                    template,
-                    passive,
-                    asset_root,
-                )
-            except ValueError as error:
-                return self._refuse(str(error))
-            root = f"{self.page_root}/api/samples/{identity}"
-            return self._json(
-                {
-                    "url": root + "/",
-                    "page": child_interaction_page(
-                        root, self.interaction_owner().page_root
-                    ),
-                }
+        return None
+
+    def _live_files_gate(self) -> Response | None:
+        try:
+            view_revision = self.requested_view_revision()
+        except ValueError as error:
+            return self._refuse(str(error))
+        if not self.source.writable or (
+            view_revision is not None and view_revision != self.source.active_revision()
+        ):
+            return self._refuse("This view cannot edit live files.", 403)
+        return None
+
+    def _same_origin_gate(self) -> Response | None:
+        expected_origin = f"{self.request.url.scheme}://{self.request.url.netloc}"
+        if self.headers.get("Origin") != expected_origin:
+            return self._refuse("File saving requires this page's origin.", 403)
+        return None
+
+    def _save_file(self, name: str) -> Response:
+        try:
+            return self._json(save_file(self.page_dir, name, self.posted))
+        except StaleFileError as error:
+            return self._json({"error": str(error), "current": error.current}, 409)
+        except (FileBindingError, UnicodeEncodeError) as error:
+            return self._refuse(str(error))
+
+    def _observe_user_view(self) -> Response:
+        # Captured render previews are instruments, not the user's reading.
+        if not self.source.writable:
+            return self._content(204, "text/plain", b"")
+        revision = self.posted.get("revision")
+        revisions = self.source.revision_names
+        if type(revision) is not int or revision not in revisions:
+            return self._refuse("unknown user view revision")
+        checks = self.posted.get("checks")
+        if isinstance(checks, dict) and checks.get("revision") not in revisions:
+            return self._refuse("unknown user view checks revision")
+        try:
+            observe_user_view(self.page_dir, self.posted)
+        except ValueError as error:
+            return self._refuse(str(error))
+        return self._content(204, "text/plain", b"")
+
+    def _record_interactions(self) -> Response:
+        session = self.posted.get("session")
+        entries = self.posted.get("entries")
+        if not isinstance(session, str) or not session:
+            return self._refuse("interaction requires a nonempty session")
+        if (
+            not isinstance(entries, list)
+            or not entries
+            or any(not isinstance(entry, dict) for entry in entries)
+        ):
+            return self._refuse("interaction requires a nonempty array of entries")
+        # Every sample directory is temporary, including a nested sample's
+        # parent. Retain all descendants in the authored page's trace, with
+        # their complete root-relative addresses surviving ancestor release.
+        owner = self.interaction_owner()
+        page = (
+            child_interaction_page(self.page_root, owner.page_root)
+            if owner is not self
+            else "/"
+        )
+        try:
+            records = client_records(session, page, entries)
+        except (TypeError, ValueError) as error:
+            return self._refuse(str(error))
+        append_interactions(owner.page_dir, records)
+        return self._content(204, "text/plain", b"")
+
+    def _create_sample(self) -> Response:
+        template = self.posted.get("template")
+        passive = self.posted.get("passive", False)
+        if (
+            not isinstance(template, str)
+            or not template
+            or not isinstance(passive, bool)
+        ):
+            return self._refuse(
+                "sample requires a template id and a boolean passive value"
             )
-        if path == "/api/media":
-            try:
-                media_path = store_uploaded_media(
-                    self.page_dir,
-                    self.posted,
-                    self.headers.get("Content-Type", ""),
-                )
-            except MediaUploadError as error:
-                return self._refuse(str(error))
-            return self._json({"path": media_path})
+        revision = self.layer_revision
+        if revision is None:
+            return self._refuse("sample requires an active parent revision")
+        try:
+            # The parent reading is complete before allocation, which validates
+            # and writes only the child's directory.
+            artifact, events, data = self.source.sample_inputs(revision)
+            asset_root = self._sample_asset_root(revision)
+            identity = self.server.samples.create(
+                self.page_dir,
+                artifact,
+                self._reading(revision).document,
+                events,
+                data,
+                template,
+                passive,
+                asset_root,
+            )
+        except ValueError as error:
+            return self._refuse(str(error))
+        root = f"{self.page_root}/api/samples/{identity}"
+        return self._json(
+            {
+                "url": root + "/",
+                "page": child_interaction_page(
+                    root, self.interaction_owner().page_root
+                ),
+            }
+        )
+
+    def _store_media(self) -> Response:
+        try:
+            media_path = store_uploaded_media(
+                self.page_dir,
+                self.posted,
+                self.headers.get("Content-Type", ""),
+            )
+        except MediaUploadError as error:
+            return self._refuse(str(error))
+        return self._json({"path": media_path})
+
+    def _accept_event(self) -> Response:
+        view_revision = self.requested_view_revision(header=True)
         status, answer = accept_event(
             self.page_dir, self.posted, lambda: self.page_state(view_revision)
         )
         return self._json(answer, status)
+
+    # Every POST a page answers, by path pattern. A route lists its gates in the
+    # order they refuse; its body is already read when the first one runs. File
+    # writes are mechanical editing, outside event admission and layer vocabulary,
+    # so only the mutable, same-origin page writes them. A sample allocates an
+    # independent page from the frozen reading and writes nothing to its parent, so
+    # a read-only preview creates one too.
+    POST_ROUTES: Mapping[str, PostRoute] = {
+        r"/api/files/(?P<name>[^/]+)": PostRoute(
+            _save_file, (_live_files_gate, _same_origin_gate, _body_gate)
+        ),
+        "/api/user-view": PostRoute(_observe_user_view, (_body_gate,)),
+        "/api/interaction": PostRoute(_record_interactions, (_body_gate,)),
+        "/api/samples": PostRoute(_create_sample, (_layer_gate, _body_gate)),
+        "/api/media": PostRoute(
+            _store_media, (_writable_gate, _layer_gate, _body_gate), body="media"
+        ),
+        "/api/event": PostRoute(
+            _accept_event, (_writable_gate, _layer_gate, _body_gate), events=True
+        ),
+    }
 
 
 class SampleEndpoint(PageEndpoint):
@@ -1326,7 +1309,7 @@ def page_endpoint(
     request: they are facts about the vendored page this server was started over. So
     is whether this Leaf can serve that page at all: every one-page server, durable
     or temporary, passes here before it binds, and refuses naming the re-vendor when
-    the page's runtime came from another Leaf (`foreign_runtime`).
+    the page was vendored at another protocol (`incompatible_layer`).
     The key has no default: every server over a page directory is reachable by
     whatever reached the machine, so there is no construction that should quietly go
     without one."""
@@ -1335,7 +1318,7 @@ def page_endpoint(
         if page_snapshot is not None
         else layer_metadata(page_dir)
     )
-    if refusal := foreign_runtime(page_dir, identity):
+    if refusal := incompatible_layer(page_dir, identity):
         raise Refused(refusal)
     return partial(
         endpoint,

@@ -4,7 +4,6 @@ import hashlib
 import json
 import re
 import subprocess
-import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import NamedTuple
@@ -373,11 +372,11 @@ def payload_runtime_fingerprint() -> str:
 
     The kernel is the payload's own directory, so this reads the same from any working
     directory and on any machine, and a page's selected packages cannot move it. That
-    is what a page's server and the browser gates need: each runs out of the Leaf
-    running the command against the runtime out of the page, and a page's recorded
-    layer fingerprint cannot be recomposed away from the project its packages were
-    resolved in. `page init` records this reading under `$layer.runtime`, and
-    `foreign_runtime` compares the two.
+    is what the render gate needs: it runs out of the Leaf running the command
+    against the runtime out of the page, and a page's recorded layer fingerprint
+    cannot be recomposed away from the project its packages were resolved in.
+    `page init` records this reading under `$layer.runtime`, and `foreign_runtime`
+    compares the two.
     """
     runtime = ASSETS / "runtime"
     return files_identity(
@@ -399,33 +398,63 @@ def payload_server_inputs(root: Path) -> list[Path]:
 
 
 def payload_server_fingerprint() -> str:
-    """Identify the serving inputs and interpreter independently of a Git commit."""
+    """Identify serving inputs independently of a Git commit or Python build.
+
+    A site builds pages on the CI host and serves them from a container with a
+    different interpreter. The vendored event contract depends on the payload's
+    files, not that interpreter's version string.
+    """
     return files_identity(
         {
-            "$python": sys.version.encode(),
-            **{
-                path.relative_to(PLUGIN_ROOT).as_posix(): path.read_bytes()
-                for path in payload_server_inputs(PLUGIN_ROOT)
-            },
+            path.relative_to(PLUGIN_ROOT).as_posix(): path.read_bytes()
+            for path in payload_server_inputs(PLUGIN_ROOT)
         }
     )
 
 
+# The contract between a page's vendored layer and any Leaf that serves the page or
+# writes its log, as one number `page init` records under `$layer.protocol`. A Leaf
+# serves and writes any page vendored at its own number, whichever Leaf vendored it,
+# so a plugin update leaves open pages working. Bump it when a page an older Leaf
+# vendored at this number would break under this one: the served state, a runtime
+# module the server relies on, or an event drops, renames or changes the meaning of
+# something the other side reads, or a field the page's runtime sends becomes
+# required. Adding a field or kind the page's older code ignores needs no bump. The
+# promise runs one way: an older Leaf serving a page a newer one vendored may refuse
+# a field it does not know. Every page vendored before a bump is refused until
+# `leaf page init` re-vendors it.
+PROTOCOL = 1
+
+
+def incompatible_layer(page_dir: Path, layer: dict) -> str | None:
+    """Why this Leaf can neither serve a page nor write its log, given its recorded
+    `$layer`: the page was vendored at another `PROTOCOL`. None when it may.
+
+    Every page server, the gate's and the website's included (`http.page_endpoint`,
+    `leaf_website.page_binding`), and the one append door (`event_contracts`) refuse
+    on this one reading. A page vendored before the number was recorded names none,
+    and is refused too.
+    """
+    vendored = layer.get("protocol")
+    if vendored == PROTOCOL:
+        return None
+    return (
+        f"{page_dir} was vendored by a Leaf at page protocol "
+        f"{vendored if vendored is not None else 'none'}, and this Leaf "
+        f"({PLUGIN_ROOT}) speaks protocol {PROTOCOL}, so it cannot serve the page or "
+        f"write its log. Re-vendor it with `leaf page init {page_dir}`."
+    )
+
+
 def foreign_runtime(page_dir: Path, layer: dict) -> str | None:
-    """Why this Leaf cannot serve a page, given its recorded `$layer`: the page's
-    runtime came from another Leaf. None when the page carries this Leaf's own.
+    """Why the render gate cannot probe a page, given its recorded `$layer`: the
+    page's runtime modules are not this Leaf's own. None when they are.
 
-    Whatever serves a page runs the Leaf that started it, while the page's browser
-    runtime is whatever its last `page init` copied in, and the two speak one
-    contract: the state a server sends and the probe modules the render gate serves
-    beside the page's runtime. Served by another Leaf, the page breaks in the
-    browser on every read, in a way that reads as a defect in the page. Every page
-    server, the gate's and the website's included, refuses on this one reading
-    (`http.page_endpoint`, `leaf_website.page_binding`).
-
-    It compares only the runtime's modules (`payload_runtime_fingerprint`), so a
-    contract change made on the Python side alone passes it. A page vendored before
-    the identity was recorded names none, and is refused too.
+    The gate's probe modules come from this Leaf and import the runtime's modules
+    out of the page by name, an internal coupling no protocol covers, so the gate
+    needs the exact runtime (`payload_runtime_fingerprint`), where a server needs
+    only a compatible one (`incompatible_layer`). A page vendored before the
+    identity was recorded names none, and is refused too.
     """
     vendored = layer.get("runtime")
     running = payload_runtime_fingerprint()
@@ -434,7 +463,7 @@ def foreign_runtime(page_dir: Path, layer: dict) -> str | None:
     return (
         f"{page_dir} was vendored from another Leaf's runtime: its layer names "
         f"{vendored or 'no runtime identity'}, and this Leaf ({PLUGIN_ROOT}) ships "
-        f"{running}. Leaf serves and checks a page only against the runtime it "
+        f"{running}. The render gate probes a page only against the runtime it "
         f"ships, so re-vendor it with `leaf page init {page_dir}`."
     )
 

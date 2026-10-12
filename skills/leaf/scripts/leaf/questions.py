@@ -6,7 +6,11 @@ A widget source owns identity; context wrappers contribute only prompt words and
 The inventory is complete even when a work queue hides a resolved thread or an
 older prompt. Tasks never stand in for these records."""
 
+import hashlib
+import json
 from dataclasses import dataclass
+from functools import partial
+from typing import NamedTuple
 
 from leaf.events import (
     conversation_turns,
@@ -17,6 +21,7 @@ from leaf.events import (
 )
 from leaf.files import stamped_version
 from leaf.gesture_words import leading_title
+from leaf.page_memory import Slot
 from leaf.projection import (
     FrozenThreadReading,
     StateProjection,
@@ -29,6 +34,7 @@ from leaf.projection import (
     state_projection,
 )
 from leaf.read_state import content_version
+from leaf.registry.contract import WRITERS
 from leaf.structure import review_mode
 from leaf.thread_context import widget_messages
 
@@ -36,6 +42,40 @@ from leaf.thread_context import widget_messages
 def local_question_entry(entry: dict) -> bool:
     """Whether a widget can originate a Question when its predicate holds."""
     return entry.get("x-awaits") is not None
+
+
+class QuestionRegistration(NamedTuple):
+    """Compact registration inputs and the last event-dependent registration.
+
+    No parser records or holder chains survive here. The last dynamic answer uses
+    the canonical state fold and is keyed by its complete historical event basis.
+    """
+
+    tag: str
+    asking: bool
+    restated: bool
+    triggers: frozenset[str]
+    requested: Slot
+
+
+def question_registrations(document, registry: dict) -> dict[str, QuestionRegistration]:
+    """Compact immutable registration inputs, separate from a revision's parse."""
+    return {
+        unit: QuestionRegistration(
+            record["tag"],
+            asking(record["attrs"], declaration.get("when")),
+            "restated" in record["attrs"],
+            frozenset(
+                verb
+                for verb, spec in registry[record["tag"]].get("x-state", {}).items()
+                if (spec.get("record") or {}).get("kind") == "value"
+                and spec["record"]["attr"] in declaration.get("when", {})
+            ),
+            Slot(),
+        )
+        for unit, record in document.by_id.items()
+        if (declaration := registry.get(record["tag"], {}).get("x-awaits")) is not None
+    }
 
 
 def settles(reaction: dict, turn: str, tokens: dict) -> bool:
@@ -589,6 +629,46 @@ class _QuestionReducer:
         records = []
         history_projections = {}
         history_readings = {}
+        history_keys = {}
+        # Only writers in the exact historical revision can originate a request
+        # there (`previously_requested`). Other log entries need no historical parse.
+        written = {}
+        for event in self.events:
+            if event["kind"] in WRITERS:
+                written.setdefault((event["revision"], event["widget"]), set()).add(
+                    event["action"]
+                )
+
+        def historical_request(old_revision, old, unit):
+            previous = old.document.by_id[unit]
+            declaration = old.registry[previous["tag"]]["x-awaits"]
+            if old_revision not in history_readings:
+                history_readings[old_revision] = page_reading(
+                    old, self.events, old_revision
+                )
+            basis = history_readings[old_revision]
+            return previously_requested(
+                previous,
+                basis.projection,
+                declaration.get("when", {}),
+                old_revision,
+                self.events,
+                old.document.by_id,
+                old.spoken,
+                old.registry,
+                history_projections,
+            )
+
+        # A historical fold reads writers and notes through its revision, plus
+        # withdrawals from the complete log. Later page gestures and conversation
+        # updates cannot change it. Hash the complete event contents, since test
+        # readings and regenerated logs may reuse identities with different values.
+        state_events = [
+            event
+            for event in self.events
+            if event["kind"] in WRITERS or event["kind"] == "note"
+        ]
+        withdrawals = sorted(taken_back(self.events))
         earlier = []
         remaining = iter(prior()) if prior is not None else iter(())
 
@@ -628,42 +708,34 @@ class _QuestionReducer:
                 and prior is not None
             ):
                 for old_revision, old in history():
-                    previous = old.document.by_id.get(unit)
-                    if previous is None or previous["tag"] != record["tag"]:
+                    registration = old.inventory.questions.get(unit)
+                    if registration is None or registration.tag != record["tag"]:
                         break
-                    declaration = old.registry.get(previous["tag"], {}).get("x-awaits")
-                    if declaration is None:
-                        break
-                    if asking(previous["attrs"], declaration.get("when")):
+                    if registration.asking:
                         registered = True
                         break
-                    dynamic = any(
-                        (spec.get("record") or {}).get("kind") == "value"
-                        and spec["record"]["attr"] in declaration.get("when", {})
-                        for spec in old.registry[previous["tag"]]
-                        .get("x-state", {})
-                        .values()
-                    )
-                    if dynamic:
-                        if old_revision not in history_readings:
-                            history_readings[old_revision] = page_reading(
-                                old, self.events, old_revision
-                            )
-                        basis = history_readings[old_revision]
-                        if previously_requested(
-                            previous,
-                            basis.projection,
-                            declaration.get("when", {}),
-                            old_revision,
-                            self.events,
-                            old.document.by_id,
-                            old.spoken,
-                            old.registry,
-                            history_projections,
+                    if registration.triggers & written.get((old_revision, unit), set()):
+                        if old_revision not in history_keys:
+                            history_keys[old_revision] = hashlib.sha256(
+                                json.dumps(
+                                    (
+                                        [
+                                            event
+                                            for event in state_events
+                                            if event["revision"] <= old_revision
+                                        ],
+                                        withdrawals,
+                                    ),
+                                    sort_keys=True,
+                                ).encode()
+                            ).digest()
+                        if registration.requested.get(
+                            history_keys[old_revision],
+                            partial(historical_request, old_revision, old, unit),
                         ):
                             registered = True
                             break
-                    if "restated" in previous["attrs"]:
+                    if registration.restated:
                         break
             if not registered:
                 continue

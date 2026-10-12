@@ -13,10 +13,11 @@
    record through `openDraft`. Every path that discards words empties
    the box first, so those hide silently.
 
-   Boot constructs the command owner with explicit travel, delivery, and repaint
-   capabilities. Importing this module exposes only passive nodes and live draft
+   The response surface (composing/surface.js) constructs the command owner with its bar's
+   commands and boot's travel, delivery, and repaint capabilities. Importing this module exposes only passive nodes and live draft
    readings. mount binds the field and its controls after those owners exist. */
 import { el, responseAction } from "../widget-elements.js";
+import { anchorKey } from "../anchor-coordinate.js";
 import { keeps, keepsHidden } from "../keeps.js";
 
 import {
@@ -37,7 +38,7 @@ import { anchorForRange } from "../anchor-resolution.js";
 import { THREAD } from "../thread/selectors.js";
 import { keys, paintKeys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
-import { PRESS } from "../keyboard/bindings.js";
+import { PRESS, rowArrows } from "../keyboard/bindings.js";
 import {
   onStanding,
   takesLetters,
@@ -56,12 +57,15 @@ import { sentDrawing, validDrawing } from "./drawing-record.js";
 import { commitPoint } from "../pointed-place.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
 import { textField } from "./text-field.js";
-import { iconElement } from "../icons.js";
 
 // The floating field immediately accepts a comment on the target the user named.
-// Other responses, Tab from the field, or `e` while it stands unfocused, unfolds every response
+// Tab from the field, or `e` while it stands unfocused, unfolds every other response
 // the target offers. The field is the group's stable primary control; reaction
 // vocabulary changes the choices, not the disclosure or the field's place.
+// The comment field deliberately has one primary action: Dictate when available while empty,
+// Send with words, including on phones. Suggest and
+// reactions retain keyboard routes; reconsidering a pointer or touch disclosure is
+// a product decision ("Touch routes" in keyboard/AGENTS.md).
 // One affordance, raised only where the user has already pointed: a native text
 // selection or an explicit Comment target gesture on an item or visual part.
 export const fabBar = el("div", "lf-ui lf-fab-bar lf-target-paint");
@@ -84,13 +88,6 @@ export const fabOptions = el("span", "lf-response-options");
 fabOptions.id = "lf-response-options";
 fabOptions.setAttribute("role", "group");
 fabOptions.setAttribute("aria-label", "Other responses");
-const fabMore = el("button", "lf-ui lf-icon-action lf-fab-more");
-fabMore.type = "button";
-fabMore.setAttribute("aria-label", "Other responses");
-fabMore.title = "Other responses";
-fabMore.setAttribute("aria-controls", fabOptions.id);
-fabMore.setAttribute("aria-expanded", "false");
-fabMore.append(iconElement("more", "lf-action-icon"));
 const fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
   icon: "edit",
   label: "Suggest",
@@ -124,7 +121,13 @@ const composerInput = fabInput;
 // pointed a user at it.
 composerInput.setAttribute("aria-describedby", composerQuote.id);
 const composerSend = el("button", "lf-btn", "Comment");
-composer.append(composerQuote, suggestRow, composerInput, composerSend);
+// The field, and the shelf and controls `wireInput` gathers around it, wait outside the
+// page until the composer first opens (`showComposer`), since a connected field builds
+// its editor: a page whose composer never opens builds none. Everything that reads the
+// field before then reads its words and draft, which it holds unconnected.
+const composerField = document.createDocumentFragment();
+composerField.append(composerInput);
+composer.append(composerQuote, suggestRow, composerSend);
 fabBar.prepend(composer);
 
 export let pendingAnchor = null;
@@ -176,15 +179,11 @@ export function createSelectionComposer({
   // would each overwrite the other's words, so the key says which passage and the record
   // says the rest: the anchor itself (a version that drops the passage still has to say
   // what the draft was about), the mode it was written in, and when it was last touched,
-  // which is what picks the one to reopen at load.
+  // which is what picks the one to reopen at load. The key is the anchor's identity, so a
+  // draft follows an identified subject across a data replacement as `sameAnchor` does;
+  // reopened on the re-minted anchor, it posts that anchor, the rendering last aimed at.
   const COMPOSER_KEY = "composer:";
-  const composerCtx = (anchor) =>
-    COMPOSER_KEY +
-    JSON.stringify(
-      Object.entries(anchor ?? {})
-        .filter(([, value]) => ["string", "number", "boolean"].includes(typeof value))
-        .sort(([left], [right]) => left.localeCompare(right)),
-    );
+  const composerCtx = (anchor) => COMPOSER_KEY + anchorKey(anchor);
   let syncComposer;
   const composerDraftValue = (text = syncComposer.value()) =>
     JSON.stringify({
@@ -340,8 +339,9 @@ export function createSelectionComposer({
     const choices = tabbing && field ? [field, ...options] : options;
     if (!choices.length) return;
     const at = choices.indexOf(focused());
-    const backward =
-      binding === "Shift+Tab" || binding === "ArrowLeft" || binding === "ArrowUp";
+    const backward = ["Shift+Tab", rowArrows(choices[0])[0], "ArrowUp"].includes(
+      binding,
+    );
     const next =
       at < 0
         ? backward
@@ -382,7 +382,6 @@ export function createSelectionComposer({
     }
     if (next) setReact(false);
     responseOptionsOpen = next;
-    keeps(fabMore, "aria-expanded", String(next));
     fabBar.classList.toggle("lf-response-open", next);
     if (place && fabAnchorAt()) showFab(fabAnchorAt());
     if (next && focus) focusResponseOption(focus);
@@ -401,8 +400,6 @@ export function createSelectionComposer({
     );
     if (responseOptionsOpen && !responseOptionsAvailable())
       setResponseOptions(false, { place: false });
-    keepsHidden(fabMore, !responseOptionsAvailable());
-    fabBar.toggleAttribute("data-lf-other-responses", responseOptionsAvailable());
   }
 
   function resetResponseOptions() {
@@ -415,6 +412,8 @@ export function createSelectionComposer({
   // a guard testing for one of them ran on every mousedown in the page and swallowed the
   // click. Painting hangs off the same call, so the mark and the box are up together.
   function showComposer(open) {
+    if (open && composerField.hasChildNodes()) composer.append(composerField);
+    if (!open) syncComposer?.cancelDictation();
     // Hiding keeps the words and used to say nothing at all, so a press on the banner took
     // the box off screen with the user's sentence in it and left no sign the sentence
     // still existed — recoverable only by reselecting that exact passage on that exact
@@ -763,8 +762,6 @@ export function createSelectionComposer({
         }
       },
     });
-    composerInput.closest(".lf-compose-field").append(fabMore);
-    fabMore.onclick = () => setResponseOptions(!responseOptionsOpen);
     suggestCheck.onchange = () => setSuggestionMode(suggestCheck.checked);
     fabSuggest.onclick = () => setSuggestionMode(!suggestCheck.checked);
     onStanding((node) => {
@@ -869,13 +866,8 @@ export function createSelectionComposer({
     setDraftDrawing,
     draftKey: composerCtx,
     composerHolds,
-    setSuggestionMode,
     responseOptionsAreOpen,
     responseOptionsAvailable,
-    responseOptionButtons,
-    focusedResponseOption,
-    responseReactionButtons,
-    stepResponseOptions,
     setResponseOptions,
     syncResponseOptions,
     resetResponseOptions,

@@ -344,10 +344,8 @@ def test_the_release_ask_over_http_is_the_shared_check(tmp_path):
         append_event(page, title_event(comment["id"], "Release recorded", agent))
         post_reply(
             page,
-            comment["id"],
+            {"to": comment["id"], "for": comment["id"]},
             "Recorded.",
-            "",
-            for_event=comment["id"],
             identity=agent,
         )
 

@@ -35,8 +35,9 @@ primitive must give the user something that site would not:
 - **Presentation craft.** Layout, type, and composition that hold at every
   width and beside every open panel, improved once and inherited by every
   page. A bespoke site starts from nothing each time.
-- **Self-checks.** A check the agent runs on its own page, so a mistake reaches
-  the agent rather than the user.
+- **Self-checks.** `page check` finds what would break a page, such as a widget
+  missing an attribute it needs, so the agent fixes it before the user sees the
+  page.
 
 Leaf standardizes reading, commenting, and actions across sessions and agents.
 Page content and composition remain the agent's and user's choices.
@@ -127,9 +128,10 @@ install the tracked tree whole. Read the scoped `AGENTS.md` before changing its 
 - `skills/leaf/packages/`: the bundled packages (`skills/leaf/packages/AGENTS.md`);
 - `skills/leaf/references/`: contracts for page authors, package authors, and harnesses;
 - `.claude/skills/developing-leaf/`: the maintainer workflow and vocabulary;
-- `hooks/`: each harness's registrations of the `leaf hook` entry: `hooks.json`
-  for Claude Code, with `claude-code.ts`, the opt-in hooks module that keeps its
-  watch, `codex.json` for Codex, and `pi.ts`, the Pi extension;
+- `hooks/`: each harness's registrations of the `leaf hook` entry (`hooks.json`
+  for Claude Code, `codex.json` for Codex) and the scripts they run, and the
+  modules that keep a session's watch between turns: `claude-code.ts`, the opt-in
+  Claude Code hooks module, and `pi.ts`, the Pi extension, which share `watch.ts`;
 - `evals/`: cases a headless agent answers, scoring the shipped instructions;
 - `examples/`: the pages the site publishes, which are also the render corpus
   (`examples/AGENTS.md`);
@@ -163,6 +165,11 @@ docstring, and how a rule was found in the commit message. A header also records
 product decisions its module embodies and the alternatives they rejected; a change
 that reverses one rewrites that record and says so in its commit. A workflow for one
 kind of task goes in `/developing-leaf`.
+
+Describe a set in prose by what its members share, such as "a directory under
+`build/` named after a row of `vendor.mjs`'s `bundles`", so a new member needs no edit. Where the prose must
+list them, a test holds the list to the machine's copy (`tests/AGENTS.md`, "Put
+each assertion at the boundary that owns it").
 
 ### Use dependencies
 
@@ -339,9 +346,9 @@ selection, `uv run pytest tests`, and `pnpm run test:runtime` run at landing
 `worker/src/` and `build/browser/`, and the JavaScript lock every committed bundle is built from have gates the suite and
 pre-commit do not reach. Both landing paths run all of them: a pull request in its
 `test` job, and `wt merge` in the pre-merge blocks of `.config/wt.toml`.
-`package.json` owns their shared Node gate list in `check` and their earlier
-bundle rebuild in `check:bundles`. `wt hook pre-merge` runs that local gate without landing, on a committed
-tree, since the bundle check fails on any uncommitted change. The website's delivery
+`package.json` owns their shared Node gate list in `check`, which compares every
+committed bundle with a rebuild. `wt hook pre-merge` runs that local gate without
+landing. The website's delivery
 checks — the site build, the Worker's dry-run deploy, and
 `leaf-dev verify-site website-worker` — run on a pull request and in `publish-site` before it
 deploys, not in `wt merge`.
@@ -357,5 +364,6 @@ loaded module, a vendored file, or the install's size, are not on their own a re
 for a change.
 
 Land through a pull request or with `wt merge`, which squash-merges to `main`.
-`/developing-leaf` covers landing with a red gate; Tend sessions follow
+A failing check the change doesn't cause blocks nothing (`tests/AGENTS.md`, "Run
+what the change needs"). Tend sessions follow
 **Landing** in `.claude/skills/running-tend/SKILL.md`.

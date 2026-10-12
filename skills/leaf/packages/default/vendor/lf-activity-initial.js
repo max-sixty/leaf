@@ -1,9 +1,11 @@
 (() => {
   // skills/leaf/packages/default/widgets/activity-view.js
   var ACTIVITY_VIEW = "activity-reading:";
-  function refreshActivityTarget(link, row, write) {
+  var lightTarget = (fragment, doc) => doc.readyState !== "loading" && doc.getElementById(decodeURIComponent(fragment.slice(1)));
+  function refreshActivityTarget(link, row, write, names = lightTarget) {
     const doc = link.ownerDocument;
-    const href = doc.readyState !== "loading" && doc.getElementById(row.widget) ? `#${encodeURIComponent(row.widget)}` : null;
+    const fragment = `#${encodeURIComponent(row.widget)}`;
+    const href = names(fragment, doc) ? fragment : null;
     if (!href) write(link, "tabindex", "-1");
     write(link, "href", href);
     if (href) write(link, "tabindex", null);
@@ -69,7 +71,7 @@
     }
     item.toggleAttribute("data-lf-undone", row.undone);
   }
-  function initialActivity(host, { offer, tabStore }) {
+  function initialActivity(host, { offer, tabStore, keeps }) {
     const saved = tabStore.get(ACTIVITY_VIEW + host.id);
     const reading = saved ? JSON.parse(saved) : { open: false, shown: "[]", label: "Show activity", news: false };
     const list = document.createElement("ol");
@@ -100,12 +102,7 @@
         () => {
           for (const row of drawn) {
             const link = rows.get(row.id).item.querySelector("a.lf-activity-target");
-            if (link)
-              refreshActivityTarget(link, row, (node, name, value) => {
-                if (node.getAttribute(name) === value) return;
-                if (value === null) node.removeAttribute(name);
-                else node.setAttribute(name, value);
-              });
+            if (link) refreshActivityTarget(link, row, keeps);
           }
         },
         { once: true }

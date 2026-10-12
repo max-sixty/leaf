@@ -1,5 +1,5 @@
-import { registerSampleCommand, onSampleNotice } from "./runtime/sample-child.js";
 /* Leaf runtime boot and application composition root. */
+import { registerSampleCommand, onSampleNotice } from "./runtime/sample-child.js";
 import "./vendor/browser-runtime.js";
 import "./runtime/interaction-log.js";
 // Restored panels and the first keyboard gesture share the ordinary synchronous
@@ -28,18 +28,20 @@ import {
   PAGE_INTERFACE,
   PRESENTATION,
 } from "./runtime/presentation.js";
-import { PAGE_PAINT_ATTRIBUTE } from "./runtime/page-paint.js";
-import { nextFrame, renderingSettled } from "./runtime/rendering.js";
+import { PAGE_PAINT_ATTRIBUTE, pagePresented } from "./runtime/page-paint.js";
+import { nextFrame, renderingState } from "./runtime/rendering.js";
 import { observeQueuedWork } from "./runtime/queued-work.js";
 import { mountApplication } from "./runtime/application.js";
+import { approvalBlockingQuestions } from "./runtime/questions/model.js";
+import { beginRead } from "./runtime/state-feed.js";
 import {
   applicationState,
+  observeWidgetPreparations,
   whenApplicationPresented,
 } from "./runtime/semantic-state.js";
 import { createEngagement } from "./runtime/composing/engagement.js";
 import { createCompositionInputs } from "./runtime/composing/input.js";
 import {
-  createSelectionComposer,
   composerOpen,
   composerQuote,
   fabBar,
@@ -133,25 +135,6 @@ import {
 import { nativeLayers } from "./runtime/keyboard/layer-stack.js";
 import { holdToRead } from "./runtime/held-word.js";
 
-await document.documentElement.lfSample?.ready;
-initializeServedDocument();
-keepPageRulesOffLayer();
-holdArrivingBounds();
-
-// A published shell may bundle the entry without publishing its source modules beside
-// it. Keep the synchronous validation seam on Leaf's own bootstrap element so render
-// checks can inspect either distribution without turning it into a package API. These
-// scene readings answer different questions: which readiness fact the page has yet to state
-// (`pageReadiness`), and whether its chrome and geometry have caught up with the input
-// handled since, and which native layers currently expose reading and controls.
-// Job lifecycle tracing binds at enqueue without replacing any rendering callback.
-const validationEntry = document.querySelector("script[data-lf-entry]");
-if (validationEntry) {
-  validationEntry.lfReadiness = pageReadiness;
-  validationEntry.lfRenderingSettled = renderingSettled;
-  validationEntry.lfObserveQueuedWork = observeQueuedWork;
-  validationEntry.lfNativeLayers = nativeLayers;
-}
 import { overflowMenu } from "./runtime/banner-toolbar.js";
 import {
   leavesOffered,
@@ -186,7 +169,6 @@ import {
   reflectKeys,
 } from "./runtime/keyboard/scopes.js";
 import { watchDisclosures } from "./runtime/keyboard/disclosure.js";
-import { createStanding } from "./runtime/standing.js";
 import { mountRepaint, repaint, repaintPage } from "./runtime/repaint.js";
 import { openResidency } from "./runtime/content-layout.js";
 import {
@@ -207,6 +189,28 @@ import { announce, liveEl, notice } from "./runtime/notifications.js";
 import { mediaViewer } from "./runtime/media.js";
 import { offer } from "./runtime/widget-elements.js";
 import { retainUserIntent, restrictUserIntent } from "./runtime/user-intent.js";
+
+await document.documentElement.lfSample?.ready;
+initializeServedDocument();
+keepPageRulesOffLayer();
+holdArrivingBounds();
+
+// A published shell may bundle the entry without publishing its source modules beside
+// it. Keep the synchronous validation seam on Leaf's own bootstrap element so render
+// checks can inspect either distribution without turning it into a package API. These
+// scene readings answer different questions: which readiness fact the page has yet to state
+// (`pageReadiness`), whether its counted queue or complete finite preparation has
+// settled (`renderingState`), and which native layers expose reading and controls.
+// Job lifecycle tracing binds at enqueue without replacing any rendering callback, and
+// widget preparation tracing at each declaration and its settlement.
+const validationEntry = document.querySelector("script[data-lf-entry]");
+if (validationEntry) {
+  validationEntry.lfReadiness = pageReadiness;
+  validationEntry.lfRenderingState = renderingState;
+  validationEntry.lfObserveQueuedWork = observeQueuedWork;
+  validationEntry.lfObserveWidgetPreparations = observeWidgetPreparations;
+  validationEntry.lfNativeLayers = nativeLayers;
+}
 
 // Automatic recovery belongs to this arrival. A press made while its presentation
 // waits owns the page; recovery must not capture a fresh focus intent after that wait.
@@ -236,7 +240,7 @@ const narrowing = createThreadNarrowing({
   ready: () => runtime.statePhase === "ready",
   repaint: () => app.presentThread(),
 });
-const paintVersionApproval = () => paintApproval(app.approvalBlockingQuestions());
+const paintVersionApproval = () => paintApproval(approvalBlockingQuestions());
 let threadPanelController;
 let drawers;
 let layout;
@@ -245,13 +249,12 @@ let pageMapDialog;
 let questions;
 let panelKeys;
 let pageComment;
-let selectionComposer;
 let responseSurface;
 let drawing;
 let regionCapture;
 // A draft's drawing put in place, null taking it off, and the page's ink repainted.
 const replaceDrawing = (anchor, drawn) => {
-  selectionComposer.setDraftDrawing(anchor, drawn);
+  responseSurface.setDraftDrawing(anchor, drawn);
   drawingPaint.paint();
 };
 // A composer's own controls for the drawing its draft holds, which the drawing
@@ -338,7 +341,7 @@ const designMode = createDesignMode({
   syncGeneral: () => pageComment.sync(),
   composer: {
     showFab: (...args) => responseSurface.showFab(...args),
-    openComposer: (...args) => selectionComposer.openComposer(...args),
+    openComposer: (...args) => responseSurface.openComposer(...args),
   },
   closePreview: (...args) => app.overlay?.closePreview(...args),
   marginTargetAt: (...args) => app.overlay?.marginTargetAt(...args),
@@ -438,7 +441,6 @@ app = mountApplication({
   accompaniedThread: (...args) => landing.accompaniedThread(...args),
   accompanyThread: (...args) => landing.accompanyThread(...args),
   threadAvailable: !offlineInteractive,
-  reportPageError,
   createEngagement,
   targetPickerOpen: () => targets.targetPickerOpen(),
   wireInput: inputs.wireInput,
@@ -473,14 +475,12 @@ app = mountApplication({
   panelIsOpen,
   registerReactSurface: (...args) => reactions.registerReactSurface(...args),
   sendReaction,
-  updateFab: (...args) => responseSurface.updateFab(...args),
   createMarginProjection: annotationRenderer?.createMarginProjection,
   annotationCommands: {
     designModeActive: designMode.active,
     pointerModeActive: () =>
       designMode.active() || drawing.drawModeActive() || regionCapture.active(),
     comparisonBase: version.comparisonBase,
-    comparisonChanges: version.comparisonChanges,
     inlineComparison: version.inlineComparison,
     toggleInlineComparison: version.toggleInlineComparison,
     leavePageMap: (...args) => pageMapDialog.leavePageMap(...args),
@@ -499,11 +499,6 @@ app = mountApplication({
     renderVersions: version.renderVersions,
     stateSignoff: (next) => stateSignoff(next, layout.syncLayout, paintVersionApproval),
     renderOthers: offlineInteractive ? () => undefined : renderOthers,
-  },
-  feed: {
-    prepareActivation: (state) => version.prepareActivation(state),
-    notifyDataSubscribers,
-    renderStatus,
   },
 });
 app.registerThreadPanel({
@@ -613,30 +608,6 @@ pageComment = createPageComment({
   showThread: landing.showThread,
   threadsToggle: toggleBtn,
 });
-selectionComposer = createSelectionComposer({
-  panelIsOpen,
-  setReact: (...args) => reactions.setReact(...args),
-  reactionTokens,
-  designModeActive: designMode.active,
-  openPageThread: app.threadDestinations.openPageThread,
-  threadTransitionOrigin: app.overlay?.threadTransitionOrigin,
-  anchorTravelAt: (...args) => responseSurface.anchorTravelAt(...args),
-  bringForward: (...args) => responseSurface.bringForward(...args),
-  fabAnchorAt: (...args) => responseSurface.fabAnchorAt(...args),
-  fabPointAt: (...args) => responseSurface.fabPointAt(...args),
-  fabFrameAt: () => responseSurface.fabFrameAt(),
-  fabPositioned: (...args) => responseSurface.fabPositioned(...args),
-  beginFabFocus: (...args) => responseSurface.beginFabFocus(...args),
-  endFabFocus: (...args) => responseSurface.endFabFocus(...args),
-  landFabFocus: (...args) => responseSurface.landFabFocus(...args),
-  showFab: (...args) => responseSurface.showFab(...args),
-  letGoOfFab: () => responseSurface.letGoOfFab(),
-  createComment: (command) => app.threadActions.create(command)?.delivery ?? null,
-  landSent: landing.landSent,
-  refreshThread: app.refreshThread,
-  wireInput: inputs.wireInput,
-  drawingEdits,
-});
 const passageSelection = createPassageSelection({
   restore: anchorTravel.restoreSelection,
 });
@@ -651,19 +622,10 @@ responseSurface = createResponseSurface({
   replyThreadAtStanding: () => app.threadDestinations.replyThreadAtStanding(),
   threadTarget: (id) => app.threadDestinations.threadTarget(id),
   standingTarget,
-  composerHolds: selectionComposer.composerHolds,
-  responseOptionsAreOpen: selectionComposer.responseOptionsAreOpen,
   markAt: anchorPaint?.markAt,
   scrollToElement: anchorTravel.scrollToElement,
   scrollToRange: anchorTravel.scrollToRange,
   visualActionAnchor: anchorControls.visualActionAnchor,
-  hideComposer: selectionComposer.hideComposer,
-  openComposer: selectionComposer.openComposer,
-  carryComposerToReply: selectionComposer.carryComposerToReply,
-  resetResponseOptions: selectionComposer.resetResponseOptions,
-  responseOptionsAvailable: selectionComposer.responseOptionsAvailable,
-  setResponseOptions: selectionComposer.setResponseOptions,
-  syncResponseOptions: selectionComposer.syncResponseOptions,
   designModeActive: designMode.active,
   designTarget: designMode.target,
   openOnDesign: designMode.open,
@@ -683,6 +645,11 @@ responseSurface = createResponseSurface({
   revealResponseHome: overlaySelected
     ? null
     : () => threadPanelController.setPanel(true),
+  threadTransitionOrigin: app.overlay?.threadTransitionOrigin,
+  createComment: (command) => app.threadActions.create(command)?.delivery ?? null,
+  landSent: landing.landSent,
+  wireInput: inputs.wireInput,
+  drawingEdits,
 });
 reactions = createReactionController({
   marginEntryChoices: app.overlay?.marginEntryChoices,
@@ -691,8 +658,8 @@ reactions = createReactionController({
   openMarginEntryOptions: app.overlay?.openMarginEntryOptions,
   unfoldedMarginEntries: app.overlay?.unfoldedMarginEntries,
   designModeActive: designMode.active,
-  hideComposer: selectionComposer.hideComposer,
-  syncResponseOptions: selectionComposer.syncResponseOptions,
+  hideComposer: responseSurface.hideComposer,
+  syncResponseOptions: responseSurface.syncResponseOptions,
   fabAnchorAt: responseSurface.fabAnchorAt,
   fabReturnPlaces: responseSurface.fabReturnPlaces,
   fabTargetAt: responseSurface.fabTargetAt,
@@ -718,12 +685,12 @@ drawing = createDrawingController({
   pageGeometry: { refreshAim: pageGeometry.refreshAim },
   pointer: pointerAt,
   visibleTargets: targets.visibleTargets,
-  anchoredDrawing: selectionComposer.draftDrawing,
-  heldDrawings: selectionComposer.heldDrawings,
-  watchHeldDrawings: selectionComposer.watchHeldDrawings,
-  draftKey: selectionComposer.draftKey,
+  anchoredDrawing: responseSurface.draftDrawing,
+  heldDrawings: responseSurface.heldDrawings,
+  watchHeldDrawings: responseSurface.watchHeldDrawings,
+  draftKey: responseSurface.draftKey,
   openAnchoredDrawing: (anchor, drawing) =>
-    selectionComposer.openComposer(anchor, "", { carry: true, drawing }),
+    responseSurface.openComposer(anchor, "", { carry: true, drawing }),
   replaceDrawing,
   setDesignMode: designMode.setActive,
   closeTargetPicker: targets.closeTargetPicker,
@@ -739,7 +706,7 @@ regionCapture = createRegionCapture({
   closeReactionMode: () => reactions.setReact(false),
   parent: chromeForeground,
   visibleTargets: targets.visibleTargets,
-  openComposerWithMedia: selectionComposer.openComposerWithMedia,
+  openComposerWithMedia: responseSurface.openComposerWithMedia,
 });
 
 layout = createChromeLayout({
@@ -753,7 +720,6 @@ layout = createChromeLayout({
     bottomStatusEl,
   },
   scheduleThreadPreviewPosition: app.overlay?.scheduleThreadPreviewPosition,
-  restateDrawerEdge: () => drawers.drawersEdge.state(),
   syncAuxiliarySurfaces: auxiliarySurfaces.sync,
   syncReactLayout: reactions.syncReactLayout,
   refreshFab: responseSurface.refreshFab,
@@ -803,8 +769,6 @@ if (document.documentElement.lfSample) {
 
 drawers = createDrawers({
   doors: { queue: [queueCounts] },
-  sideEdge: layout.commentsEdge,
-  landEdge: layout.landEdge,
   auxiliarySurfaces,
   closePreview: app.overlay?.closePreview,
   leavesOffered,
@@ -838,7 +802,7 @@ goToSequence = createGoToSequence({
   stopGlide,
   coveringAuxiliarySurface: auxiliarySurfaces.coveringSurface,
 });
-const standing = createStanding({
+const standingPainters = {
   markHere: questions.markHere,
   paintStanding: anchorPaint?.paintStanding,
   paintSelectedMarginEntries: () =>
@@ -857,7 +821,7 @@ const standing = createStanding({
   paintCoreControls,
   paintVersionShortcuts: version.paintShortcuts,
   paintInputs: inputs.paintInputs,
-});
+};
 
 const skipToChrome = offer("button", "lf-skip", "Skip to Leaf controls");
 skipToChrome.onclick = () => {
@@ -916,7 +880,6 @@ if (!offlineInteractive) {
   narrowing.mount();
   await panelKeys.mount();
   pageComment.mount(chromeForeground);
-  selectionComposer.mount();
   responseSurface.mount();
   holdToRead();
   reactions.mount();
@@ -952,12 +915,11 @@ if (!offlineInteractive) {
   declareLeavesKeys();
   watchDisclosures(document);
   mountRepaint({
+    ...standingPainters,
     reflectFirstScopes,
     reflectKeys,
-    paintStandingContent: standing.paintStandingContent,
     syncLayout: layout.syncLayout,
     pageShifted: pageGeometry.pageShifted,
-    paintStandingGeometry: standing.paintStandingGeometry,
   });
 } else {
   document.adoptedStyleSheets = [...document.adoptedStyleSheets, chromeSheet];
@@ -965,7 +927,7 @@ if (!offlineInteractive) {
   document.body.append(chromeRoot);
   // Exports retain image inspection, but no page controls. Their other standing is
   // what a widget's own box shows, such as an options group's addition field.
-  mountRepaint({ paintStandingGeometry: inputs.paintInputs, reflectKeys });
+  mountRepaint({ paintInputs: inputs.paintInputs, reflectKeys });
 }
 
 // Widget commands belong to interactive documents, including offline exports.
@@ -983,10 +945,10 @@ const replayReady = passiveSample
         toggleBtn,
         panelIsOpen,
         setPanel: threadPanelController.setPanel,
-        detachComposer: selectionComposer.detachComposer,
+        detachComposer: responseSurface.detachComposer,
         fabInput,
         fabFrameAt: () => responseSurface.fabFrameAt(),
-        openComposer: selectionComposer.openComposer,
+        openComposer: responseSurface.openComposer,
         closePreview: app.overlay?.closePreview,
         openThread: app.threadDestinations.openPageThread,
         threadTransitionOrigin: app.overlay?.threadTransitionOrigin,
@@ -996,7 +958,7 @@ const replayReady = passiveSample
     )
   : Promise.resolve();
 
-const initialStateRead = app.beginRead();
+const initialStateRead = beginRead();
 let interactionGalleryModule;
 let interactionGalleryLoading;
 let failedInteractionGallery;
@@ -1025,8 +987,6 @@ if (!offlineInteractive) {
 
 if (!passiveSample && !offlineInteractive) {
   restoreUserView({
-    commentsEdge: layout.commentsEdge,
-    drawersEdge: drawers.drawersEdge,
     restoreAuxiliarySurface: auxiliarySurfaces.restore,
     setDesignMode: designMode.setActive,
   });
@@ -1043,18 +1003,18 @@ const landFragment = version.aimArrival();
 const { landArrival, savedView } = offlineInteractive
   ? { landArrival: () => {}, savedView: null }
   : version.installArrival();
-const savedComposer = offlineInteractive ? null : selectionComposer.pendingComposer();
+const savedComposer = offlineInteractive ? null : responseSurface.pendingComposer();
 
 async function presentPage() {
-  if (document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented)) return;
+  if (pagePresented()) return;
   await whenApplicationPresented();
-  if (document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented)) return;
+  if (pagePresented()) return;
   setAnchoringReady(true);
   try {
     const draftOpened =
       !offlineInteractive &&
       recoverComposer() &&
-      selectionComposer.openDraft(savedComposer);
+      responseSurface.openDraft(savedComposer);
     await app.presentThread();
     // Anchoring changes where thread chrome is painted. That final paint is part
     // of initial presentation too: opening interaction before it commits can expose a

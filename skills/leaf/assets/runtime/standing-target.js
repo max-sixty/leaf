@@ -79,7 +79,7 @@ export function placeOf(node) {
 
 // Where the user stands now: the first place on the page among where they stand
 // (`standingNodes`, focus.js), focus before a selection's ends.
-export function standingPlace() {
+function standingPlace() {
   for (const node of standingNodes()) {
     const place = placeOf(hostIn(node, document));
     if (place) return place;

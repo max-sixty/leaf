@@ -20,7 +20,7 @@
       .reference-index a {
         text-decoration: none;
       }
-      .reference-index a:is(:hover, :focus-visible) {
+      .reference-index a:is(:hover, [data-lf-focus]) {
         text-decoration: underline;
       }
       .reference-index code {
@@ -140,10 +140,8 @@
           <a href="#x-inline"><code>x-inline</code></a>
           <a href="#x-instructions"><code>x-instructions</code></a>
           <a href="#x-language"><code>x-language</code></a>
-          <a href="#x-lines"><code>x-lines</code></a>
           <a href="#x-measured"><code>x-measured</code></a>
           <a href="#x-name"><code>x-name</code></a>
-          <a href="#x-numbering"><code>x-numbering</code></a>
           <a href="#x-owners"><code>x-owners</code></a>
           <a href="#x-paints"><code>x-paints</code></a>
           <a href="#x-patch"><code>x-patch</code></a>
@@ -328,8 +326,8 @@
               <details class="reference-more">
                 <summary aria-label="Full x-history contract">Full contract</summary>
                 <p>
-                  The reading is the newest 50 logged moves, newest first, each naming
-                  who moved, what they did, the thread it belongs to and that thread's
+                  The reading is the newest 50 logged events, newest first, each naming
+                  who acted, what they did, the thread it belongs to and that thread's
                   title, whether a later undo took it back, and for a widget gesture the
                   words its ids had in the document it was made in, so a later version
                   rewording or removing what was chosen leaves the row as made. The
@@ -395,25 +393,6 @@
               </p>
             </div>
           </section>
-          <section class="reference-entry" id="x-lines">
-            <h3><code>x-lines</code></h3>
-            <div class="reference-copy">
-              <p>
-                Attributes holding line references into the nearest data body — the
-                element's own &lt;pre&gt;, or its enclosing data element's (a note's
-                <code>at</code> names a line of its code block) — which
-                <code>page check</code> refuses outside the body.
-              </p>
-              <details class="reference-more">
-                <summary aria-label="Full x-lines contract">Full contract</summary>
-                <p>
-                  A reference names a line by the number that body's x-numbering gives
-                  it, 1-based when it has none; a number inside a gap the numbering
-                  leaves is in the body.
-                </p>
-              </details>
-            </div>
-          </section>
           <section class="reference-entry" id="x-measured">
             <h3><code>x-measured</code></h3>
             <div class="reference-copy">
@@ -449,24 +428,6 @@
                   title instead, as a column's or a tab's <code>label</code> is. An
                   attribute the element merely shows first, such as a metric's value or
                   a chronology entry's time, is not its title.
-                </p>
-              </details>
-            </div>
-          </section>
-          <section class="reference-entry" id="x-numbering">
-            <h3><code>x-numbering</code></h3>
-            <div class="reference-copy">
-              <p>
-                The attribute giving the source line numbers a data body quotes, as
-                ascending ranges ("1505-1507,1520-1527").
-              </p>
-              <details class="reference-more">
-                <summary aria-label="Full x-numbering contract">Full contract</summary>
-                <p>
-                  <code>page check</code> holds it to one number per body line, counting
-                  the &lt;pre&gt;'s text without its leading blank lines and trailing
-                  whitespace; a gap between ranges is lines the body leaves out, and
-                  every x-lines reference into that body names lines by these numbers.
                 </p>
               </details>
             </div>
@@ -763,9 +724,9 @@
                   (<code>creates</code>). An agent verb requires a record form other
                   than <code>body</code>, since a report moves declared state and never
                   the page's words, which keeps the passage reading untouched by it; it
-                  may declare <code>update: true</code> to require non-empty
+                  may declare <code>report: true</code> to require non-empty
                   <code>detail.text</code> as the report's short human-readable news,
-                  which the canonical update feed exposes without guessing from a
+                  which the canonical report feed exposes without guessing from a
                   widget, verb, or field name. The runtime paints a standing report live
                   (data-lf-reported); it is provisional news, standing only until a
                   version answers it, as $report says. Each verb is its own state: the
@@ -966,16 +927,18 @@
                   A missing token or registration detaches on replay rather than
                   widening to the whole picture. A visual that draws its parts over time
                   passes <code>registerVisualParts(source, read, {reveal})</code>:
-                  <code>reveal(id)</code> synchronously draws a state whose inventory
-                  holds that declared part. A declared part absent from the current
-                  state then places its threads on the whole picture, and travel to the
-                  part, whether a thread anchored there or a module's
-                  <code>navigateToDatum</code>, calls <code>reveal</code> before landing
-                  on it. The registration's <code>update()</code> signals any rendering
-                  or geometry change, including an in-place attribute or style change.
-                  The render gate validates every record, requires each authored token
-                  to resolve, in the current state or after its <code>reveal</code>, and
-                  refuses a registered id its prefixes do not admit. A
+                  <code>reveal(id)</code> synchronously settles on a state whose
+                  inventory holds that declared part, even when it is already visible,
+                  cancelling any pending replacement that would retire it. A declared
+                  part absent from the current state then places its threads on the
+                  whole picture, and travel to the part, whether a thread anchored there
+                  or a module's <code>navigateToDatum</code>, calls
+                  <code>reveal</code> before landing on it. The registration's
+                  <code>update()</code> signals any rendering or geometry change,
+                  including an in-place attribute or style change. The render gate
+                  validates every record, requires each authored token to resolve, in
+                  the current state or after its <code>reveal</code>, and refuses a
+                  registered id its prefixes do not admit. A
                   <code>{parts: ATTR, all: TOKEN}</code> declaration admits the complete
                   registered inventory when ATTR is TOKEN, preserving a whole-picture
                   target when ATTR is omitted. A
@@ -1032,8 +995,8 @@
             <div class="reference-copy">
               <p>
                 <code>true</code>: this widget is a block prose seat that can admit
-                <code>leaf task open</code> without a pending user move, so the task
-                shows as local chrome beside its authored markup.
+                <code>leaf task open</code> without a pending update, so the task shows
+                as local chrome beside its authored markup.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-work contract">Full contract</summary>

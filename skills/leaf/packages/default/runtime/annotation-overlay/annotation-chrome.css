@@ -15,16 +15,16 @@ body.lf-over-mark { cursor: pointer; }
 /* The annotation layer hidden (`o`): the element's threads are out of reach, so the
    hand that promises one goes too, while a gesture's own contour stays. */
 :root[data-lf-annotations="hidden"]
-  .lf-mark-el:not(.lf-pending, .lf-mark-here, :focus-visible, .lf-focus-visible) {
+  .lf-mark-el:not(.lf-pending, .lf-mark-here, [data-lf-focus]) {
     cursor: auto; }
 /* The draft's own element uses the accent contour. An open composer is on screen
    whenever this is. */
 .lf-mark-el.lf-pending { outline: 2px solid var(--accent); outline-offset: -2px;
   cursor: auto; }
 /* The pointer on the thread's row in Threads and the current thread use one accent
-   contour. Keyboard focus is the distinct state that earns a complete outer ring. */
+   contour. Focus is the distinct state that earns a complete outer ring. */
 .lf-mark-el.lf-mark-hover { outline: 2px solid var(--accent); outline-offset: -2px; }
-.lf-mark-el:not(.lf-projected-mark):is(:focus-visible, .lf-focus-visible) {
+.lf-mark-el:not(.lf-projected-mark)[data-lf-focus] {
   outline: var(--focus-ring);
   --lf-focus-ring: passage-focus; outline-offset: 2px; }
 /* The thread the user stands in draws the same accent contour. Focus on the element
@@ -60,11 +60,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* The rail cannot trap a raised item below the page paint it summons. Only the item
      under pointer or focus crosses that paint; the full-page toolbar stays at rest. */
   .lf-margin-projection { z-index: auto; }
-  .lf-margin-cluster:is(:hover, :focus-within) { z-index: var(--lf-z-margin-raised); }
+  .lf-margin-cluster:is(:hover, [data-lf-focus-within]) { z-index: var(--lf-z-margin-raised); }
   /* A pane's lane is a stacking context of its own (its clip makes it one), so the lane
      rises with the row the pointer or the keyboard is on. */
-  .lf-margin-lane:has(.lf-margin-cluster:is(:hover, :focus-within)),
-  .lf-margin-carrier:has(.lf-margin-cluster:is(:hover, :focus-within)) {
+  .lf-margin-lane:has(.lf-margin-cluster:is(:hover, [data-lf-focus-within])),
+  .lf-margin-carrier:has(.lf-margin-cluster:is(:hover, [data-lf-focus-within])) {
     z-index: var(--lf-z-margin-raised); }
   /* Placement fits the finished thread before typing. Only the editor paints; the
      transparent header/reply slots neither take document flow nor intercept presses.
@@ -86,6 +86,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
       var(--lf-comment-frame-bottom);
     pointer-events: none;
   }
+  /* Floating, the bar shows once its placement stands it, and not while it waits for room
+     (floating-response.js). Inline, its outlet shows it. */
+  .lf-fab-bar:not([data-lf-presentation="inline"]):is(:not([data-lf-placement]), [data-lf-withheld]) {
+    visibility: hidden; }
   .lf-fab-bar > * { pointer-events: auto; }
   .lf-fab-bar { position: fixed; width: max-content;
     align-items: flex-end; gap: 4px; white-space: nowrap;
@@ -168,13 +172,13 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      the card has no spot yet, so it is not seen or pressed where it happens to lie. */
   .lf-margin-preview:not([data-lf-thread-placement]) { opacity: 0; pointer-events: none; }
   /* The card is the thread's one frame. The thread fills it with no ground or ring of its
-     own, so the keyboard standing on the thread rings the card: the ring takes the
+     own, so focus on the thread rings the card: the ring takes the
      card's edge in place of its border, inset, since the card stands over the page and
      nothing outside it is free. It used to ring and tint the thread 13px inside the
      card's own border, a frame in a frame with the reply field a third box inside
      that. The reply field keeps its box, since that is the thing typed into. The ring is
      still the thread's (shadow.css names it page-thread); the card only carries it. */
-  .lf-margin-preview:has(.lf-page-thread:is(:focus-visible, .lf-focus-visible)) {
+  .lf-margin-preview:has(.lf-page-thread[data-lf-focus]) {
     outline: var(--focus-ring); --lf-focus-ring: page-thread;
     outline-offset: calc(-1 * var(--focus-ring-w)); }
   /* A newly submitted message keeps its editor's wrapping measure and, when its
@@ -267,13 +271,18 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-thread .lf-thread-reply { grid-row: 4; }
   /* The card accompanies a live page: scrolling continues there at either edge,
      including when all turns fit and the transcript has no scroll travel. */
+  /* Deliberate visual tradeoff: this pale thumb falls below WCAG's usual 3:1
+     contrast guidance for custom controls, chosen to keep the card's chrome quiet.
+     Native scrolling, hiding, and hover widening remain browser-controlled. */
   .lf-margin-thread .lf-thread-transcript { min-height: 1lh; overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--ink) 12%, var(--paper)) transparent;
     scroll-padding-block: var(--focus-ring-room); }
   /* The field stands at the card's inset; words stand one inset inside it. */
   .lf-margin-thread .lf-page-thread { padding: 0; background: var(--paper); }
   .lf-margin-thread .lf-page-thread::after { content: none; }
   @media (forced-colors: active) {
-    .lf-margin-thread .lf-page-thread:is(:focus-within, .lf-focus-within) { outline: none; }
+    .lf-margin-thread .lf-page-thread[data-lf-focus-within] { outline: none; }
   }
   /* The row's ring has room in the card's common inset. Its inline containment keeps
      a draft from widening the card. */
@@ -348,7 +357,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
       padding-inline-end: var(--sp-2); margin-inline-end: calc(-1 * var(--sp-2)); }
     :is(.lf-margin-thread .lf-thread-transcript .lf-msg-head > :not(b, .lf-msg-meta),
         .lf-margin-thread .lf-thread-transcript .lf-msg-meta > :not(time)):not(
-        :focus-visible, .lf-focus-visible) {
+        [data-lf-focus]) {
       animation: lf-msg-annotation-exit linear both;
       animation-timeline: --lf-msg-exit;
       animation-range: exit-crossing 0px exit-crossing var(--lf-msg-annotation-exit); }

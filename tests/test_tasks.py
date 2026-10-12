@@ -6,6 +6,7 @@ import json
 import pytest
 from click.testing import CliRunner
 from interact_support import (
+    FLOW_PAGE,
     PAGE,
     append_carried_log_record,
     append_command,
@@ -105,19 +106,24 @@ def test_required_approval_is_a_question_for_its_exact_stamp_until_approved(page
     )
     (page_dir / "index.html").write_text(source)
     assert not any(
-        item["ends"] == "approval" for item in state_json(page_dir)["queues"]["on_you"]
+        item["subject"] == {"kind": "page"}
+        for item in state_json(page_dir)["queues"]["on_you"]
     )
     publish(page_dir)
     queue = state_json(page_dir)
     [approval] = [
-        item for item in queue["queues"]["on_you"] if item["ends"] == "approval"
+        item
+        for item in queue["queues"]["on_you"]
+        if item["subject"] == {"kind": "page"}
     ]
     assert (approval["id"], approval["subject"], approval["question"]["source"]) == (
         "approval:v1",
         {"kind": "page"},
         {"kind": "approval", "version": 1},
     )
-    assert {item["ends"] for item in queue["queues"]["on_you"]} == {
+    assert {
+        item["question"]["source"]["kind"] for item in queue["queues"]["on_you"]
+    } == {
         "widget",
         "approval",
     }
@@ -170,7 +176,7 @@ def test_required_approval_is_a_question_for_its_exact_stamp_until_approved(page
         source.replace("<title>t</title>", "<title>Revised</title>")
     )
     assert state_json(page_dir)["queues"]["on_you"] == []
-    publish(page_dir, version=2)
+    publish(page_dir)
     [next_approval] = state_json(page_dir)["queues"]["on_you"]
     assert (next_approval["id"], next_approval["question"]["source"]) == (
         "approval:v2",
@@ -680,7 +686,7 @@ def test_a_thread_task_runs_under_its_start_line(page_dir):
     }
 
 
-WORK_PAGE = PAGE.replace(
+WORK_PAGE = FLOW_PAGE.replace(
     '<lf-diagram id="flow">',
     '<lf-board id="rollout"><lf-column id="rollout-now" label="Now">\n'
     '  <lf-card id="rollout-card"><strong>Ship the rollout</strong> '
@@ -713,7 +719,7 @@ def test_a_widget_task_needs_a_seat_and_a_completing_stamp_ends_it(page_dir):
     )
     assert stamp(page_dir, "Elsewhere").exit_code == 0
     assert [item["id"] for item in state_json(page_dir)["tasks"]] == [task["id"]]
-    (page_dir / "index.html").write_text(PAGE)
+    (page_dir / "index.html").write_text(FLOW_PAGE)
     dropped = stamp(page_dir, "Card gone")
     assert dropped.exit_code == 0, dropped.output
     assert [item["id"] for item in state_json(page_dir)["tasks"]] == [task["id"]]
@@ -725,9 +731,7 @@ def test_a_widget_task_needs_a_seat_and_a_completing_stamp_ends_it(page_dir):
     note = events_model.read_events(page_dir)[-1]
     assert note["settles"] == [{"kind": "task", "id": task["id"]}]
     assert state_json(page_dir)["tasks"] == []
-    [ended] = [
-        item for item in tasks_model.canonical_tasks(events_model.read_events(page_dir))
-    ]
+    [ended] = tasks_model.TaskReading(events_model.read_events(page_dir)).tasks
     assert (ended["state"], ended["outcome"]["detail"]) == ("done", "v4")
     (page_dir / "index.html").write_text(
         WORK_PAGE.replace("<title>t</title>", "<title>t · v4</title>")

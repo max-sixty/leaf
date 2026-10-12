@@ -1,4 +1,5 @@
-import { declarationFor, inChrome, upFrom } from "/runtime/widget-api.js";
+import { declarationFor, inChrome } from "/runtime/widget-api.js";
+import { upFrom } from "/runtime/check-api.js";
 import { at } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
@@ -26,13 +27,6 @@ const moduleOwnsBox = (el) => {
     );
   }
   return false;
-};
-const pageOwnsFrame = (el) => {
-  if (el.getRootNode() instanceof ShadowRoot || inChrome(el) || moduleOwnsBox(el))
-    return false;
-  for (let node = el; node; node = upFrom(node))
-    if (node.matches(generated)) return false;
-  return true;
 };
 
 // A box that draws an inset and shows a different one. A child's outer margin normally
@@ -167,7 +161,6 @@ export function trappedMargins() {
         if (leak && leak.margin > 0.5)
           found.push({
             at: at(el),
-            authored: pageOwnsFrame(el),
             tag: el.tagName.toLowerCase(),
             id: el.id || null,
             cls: el.classList[0] || null,
@@ -241,7 +234,6 @@ export function splitEdges() {
         if (beside)
           found.push({
             at: at(el),
-            authored: pageOwnsFrame(el),
             tag: el.tagName.toLowerCase(),
             id: el.id || null,
             cls: el.classList[0] || null,

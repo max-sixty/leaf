@@ -83,6 +83,13 @@ has tried; settle that before building it.
 
 ### Agent and author experience
 
+- **Decide whether `page check` should still refuse an `lf-ask` without a leading
+  heading.** The heading is the Question's title in the Questions panel, the banner
+  and the `q` announcement, which all show an empty title without one, and the
+  `lf-ask` instructions already ask for it. Wait until the other narrow checks
+  removed in October 2026 have been gone a while; if pages written since still
+  carry the heading, remove this check too. It fired in 4 sessions, 2 of them on
+  user pages, between 2026-07-22 and 2026-10-11.
 - **Consider a reminder when revising decided content.** An optional `--force`
   acknowledgment could make an agent pause over an existing decision. Revisions
   currently remain unrestricted; decide whether such a reminder helps before
@@ -184,11 +191,9 @@ and its chrome coordinate.
   newcomer out of view rather than pushing down the card being read. The user sees
   it only in the count; give that arrival a visible route while preserving the
   current reading.
-- **Hold the shipped workspaces to the overflow advice.** `page check --render` still
-  advises that `rust-sort`'s stage pane runs 100px past its region at 720px. Fit it,
-  then make `test_page_fixture_renders` fail on that advice for workspace examples,
-  with `rust-sort`'s source pane the one reader allowed to scroll; today it asserts only
-  the gate's failures ([plan](notes/chrome-and-covers.md)).
+- **Fit `rust-sort`'s stage pane.** At 720px it runs 100px past its region, which
+  `page-authoring.md` asks an author to trim or split
+  ([plan](notes/chrome-and-covers.md)).
 - **Decide whether the desktop bottom bar goes.** Its key hints would move behind `?`
   and its status into the banner; the bar is how a desktop user learns the keys
   without asking, which is the trade to weigh ([plan](notes/chrome-and-covers.md)).
@@ -270,12 +275,12 @@ that changes size after first paint, with its cause.
   a synchronous source reading, or whether a summary can serve the reader who came
   to read it. The activity feed now opens log-sized rows deliberately and holds later
   growth with `HeldReading`.
-- **Decide the contents' form before first paint.** `lf-toc` changes size because the
-  margin pass decides after first paint whether it is the fixed map in the margin or
-  the outline in the flow (`data-lf-margin`, `margin-layout.js`), from the room
-  it measures at that point. A held summary does not answer that cause. Check first whether a
-  container or media query on the space beside the column can make the same decision
-  in CSS.
+- **Draw the contents before first paint.** `lf-toc` is written empty and builds its
+  list from the page's headings as its module upgrades, so it first paints with no box
+  and then takes its full one (`tests/known_widget_findings.py`). Residency
+  (`data-lf-margin`, prepaint.js) already decides its form before that paint; what is
+  left is an initial renderer (`lfInitial.register`) that draws the list from the
+  authored headings.
 - **Check that margin markers paint in place in their first frame.** The shift watch
   exempts the page until it is presented (`tests/shift_watch.js`), and #1603 records
   startup shifts only as diagnostics, so a marker drawn in the wrong place in its first
@@ -369,6 +374,15 @@ on 2026-10-07.
 
 ### Development velocity
 
+- **Make test tiering much simpler.** Cost tiers went in as a stopgap to cut the
+  suite's cost quickly: a test's tier is the later of its `main`/`nightly` marks and
+  the tier its measured CI cost names in `tests/cost_tiers.json` (307 KB), with a
+  `landing` pin, a `leaf-dev cost-tiers` refresh, and a junit property to feed it
+  (`dev/leaf_dev/cost_tiers.py`). That is three encodings of one decision, and a
+  test's tier is invisible where the test is written. Find one encoding a reader can
+  see beside the test, likely by making browser tests cheap enough that fewer need
+  moving, and by decoupling shift watching from tier marks
+  (`render_harness.watches_shifts`), which is what kept these tiers out of source.
 - **Check what handing over on chosen tests costs.** Since 2026-10-04 a handover runs
   the tests the agent picks for its change, and the broad selection runs only at
   landing (`tests/AGENTS.md`, "Run what the change needs"). Before that, 25 of the
@@ -402,15 +416,12 @@ on 2026-10-07.
   into a page by hand. It is an experiment: the alternative is for the command to
   print the samples' rows and leave the chart to the agent writing the page. Keep it
   if it gets used for later readings; otherwise reduce it to the rows.
-- **Consider bundling the browser runtime.** A navigation loads about 220 JS modules
-  over HTTP/1.1's six connections. A prototype bundling `leaf.js` with esbuild cut a
-  widgetless page from 217 requests to 38 and its open from 332–483 ms to 238–258 ms,
-  roughly 10% of browser-test time. The bundle would hold `assets/runtime/` and Leaf's
-  own packages; custom packages stay unbuilt and import only `/runtime/widget-api.js`,
-  a bundle entry, which `page check` would then enforce, since any other runtime import
-  loads a second runtime. **Unconfirmed:** it needs automatic rebuilds on preview, test
-  and merge, since a committed bundle would conflict across concurrent runtime PRs.
-  Untested alternative: `modulepreload` hints.
+- **Consider loading the compiled kernel in previews and tests.** Installs and the
+  website load the kernel `leaf_dev.distribution` compiles, but development previews
+  and the browser tests still load about 220 source modules over HTTP/1.1's six
+  connections. A prototype bundle cut a widgetless page from 217 requests to 38 and
+  its open from 332–483 ms to 238–258 ms, roughly 10% of browser-test time. Untested
+  alternative: `modulepreload` hints.
 
 ## Etc
 
@@ -422,10 +433,6 @@ Revisit these when their stated trigger becomes real; they are not an active que
   repository and revision, offer a GitHub source link for a filename such as
   `AGENTS.md` rather than treating it as a web domain. Establish how that context
   reaches Markdown before inferring a destination from the filename alone.
-
-- **Learn how users prefer to dictate comments.** Observe whether people use
-  browser dictation, OS dictation, or their own dictation app. Defer a microphone
-  button until an unmet need justifies the extra visual noise in Leaf's text boxes.
 
 - **Assess whether automatic measurement freshness is useful (#7 in the simplification audit).**
   Keep the current `lf-num` source/write-time reminder for now. Look for cases where
@@ -557,6 +564,12 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **#6 — Codex supervision:** separate hosted and local turn supervision only
   if hosted delivery becomes a product priority; the App Server protocol is
   already shared.
+- **Make a leaf.page dispatch survive its container.** The Worker acknowledges an
+  accepted event and hands its Codex turn to `waitUntil` (`worker/src/agent.ts`,
+  `dispatchAgentTask`). Nothing records the event and turn identity in the
+  container's Durable Object, and nothing recovers a dispatch whose container
+  disappears or outlives the `waitUntil` window. Trigger: a hosted answer lost that
+  way.
 - **#7 — Runtime fold tests:** add focused Node tests as rules change; extend
   `tests/runtime/dom.mjs` only when a test needs another module.
 - **Claude Code tool observation:** consider a cheap hook for sessions holding

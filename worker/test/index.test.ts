@@ -403,7 +403,7 @@ describe("product-site delivery", () => {
         expect(response.headers.get("Set-Cookie")).toBeNull();
         expect(forwarded[index]).toBe(body);
       }
-      expect(logged.mock.calls.map(call => call[0])).toEqual([
+      expect(logged.mock.calls.map(call => call[0])).toStrictEqual([
         {
           component: "leaf-interaction", event: "client_batch", route: "/examples/triage-board",
           release: RELEASE, sampleReference: "645988520964", session: "0".repeat(32),
@@ -508,7 +508,7 @@ describe("product-site delivery", () => {
       }), environment());
       expect(response.status).toBe(204);
       const batch = logged.mock.calls[0][0] as { entries: unknown[] };
-      expect(batch.entries).toEqual([
+      expect(batch.entries).toStrictEqual([
         {
           ts: entries[0].ts, sequence: 1, type: "sample", phase: "admission",
           host: 2, allocation: 3, revision: 4, elapsed: 23.5,
@@ -621,7 +621,7 @@ describe("product-site delivery", () => {
       );
       expect(accepted.status).toBe(204);
       expect(logged).toHaveBeenCalledOnce();
-      expect(logged.mock.calls[0][0]).toEqual({
+      expect(logged.mock.calls[0][0]).toStrictEqual({
         component: "leaf-interaction",
         event: "client_batch",
         reference: "964433995543",
@@ -1483,6 +1483,88 @@ describe("website event analytics", () => {
       ],
       doubles: [2, 0],
     });
+  });
+});
+
+describe("page faults", () => {
+  const send = (cookie: string, body: object) =>
+    worker.fetch(
+      new Request("https://leaf.page/examples/triage-board/api/event", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: cookie,
+          // A tab still on the release before a deploy, so the record tells the
+          // document's release apart from the edge's.
+          "Leaf-Release": "b".repeat(64),
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+            "AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36",
+        },
+        body: JSON.stringify(body),
+      }),
+      environment(),
+    );
+
+  it("logs a passive reader's page fault at the edge without activating a container", async () => {
+    const sessionId = "13".repeat(16);
+    const containerFetch = vi.fn();
+    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    const logged = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    try {
+      const response = await send(`__Host-leaf-page=${sessionId}`, {
+        kind: "error",
+        revision: 3,
+        text: `syntax highlight failed: ${"x".repeat(400)}`,
+      });
+
+      expect(response.status).toBe(204);
+      expect(response.headers.get("Leaf-Session")).toBe("passive");
+      expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
+      expect(response.headers.get("Set-Cookie")).toBeNull();
+      expect(containerFetch).not.toHaveBeenCalled();
+      expect(logged).toHaveBeenCalledOnce();
+      const record = logged.mock.calls[0][0];
+      expect(record).toMatchObject({
+        component: "leaf-page-error",
+        event: "browser_page_error",
+        reference: "318445474579",
+        route: "/examples/triage-board",
+        release: "b".repeat(64),
+        currentRelease: RELEASE,
+        revision: 3,
+        browser: "chrome",
+        platform: "windows",
+      });
+      expect(record.reason).toHaveLength(300);
+      expect(record.reason.startsWith("syntax highlight failed: x")).toBe(true);
+    } finally {
+      logged.mockRestore();
+    }
+  });
+
+  it("keeps an active session's faults and a passive reader's gestures in the container", async () => {
+    const sessionId = "14".repeat(16);
+    const containerFetch = vi.fn(async () =>
+      Response.json({ ok: true, state: { events: [], activity: { obligations: [] } } }),
+    );
+    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+
+    await send(`__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board")}`, {
+      kind: "error",
+      text: "a widget failed",
+    });
+    await send(`__Host-leaf-page=${sessionId}`, {
+      kind: "comment",
+      attempt: "a-comment",
+      text: "hello",
+    });
+
+    expect(containerFetch).toHaveBeenCalledTimes(2);
+    const bodies = await Promise.all(
+      containerFetch.mock.calls.map(([request]) => (request as Request).json()),
+    );
+    expect(bodies.map((body) => body.kind)).toEqual(["error", "comment"]);
   });
 });
 

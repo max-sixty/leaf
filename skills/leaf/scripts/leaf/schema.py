@@ -18,7 +18,7 @@ UNDOABLE_KINDS = {"resolve", "unresolve", "action", "done", "task_end"}
 MESSAGE_KINDS = {"comment", "reply"}
 # The kinds a widget owns, admitted against the page's registry before they append.
 WIDGET_KINDS = {"action", "report"}
-# The operations that settle a user move the agent owes, as `workflows` and
+# The operations that settle an update the agent owes, as `workflows` and
 # `activity` address them and `$events.answering` explains them. Reply writer custody
 # is separate: a provider turn may own its opening and final messages.
 ANSWER_KINDS = ("reply", "markup")
@@ -190,8 +190,8 @@ STATE_SCHEMA = {
             },
             "writer": {"const": "agent"},
             "creates": ACTION_CREATES,
-            # The effect owns the payload; update adds required nonempty detail.text.
-            "update": {"const": True},
+            # The effect owns the payload; report adds required nonempty detail.text.
+            "report": {"const": True},
         },
         "required": ["unit"],
         "allOf": [
@@ -207,8 +207,8 @@ STATE_SCHEMA = {
         # the stamped version owns and a rank reads between the neighbours a widget
         # shows the user. Its record is required: the gate compares record forms,
         # and a recordless report would be a claim nothing could check a version
-        # against. Only the user adds children, and only a report carries update
-        # prose.
+        # against. Only the user adds children, and only an agent verb
+        # declares `report` text.
         "if": {"required": ["writer"]},
         "then": {
             "required": ["record"],
@@ -217,7 +217,7 @@ STATE_SCHEMA = {
                 "creates": False,
             },
         },
-        "else": {"properties": {"update": False}},
+        "else": {"properties": {"report": False}},
     },
 }
 AWAITS_SCHEMA = {
@@ -227,6 +227,7 @@ AWAITS_SCHEMA = {
         "value": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "answered": ANSWERED_SCHEMA,
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        "retired": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     },
     "required": ["value", "answered"],
     "additionalProperties": False,
@@ -297,12 +298,6 @@ EXTENSION_SCHEMA = {
         "x-language": _ATTRIBUTE_NAME,
         "x-reading-role": {"enum": ["pane"]},
         "x-resident": {"enum": ["map"]},
-        # Attributes holding line references into the nearest data body — the element's
-        # own <pre>, or its enclosing data element's (lf-note's `at` names a line of its
-        # lf-code) — by the numbers x-numbering gives that body, 1-based without it.
-        # `page check` refuses one outside the body (line_ref_errors).
-        "x-lines": _ATTRIBUTE_LIST,
-        "x-numbering": _ATTRIBUTE_NAME,
         "x-measured": MEASURED_SCHEMA,
         # Attributes the theme renders as paint alone — a status marker's tint or an
         # event's kind. The runtime speaks each as a clipped word (renderQuiet), the
@@ -431,9 +426,7 @@ EXTENSION_SCHEMA = {
 # to say about each than that it exists.
 ATTRIBUTE_KEYS = (
     "x-language",
-    "x-lines",
     "x-name",
-    "x-numbering",
     "x-paints",
     "x-refers",
     "x-says",
@@ -447,7 +440,12 @@ ATTRIBUTE_KEYS = (
 # one member at a time (x-views). Neither a stylesheet nor the prepaint, which runs
 # before the registry has loaded (`runtime/prepaint.js`), can read the registry, so
 # each is painted where a selector can ask. `authored` is
-# the attribute an occurrence writes to override its tag's or idiom's declaration.
+# the attribute an occurrence writes to override its tag's or idiom's declaration, and
+# `authored_on` where that override means something, so elsewhere it is inert:
+# `content`, a block inside `main`, since the room and the bound size a block in the
+# page's flow and on `main` or `body` would size the page itself; `declared`, an element
+# whose tag declares the mark, since a stated height reserves room for a module's
+# drawing and a block no module draws into would be clipped to it for good.
 # `message` says
 # whether the mark holds in a thread's message too:
 # each is the element's own fact wherever it renders, except the room and the margin
@@ -469,13 +467,24 @@ DECLARED_MARKS = {
     "x-space": {
         "paint": "data-lf-space",
         "authored": "data-width",
+        "authored_on": "content",
         "message": False,
         "idiom": True,
     },
     "x-inline": {"paint": "data-lf-inline", "message": True},
     "x-exhibit": {"paint": "data-lf-exhibit", "message": True},
-    "x-bound": {"paint": "data-lf-bound", "authored": "data-bound", "message": True},
-    "x-height": {"paint": "data-lf-height", "authored": "data-height", "message": True},
+    "x-bound": {
+        "paint": "data-lf-bound",
+        "authored": "data-bound",
+        "authored_on": "content",
+        "message": True,
+    },
+    "x-height": {
+        "paint": "data-lf-height",
+        "authored": "data-height",
+        "authored_on": "declared",
+        "message": True,
+    },
     "x-reading-role": {"paint": "data-lf-reading-role", "message": True},
     "x-resident": {"paint": "data-lf-resident", "message": False},
     "x-views": {"paint": "data-lf-views", "message": True},

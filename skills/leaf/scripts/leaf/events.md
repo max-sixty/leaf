@@ -1,15 +1,16 @@
 # Events and threads
 
-Every event carries `id`, `ts`, `author`, `kind`, and `seq` (its line number in
-`events.jsonl`). Document-bound events also carry `revision`; page-owned `read`
-does not. An `id` is
-an opaque string matched whole. The append door mints eight hex characters,
-re-rolling any candidate this log already holds, so an id is unique within its
-page and is not a global identifier. The kinds:
+Every event carries `id`, `ts`, `author`, `kind`, `seq` (its line number in
+`events.jsonl`), and the `attention` admission stamps. Document-bound events also
+carry `revision`; page-owned `read` does not. An agent-authored event posted from a
+harness session carries that session's `agent` and `session`. "Authorship and voice"
+describes all three stamps. An `id` is an opaque string matched whole. The append
+door mints eight hex characters, re-rolling any candidate this log already holds, so
+an id is unique within its page and is not a global identifier. The kinds:
 
 | Kind | Author | Door | Fields | Meaning |
 | --- | --- | --- | --- | --- |
-| `comment` | user or agent | `POST /api/event`, `leaf thread open` | `text`, `drawing`, or `token`; optional `anchor`, `suggestion`, `about: "design"`, `response`, `markup` (CLI only) | opens a question, or with `token` puts a reaction mark on the anchor |
+| `comment` | user or agent | `POST /api/event`, `leaf thread open` | `text`, `drawing`, or `token`; optional `anchor`, `suggestion`, `about: "design"`, `markup` (CLI only) | opens a question, or with `token` puts a reaction mark on the anchor |
 | `reply` | user or agent | `POST /api/event`, `leaf response reply`, proactive `leaf thread reply` | `parent`; `text` or `token`; agent `responds` when answering; `question`, a `task` title, `markup`, and a replacement `anchor` or null detachment (CLI only) | answers the exact named obligation without closing its thread; an agent reply may also replace or remove the thread's current location |
 | `edit` | user or agent | `POST /api/event`, `leaf thread edit` | `message`, `text`; `base` (browser) | replaces the visible text of one message its own author wrote; the original stays in the log. A user's is a turn the agent answers |
 | `read` | user | `POST /api/event` | `messages: [{message, version}]` | records that this page's one user has read exact current or historical agent-content versions; `$events` declares it bookkeeping, so it adds no thread turn or agent work |
@@ -20,14 +21,14 @@ page and is not a global identifier. The kinds:
 | `unresolve` | user | `POST /api/event` | `parent` | the user reopens a resolved thread |
 | `done` | user | the banner, only on a page declaring `<meta name="lf-review" content="sign-off">` | `version`, the stamp approved | approval of the declared sign-off; a page that asks nothing gets no terminal control |
 | `action` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`; server-stamped `meaning` | the user edited the document through the widget |
-| `report` | agent or worker | `leaf page report` | as `action`, validated by an `x-state` verb declaring `writer: "agent"` | provisional state that stands until a stamped revision answers it |
-| `pickup` | page | the delivery transport; a harness failure receipt | `events`, `phase` (`queued`, `opened`, or `failed`), `session`, `turn`; `failure` with `failed` | the named attention-bearing inputs reached the durable Codex queue or entered an exact agent turn, or the harness gave up on them with no answer coming; includes page errors and reports; idempotent per event, phase, session, and turn; never a work claim |
+| `report` | agent or worker | `leaf page report` | `widget`, `action`, `detail`; server-stamped `meaning` (as for `action`, validated by an `x-state` verb declaring `writer: "agent"`) | provisional state that stands until a stamped revision answers it |
+| `pickup` | page | the delivery transport; a harness failure receipt | `events`, `phase` (`queued`, `opened`, or `failed`), `session`, `turn`; `failure` (when `failed`) | the named attention-bearing inputs reached the durable Codex queue or entered an exact agent turn, or the harness gave up on them with no answer coming; includes page errors and reports; idempotent per event, phase, session, and turn; never a work claim |
 | `note` | agent | `leaf page stamp` | `version`, `revision`, changelog `text`, `restated`, `settles` (`report` ids it answered, and `task` ids its `--completes` ends) | one public version mapped to an immutable revision, naming the decisions it took back, the reports it answered and the widget tasks it completed |
-| `error` | page | the runtime | | the page reported a failure in front of the user; heard like a report, never counted against the user |
-| `task` | agent | `leaf task open`, or a reply's `task` (`leaf response reply --task`) | `owner` (`agent`, or `user` with `--on user`); `subject`: `{kind: thread, id}` (a reply's task only, on the reply's thread), `{kind: widget, id}` (a live page widget, which for the agent's own task declares `x-work` or holds an unsettled move), `{kind: element, id}` (any other element of the page), or `{kind: page}`; `title`; server-stamped `revision` on a widget task | the agent takes on work it owes there, or puts a task on the user; the agent's stands through replies, resolutions, versions and session ends, and the user's until their Done (`tasks.py`) |
+| `error` | page | the runtime | `text` | the page reported a failure in front of the user; heard like a report, never counted against the user |
+| `task` | agent | `leaf task open`, or a reply's `task` (`leaf response reply --task`) | `owner` (`agent`, or `user` with `--on user`); `subject`: `{kind: thread, id}` (a reply's task only, on the reply's thread), `{kind: widget, id}` (a live page widget, which for the agent's own task declares `x-work` or holds an unsettled action), `{kind: element, id}` (any other element of the page), or `{kind: page}`; `title`; server-stamped `revision` on a widget task | the agent takes on work it owes there, or puts a task on the user; the agent's stands through replies, resolutions, versions and session ends, and the user's until their Done (`tasks.py`) |
 | `task_end` | agent or user | `leaf task end`, `POST /api/event` from a task's Done | `task`, an open explicit task id, or for an agent withdrawal a prose Question id (`reply:<message-id>`); `outcome` (`done`, `failed`, or `dropped`; the user's is `done`); optional `detail` from the agent | ends explicit work; the user can end only a task opened on them. For a prose Question, the agent withdraws the request without creating an answer, whatever the outcome. Widget Questions end through their declared widget state or an authored withdrawal |
-| `start` | agent | `leaf task start`; addressed progress carries the same declaration in its reply | `item`, a user move the agent owes (its event id) or an open task; the banner's `text`; `turn`, the claimant turn that wrote it, when the poster holds the page | takes the item in hand: a move reads Working and a task runs, until the move is answered, the task ends, or a `put_down` follows; the newest start on an item replaces the one before |
-| `put_down` | agent | `leaf status waiting` and `leaf status idle`, when a start stands | | ends every start before it: the moves they named go back to their delivery stage and the tasks stay open with nothing running (`tasks.item_starts`) |
+| `start` | agent | `leaf task start`; addressed progress carries the same declaration in its reply | `item`, an update the agent owes (its event id) or an open task; the banner's `text`; `turn`, the claimant turn that wrote it, when the poster holds the page | takes the item in hand: an update reads Working and a task runs, until the update is answered, the task ends, or a `put_down` follows; the newest start on an item replaces the one before |
+| `put_down` | agent | `leaf status waiting` and `leaf status idle`, when a start stands | | ends every start before it: the updates they named go back to their delivery stage and the tasks stay open with nothing running (`tasks.item_starts`) |
 | `undo` | user | `POST /api/event` | `undoes` | withdraws one gesture of the user's own (`UNDOABLE_KINDS`: resolve, unresolve, action, done, task_end) |
 
 An `anchor` names a passage by `section` and `quote`, with `prefix` and `suffix`
@@ -118,7 +119,8 @@ the same way, from the moment it is sent, and its refusal brings the reaction ba
 
 ## Authorship and voice
 
-The server stamps every browser-posted event `author=user`. `leaf thread open`,
+The server stamps every browser-posted event `author=user`, except `error`, which it
+stamps `author=page`. `leaf thread open`,
 `leaf response reply`, proactive `leaf thread reply`, `leaf thread edit`, `leaf page report`, and
 `page stamp` stamp `author=agent` plus the posting session's own voice: `agent`, its display
 name, and `session`, its harness session id. Several agent sessions can write to one
@@ -127,12 +129,12 @@ watcher's claim record, and identity is the session id, because a display name i
 anyone's to choose. A command run outside a harness session has no voice, so its
 event carries neither field. Every reading that shows an agent's event names it
 through `schema.agent_name`, which gives such an event the name `Agent`. Every
-agent-authored thread message, closing event, margin update, and activity row the
+agent-authored thread message, closing event, margin entry, and activity row the
 browser receives carries that name as `agent`, and the browser shows it as served.
 
 Admission stamps `attention`: whether the input changes Questions on the user or
 explicit tasks the agent put on them (so their Done is heard),
-pending answers, the work it has in hand (a started move,
+pending answers, the work it has in hand (a started update,
 or an open task on a thread or widget) and its standing inputs, or sign-off
 approval. `workflows.obligation_reading` compares those canonical readings before
 and after the gesture under the active revision's vocabulary. The decision survives
@@ -152,8 +154,9 @@ and the transcript.
 ## Admission
 
 `event_contracts.append_admitted` admits every writer's event under the page
-transaction's lease. It returns an accepted retry without repeating the gesture;
-otherwise it reads the named revision's vocabulary and checks the command against
+transaction's lease. It returns the record an accepted `attempt` already carried
+without repeating the gesture, and refuses an attempt the log holds for another
+command (HTTP 409); otherwise it reads the named revision's vocabulary and checks the command against
 its kernel record schema before kind-specific gates consume the fields, allocates the
 event's unique identity, and runs its gates against the page
 and standing log, derives server-owned
@@ -164,17 +167,20 @@ it may land either side of the append; the HTTP transport's one fault boundary
 (`http.PageEndpoint._answer`) records it and answers HTTP 500 without `final`, so
 the browser retries the same attempt.
 
-Transports own only their input boundary: which kinds and fields they accept and
-how they answer retries. Both writers share recorded-effect applicability: selected
+Transports own only their input boundary: which kinds and fields they accept.
+`thread.post_reply` matches its own `attempt` before the door, by kind and response
+address rather than the whole payload, so a CLI retry with reworded text returns
+the first reply. Both writers share recorded-effect applicability: selected
 ids must belong to the recording widget, and a position must name an owned unit,
 an admissible destination, and a valid rank in the named revision. Reports name
 page widgets; user actions may also name widgets in frozen thread markup.
 
 Browser POSTs are commands. The append transaction stamps the accepted event with
-server-owned `meaning`; callers cannot send it, and retry identity
-compares the original command fields rather than this enrichment. The fixed
+server-owned `meaning`; callers cannot send it. Attempt identity compares every
+field but those the server assigns: the append envelope, the `derived` fields,
+`author`, and `publication` (`event_log._attempt_payload`). The fixed
 `$events.ownership` declaration names `derived` fields that admission alone supplies
-and `browser_discard` fields removed before browser validation and attempt identity.
+and `browser_discard` fields browser ingress removes before validation.
 Ownership describes the running kernel's fixed transport boundary; event kinds
 and meaning remain captured per revision.
 Generated browser command types exclude both groups; layers cannot change ownership.
@@ -210,7 +216,7 @@ differently.
 Recorded effects own their payload schema (`registry.contract.detail_schema`):
 `detail.value` carries a body's string, an attribute set's ids, or the scalar
 attribute's own schema. Positions require `{unit, value, rank}` for the moved
-item, destination and rank key. `update: true` on an agent verb adds required
+item, destination and rank key. `report: true` on an agent verb adds required
 nonempty `detail.text`. Custom verbs without a record keep their declared detail
 schema. All payloads are closed objects.
 
@@ -247,12 +253,12 @@ message body, including a failure receipt or authored widget, is unread; an agen
 reaction is not. The original message id names its first content version, and each
 `edit` id names a new one. A version is read once a `read` event names it — the
 browser posts one after presenting and exposing the visible body, including an
-interactive reply — or once the user moves in its thread after it, the thread the
-move names (`thread_context.event_threads`): a reply, rewrite or reaction, a resolve or reopen,
+interactive reply — or once the user acts in its thread after it, the thread the
+update names (`thread_context.event_threads`): a reply, rewrite or reaction, a resolve or reopen,
 an action on a widget one of the thread's messages carries, or an action
-whose admitted answer closes the thread. A move that changes a thread without naming
+whose admitted answer closes the thread. An update that changes a thread without naming
 it, such as a later decision on the suggestion that had answered it or an `undo`,
-does not count, and neither does a move the user took back. A later edit is unread
+does not count, and neither does an update the user took back. A later edit is unread
 even when the prior version was read. Completed progress is superseded by the next
 ordinary, non-failure agent reply in its thread and leaves unread when that reply
 arrives, including later edits to that progress; the reply still requires its own
@@ -272,14 +278,14 @@ and an answering command declares what it leaves: `--done`, nothing further;
 (`tasks.task_reading`). The browser cannot write either field. A user reply
 always hands the thread back to the agent, so it needs no parallel declaration.
 An agent reply records the delivery event it answers as `responds`, including a
-completed delivery answer whose move was settled during the turn. A proactive
+completed delivery answer whose update was settled during the turn. A proactive
 message (`leaf thread reply <page> <message-id>`) carries no `responds`. Settlement
 consumes this exact identity rather than log order, so answering older work cannot
 erase newer user input. A substantive reply reopens a resolved thread;
 reactions and harness failure receipts leave its closure standing. A later resolution
 closes the thread again. Reopening restores its still-unanswered widget Questions,
 as an explicit reopen does.
-A harness that gives up on a move writes the failure the move's answer takes
+A harness that gives up on an update writes the failure the update's answer takes
 (`thread.fail_answer`): a reply for a message, including one in a thread
 that asked for a version, and a failed `pickup` for an answer to a page Question. Each
 carries `failure`, a nonempty harness-owned code, which is what tells a harness's failure
@@ -289,16 +295,16 @@ otherwise it is indistinguishable from the answer it stands in for.
 When a reply carries a widget with a local `x-awaits` Question, the widget's standing
 projection declares the Question instead; the CLI refuses a parallel `--question` flag on
 that markup. A frozen widget keeps the user's Question open until its
-`x-awaits.answered` condition holds. Moves on the widget before then have not been handed over: they carry no receipt and
-require no agent reply, and the move that answers carries the receipt and hands the
+`x-awaits.answered` condition holds. Actions on the widget before then have not been handed over: they carry no receipt and
+require no agent reply, and the action that answers carries the receipt and hands the
 turn to the agent. Undoing it returns the Question to the user and removes the reply
-obligation. A frozen widget move that answers no Question, such as a card moved
+obligation. A frozen widget action that answers no Question, such as a card moved
 on a board sent in a reply, keeps a delivery receipt and owes no reply, under the
-rule `workflows.py` states for page moves.
+rule `workflows.py` states for page actions.
 
 An open structural Question anywhere in an unresolved thread keeps it awaiting the
 user after later prose or a settling reaction. Without one, the latest unanswered
-prose question determines the obligation. Later agent updates leave it standing.
+prose question determines the obligation. Later agent messages leave it open.
 A user turn answers every question before it; a reaction whose token declares
 `settles` answers only the question it names, so an older unanswered question may
 become current again. Neither answer resolves the thread. `questions.thread_questions`
@@ -371,11 +377,11 @@ them:
   and settles nothing.
 - An agent `reply` with `ephemeral: true` is retained progress text. It carries no
   `responds`, `question`, `task`, markup, failure or anchor transition and participates in no
-  semantic turn, work settlement or reopening. Posted to a move the agent owes, it
-  carries `start: {item, turn?}` naming that exact delivered move, with its text
+  semantic turn, work settlement or reopening. Posted to an update the agent owes, it
+  carries `start: {item, turn?}` naming that exact delivered update, with its text
   as the line. `tasks.start_reading` reads this and explicit starts alike, so
   progress history and work in hand are one durable fact. The next ordinary agent reply in
-  its thread derives empty-prose “Previous updates” folds over the preceding
+  its thread derives empty-prose “Previous progress messages” folds over the preceding
   uncovered contiguous runs of ephemeral messages, including a single message.
   User messages break those runs and remain outside them. Explicit summaries own
   overlapping ranges. Each derived fold names its completing reply as `trigger`,

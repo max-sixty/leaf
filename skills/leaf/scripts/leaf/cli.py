@@ -577,9 +577,8 @@ def interactions(
 @page.command(short_help="Take a page this session did not serve.")
 @click.argument("dir", metavar="PAGE")
 def claim(dir: str) -> None:
-    """Make PAGE this session's, as a named `leaf wait PAGE` does before it
-    watches, for a harness whose own hook watches between turns. A watch another
-    session runs stops watching it."""
+    """Make PAGE this session's, for a harness whose own hook watches between
+    turns. A watch another session runs stops watching it."""
     from leaf.service import claim_page
 
     if not claim_page(resolve_dir(dir)):
@@ -923,16 +922,6 @@ def _title_option(command):
     )(command)
 
 
-def _titled(page_dir: Path, title: str | None) -> None:
-    """Refuse a title admission would refuse before its command posts anything.
-    Past this the title can fail only with the page itself, and then the message
-    stands, already printed, for the refusal that follows it to be read against."""
-    from leaf.thread import title_refusal
-
-    if title is not None and (refusal := title_refusal(page_dir, title)):
-        raise click.ClickException(refusal)
-
-
 @thread.command(
     "open", short_help="Open an agent thread — on a passage, or on the page whole."
 )
@@ -1077,9 +1066,7 @@ def thread_reply(dir: str, thread: str, **options) -> None:
     from leaf.thread import post_reply
 
     _print_records(
-        post_reply(
-            resolve_dir(dir), thread, for_event=None, validate_source=True, **options
-        )
+        post_reply(resolve_dir(dir), {"to": thread}, validate_source=True, **options)
     )
 
 
@@ -1099,16 +1086,9 @@ def thread_edit(dir: str, message: str, text: str | None, title: str | None) -> 
     markup is not editable. Keep a title stable unless the thread's
     subject changes.
     """
-    from leaf.thread import cmd_edit, cmd_title
+    from leaf.thread import cmd_edit
 
-    page_dir = resolve_dir(dir)
-    _titled(page_dir, title)
-    records = []
-    if text is not None or title is None:
-        records.append(cmd_edit(page_dir, message, text))
-    if title is not None:
-        records.append(cmd_title(page_dir, message, title))
-    _print_records(*records)
+    _print_records(*cmd_edit(resolve_dir(dir), message, text, title=title))
 
 
 @thread.command("resolve", short_help="Close a thread as the agent.")

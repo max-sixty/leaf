@@ -9,6 +9,17 @@ export const overlaps = (a, b) =>
 // Whether two boxes share any column: they would collide if they stood level.
 export const overlapsAcross = (a, b) => a.left < b.right && b.left < a.right;
 
+// The part of `a` inside `b`, cut only on the axes given. Where the edges cross the result
+// has no area (`hasArea`); callers that need an empty box as nothing ask that.
+const BOTH = { x: true, y: true };
+export const intersect = (a, b, axes = BOTH) => ({
+  left: axes.x ? Math.max(a.left, b.left) : a.left,
+  top: axes.y ? Math.max(a.top, b.top) : a.top,
+  right: axes.x ? Math.min(a.right, b.right) : a.right,
+  bottom: axes.y ? Math.min(a.bottom, b.bottom) : a.bottom,
+});
+export const hasArea = (box) => box.right > box.left && box.bottom > box.top;
+
 // The box that covers every one of some boxes, or null for none.
 export function union(boxes) {
   if (!boxes.length) return null;
@@ -33,12 +44,19 @@ export function nearestScrollBy(start, end, low, high) {
 }
 
 // Which padding-box edges clip descendants. Overflow is per axis; paint containment
-// and content visibility clip both even when overflow computes visible.
+// and content visibility clip both even when overflow computes visible. Each names the
+// values that clip rather than the one that does not, so an engine that computes no
+// value for a property, as WebKit before 18 does for `content-visibility`, reads as not
+// clipping rather than clipping every box. The function names nothing outside itself:
+// the shift watch carries its source into the page under test (`shift_watch_source` in
+// tests/render_harness.py).
 export const clippingAxes = (style) => {
+  const clips = /^(hidden|clip|scroll|auto)$/;
   const both =
-    /paint|strict|content/.test(style.contain) || style.contentVisibility !== "visible";
+    /paint|strict|content/.test(style.contain) ||
+    /^(auto|hidden)$/.test(style.contentVisibility);
   return {
-    x: both || style.overflowX !== "visible",
-    y: both || style.overflowY !== "visible",
+    x: both || clips.test(style.overflowX),
+    y: both || clips.test(style.overflowY),
   };
 };

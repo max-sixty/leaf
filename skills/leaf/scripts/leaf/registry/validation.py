@@ -6,7 +6,6 @@ import json
 from .contract import element_declarations
 from .layer import (
     required_layer_declarations,
-    validate_event_contracts,
     validate_event_handling,
     validate_layer_declarations,
 )
@@ -45,7 +44,6 @@ def _validate(registry: dict, source) -> None:
     kinds, names, paths, tones, data, tokens = required_layer_declarations(
         registry, path
     )
-    validate_event_contracts(registry["$events"], path)
     validate_event_handling(registry["$events"], kinds, path)
     validate_layer_declarations(registry, path, names, paths, tones, data, tokens)
     declarations = element_declarations(registry)

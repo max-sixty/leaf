@@ -69,14 +69,14 @@
 :scope:is(lf-shot) .lf-shotcomparison::part(after) {
   cursor: pointer;
 }
-:scope:is(lf-shot) .lf-shotcomparison:is(:hover, :focus-within, :state(dragging))::part(divider) {
+:scope:is(lf-shot) .lf-shotcomparison:is(:hover, [data-lf-focus-within], :state(dragging))::part(divider) {
   background: var(--ink-2);
 }
-:scope:is(lf-shot) .lf-shotcomparison:is(:hover, :focus-within, :state(dragging))::part(handle) {
+:scope:is(lf-shot) .lf-shotcomparison:is(:hover, [data-lf-focus-within], :state(dragging))::part(handle) {
   opacity: 1;
   scale: 1;
 }
-:scope:is(lf-shot) .lf-shotcomparison:is([position="0"], [position="100"]):not(:hover, :focus-within)::part(handle) {
+:scope:is(lf-shot) .lf-shotcomparison:is([position="0"], [position="100"]):not(:hover, [data-lf-focus-within])::part(handle) {
   opacity: .18;
   scale: .68;
 }
@@ -253,7 +253,7 @@
 :scope:is(lf-shot):not(:has(> .lf-shotcomparison)) > input.lf-shotflip {
   display: block;
 }
-:scope:is(lf-shot):has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) {
+:scope:is(lf-shot):has(> input.lf-shotflip[data-lf-focus]) {
   outline: var(--focus-ring);
   --lf-focus-ring: shot;
   outline-offset: 1px;
@@ -446,7 +446,7 @@
   }
 }
 
-/* skills/leaf/packages/default/styles/theme.css */
+/* skills/leaf/packages/default/styles/gloss.css */
 :scope:is(lf-gloss) {
   display: inline;
 }
@@ -483,7 +483,7 @@
   opacity: 0;
   pointer-events: none;
 }
-:scope:is(lf-gloss):has(> .lf-gloss-mark:is(:focus-visible, .lf-focus-visible)) {
+:scope:is(lf-gloss):has(> .lf-gloss-mark[data-lf-focus]) {
   outline: var(--focus-ring);
   --lf-focus-ring: gloss-mark;
   outline-offset: calc(-1 * var(--focus-ring-w));
@@ -544,6 +544,8 @@
     content: ")";
   }
 }
+
+/* skills/leaf/packages/default/styles/apparatus.css */
 .lf-shotcap,
 .lf-shotdelta,
 :scope:is(lf-sample)::before,
@@ -554,6 +556,8 @@
   font-family: var(--sans);
   font-variant-numeric: tabular-nums;
 }
+
+/* skills/leaf/packages/default/styles/options.css */
 :scope:is(lf-options) {
   display: block;
   margin: 14px 0;
@@ -719,6 +723,10 @@
     & > lf-option > .lf-key-badge {
       top: var(--sp-2);
     }
+    & > lf-options-done > .lf-done > .lf-key-badge {
+      inset-inline-start: auto;
+      inset-inline-end: var(--sp-2);
+    }
     & > .lf-another > .lf-key-badge {
       inset-inline-start: auto;
       inset-inline-end: var(--lf-option-add-badge-inset);
@@ -773,7 +781,7 @@
   gap: 0;
 }
 @media screen {
-  :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > lf-option:not([chosen]):is(:hover, :has(> .lf-pick:is(:focus-visible, .lf-focus-visible))) > .lf-pick::before {
+  :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > lf-option:not([chosen]):is(:hover, :has(> .lf-pick[data-lf-focus])) > .lf-pick::before {
     border-color: var(--ink-2);
   }
 }
@@ -793,7 +801,7 @@
     font-weight: 700;
   }
 }
-:scope:is(lf-option) .lf-pick:is(:focus-visible, .lf-focus-visible) {
+:scope:is(lf-option) .lf-pick[data-lf-focus] {
   outline: var(--focus-ring);
   --lf-focus-ring: options-pick;
   outline-offset: var(--focus-ring-gap);
@@ -813,11 +821,19 @@
   background: var(--ok-tint);
 }
 :scope:is(lf-options) > lf-options-done {
+  position: relative;
   display: grid;
   padding: 0;
 }
 :scope:is(lf-options) > lf-options-done > .lf-done {
   width: 100%;
+}
+:scope:is(lf-options) > lf-options-done > .lf-done > .lf-key-badge {
+  z-index: 1;
+  inset-inline-start: var(--lf-key-badge-start);
+  top: 0;
+  bottom: 0;
+  margin: auto 0;
 }
 @media screen {
   :where(:scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *)) > * {
@@ -869,7 +885,7 @@
     & > * {
       margin-block: 0;
     }
-    & .lf-btn:is(:focus-visible, .lf-focus-visible) {
+    & .lf-btn[data-lf-focus] {
       outline-offset: calc(-1 * var(--focus-ring-w));
     }
     & > :not(:last-child) {
@@ -879,7 +895,7 @@
       --fill: var(--card);
       background-color: var(--fill);
     }
-    & > lf-option:is(:hover, :has(> .lf-pick:is(:focus-visible, .lf-focus-visible))) {
+    & > lf-option:is(:hover, :has(> .lf-pick[data-lf-focus])) {
       background: color-mix(in srgb, var(--fill) 92%, var(--ink));
     }
     & > lf-option[chosen] {
@@ -888,19 +904,19 @@
     & > lf-option[chosen] > .tag.ok {
       background: var(--card);
     }
-    & > lf-option > .lf-pick:is(:focus-visible, .lf-focus-visible) {
+    & > lf-option > .lf-pick[data-lf-focus] {
       outline: none;
     }
   }
-  :is(:scope, :scope *)[data-lf-question]:has(lf-options[choose]:not(:where([data-lf-exhibit]) *) :is(:focus, .lf-focus)) {
+  :is(:scope, :scope *)[data-lf-question]:has(lf-options[choose]:not(:where([data-lf-exhibit]) *) [data-lf-focus]) {
     --lf-question-ring: none;
   }
-  :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *) > lf-option:has(> .lf-pick:is(:focus-visible, .lf-focus-visible)) {
+  :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *) > lf-option:has(> .lf-pick[data-lf-focus]) {
     outline: var(--focus-ring);
     --lf-focus-ring: options-row;
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
-  :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > .lf-another:has(leaf-text:is(:focus, .lf-focus)) {
+  :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > .lf-another:has(leaf-text[data-lf-focus]) {
     outline: var(--focus-ring);
     --lf-focus-ring: options-row;
     outline-offset: calc(-1 * var(--focus-ring-w));
@@ -955,7 +971,7 @@
     inset-inline-end: var(--lf-option-add-seat-inset);
     inset-block-end: var(--lf-option-add-seat-inset);
   }
-  .lf-another .lf-compose-submit[data-lf-empty]:not(:focus) {
+  .lf-another .lf-compose-submit[data-lf-empty]:not([data-lf-focus]) {
     visibility: hidden;
   }
   :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) {
@@ -1059,7 +1075,7 @@
 :scope:is(lf-options)[settled] > .lf-settled:hover {
   border-color: var(--border-2);
 }
-:scope:is(lf-options)[settled] > .lf-settled:is(:focus-visible, .lf-focus-visible) {
+:scope:is(lf-options)[settled] > .lf-settled[data-lf-focus] {
   outline: var(--focus-ring);
   --lf-focus-ring: options-settled;
   outline-offset: 1px;
@@ -1108,6 +1124,8 @@
     content-visibility: visible !important;
   }
 }
+
+/* skills/leaf/packages/default/styles/board.css */
 :scope:is(lf-board) {
   --lf-board-columns: 1;
 }
@@ -1295,7 +1313,7 @@
 :scope:is(lf-card) .lf-grip:hover {
   background: var(--chip);
 }
-:scope:is(lf-card) .lf-grip:is(:focus-visible, .lf-focus-visible) {
+:scope:is(lf-card) .lf-grip[data-lf-focus] {
   outline: var(--focus-ring);
   --lf-focus-ring: card-grip;
   outline-offset: calc(-1 * var(--focus-ring-w));
@@ -1310,6 +1328,8 @@
   box-shadow: 0 2px 8px var(--shade);
   border-color: var(--accent);
 }
+
+/* skills/leaf/packages/default/styles/tabs.css */
 :where(:scope:is(lf-tabs)) {
   display: block;
   margin: 14px 0;
@@ -1355,10 +1375,10 @@
 .lf-tabstrip .lf-tab-btn:not([aria-selected=true]):hover > .lf-tab-name {
   box-shadow: var(--offer-hover-shadow);
 }
-.lf-tabstrip .lf-tab-btn:is(:focus-visible, .lf-focus-visible) {
+.lf-tabstrip .lf-tab-btn[data-lf-focus] {
   outline: none;
 }
-.lf-tabstrip .lf-tab-btn:is(:focus-visible, .lf-focus-visible) > .lf-tab-name {
+.lf-tabstrip .lf-tab-btn[data-lf-focus] > .lf-tab-name {
   outline: var(--focus-ring);
   --lf-focus-ring: tab-btn;
   outline-offset: var(--lf-tab-focus-gap);
@@ -1824,6 +1844,8 @@
     content: attr(group) " · " attr(label);
   }
 }
+
+/* skills/leaf/packages/default/styles/toc.css */
 :scope:is(lf-toc) {
   display: block;
   margin: var(--sp-4) 0 30px;
@@ -1883,7 +1905,7 @@
   padding-block: max(3px, (var(--aim-floor) - 1lh) / 2);
 }
 :scope:is(lf-toc) a:hover,
-:scope:is(lf-toc) a:focus-visible {
+:scope:is(lf-toc) a[data-lf-focus] {
   color: var(--accent);
 }
 @media screen and (hover: hover) and (pointer: fine) {
@@ -1930,8 +1952,8 @@
         width: var(--sp-4);
         pointer-events: auto;
       }
-      :scope:is(lf-toc):is(:hover, :focus-within, [data-lf-outline]),
-      :scope:is(lf-toc):is(:hover, :focus-within, [data-lf-outline]) .lf-toc-nav {
+      :scope:is(lf-toc):is(:hover, [data-lf-focus-within], [data-lf-outline]),
+      :scope:is(lf-toc):is(:hover, [data-lf-focus-within], [data-lf-outline]) .lf-toc-nav {
         pointer-events: auto;
       }
       @scope (body[data-lf-go-to-active] :scope) {
@@ -2045,15 +2067,15 @@
         line-height: 1.2;
         max-height: 2.4em;
       }
-      :scope:is(lf-toc) li a[aria-current=location]:not(:hover, :focus-visible) {
+      :scope:is(lf-toc) li a[aria-current=location]:not(:hover, [data-lf-focus]) {
         color: var(--ink-2);
       }
-      :scope:is(lf-toc) a:focus-visible {
+      :scope:is(lf-toc) a[data-lf-focus] {
         outline: var(--focus-ring);
         --lf-focus-ring: toc-link;
         outline-offset: calc(-1 * var(--focus-ring-w));
       }
-      :scope:is(lf-toc):is(:hover, :focus-within) .lf-toc-nav {
+      :scope:is(lf-toc):is(:hover, [data-lf-focus-within]) .lf-toc-nav {
         --lf-toc-label-opacity: 1;
         background: color-mix(in srgb, var(--paper) 92%, transparent);
       }
@@ -2063,7 +2085,7 @@
           background: color-mix(in srgb, var(--paper) 92%, transparent);
         }
       }
-      :scope:is(lf-toc):is(:hover, :focus-within) .lf-toc-nav a {
+      :scope:is(lf-toc):is(:hover, [data-lf-focus-within]) .lf-toc-nav a {
         pointer-events: auto;
       }
       @scope (body[data-lf-go-to-active] :scope) {
@@ -2146,6 +2168,8 @@
     border-color: Highlight;
   }
 }
+
+/* skills/leaf/packages/default/styles/activity.css */
 :scope:is(lf-activity) {
   display: block;
   margin: var(--sp-3) 0;
@@ -2286,6 +2310,8 @@
     display: none;
   }
 }
+
+/* skills/leaf/packages/default/styles/ask.css */
 :scope:is(lf-ask) {
   display: block;
 }
@@ -2351,6 +2377,8 @@
     margin-block-end: 0;
   }
 }
+
+/* skills/leaf/packages/default/styles/sample.css */
 :scope:is(lf-sample) {
   display: table;
   table-layout: fixed;
@@ -2488,19 +2516,8 @@
     display: none;
   }
 }
-:scope:is(lf-code) {
-  contain: inline-size;
-}
-:scope:is(lf-draft) > pre {
-  background: none;
-  border: 0;
-  border-radius: 0;
-  padding: 0;
-  margin: 0;
-  font: inherit;
-  line-height: inherit;
-  overflow: visible;
-}
+
+/* skills/leaf/packages/default/styles/chart.css */
 :scope:is(lf-chart) .lf-chart-drawing {
   display: block;
   font: 10px var(--sans);
@@ -2520,6 +2537,11 @@
 }
 :scope:is(lf-chart) .lf-chart-drawing [class*=-swatches] {
   font-family: inherit;
+}
+
+/* skills/leaf/packages/default/styles/code.css */
+:scope:is(lf-code) {
+  contain: inline-size;
 }
 @property --lf-code-gutter { syntax: "<length>"; inherits: true; initial-value: 38px; }
 :scope:is(lf-code).lf-rendered pre {
@@ -2636,6 +2658,8 @@
     }
   }
 }
+
+/* skills/leaf/packages/default/styles/text-document.css */
 :scope:is(lf-text-document) {
   display: block;
   margin: 14px 0;
@@ -2679,9 +2703,43 @@
     --lf-top: 0px;
   }
 }
-:scope:is(lf-text-document) pre:is(:focus-visible, .lf-focus-visible) {
+:scope:is(lf-text-document) pre[data-lf-focus] {
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
+:scope:is(lf-text-document)[preview] > .lf-text-document-view {
+  background: var(--paper);
+}
+:scope:is(lf-text-document)[preview] .lf-text-document-view > lf-tabs {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+:scope:is(lf-text-document)[preview] .lf-text-document-view > lf-tabs > lf-tab {
+  margin: 0;
+  padding: 0;
+}
+:scope:is(lf-text-document) div.lf-text-document-preview {
+  padding: var(--sp-4);
+  overflow-wrap: anywhere;
+}
+:scope:is(lf-text-document) iframe.lf-text-document-preview {
+  display: block;
+  inline-size: 100%;
+  block-size: var(--lf-bound, 28rem);
+  border: 0;
+  background: white;
+}
+@media screen {
+  :scope:is(lf-text-document)[preview] .lf-text-document-view > lf-tabs > lf-tab:not([hidden]) {
+    block-size: var(--lf-bound, 28rem);
+    overscroll-behavior: auto;
+  }
+  :scope:is(lf-text-document) iframe.lf-text-document-preview {
+    block-size: 100%;
+  }
+}
+
+/* skills/leaf/packages/default/styles/draft.css */
 :scope:is(lf-draft) {
   display: block;
   border: 1px solid var(--border-2);
@@ -2703,6 +2761,14 @@
 }
 :scope:is(lf-draft) > pre {
   white-space: pre-line;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  line-height: inherit;
+  overflow: visible;
 }
 .lf-draft-edit.lf-ui {
   display: block;
@@ -2715,7 +2781,7 @@
   max-height: none;
   overflow: hidden;
 }
-.lf-draft-edit.lf-ui:is(:focus, .lf-focus) {
+.lf-draft-edit.lf-ui[data-lf-focus] {
   outline: none;
   box-shadow: none;
   --lf-focus-ring: none;
@@ -2734,7 +2800,7 @@
   :scope:is(lf-draft):has(.lf-draft-edit) {
     border-color: var(--muted);
   }
-  :scope:is(lf-draft):has(.lf-draft-edit:focus) {
+  :scope:is(lf-draft):has(.lf-draft-edit[data-lf-focus]) {
     outline: var(--focus-ring);
     --lf-focus-ring: draft-editor;
     outline-offset: calc(-1 * (var(--focus-ring-w) + var(--focus-ring-gap)));
@@ -2791,7 +2857,7 @@
   }
 }
 @media (forced-colors: active) {
-  :scope:is(lf-draft):has(.lf-draft-edit:focus) {
+  :scope:is(lf-draft):has(.lf-draft-edit[data-lf-focus]) {
     outline: 2px solid Highlight;
     outline-offset: -5px;
     box-shadow: none;
@@ -2837,35 +2903,5 @@
   flex: none;
   font-size: var(--t-6);
 }
-:scope:is(lf-text-document)[preview] > .lf-text-document-view {
-  background: var(--paper);
-}
-:scope:is(lf-text-document)[preview] .lf-text-document-view > lf-tabs {
-  margin: 0;
-  border: 0;
-  border-radius: 0;
-}
-:scope:is(lf-text-document)[preview] .lf-text-document-view > lf-tabs > lf-tab {
-  margin: 0;
-  padding: 0;
-}
-:scope:is(lf-text-document) div.lf-text-document-preview {
-  padding: var(--sp-4);
-  overflow-wrap: anywhere;
-}
-:scope:is(lf-text-document) iframe.lf-text-document-preview {
-  display: block;
-  inline-size: 100%;
-  block-size: var(--lf-bound, 28rem);
-  border: 0;
-  background: white;
-}
-@media screen {
-  :scope:is(lf-text-document)[preview] .lf-text-document-view > lf-tabs > lf-tab:not([hidden]) {
-    block-size: var(--lf-bound, 28rem);
-    overscroll-behavior: auto;
-  }
-  :scope:is(lf-text-document) iframe.lf-text-document-preview {
-    block-size: 100%;
-  }
-}
+
+/* skills/leaf/packages/default/styles/theme.css */

@@ -22,9 +22,12 @@
    back to where the card was opened from: the control, or, for a key such as `c` that
    opens it from the page, the control too, since the key runs the control's press
    (keyboard/dispatch.js). On a phone the control stands behind More in its words, and
-   the card spans the window under the banner. The box stands and takes words from the
-   first paint: the offline banner says a comment will not send, not that there is
-   nowhere to write it. */
+   the card spans the window under the banner. The box takes words offline too: the
+   offline banner says a comment will not send, not that there is nowhere to write it.
+
+   The box joins the card the first time the card opens, in the same turn, and stays;
+   a connected field builds its editor, so a page whose card never opens builds none.
+   Until then it holds its draft unconnected. */
 import { showNativeLayer, closeNativeLayer } from "../keyboard/layer-stack.js";
 import { el } from "../widget-elements.js";
 import { iconElement } from "../icons.js";
@@ -75,7 +78,6 @@ export function createPageComment({
   const send = el("button", "lf-btn", "Send");
   const composer = el("div", "lf-general lf-comment-box");
   composer.append(input, send);
-  card.append(composer);
 
   const hint = () => (designModeActive() ? "Comment on the design" : NAME);
   const holds = () => Boolean(loadDraft("general")?.trim());
@@ -113,6 +115,7 @@ export function createPageComment({
     // More comes down first, whichever route opens the card, so the card is never More's
     // child that closing More would take with it.
     dismissBannerControls();
+    if (!composer.isConnected) card.append(composer);
     if (!cardIsOpen()) {
       // Opened from the control's own place, so Escape hands the user to the control
       // whether a press or a key opened it: the door where the control stands, More's on
@@ -175,8 +178,13 @@ export function createPageComment({
       },
     });
     sync();
+    card.addEventListener("beforetoggle", (event) => {
+      if (event.newState === "closed") sync.cancelDictation();
+    });
     stops.push(
+      // Retained: the box mirrors other tabs' words before its card first opens.
       mirrorDraft(input, sync, "general", {
+        retained: true,
         resume: () => ({ where: input, input: () => input, open }),
       }),
     );
@@ -192,6 +200,7 @@ export function createPageComment({
     sync: () => sync(),
     mount,
     dispose: () => {
+      sync.cancelDictation?.();
       for (const stop of stops) stop();
     },
   };

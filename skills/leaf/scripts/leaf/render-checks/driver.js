@@ -75,12 +75,12 @@
   };
   const framePresented = (requested) => presentedFrame >= requested;
 
-  // The runtime's settled reading for chrome and geometry (runtime/rendering.js):
-  // nothing it queued for a rendering update is waiting and its last update was quiet.
-  const renderingSettled = () => {
-    const settled = document.querySelector("script[data-lf-entry]")?.lfRenderingSettled;
-    if (!settled) throw new Error("this document has no Leaf rendering reading");
-    return settled();
+  // The runtime's rendering facts for chrome and geometry (runtime/rendering.js).
+  // Readers select quiet updates or require every preparation to have landed too.
+  const renderingState = () => {
+    const read = document.querySelector("script[data-lf-entry]")?.lfRenderingState;
+    if (!read) throw new Error("this document has no Leaf rendering reading");
+    return read();
   };
 
   const themeReady = () =>
@@ -101,7 +101,7 @@
           return Object.freeze({ element, width, height });
         }),
     );
-    const main = document.querySelectorAll("body > main");
+    const main = document.querySelector("body > main");
     const custom = [...document.querySelectorAll("*")]
       .map((element) => element.localName)
       .filter((tag) => tag.includes("-"));
@@ -109,11 +109,8 @@
     const painted = ["lf-upgraded", "lf-applied", "lf-presented"].filter((name) =>
       document.body.hasAttribute(`data-${name}`),
     );
-    const box = main[0]?.getBoundingClientRect();
+    const box = main?.getBoundingClientRect();
     return [
-      ...(main.length === 1
-        ? []
-        : [`authored document has ${main.length} direct main elements`]),
       ...(upgraded.length
         ? [`widgets upgraded before Leaf entry ran: ${upgraded.join(", ")}`]
         : []),
@@ -131,7 +128,7 @@
     call,
     requestFrame,
     framePresented,
-    renderingSettled,
+    renderingState,
     themeReady,
     preUpgradeFindings,
     firstBoxes: () => firstBoxes,

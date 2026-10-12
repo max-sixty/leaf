@@ -411,8 +411,7 @@ def cmd_export(page_dir: Path, out: Path, version) -> int:
     )
     state = PageStateService(
         page_dir,
-        page_snapshot=snapshot,
-        layer_identity=snapshot.context.layer,
+        source=snapshot,
     ).page_state(revision)
     html = export_document(
         artifact,

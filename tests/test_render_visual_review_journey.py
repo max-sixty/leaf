@@ -32,7 +32,7 @@ from render_harness import (
     undo,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 VISUAL_REVIEW_GALLERY = next(
     path for path in CORPUS_SOURCES if path.stem == "visual-review-gallery"
@@ -860,7 +860,8 @@ def test_visual_review_reports_an_image_failure_after_its_peer_has_loaded(
     holding(page, held, 1, "the second selected capture")
     # Finish the first image's layout while its peer is still pending. The
     # later failure cannot borrow that load's invalidation or a stage resize.
-    rendered(page)
+    # The held peer is still a registered preparation, so wait only for paint.
+    rendered(page, facts=("updatesSettled",))
     expect(images.last).to_have_js_property("complete", False)
     assert host.evaluate("node => node.clientHeight") > 1000
     expect(host.locator(".lf-error")).to_have_count(0)
@@ -1166,6 +1167,38 @@ def test_visual_review_text_refresh_retains_comparison_choice_and_focus(browser,
     )
     after = caption.bounding_box()
     assert abs(after["y"] - before["y"]) <= 1, (before, after)
+
+
+def test_visual_review_source_reorder_keeps_the_focused_case_draft(browser, serve):
+    """Moving a keyed case retains its comment editor, text selection and focus."""
+    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
+    widget = page.locator("#visual-review-run")
+    case = widget.locator(".lf-vr-case:not([hidden])")
+    comment_on_target(page, case)
+    field = case.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    page.keyboard.type("Keep this draft while the case order changes")
+    page.keyboard.press("Shift+ArrowLeft")
+    selection = field.evaluate("node => [node.selectionStart, node.selectionEnd]")
+    editor = field.element_handle()
+    record = json.loads(VISUAL_REVIEW_GALLERY.with_suffix(".data.json").read_text())[
+        "gallery-visual-run"
+    ]
+    data_model.cmd_data_set(
+        serve.page_dir, "gallery-visual-run", record | {"cases": record["cases"][::-1]}
+    )
+    told(page)
+    expect(widget.locator(".lf-vr-case").last).to_have_attribute(
+        "data-lf-datum", record["cases"][0]["id"]
+    )
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property(
+        "value", "Keep this draft while the case order changes"
+    )
+    assert field.evaluate("(node, old) => node === old", editor)
+    assert (
+        field.evaluate("node => [node.selectionStart, node.selectionEnd]") == selection
+    )
 
 
 def test_visual_review_selected_caption_owns_its_activation_keys(browser, serve):

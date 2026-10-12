@@ -12,7 +12,13 @@
    An attached editing field follows its passage out of view. The existing Resume writing route
    reveals that same field; no window seat or duplicate input stands in for it. A modal
    side panel withholds the page's response bar and takes its focus until the page is
-   available again. */
+   available again.
+
+   The floating bar shows while a placement stands it (`data-lf-placement`) and no lack of
+   room withholds it (`data-lf-withheld`); annotation-chrome.css hides it otherwise. This
+   presenter writes those attributes and never the bar's visibility, and composition
+   writes only whether the bar stands inline (`data-lf-presentation`), so neither leaves
+   a visibility behind for the other to undo. */
 import { cancelRender, nextRender } from "/runtime/rendering.js";
 import { resolveAnchor } from "/runtime/anchor-resolution.js";
 import { sameAnchor } from "/runtime/anchor-coordinate.js";
@@ -25,13 +31,7 @@ import {
   targetParts,
   targetRange,
 } from "/runtime/resolved-target.js";
-import {
-  blockAt,
-  pageRange,
-  pageText,
-  quoteFrom,
-  segmentsIn,
-} from "/runtime/passages.js";
+import { blockAt, pageRange, quoteFrom, segmentsIn } from "/runtime/passages.js";
 import { pageSelection, selectionAnchor } from "/runtime/composing/capture.js";
 import { closeLayer, holdFocus, focusDestination } from "/runtime/focus.js";
 import { coarsePointer } from "/runtime/pointer.js";
@@ -146,7 +146,6 @@ export function createFloatingResponsePlacement({
     fabBar.removeAttribute("data-lf-placement");
     for (const property of ["--lf-float-w", "--lf-float-h"])
       fabBar.style.removeProperty(property);
-    fabBar.style.visibility = "hidden";
   }
 
   function scheduleFabPosition() {
@@ -267,7 +266,7 @@ export function createFloatingResponsePlacement({
       const retained = selectedRange(anchor);
       if (retained) return rangeGeometry(retained);
     }
-    const found = anchor ? resolveAnchor(anchor, pageText()) : null;
+    const found = anchor ? resolveAnchor(anchor) : null;
     if (!anchor || !standsIn(anchor, found)) return null;
     const words = anchor.quote ? passageGeometry(found) : null;
     if (words) return words;
@@ -403,7 +402,6 @@ export function createFloatingResponsePlacement({
         fabBar.style.height = response.open ? "max-content" : "";
         fabPosition.stand(position);
         nativeAttachment = response.open && fabPosition.follows();
-        fabBar.style.removeProperty("visibility");
         positioned(true);
         stoodAgain();
         return true;
@@ -429,9 +427,7 @@ export function createFloatingResponsePlacement({
     const held = holdFocus(fabBar);
     const toPanel = held && panelIsOpen() && (!fabFits() || covered);
     closeLayer(
-      () => {
-        if (fabBar.style.visibility !== "hidden") fabBar.style.visibility = "hidden";
-      },
+      () => fabBar.toggleAttribute("data-lf-withheld", true),
       toPanel && (() => focusDestination(threadsBox, "return")),
     );
     if (!toPanel) fabWithheldFocus = held;
@@ -440,6 +436,7 @@ export function createFloatingResponsePlacement({
   function stoodAgain() {
     if (!fabWithheld) return;
     fabWithheld = false;
+    fabBar.removeAttribute("data-lf-withheld");
     const returning = fabWithheldFocus;
     fabWithheldFocus = null;
     returning?.();
@@ -461,7 +458,7 @@ export function createFloatingResponsePlacement({
       floats: () => Boolean(response.anchor && response.floating),
       away: () => fabWithheld,
       bringBack: (behavior) => {
-        const found = resolveAnchor(response.anchor, pageText());
+        const found = resolveAnchor(response.anchor);
         const range =
           response.anchor.quote &&
           (targetRange(found) ?? selectedRange(response.anchor));
@@ -485,10 +482,10 @@ export function createFloatingResponsePlacement({
     release: () => {
       selectedPassage = null;
       fabWithheld = false;
+      fabBar.removeAttribute("data-lf-withheld");
       fabWithheldFocus = null;
     },
-    ready: () =>
-      fabBar.hasAttribute("data-lf-placement") && fabBar.style.visibility !== "hidden",
+    ready: () => fabBar.hasAttribute("data-lf-placement") && !fabWithheld,
     mount,
   };
 }

@@ -12,7 +12,7 @@ turn's own connection to its end (`CarriedTurn`), the writers that put those
 readings on a claimed page, and the durable records a delivery passes through.
 
 A delivery record under the state home is the handoff between Leaf capturing a
-user's moves and a transport taking them. One record is offered once, accepted once,
+user's updates and a transport taking them. One record is offered once, accepted once,
 and receipted per page batch, whichever transport carried it — an App Server turn or
 the `codex queue` command, or a tool or Stop hook — so preparing, accepting, opening
 and abandoning one live here rather than beside either client. The immutable
@@ -39,7 +39,7 @@ import tempfile
 import time
 from collections.abc import Iterator
 from contextlib import ExitStack, contextmanager
-from dataclasses import asdict, dataclass, field, replace
+from dataclasses import asdict, dataclass, field, fields, replace
 from pathlib import Path
 from typing import ClassVar, Literal
 from urllib.parse import urlsplit
@@ -93,33 +93,6 @@ START_TIMEOUT = 20
 # Names the App Server a task runs on to the `leaf` commands it runs, so they hand
 # its pages to that server (`private_app_server`, `leaf codex start`).
 APP_SERVER_ENV = "LEAF_CODEX_APP_SERVER"
-# The `config` of a thread Leaf starts, less what Codex loads by default and no such
-# thread uses: the skills list, plugin and app suggestions, other agents, memories,
-# browser and computer use, image generation and web search. Each is context the
-# model reads on every request, and web search reaches the network the hosted task
-# is told to stay off.
-LEAF_THREAD_CONFIG = {
-    "features": {
-        feature: False
-        for feature in (
-            "apps",
-            "browser_use",
-            "computer_use",
-            "goals",
-            "image_generation",
-            "in_app_browser",
-            "memories",
-            "multi_agent",
-            "plugins",
-            "skill_mcp_dependency_install",
-            "skill_search",
-            "tool_suggest",
-            "workspace_dependencies",
-        )
-    },
-    "skills": {"include_instructions": False},
-    "web_search": "disabled",
-}
 # A collecting record holds captured events in the delivery's own shape, so the
 # version moves with it; a record of another version is ignored, and the events
 # its page has not acknowledged are captured afresh.
@@ -978,8 +951,8 @@ class AppServerReplyStream:
                 if (
                     claim is None
                     or claim["id"] != self.session_id
-                    or claim.get("turn") != self.turn_id
-                    or claim.get("turn_closed") is not None
+                    or claim["turn"] != self.turn_id
+                    or claim["turn_closed"] is not None
                 ):
                     return False
                 page.set_stream_reply(
@@ -1005,7 +978,7 @@ class AppServerReplyStream:
         """Commit only a completed final, retaining rejected or partial text.
 
         A completed answer retains its delivered response address even when that
-        move was settled during the turn. The reply reopens the thread.
+        update was settled during the turn. The reply reopens the thread.
 
         A commit appends the reply, then clears its binding and draft in a
         separate transaction. Every other way out releases the binding, including
@@ -1150,7 +1123,7 @@ class TurnFold:
     session generation; an old fold cannot clear or close a newer lifetime that
     reuses the provider ID. Historical answer settlement borrows no live authority.
     `close` closes only that generation and id; delivery acceptance only records which turn
-    took the moves. A client opens a fold's turn only while it runs, so a turn
+    took the updates. A client opens a fold's turn only while it runs, so a turn
     read back from a snapshot after it ended is committed without reopening it.
 
     What differs between clients is only how notifications reach the fold.
@@ -1568,39 +1541,145 @@ class Abandoned(ReceiptOutcome):
     state: ClassVar[str] = "abandoned"
 
 
+RECORD_VARIANTS = {
+    variant.state: variant
+    for variant in (
+        Collecting,
+        Offering,
+        HookOffer,
+        StartingOffer,
+        Accepted,
+        Opened,
+        Abandoned,
+    )
+}
+_STRING = {"type": "string"}
+_ANSWER_FIELDS = {"reply": ("to", "for"), "markup": ("action",)}
+_ANSWER = {
+    "type": "object",
+    "properties": {"kind": {"enum": list(_ANSWER_FIELDS)}},
+    "required": ["kind"],
+    "allOf": [
+        {
+            "if": {"properties": {"kind": {"const": kind}}},
+            "then": {
+                "properties": dict.fromkeys(names, _STRING),
+                "required": list(names),
+            },
+        }
+        for kind, names in _ANSWER_FIELDS.items()
+    ],
+}
+# A collecting record holds the captured events themselves; every other state
+# holds references into its immutable payload.
+_COLLECTED_BATCH = {
+    "properties": {
+        "through_seq": {"type": "integer"},
+        "threads": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"id": _STRING, "title": {"type": ["string", "null"]}},
+                "required": ["id", "title"],
+            },
+        },
+        "events": {
+            "items": {
+                "properties": {
+                    "kind": _STRING,
+                    "threads": {"type": "array", "items": _STRING},
+                    "answer": _ANSWER,
+                },
+                "required": ["kind", "threads"],
+            }
+        },
+    },
+    "required": ["through_seq", "threads"],
+}
+_BATCH = {
+    "type": "object",
+    "properties": {
+        "page": _STRING,
+        "session": _STRING,
+        "events": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "object",
+                "properties": {"id": _STRING, "seq": {"type": "integer"}},
+                "required": ["id", "seq"],
+            },
+        },
+    },
+    "required": ["page", "session", "events"],
+}
+
+
+def _when_variant(holds, then: dict) -> dict:
+    """Apply `then` to the records of every variant `holds` is true of."""
+    states = [state for state, variant in RECORD_VARIANTS.items() if holds(variant)]
+    return {"if": {"properties": {"state": {"enum": states}}}, "then": then}
+
+
+# Objects stay open: a record from another leaf on this machine may carry fields
+# this version ignores, and `format` already names the shape this version reads.
+RECORD_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "format": {"const": RECORD_FORMAT},
+        "state": {"enum": list(RECORD_VARIANTS)},
+        "created_at": {"type": "number"},
+        "batches": {"type": "array", "minItems": 1, "items": _BATCH},
+    },
+    "required": ["format", "state", "created_at", "batches"],
+    "allOf": [
+        _when_variant(
+            lambda variant: variant is Collecting,
+            {"properties": {"batches": {"items": _COLLECTED_BATCH}}},
+        ),
+        _when_variant(
+            lambda variant: issubclass(variant, ReceiptOutcome),
+            {
+                "properties": {
+                    "pending": {
+                        "type": "array",
+                        "items": {"type": "integer", "minimum": 0},
+                    }
+                },
+                "required": ["pending"],
+            },
+        ),
+        _when_variant(
+            lambda variant: "turn" in {item.name for item in fields(variant)},
+            {
+                "properties": {"turn": {"type": "string", "minLength": 1}},
+                "required": ["turn"],
+            },
+        ),
+    ],
+}
+
+
 def read_record(path: Path) -> DeliveryRecord | None:
     """Decode a complete record at the shared-state boundary, ignoring other versions.
 
-    Live and archived records use the same variants. No partial state may enter
-    delivery recovery, and an unreadable record never authorizes deletion.
+    Live and archived records use the same variants. `RECORD_SCHEMA` states each
+    variant's shape; what it cannot state is checked here: receipts are sorted,
+    unique and name a batch, and an offered record's payload is one this version
+    reads. No partial state may enter delivery recovery, and an unreadable record
+    never authorizes deletion.
     """
+    # Codex's hooks import this module between steps (module docstring), so the
+    # validator loads only once a task has a record to read.
+    from .registry.schema import json_validator
+
     try:
         record = read_json(path)
     except ValueError:
         return None
-    variants = {
-        variant.state: variant
-        for variant in (
-            Collecting,
-            Offering,
-            HookOffer,
-            StartingOffer,
-            Accepted,
-            Opened,
-            Abandoned,
-        )
-    }
-    if (
-        not isinstance(record, dict)
-        or record.get("format") != RECORD_FORMAT
-        or not isinstance(record.get("state"), str)
-        or record["state"] not in variants
-        or not isinstance(record.get("created_at"), (int, float))
-        or not isinstance(record.get("batches"), list)
-        or not record["batches"]
-    ):
+    if not json_validator(RECORD_SCHEMA).is_valid(record):
         return None
-    variant = variants[record["state"]]
+    variant = RECORD_VARIANTS[record["state"]]
     if variant is not Collecting:
         try:
             payload = read_json(delivery_path(path.stem))
@@ -1608,78 +1687,16 @@ def read_record(path: Path) -> DeliveryRecord | None:
             return None
         if not readable_delivery(payload, path.stem):
             return None
-    record_fields = {
-        "created_at": record["created_at"],
-        "batches": tuple(record["batches"]),
-    }
+    values = {item.name: record[item.name] for item in fields(variant)}
+    values["batches"] = tuple(values["batches"])
     if issubclass(variant, ReceiptOutcome):
-        pending = record.get("pending")
-        if (
-            not isinstance(pending, list)
-            or any(
-                type(index) is not int or not 0 <= index < len(record["batches"])
-                for index in pending
-            )
-            or pending != sorted(set(pending))
+        pending = values["pending"]
+        if pending != sorted(set(pending)) or any(
+            index >= len(values["batches"]) for index in pending
         ):
             return None
-        record_fields["pending"] = tuple(pending)
-    if variant in {HookOffer, Opened}:
-        if not isinstance(record.get("turn"), str) or not record["turn"]:
-            return None
-        record_fields["turn"] = record["turn"]
-    for batch in record["batches"]:
-        if (
-            not isinstance(batch, dict)
-            or not isinstance(batch.get("page"), str)
-            or not isinstance(batch.get("session"), str)
-            or not isinstance(batch.get("events"), list)
-            or not batch["events"]
-            or any(
-                not isinstance(event, dict)
-                or not isinstance(event.get("id"), str)
-                or not isinstance(event.get("seq"), int)
-                for event in batch["events"]
-            )
-        ):
-            return None
-        if record["state"] == "collecting" and (
-            not isinstance(batch.get("through_seq"), int)
-            or not isinstance(batch.get("threads"), list)
-            or any(
-                not isinstance(thread, dict)
-                or not isinstance(thread.get("id"), str)
-                or "title" not in thread
-                or thread["title"] is not None
-                and not isinstance(thread["title"], str)
-                for thread in batch["threads"]
-            )
-            or any(
-                not isinstance(event.get("kind"), str)
-                or not isinstance(event.get("threads"), list)
-                or any(not isinstance(thread, str) for thread in event["threads"])
-                for event in batch["events"]
-            )
-        ):
-            return None
-        if record["state"] == "collecting":
-            for event in batch["events"]:
-                if "answer" not in event:
-                    continue
-                answer = event["answer"]
-                if not isinstance(answer, dict) or not isinstance(
-                    answer.get("kind"), str
-                ):
-                    return None
-                fields = {
-                    "reply": ("to", "for"),
-                    "markup": ("action",),
-                }.get(answer["kind"])
-                if fields is None or any(
-                    not isinstance(answer.get(key), str) for key in fields
-                ):
-                    return None
-    return variant(**record_fields)
+        values["pending"] = tuple(pending)
+    return variant(**values)
 
 
 def _retire_record_if_gone(path: Path) -> None:
@@ -2172,8 +2189,8 @@ def finish_abandoned_batch(path: Path, batch_index: int, batch: dict) -> None:
         _receipt_completed(path, batch_index)
 
 
-def delivery_owed_moves(payload: dict) -> list[dict]:
-    """Every move in one delivery that was owed an answer when it was captured,
+def delivery_owed_updates(payload: dict) -> list[dict]:
+    """Every update in one delivery that was owed an answer when it was captured,
     whatever answer it takes."""
     return [
         {"page": batch["page"], "responds": event["id"]}

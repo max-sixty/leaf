@@ -52,6 +52,7 @@
  * panels stack as labeled sections; authored content is never replaced, so
  * there is no failSoft. */
 import {
+  afterScript,
   HIDDEN,
   PRESS,
   readQuestions,
@@ -61,6 +62,7 @@ import {
   backgroundFlash,
   beginWalk,
   capturePlace,
+  comparisonChanges,
   claimTraversals,
   commands,
   compoundReadingRegionId,
@@ -90,14 +92,24 @@ import {
   sizeObserver,
   tabStore,
   watchQuestions,
+  watchComparison,
   focusDestination,
+  fragmentTarget,
   rove,
+  rowArrows,
   scrollIntoView,
 } from "/runtime/widget-api.js";
 
 // The page's navigation strip, where one stands: the first tab set in main, drawn as
 // a row (`#syncRootContext`).
 const PAGE_STRIP = 'body > main > lf-tabs[data-lf-tabs-flow="page"]';
+const paintRootHeader = () => {
+  const root = document.documentElement;
+  if (document.querySelector(PAGE_STRIP))
+    setRuntimeRootStyle(root, "--lf-root-headers", "var(--lf-tabstrip-h)");
+  else removeRuntimeRootStyle(root, "--lf-root-headers");
+};
+const syncRootHeader = () => afterScript(paintRootHeader);
 
 const PLACE_KEY = "lf-tabs-place:";
 const substantiveChildren = (owner) =>
@@ -240,12 +252,8 @@ customElements.define(
           listWalkPosition([...this.#buttons.values()], document.activeElement),
         );
       };
-      // Across the row, back is the way the names run from: left in a left-to-right
-      // page and right in a right-to-left one, where the first tab stands at the right.
-      const [back, ahead] =
-        getComputedStyle(this).direction === "rtl"
-          ? ["ArrowRight", "ArrowLeft"]
-          : ["ArrowLeft", "ArrowRight"];
+      // Across the row, back is the way the names run from.
+      const [back, ahead] = rowArrows(this);
       commands(strip, "On a tab", [
         {
           id: "tab.activate",
@@ -305,12 +313,11 @@ customElements.define(
       }
       // The Δ count follows the version diff; the runtime announces each toggle.
       this.#listenForQuestions();
+      watchComparison(this, () => this.#marks());
       whileConnected(this, (signal) => {
         this.#watchRootContext();
         this.#syncRootContext();
         this.#listenForHistory(signal);
-        document.addEventListener("lf-comparison", () => this.#marks(), { signal });
-        this.#marks();
         const stripSize = this.#watchStrip();
         const stopPanels = this.#side
           ? [...this.#buttons.keys()].map((panel) =>
@@ -332,8 +339,7 @@ customElements.define(
           this.#contextObserver?.disconnect();
           this.#contextObserver = null;
           this.#covering = false;
-          if (!document.querySelector(PAGE_STRIP))
-            removeRuntimeRootStyle(document.documentElement, "--lf-root-headers");
+          syncRootHeader();
         };
       });
     }
@@ -366,7 +372,7 @@ customElements.define(
     // all answered.
     #marks() {
       for (const [panel, btn] of this.#buttons) {
-        const changed = panel.querySelectorAll(".lf-ins-block").length;
+        const changed = comparisonChanges(panel).length;
         keepsText(
           btn.querySelector(":scope > .lf-tabdiff"),
           changed ? `Δ${changed}` : "",
@@ -485,22 +491,12 @@ customElements.define(
         : change();
     }
 
+    // The panel holding what the fragment names, read as Leaf's own arrival reads it, so
+    // the traversal and the landing agree on an id inside a widget's shadow tree.
     #panelForLocation(panels, hash = location.hash) {
-      if (!this.#root || !hash) return null;
-      const target = this.#targetFor(hash);
-      return target
-        ? (panels.find((panel) => panel === target || panel.contains(target)) ?? null)
-        : null;
-    }
-
-    #targetFor(hash) {
-      let id;
-      try {
-        id = decodeURIComponent(hash.slice(1));
-      } catch {
-        return null;
-      }
-      return id ? document.getElementById(id) : null;
+      if (!this.#root) return null;
+      const target = fragmentTarget(hash);
+      return target ? (panels.find((panel) => under(target, panel)) ?? null) : null;
     }
 
     #syncRootContext() {
@@ -543,11 +539,7 @@ customElements.define(
       const covering = this.#pageFlow && Boolean(this.#strip?.isConnected);
       if (covering === this.#covering) return;
       this.#covering = covering;
-      const root = document.documentElement;
-      if (covering)
-        setRuntimeRootStyle(root, "--lf-root-headers", "var(--lf-tabstrip-h)");
-      else if (!document.querySelector(PAGE_STRIP))
-        removeRuntimeRootStyle(root, "--lf-root-headers");
+      syncRootHeader();
     }
 
     // A press at one edge of the strip, which pages the names that run past it (the

@@ -104,7 +104,8 @@ other page files and the external state listed below.
 - `user-views.json` — replaceable per-document browser
   observations (`user_views.py`). These are author
   context, not event history or source inputs. They are excluded from page freshness
-  and activation. `conversation-loop.md`, "The user's view", defines the agent reading.
+  and activation. `../../references/conversation-loop.md`, "The user's view", defines
+  the agent reading.
 
 - `user-views.lock` — the independent lock serializing observation writes;
   excluded from page freshness and activation.
@@ -115,7 +116,9 @@ other page files and the external state listed below.
 - `files.json` — explicit local text-file grants, written by `leaf file bind PAGE
   ID PATH` as `{ "bindings": { "ID": "/absolute/canonical/path" } }`.
   `file_bindings.py` owns the grants and current-file reads and writes. Browser
-  requests name only a binding, never a path. These files remain their own authority:
+  requests name only a binding, never a path. The page's reading stamps each bound
+  file and the state answer carries those stamps under `files`, so a tab hears a
+  write from outside Leaf without reading the file on a timer. These files remain their own authority:
   editing is mechanical browser state, outside document revisions and event history.
   The API reads current UTF-8 text up to 256 KiB and saves against a revision of its
   path and exact bytes, preserving LF or CRLF and file permission bits. Mixed line endings,
@@ -183,7 +186,7 @@ other page files and the external state listed below.
   page-server writers retain the payload's path and leave discovery intact.
   Scans ignore claims for missing pages; fresh page initialization clears
   the prior claim under the page lock. [session-lifetime.md](session-lifetime.md) owns
-  claimant identity, release, harness, and lifetime.
+  claimant identity, harness, and lifetime.
 
 - `<state-home>/rows/<page-key>.json` — disposable delivery output of a serving
   page's own canonical activity. `server_rows.py` owns the record, producer and
@@ -213,8 +216,8 @@ digest is available; `../../assets/runtime/version.js` owns the resulting instal
 `leaf page events --after`; it is distinct from the acknowledgement cursor.
 
 The page's document is not repeated in the reading: an agent reads the HTML at
-`active.file` beside `state`, which lists each standing user move by widget, unit and
-verb with the detail it carries, so where the two differ the page shows the move.
+`active.file` beside `state`, which lists each standing user action by widget, unit and
+verb with the detail it carries, so where the two differ the page shows the action.
 `data_bindings` names each bound source and the widgets that read it, and
 `data/<source>.json` holds its publication.
 
@@ -230,7 +233,7 @@ contract, source id and revision, or to the `error` a failing value reads as;
 contracts with a deferred record field expose the manifest plus the value file and
 its revision for their payload. The reading's `content_source` names the thread and
 vocabulary file. A widget on the page names itself: the reading is its `widget`
-element, the `state` and `updates` standing on it, the explicit open `tasks` on it,
+element, the `state` and `reports` standing on it, the explicit open `tasks` on it,
 the canonical `questions` sourced by it, and the `workflows` it is the subject of, with
 their `activity` obligations. Page ids
 and event ids share one address space, which is why `page check` refuses an authored
@@ -240,9 +243,9 @@ the vocabulary.
 
 Immutable deliveries live outside page directories at
 `<state-home>/deliveries/<id>.json`, because one envelope can contain complete
-batches from several pages and must resolve identically in every harness. The file's
-`leaf-delivery-v3` format, id, capture time, acknowledgement, and
-batches never change. Delivery
+batches from several pages and must resolve identically in every harness. Once
+written, the file's `format` (`delivery.DELIVERY_FORMAT`), id, capture time,
+acknowledgement and batches never change. Delivery
 records are separate mutable transport state; acknowledgement can archive
 those records without moving or rewriting the delivery addressed by `leaf
 delivery read <id>`.

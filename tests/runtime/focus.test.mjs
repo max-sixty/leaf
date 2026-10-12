@@ -76,6 +76,30 @@ test("a placement reaches every reader with the cause it names", () => {
   assert.throws(() => focusDestination(first), TypeError);
 });
 
+test("focus paint follows the settled destination without painting same-script round trips", async () => {
+  const { box, first, second } = scene();
+  focusDestination(first, "move");
+  await settled();
+  const writes = [];
+  const observer = new MutationObserver((records) => writes.push(...records));
+  observer.observe(box, { attributes: true, subtree: true });
+  focusDestination(second, "move");
+  focusDestination(first, "return");
+  await settled();
+  assert.deepEqual(
+    writes.map(({ attributeName }) => attributeName),
+    [],
+  );
+  assert.equal(first.hasAttribute("data-lf-focus"), true);
+  assert.equal(second.hasAttribute("data-lf-focus"), false);
+  focusDestination(second, "move");
+  await settled();
+  observer.disconnect();
+  assert.equal(first.hasAttribute("data-lf-focus"), false);
+  assert.equal(second.hasAttribute("data-lf-focus"), true);
+  assert.equal(box.hasAttribute("data-lf-focus-within"), true);
+});
+
 test("a hold gives way to a placement, not to typing where it holds", () => {
   const { box, first, other } = scene();
   focusDestination(first, "move");
@@ -283,7 +307,7 @@ test("a roving group offers one Tab stop", () => {
   );
 });
 
-test("a keyed hold reads its rows in the shadow tree they stand in, and lands on the like control", () => {
+test("a keyed hold reads its rows in the shadow tree they stand in, and lands on the like control", async () => {
   scene();
   const host = document.createElement("div");
   document.body.append(host);
@@ -302,7 +326,11 @@ test("a keyed hold reads its rows in the shadow tree they stand in, and lands on
   root.replaceChildren(row("a"), row("c"));
   assert.equal(restore(), true);
   const at = focused();
-  assert.equal(at.className, "remove");
+  assert.equal(at.classList.contains("remove"), true);
+  await settled();
+  assert.equal(at.hasAttribute("data-lf-focus"), true);
+  assert.equal(host.hasAttribute("data-lf-focus"), false);
+  assert.equal(host.hasAttribute("data-lf-focus-within"), true);
   assert.equal(at.parentElement.dataset.row, "c");
 });
 

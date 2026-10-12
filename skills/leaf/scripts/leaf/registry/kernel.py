@@ -1,8 +1,9 @@
 """Leaf's fixed kernel event contract, read off the kernel's own registry.
 
 `$events.kinds` and `$events.ownership` are the transport contract no layer can change
-(`layer.validate_event_contracts`), so its facts are read from the shipped
-`registry.json` rather than from a page's composed vocabulary. Reading them needs
+(`layer.merge_layer_declarations`), so its facts are read from the running Leaf's shipped
+`registry.json` rather than from a page's composed vocabulary, which may be another
+Leaf's at the same protocol (`leaf.layer.PROTOCOL`). Reading them needs
 no schema validator, and this module imports none: the page service sorts every
 event by these kinds, including in a harness hook that validates nothing."""
 
@@ -30,7 +31,7 @@ def kernel_event_ownership() -> dict:
 @cache
 def bookkeeping_kinds() -> frozenset[str]:
     """The kinds `$events` declares `bookkeeping`: facts about the user's view of
-    the page, kept for the page's own readings and never a move the agent answers."""
+    the page, kept for the page's own readings and never an update the agent answers."""
     return frozenset(
         kind
         for kind, contract in kernel_event_kinds().items()

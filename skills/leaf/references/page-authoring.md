@@ -17,10 +17,11 @@ Write semantic HTML and use the registry's elements and class idioms. The vendor
 theme owns palette, type, spacing, headings, tables, code, and widget presentation.
 Use a page-local `<style>` only for presentation unique to this page.
 
-Read the shared author instructions before choosing vocabulary:
+Read the shared author instructions, when the page's packages carry any, before
+choosing vocabulary:
 
 ```bash
-leaf page instructions <page> | jq -er '.author'
+leaf page instructions <page> | jq -r '.author // empty'
 ```
 
 `<page>/registry.json` is the vocabulary `page init` vendored; a
@@ -46,7 +47,7 @@ Before writing markup, read the composed author instructions for the entries you
 will use, including examples you copy:
 
 ```bash
-leaf page instructions <page> --use lf-options --use .eyebrow | jq -er '.author'
+leaf page instructions <page> --use lf-options --use .eyebrow | jq -r '.author // empty'
 ```
 
 Each repeated `--use` selects an element or idiom. The command includes shared
@@ -73,8 +74,7 @@ same registry.
 
 Write a complete HTML document. The authored head names and describes the page;
 Leaf adds the encoding, identity, theme, runtime, and canonical address when it
-delivers the document. Omit `<meta charset>`: delivery declares UTF-8 before
-authored head content. Put page-specific CSS in `<style>` and JavaScript in
+delivers the document. Put page-specific CSS in `<style>` and JavaScript in
 `<script>` ("Page behavior"). Every `lf-*` element has an explicit end tag.
 
 Delivery also supplies `width=device-width, initial-scale=1, viewport-fit=cover`
@@ -284,7 +284,7 @@ log beside the chart it explains, which the page's `<style>` places:
 ```
 
 Stack the panes below 720px, where the Layout lets the page scroll: panes stacked in a
-wider window still share its one height, and `page check --render` refuses them.
+wider window still share its one height.
 
 `density-working` is a style, not a Layout: on any block it sets smaller type, tighter
 spacing and options as rows, for a surface the reader operates rather than reads down.
@@ -306,10 +306,9 @@ Layout allocate the height: page-specific positioning should not be needed to ke
 pane or footer reachable. Where the window is too small to hold the regions, they take
 their natural height and the page scrolls.
 
-Keep a region's decision visible with its supporting content. `page check
---render` reports panes or bodies that overflow their regions and the window
-widths where this happens; trim or split them. A region for reading long content,
-such as a source file or log, can keep its scrolling and the advisory finding.
+Keep a region's decision visible with its supporting content: trim or split a pane
+whose body runs past its region. A region for reading long content, such as a source
+file or log, can keep its scrolling.
 
 ### Bounds and widths
 
@@ -325,7 +324,7 @@ the end its newest entry is at. A list that grows downward takes
 leaves them where they scrolled back to otherwise. A newest-first list takes
 `data-bound="start"`, which opens at the top, as the page's activity feed does.
 Don't make a box scroll vertically with page CSS: Leaf keeps no reading position
-in a scroller it did not make, and `page check` advises against one.
+in a scroller it did not make.
 
 An individual block or section may request a responsive allocation with
 `data-width="column"`, `data-width="wide"`, or `data-width="available"`. `column`
@@ -735,9 +734,9 @@ Longer asides belong in prose, a disclosure, or a sidenote.
 
 ## Pre-handover review
 
-Step 3 of the main skill's "Operate" decides when a page takes this review. Every
-source activation already runs the deterministic markup check; this review adds the
-browser gate and a reading:
+The main skill's "Quick pages and records" step decides when a page takes this review.
+Every source activation already runs the deterministic markup check; this review adds
+the browser gate and a reading:
 
 ```bash
 leaf page check <page> --render
@@ -773,7 +772,7 @@ as `q` reaches it from the top, which is how a user working the page meets each
 question. At each arrival, confirm that the question, shared premise, alternatives,
 and evidence that distinguishes them are visible together, the displayed numbers
 match the available actions, and the next press of `q` reaches the next thing waiting
-on the user (an open Question, a thread whose question is theirs, or a move to send again)
+on the user (an open Question, a thread whose question is theirs, or an update to send again)
 while the complete page remains visible.
 
 Without a way to inspect the rendered page, read `leaf page state <page>`'s

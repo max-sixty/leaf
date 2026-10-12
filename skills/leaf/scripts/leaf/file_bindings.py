@@ -7,6 +7,14 @@ permission bits, and serialize across Leaf processes and pages through a target 
 The comparison plus atomic replacement is not an OS compare-and-swap: an unrelated
 writer which ignores this lock can still race the final comparison and replacement.
 Symlinks introduced after binding are refused rather than followed to another file.
+
+A binding the page lacks, as in a copied page or the unbound worked example, is a
+designed state rather than a fault: a read answers it as no file, so the browser's
+console stays clean, and only a save against it refuses.
+
+The page's reading carries each binding's stamp (`binding_stamps`), so the news token
+moves when a bound file does and a state answer names which binding moved. A stamp
+only prompts a read; the read's revision decides what changed.
 """
 
 import hashlib
@@ -16,7 +24,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from stat import S_ISREG
 
-from .files import read_json
+from .files import file_stamp, read_json
 from .leases import page_locked
 from .refusals import Refused
 from .schema import FILE_BINDINGS_FILE, HTML_NAME
@@ -56,13 +64,48 @@ def _bindings(page_dir: Path) -> dict:
     return record["bindings"]
 
 
-def _target(page_dir: Path, binding: str) -> Path:
+def _granted(raw: object) -> Path | None:
+    """A grant's path, or None where the record holds no absolute path the
+    filesystem can name."""
+    if not isinstance(raw, str) or "\0" in raw or not Path(raw).is_absolute():
+        return None
+    try:
+        os.fsencode(raw)
+    except UnicodeEncodeError:
+        return None
+    return Path(raw)
+
+
+def _target(page_dir: Path, binding: str) -> Path | None:
     if not isinstance(binding, str) or not BINDING_ID.fullmatch(binding):
         raise FileBindingError("Invalid file binding id.")
-    raw = _bindings(page_dir).get(binding)
-    if not isinstance(raw, str) or not Path(raw).is_absolute():
-        raise FileBindingError(f"No file is bound as {binding!r}.")
-    return Path(raw)
+    bindings = _bindings(page_dir)
+    if binding not in bindings:
+        return None
+    path = _granted(bindings[binding])
+    if path is None:
+        raise FileBindingError("Invalid file bindings; bind the file again.")
+    return path
+
+
+def binding_stamps(page_dir: Path) -> dict[str, str]:
+    """Each binding's short token, moving whenever its path or what the filesystem
+    says of the file there (`file_stamp`) does.
+
+    Taken without the page lock, as the page's reading is. A grants record this
+    version cannot read stamps as no bindings: the reading must not fail on it, and
+    a read through the binding names the refusal."""
+    try:
+        bindings = _bindings(page_dir)
+    except (FileBindingError, OSError, ValueError):
+        return {}
+    return {
+        binding: hashlib.sha256(
+            repr((str(path), file_stamp(path))).encode()
+        ).hexdigest()[:16]
+        for binding, raw in sorted(bindings.items())
+        if (path := _granted(raw)) is not None
+    }
 
 
 def _read(path: Path) -> dict:
@@ -129,10 +172,12 @@ def bind_file(page_dir: Path, binding: str, file: Path) -> dict:
     return snapshot
 
 
-def read_file(page_dir: Path, binding: str) -> dict:
-    """Read the current file, never a cached document or browser buffer."""
+def read_file(page_dir: Path, binding: str) -> dict | None:
+    """Read the current file, never a cached document or browser buffer; None where
+    the page binds no file under this id."""
     with _access(page_dir):
-        return _read(_target(page_dir, binding))
+        path = _target(page_dir, binding)
+        return None if path is None else _read(path)
 
 
 def save_file(page_dir: Path, binding: str, posted: dict) -> dict:
@@ -145,6 +190,8 @@ def save_file(page_dir: Path, binding: str, posted: dict) -> dict:
         raise FileBindingError("Invalid file revision.")
     with _access(page_dir):
         path = _target(page_dir, binding)
+        if path is None:
+            raise FileBindingError(f"No file is bound as {binding!r}.")
         key = hashlib.sha256(os.fsencode(path)).hexdigest()
         locks = state_home_path() / "files"
         locks.mkdir(parents=True, exist_ok=True)

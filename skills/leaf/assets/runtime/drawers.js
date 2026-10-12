@@ -2,7 +2,7 @@
  * createDrawers binds modality transitions to explicit commands and paint functions;
  * mountDrawers installs the controls only after chrome has been attached. */
 import { closeControl, el } from "./widget-elements.js";
-import { drawnEdge } from "./drawn-edge.js";
+import { drawerEdge, sideEdge } from "./drawn-edge.js";
 import { slide } from "./motion.js";
 import { declareOccluder } from "./geometry.js";
 import { currentAuxiliarySurface } from "./auxiliary-surfaces.js";
@@ -37,22 +37,6 @@ import { registerReadingRegion } from "./reading-regions.js";
 // reserves the shortcut bar's room where their horizontal spans meet. Wide content reads
 // the shell's CSS value directly; there is no observed measurement loop or second number
 // system to reconcile during a transition.
-
-// The pages drawer's edge, on the left, and everything said above said again for it:
-// the width it stands at until the user moves it, and how narrow they may draw it.
-//
-// 220 is where the drawer's own row stops being one. A leaf's row spends 45px before any
-// word of the page's — the status dot's 9px, its 8px gap, and the 20px and 8px the row
-// and the drawer take for padding — and what is left holds a title that ellipsizes rather
-// than wrapping, so under this the drawer is furniture showing the first syllable of every
-// name on it.
-const DRAWER_SLOT_W = 300;
-const DRAWER_SLOT_MIN = 220;
-// Where the standing width is written, and where the cascade reads it. theme.css and
-// chrome.css spell the same name, and theme.css the same default for the first paint of
-// a reloaded page, and the layer test holds the spellings equal, since a stylesheet
-// cannot read a constant.
-export const DRAWER_SLOT_PROP = "--lf-drawer-slot-width";
 
 // The rows' own box, one per drawer. Collected privately as they are made, because what
 // the layout reserves at the foot of one it reserves at the foot of every one, and a
@@ -129,29 +113,16 @@ export const currentDrawer = () =>
 export const drawerIsOpen = (key) => currentDrawer() === key;
 // The stops a walk down the Questions panel lands on: its items, and Done's door between
 // them.
-export const queueRows = () => walkStops(queueList);
+const queueRows = () => walkStops(queueList);
 
 export function createDrawers({
   doors = {},
-  sideEdge,
-  landEdge,
   auxiliarySurfaces,
   closePreview,
   leavesOffered,
   presentLeaves,
   presentQueue,
 }) {
-  const drawersEdge = drawnEdge({
-    side: "left",
-    noun: "drawer panel",
-    defaultWidth: () => DRAWER_SLOT_W,
-    min: DRAWER_SLOT_MIN,
-    prop: DRAWER_SLOT_PROP,
-    key: "lf-drawer-slot-width",
-    when: () => leavesOffered(),
-    land: landEdge,
-  });
-
   function setOpenDrawer(key, options) {
     if (key || currentDrawer()) auxiliarySurfaces.select(key, options);
   }
@@ -243,7 +214,11 @@ export function createDrawers({
   // platform's, a row being a button — so the scope names what walking does and leaves
   // the press to the button.
   function mountDrawers() {
-    drawersEdge.handle(othersPanel, () => othersBtn);
+    drawerEdge.handle(
+      othersPanel,
+      () => othersBtn,
+      () => leavesOffered(),
+    );
     sideEdge.handle(queuePanel, () => queueBtn);
     for (const [key, drawer] of drawers) {
       registerReadingRegion({
@@ -295,5 +270,5 @@ export function createDrawers({
       : null,
   );
 
-  return { setOpenDrawer, drawersEdge, drawerNames, mountDrawers };
+  return { setOpenDrawer, drawerNames, mountDrawers };
 }

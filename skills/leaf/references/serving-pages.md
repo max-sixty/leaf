@@ -6,8 +6,9 @@ URL returned by `leaf server start`.
 
 ## Exported files
 
-When `$ARGUMENTS` asks for `--export`, build the page as a finished record (the
-main skill's "Operate", step 3), since only a stamped version exports, then run:
+When `$ARGUMENTS` asks for `--export`, build the page as a finished record (the main
+skill's "Quick pages and records" step), since only a stamped version exports, then
+run:
 
 ```bash
 leaf page export <page> -o <file>
@@ -66,8 +67,10 @@ file.
 
 ## Re-vendoring and layer epochs
 
-After a Leaf update or a checkout runtime edit, re-vendor the page from its
-owning session:
+A Leaf update leaves open pages served and writable until it changes the page
+protocol; then serving or writing the page refuses, naming the command that
+re-vendors it. Re-vendor the page from its owning session then, or to adopt a
+newer runtime, theme or package:
 
 ```bash
 leaf page init <page>
@@ -84,7 +87,8 @@ session owns it. If its previous session has ended, init leaves it stopped;
 serve it from the session that will now own it. An enabled standing service
 restarts independently of session ownership.
 
-Serving an older runtime refuses with the same init command. If restart fails,
+Serving or writing a page vendored at another protocol refuses with the same init
+command. If restart fails,
 follow init's diagnostic; an enabled page's watcher also tries one revival.
 Init reads the log under Leaf's kernel transport contract. If an earlier page's
 log cannot be read or the page misbehaves after an update, initialize a new

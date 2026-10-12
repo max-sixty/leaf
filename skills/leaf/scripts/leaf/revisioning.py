@@ -18,7 +18,7 @@ refusal is reconsidered when its source or admitted reading changes.
 Every affected open thread follows its surviving section, or detaches, through
 admitted `reanchor` bookkeeping, under the same log transaction as activation.
 An explicit replacement reply takes precedence. These transitions add no messages
-and answer no outstanding move. A reply or stamp is preflighted against the
+and answer no outstanding update. A reply or stamp is preflighted against the
 complete prospective log, including reopened threads. Its durable prerequisite
 names the exact staged bundle in `publication`; the discoverable revision marker
 comes last. Every PageTransaction finishes interrupted publications before
@@ -29,7 +29,8 @@ from contextlib import nullcontext
 from pathlib import Path
 from typing import NamedTuple
 
-from leaf.event_contracts import APPEND_STAMPED, admitted_event, append_admitted
+from leaf.event_contracts import admitted_event, append_admitted
+from leaf.event_log import APPEND_STAMPED
 from leaf.files import list_revisions
 from leaf.page_memory import memo
 from leaf.page_view import CandidatePageView, PageView
@@ -208,7 +209,7 @@ def _publish_checked_source(page, checked, event=None):
     if activation.created and (event is not None or moves):
         stage_artifact(page.page_dir, revision, checked.artifact)
         if event is not None:
-            accepted = append_admitted(page, event, view=view)
+            accepted, _ = append_admitted(page, event, view=view)
         _append_reanchors(
             page,
             revision,
@@ -221,7 +222,7 @@ def _publish_checked_source(page, checked, event=None):
         if activation.created:
             write_artifact(page.page_dir, revision, checked.artifact, checked.reading)
         if event is not None:
-            accepted = append_admitted(page, event)
+            accepted, _ = append_admitted(page, event)
         _append_reanchors(page, revision, moves)
     return activation, accepted
 

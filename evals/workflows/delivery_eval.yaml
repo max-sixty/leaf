@@ -1,0 +1,22 @@
+prompts:
+  initial: I wrote a Leaf page at ./page. Serve it so I can review it in my browser, and handle
+    the comments I leave on it.
+comments:
+- text: Cut this paragraph to two sentences; the second one repeats the first.
+  anchor:
+    section: triage-lede
+- text: Rename this heading to ‘Why the migration blocks alone’.
+  anchor:
+    section: triage-why
+cases:
+  idle:
+    inputs:
+      injection:
+      - idle
+      - idle
+    assert: []
+  mid-turn:
+    inputs:
+      injection:
+      - running
+    assert: []

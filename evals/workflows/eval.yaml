@@ -1,0 +1,2 @@
+# Shared instructions prepended to native instruction probes.
+skill_prefix: "Use the Leaf skill ($leaf in Codex; leaf:leaf in Claude Code).\n\n"

@@ -1,11 +1,14 @@
 /**
  * The edge's projection of a browser interaction batch into its log record.
  *
- * A batch is validated whole, then each entry keeps only structural fields: event
- * type, time, sequence, coordinates, element tags and positions, node ids, command
- * ids, bindings, and statuses. Authored ids and names, typed or selected text, URL
- * details, and unknown client fields never reach the log, and a sample's capability
- * and document identity are logged only as support handles. `worker/README.md`,
+ * One schema both admits a batch and redacts it. A batch whose session or size
+ * fails, or with an entry whose `ts`, `sequence`, or `type` fails, is refused
+ * whole. Every other field is `kept` only when it is valid, and otherwise dropped,
+ * so a record holds only structural fields: event type, time, sequence,
+ * coordinates, element tags and positions, node ids, command ids, bindings, and
+ * statuses. Authored ids and names, typed or selected text, URL details, and
+ * unknown client fields never reach the log, and a sample's capability and
+ * document identity are logged only as support handles. `worker/README.md`,
  * "Browser diagnostics", lists the fields a record keeps.
  */
 
@@ -13,28 +16,27 @@ import * as z from "zod/mini";
 
 import { sessionReference } from "./routing";
 
-const interactionEntrySchema = z.record(z.string(), z.unknown()).check(
-  z.refine(
-    (entry) =>
-      typeof entry.ts === "string" &&
-      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(entry.ts) &&
-      typeof entry.sequence === "number" &&
-      Number.isSafeInteger(entry.sequence) &&
-      entry.sequence > 0 &&
-      typeof entry.type === "string" &&
-      /^[a-z][a-z0-9_-]{0,99}$/.test(entry.type),
-  ),
-);
-const interactionBatchSchema = z.strictObject({
-  session: z.string().check(z.regex(/^[0-9a-f]{32}$/)),
-  entries: z.array(interactionEntrySchema).check(z.minLength(1), z.maxLength(100)),
-});
-const SAFE_KEYS = new Set([
-  "Alt", "Backspace", "Control", "Delete", "End", "Enter", "Escape", "Home",
-  "Meta", "PageDown", "PageUp", "Shift", "Tab", "ArrowDown", "ArrowLeft",
-  "ArrowRight", "ArrowUp",
-]);
-const MODIFIERS = new Set(["Alt", "Control", "Meta", "Shift"]);
+// A field the record keeps when it is valid; an invalid one is dropped without
+// refusing its entry.
+function kept<T extends z.ZodMiniType>(schema: T) {
+  return z.catch(z.optional(schema), undefined);
+}
+
+// A field derived from the client's value, valid where the result passes `schema`.
+function derived<O, T extends z.core.$ZodType<unknown, Awaited<O>>>(
+  derive: (value: unknown) => O,
+  schema: T,
+) {
+  return z.pipe(z.transform(derive), schema);
+}
+
+// The first `length` valid items of an array.
+function validItems<T extends z.ZodMiniType>(item: T, length: number) {
+  return z.pipe(z.array(z.unknown()), z.transform((values) => values.flatMap((value) => {
+    const parsed = z.safeParse(item, value);
+    return parsed.success ? [parsed.data] : [];
+  }).slice(0, length)));
+}
 
 function safeLocator(value: unknown): string | null {
   if (typeof value !== "string") return null;
@@ -46,148 +48,122 @@ function safeLocator(value: unknown): string | null {
   return position ? `${tag}:nth-of-type(${position})` : tag;
 }
 
-function finiteNumber(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function safeNodeId(value: unknown): number | null {
-  return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : null;
-}
-
-function coordinatePair(value: unknown): number[] | null {
-  if (!Array.isArray(value) || value.length !== 2) return null;
-  const pair = value.map(finiteNumber);
-  return pair.every((number) => number !== null) ? pair as number[] : null;
-}
-
-function httpStatus(value: unknown): number | null {
-  return typeof value === "number" && Number.isInteger(value) && value >= 100 && value <= 599
-    ? value : null;
-}
-
 export function sampleInteractionReference(page: unknown): string | null {
   if (typeof page !== "string" || page.length > 4096 ||
       !/^(?:\/api\/samples\/[a-f0-9]{32}(?:~[a-f0-9]{64})?)+$/.test(page)) return null;
   return sessionReference(page.split("/").at(-1)!.split("~")[0]);
 }
 
-function projectSampleEntry(entry: Record<string, unknown>): Record<string, unknown> {
-  const projected: Record<string, unknown> = {};
-  for (const field of ["phase", "reason", "operation"] as const)
-    if (typeof entry[field] === "string" && /^[a-z][a-z0-9_-]{0,63}$/.test(entry[field]))
-      projected[field] = entry[field];
-  for (const field of ["host", "revision"] as const) {
-    const value = safeNodeId(entry[field]);
-    if (value !== null) projected[field] = value;
-  }
-  if (typeof entry.allocation === "number" && Number.isSafeInteger(entry.allocation) && entry.allocation >= 0)
-    projected.allocation = entry.allocation;
-  const elapsed = finiteNumber(entry.elapsed);
-  if (elapsed !== null && elapsed >= 0) projected.elapsed = elapsed;
+const token = (length: number) =>
+  z.string().check(z.regex(new RegExp(`^[a-z][a-z0-9_-]{0,${length - 1}}$`)));
+const locator = derived(safeLocator, z.string());
+const nodeId = z.int().check(z.positive());
+const httpStatus = z.int().check(z.gte(100), z.lte(599));
+const coordinates = z.tuple([z.number(), z.number()]);
+
+const entryFields = {
+  ts: z.string().check(z.regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)),
+  sequence: z.int().check(z.positive()),
+  type: token(100),
+  trusted: kept(z.boolean()),
+  target: kept(validItems(locator, 8)),
+  nodes: kept(validItems(nodeId, 8)),
+  control: kept(locator),
+  controlNode: kept(nodeId),
+  id: kept(z.string().check(z.regex(/^[A-Za-z][A-Za-z0-9_.:-]{0,127}$/))),
+  binding: kept(z.string().check(z.regex(
+    /^(?:(?:Mod|Alt|Shift|Control|Meta)\+){0,3}(?:[A-Za-z0-9]|Enter|Escape|Tab|Backspace|Delete|Arrow(?:Up|Down|Left|Right)|Home|End|PageUp|PageDown|Space|[?\/.,])$/,
+  ))),
+  originalType: kept(token(100)),
+  kind: kept(token(64)),
+  status: kept(httpStatus),
+  key: kept(z.enum([
+    "Alt", "Backspace", "Control", "Delete", "End", "Enter", "Escape", "Home",
+    "Meta", "PageDown", "PageUp", "Shift", "Tab", "ArrowDown", "ArrowLeft",
+    "ArrowRight", "ArrowUp",
+  ])),
+  repeat: kept(z.boolean()),
+  modifiers: kept(validItems(z.enum(["Alt", "Control", "Meta", "Shift"]), 4)),
+  pointer: kept(z.object({
+    id: kept(z.number()),
+    button: kept(z.number()),
+    buttons: kept(z.number()),
+    x: kept(z.number()),
+    y: kept(z.number()),
+    type: kept(z.enum(["mouse", "pen", "touch"])),
+  })),
+  scroll: kept(coordinates),
+  viewport: kept(coordinates),
+  delta: kept(z.tuple([z.number(), z.number(), z.number()])),
+  checked: kept(z.boolean()),
+  open: kept(z.boolean()),
+  visibility: kept(z.enum(["visible", "hidden"])),
+  fullscreen: kept(z.nullable(z.object({ target: locator, node: nodeId }))),
+  partOf: kept(z.number()),
+  part: kept(z.number()),
+  parts: kept(z.number()),
+  durationMs: kept(z.number()),
+  responseStatus: kept(z.number()),
+  transferSize: kept(z.number()),
+};
+
+const sampleFields = {
+  phase: kept(token(64)),
+  reason: kept(token(64)),
+  operation: kept(token(64)),
+  host: kept(nodeId),
+  revision: kept(nodeId),
+  allocation: kept(z.int().check(z.nonnegative())),
+  elapsed: kept(z.number().check(z.nonnegative())),
   // A sample's canonical page identity contains its native-request credential.
   // Use the same support-handle projection as cookies; never log the credential,
   // its routing suffix, or arbitrary authored template ids.
-  const sample = sampleInteractionReference(entry.sample);
-  if (sample !== null) projected.sampleReference = sample;
-  else if (entry.sample === null) projected.sampleReference = null;
-  if (typeof entry.document === "string" &&
-      /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(entry.document))
-    projected.documentReference = sessionReference(entry.document.replaceAll("-", ""));
-  else if (entry.document === null) projected.documentReference = null;
-  if (typeof entry.leafDocument === "string" && /^[1-9][0-9]{0,15}$/.test(entry.leafDocument)) {
-    const revision = safeNodeId(Number(entry.leafDocument));
-    if (revision !== null) projected.leafDocument = revision;
-  } else if (entry.leafDocument === null) projected.leafDocument = null;
-  if (typeof entry.reloading === "boolean") projected.reloading = entry.reloading;
-  if (entry.error && typeof entry.error === "object" && !Array.isArray(entry.error)) {
-    const value = entry.error as Record<string, unknown>;
-    const error: Record<string, unknown> = {};
-    if (typeof value.name === "string" && /^[A-Z][A-Za-z0-9]{0,63}$/.test(value.name))
-      error.name = value.name;
-    const status = httpStatus(value.status);
-    if (status !== null) error.status = status;
-    if (Object.keys(error).length) projected.error = error;
-  }
-  return projected;
+  sample: kept(z.nullable(derived(sampleInteractionReference, z.string()))),
+  document: kept(z.nullable(z.pipe(
+    z.string().check(z.regex(/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/)),
+    z.transform((document) => sessionReference(document.replaceAll("-", ""))),
+  ))),
+  leafDocument: kept(z.nullable(z.pipe(
+    z.pipe(z.string().check(z.regex(/^[1-9][0-9]{0,15}$/)), z.transform(Number)),
+    nodeId,
+  ))),
+  reloading: kept(z.boolean()),
+  error: kept(z.object({
+    name: kept(z.string().check(z.regex(/^[A-Z][A-Za-z0-9]{0,63}$/))),
+    status: kept(httpStatus),
+  })),
+};
+
+// The record names a sample's projected identities as references.
+const RENAMED: Record<string, string> = { sample: "sampleReference", document: "documentReference" };
+
+// zod leaves a dropped field as an undefined value, and an object whose every
+// field was dropped as `{}`; the record keeps neither.
+function compact(value: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(value).flatMap(([key, field]) => {
+    if (field === undefined) return [];
+    if (field === null || typeof field !== "object" || Array.isArray(field))
+      return [[RENAMED[key] ?? key, field]];
+    const nested = compact(field as Record<string, unknown>);
+    return Object.keys(nested).length ? [[RENAMED[key] ?? key, nested]] : [];
+  }));
 }
 
-function projectInteractionEntry(entry: Record<string, unknown>): Record<string, unknown> {
-  const projected: Record<string, unknown> = {
-    ts: entry.ts,
-    sequence: entry.sequence,
-    type: entry.type,
-  };
-  if (typeof entry.trusted === "boolean") projected.trusted = entry.trusted;
-  if (Array.isArray(entry.target)) {
-    projected.target = entry.target.slice(0, 8).map(safeLocator).filter(Boolean);
-  }
-  if (Array.isArray(entry.nodes))
-    projected.nodes = entry.nodes.slice(0, 8).map(safeNodeId).filter((value) => value !== null);
-  const control = safeLocator(entry.control);
-  if (control) projected.control = control;
-  const controlNode = safeNodeId(entry.controlNode);
-  if (controlNode !== null) projected.controlNode = controlNode;
-  if (typeof entry.id === "string" && /^[A-Za-z][A-Za-z0-9_.:-]{0,127}$/.test(entry.id))
-    projected.id = entry.id;
-  if (typeof entry.binding === "string" &&
-      /^(?:(?:Mod|Alt|Shift|Control|Meta)\+){0,3}(?:[A-Za-z0-9]|Enter|Escape|Tab|Backspace|Delete|Arrow(?:Up|Down|Left|Right)|Home|End|PageUp|PageDown|Space|[?\/.,])$/.test(entry.binding))
-    projected.binding = entry.binding;
-  if (typeof entry.originalType === "string" && /^[a-z][a-z0-9_-]{0,99}$/.test(entry.originalType))
-    projected.originalType = entry.originalType;
-  if (typeof entry.kind === "string" && /^[a-z][a-z0-9_-]{0,63}$/.test(entry.kind))
-    projected.kind = entry.kind;
-  const status = httpStatus(entry.status);
-  if (status !== null) projected.status = status;
-  if (SAFE_KEYS.has(entry.key as string)) projected.key = entry.key;
-  if (typeof entry.repeat === "boolean") projected.repeat = entry.repeat;
-  if (Array.isArray(entry.modifiers)) {
-    projected.modifiers = entry.modifiers.filter((value) => MODIFIERS.has(value)).slice(0, 4);
-  }
-  if (entry.pointer && typeof entry.pointer === "object" && !Array.isArray(entry.pointer)) {
-    const input = entry.pointer as Record<string, unknown>;
-    const pointer: Record<string, unknown> = {};
-    for (const field of ["id", "button", "buttons", "x", "y"]) {
-      const value = finiteNumber(input[field]);
-      if (value !== null) pointer[field] = value;
-    }
-    if (["mouse", "pen", "touch"].includes(input.type as string)) pointer.type = input.type;
-    if (Object.keys(pointer).length) projected.pointer = pointer;
-  }
-  for (const field of ["scroll", "viewport"] as const) {
-    const pair = coordinatePair(entry[field]);
-    if (pair) projected[field] = pair;
-  }
-  if (Array.isArray(entry.delta) && entry.delta.length === 3) {
-    const delta = entry.delta.map(finiteNumber);
-    if (delta.every((number) => number !== null)) projected.delta = delta;
-  }
-  if (typeof entry.checked === "boolean") projected.checked = entry.checked;
-  if (typeof entry.open === "boolean") projected.open = entry.open;
-  if (["visible", "hidden"].includes(entry.visibility as string))
-    projected.visibility = entry.visibility;
-  if (entry.fullscreen === null) projected.fullscreen = null;
-  else if (entry.fullscreen && typeof entry.fullscreen === "object" && !Array.isArray(entry.fullscreen)) {
-    const value = entry.fullscreen as Record<string, unknown>;
-    const target = safeLocator(value.target);
-    const node = safeNodeId(value.node);
-    if (target && node !== null) projected.fullscreen = { target, node };
-  }
-  for (const field of ["partOf", "part", "parts", "durationMs", "responseStatus", "transferSize"] as const) {
-    const value = finiteNumber(entry[field]);
-    if (value !== null) projected[field] = value;
-  }
-  if (entry.type === "sample") Object.assign(projected, projectSampleEntry(entry));
-  return projected;
-}
+const entrySchema = z.union([
+  z.object({ ...entryFields, type: z.literal("sample"), ...sampleFields }),
+  z.object(entryFields),
+]);
+const interactionBatchSchema = z.strictObject({
+  session: z.string().check(z.regex(/^[0-9a-f]{32}$/)),
+  entries: z.array(
+    z.pipe(entrySchema, z.transform((entry: z.output<typeof entrySchema>) => compact(entry))),
+  ).check(z.minLength(1), z.maxLength(100)),
+});
 
-// The batch as the edge logs it, or null when it fails the batch schema.
+// The batch as the edge logs it, or null when the batch is refused.
 export function projectInteractionBatch(
   value: unknown,
 ): { session: string; entries: Record<string, unknown>[] } | null {
   const parsed = interactionBatchSchema.safeParse(value);
-  if (!parsed.success) return null;
-  return {
-    session: parsed.data.session,
-    entries: parsed.data.entries.map(projectInteractionEntry),
-  };
+  return parsed.success ? parsed.data : null;
 }

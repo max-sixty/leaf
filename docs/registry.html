@@ -734,20 +734,20 @@
                   a record form other than <code>body</code>, because a report changes
                   declared state and never the page's words, so it never changes what
                   the passage reader reads. An agent verb may declare
-                  <code>report: true</code> to require a non-empty
-                  <code>detail.text</code>, the report's short news for a person, which
-                  the report feed shows as written instead of composing it from the
-                  widget, verb, or field names. The runtime marks a report on the page
-                  as soon as it is in force (data-lf-reported); it stays only until a
-                  version answers it, as $report says. Each verb holds its own state:
-                  for each [widget, unit, verb] key, the latest action that has not been
-                  taken back replaces earlier ones, and different verbs on the same unit
-                  coexist. The framework combines those latest actions with the typed
-                  authored values and gives each widget its complete state through
-                  renderState, keyed by verb. The same declaration drives POST
-                  validation, replay of the complete state, inspection, the runtime's
-                  readings of user actions and reports, and the state half of a version
-                  diff. When an admitted action makes the widget's x-awaits
+                  <code>text: true</code>, which requires each report to carry non-empty
+                  <code>detail.text</code>. That text is the report's short news for a
+                  person, and the report feed shows it as written instead of composing
+                  it from the widget, verb, or field names. The runtime marks a report
+                  on the page as soon as it is in force (data-lf-reported); it stays
+                  only until a version answers it, as $report says. Each verb holds its
+                  own state: for each [widget, unit, verb] key, the latest action that
+                  has not been taken back replaces earlier ones, and different verbs on
+                  the same unit coexist. The framework combines those latest actions
+                  with the typed authored values and gives each widget its complete
+                  state through renderState, keyed by verb. The same declaration drives
+                  POST validation, replay of the complete state, inspection, the
+                  runtime's readings of user actions and reports, and the state half of
+                  a version diff. When an admitted action makes the widget's x-awaits
                   <code>answered</code> condition hold, Leaf records meaning.answer on
                   the event. Its value is the thread named by the widget's authored
                   <code>resolves</code> attribute in the document the action was sent

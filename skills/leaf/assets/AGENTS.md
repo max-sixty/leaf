@@ -524,8 +524,8 @@ visible change").
 
 ## Working on the runtime
 
-`../references/module-authoring.md`, "Template rendering", owns container ownership
-and how placements keep the user's place. Paints whose contract requires the current
+`../references/module-authoring.md`, "Template rendering" and "Retained nodes", own
+container ownership and how placements keep the user's place. Paints whose contract requires the current
 turn use `render`; `LitElement` schedules updates on a microtask and belongs only to
 runtime faces that permit that delay.
 

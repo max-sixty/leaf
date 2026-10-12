@@ -1485,74 +1485,34 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
     ], found
 
 
-def test_render_reports_a_painted_fact_whose_word_was_drawn_nowhere(
-    browser, serve, declared_reading_package
+def test_render_reads_painted_facts_and_widget_chrome_where_they_stand(
+    browser, serve, tmp_path, monkeypatch, declared_reading_package
 ):
-    """The x-paints half of the same gate, and the line it draws between two silences.
+    """Two halves of the user's reading of a page, on one page.
 
-    A widget may paint a fact — `kind="failure"` is a visual state and no text node —
-    and it owes a user who is listening the same fact in words. The runtime
-    writes that word, so what is left to check is whether anything drew it. Asking
-    is asking for a box, and only an element that is being laid out has one to give:
-    a disclosure nobody opened, a tab nobody switched to and a shut thread panel
-    all lay out nothing, and their emptiness is the ancestor's answer rather than
-    the widget's.
+    The x-paints half, and the line it draws between two silences. A widget may paint
+    a fact — `state="failure"` is a visual state and no text node — and it owes a user
+    who is listening the same fact in words. The runtime writes that word, so what is
+    left to check is whether anything drew it. Asking is asking for a box, and only an
+    element that is being laid out has one to give: a disclosure nobody opened lays
+    out nothing, and its emptiness is the ancestor's answer rather than the widget's.
+    So a word drawn nowhere on a page that is on screen is reported, and the same
+    widget behind a fold is not, there being nothing to measure and the fold being the
+    user's to open. The other silence — a word the runtime never wrote — no fixture
+    can stage: `quietFacts` returns the attribute's own value or its name, so a
+    declared paint always gets its word, and the branch is reachable only by a
+    regression in `renderQuiet` itself, which the corpus holds.
 
-    So the two silences part here, and this holds one of them: a word drawn nowhere
-    on a page that is on screen is reported, and the same widget behind a fold is
-    not, there being nothing to measure and the fold being the user's to open.
-    That exemption is what lets a widget riding a message out, in
-    `test_render_leaves_a_widget_riding_a_reply_out_of_that_reading`.
-
-    The other silence — a word the runtime never wrote, which is a fault wherever
-    the element stands — no fixture can stage: `quietFacts` returns the attribute's
-    own value or its name, so a declared paint always gets its word, and the branch
-    is reachable only by a regression in `renderQuiet` itself. What holds it is the
-    corpus with that regression put back: silence `renderQuiet` and every painted
-    option in the examples is reported, an option in a tab nobody opened among them.
-    Skipping the unrendered element before asking whether
-    a word exists is what drops that one, so the order of the two questions here is
-    the contract, and this test does not pin it."""
-    found = [
-        f.split("] ", 1)[1]
-        for f in render_gate_model.render_version(
-            browser,
-            serve(
-                PAINTED_IN_SILENCE_PAGE,
-                packages=(*EXAMPLE_PACKAGES, declared_reading_package),
-            ),
-        ).failures
-    ]
-    assert sorted(set(found)) == [
-        (
-            '<lf-reading id=p-seen> paints state="failure" and says nothing a user '
-            "listening can hear"
-        )
-    ], found
-
-
-def test_render_reads_a_reply_widgets_own_chrome_and_not_the_panel_around_it(
-    browser, serve, tmp_path, monkeypatch
-):
-    """The same reading, asked where the nesting turns over.
-
-    A widget's chrome is a `.lf-ui` the widget put inside itself. A widget in a
-    message is the other way up: the runtime's own layer is above it and the
-    widget has none of its own, so every word it holds sits under a `.lf-ui`
-    with nothing wrong. Asking whether the *words* stand in a widget cannot tell
-    those apart and accuses the second. Asking whose the `.lf-ui` is can.
-
-    Both halves, because either alone is half a claim. One reply carries three
-    widgets: a question, an exhibit beside it, and a badge whose module injects
-    unmarked words under the chrome face. The panel around all three says
-    nothing; the badge's own chrome is read exactly as it would be on a page.
-
-    Nothing here had ever been rendered. No example shipped a widget in its log
-    until one did, and every fixture that put one in a reply asked about the
-    panel rather than about the gate — while the gate walks text nodes rather
-    than boxes, so it had been reading the panel all along with the panel shut.
-    It would have refused the first page that carried a question in a reply,
-    which is a shape the vocabulary describes and `leaf thread reply --markup` posts."""
+    The chrome half, asked where the nesting turns over. A widget's chrome is a
+    `.lf-ui` the widget put inside itself. A widget in a message is the other way up:
+    the runtime's own layer is above it and the widget has none of its own, so every
+    word it holds sits under a `.lf-ui` with nothing wrong. Asking whether the *words*
+    stand in a widget cannot tell those apart and accuses the second; asking whose the
+    `.lf-ui` is can. One reply carries three widgets: a question, an exhibit beside it,
+    and a badge whose module injects unmarked words under the chrome face. The panel
+    around all three says nothing; the badge's own chrome is read exactly as it would
+    be on a page. Nothing here had ever been rendered until a fixture asked the gate
+    rather than the panel."""
     monkeypatch.chdir(tmp_path)
     package = tmp_path / ".leaf"
     add_test_widget(package, "lf-badge", upgrade=True)
@@ -1563,8 +1523,12 @@ def test_render_reads_a_reply_widgets_own_chrome_and_not_the_panel_around_it(
             "      if (!once(this)) return;\n" + BADGE_CHROME,
         )
     )
-
-    url = serve(REPLY_HOST_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+    start = PAINTED_IN_SILENCE_PAGE.index('<div id="open-group">')
+    painted = PAINTED_IN_SILENCE_PAGE[start : PAINTED_IN_SILENCE_PAGE.index("</main>")]
+    source = REPLY_HOST_PAGE.replace("</main>", painted + "</main>").replace(
+        "</head>", "<style>.lf-quiet { display: none }</style></head>"
+    )
+    url = serve(source, packages=(*EXAMPLE_PACKAGES, declared_reading_package))
     append_carried_log_record(
         serve.page_dir,
         {
@@ -1596,7 +1560,11 @@ def test_render_reads_a_reply_widgets_own_chrome_and_not_the_panel_around_it(
         (
             '<lf-badge id=rp-badge> puts "Sent by the reviewer" under .lf-ui, where no '
             "comment can reach it"
-        )
+        ),
+        (
+            '<lf-reading id=p-seen> paints state="failure" and says nothing a user '
+            "listening can hear"
+        ),
     ], found
 
 

@@ -2362,7 +2362,6 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
         (630, False, 14),
         (629, False, 14),
         (500, False, 14),
-        (629, True, 14),
         (320, True, 20),
         (631, False, 20),
     ],

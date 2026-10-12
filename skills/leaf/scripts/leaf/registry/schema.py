@@ -1,14 +1,18 @@
-"""Offline JSON Schema validation shared by registry, markup, and event admission.
+r"""Offline JSON Schema validation shared by registry, markup, and event admission.
 
 Each validator owns a self-contained resource graph and is cached by schema content.
 Leaf's date-time format admits only absolute, timezone-aware RFC3339 instants, and its
 uri format only absolute URLs the browser's URL parser accepts. A registry schema may
-name only a format `FORMAT_CHECKER` checks (`check_schema`). A `pattern` is an
-ECMAScript regular expression, as JSON Schema defines it and the browser reads it;
-jsonschema would search it with Python's `re`, whose `$` also matches before a final
-newline, so `"abc\n"` passed `^[a-z]+$`. A declared pattern must compile in both, since
-the metaschema's own check compiles it with `re`. (`patternProperties` keys are still
-read by `re`; no Leaf schema declares one.)
+name only a format `FORMAT_CHECKER` checks (`check_schema`).
+
+A schema's regular expressions are ECMAScript, as JSON Schema defines them and the
+browser reads them. jsonschema reads them with Python's `re`, whose `$` also matches
+before a final newline (`"abc\n"` passed `^[a-z]+$`) and which refuses ECMAScript such as
+`\p{L}`. It has no option for another engine, so this module points the one call it
+makes, `re.search`, in the modules that make it at regress, an ECMAScript engine; that
+covers `pattern`, `patternProperties` and the `additionalProperties` and
+`unevaluatedProperties` accounting built on it, and `check_schema` compiles patterns
+with the same engine.
 """
 
 import functools
@@ -17,9 +21,11 @@ import re
 from datetime import datetime
 
 import ada_url
+import jsonschema._keywords
+import jsonschema._utils
 import regress
-from jsonschema import Draft202012Validator, FormatChecker, validators
-from jsonschema.exceptions import SchemaError, ValidationError
+from jsonschema import Draft202012Validator, FormatChecker
+from jsonschema.exceptions import SchemaError
 from referencing import Registry
 from referencing.exceptions import Unresolvable
 from referencing.jsonschema import DRAFT202012
@@ -67,17 +73,26 @@ def _ecma(pattern: str) -> regress.Regex:
     return regress.Regex(pattern, "u")
 
 
-def _pattern(validator, pattern, instance, schema):
-    if validator.is_type(instance, "string") and not _ecma(pattern).find(instance):
-        yield ValidationError(f"{instance!r} does not match {pattern!r}")
+class _EcmaSearch:
+    """The `re.search` jsonschema's keywords call, read as ECMAScript."""
+
+    @staticmethod
+    def search(pattern: str, string: str):
+        return _ecma(pattern).find(string)
 
 
-# Draft 2020-12 with ECMAScript patterns; every reader is one (`json_validator`). The
-# version registers it as the 2020-12 dialect, so a subschema naming that `$schema`
-# keeps Leaf's reading rather than evolving into jsonschema's own class.
-LeafValidator = validators.extend(
-    Draft202012Validator, {"pattern": _pattern}, version="draft2020-12"
-)
+# jsonschema's only regular-expression calls; a call it adds to these modules fails
+# loudly here rather than reading Python's dialect.
+jsonschema._keywords.re = _EcmaSearch
+jsonschema._utils.re = _EcmaSearch
+
+# The metaschema's `regex` format, which `check_schema` holds every pattern to.
+META_FORMAT_CHECKER = FormatChecker()
+
+
+@META_FORMAT_CHECKER.checks("regex", raises=regress.RegressError)
+def is_ecma_regex(value) -> bool:
+    return not isinstance(value, str) or bool(_ecma(value))
 
 
 def schema_resource_registry(schema: dict):
@@ -92,24 +107,11 @@ def check_schema(schema) -> None:
 
     jsonschema skips a `format` it has no checker for, so a schema naming one would
     declare a rule no boundary enforces, and the value would reach a widget unchecked.
-    A pattern must also be one ECMAScript reads, since that is how every reader runs
-    it. Raises `SchemaError` for any of these."""
-    Draft202012Validator.check_schema(schema)
+    Raises `SchemaError` for either."""
+    Draft202012Validator.check_schema(schema, format_checker=META_FORMAT_CHECKER)
 
     def visit(contents) -> None:
         if isinstance(contents, dict):
-            if isinstance(pattern := contents.get("pattern"), str):
-                try:
-                    _ecma(pattern)
-                except regress.RegressError as error:
-                    raise SchemaError(
-                        f"pattern {pattern!r} is not an ECMAScript regular "
-                        f"expression: {error}",
-                        validator="pattern",
-                        validator_value=pattern,
-                        instance=pattern,
-                        schema=contents,
-                    ) from None
             named = contents.get("format")
             if isinstance(named, str) and named not in FORMAT_CHECKER.checkers:
                 checked = sorted(FORMAT_CHECKER.checkers)
@@ -127,7 +129,7 @@ def check_schema(schema) -> None:
     visit(schema)
 
 
-def json_validator(schema: dict) -> LeafValidator:
+def json_validator(schema: dict) -> Draft202012Validator:
     """One offline schema reader for every authored/event ingress, including formats.
 
     Readers are shared by schema content: a read re-validates every stored event
@@ -138,12 +140,12 @@ def json_validator(schema: dict) -> LeafValidator:
 
 
 @functools.lru_cache(maxsize=1024)
-def _validator(canonical: str) -> LeafValidator:
+def _validator(canonical: str) -> Draft202012Validator:
     # Built from its own parse of the key, so a caller that later mutates the dict
     # it passed cannot change the reader that key names.
     schema = json.loads(canonical)
     _, registry = schema_resource_registry(schema)
-    return LeafValidator(
+    return Draft202012Validator(
         schema,
         format_checker=FORMAT_CHECKER,
         registry=registry,

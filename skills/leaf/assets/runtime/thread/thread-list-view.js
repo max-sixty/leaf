@@ -27,8 +27,9 @@
    (`#keeping`) holds both kinds of card. The withdrawn one keeps only its measured
    allocation and a Dismiss notice: its controls disconnect, so it holds nothing for
    the user's words, its semantic membership ends, and a selected allocation holds off
-   fallback disclosure. Dismissal or choosing another card releases it, as a gesture
-   releases held news. The model builder asks both questions while it builds the
+   fallback disclosure. Dismissal or choosing another card releases it at once, outside
+   the geometry rule (#2387's choice): the allocation has no closed form to shrink to
+   when another card opens. The model builder asks both questions while it builds the
    reading (thread-list.js), so a kept allocation is a row of that reading, committed
    and restored with the cards beside it. Rejected: deciding withdrawals by a copy of
    the rule beside `keeping`, as paint the list spliced into each reading it drew
@@ -109,10 +110,7 @@ class ThreadListView extends RetainedFace {
   #visibleRows() {
     const eligible = new Set(
       this.model.rows
-        .filter(
-          (row) =>
-            row.kind === "thread" && row.descriptor.visible && !row.descriptor.folding,
-        )
+        .filter((row) => row.kind === "thread" && row.descriptor.visible)
         .map((row) => row.key),
     );
     return this.#rows.filter((row) => row.kind === "thread" && eligible.has(row.key));

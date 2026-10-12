@@ -708,15 +708,35 @@ def activation_page(source):
 
 
 PAGE_WIDGET = """\
-import { LitElement, html } from "/vendor/browser-runtime.js";
-import { keeps, layerFact, once, widgetController } from "/runtime/widget-api.js";
+import {
+  html, keeps, layerFact, once, render, widgetController,
+} from "/runtime/widget-api.js";
 
-customElements.define("lf-local", class extends LitElement {
+// It paints a microtask after each request, or once a test releases a held update, and
+// `updateComplete` settles when it has: the widget presentation waits on that.
+customElements.define("lf-local", class extends HTMLElement {
   controller = widgetController(this);
   reading = this.controller.read();
+  updateComplete = Promise.resolve(true);
+  #requested = false;
+
+  requestUpdate() {
+    if (this.#requested) return;
+    this.#requested = true;
+    this.updateComplete = (async () => {
+      await null;
+      const held = globalThis.__heldLocalUpdate;
+      globalThis.__heldLocalUpdate = null;
+      if (held) await held;
+      this.#requested = false;
+      this.paint();
+      return true;
+    })();
+  }
 
   connectedCallback() {
-    super.connectedCallback();
+    if (!this.shadowRoot) this.attachShadow({mode: "open"});
+    this.requestUpdate();
     if (!once(this)) return;
     layerFact("$tones");
     keeps(this, "data-page-widget", "ready");
@@ -759,18 +779,11 @@ customElements.define("lf-local", class extends LitElement {
     this.requestUpdate();
   }
 
-  async scheduleUpdate() {
-    const held = globalThis.__heldLocalUpdate;
-    globalThis.__heldLocalUpdate = null;
-    if (held) await held;
-    return super.scheduleUpdate();
-  }
-
-  render() {
+  paint() {
     const choice = this.reading.state.choose?.value ?? this.getAttribute("choice");
     const available = this.reading.actions.choose?.available ?? false;
-    return html`<button ?disabled=${!available} @click=${this.choose}>Choose</button>
-      <output>${choice}</output>`;
+    render(html`<button ?disabled=${!available} @click=${this.choose}>Choose</button>
+      <output>${choice}</output>`, this.shadowRoot, {host: this});
   }
 });
 """
@@ -815,7 +828,7 @@ def test_current_readiness_releases_a_connected_page_widget(browser, serve):
     installed = page.evaluate(
         """() => {
           const owner = document.querySelector('#page-local');
-          const control = owner.renderRoot.querySelector('button');
+          const control = owner.shadowRoot.querySelector('button');
           control.click();
           return {
             defined: customElements.get('lf-local') === owner.constructor,

@@ -666,11 +666,7 @@ export function pageRange(sel) {
   const [composed] = sel.getComposedRanges({ shadowRoots });
   if (!composed) return plain;
   const { startContainer, startOffset, endContainer, endOffset } = composed;
-  if (
-    startContainer.getRootNode() !==
-    endContainer.getRootNode()
-  )
-    return plain;
+  if (startContainer.getRootNode() !== endContainer.getRootNode()) return plain;
   const range = document.createRange();
   range.setStart(startContainer, startOffset);
   range.setEnd(endContainer, endOffset);
@@ -718,8 +714,7 @@ export function programmaticSelection(selection) {
 // the platform's direction for the range inside its declared shadow tree.
 export function selectionBackward(selection, range = pageRange(selection)) {
   if (
-    selection.anchorNode.getRootNode() !==
-    range.commonAncestorContainer.getRootNode()
+    selection.anchorNode.getRootNode() !== range.commonAncestorContainer.getRootNode()
   )
     return programmaticSelection(selection)
       ? writtenBackward
@@ -738,10 +733,7 @@ export function selectionBackward(selection, range = pageRange(selection)) {
 // it. The tree renders where its host stands, so the host is what the question is really
 // about: climb to whichever ancestor shares the range's root, and ask there.
 function coveredBy(range, node) {
-  const n = hostIn(
-    node,
-    range.commonAncestorContainer.getRootNode(),
-  );
+  const n = hostIn(node, range.commonAncestorContainer.getRootNode());
   if (!n || !range.intersectsNode(n)) return false;
   // A host represents its shadow words only while the range actually enters it.
   // intersectsNode includes an endpoint at the host's edge, even when no shadow

@@ -835,10 +835,7 @@ export function holdFocus(scope, { key = null } = {}) {
   if (!item || item === scope || !within(scope, item)) return restore;
   // The items are read in the tree the held one stands in, which is the scope's own or a
   // shadow tree inside it.
-  const tree =
-    item.getRootNode() === scope.getRootNode()
-      ? scope
-      : item.getRootNode();
+  const tree = item.getRootNode() === scope.getRootNode() ? scope : item.getRootNode();
   const items = () =>
     [...tree.querySelectorAll(`[${key}]`)].filter((item) => within(scope, item));
   // A key marking several nodes of one place counts once, where it first stands.
@@ -848,9 +845,7 @@ export function holdFocus(scope, { key = null } = {}) {
   // In an item, the control like the one the user stood on, as Remove for Remove, read
   // in the item's own tree, or the item itself where it holds none.
   let control = node;
-  while (
-    control.getRootNode() !== item.getRootNode()
-  ) {
+  while (control.getRootNode() !== item.getRootNode()) {
     const host = shadowHostOf(control.getRootNode());
     if (!host) break; // Slotted document controls already name their native kind.
     control = host;
@@ -911,8 +906,7 @@ const heldIn = (scope) => {
   const held = heldByLabel();
   if (held) return within(scope, held) ? held : null;
   const standing = deepFocus(
-    scope.getRootNode().activeElement ??
-      scope.ownerDocument.activeElement,
+    scope.getRootNode().activeElement ?? scope.ownerDocument.activeElement,
   );
   if (standing && standing !== document.body && within(scope, standing))
     return standing;

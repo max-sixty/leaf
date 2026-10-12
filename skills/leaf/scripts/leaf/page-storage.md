@@ -150,7 +150,8 @@ other page files and the external state listed below.
   first viewed. `presence.py` owns throttled renewal, which the server runs as a
   visible tab asks for news; hidden tabs do not renew it.
 
-- `cursor.json` — acknowledged position in this page's event log. Acknowledgement and
+- `cursor.json` — durable acknowledged position in this page's event log, retained
+  with that log when its serving process is replaced. Acknowledgement and
   log replacement rules are defined in [session-lifetime.md](session-lifetime.md).
 
 - `preview.json` — the preview identity browser chrome labels, written by

@@ -769,6 +769,8 @@ class WebsiteCodexHarness:
                 env={
                     **os.environ,
                     APP_SERVER_ENV: self.endpoint,
+                    "LEAF": LEAF_COMMAND,
+                    "LEAF_HOST_LAUNCHER": LEAF_COMMAND,
                     # The contract says `leaf`, so that name has to be this
                     # install's launcher ahead of any other on the PATH. A login
                     # shell rebuilds PATH from the system's profile, which is why
@@ -1538,6 +1540,10 @@ def close_on_signal(agent_harness: WebsiteCodexHarness) -> None:
 def main(port: int) -> None:
     os.environ.setdefault("LEAF_AGENT", WEBSITE_AGENT)
     site_root = Path(os.environ.get("LEAF_SITE_ROOT", "/app/site"))
+    os.environ["LEAF_SITE_ROOT"] = str(site_root)
+    from leaf_website.storage import restore
+
+    restore(site_root)
     agent_harness = WebsiteCodexHarness()
     httpd = LeafHTTPServer(("0.0.0.0", port), site_endpoint(site_root, agent_harness))
     log_agent("container_http_ready", port=httpd.server_address[1])

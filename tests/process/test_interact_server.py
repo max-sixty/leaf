@@ -235,7 +235,9 @@ def test_interaction_trace_does_not_change_page_or_presence_readings(page_dir):
     assert presence_model._page_stamp(page_dir) != presence_stamp
 
 
-@pytest.mark.parametrize("name", schema_model.SESSION_FILES)
+@pytest.mark.parametrize(
+    "name", (*schema_model.SESSION_FILES, *schema_model.LOG_STATE_FILES)
+)
 def test_a_session_write_does_not_revalidate_the_source(page_dir, monkeypatch, name):
     """Declaring status, acknowledging a delivery, or taking a wait writes a session
     file, and the next state read holds the activation it had rather than validating
@@ -3745,8 +3747,15 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
     ] == []
 
 
-def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
+def test_a_page_snapshot_stays_on_one_page_reading(page_dir, monkeypatch):
     """A browser check cannot combine state written after its candidate was frozen."""
+    now = datetime.now().astimezone().replace(microsecond=0)
+    monkeypatch.setattr(served_context, "now_iso", lambda: now.isoformat())
+    monkeypatch.setattr(page_snapshot_model, "now_iso", lambda: now.isoformat())
+    cleanup_model.write_json(
+        page_dir / "status.json",
+        {"state": "waiting", "detail": "", "ts": now.isoformat()},
+    )
     schema = {
         "type": "object",
         "properties": {
@@ -3791,6 +3800,16 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
         url=active["url"],
     )
     projection = served_service.PageStateService(page_dir, source=snapshot).page_state()
+    # Live input can age on its clock; a capture changes only when replaced.
+    deadline = (now + activity_model.WORKING_GRACE).isoformat()
+    assert (
+        served_service.PageStateService(page_dir).page_state()["activity"][
+            "next_transition_at"
+        ]
+        == deadline
+    )
+    assert snapshot.context.work.activity["next_transition_at"] == deadline
+    assert projection["activity"]["next_transition_at"] is None
 
     append_carried_log_record(
         page_dir,

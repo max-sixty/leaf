@@ -161,10 +161,10 @@ import {
   rememberPassageParts,
 } from "./widget-loader.js";
 import { under } from "./shadow.js";
+import { landingBand } from "./geometry.js";
 import { keepPageRulesOffLayer } from "./page-sheets.js";
 import { replaceEntry } from "./history.js";
 import {
-  blocksOnScreen,
   capturePlace,
   hasLandmark,
   rawOffsetFits,
@@ -1718,7 +1718,7 @@ export function createVersionController({
   function captureView() {
     dropGoneRegions();
     const blocks = textBlocks();
-    const active = activeReadingRegion(readingRegions(), blocks);
+    const active = activeReadingRegion(readingRegions());
     const view = Object.assign(capturePlace(null, blocks), {
       revision: runtime.currentRevision,
       activeRegion: active?.id,
@@ -1788,8 +1788,11 @@ export function createVersionController({
   // it becomes bounded again. In flow, only the region the user is working represents
   // the shared page scroller. A region no longer standing in the document has no place
   // left to keep: its reading goes when the next reading is taken, so a page whose
-  // blocks come and go carries only the regions it has.
+  // blocks come and go carries only the regions it has. `pageReader` names the flowing
+  // region whose reading stood for the page scroller when the page was last recorded,
+  // or none where the reader's line stood in the page's own words.
   const regionViews = new Map();
+  let pageReader = null;
   const dropGoneRegions = () => {
     const standing = new Set(readingRegions().map(({ id }) => id));
     for (const id of regionViews.keys()) if (!standing.has(id)) regionViews.delete(id);
@@ -1807,12 +1810,13 @@ export function createVersionController({
         (!moved || moved.has(effectiveScroller(region))) &&
         shownRegionBounds(region),
     );
-    if (!shown.length) return;
-    const words = new Map(shown.map((region) => [region.id, textBlocks(region.body)]));
-    const active = activeReadingRegion(shown, [...words.values()].flat());
+    const active = shown.length ? activeReadingRegion(shown) : undefined;
+    if (!moved || moved.has(pageScroller))
+      pageReader =
+        active && effectiveScroller(active) === pageScroller ? active.id : null;
     for (const region of shown)
       if (readingPosture(region) === "bounded" || region.id === active?.id)
-        regionViews.set(region.id, capturePlace(region, words.get(region.id)));
+        regionViews.set(region.id, capturePlace(region, textBlocks(region.body)));
   }
   let recordQueued = false;
   const scrolled = new Set();
@@ -1836,19 +1840,24 @@ export function createVersionController({
   // region only while in view (user-place.js, `focusedInView`): regions sharing the page
   // scroller restore the active one's reading for it, and a pane the reader scrolled
   // away from, though it keeps their focus, would take them back to it.
-  const activeReadingRegion = (
-    candidates = readingRegions(),
-    blocks = textBlocks(),
-  ) => {
+  // Without focus or a gesture naming a region, the user reads the line at the top of the
+  // page's landing band, where the page measures its own place (reading-place.js), so the
+  // deepest region standing across that line is the one they work. A line in the page's
+  // own words, such as a section's heading above the queue it introduces, names none:
+  // a region starting lower in the window is not where the user reads.
+  const activeReadingRegion = (candidates = readingRegions()) => {
     const focusedRegion = containingReadingRegionFor(focusedInView());
     if (focusedRegion && candidates.some(({ id }) => id === focusedRegion.id))
       return focusedRegion;
     const recent = candidates.find(({ id }) => id === recentReadingRegion()?.id);
     if (recent) return recent;
+    const line = landingBand(pageScroller)?.top;
     return candidates
-      .map((region) => [region, blocksOnScreen(region, blocks).next().value?.[1]])
-      .filter(([, rect]) => rect)
-      .sort(([, a], [, b]) => a.top - b.top)[0]?.[0];
+      .filter((region) => {
+        const shown = shownRegionBounds(region);
+        return shown && shown.top <= line && shown.bottom > line;
+      })
+      .sort((a, b) => (under(a.host, b.body) ? -1 : under(b.host, a.body) ? 1 : 0))[0];
   };
 
   // Each composition change in progress (`preserveReadingRegions`), by its owner: the
@@ -1891,15 +1900,22 @@ export function createVersionController({
   // they stood in the window, but a place stands below the landing band, which moves when
   // the banner takes another row: the line the user was reading went under it. So the
   // page moves with its band first, and a region the page carries lands against the new
-  // band from its own record.
-  function restoreShifted(shifted, currentIntent, views) {
+  // band from its own record. A flowing region that only rewrapped in the page, as a
+  // queue does when the window narrows, was read through the page: unless its reading
+  // stood for the page (`pageReader`), the anchoring already holds the line the user
+  // read above it, and its own first line would pull the page away from that.
+  function restoreShifted(shifted, currentIntent, views, reader) {
     if (compositionChanges.size) return;
     if (!currentIntent()) return;
     const page = shifted.find(({ region }) => !region);
     if (page?.band) moveScrollerBy(pageScroller, -page.band);
     const candidates = shifted
+      .filter(
+        ({ region, from, to }) =>
+          region && (from !== pageScroller || to !== from || region.id === reader),
+      )
       .map(({ region }) => region)
-      .filter((region) => region && shownRegionBounds(region));
+      .filter((region) => shownRegionBounds(region));
     restoreRegions(candidates, currentIntent, null, views);
     recordRegions();
   }
@@ -1919,7 +1935,8 @@ export function createVersionController({
       // A resize can cause a scroll event before this frame. Keep the pre-shift
       // reading now, so that event cannot replace it with the moved geometry.
       const views = new Map(regionViews);
-      nextRender(() => restoreShifted(shifted, currentIntent, views));
+      const reader = pageReader;
+      nextRender(() => restoreShifted(shifted, currentIntent, views, reader));
       return;
     }
     // A composition change captures the intact view before hiding any region, and its

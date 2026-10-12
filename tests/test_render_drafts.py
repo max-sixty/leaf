@@ -262,6 +262,54 @@ def test_a_page_keeps_its_place_below_the_banner_as_the_window_changes_width(
     )
 
 
+def test_a_heading_above_a_flowing_pane_keeps_its_place_as_the_window_changes_width(
+    browser, serve
+):
+    """The reader landed on a section's heading; a pane the page carries starts lower in
+    the window. Text between them rewraps as the window changes width, so the pane's own
+    first line and the heading cannot both keep their distances. The heading is what the
+    reader reads, so it stays where it stood below the banner, at each width and back."""
+    filler = "".join(
+        f"<p>Paragraph {n} sets the scene in enough words to rewrap to more lines when "
+        "the window narrows to a phone, pushing what follows further down.</p>"
+        for n in range(12)
+    )
+    lead = "".join(
+        f"<p>Lead {n} introduces the pane below in enough words that it rewraps to "
+        "more lines as the window narrows, moving the pane against the heading.</p>"
+        for n in range(3)
+    )
+    lines = "".join(
+        f"<p>Line {n} of the incident, long enough to read as its own passage.</p>"
+        for n in range(30)
+    )
+    source = leaf_page(
+        "Heading above a pane",
+        f'{filler}<h2 id="section">The section the reader landed on</h2>{lead}'
+        f'<lf-pane id="reading" label="Reading"><div>{lines}</div></lf-pane>{filler}',
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1280, 800)
+    rendered(page)
+    below = """async () => {
+      const {landingBand} = await window.__lfRuntimeImport('/runtime/geometry.js');
+      const pane = document.querySelector('#reading').getBoundingClientRect();
+      return {heading: document.getElementById('section').getBoundingClientRect().top
+                - landingBand(document.scrollingElement).top,
+              paneShown: pane.top < innerHeight && pane.bottom > 0};
+    }"""
+    page.evaluate("location.hash = 'section'")
+    rendered(page)
+    landed = page.evaluate(below)
+    assert landed["paneShown"], landed
+    for width in (390, 1280):
+        resized(page, width, 800)
+        rendered(page)
+        assert page.evaluate(below)["heading"] == pytest.approx(
+            landed["heading"], abs=2
+        ), width
+
+
 @pytest.mark.parametrize("bounded", [False, True])
 def test_typing_in_a_visible_inline_reply_keeps_the_reading_position(
     browser, serve, bounded

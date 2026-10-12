@@ -11478,11 +11478,13 @@ def test_a_changed_diff_file_keeps_its_sideways_reader(browser, serve, manifest)
 
 
 @pytest.mark.parametrize("manifest", [False, True])
-@pytest.mark.parametrize("inserts_line", [False, True])
+@pytest.mark.parametrize("edit", ["in-place", "inserted-line", "earlier-hunk"])
 def test_a_diff_refresh_keeps_a_selection_in_unchanged_lines(
-    browser, serve, manifest, inserts_line
+    browser, serve, manifest, edit
 ):
-    """A change in another hunk does not take the passage the reader selected."""
+    """A change in another hunk does not take the passage the reader selected. A hunk
+    added before kept lines moves them down the listing, and each still has its own
+    gutter row."""
     url = serve(LONG_LINE_DIFF_PAGE)
     value = patch_manifest if manifest else lambda patch: patch
     data_model.cmd_data_set(serve.page_dir, "review-patch", value(MULTI_HUNK_PATCH))
@@ -11504,7 +11506,13 @@ def test_a_diff_refresh_keeps_a_selection_in_unchanged_lines(
     before = page.evaluate("() => getSelection().toString()")
     assert before == "second"
     patch = MULTI_HUNK_PATCH.replace("new first", "new beginning")
-    if inserts_line:
+    if edit == "earlier-hunk":
+        patch = patch.replace(
+            "@@ -40,5",
+            '@@ -20,2 +20,2 @@\n def line_20():\n-    return "old"\n+    return "new"\n'
+            "@@ -40,5",
+        )
+    if edit == "inserted-line":
         patch = patch.replace("@@ -1,5 +1,5 @@", "@@ -1,5 +1,6 @@").replace(
             '+    return "new beginning"\n',
             '+    return "new beginning"\n+    inserted = True\n',

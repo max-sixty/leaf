@@ -6,11 +6,12 @@
 // CSS anchor positioning, through its anchor's scroll; and native animation, scroll-
 // driven included, through its sampled translation. Beside those it credits only what
 // the Stability contract itself declares: a gesture's rendering, the page before it
-// presents, and runtime regions declared with `data-lf-reflow`. A script that moves a
-// box by writing its geometry has no credit of its own, however the page means it, so
-// a surface that should follow something stands by a native mechanism that does. A
-// new layout shape therefore needs no rule here: where its motion is native, the
-// general rule already credits it, and where it is scripted, the sensor reports it.
+// presents or as it returns from a hidden tab, and runtime regions declared with
+// `data-lf-reflow`. A script that moves a box by writing its geometry has no credit
+// of its own, however the page means it, so a surface that should follow something
+// stands by a native mechanism that does. A new layout shape therefore needs no rule
+// here: where its motion is native, the general rule already credits it, and where it
+// is scripted, the sensor reports it.
 //
 // Chrome admits painted layout transitions; a retained per-frame ledger supplies
 // their meaning. Source rectangles do not choose which landmarks get examined, so

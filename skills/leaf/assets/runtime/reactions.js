@@ -85,7 +85,7 @@ const reactionVocabulary = () => registry.$reactions?.tokens ?? {};
 // row's bindings as the module evaluates, before the vocabulary is known.
 export const reactionTokens = () => Object.entries(reactionVocabulary());
 // A toggle needs the saved standing reaction, including proof that none stands.
-const reactionAvailable = () => readThreads().phase === "ready";
+export const reactionAvailable = () => readThreads().phase === "ready";
 // The choices on one anchor, from the threads' current reading.
 const anchorChoices = (anchor) =>
   reactionAvailable()

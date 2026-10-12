@@ -363,8 +363,10 @@ def test_offline_reaction_waits_for_its_saved_standing(browser, serve):
     page.keyboard.press("Tab")
     chip = page.locator('.lf-response-options .lf-react[data-token="keep"]')
     expect(chip).to_have_attribute("aria-disabled", "true")
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("react")
     chip.dispatch_event("click")
     chip.focus()
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("choose")
     page.keyboard.press("Space")
     assert posts == []
     page.keyboard.press("Escape")
@@ -1030,3 +1032,53 @@ def test_user_view_context_follows_real_tabs_without_changing_the_page(browser, 
     current = next(r for r in seen if r["session"] != identity)
     assert old["revision"] == 1 and not old["matches_active_revision"]
     assert current["revision"] == 2 and current["matches_active_revision"]
+
+
+def test_bad_shadow_words_after_upgrade_keep_the_page_usable(browser, serve):
+    entry = {
+        "description": "Late shadow words.",
+        "type": "object",
+        "properties": {"id": {"type": "string"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "empty",
+        "x-upgrade": True,
+        "x-shadow": True,
+        "x-example": '<lf-probe id="probe"></lf-probe>',
+    }
+    widget = """import {once, shadowStage} from '/runtime/widget-api.js';
+customElements.define('lf-probe',class extends HTMLElement {connectedCallback(){if(!once(this))return;const p=document.createElement('p');p.textContent='Good words';shadowStage(this,[p]);}});"""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.set_default_timeout(10_000)
+    held = []
+    page.route("**/api/state*", lambda r: held.append(r))
+    page.goto(
+        serve(
+            leaf_page(
+                "Late shadow", '<h1>Late shadow</h1><lf-probe id="probe"></lf-probe>'
+            ),
+            layer_registry={"lf-probe": entry},
+            layer_widgets={"lf-probe.js": widget},
+        ),
+        wait_until="load",
+    )
+    expect(page.locator("body")).to_have_attribute(
+        "data-lf-upgraded", "1", timeout=5_000
+    )
+    page.evaluate(
+        """async()=>{const host=document.querySelector('lf-probe');host.shadowRoot.append(document.createTextNode('Broken author words'));const {textNodesUnder}=await __lfRuntimeImport('/runtime/passages.js');[...textNodesUnder(document.body)];}"""
+    )
+    assert page.evaluate("document.documentElement.hasAttribute('data-lf-interactive')")
+    expect(
+        page.get_by_role("status").filter(has_text="Leaf couldn't start")
+    ).to_have_count(0)
+    consume_browser_errors(page, "staged bare text")
+    page.unroute("**/api/state*")
+    for r in held:
+        r.continue_()
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    select_words(page, "h1")
+    page.keyboard.press("c")
+    write(page_comment(page), "Still usable.")
+    expect(page_comment(page)).to_have_js_property("value", "Still usable.")
+    page.close()

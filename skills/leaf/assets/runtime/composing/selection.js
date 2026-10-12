@@ -149,6 +149,7 @@ export function createSelectionComposer({
   panelIsOpen,
   setReact,
   reactionTokens,
+  reactionAvailable,
   designModeActive,
   openPageThread,
   threadTransitionOrigin,
@@ -806,7 +807,10 @@ export function createSelectionComposer({
         .map(([name, entry], index) => `${index + 1} ${entry.glyph} ${name}`)
         .join(", ")}`,
     title: "react",
-    when: () => !takesLetters(focused()) && responseReactionButtons().length > 0,
+    when: () =>
+      reactionAvailable() &&
+      !takesLetters(focused()) &&
+      responseReactionButtons().length > 0,
     run: (binding) => responseReactionButtons()[+binding - 1]?.click(),
   };
   const RESPONSE_MOVE = {
@@ -823,7 +827,9 @@ export function createSelectionComposer({
     keys: PRESS,
     description: "Use the focused response",
     title: "choose",
-    when: () => focusedResponseOption(),
+    when: () =>
+      focusedResponseOption() &&
+      (!focused().classList.contains("lf-react") || reactionAvailable()),
     run: () => focused()?.click(),
   };
   const RESPONSE_CLOSE = {

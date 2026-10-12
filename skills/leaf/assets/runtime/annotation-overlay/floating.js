@@ -11,8 +11,8 @@
 
    `floatingPlacement` is one box's lifecycle around those two calls: it watches the
    element the box stands against, re-arming when that element or its observation
-   contract changes, and numbers each
-   placement so an answer computed for an earlier one is dropped. A placement lands in
+   contract changes, including attribute-driven visibility changes in its composed
+   ancestry, and numbers each placement so an earlier answer is dropped. A placement lands in
    the microtasks after the rendering pass that asks for it, before the frame paints.
 
    A fixed box stands in the plane of whatever holds it, so the scroll that moves that
@@ -57,6 +57,7 @@
    after a fetch. */
 
 import { afterPresentation } from "../presentation.js";
+import { drawn } from "../focus.js";
 import { keeps, layoutPx as px, atLayoutPrecision } from "../keeps.js";
 import { anchorElement, anchorFor, anchorHolder, anchorName } from "../css-anchors.js";
 import { move } from "../dom-move.js";
@@ -347,7 +348,23 @@ export function floatingPlacement({ floating, update }) {
       watched = element;
       observer = autoUpdate;
       tenure = Object.freeze({});
-      stopWatching = autoUpdate(reference, floating, update);
+      const stopGeometry = autoUpdate(reference, floating, update);
+      // Visibility can change without moving or resizing a box. Observe the subject's
+      // composed ancestry alongside Floating UI's geometry watch, including while the
+      // surface is withheld. Only a changed visibility reading invalidates placement.
+      let visible = drawn(element);
+      const visibility = new MutationObserver(() => {
+        const next = drawn(element);
+        if (next === visible) return;
+        visible = next;
+        update();
+      });
+      for (let at = element; at; at = renderedParent(at))
+        if (at instanceof Element) visibility.observe(at, { attributes: true });
+      stopWatching = () => {
+        visibility.disconnect();
+        stopGeometry();
+      };
     },
     holdsHome: (home) =>
       frame !== floating && frame.parentElement === home && frame.contains(floating),

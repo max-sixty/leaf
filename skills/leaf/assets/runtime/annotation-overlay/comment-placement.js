@@ -20,8 +20,9 @@
    or nothing where no row stands and its rows would be pins. A caller requesting
    window placement without a visible attachment supplies `clear: null` and stands
    at its upper inline edge through the same sizing and placement machinery.
-   An existing target with no drawn part has no attachment: both surfaces withhold
-   their native editing state until it returns, rather than standing by a zero box.
+   An existing target with no drawn part has no attachment: seated surfaces withhold
+   their native editing state until it returns. An explicit open can request the
+   unanchored window posture, retaining the hidden subject as its semantic anchor.
    The editing surface uses this solver for its initial attachment, then retains
    browser-owned following (`composing/floating-response.js`).
 

@@ -10,7 +10,9 @@
    its durable anchor and native editor stay intact.
 
    A detached draft uses the shared unanchored window posture, preserving its original
-   anchor and native editor. Resume writing can recover it even after that passage is gone.
+   anchor and native editor. An explicit open uses that same posture while its existing
+   subject is hidden; a seated editor withholds instead. Resume writing can recover it
+   even after that passage is gone.
    An attached editing field follows its passage out of view. The existing Resume writing route
    reveals that same field; no window seat or duplicate input stands in for it. A modal
    side panel withholds the page's response bar and takes its focus until the page is
@@ -78,6 +80,8 @@ export function createFloatingResponsePlacement({
   // The attachment the seated editor last landed on, separate from whichever
   // geometry a later read resolves. Only a completed placement advances this tenure.
   let editingAttachment = null;
+  // An explicit open on a hidden subject retains a window seat until it returns.
+  let windowPosture = false;
   // The browser's selected Range is a mechanical place even when its durable quote
   // is ambiguous. Keep it for this response transaction, only while its original
   // endpoints survive. A revision replacing them retires it; semantic resolution
@@ -146,6 +150,7 @@ export function createFloatingResponsePlacement({
     fabPositionFrame = 0;
     if (!reset) return;
     editingAttachment = null;
+    windowPosture = false;
     fabPlacement.forget();
     fabBar.removeAttribute("data-lf-placement");
     for (const property of ["--lf-float-w", "--lf-float-h"])
@@ -298,7 +303,7 @@ export function createFloatingResponsePlacement({
   // The passage remains the exact anchor, but its resolved place is not spare space: a
   // short selection cannot lend the words around it to the response field. Keep the bar
   // beside that whole place, or above/below it when the rail is too narrow.
-  function placeFab() {
+  function placeFab({ reveal = false } = {}) {
     if (!response.anchor) return false;
     if (panelCoversPage()) {
       withholdFab();
@@ -315,17 +320,22 @@ export function createFloatingResponsePlacement({
       (context?.nodeType === Node.ELEMENT_NODE ? context : context?.parentElement) ??
       null;
     const windowBoundary = floatBoundary();
-    const place = commentAttachment({
+    let place = commentAttachment({
       target: owner,
       point: response.anchor.quote ? null : response.pointIn(owner),
       passage: geometry,
       boundary: windowBoundary,
     });
-    if (!place) {
+    if (place) windowPosture = false;
+    else if (response.open && (reveal || windowPosture)) {
+      windowPosture = true;
+      place = commentAttachment({ target: null, boundary: windowBoundary });
+    } else {
       withholdFab();
       return false;
     }
-    const attachment = { owner, passage: Boolean(geometry?.attachment) };
+    const seatedOwner = windowPosture ? null : owner;
+    const attachment = { owner: seatedOwner, passage: Boolean(geometry?.attachment) };
     const changedAttachment =
       editingAttachment &&
       (editingAttachment.owner !== attachment.owner ||
@@ -340,7 +350,7 @@ export function createFloatingResponsePlacement({
         nativeAttachment = false;
       }
     }
-    if (response.open && nativeAttachment && geometry) return true;
+    if (response.open && nativeAttachment && geometry && !windowPosture) return true;
     const boundary = place.region ? floatBoundary(place.region) : windowBoundary;
     if (boundary.width <= 0 || boundary.height <= 0) return false;
     // Width before coordinates: the side is chosen from the card's minimum, then the size
@@ -414,8 +424,8 @@ export function createFloatingResponsePlacement({
           ui.computePosition,
           commentReference(place, reference),
           { placement, middleware },
-          response.open && owner ? () => "page" : plane,
-          owner ?? document.documentElement,
+          response.open && seatedOwner ? () => "page" : plane,
+          seatedOwner ?? document.documentElement,
         );
       })
       .then((position) => {
@@ -447,7 +457,10 @@ export function createFloatingResponsePlacement({
   // rung stand down; `c` brings it back.
   function withholdFab() {
     const covered = panelCoversPage();
-    stopFabPositioning({ reset: false });
+    // Keep the target watch and its native frame: hiding retires the solve, not the
+    // subject's lifetime. Its next visibility or geometry change can seat it again.
+    nativeAttachment = false;
+    fabPosition.supersede();
     if (fabWithheld) return;
     fabWithheld = true;
     const held = holdFocus(fabBar);
@@ -507,6 +520,7 @@ export function createFloatingResponsePlacement({
     withheld: () => fabWithheld,
     release: () => {
       editingAttachment = null;
+      windowPosture = false;
       selectedPassage = null;
       fabWithheld = false;
       fabBar.removeAttribute("data-lf-withheld");

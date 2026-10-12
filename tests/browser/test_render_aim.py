@@ -4018,6 +4018,57 @@ def test_a_withheld_draft_restores_editing_and_deliberate_dismissal(browser, ser
     assert json.loads(stored_draft_text(page, context))["text"] == words
 
 
+@pytest.mark.parametrize("reopen", ["resume", "reload", "withheld", "comment"])
+def test_explicit_reopening_keeps_a_css_hidden_subject_draft_reachable(
+    browser, serve, reopen
+):
+    page, words = _open_attachment_draft(
+        browser, serve(COMPOSER_ATTACHMENT_PAGE), "#bg-contents a"
+    )
+    if reopen not in {"withheld", "comment"}:
+        page.keyboard.press("Escape")
+        page.mouse.click(5, 600)
+    resized(page, 480, 900)
+    if reopen == "reload":
+        page.reload()
+        wait_until_ready(page)
+    elif reopen == "comment":
+        page.keyboard.press("c")
+    else:
+        page.keyboard.press("g")
+        page.keyboard.press("i")
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_visible()
+    expect(field).to_be_focused()
+    assert _draft_in_view(page, words)
+    expect(page.locator(".lf-fab-bar")).to_have_attribute("data-lf-plane", "window")
+
+
+@pytest.mark.parametrize("reply", [False, True])
+def test_a_withheld_draft_observes_visibility_without_a_layout_change(
+    browser, serve, reply
+):
+    page, words = _open_attachment_draft(
+        browser, serve(COMPOSER_ATTACHMENT_PAGE), "#ordinary"
+    )
+    field = page.locator(".lf-fab-input")
+    if reply:
+        with sending(page, "the visibility target comment"):
+            page.keyboard.press("ControlOrMeta+Enter")
+        page.keyboard.press("c")
+        field = page.locator(".lf-margin-preview .lf-thread-reply leaf-text")
+        words = "A reply with the same visibility owner."
+        write(field, words)
+    page.locator("#ordinary").evaluate("el => el.style.visibility='hidden'")
+    resized(page, 1100, 900)
+    rendered(page)
+    expect(field).not_to_be_visible()
+    page.locator("#ordinary").evaluate("el => el.style.visibility='visible'")
+    expect(field).to_be_visible()
+    expect(field).to_be_focused()
+    assert _draft_in_view(page, words, field)
+
+
 DESIGN_PANE_PAGE = leaf_page(
     "design paint in a pane",
     """

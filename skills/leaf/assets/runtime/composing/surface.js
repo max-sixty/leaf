@@ -326,7 +326,7 @@ export function createResponseSurface({
       anchor.quote &&
       !anchor.detached &&
       sameAnchor(anchor, fabAnchor)
-      ? resolveAnchor({ section: anchor.section })
+      ? (found ?? resolveAnchor({ section: anchor.section }))
       : null;
   };
   const anchorStands = (anchor) => Boolean(responseTarget(anchor));
@@ -431,7 +431,7 @@ export function createResponseSurface({
     usesPlacement = Boolean(placement);
     paintFab();
   }
-  function showFab(anchor, { place = true, point = undefined } = {}) {
+  function showFab(anchor, { place = true, point = undefined, reveal = false } = {}) {
     const previous = fabAnchor;
     if (!anchor) {
       restoreFab({ place: false });
@@ -462,7 +462,7 @@ export function createResponseSurface({
       // skipped. Every route that actually shows the bar keeps the geometry gate. The gate
       // is for opening: the bar already standing on this anchor, placed again, is
       // withheld rather than put away (standFab).
-      if (usesPlacement && !placement.place()) {
+      if (usesPlacement && !placement.place({ reveal })) {
         if (same && placement.stands()) placement.withhold();
         else clearFab();
       }
@@ -569,6 +569,7 @@ export function createResponseSurface({
     }
     const anchor = structuredClone(fabAnchor);
     bringBackSurfaceOf(fabBar);
+    showFab(anchor, { reveal: true });
     landFabFocus(handoff, anchor, () => sameAnchor(anchor, fabAnchor));
   }
   const fabOptionsAvailable = () =>

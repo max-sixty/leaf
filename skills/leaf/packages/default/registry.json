@@ -319,8 +319,6 @@
     "additionalProperties": false,
     "x-content": "data",
     "x-language": "language",
-    "x-lines": ["hi"],
-    "x-numbering": "lines",
     "x-upgrade": true,
     "x-example": "<lf-code id=\"bracket-walk\" language=\"python\" hi=\"2\"><pre>\ndef bracket(temp):\n    if temp &lt; 0:\n        return \"steel\"\n    return \"cedar\"\n</pre>\n  <lf-note at=\"2\">Freezing is the only threshold that matters.</lf-note>\n</lf-code>"
   },
@@ -342,7 +340,6 @@
     "additionalProperties": false,
     "x-owners": ["lf-code"],
     "x-content": "markup",
-    "x-lines": ["at"],
     "x-upgrade": false
   },
   "lf-chart": {

@@ -19,6 +19,7 @@ from .event_log import EventRefused
 from .event_meaning import AdmissionReadings
 from .page_view import InitialPageView
 from .projection import generated_children, retirement_outcomes, rewritten_bodies
+from .registry.kernel import kernel_event_kinds
 from .registry.schema import aware_instant, json_value
 from .state import now_iso
 from .structure import SourceDocument
@@ -135,7 +136,7 @@ def initial_sample_events(
     child = template["document"]
     view = InitialPageView(child, registry, contracts)
     events = []
-    kinds = registry["$events"]["kinds"]
+    kinds = kernel_event_kinds()
     constructed_at = now_iso()
     for seq, command in enumerate(commands, 1):
         try:

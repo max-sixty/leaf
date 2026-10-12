@@ -403,7 +403,7 @@ describe("product-site delivery", () => {
         expect(response.headers.get("Set-Cookie")).toBeNull();
         expect(forwarded[index]).toBe(body);
       }
-      expect(logged.mock.calls.map(call => call[0])).toEqual([
+      expect(logged.mock.calls.map(call => call[0])).toStrictEqual([
         {
           component: "leaf-interaction", event: "client_batch", route: "/examples/triage-board",
           release: RELEASE, sampleReference: "645988520964", session: "0".repeat(32),
@@ -508,7 +508,7 @@ describe("product-site delivery", () => {
       }), environment());
       expect(response.status).toBe(204);
       const batch = logged.mock.calls[0][0] as { entries: unknown[] };
-      expect(batch.entries).toEqual([
+      expect(batch.entries).toStrictEqual([
         {
           ts: entries[0].ts, sequence: 1, type: "sample", phase: "admission",
           host: 2, allocation: 3, revision: 4, elapsed: 23.5,
@@ -621,7 +621,7 @@ describe("product-site delivery", () => {
       );
       expect(accepted.status).toBe(204);
       expect(logged).toHaveBeenCalledOnce();
-      expect(logged.mock.calls[0][0]).toEqual({
+      expect(logged.mock.calls[0][0]).toStrictEqual({
         component: "leaf-interaction",
         event: "client_batch",
         reference: "964433995543",

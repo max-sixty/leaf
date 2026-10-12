@@ -1,7 +1,9 @@
 """Offline JSON Schema validation shared by registry, markup, and event admission.
 
 Each validator owns a self-contained resource graph and is cached by schema content.
-Leaf's date-time format admits only absolute, timezone-aware RFC3339 instants.
+Leaf's date-time format admits only absolute, timezone-aware RFC3339 instants, and its
+uri format only absolute URLs the browser's URL parser accepts. A registry schema may
+name only a format `FORMAT_CHECKER` checks (`check_schema`).
 """
 
 import functools
@@ -9,7 +11,9 @@ import json
 import re
 from datetime import datetime
 
+import ada_url
 from jsonschema import Draft202012Validator, FormatChecker
+from jsonschema.exceptions import SchemaError
 from referencing import Registry
 from referencing.exceptions import Unresolvable
 from referencing.jsonschema import DRAFT202012
@@ -26,6 +30,18 @@ def is_aware_datetime(value) -> bool:
     if not isinstance(value, str):
         return True  # the declared JSON Schema owns the type complaint
     return aware_instant(value) is not None
+
+
+@FORMAT_CHECKER.checks("uri")
+def is_browser_url(value) -> bool:
+    """An absolute URL by the WHATWG URL Standard, which a page parses it by.
+
+    jsonschema checks `uri` only with an optional RFC 3987 package, and RFC 3986
+    admits URLs the browser refuses, such as a port past 65535; a widget's
+    `new URL` would then throw on a value `data set` accepted."""
+    if not isinstance(value, str):
+        return True  # the declared JSON Schema owns the type complaint
+    return ada_url.check_url(value)
 
 
 def aware_instant(value: str):
@@ -45,6 +61,33 @@ def schema_resource_registry(schema: dict):
     resource = DRAFT202012.create_resource(schema)
     registry = Registry().with_resource("", resource).crawl()
     return resource, registry
+
+
+def check_schema(schema) -> None:
+    """Draft 2020-12's schema check, narrowed to what Leaf enforces.
+
+    jsonschema skips a `format` it has no checker for, so a schema naming one would
+    declare a rule no boundary enforces, and the value would reach a widget unchecked.
+    Raises `SchemaError` for either."""
+    Draft202012Validator.check_schema(schema)
+
+    def visit(contents) -> None:
+        if isinstance(contents, dict):
+            named = contents.get("format")
+            if isinstance(named, str) and named not in FORMAT_CHECKER.checkers:
+                checked = sorted(FORMAT_CHECKER.checkers)
+                raise SchemaError(
+                    f"format {named!r} is not one Leaf checks; it checks "
+                    f"{json_value(checked)}",
+                    validator="format",
+                    validator_value=checked,
+                    instance=named,
+                    schema=contents,
+                )
+        for subcontents in DRAFT202012.subresources_of(contents):
+            visit(subcontents)
+
+    visit(schema)
 
 
 def json_validator(schema: dict) -> Draft202012Validator:

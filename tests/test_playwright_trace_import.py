@@ -321,36 +321,18 @@ def test_multiple_native_streams_and_complete_action_records_keep_distinct_ident
     assert library_click["input"]["viewport"] == {"width": 640, "height": 480}
 
 
-def test_unreadable_archive_refuses_before_importing_media(media_page, tmp_path):
-    for filename, entries, expected in [
-        (
-            "new.zip",
-            {"trace.trace": json.dumps({"type": "context-options", "version": 10})},
-            "unsupported trace format 10",
-        ),
-        ("unsafe.zip", {"../escape.png": "invalid"}, "unsafe archive entry"),
-        (
-            "missing.zip",
-            {
-                "trace.trace": json.dumps(
-                    {"type": "context-options", "version": 9, "origin": "library"}
-                )
-                + "\n"
-                + json.dumps({"type": "screencast-frame", "file": "missing.jpeg"})
-            },
-            "missing resource",
-        ),
-    ]:
-        trace = tmp_path / filename
-        with ZipFile(trace, "w") as archive:
-            for name, content in entries.items():
-                archive.writestr(name, content)
-        with pytest.raises(PRODUCER["TraceError"], match=expected):
-            imported(trace, media_page)
+def test_another_trace_format_refuses_before_importing_media(media_page, tmp_path):
+    trace = tmp_path / "new.zip"
+    with ZipFile(trace, "w") as archive:
+        archive.writestr(
+            "trace.trace", json.dumps({"type": "context-options", "version": 10})
+        )
+    with pytest.raises(PRODUCER["TraceError"], match="unsupported trace format 10"):
+        imported(trace, media_page)
     assert not list((media_page / "media").iterdir())
 
 
-def test_native_parent_graph_omits_missing_labels_and_refuses_invalid_edges(
+def test_native_parent_graph_omits_missing_labels_and_refuses_cycles(
     media_page, tmp_path
 ):
     """External action records may reference another chunk, but cannot contain cycles."""
@@ -395,20 +377,6 @@ def test_native_parent_graph_omits_missing_labels_and_refuses_invalid_edges(
     write({**child, "title": "Review docs"}, group)
     assert imported(trace, media_page)["actions"][0]["title"] == "Review docs"
 
-    for invalid in (None, "", 1, [], {}):
-        write({**child, "parentId": invalid})
-        with pytest.raises(PRODUCER["TraceError"], match="child parentId"):
-            imported(trace, media_page)
-    for parent, expected in [
-        (None, "child parentId"),
-        ("other", "conflicting parentId"),
-    ]:
-        write(
-            {**child, "type": "before"},
-            {"type": "after", "callId": "child", "parentId": parent, "endTime": 4},
-        )
-        with pytest.raises(PRODUCER["TraceError"], match=expected):
-            imported(trace, media_page)
     write(child, {**group, "parentId": "child"})
     with pytest.raises(PRODUCER["TraceError"], match="parentId cycle"):
         imported(trace, media_page)

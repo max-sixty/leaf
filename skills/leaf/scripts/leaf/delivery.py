@@ -589,9 +589,9 @@ def record_pickup(
         raise ValueError(f"unknown pickup phase {phase!r}")
     claim = page.claim
     if session is None and claim:
-        session = claim.get("id")
-    if phase == "opened" and turn is None and claim and claim.get("id") == session:
-        turn = claim.get("turn")
+        session = claim["id"]
+    if phase == "opened" and turn is None and claim and claim["id"] == session:
+        turn = claim["turn"]
     wanted = [event["id"] for event in events if requires_agent_attention(event)]
     picked = {
         (event_id, event["phase"], event["session"], event["turn"])
@@ -710,7 +710,7 @@ def receive_held(
 
     A refusal is the batch's own: a page that changed hands or went, a turn that
     ended or was replaced, a log this Leaf may not write
-    (`layer.foreign_event_contract`), or locks still held at `deadline`, for a hook
+    (`layer.incompatible_layer`), or locks still held at `deadline`, for a hook
     that must exit by then for its handover to stand. The other batches are still
     confirmed, and the hook hands the whole delivery to its reader to confirm
     (`hook_transport.render`)."""

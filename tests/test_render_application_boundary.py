@@ -3372,7 +3372,7 @@ def test_primary_reading_holds_remote_changes_before_package_layout(
     editor = workspace.get_by_role("textbox", name="Reply", exact=True)
     write(editor, "Keep this draft while updates wait.")
     assert editor.evaluate("""async editor => {
-      const {scrollerFor, readingRegionFor} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const {scrollerFor, readingRegionFor} = await window.__lfRuntimeImport('/runtime/reading-regions.js');
       const reader = document.querySelector('#workspace').reader;
       return scrollerFor(editor) === reader && readingRegionFor(editor).body === reader;
     }""")

@@ -37,7 +37,8 @@
    read when they were measured, or zero for contents placed where they stand at the
    scroller's start, which a later scroll does not change, so placing them again
    writes nothing. */
-import { scrollAxes, scrollContainer, scrollport } from "./geometry.js";
+import { scrollAxes } from "./element-frame.js";
+import { scrollContainer, scrollport } from "./geometry.js";
 import { renderedParent } from "./shadow.js";
 
 // Timelines express displacement linear in scroll, while sticky and fixed boxes

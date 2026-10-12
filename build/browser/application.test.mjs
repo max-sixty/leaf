@@ -1472,7 +1472,7 @@ test("a reaction root is not a spoken turn awaiting the user", () => {
 test("a Done this tab sends ends its task at once, and its undo puts the task back", () => {
   // The task the agent put on the user, as the server serves it.
   const task = servedReading("queues on both sides").tasks.find(
-    (candidate) => candidate.ends === "done",
+    (candidate) => candidate.owner === "user",
   );
   const onYou = (app) => app.read().effective.queues.onYou.map(({ id }) => id);
   const done = (app) =>

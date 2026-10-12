@@ -9,8 +9,10 @@ import {
   ADDRESSABLE,
   commandDeclarationsWithin,
   commandRoutes,
+  pageDocument,
   unrevealedVisualParts,
   upFrom,
+  userScrollport,
   visualPartProblems,
 } from "/runtime/check-api.js";
 import { at as locate } from "./locate.js";
@@ -55,7 +57,7 @@ const renderedAt = (element) => {
 // properties. Resolve each value through a temporary custom property in the element's
 // live cascade, then let the browser validate the resulting tokens for that property.
 export function invalidPaints() {
-  if (!document.querySelector("main")) return [];
+  if (!pageDocument()) return [];
   const properties = [
     "color",
     "fill",
@@ -396,7 +398,7 @@ const WRITTEN_IN = `input, select, ${TEXT_BOX}`;
 const asksVerticalScroll = (box) => {
   const style = box.getAttribute("style");
   box.style.setProperty("overflow-x", "visible", "important");
-  const asked = /auto|scroll/.test(getComputedStyle(box).overflowY);
+  const asked = userScrollport(getComputedStyle(box).overflowY);
   if (style === null) box.removeAttribute("style");
   else box.setAttribute("style", style);
   return asked;
@@ -425,7 +427,7 @@ const overflowsVertically = (box) => box.scrollHeight > box.clientHeight + ROUND
 // out. This writes the page, so only a page nothing reads again, such as the report's
 // page of worked examples, is read this way.
 export function heldScrollers(tags) {
-  const main = document.querySelector("main");
+  const main = pageDocument();
   if (!main) return [];
   const own = new Set(tags);
   const found = [];
@@ -439,7 +441,7 @@ export function heldScrollers(tags) {
         continue;
       const style = getComputedStyle(box);
       if (
-        !/auto|scroll/.test(style.overflowY) ||
+        !userScrollport(style.overflowY) ||
         /^(inline|contents|none)$/.test(style.display) ||
         style.getPropertyValue("--lf-holds-height").trim() === "1" ||
         !shown(box)

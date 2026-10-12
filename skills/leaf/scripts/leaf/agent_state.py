@@ -297,7 +297,6 @@ def task_item(task: dict) -> dict:
         "running": task["running"],
         "agent": task["agent"],
         "session": task["session"],
-        "ends": task["ends"],
     }
 
 
@@ -321,7 +320,6 @@ def question_item(question: dict) -> dict:
         "running": None,
         "agent": None,
         "session": None,
-        "ends": source["kind"],
         "question": question,
     }
 

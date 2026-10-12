@@ -6167,6 +6167,49 @@ def test_floating_thread_chains_scrolling_to_its_page(browser, serve, long):
         expect(card).to_be_visible()
 
 
+@pytest.mark.parametrize("long", [False, True], ids=["fitting", "overflowing"])
+def test_floating_thread_pages_on_to_its_page(browser, serve, long):
+    """With a floating thread focused, d/u page its turns, then the document at
+    either edge, as the wheel does."""
+    source = leaf_page(
+        "Page through a contextual thread",
+        '<div style="height: 80vh"></div>'
+        '<p id="open">Review the open questions.</p>'
+        '<div style="height: 180vh"></div>',
+    )
+    page = open_page(
+        browser, serve(source, events=LONG_THREAD if long else [LONG_THREAD_ROOT])
+    )
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, 1440, 900)
+    page.locator("#open").scroll_into_view_if_needed()
+    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+    card = page.locator(".lf-margin-preview")
+    expect(card.locator(".lf-page-thread")).to_be_focused()
+    transcript = card.locator(".lf-thread-transcript")
+    assert (
+        transcript.evaluate("box => box.scrollHeight - box.clientHeight") > 0
+    ) == long
+
+    for key, edge in (("u", "0"), ("d", "box.scrollHeight")):
+        transcript.evaluate(f"box => box.scrollTop = {edge}")
+        if long:
+            transcript.evaluate(
+                "box => box.scrollTop = (box.scrollHeight - box.clientHeight) / 2"
+            )
+            before = transcript.evaluate("box => box.scrollTop")
+            page_at = page.evaluate("scrollY")
+            page.keyboard.press(key)
+            assert transcript.evaluate("box => box.scrollTop") != before
+            assert page.evaluate("scrollY") == page_at
+            transcript.evaluate(f"box => box.scrollTop = {edge}")
+        page_at = page.evaluate("scrollY")
+        page.keyboard.press(key)
+        moved = page.evaluate("scrollY") - page_at
+        assert moved > 20 if key == "d" else moved < -20
+        expect(card).to_be_visible()
+
+
 def open_long_thread(browser, serve, height=900):
     """The long thread's margin card, which opens on its latest message, scrolled
     partway back up."""

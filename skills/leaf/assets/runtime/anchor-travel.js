@@ -41,12 +41,12 @@ import {
   sectionOf,
 } from "./anchor-resolution.js";
 import {
-  clippedContents,
+  clippedPlace,
   clipsPast,
   landingBand,
+  placeBox,
   placeHolder,
   shownBox,
-  shownRect,
 } from "./geometry.js";
 import { scrollBehavior } from "./motion.js";
 import { onReadingInput, scrollersOf } from "./reading-regions.js";
@@ -444,14 +444,13 @@ export function createAnchorTravel({
   function seenOf(where) {
     const holder = placeHolder(where);
     if (!holder) return null;
-    const destination =
-      where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
+    const destination = placeBox(where);
     const standing = surfaces.selectedSurface();
-    const clips = standing ? clipsPast([standing]) : new Map();
-    const seen =
-      where instanceof Range
-        ? clippedContents(destination, holder, clips)
-        : shownRect(where, clips);
+    const seen = clippedPlace(
+      where,
+      standing ? clipsPast([standing]) : new Map(),
+      destination,
+    );
     return seen && { holder, destination, seen };
   }
 
@@ -513,9 +512,7 @@ export function createAnchorTravel({
     const thread = threadNames(currentThreads()).get(id);
     const anchor = thread?.anchor;
     const status = anchors.placedAt(id)?.status;
-    const hydrating =
-      (anchor?.datum && status !== "outdated") ||
-      (anchor?.visual && status === "fallback");
+    const hydrating = (anchor?.datum && status !== "outdated") || anchor?.visual;
     const standing = threadDestination(id);
     // Decided before the trip awaits anything: a destination that is not readable now,
     // or one a widget has yet to hydrate, is somewhere else.
@@ -524,7 +521,8 @@ export function createAnchorTravel({
     if (standing || hydrating) departure.plan(standing);
     if (hydrating) {
       const source = sectionOf(anchor);
-      // A visual draws the state holding its part synchronously; a lazy datum may load.
+      // A visual settles on its part, including cancelling a pending replacement of
+      // an already visible destination; a lazy datum may load.
       const hydration =
         source && revealAddressed(source, anchor.visual ?? anchor.datum);
       if (hydration?.then) await hydration;

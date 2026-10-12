@@ -21,6 +21,7 @@ from interact_support import (
     ADOPTED,
     COMMAND_HUB_PACKAGE,
     COMMENT,
+    FLOW_PAGE,
     PAGE,
     PILOT_PURGE,
     SHELVED,
@@ -88,6 +89,7 @@ from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
@@ -1156,9 +1158,8 @@ def test_init_allows_a_logged_report_the_incoming_layer_no_longer_speaks(page_di
 @pytest.mark.parametrize("parts", ["node:A node:B", "all"])
 def test_init_allows_to_orphan_a_logged_visual_anchor(page_dir, parts):
     """A provider can remove a visual target without deleting its original comment."""
-    version = page_dir / "index.html"
-    version.write_text(
-        version.read_text().replace(
+    (page_dir / "index.html").write_text(
+        FLOW_PAGE.replace(
             '<lf-diagram id="flow">',
             f'<lf-diagram id="flow" parts="{parts}">',
         )
@@ -2541,9 +2542,9 @@ def test_containment_reads_the_same_with_a_vocabulary_and_without_one(page_dir):
     that may not raise on the registry gate need give nothing up.
 
     The words are the control: they must differ, or `spoken({})` would be the
-    whole reading and the distinction this rests on would not exist."""
-    html = (page_dir / "index.html").read_text(encoding="utf-8")
-    document = structure_model.SourceDocument(html)
+    whole reading and the distinction this rests on would not exist. The diagram's
+    data body is the element whose words the vocabulary changes."""
+    document = structure_model.SourceDocument(FLOW_PAGE)
     registry = registry_storage.require_registry(page_dir)
     full = passages_model.SourceReading(document, registry).spoken
     assert passages_model.enclosing_ids(document) == passages_model.enclosing_of(full)
@@ -2552,9 +2553,9 @@ def test_containment_reads_the_same_with_a_vocabulary_and_without_one(page_dir):
 
 
 SUGGESTION_HOLDING_A_NAMESAKE = PAGE.replace(
-    "<lf-diagram",
+    "</section>",
     '<lf-suggestion id="sug-a" resolves="c1"><lf-new><p id="c1">Poll every '
-    "5 minutes.</p></lf-new></lf-suggestion>\n  <lf-diagram",
+    "5 minutes.</p></lf-new></lf-suggestion>\n</section>",
 )
 
 
@@ -3471,6 +3472,12 @@ def test_withdrawal_may_name_an_outcome_that_retires_no_slots(trial_page):
             {"answered": {"decide": {}}, "all": "approve"},
             "blanket answer `approve` is not an outcome",
         ),
+        (
+            "lf-options",
+            "x-awaits",
+            {"when": {"choose": [True]}, "retired": "settled"},
+            "does not require `settled` absent",
+        ),
     ],
 )
 def test_check_refuses_a_predicate_no_page_could_carry(
@@ -4327,8 +4334,7 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
     # Claude Code: the native watcher wakes the session after its turn closes,
     # and the next prompt hook hands the delivery over.
     assert service_model.claim_page(page_dir)
-    with service_model.PageTransaction(page_dir) as transaction:
-        transaction.close_turn(session)
+    cleanup_model.close_session_turn(session)
     woke = session_model.watch_between_turns(harness_model.session_harness())
     assert woke is not None
     hooks_model.cmd_hook(
@@ -5151,19 +5157,9 @@ def test_init_allows_to_drop_the_contract_of_a_held_comment(page_dir):
     """A hold is recorded against the declaration that admitted it."""
     package = page_dir.parent / "mutable-command-hub"
     shutil.copytree(COMMAND_HUB_PACKAGE, package)
-    # An explicit selection replaces the recorded one, so it restates `diagram` for
-    # PAGE's lf-diagram beside the copy of command-hub this test mutates.
     selected = CliRunner().invoke(
         cli_model.cli,
-        [
-            "page",
-            "init",
-            "--package",
-            "./mutable-command-hub",
-            "--package",
-            "diagram",
-            str(page_dir),
-        ],
+        ["page", "init", "--package", "./mutable-command-hub", str(page_dir)],
     )
     assert selected.exit_code == 0, selected.output
     version = page_dir / "index.html"

@@ -411,6 +411,11 @@ For example, `"value": "choose"` exposes selected option ids; a playground's
 recordless `choose` exposes its submitted configuration. The source widget
 continues to own that state and admit its commands.
 
+`x-awaits.retired` names the flag an author sets to end a Question already
+asked, such as a decision kept collapsed with its options; `when` must require
+that flag absent. A Question context, such as `lf-ask`, must frame at least one
+source that asks or was retired, and `page check` refuses one that frames none.
+
 `x-awaits.answered` separately says when the Question is complete. `{}` holds
 while the verb's state stands, `when` narrows a verb to instances with matching
 attributes, and `empty` holds while the named container has no members. A

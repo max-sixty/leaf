@@ -29,14 +29,14 @@
  * `nearestScrollBy`), which fills the band with a tall destination partly in view, so a
  * fold the user goes to opens from its start.
  */
+import { localScrollBy, scrollAxes } from "./element-frame.js";
 import {
   landingBand,
-  localScrollBy,
+  placeBox,
   placeHolder,
   seenRect,
   shownBox,
   shownWindow,
-  scrollAxes,
   visibleBand,
 } from "./geometry.js";
 import { scrollersOf } from "./reading-regions.js";
@@ -49,22 +49,10 @@ const scrollMargin = (where, side = "Top") =>
     ? 0
     : Number.parseFloat(getComputedStyle(where)[`scrollMargin${side}`]) || 0;
 
-function readingTop(where, box) {
-  const destination = placeHolder(where);
-  let top = visibleBand(box, destination)?.top ?? landingBand(box).top;
-  // A sideways scroller restarts the header slot without becoming the vertical
-  // reading region. Read every enclosing box in that region too: its own view
-  // retains the headers outside it that its descendants no longer inherit.
-  for (
-    let at = renderedParent(destination);
-    destination !== box && at && at !== box;
-    at = renderedParent(at)
-  ) {
-    const reading = visibleBand(box, at);
-    if (reading) top = Math.max(top, reading.top);
-  }
-  return top;
-}
+// A sideways scroller restarts the header slot without becoming the vertical reading
+// region; `visibleBand` reads the headers outside it.
+const readingTop = (where, box) =>
+  visibleBand(box, placeHolder(where))?.top ?? landingBand(box).top;
 
 function topMargin(where, box) {
   const band = landingBand(box);
@@ -125,7 +113,7 @@ export function alreadyShown(where) {
 }
 
 function placementBy(where, block, box, margin) {
-  const rect = where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
+  const rect = placeBox(where);
   const band = landingBand(box);
   const room = band.bottom - band.top;
   const place =
@@ -155,7 +143,7 @@ function verticalTravel(box, movement) {
 export function scrollIntoReadingBand(where, holder, block, behavior) {
   const [box, ...around] = scrollersOf(holder);
   if (!box) return;
-  const rect = where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
+  const rect = placeBox(where);
   const margin = topMargin(where, box);
   let { top, bottom } = rect;
   if (block === "start") {

@@ -3964,8 +3964,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         " (just now). 1 response owed on updates awaiting delivery. Waiting on Claude: 2 replies."
     )
 
-    with service_model.PageTransaction(d) as transaction:
-        transaction.close_turn("s")
+    cleanup_model.close_session_turn("s")
     told(page)
     expect(held_workflow).to_have_text("Turn ended")
     expect(held_thread).not_to_have_attribute(
@@ -3979,8 +3978,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         "Nothing is answering them, so nudge it in the terminal."
         " Waiting on Claude: 2 replies."
     )
-    with service_model.PageTransaction(d) as transaction:
-        transaction.open_turn("s")
+    cleanup_model.open_session_turn("s")
 
     def start(item, line):
         started = CliRunner().invoke(
@@ -4199,7 +4197,7 @@ def test_ended_pickup_preserves_the_declared_invitation_in_banner_and_leaves(
     with live_watcher(page_dir, page):
         with service_model.PageTransaction(page_dir) as transaction:
             delivery_model.record_pickup(transaction, [comment])
-            transaction.close_turn(claim["id"])
+            cleanup_model.close_session_turn(claim["id"])
         result = CliRunner().invoke(
             cli_model.cli,
             ["status", str(page_dir), "waiting", "pick a storage engine"],

@@ -46,6 +46,7 @@
  * honor a generated target that did not exist during HTML parsing. */
 import {
   atLayoutPrecision,
+  atScrollEnd,
   frameFor,
   holdFocus,
   html,
@@ -524,8 +525,7 @@ customElements.define(
       this.#positions.forEach((position, index) => {
         if (this.#shown[index] && position <= threshold) current = index;
       });
-      if (this.#scroller.scrollTop >= scrollLimit(this.#scroller) - 1)
-        current = this.#shown.findLastIndex(Boolean);
+      if (atScrollEnd(this.#scroller)) current = this.#shown.findLastIndex(Boolean);
       const link = this.#sections[current].link;
       if (link === this.#currentLink) return;
       this.#currentLink?.removeAttribute("aria-current");

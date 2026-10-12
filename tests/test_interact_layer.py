@@ -430,10 +430,7 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
             if event["id"] == record["id"]
         )
 
-    # PAGE holds an lf-diagram, so the page selects the package that widget lives in.
-    assert written(["page", "init", "--package", "diagram", str(page_dir)]) == [
-        {"page": str(page_dir)}
-    ]
+    assert written(["page", "init", str(page_dir)]) == [{"page": str(page_dir)}]
     (page_dir / "index.html").write_text(PAGE)
 
     audiences = runner.invoke(cli_model.cli, ["page", "instructions", str(page_dir)])
@@ -477,7 +474,7 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
         ["thread", "open", str(page_dir), "--text", "and the cache?", "--title", ""],
     )
     assert unnamed.exit_code != 0
-    assert "thread_title event is invalid" in unnamed.output
+    assert "comment event is invalid" in unnamed.output
     assert events_model.read_events(page_dir) == before
 
     for command, rejected_kind in (
@@ -4575,11 +4572,8 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
     assert checked.exit_code == 0, checked.output
 
     page = tmp_path / "page"
-    # PAGE holds an lf-diagram, so the page selects the package that widget lives in
-    # beside the project package this test is about.
     initialized = runner.invoke(
-        cli_model.cli,
-        ["page", "init", "--package", "diagram", "--package", "./.leaf", str(page)],
+        cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
     )
     assert initialized.exit_code == 0, initialized.output
     # The package's rule reaches the page confined to the package's own widget.

@@ -361,7 +361,7 @@ def test_the_event_log_page_shows_the_records_the_door_writes(page_dir):
             command = {k: record[k] for k in command_fields if k in record}
             if "undoes" in record:
                 command["undoes"] = ids[record["undoes"]]
-            accepted = event_contracts_model.append_admitted(
+            accepted, _ = event_contracts_model.append_admitted(
                 page, {**command, "author": "user"}
             )
             ids[record["id"]] = accepted["id"]

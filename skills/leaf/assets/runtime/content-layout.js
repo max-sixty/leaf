@@ -6,6 +6,7 @@
 import { nextFrame, nextRender } from "./rendering.js";
 import { repaintPage } from "./repaint.js";
 import { layoutChanged } from "./widget-elements.js";
+import { pageDocument } from "./passages.js";
 // One computed reading seats the rail first without moving the column, then each
 // authored resident on its preferred side, or in flow when there is no room. The
 // column's runtime grid offset is removed before measuring, including RTL, while an
@@ -29,7 +30,7 @@ function residencyPass(time) {
 }
 function readResidency() {
   const changed = document.documentElement.lfInitial.residency();
-  if (changed) layoutChanged(document.querySelector("main"));
+  if (changed) layoutChanged(pageDocument());
   readFinished?.(changed);
   if (changed) repaintPage();
 }

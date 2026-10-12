@@ -59,8 +59,8 @@ function place(press, seat) {
     present: false,
   });
   controls.set(press.id, { press, button });
-  // An exact focused button owns its native activation before a surrounding scope's
-  // Enter meaning. The semantic press still runs only through the click adapter above.
+  // The row names the native press in the control's own words; the semantic press still
+  // runs only through the click adapter above.
   keys(button, "Banner controls", [
     {
       id: press.id,

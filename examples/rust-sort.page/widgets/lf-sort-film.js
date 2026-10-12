@@ -7,18 +7,19 @@
 // so the page can keep that line in view.
 
 import {
+  frameFor,
   indicate,
   inlineMarkdownFragment,
   keeps,
   keepsText,
   loadMarkdown,
-  nextRender,
   offer,
   once,
   onMotionPreferenceChange,
   reducedMotion,
   registerVisualParts,
   sizeObserver,
+  whileConnected,
 } from "/runtime/widget-api.js";
 import {
   INPUTS,
@@ -93,68 +94,68 @@ customElements.define(
     #raf = 0;
     #step = -1;
     #C = null;
-    #themeWatch = null;
     #autoPlayTimer = 0;
     #laidOut = 0;
+    // The drawing is laid out at the stage's width (sort.js, `geometry`), so a pane
+    // that changes width lays it out again. The new layout changes the stage's height,
+    // so it waits for the rendering pass after the size delivery rather than feeding
+    // the height back into it.
+    #relayout = frameFor(this, () => {
+      this.#layout();
+      this.#paint();
+      this.parts?.update();
+    });
 
     connectedCallback() {
+      if (!once(this)) return;
       this.#resolvePalette();
-      if (once(this)) {
-        this.#build();
-        if (!reducedMotion())
-          this.#autoPlayTimer = setTimeout(() => {
-            this.#autoPlayTimer = 0;
-            // Shown, not merely laid out: a film in a tab the user has not opened still
-            // has boxes, and playing there repaints the page for nobody.
-            if (
-              this.isConnected &&
-              this.checkVisibility() &&
-              document.visibilityState === "visible"
-            )
-              this.#play();
-          }, AUTO_PLAY_DELAY);
-      }
-      loadMarkdown().then((ready) => {
-        if (ready && this.isConnected && this.#step >= 0) this.#renderNote();
-      });
-      const repaint = () => {
-        this.#resolvePalette();
-        this.#paintTimeline();
-        this.#paint();
-      };
-      const scheme = matchMedia("(prefers-color-scheme: dark)");
-      scheme.addEventListener("change", repaint);
-      const stopMotionWatch = onMotionPreferenceChange((reduce) => {
-        if (reduce) this.#pause();
-      });
-      const observer = new MutationObserver(repaint);
-      observer.observe(document.documentElement, {
-        attributes: true,
-        attributeFilter: ["data-theme", "class", "style"],
-      });
-      // The drawing is laid out at the stage's width (sort.js, `geometry`), so a pane
-      // that changes width lays it out again. The new layout changes the stage's height,
-      // so it waits for the rendering pass after this delivery rather than feeding the
-      // height back into it.
-      let relayout = 0;
-      const sized = sizeObserver(() => {
-        if (relayout || this.#svgWidth() === this.#laidOut) return;
-        relayout = nextRender(() => {
-          relayout = 0;
-          if (!this.isConnected) return;
-          this.#layout();
-          this.#paint();
-          this.parts?.update();
+      this.#build();
+      if (!reducedMotion())
+        this.#autoPlayTimer = setTimeout(() => {
+          this.#autoPlayTimer = 0;
+          // Shown, not merely laid out: a film in a tab the user has not opened still
+          // has boxes, and playing there repaints the page for nobody.
+          if (
+            this.isConnected &&
+            this.checkVisibility() &&
+            document.visibilityState === "visible"
+          )
+            this.#play();
+        }, AUTO_PLAY_DELAY);
+      whileConnected(this, (signal) => {
+        loadMarkdown().then((ready) => {
+          if (ready && !signal.aborted && this.#step >= 0) this.#renderNote();
         });
+        const repaint = () => {
+          this.#resolvePalette();
+          this.#paintTimeline();
+          this.#paint();
+        };
+        matchMedia("(prefers-color-scheme: dark)").addEventListener("change", repaint, {
+          signal,
+        });
+        const stopMotionWatch = onMotionPreferenceChange((reduce) => {
+          if (reduce) this.#pause();
+        });
+        const observer = new MutationObserver(repaint);
+        observer.observe(document.documentElement, {
+          attributes: true,
+          attributeFilter: ["data-theme", "class", "style"],
+        });
+        const sized = sizeObserver(() => {
+          if (this.#svgWidth() !== this.#laidOut) this.#relayout();
+        });
+        sized.observe(this.stage);
+        // The theme may have changed while the film was away.
+        repaint();
+        return () => {
+          this.#indicate(null);
+          stopMotionWatch();
+          observer.disconnect();
+          sized.disconnect();
+          this.#pause();
+        };
       });
-      sized.observe(this.stage);
-      this.#themeWatch = () => {
-        scheme.removeEventListener("change", repaint);
-        stopMotionWatch();
-        observer.disconnect();
-        sized.disconnect();
-      };
-      this.#paint();
     }
 
     // One key to every excerpt: each quotes its own stretch of slice.rs, so a line
@@ -162,12 +163,6 @@ customElements.define(
     #indicate(key) {
       for (const attr of ["sort-code", "head-code", "merge-code"])
         if (this.hasAttribute(attr)) indicate(this, attr, key);
-    }
-
-    disconnectedCallback() {
-      this.#indicate(null);
-      this.#themeWatch?.();
-      this.#pause();
     }
 
     #resolvePalette() {

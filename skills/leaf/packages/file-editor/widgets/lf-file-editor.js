@@ -35,7 +35,7 @@ import {
   once,
   shadowStage,
   tabStore,
-  watchOwner,
+  whileConnected,
   widgetController,
 } from "/runtime/widget-api.js";
 import { createEditor } from "./editor.js";
@@ -86,7 +86,6 @@ customElements.define(
         comparison = null;
       let generation = 0,
         timer = null,
-        stopWatch = null,
         slowTimer = null;
       let recovering = false,
         owed = false,
@@ -326,33 +325,28 @@ customElements.define(
       }
       paint();
       let initial = true;
-      watchOwner(this, {
-        connect: () => {
-          connected = true;
-          editor.connect();
-          comparison?.connect();
-          window.addEventListener("beforeunload", beforeUnload);
-          document.addEventListener("visibilitychange", visibility);
-          const ready = refresh();
-          if (initial) {
-            widgetController(this).present(ready);
-            initial = false;
-          }
-          stopWatch = api.watch(() => void refresh());
-        },
-        disconnect: () => {
+      whileConnected(this, (signal) => {
+        connected = true;
+        editor.connect();
+        comparison?.connect();
+        window.addEventListener("beforeunload", beforeUnload, { signal });
+        document.addEventListener("visibilitychange", visibility, { signal });
+        const ready = refresh();
+        if (initial) {
+          widgetController(this).present(ready);
+          initial = false;
+        }
+        const stopWatch = api.watch(() => void refresh());
+        return () => {
           connected = false;
           stopWatch();
-          stopWatch = null;
           clearTimeout(timer);
           finishSaving();
           paint();
-          window.removeEventListener("beforeunload", beforeUnload);
-          document.removeEventListener("visibilitychange", visibility);
           remember();
           editor.disconnect();
           comparison?.disconnect();
-        },
+        };
       });
     }
   },

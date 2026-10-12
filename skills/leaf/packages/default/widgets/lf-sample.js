@@ -127,6 +127,8 @@ customElements.define(
       widgetController(this).present(this.#track(ready).catch(() => {}));
     }
 
+    // Removal closes a modal Full view at once, so the view returns to its embedded
+    // posture in the same task rather than at the arrival batch.
     disconnectedCallback() {
       if (this.#view?.getAttribute("role") === "dialog") this.#embed();
     }

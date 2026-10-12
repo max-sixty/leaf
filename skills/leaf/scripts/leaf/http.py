@@ -43,7 +43,7 @@ from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
 from .passages import SourceReading
 from .refusals import Refused
-from .registry.storage import layer_metadata
+from .registry.storage import layer_metadata, load_registry
 from .render_checks import PROBE_SOURCES
 from .revision_artifact import (
     Resource,
@@ -1318,7 +1318,12 @@ def page_endpoint(
         if page_snapshot is not None
         else layer_metadata(page_dir)
     )
-    if refusal := incompatible_layer(page_dir, identity):
+    registry = (
+        page_snapshot.context.registry
+        if page_snapshot is not None
+        else load_registry(page_dir)
+    )
+    if refusal := incompatible_layer(page_dir, registry):
         raise Refused(refusal)
     return partial(
         endpoint,

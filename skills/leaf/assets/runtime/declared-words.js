@@ -304,16 +304,21 @@ function* elementsIn(root, selector) {
 // Paint a message's declared marks, the root alongside its descendants: each tag's
 // declaration, and an occurrence's authored override over it.
 export function markDeclared(root) {
-  for (const [key, { paint, authored, message }] of Object.entries(registry.$marks)) {
+  for (const [key, mark] of Object.entries(registry.$marks)) {
+    const { paint, authored, message } = mark;
     if (!message) continue;
-    for (const tag of tagsDeclaring((entry) => entry[key])) {
+    const tags = tagsDeclaring((entry) => entry[key]);
+    for (const tag of tags) {
       const declared = registry[tag][key];
       for (const el of elementsIn(root, tag))
         keeps(el, paint, declared === true ? "" : declared);
     }
+    // Message markup is all content (`authored_on`, schema.DECLARED_MARKS), so only a
+    // mark held to declaring tags asks which tag an occurrence is.
     if (authored)
       for (const el of elementsIn(root, `[${authored}]`))
-        keeps(el, paint, el.getAttribute(authored));
+        if (mark.authored_on !== "declared" || tags.includes(el.localName))
+          keeps(el, paint, el.getAttribute(authored));
   }
 }
 

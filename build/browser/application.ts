@@ -6,11 +6,13 @@
  */
 import { createApplicationPublisher, type Immutable } from "./snapshot.ts";
 import {
+  coordinateOf,
   foldProjection,
   foldedValue,
   foldWidgetStates,
   questionValue,
   isProjectionEntry,
+  stateCoordinate,
 } from "../../skills/leaf/assets/runtime/projection/model.js";
 import { sameStateDefinition } from "../../skills/leaf/assets/runtime/registry-contract.js";
 import {
@@ -400,7 +402,7 @@ function normalizedProjection(
     if (!projection) continue;
     for (const wire of projection.entries)
       entries.push({
-        coordinate: JSON.stringify(wire.coordinate),
+        coordinate: stateCoordinate(...wire.coordinate),
         e: wire.event,
         restated: wire.restated,
         absorbed: wire.absorbed,
@@ -1028,11 +1030,11 @@ export function createSemanticApplication({
         thread,
         at_work: false,
         holds_thread: Boolean(turn),
-        // The server's list, where the local fold keys a coordinate by its JSON.
+        // The server's tuple, where the local fold keys a coordinate.
         coordinate: turn
           ? ["thread", thread]
           : entry.projection
-            ? JSON.parse(entry.projection.coordinate)
+            ? coordinateOf(entry.projection.coordinate)
             : null,
         answer: null,
         stage: "sending",
@@ -1415,9 +1417,15 @@ export function createSemanticApplication({
           : null;
       const widget =
         event.kind === "action" ? before.document.authored.get(event.widget) : null;
+      // The widget's own captured declaration, as its reading (`widgetReading`) and the
+      // projection's meaning check read it.
+      const declaration =
+        event.kind === "action"
+          ? before.document.descriptors.get(event.widget)?.declaration
+          : null;
       const spec =
         event.kind === "action" && widget
-          ? before.document.registry[widget.tag]?.["x-state"]?.[event.action]
+          ? declaration?.["x-state"]?.[event.action]
           : null;
       // The verb's definition as the shown version admits it, which the action is
       // drawn under until a revision defines the verb differently.
@@ -1456,7 +1464,7 @@ export function createSemanticApplication({
             ? {
                 unit,
                 spec,
-                coordinate: JSON.stringify([event.widget, unit, event.action]),
+                coordinate: stateCoordinate(event.widget, unit, event.action),
                 localOrder,
                 e: {
                   ...event,

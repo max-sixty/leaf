@@ -1,7 +1,7 @@
 /** CodeMirror owns editing, selection, history and conflict presentation.
  * The surrounding widget alone owns file revisions and disk writes.
  */
-import { LeafEditorView, sizeObserver } from "/runtime/widget-api.js";
+import { LeafEditorView, langForPath, sizeObserver } from "/runtime/widget-api.js";
 import {
   ChangeSet,
   Compartment,
@@ -104,7 +104,7 @@ const highlighting = HighlightStyle.define([
   { tag: tags.comment, color: "var(--muted)" },
   { tag: [tags.meta, tags.processingInstruction], color: "var(--muted)" },
 ]);
-const isMarkdown = (filename) => /\.(md|markdown)$/i.test(filename);
+const isMarkdown = (filename) => langForPath(filename) === "markdown";
 
 /** Create a file editor. External text changes use CodeMirror transactions,
  * mapping selection and local undo history through the dependency's diff.

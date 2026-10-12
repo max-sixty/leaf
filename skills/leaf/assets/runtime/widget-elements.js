@@ -223,18 +223,6 @@ export function measure(el, take) {
   unmeasured.observe(el);
 }
 
-// Mention, not use: a widget inside one the registry marks x-exhibit is quoted
-// material. An interactive widget consults this before wiring anything that would carry
-// input back (a choose path, a drag grip), so an exhibit never takes the user's edits.
-// Presentational upgrades and view state run regardless — a quoted diagram still
-// renders, a quoted settled group still collapses. Inside means strictly within: the
-// exhibit itself is no mention, as the server reads it (`questions.quoted_in`);
-// `tests/exhibit_cases.json` holds both runtimes to one set of cases.
-export function quoted(el) {
-  const exhibits = tagsDeclaring((entry) => entry["x-exhibit"]);
-  return exhibits.length > 0 && el.parentElement?.closest(exhibits.join(",")) != null;
-}
-
 // A container that takes a gesture on its whole box has to tell one aimed at itself from
 // one aimed at what it holds. This is the second: the nearest thing between `node` and
 // `container` that has a use for the gesture, or null where the container is the aim.

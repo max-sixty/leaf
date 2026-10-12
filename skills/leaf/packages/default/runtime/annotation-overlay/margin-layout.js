@@ -901,9 +901,11 @@ function seatPins(standing, { bands, shell, pinInset, retainSeats }) {
     gap: GAP,
   })) {
     // An open folded row is wider than its one-control seat. Keep the toggle at
-    // that seat's right edge while the options spread to its left.
+    // that seat's right edge while the options spread to its left. Whether it stands
+    // open is the face the fold presents (`fold.open()`), not the one the row wears
+    // now: a row this pass folds was drawn with its peers inline.
     entry.visualLeft =
-      on && entry.read.row.hasAttribute("data-lf-options-open")
+      on && entry.fold.open()
         ? rect.right - (entry.rect.right - entry.rect.left)
         : rect.left;
     entry.rect = rect;

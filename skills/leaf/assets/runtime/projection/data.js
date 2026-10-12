@@ -56,24 +56,17 @@
 
 import { registry } from "../registry.js";
 import { reachScrollers } from "../reach.js";
-import { under } from "../shadow.js";
+import { shadowRootsIn, under } from "../shadow.js";
+import { DATUM } from "../passages.js";
 import { keeps } from "../keeps.js";
 
-const projectedDescendants = (root) => {
-  const found = [];
-  const visit = (scope) => {
-    for (const element of scope.querySelectorAll("*")) {
-      found.push(element);
-      if (element.shadowRoot) visit(element.shadowRoot);
-    }
-  };
-  visit(root);
-  if (root.shadowRoot) visit(root.shadowRoot);
-  return found.filter(
-    (element) =>
-      element.dataset.lfProjection === root.id && element.hasAttribute("data-lf-datum"),
-  );
-};
+// The datums a projection left under its root, in the trees that hold the page's words:
+// the ones anchor resolution can find (`pageQueryAll`), so what a replacement clears
+// and what a thread resolves to are one set.
+const projectedDescendants = (root) =>
+  [root, ...shadowRootsIn(root)]
+    .flatMap((scope) => [...scope.querySelectorAll(DATUM)])
+    .filter((element) => element.dataset.lfProjection === root.id);
 
 export function createDataProjection({ invalidateDom }) {
   let dataPaintQueued = false;

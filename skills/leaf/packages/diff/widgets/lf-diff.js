@@ -474,11 +474,11 @@ const holdFileFocus = (entry) => holdFocus(entry.node, { key: LINE_KEY });
 function replaceFileRendering(entry, row) {
   const restore = holdFileFocus(entry);
   unwatchPathCut(entry.details);
-  setChildren(entry.node, [
-    entry.node.firstElementChild,
-    row,
-    ...entry.node.querySelectorAll(".lf-diff-thread-outlet"),
-  ]);
+  // Out of the replaced row first, which takes everything still in it.
+  const outlets = [...entry.node.querySelectorAll(".lf-diff-thread-outlet")];
+  for (const outlet of outlets)
+    if (outlet.parentNode !== entry.node) move(entry.node, outlet, null);
+  setChildren(entry.node, [entry.node.firstElementChild, row, ...outlets]);
   entry.details = row.matches("details") ? row : null;
   entry.lines = [];
   entry.renderKey = null;
@@ -519,6 +519,13 @@ function replaceFileContent(entry, rendered, pairs, outlets) {
   const prior = new Map(entry.lines.map((record) => [diffDatumKey(record), record]));
   const retained = new Map();
   const gutters = new Map();
+  // Read by the index each had before any is given its new one below: a hunk added
+  // above kept lines gives them indices other kept rows held.
+  const priorGutters = new Map(
+    [...(pre?.querySelectorAll("[data-gutter] > [data-line-index]") ?? [])].map(
+      (gutter) => [gutter.dataset.lineIndex, gutter],
+    ),
+  );
   for (const next of rendered.lines) {
     const previous = prior.get(diffDatumKey(next));
     if (!previous || previous.node.innerHTML !== next.node.innerHTML) continue;
@@ -526,9 +533,7 @@ function replaceFileContent(entry, rendered, pairs, outlets) {
     const nextGutter = nextPre.querySelector(
       `[data-gutter] [data-line-index="${next.node.dataset.lineIndex}"]`,
     );
-    const gutter = pre.querySelector(
-      `[data-gutter] [data-line-index="${previous.node.dataset.lineIndex}"]`,
-    );
+    const gutter = priorGutters.get(previous.node.dataset.lineIndex);
     gutters.set(nextGutter, gutter);
     keeps(previous.node, "data-line-index", next.node.dataset.lineIndex);
     keeps(gutter, "data-line-index", next.node.dataset.lineIndex);
@@ -570,11 +575,11 @@ function replaceFileContent(entry, rendered, pairs, outlets) {
             if (!current) return column;
             const content = code.querySelector("[data-content]");
             const pair = pairs?.get(content);
+            // A column holding outlets takes its rows from `layoutThreadOutlets`.
             if (pair) {
               pair[`${kind}Rows`] = rowSpan(column);
               pair[`${kind}GridRow`] = column.style.gridRow;
-            }
-            current.style.gridRow = column.style.gridRow;
+            } else current.style.gridRow = column.style.gridRow;
             const kept = kind === "content" ? retained : gutters;
             const part = kind === "content" ? "outlet" : "gutterRow";
             // A line's row in either column carries the line's index.
@@ -985,6 +990,7 @@ customElements.define(
             ...entries.map(({ node }) => node),
           ]);
           this.replaceChildren();
+          this.layoutThreadOutlets();
           this.stageFiles();
           this.projectFiles();
           this.classList.toggle("lf-rendered", true);
@@ -1151,14 +1157,15 @@ customElements.define(
     }
 
     // Each line outlet takes a grid row of its own beside its line, in the content and
-    // the gutter columns alike.
+    // the gutter columns alike. A file drawn anew sets its columns' rows from the fresh
+    // render alone, so the outlets it kept take theirs again here.
     layoutThreadOutlets() {
       const counts = new Map();
-      for (const { outlet, pair } of this.threadOutlets.values())
+      for (const { outlet, pair } of this.threadOutlets?.values() ?? [])
         if (pair && outlet.parentNode === pair.content)
           counts.set(pair, (counts.get(pair) ?? 0) + 1);
       const targets = new Set();
-      for (const pair of this.threadPairs.values()) {
+      for (const pair of this.threadPairs?.values() ?? []) {
         const count = counts.get(pair) ?? 0;
         if (count) {
           targets.add(pair.content.closest("code[data-code]"));
@@ -1204,6 +1211,7 @@ customElements.define(
         entry.loading = null;
         entry.prepared = prepared;
         const restore = this.applyEntry(entry);
+        this.layoutThreadOutlets();
         this.stageFiles();
         this.projectFiles();
         restore?.();

@@ -1406,7 +1406,8 @@ Escape may return focus. Widgets do not receive draft, submission, or event APIs
 With `data-annotations="page"` on `body`, one connected Element may register
 `placePageThreads(owner, render)` to nominate page-owned conversation outlets; both
 registrations in this section throw on a page without it.
-Its callback receives the same admitted target batch and `{signal, collection}` context,
+Its callback receives the same admitted target batch and `{signal, collection, onCommit}`
+context,
 and returns the same matching outlet array as a widget-local surface. Page targets
 include exact passages and visual details, as well as projected data. The complete
 collection remains available for holding a row's allocation while its live target is

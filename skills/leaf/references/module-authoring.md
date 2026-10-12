@@ -915,7 +915,8 @@ resources. An actual departure aborts the signal and calls that cleanup, and a f
 permanently retires the subscription and releases active resources. Call it when the
 element no longer needs them, as a widget that fails soft from a paint it cannot
 repeat does, so a return does not start them again. Register dependent resources
-before `watchData` so they stand when its initial or resumed callback runs.
+before `watchData` so they stand when its callback runs. A return repaints only data
+that changed, so `start` restores whatever its cleanup cleared.
 
 ```js
 schedulePaint = frameFor(this, () => this.paint());
@@ -960,8 +961,12 @@ source's contract, publication, or validity changes. An incompatible contract or
 value delivers `null`, clearing the previous rendering. The subscription stays
 active and recovers when a readable value returns. `page state` and `page check`
 report invalid values; an incompatible subscriber reports the contract it requires.
-Register once for the element. Leaf pauses the subscription when its owner leaves and
-delivers the newest snapshot when it returns, even if its revision is unchanged.
+Register once for the element. Leaf pauses the subscription when its owner leaves. On
+return it delivers the newest snapshot only when that reading differs from the last
+one delivered or the departure interrupted a callback whose returned promise had not
+settled. A finished rendering, a failure included, stands. So return the promise of
+any paint that finishes later, abandon unfinished work on departure, and keep
+finished nodes where they are.
 Moving the owner within one DOM mutation batch retains the subscription. The returned
 cleanup function ends it permanently when the module explicitly stops watching.
 Its `refresh()` repaints the last delivered snapshot through the same clock
@@ -979,7 +984,8 @@ grace, the same bound the page's own activity reads. For another
 rounded time reading, use `clockValue((now) => reading)`, whose `now` argument is the
 calibrated server-now value in milliseconds. For a paint outside these
 subscriptions, wrap it with `clocked(element, paint)` and call the returned function
-where state changes; call its `.stop()` on disconnect. If painting is scheduled by a
+where state changes; call its `.stop()` when the owner leaves and its `.resume()` when
+it returns, which keeps the last painting's readings ticking. If painting is scheduled by a
 presenter, pass its synchronous claim as the third argument,
 `clocked(element, paint, invalidate)`. A clock change calls `invalidate`; the scheduled
 pass calls the function returned by `clocked`, capturing fresh time readings.

@@ -5,12 +5,7 @@ import "./runtime/interaction-log.js";
 // Restored panels and the first keyboard gesture share the ordinary synchronous
 // control routes, so their controls must be upgraded before those routes mount.
 import "./vendor/webawesome-chrome.js";
-import {
-  passiveSample,
-  offlineInteractive,
-  runtime,
-  annotationMode,
-} from "./runtime/context.js";
+import { offlineInteractive, runtime, annotationMode } from "./runtime/context.js";
 import { initializeServedDocument } from "./runtime/document-identity.js";
 import { chromeRoot, chromeForeground } from "./runtime/chrome.js";
 import { landingPlace } from "./runtime/reading-place.js";
@@ -25,7 +20,6 @@ import {
   whenArrived,
   pageReadiness,
   settlePageInterface,
-  PAGE_INTERFACE,
   PRESENTATION,
 } from "./runtime/presentation.js";
 import { PAGE_PAINT_ATTRIBUTE, pagePresented } from "./runtime/page-paint.js";
@@ -108,15 +102,9 @@ import {
 import { createDesignMode, inspectEl, legendRoot } from "./runtime/design.js";
 import { createChromeLayout } from "./runtime/chrome-layout.js";
 import { createThreadPanelController } from "./runtime/thread-panel.js";
-import {
-  createDrawers,
-  currentDrawer,
-  othersPanel,
-  queuePanel,
-} from "./runtime/drawers.js";
+import { createDrawers, othersPanel, queuePanel } from "./runtime/drawers.js";
 import { createAuxiliarySurfaces } from "./runtime/auxiliary-surfaces.js";
 import { restoreUserView } from "./runtime/restore-state.js";
-import { watchProjection } from "./runtime/projection-watch.js";
 import { createVersionController } from "./runtime/version.js";
 import { versionMenu } from "./runtime/version-picker.js";
 import {
@@ -932,53 +920,8 @@ mountKeyboard({
   setReact: reactions.setReact,
 });
 
-const replayReady = passiveSample
-  ? import("./runtime/interaction-gallery-frame.js").then(({ mountReplay }) =>
-      mountReplay({
-        toggleBtn,
-        panelIsOpen,
-        setPanel: threadPanelController.setPanel,
-        detachComposer: responseSurface.detachComposer,
-        fabInput,
-        fabFrameAt: () => responseSurface.fabFrameAt(),
-        openComposer: responseSurface.openComposer,
-        closePreview: app.overlay?.closePreview,
-        openThread: app.threadDestinations.openPageThread,
-        threadTransitionOrigin: app.overlay?.threadTransitionOrigin,
-        currentDrawer,
-        setOpenDrawer: drawers.setOpenDrawer,
-      }),
-    )
-  : Promise.resolve();
-
 const initialStateRead = beginRead();
-let interactionGalleryModule;
-let interactionGalleryLoading;
-let failedInteractionGallery;
-async function syncInteractionGallery() {
-  const gallery = document.querySelector("[data-interaction-gallery]");
-  if (gallery && gallery === failedInteractionGallery) return;
-  try {
-    if (!gallery && !interactionGalleryModule) return;
-    if (!interactionGalleryModule) {
-      interactionGalleryLoading ??= import("./runtime/interaction-gallery.js");
-      interactionGalleryModule = await interactionGalleryLoading;
-    }
-    interactionGalleryModule?.installInteractionGallery();
-  } catch (error) {
-    failedInteractionGallery = gallery;
-    if (!interactionGalleryModule) interactionGalleryLoading = null;
-    reportPageError(error, `interaction gallery failed to start`);
-  }
-}
 if (!offlineInteractive) {
-  watchProjection(document.body, () => void syncInteractionGallery());
-  document.addEventListener(PAGE_INTERFACE, (event) =>
-    event.detail.present(syncInteractionGallery()),
-  );
-}
-
-if (!passiveSample && !offlineInteractive) {
   restoreUserView({
     restoreAuxiliarySurface: auxiliarySurfaces.restore,
     setDesignMode: designMode.setActive,
@@ -1024,7 +967,7 @@ async function presentPage() {
   markPagePresented();
   // Optional author context begins after the presented frame. It neither imports
   // checks nor takes geometry on the path that gives the reader the page.
-  if (!offlineInteractive && !passiveSample)
+  if (!offlineInteractive)
     nextFrame(() =>
       setTimeout(() => {
         void import("./runtime/user-view.js")
@@ -1043,7 +986,6 @@ async function presentPage() {
   auxiliarySurfaces.present();
   presentLeaves();
   paintKeys();
-  void syncInteractionGallery();
   paintVersionApproval();
   repaint();
   app.overlay?.flushLayout();
@@ -1072,7 +1014,6 @@ async function startPage() {
     offlineInteractive
       ? Promise.resolve()
       : loadIcon().catch((error) => reportPageError(error, "tab icon failed to load")),
-    replayReady,
   ]);
   if (!upgraded) return;
   // Initial layout and later residency share prepaint's synchronous computation.

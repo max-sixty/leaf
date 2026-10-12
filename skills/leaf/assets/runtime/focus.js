@@ -93,20 +93,26 @@ const takesStop = (node) =>
   !node.matches(":disabled") &&
   !node.inert &&
   node.checkVisibility({ visibilityProperty: true });
+// A radio group with a checked member that takes a stop is that one stop: Tab passes
+// over its other members from any direction.
+const passedRadio = (node) =>
+  groupedRadio(node) &&
+  !node.checked &&
+  radioGroup(node).some((radio) => radio.checked && takesStop(radio));
 // The stops Tab may stand at inside `root` right now, in document order: the candidates
 // above, and the embedded documents and players Tab also enters, that take a stop,
-// through open shadow trees as rendered. Every radio is listed, though the browser
-// treats a group as one stop (`leavesStops`, `landingOf`). Positive `tabindex` ordering
-// is not modelled. The modal Tab loop reads this (layer-stack.js).
+// through open shadow trees as rendered. A group with no checked member lists every
+// member, though Tab leaves it from any of them (`leavesStops`). Positive `tabindex`
+// ordering is not modelled. The modal Tab loop reads this (layer-stack.js).
 export const tabStops = (root) =>
   [...renderedElements(root)].filter(
-    (node) => node.matches(SEQUENTIAL) && takesStop(node),
+    (node) => node.matches(SEQUENTIAL) && takesStop(node) && !passedRadio(node),
   );
 
 // The index of the stop in `stops` the user at `node` stands at, or -1: the innermost
 // stop holding them, so a control in a component's shadow tree stands at the stop its
 // host declares.
-export function standingAt(stops, node) {
+function standingAt(stops, node) {
   const holds = (stop) => {
     for (let at = node; at; at = upFrom(at)) if (at === stop) return true;
     return false;
@@ -114,7 +120,8 @@ export function standingAt(stops, node) {
   return stops.findLastIndex(holds);
 }
 // Whether Tab from `node`, or Shift+Tab, leaves `stops`: past the stop it stands at, only
-// members of that stop's own radio group remain, and the browser passes over those.
+// members of that stop's own unchecked radio group remain, and the browser passes over
+// those.
 export function leavesStops(stops, node, backward) {
   const at = standingAt(stops, node);
   if (at < 0) return false;
@@ -122,12 +129,6 @@ export function leavesStops(stops, node, backward) {
   const group = groupedRadio(stops[at]) ? radioGroup(stops[at]) : [];
   return beyond.every((stop) => group.includes(stop));
 }
-// Where Tab arriving at `stop` lands: a radio group's checked member, where that member
-// takes a stop, and otherwise the stop itself.
-export const landingOf = (stop) =>
-  (groupedRadio(stop) &&
-    radioGroup(stop).find((radio) => radio.checked && takesStop(radio))) ||
-  stop;
 
 // Put the user on an element, saying what moved them there. Every focus the runtime and
 // the packages place goes through here (the lint `architecture/placements` refuses a

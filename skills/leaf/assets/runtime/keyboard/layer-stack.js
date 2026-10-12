@@ -67,7 +67,6 @@ import {
   focusDestination,
   handBack,
   canPlaceFocus,
-  landingOf,
   leavesStops,
   tabStops,
 } from "../focus.js";
@@ -327,7 +326,7 @@ export const enterFrameBy = (frame, enter) => {
 function enter(stop, backward) {
   const entry = frameEntries.get(stop);
   if (entry) entry(backward);
-  else focusDestination(landingOf(stop), "step");
+  else focusDestination(stop, "step");
 }
 // Moves the user from stop `at` of `loop`, one stop on, round from one end to the other,
 // or, past an end of a frame's document, on past its frame in the page around it.

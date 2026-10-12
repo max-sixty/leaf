@@ -1459,6 +1459,17 @@ def test_tab_leaves_a_radio_group_ending_a_modal_for_its_first_stop(browser, ser
     page.keyboard.press("Tab")
     expect(page.locator("input[value=a]")).to_be_focused()
 
+    # Checked, the split group is its checked member alone, at either end.
+    middle = page.locator("#split-middle")
+    page.locator("input[value=a]").check()
+    middle.focus()
+    page.keyboard.press("Tab")
+    expect(page.locator("input[value=a]")).to_be_focused()
+    page.locator("input[value=b]").check()
+    middle.focus()
+    page.keyboard.press("Shift+Tab")
+    expect(page.locator("input[value=b]")).to_be_focused()
+
 
 def test_tab_wraps_through_a_full_view_sample(browser, serve):
     """Full view is modal and holds its frame last, and a key pressed in the frame is

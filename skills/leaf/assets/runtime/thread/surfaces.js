@@ -58,9 +58,12 @@ export function watchThreadSurfaces(commands) {
     arrive(owner) {
       if (registrations.has(owner)) return;
       // An element standing before its module defined it is upgraded in that define;
-      // the module's own connection has run by the time the definition resolves.
+      // the module's own connection has run by the time the definition resolves. One
+      // still undefined once its definition stands failed to upgrade, which its
+      // module's failure already reports, so it is not waited for again.
       if (!owner.matches(":defined")) {
-        customElements.whenDefined(owner.localName).then(() => offer(owner));
+        if (!customElements.get(owner.localName))
+          customElements.whenDefined(owner.localName).then(() => offer(owner));
         return;
       }
       register(

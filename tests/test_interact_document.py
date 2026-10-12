@@ -2360,14 +2360,7 @@ def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
         {"kind": "comment", "id": "c1", "author": "agent", "revision": 1, "text": "?"},
     )
     with pytest.raises(Refused) as refused:
-        thread_model.post_reply(
-            page_dir,
-            "c1",
-            "Answered.",
-            "",
-            for_event=None,
-            attempt="r1",
-        )
+        thread_model.post_reply(page_dir, {"to": "c1"}, "Answered.", attempt="r1")
     assert "'r1' does not match" in str(refused.value)
 
     with pytest.raises(Refused) as unknown_widget:
@@ -3764,10 +3757,9 @@ def test_a_source_bound_only_by_frozen_reply_markup_can_be_set(page_dir):
     )
     reply = thread_model.post_reply(
         page_dir,
-        "data-question",
+        {"to": "data-question", "for": "data-question"},
         "Here it is.",
         '<lf-test-data id="reply-data" source="reply-feed"></lf-test-data>',
-        for_event="data-question",
     )
     assert reply["revision"] == 1
 
@@ -3818,10 +3810,9 @@ def test_thread_markup_can_use_a_different_binding_from_a_page_source(page_dir):
 
     reply = thread_model.post_reply(
         page_dir,
-        "data-question",
+        {"to": "data-question", "for": "data-question"},
         "Here it is.",
         '<lf-other-data id="reply-data" source="project-feed"></lf-other-data>',
-        for_event="data-question",
     )
 
     assert (
@@ -3901,10 +3892,9 @@ def test_thread_markup_can_use_a_different_binding_from_a_draft_only_page_source
 
     thread_model.post_reply(
         page_dir,
-        "draft-data-question",
+        {"to": "draft-data-question", "for": "draft-data-question"},
         "Here it is.",
         '<lf-other-data id="reply-data" source="project-feed"></lf-other-data>',
-        for_event="draft-data-question",
     )
 
 

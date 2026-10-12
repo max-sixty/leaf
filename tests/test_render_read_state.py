@@ -79,11 +79,9 @@ def _select_new_route(page):
 def _agent_update_reply(page_dir, root, number, for_event=None):
     return thread_model.post_reply(
         page_dir,
-        root,
+        {"to": root, "for": for_event},
         f"Update {number}.\n\nCompleted steps: {number}.",
-        None,
-        for_event=for_event,
-        when_settled="post",
+        settlement=thread_model.ProviderFinal("test-final"),
     )["id"]
 
 
@@ -95,7 +93,7 @@ def test_main_reply_replaces_unread_progress_before_the_thread_is_opened(
     panel_comment(serve.page_dir, "An earlier conversation.")
     root = panel_comment(serve.page_dir, "Check the schedule.")
     progress = thread_model.post_reply(
-        serve.page_dir, root, "Checking mounts.", None, for_event=root, ephemeral=True
+        serve.page_dir, {"to": root, "for": root}, "Checking mounts.", ephemeral=True
     )["id"]
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
@@ -105,7 +103,7 @@ def test_main_reply_replaces_unread_progress_before_the_thread_is_opened(
     expect(card.locator(".lf-thread-unread")).to_have_text("1 unread")
 
     answer = thread_model.post_reply(
-        serve.page_dir, root, "Both mounts fit.", None, for_event=root
+        serve.page_dir, {"to": root, "for": root}, "Both mounts fit."
     )["id"]
     told(page)
     expect(card.locator(".lf-thread-unread")).to_have_text("1 unread")
@@ -615,11 +613,7 @@ def test_visible_message_waits_for_whole_document_presentation(browser, serve):
       window.__releaseReadPresentation = () => release();
     }""")
     reply = thread_model.post_reply(
-        serve.page_dir,
-        root,
-        "The result is ready.",
-        None,
-        for_event=root,
+        serve.page_dir, {"to": root, "for": root}, "The result is ready."
     )
     page.wait_for_function("window.__readHeld === true")
     body = card.locator(f'.lf-msg[data-mid="{reply["id"]}"] .lf-msg-body')
@@ -978,11 +972,7 @@ def test_a_reply_held_in_a_diff_thread_is_read_once_the_keyboard_opens_it(
     expect(thread).to_be_visible()
     height = _box_height(thread)
     reply = thread_model.post_reply(
-        serve.page_dir,
-        root,
-        "The route-line answer is ready.",
-        None,
-        for_event=root,
+        serve.page_dir, {"to": root, "for": root}, "The route-line answer is ready."
     )
     told(page)
     news = thread.locator(
@@ -1314,9 +1304,7 @@ def test_a_reopening_in_a_folded_diff_thread_waits_in_its_summary(
     _to_upper_third(thread)
     height = _box_height(thread)
     # Resolving answered the comment, so the agent's turn is one nothing asked for.
-    reply = thread_model.post_reply(
-        serve.page_dir, root, "The route stays.", None, for_event=None
-    )
+    reply = thread_model.post_reply(serve.page_dir, {"to": root}, "The route stays.")
     told(page)
     expect(summary).to_have_text("Reopened · 1 new reply")
     expect(thread).not_to_have_attribute("open", "")
@@ -1767,11 +1755,7 @@ def test_a_page_seat_the_open_panel_stands_over_is_not_read(
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(0)
     find.blur()
     reply = thread_model.post_reply(
-        serve.page_dir,
-        root,
-        "The route-line answer is ready.",
-        None,
-        for_event=root,
+        serve.page_dir, {"to": root, "for": root}, "The route-line answer is ready."
     )
     told(page)
     # The answer landed on screen, so the user opens it where it waits.

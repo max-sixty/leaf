@@ -55,7 +55,7 @@ from leaf.served_state import page as served_page
 from leaf.service import delivery_reply_attempt
 from leaf.state import flocked, open_session_turn, session_record, start_session_turn
 from leaf.structure import SourceDocument
-from leaf.thread import cmd_resolve, post_reply
+from leaf.thread import ProviderFinal, cmd_resolve, post_reply
 from leaf_dev import example_previews, journey, startup, verify_site
 from playwright.sync_api import expect
 from render_harness import (
@@ -1903,10 +1903,8 @@ def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
         with pytest.raises(Refused, match="answered by this turn's messages"):
             post_reply(
                 page_dir,
-                comment["id"],
+                {"to": comment["id"], "for": comment["id"]},
                 "Competing tool reply",
-                "",
-                for_event=comment["id"],
                 identity={"agent": "Codex", "session": "hosted-thread"},
             )
         competing_writer_rejected.append(True)
@@ -3457,12 +3455,10 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     assert (
         post_reply(
             page_dir,
-            comment["id"],
+            {"to": comment["id"], "for": comment["id"]},
             "deployment verified",
-            "",
-            for_event=comment["id"],
+            settlement=ProviderFinal("test-final"),
             attempt=answer["attempt"],
-            when_settled="post",
             identity={"session": "hosted-thread"},
         )
         == answer
@@ -3517,10 +3513,8 @@ def test_a_finished_website_turn_does_not_overwrite_an_agent_reply(page_dir):
     accept_in_turn("hosted-thread")
     post_reply(
         page_dir,
-        comment["id"],
+        {"to": comment["id"], "for": comment["id"]},
         "Done.",
-        "",
-        for_event=comment["id"],
         identity={"agent": "The agent", "session": "leaf-website-agent"},
     )
     with website_server.PageTransaction(page_dir) as page:

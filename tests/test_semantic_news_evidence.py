@@ -46,10 +46,8 @@ def test_terminal_failure_workflow_names_exact_reply_source(page_dir):
     )
     failure = thread.post_reply(
         page_dir,
-        source["id"],
+        {"to": source["id"], "for": source["id"]},
         "The agent turn ended.",
-        None,
-        for_event=source["id"],
         failure="turn_failed",
         attempt="response-attempt",
     )

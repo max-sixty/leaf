@@ -1754,6 +1754,9 @@ export function createVersionController({
   }
 
   function restoreView(view, currentIntent) {
+    // Every restore of a whole view is a handoff that supersedes the places a shift
+    // was holding, as a shift while widgets upgrade before an arrival lands.
+    releaseHolds();
     const regions = new Map(readingRegions().map((region) => [region.id, region]));
     const active =
       regions.get(view.activeRegion) ??

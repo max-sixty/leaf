@@ -7,7 +7,7 @@ from interact_support import PAGE
 from interact_support import append_carried_log_record as append_event
 from leaf.files import replace_files, revision_path
 from leaf.live_shell import write_live_shell
-from leaf.revision_artifact import RESOURCE_TYPES, read_artifact
+from leaf.revision_artifact import javascript_imports, read_artifact
 from leaf.revision_delivery import (
     PublicationAddress,
     delivered_resource,
@@ -32,6 +32,7 @@ def test_published_shells_bind_documents_and_resources_to_their_revision(
     (authored / "nested").mkdir(parents=True)
     (authored / "widgets").mkdir()
     (authored / "app.js").write_text(
+        'import "/runtime/widget-api.js"; '
         'import { value } from "./nested/value.js"; window.result = value;'
     )
     (authored / "nested" / "value.js").write_text("export const value = 1;")
@@ -136,6 +137,7 @@ def test_published_shells_bind_documents_and_resources_to_their_revision(
             resources / "page" / "nested" / "value.js"
         ).read_text() == f"export const value = {version};"
         assert (resources / "page" / "app.js").read_text() == (
+            'import "/runtime/widget-api.js"; '
             f'import {{ value }} from "{root}/page/nested/value.js"; window.result = value;'
         )
         assert (
@@ -150,15 +152,19 @@ def test_published_shells_bind_documents_and_resources_to_their_revision(
             assert (resources / "leaf.js").read_bytes() == second_artifact.resources[
                 "/leaf.js"
             ].data
+            assert "/runtime/dom-move.js" in {
+                specifier
+                for _, _, specifier in javascript_imports(
+                    (resources / "vendor" / "lit.js").read_bytes(), "/vendor/lit.js"
+                )
+            }
         else:
             assert not (resources / "leaf.js").exists()
             assert not (resources / "runtime").exists()
         assert (
             second_artifact.resources["/runtime/bootstrap.js"].data.decode() in document
         )
-        assert (
-            json_script(layer_import_map(kernel_root, page_root=page_root)) in document
-        )
+        assert json_script(layer_import_map(kernel_root)) in document
         expected_widget = (
             f'export {{default}} from "{root}/page/widgets/lf-options.js";\n'.encode()
             if version == 2

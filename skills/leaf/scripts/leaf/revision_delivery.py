@@ -547,11 +547,11 @@ class PublicationAddress(DeliveryAddress):
 
     def __call__(self, path: str) -> str:
         if path.startswith("/runtime/") or path in self.shared_modules:
-            return self.page_root.rstrip("/") + path
+            return path
         return super().__call__(path)
 
 
-def layer_import_map(asset_root: str, *, page_root: str = "") -> dict:
+def layer_import_map(asset_root: str) -> dict:
     """Send the layer's rooted module imports to the revision serving them.
 
     Every layer module names its dependencies by rooted path, as the page directory
@@ -562,17 +562,12 @@ def layer_import_map(asset_root: str, *, page_root: str = "") -> dict:
     root = asset_root.rstrip("/")
     # Server-owned passive checks must read this document's runtime instance too.
     # Their source is server-owned; their captured bytes belong to this revision.
-    imports = {
-        f"/{name}/": f"{root}/{name}/" for name in (*BROWSER_DIRS, RENDER_CHECKS_DIR)
+    return {
+        "imports": {
+            f"/{name}/": f"{root}/{name}/"
+            for name in (*BROWSER_DIRS, RENDER_CHECKS_DIR)
+        }
     }
-    if page_root:
-        imports.update(
-            {
-                f"{page_root.rstrip('/')}/{name}/": f"{root}/{name}/"
-                for name in ("runtime", "vendor")
-            }
-        )
-    return {"imports": imports}
 
 
 def deliver_resource(

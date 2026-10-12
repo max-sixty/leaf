@@ -201,7 +201,7 @@ def page_delivery(
     return Delivery(
         address=content_address,
         kernel=RuntimeDelivery(resources, address),
-        import_map=layer_import_map(assets, page_root=page_root),
+        import_map=layer_import_map(assets),
         runtime=runtime,
         page_root=page_root,
     )

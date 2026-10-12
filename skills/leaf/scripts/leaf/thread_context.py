@@ -19,9 +19,8 @@ from leaf.structure import SourceDocument
 
 
 def thread_ids(events: list[dict]) -> set[str]:
-    """The id of every thread the log holds, including one whose opening message
-    it lost: the namespace a declaration naming a thread (`resolves`,
-    `data-sample-threads`) is checked against."""
+    """The id of every thread the log holds: the namespace a declaration naming a
+    thread (`resolves`, `data-sample-threads`) is checked against."""
     return set(thread_names(events).values())
 
 
@@ -90,20 +89,9 @@ def sample_events(
 def thread_message(events: list, thread: str, name: str) -> str:
     """The message an event written into `thread` names, when `name` reached it.
 
-    `name` itself where it is a message of the thread. Otherwise the thread through
-    its opening comment, or, where the log lost that comment, through the first
-    message the thread still holds, as the panel answers it."""
-    names = thread_names(events)
-    logged = {event["id"] for event in events}
-    if names.get(name) == thread and name in logged:
-        return name
-    if thread in logged:
-        return thread
-    return next(
-        message
-        for message, owner in names.items()
-        if owner == thread and message != thread
-    )
+    `name` itself where it is a message of the thread, and otherwise the thread
+    through its opening comment."""
+    return name if thread_names(events).get(name) == thread else thread
 
 
 def id_subject(
@@ -147,24 +135,20 @@ def thread_names(events: list) -> dict:
 
     The names are the thread's own id and the id of each message in it, which a
     reply, edit, or resolve names. A thread's id is the id of the comment that
-    opened it, and it stays so where the log lost that comment: a reply whose
-    parent the log does not hold opens a thread under the parent's id, which the
-    runtime's `threadNames` and `build_threads` key it on too. `read_events` skips
-    a torn line and keeps reading, and a user who can see the reply is owed the
-    rest of the page around it.
+    opened it, and a reply's parent is a message admitted before it
+    (`event_contracts._parent_error`).
 
     Two readings of the panel's own document resolve a message to its thread, and
     they must answer alike: a Question and a question naming different threads for one
     message is a disagreement no reader could account for. (`build_threads` walks
     the same relation to a different end — the thread object itself, with its
-    resolution — so it keeps its own walk, and answers the same way where the log
-    is torn.)"""
+    resolution — so it keeps its own walk.)"""
     names = {}
     for e in events:
         if e["kind"] == "comment":
             names[e["id"]] = e["id"]
         elif e["kind"] == "reply":
-            names[e["id"]] = names.setdefault(e["parent"], e["parent"])
+            names[e["id"]] = names[e["parent"]]
     return names
 
 

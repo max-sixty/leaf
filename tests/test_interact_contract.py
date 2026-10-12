@@ -3472,6 +3472,12 @@ def test_withdrawal_may_name_an_outcome_that_retires_no_slots(trial_page):
             {"answered": {"decide": {}}, "all": "approve"},
             "blanket answer `approve` is not an outcome",
         ),
+        (
+            "lf-options",
+            "x-awaits",
+            {"when": {"choose": [True]}, "retired": "settled"},
+            "does not require `settled` absent",
+        ),
     ],
 )
 def test_check_refuses_a_predicate_no_page_could_carry(

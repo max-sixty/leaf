@@ -5,7 +5,12 @@
  * It reads the content at its vertical end without scrolling or changing styles,
  * so a check neither disturbs the reader nor depends on whether a hidden overlay
  * scrollbar happened to paint in the headless browser. */
-import { renderedParent, upFrom } from "/runtime/widget-api.js";
+import {
+  pageDocument,
+  renderedParent,
+  upFrom,
+  userScrollport,
+} from "/runtime/check-api.js";
 import { at, place } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
@@ -38,7 +43,7 @@ const paintedBottom = (el, rect, scroller) => {
 };
 
 export function scrollbarClearance() {
-  const root = document.querySelector("main");
+  const root = pageDocument();
   if (!root) return [];
   const found = [];
   for (const tree of openRoots(root))
@@ -48,10 +53,7 @@ export function scrollbarClearance() {
     ]) {
       if (!visible(box)) continue;
       const style = getComputedStyle(box);
-      if (
-        !/auto|scroll/.test(style.overflowX) ||
-        box.scrollWidth <= box.clientWidth + 1
-      )
+      if (!userScrollport(style.overflowX) || box.scrollWidth <= box.clientWidth + 1)
         continue;
       const bar = getComputedStyle(box, "::-webkit-scrollbar");
       if (

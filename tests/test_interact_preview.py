@@ -6,9 +6,9 @@ subscribes to. Input tests exercise those readings and shared page preparation. 
 handoff crosses the real claim, server and delivery adapter boundaries, without
 opening a browser.
 
-That is why they are here and not beside the preview's browser tests. A nightly
+That is why they are here and not beside the preview's browser tests. A `main`
 mark is file-level, with no per-test escape, so a Python-decided reading filed
-in a nightly module runs nowhere near the change that breaks it.
+in a `main` module runs nowhere near the change that breaks it.
 """
 
 import json
@@ -189,8 +189,7 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
     finally:
         if (page / "events.jsonl").exists():
             hosting.cmd_stop(page)
-            with service.PageTransaction(page) as transaction:
-                transaction.release_claim()
+            state.end_session(sid)
             wait_for(
                 lambda: leases.lock_is_held(preview.preview_lease(page)),
                 lambda held: not held,
@@ -1074,8 +1073,8 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from leaf.service import PageTransaction, page_claim
-from leaf.state import write_json
+from leaf.service import page_claim
+from leaf.state import end_session, write_json
 from leaf.harness import session_harness
 from leaf.hosting import cmd_stop
 from leaf_dev.preview import PreviewService
@@ -1122,8 +1121,7 @@ finally:
     if foreground is not None:
         foreground.communicate(timeout=30)
     if ready.exists():
-        with PageTransaction(page) as transaction:
-            transaction.release_claim()
+        end_session(session_harness().session)
 """
     delivery_env = (
         codex_env
@@ -1603,8 +1601,7 @@ import json, subprocess, sys, time
 from pathlib import Path
 from leaf.hosting import cmd_stop
 from leaf.leases import adapter_lease_path
-from leaf.service import PageTransaction
-from leaf.state import write_json
+from leaf.state import end_session, write_json
 pages = list(map(Path, sys.argv[1:3]))
 ready, done = map(Path, sys.argv[3:])
 lease = adapter_lease_path("codex-thread")
@@ -1631,8 +1628,7 @@ try:
 finally:
     for page in pages:
         cmd_stop(page)
-        with PageTransaction(page) as transaction:
-            transaction.release_claim()
+    end_session("codex-thread")
 """
     task = under_codex(
         shlex.join(
@@ -1804,6 +1800,7 @@ def test_a_preview_captures_acquisition_before_an_accepted_commit_is_interrupted
 def test_private_startup_keeps_previous_owner_until_acceptance(
     page_dir, monkeypatch, refusal
 ):
+    from leaf.detached import StartRefused
     from leaf.hosting import claim_and_start, cmd_stop
     from leaf.service import page_claim
     from leaf.state import end_session, ensure_session
@@ -1818,7 +1815,7 @@ def test_private_startup_keeps_previous_owner_until_acceptance(
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "candidate")
     try:
-        expected = ValueError if refusal == "abort_reuse" else RuntimeError
+        expected = ValueError if refusal == "abort_reuse" else StartRefused
         with pytest.raises(expected), claim_and_start(page_dir) as prepared:
             assert prepared.claim["acquisition"] != previous["acquisition"]
             assert page_claim(page_dir) == previous

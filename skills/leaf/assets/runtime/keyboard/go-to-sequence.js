@@ -67,16 +67,16 @@ import {
   keySequenceModel,
   keySequenceTemplate,
   progressStates,
-} from "./presentation.js";
+} from "./key-sequence.js";
 import { html, nothing } from "../../vendor/browser-runtime.js";
-import { isExternalPageLink } from "../presentation.js";
+import { isExternalPageLink } from "../declared-words.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { el, PRESSABLE } from "../widget-elements.js";
 import { allButCommandReference, pageCommand, pageScope } from "./register.js";
 import { focusedThreadTarget } from "../thread/focus.js";
 import { letGo, focusDestination, focused } from "../focus.js";
 import { pageParts } from "../passages.js";
-import { addressableSays } from "../anchor-resolution.js";
+import { addressableSays } from "../addressable-names.js";
 import { announce, notice } from "../notifications.js";
 import { closestAcross, pageQueryAll } from "../passages.js";
 import { currentDrawer, othersBtn, queueBtn } from "../drawers.js";

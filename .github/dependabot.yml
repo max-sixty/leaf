@@ -7,7 +7,7 @@ version: 2
 # The npm ecosystem also supports pnpm: it watches the root `package.json` and
 # `pnpm-lock.yaml`, which name the browser, Worker and eval dependencies. The
 # dependency-bundles workflow rebuilds the browser framework's page payload and every
-# bundle `build/vendor.py` makes, and updates the same PR. `esbuild` is left out: it is
+# bundle `build/vendor.mjs` makes, and updates the same PR. `esbuild` is left out: it is
 # the tool every bundle shares rather than payload, so it moves when a bundle needs
 # it rather than on every release.
 #

@@ -133,7 +133,7 @@ When a revision rewrites a quoted passage, preserve every affected open thread,
 including threads you are not answering this turn. `leaf page check` lists each
 quote that no longer identifies one passage. Activation moves those threads to
 their own surviving sections automatically, recording an anchor transition without
-adding a message or answering an outstanding move. A surviving unique quote keeps
+adding a message or answering an outstanding update. A surviving unique quote keeps
 its precise attachment; repeated words require unique stored context.
 
 Prefer the passage that replaced the quote when you know it: move the thread onto
@@ -193,27 +193,28 @@ promises. Leaf refuses an ordinary proactive reply while the
 thread owes a response; copy that response's delivery reference instead.
 Use the captured response reference for progress on an owed input too.
 
-### Progress updates
+### Progress messages
 
-Use `--ephemeral` for an interim update that is useful while work is underway:
+Use `--ephemeral` for interim progress that is useful while work is underway:
 
 ```bash
 leaf response reply <answer.ref> --ephemeral --text "Checking the keyboard route."
 ```
 
-This posts progress without answering the input. Progress on a move you owe also
-takes that move in hand, as `leaf task start` does, with the update as its
+This posts progress without answering the update. Progress on an update you owe also
+takes that update in hand, as `leaf task start` does, with the progress text as its
 **Working** line beside the thread and in the banner, so it is one line.
-[Conversation handoff](conversation-loop.md#when-to-write), "When to write", makes
-the first one your first command after a delivery. A proactive progress update
-names a thread with no response due. The updates stay visible until the
+[Conversation loop](conversation-loop.md#when-to-write), "When to write", makes
+the first one your first command after a delivery. A proactive progress message
+names a thread with no response due. Progress messages stay visible until the
 next non-ephemeral agent reply in that thread, then fold behind “Show N progress
 messages” beside that reply’s timestamp. The original messages remain available
 to expand and edit.
-Intervening user messages remain visible; separate runs of updates fold separately.
-One update can fold on its own. An explicit summary can cover those updates instead.
+Intervening user messages remain visible; separate runs of progress messages fold
+separately. One progress message can fold on its own. An explicit summary can cover
+them instead.
 
-An ephemeral update is progress text, so it cannot carry `--question`, `--task`,
+A progress message is progress text, so it cannot carry `--question`, `--task`,
 markup, failure or an anchor move. Put questions and results in ordinary replies. The shared
 disclosure appears in the panel and contextual thread surfaces. A completing reply
 held behind a new-reply notice keeps its progress visible until the reply is shown;
@@ -241,7 +242,7 @@ than a correction: it arrives as an `edit` event, with the message's new `text` 
 the `was` it replaced, and you owe it an answer like any reply.
 
 An ordinary reply leaves the thread open, or reopens a resolved thread, so the user
-can inspect the answer or revised page. Reactions, ephemeral updates and failure receipts do not reopen it. The user closes it by default. Resolve it yourself only when the
+can inspect the answer or revised page. Reactions, progress messages and failure receipts do not reopen it. The user closes it by default. Resolve it yourself only when the
 user asks, when a delivered event's handling says to, as for a reaction or a
 version request, or when no review or follow-up can change the outcome.
 Completing the requested work does not meet that bar by itself; when uncertain,
@@ -270,6 +271,11 @@ as part of answering new input, without waiting for the user to ask. Keep messag
 whose individual wording or reasoning still matters to the current exchange directly
 readable.
 
+A delivery's `elided.messages` counts originals omitted from the agent's context;
+it does not fold anything in the browser. The thread's `summaries` lists its
+presentation summaries. Changing that presentation requires the summarize command
+below; an ordinary reply containing a recap leaves the originals displayed.
+
 New input in a long thread may carry `summary_hint`, a suggested range. Use it to
 review the earlier discussion, choosing endpoints that fit the topic. Read the
 original messages with
@@ -292,7 +298,7 @@ The disclosure defaults to “Earlier discussion”; set `--label` to name the r
 To fold messages without adding summary prose, pass an explicit empty `--text`:
 
 ```bash
-leaf thread summarize <page> --from <first-message-id> --through <last-message-id> --label 'Previous updates' --text ''
+leaf thread summarize <page> --from <first-message-id> --through <last-message-id> --label 'Previous progress messages' --text ''
 ```
 
 As the discussion grows, write another summary with the desired endpoints.

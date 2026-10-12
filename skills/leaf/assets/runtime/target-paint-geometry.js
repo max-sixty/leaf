@@ -15,8 +15,9 @@ import {
   inTopLayer,
   nameAnchor,
   scrollsWith,
-} from "./anchor-names.js";
-import { paintClips, shownBox } from "./geometry.js";
+} from "./css-anchors.js";
+import { nearObserver, nearWindow, paintClips, shownBox } from "./geometry.js";
+import { hasArea, intersect } from "./rect.js";
 import { atLayoutPrecision, keeps, layoutPx } from "./keeps.js";
 import {
   followScroll,
@@ -190,11 +191,11 @@ export function paintStand(box = null) {
 }
 
 // The box an anchor carries `el` by for a stand at `root`: its anchor box
-// (anchor-names.js), where every scroll that moves `el` moves that box with it
+// (css-anchors.js), where every scroll that moves `el` moves that box with it
 // (`scrollsWith`), or that box's own parts where `el` draws none. An anchor positions a
 // box only where it is laid out before that box, earlier in the document and outside
 // the top layer; null otherwise, and where the browser has no anchors.
-export function anchoredBy(el, root) {
+function anchoredBy(el, root) {
   const anchor = anchorElement(el);
   if (!reaches(anchor, root)) return null;
   return anchor === el ||
@@ -321,7 +322,7 @@ const cut = ({ x, y }) => {
 // be and every frame's holder can be, else in motion layers, and answers how its boxes
 // stand (`standBox`): anchored, or written from `origin`, the client point the carrier's
 // corner stood at as `placed` was measured.
-export function standIn(stand, placed, anchored) {
+function standIn(stand, placed, anchored) {
   const { levels, fixed } = placed;
   const anchors = levels.map(({ holder }) => holder && anchoredBy(holder, stand.root));
   anchored &&= levels.every(({ holder }, i) => !holder || anchors[i]);
@@ -423,9 +424,7 @@ export function standOver(stand, placed, borderRadius) {
 // anchors-visible`); unanchored, it stands uncut in its target's layers. A box with no
 // target stands where the window holds it.
 //
-// Only a box whose target stands within a screen of being shown, the scrollers around
-// it included (`scrollMargin`), is in the document. A box out of it costs no layout,
-// where boxes hidden beside the anchored ones made every layout pass revisit them all.
+// Only a box whose target is near (geometry.js, `nearWindow`) is in the document.
 // `onNear` hears where that changed, once the boxes come near are seated.
 //
 // `place` takes every box of the set, in paint order, each `{ node, target, rect }`:
@@ -447,21 +446,18 @@ export function paintSet(root, { onNear = () => {} } = {}) {
   const watched = new Map(); // target → the box watched for it
   const watching = new Map(); // box → the targets it is watched for
   const nearBy = (target) => !target || near.has(target);
-  const view = new IntersectionObserver(
-    (records) => {
-      const moved = new Set();
-      for (const { target: box, isIntersecting } of records)
-        for (const target of watching.get(box) ?? []) {
-          if (isIntersecting) near.add(target);
-          else near.delete(target);
-          moved.add(target);
-        }
-      for (const stand of stands.values())
-        if (stand.members.some(({ target }) => moved.has(target))) seat(stand);
-      onNear();
-    },
-    { rootMargin: "100%", scrollMargin: "600px" },
-  );
+  const view = nearObserver((records) => {
+    const moved = new Set();
+    for (const { target: box, isIntersecting } of records)
+      for (const target of watching.get(box) ?? []) {
+        if (isIntersecting) near.add(target);
+        else near.delete(target);
+        moved.add(target);
+      }
+    for (const stand of stands.values())
+      if (stand.members.some(({ target }) => moved.has(target))) seat(stand);
+    onNear();
+  });
 
   // A stand's key: the frames that cut it, each band from its holder's corner, which no
   // scroll moves, and the plane it stands in. A stand in motion layers follows its one
@@ -546,13 +542,7 @@ export function paintSet(root, { onNear = () => {} } = {}) {
           view.observe(box);
         }
         watching.get(box).add(target);
-        if (
-          bottom > -innerHeight &&
-          top < 2 * innerHeight &&
-          right > -innerWidth &&
-          left < 2 * innerWidth
-        )
-          near.add(target);
+        if (nearWindow(target, clips)) near.add(target);
       }
       const carriedBy =
         anchor === undefined
@@ -711,16 +701,10 @@ export function placement(
   for (const { box: holder, band, axes } of cuts.bands)
     levels.push({ band, axes, holder });
   let shown = rect;
-  for (const { band, axes } of levels)
-    shown = {
-      left: axes.x ? Math.max(shown.left, band.left) : shown.left,
-      top: axes.y ? Math.max(shown.top, band.top) : shown.top,
-      right: axes.x ? Math.min(shown.right, band.right) : shown.right,
-      bottom: axes.y ? Math.min(shown.bottom, band.bottom) : shown.bottom,
-    };
+  for (const { band, axes } of levels) shown = intersect(shown, band, axes);
   return {
     rect,
-    shown: shown.right > shown.left && shown.bottom > shown.top ? shown : null,
+    shown: hasArea(shown) ? shown : null,
     shapeKey: `${rect.right - rect.left}:${rect.bottom - rect.top}`,
     levels,
     surface,

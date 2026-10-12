@@ -1,5 +1,6 @@
 """Version corpus, registry, message, and export tests."""
 
+import copy
 import json
 import os
 import re
@@ -10,6 +11,7 @@ import pytest
 from click.testing import CliRunner
 from interact_support import (
     COMMAND_SUBJECTS,
+    FLOW_PAGE,
     PAGE,
     ROOT,
     SHIPPED_PACKAGES,
@@ -46,7 +48,7 @@ from leaf.thread_context import thread_digest
 from leaf.validation import composition as validation_model
 from leaf.validation.instances import reference_errors
 from leaf_dev.example_data import regression_sources
-from leaf_dev.page_fixtures import package_selection_args, prepare_page, read_fixture
+from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 PUBLIC_EXAMPLES = tuple(
     path for path in sorted((ROOT / "examples").glob("*.html")) if path.stem != "corpus"
@@ -104,7 +106,7 @@ def test_valid_source_activates_once_and_a_bad_save_keeps_it_live(page_dir):
 
 def test_later_events_do_not_veto_source_readings(page_dir):
     source = page_dir / "index.html"
-    source.write_text(PAGE)
+    source.write_text(FLOW_PAGE)
     live = revisioning_model.activate_source(page_dir)
     assert live.error is None and live.revision == 1
     live = revisioning_model.activate_source(page_dir)
@@ -125,10 +127,7 @@ def test_later_events_do_not_veto_source_readings(page_dir):
 
     # Removing a thread's target activates immediately and detaches the thread;
     # the original anchor stays in the log.
-    dropped = re.sub(
-        r'<lf-diagram id="flow">.*?</lf-diagram>', "", PAGE, flags=re.DOTALL
-    )
-    source.write_text(dropped)
+    source.write_text(PAGE)
     removed = revisioning_model.activate_source(page_dir)
     assert removed.error is None and removed.created and removed.revision == 2
     threads = event_folds_model.build_threads(events_model.read_events(page_dir), {})
@@ -159,7 +158,7 @@ def test_later_events_do_not_veto_source_readings(page_dir):
     assert check(page_dir).exit_code == 0
 
     # Events cannot repair an invalid source either; only a corrected save does.
-    source.write_text(dropped.replace("</section>", ""))
+    source.write_text(PAGE.replace("</section>", ""))
     refused = revisioning_model.activate_source(page_dir)
     assert refused.error and refused.revision == 2 and not refused.created
     append_carried_log_record(
@@ -167,7 +166,7 @@ def test_later_events_do_not_veto_source_readings(page_dir):
     )
     still_refused = revisioning_model.activate_source(page_dir)
     assert still_refused.error == refused.error and still_refused.revision == 2
-    source.write_text(dropped.replace("<title>t</title>", "<title>repaired</title>"))
+    source.write_text(PAGE.replace("<title>t</title>", "<title>repaired</title>"))
     repaired = revisioning_model.activate_source(page_dir)
     assert repaired.error is None and repaired.created and repaired.revision == 3
 
@@ -325,9 +324,42 @@ def test_question_context_frames_any_number_of_independent_sources(page_dir):
         in " ".join(control_first)
     )
 
+    # A context framing no live source would show a question the banner never
+    # counts. A retired source still counts: settling a decision keeps its context.
+    assert "registers no Question: it holds no widget that declares x-awaits" in (
+        " ".join(
+            fragment_errors(
+                '<lf-ask id="decision-empty"><h2>Nothing to answer</h2></lf-ask>',
+                registry,
+            )
+        )
+    )
+    unasked = first.replace(" choose", "")
+    assert (
+        '<lf-options id="g-one"> (line 1) asks only where choose is present'
+        in " ".join(
+            fragment_errors(
+                f'<lf-ask id="decision-unasked"><h2>Choose</h2>{unasked}</lf-ask>',
+                registry,
+            )
+        )
+    )
+    settled = first.replace(" choose", " choose settled")
+    settled_ask = f'<lf-ask id="decision-settled"><h2>Chosen</h2>{settled}</lf-ask>'
+    assert fragment_errors(settled_ask, registry) == []
+    # The registry's `retired` is what says the flag ended an asked Question; a flag
+    # that merely stops a widget asking leaves the context framing nothing.
+    unretired = copy.deepcopy(registry)
+    del unretired["lf-options"]["x-awaits"]["retired"]
+    assert '<lf-options id="g-one"> (line 1) asks only where settled is absent' in (
+        " ".join(fragment_errors(settled_ask, unretired))
+    )
+    # A quoted Ask is a mention, and its widgets ask nothing by design.
     assert (
         fragment_errors(
-            '<lf-ask id="decision-empty"><h2>Nothing to answer</h2></lf-ask>',
+            '<lf-sample id="quoted-ask" label="an Ask">'
+            f'<lf-ask id="decision-quoted"><h2>Choose</h2>{second}</lf-ask>'
+            "</lf-sample>",
             registry,
         )
         == []
@@ -492,16 +524,12 @@ def test_page_fixtures_pass_check(example, tmp_path, monkeypatch, initialized_pa
     refuses it."""
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
     fixture = read_fixture(example)
-    d = tmp_path / "page"
-
-    def initialize(target):
-        run_leaf("page", "init", *package_selection_args(fixture.packages), str(target))
+    d = initialized_page(tmp_path / "page", fixture.packages)
 
     def checked(version):
         result = check(d)
         assert result.exit_code == 0, f"{version.name}: {result.output}"
 
-    initialized_page("-".join(["fixture", *fixture.packages]), d, initialize)
     # Every authored version, not only the current one: a fault in a prior
     # version stops preview and the site build, a slow way to hear it.
     prepare_page(
@@ -561,11 +589,13 @@ def test_the_feature_gallery_eyebrows_index_literal_code_names():
     """Every showcased element is indexed by a code name, never descriptive prose."""
     authored = FEATURE_GALLERY.read_text(encoding="utf-8")
     gallery_registry = json.loads(
-        (schema_model.BUNDLED_PACKAGES / "gallery" / "registry.json").read_text(
+        (FEATURE_GALLERY.with_suffix(".page") / "registry.json").read_text(
             encoding="utf-8"
         )
     )
-    apparatus = {tag for tag in gallery_registry if tag.startswith("lf-")}
+    apparatus = {
+        tag for tag, entry in gallery_registry.items() if entry.get("x-exhibit")
+    }
     assert apparatus
     eyebrows = re.findall(
         r'<p class="eyebrow bg-feature-elements">(.*?)</p>',
@@ -791,15 +821,15 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     def question(decision_id, markup):
         return f'<lf-ask id="{decision_id}"><h2>Pick?</h2>{markup}</lf-ask>'
 
-    # `flow` is the page's lf-diagram id (PAGE fixture) — refused.
+    # `flag-first` is an option on the page (PAGE fixture) — refused.
     clash = reply(
         question(
-            "flow-decision",
-            '<lf-options id="flow" choose><lf-option id="o1"><strong>A</strong></lf-option></lf-options>',
+            "o-decision",
+            '<lf-options id="o" choose><lf-option id="flag-first"><strong>A</strong></lf-option></lf-options>',
         ),
         for_event="c1",
     )
-    assert clash.exit_code != 0 and "flow" in clash.output
+    assert clash.exit_code != 0 and "flag-first" in clash.output
     fresh = reply(
         question(
             "q1-decision",
@@ -1623,7 +1653,7 @@ def test_markup_enters_only_through_the_cli_gate(server, page_dir):
 def test_export_prints_threads_and_versions(page_dir):
     # The heading is the page's title as a user sees it, entities and all.
     titled = (
-        PAGE.replace("<title>t</title>", "<title>Cutoff &amp; backfill</title>")
+        FLOW_PAGE.replace("<title>t</title>", "<title>Cutoff &amp; backfill</title>")
         .replace(
             '<lf-diagram id="flow">',
             '<lf-diagram id="flow" parts="node:A node:B">',

@@ -18,6 +18,7 @@ import {
   whileConnected,
   keeps,
   keepsText,
+  layoutPx,
   mountSample,
   once,
   offer,
@@ -40,11 +41,11 @@ customElements.define(
     #heightReading;
     #fit = () => {
       const frame = this.#frame;
-      const next = `${this.#heightReading + frame.offsetHeight - frame.clientHeight}px`;
-      if (frame.style.height !== next) frame.style.height = next;
+      frame.style.height = `${this.#heightReading + frame.offsetHeight - frame.clientHeight}px`;
     };
     #scheduleFit = frameFor(this, this.#fit);
     #ready;
+    #focusedContent = false;
     #mounting = false;
     #viewOperation;
     #view;
@@ -52,6 +53,14 @@ customElements.define(
 
     get ready() {
       return this.#ready;
+    }
+
+    get focusedContent() {
+      return this.#focusedContent;
+    }
+
+    restoreStanding() {
+      return this.#host?.call("restore-standing");
     }
 
     connectedCallback() {
@@ -93,8 +102,15 @@ customElements.define(
           }
           this.#host = host;
           host.on("height", ({ height }) => this.#height(height));
-          host.on("loading", () => this.#track(host.ready));
+          host.on("loading", () => {
+            this.#focusedContent = false;
+            this.#track(host.ready);
+          });
+          host.on("standing", ({ focused }) => {
+            this.#focusedContent = focused;
+          });
           host.on("departed", () => {
+            this.#focusedContent = false;
             this.#ready = host.ready;
             keepsText(this.#status, "");
             keeps(this.#reset, "aria-disabled", null);
@@ -158,7 +174,7 @@ customElements.define(
           const height =
             this.#frame.getBoundingClientRect().bottom -
             controls.getBoundingClientRect().top;
-          this.style.setProperty("--lf-sample-height", `${height}px`);
+          this.style.setProperty("--lf-sample-height", layoutPx(height));
           closeNativeLayer(this.#view);
           this.#view.setAttribute("role", "dialog");
           this.#view.setAttribute("aria-label", this.#frame.title);

@@ -4,12 +4,13 @@ import {
   DISCLOSE,
   HIDDEN,
   commands,
+  comparisonChanges,
   keeps,
   keepsText,
   relabel,
   selectableOffer,
   tabStore,
-  whileConnected,
+  watchComparison,
 } from "/runtime/widget-api.js";
 
 const SETTLED_KEY = "lf-settled:";
@@ -30,9 +31,7 @@ export class SettledOptions {
   connect() {
     if (this.#row) return;
     this.#build();
-    whileConnected(this.#host, (signal) => {
-      document.addEventListener("lf-comparison", () => this.#delta(), { signal });
-    });
+    watchComparison(this.#host, () => this.#delta());
   }
 
   #build() {
@@ -89,7 +88,7 @@ export class SettledOptions {
 
   #delta() {
     let chip = this.#row.querySelector(".lf-settled-diff");
-    const n = this.#host.querySelectorAll(".lf-ins-block").length;
+    const n = comparisonChanges(this.#host).length;
     if (!n) return chip?.remove();
     if (!chip) {
       chip = document.createElement("span");

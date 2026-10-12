@@ -31,6 +31,7 @@ from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from interact_support import (
     COMPOSITE_TIMEOUT,
+    FLOW_PAGE,
     PAGE,
     STATED_TIMEOUT,
     TOKEN,
@@ -92,6 +93,7 @@ from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
 from leaf import thread_titles as thread_titles_model
 from leaf import vendoring as vendoring_model
+from leaf.refusals import Refused
 from leaf.registry import storage as registry_storage
 from leaf.served_state import browser as served_browser
 from leaf.served_state import context as served_context
@@ -969,7 +971,7 @@ def test_the_browser_media_door_refuses_untrusted_or_unbounded_bytes(server, pag
 
 
 def test_a_visual_comment_must_name_an_authored_part(server, page_dir):
-    parted = PAGE.replace(
+    parted = FLOW_PAGE.replace(
         '<lf-diagram id="flow">',
         '<lf-diagram id="flow" parts="node:A node:B">',
     )
@@ -1082,6 +1084,7 @@ def test_the_door_takes_a_passage_anchor_the_runtime_already_resolved(server, pa
     side collapses away. So the door does not read a served page's anchor back off
     the file: a re-capture there refused a quote whose only sin was a line break, and
     every comment made on a tab's own name."""
+    (page_dir / "index.html").write_text(FLOW_PAGE)
     publish(page_dir)
     passage = "The cutoff lives in"
     for name, quote in {
@@ -2552,7 +2555,7 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
     old_page = old_page.replace(
         "</section>",
         '<lf-ask id="other-decision"><h3>Another choice</h3>'
-        '<lf-options id="other-picks"><lf-option id="other-option">'
+        '<lf-options id="other-picks" choose><lf-option id="other-option">'
         "Another option</lf-option></lf-options></lf-ask></section>",
     )
     new_page = (
@@ -2725,9 +2728,9 @@ def test_each_view_offers_only_the_gestures_it_paints(page_dir):
     """
     old_page = PAGE.replace("<lf-options>", '<lf-options id="picks">').replace(
         "</section>",
-        '<lf-ask id="kept-decision"><h3>Kept</h3><lf-options id="kept">'
+        '<lf-ask id="kept-decision"><h3>Kept</h3><lf-options id="kept" choose>'
         '<lf-option id="kept-one">One</lf-option></lf-options></lf-ask>'
-        '<lf-ask id="gone-decision"><h3>Gone</h3><lf-options id="gone">'
+        '<lf-ask id="gone-decision"><h3>Gone</h3><lf-options id="gone" choose>'
         '<lf-option id="gone-one">One</lf-option></lf-options></lf-ask></section>',
     )
     new_page = re.sub(
@@ -2985,7 +2988,7 @@ def test_a_state_fault_after_append_leaves_the_attempt_retryable(
     def fail_state(*_args, **_kwargs):
         raise RuntimeError("state response failed")
 
-    layer = registry_storage.layer_generation(page_dir)
+    layer = registry_storage.layer_metadata(page_dir)["generation"]
     monkeypatch.setattr(served_page, "read_served_page", fail_state)
     status, body = fetch(
         f"{server}/api/event", data=json.dumps(sent).encode(), layer=layer
@@ -3024,6 +3027,39 @@ def test_a_state_fault_after_append_leaves_the_attempt_retryable(
     )
 
 
+def test_a_fault_before_the_event_body_is_read_answers_in_the_doors_shape(
+    server, page_dir, monkeypatch
+):
+    """A host's page selection runs before the body is read, and a fault there is
+    still the door's 500, which names no attempt because none was read."""
+    publish(page_dir)
+
+    def fail_selection(_endpoint):
+        raise RuntimeError("selection failed")
+
+    monkeypatch.setattr(http_model.PageEndpoint, "_select_page", fail_selection)
+    sent = {"kind": "comment", "revision": 1, "text": "Hi", "attempt": "attempt-1"}
+    status, body = fetch(
+        f"{server}/api/event", data=json.dumps(sent).encode(), layer="any"
+    )
+    assert status == 500
+    assert json.loads(body) == {"ok": False, "error": "RuntimeError: selection failed"}
+
+
+def test_a_refusal_from_corrupt_page_state_is_an_answered_fault(server, page_dir):
+    """A helper the server shares with the command line refuses corrupt state
+    rather than exiting, so the request boundary answers it like any fault."""
+    publish(page_dir)
+    revisions = page_dir / "revisions"
+    [marker] = revisions.glob("r1-*.html")
+    shutil.copyfile(marker, revisions / "r1-0000000000000000.html")
+    status, body = fetch(f"{server}/api/state")
+    assert status == 500
+    assert json.loads(body) == {
+        "error": "Refused: more than one immutable revision has the same order"
+    }
+
+
 def test_flocked_refuses_a_platform_without_cross_process_locking(
     page_dir, monkeypatch
 ):
@@ -3057,7 +3093,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
     board = registry["lf-board"]["x-example"]
     publish(page_dir, version=1)
     (page_dir / "index.html").write_text(
-        PAGE.replace("</section>", board + "\n</section>")
+        FLOW_PAGE.replace("</section>", board + "\n</section>")
     )
     publish(page_dir, version=2)
 
@@ -4481,9 +4517,7 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
         active["revision"],
         url=active["url"],
     )
-    projection = served_service.PageStateService(
-        page_dir, page_snapshot=snapshot
-    ).page_state()
+    projection = served_service.PageStateService(page_dir, source=snapshot).page_state()
 
     append_carried_log_record(
         page_dir,
@@ -4502,9 +4536,7 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
     )
     publish(page_dir)
 
-    after = served_service.PageStateService(
-        page_dir, page_snapshot=snapshot
-    ).page_state()
+    after = served_service.PageStateService(page_dir, source=snapshot).page_state()
     assert after["active"] == projection["active"]
     assert after["events"] == projection["events"]
     assert after["data"] == projection["data"]
@@ -4568,7 +4600,7 @@ def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):
         active["revision"],
         url=active["url"],
     )
-    service = served_service.PageStateService(page_dir, page_snapshot=snapshot)
+    service = served_service.PageStateService(page_dir, source=snapshot)
     before = service.page_state()
     [gesture] = [
         row for row in before["browser"]["history"] if row["id"] == picked["id"]
@@ -5343,7 +5375,7 @@ def test_a_stated_host_is_a_hostname_or_ip_and_nothing_else(page_dir):
     literal is a name a user can route to, and it must not be mistaken for a
     host:port."""
     for junk in ("devbox:8443", "http://devbox", "devbox/page", "devbox one"):
-        with pytest.raises(SystemExit):
+        with pytest.raises(Refused):
             server_model.page_access(page_dir, host=junk)
     assert not (page_dir / "service.json").exists()
 
@@ -5782,11 +5814,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     # list. Untitled, so the title falls back to the directory's name.
     scratch = tmp_path / "scratch"
     claimed_url = neighbour_page(scratch)
-    record_claim(
-        scratch,
-        released="2026-01-01T00:00:00-08:00",
-        turn_opened="2026-01-01T00:00:00-08:00",
-    )
+    record_claim(scratch, turn_opened="2026-01-01T00:00:00-08:00")
 
     for directory in (pages / "live", malformed, scratch):
         server_rows_model.RowPublisher(directory, "fixture-server").refresh()
@@ -5880,7 +5908,7 @@ def test_the_live_document_keeps_its_revision_and_version_in_one_transaction(
                 publishing_model.cmd_stamp(page_dir, "Concurrent publication")
             return answer
 
-    monkeypatch.setattr(http_model, "PageTransaction", ConcurrentPublication)
+    monkeypatch.setattr(served_service, "PageTransaction", ConcurrentPublication)
     status, body = fetch(f"{server}/")
     assert status == 200
     document = body.decode()
@@ -6006,7 +6034,7 @@ def test_stamp_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_d
     def run_stamp():
         try:
             publishing_model.cmd_stamp(page_dir, "next")
-        except (AssertionError, SystemExit) as error:  # surface thread failures here
+        except (AssertionError, Refused) as error:  # surface thread failures here
             failures.append(error)
 
     action = {

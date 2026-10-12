@@ -16,10 +16,11 @@
    `sends` and `acked` are posts to /api/event, counted as issued and as ended whichever
    way — answered, refused, or failed — so a retry is a second send. `asked` and `heard`
    are the same pair for reads of /api/state, `heard` once the body has been read or the
-   read has failed. `pending` names the attempts the pending ledger still holds with no delivery
-   outcome, in ledger order: an entry behind a head that is retrying
-   stays pending until its turn, even where a read has already shown its attempt landed,
-   because an applied reading does not replace a delivery outcome. A bookkeeping event
+   read has failed. `pending` names the attempts the published semantic state still
+   holds as sending, in ledger order, and changes with the publication that accepts or
+   refuses one: an entry behind a head that is retrying stays pending until its turn,
+   even where a read has already shown its attempt landed, because an applied reading
+   does not replace a delivery outcome. A bookkeeping event
    (delivery.js), the page's error report, and a media upload (layer-client.js) never
    enter that ledger, so a wait for "what this page sent has come back" consumes both
    facts: every send acked, and nothing pending. */
@@ -41,7 +42,17 @@ export function countTraffic(key) {
   paint();
 }
 
-export function pendingTraffic(attempts) {
-  ledger.pending = attempts;
-  paint();
+/** Paint `pending` from the published sending attempts, the ledger's only writer of it.
+    The first reading, before any send, paints nothing, and a publication that leaves
+    the attempts unchanged does not repaint.
+    @param {{subscribe: (listener: (attempts: readonly string[]) => void) => () => void}} sending */
+export function watchPendingTraffic(sending) {
+  let painted = JSON.stringify(ledger.pending);
+  return sending.subscribe((attempts) => {
+    const key = JSON.stringify(attempts);
+    if (key === painted) return;
+    painted = key;
+    ledger.pending = [...attempts];
+    paint();
+  });
 }

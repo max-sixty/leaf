@@ -199,11 +199,7 @@ def test_package_catalog_routes_every_optional_package_to_inspectable_content():
     )
     declared = json.loads((EXAMPLES / "layer.json").read_text())
 
-    # Gallery is the core page's own browser-test package rather than a product
-    # package. Every package a user can opt into gets one catalog entry.
-    assert [name.casefold().replace(" ", "-") for _, name in catalog] == [
-        name for name in declared if name != "gallery"
-    ]
+    assert [name.casefold().replace(" ", "-") for _, name in catalog] == declared
     for href, _ in catalog:
         if href.startswith("/examples/"):
             assert href.endswith("/")
@@ -365,7 +361,7 @@ def test_the_event_log_page_shows_the_records_the_door_writes(page_dir):
             command = {k: record[k] for k in command_fields if k in record}
             if "undoes" in record:
                 command["undoes"] = ids[record["undoes"]]
-            accepted = event_contracts_model.append_admitted(
+            accepted, _ = event_contracts_model.append_admitted(
                 page, {**command, "author": "user"}
             )
             ids[record["id"]] = accepted["id"]
@@ -567,7 +563,7 @@ def test_demo_waiter_preserves_the_reason_a_wait_delivered_nothing():
         waiter.receive()
 
 
-@pytest.mark.nightly
+@pytest.mark.main
 def test_demo_recording_drives_the_browser_journey(tmp_path):
     output = tmp_path / "demo"
     # Not check=True: with the streams captured, the CalledProcessError it raises

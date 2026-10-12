@@ -80,7 +80,7 @@ const deriveEntryState = (entry) => {
 const entryState = (entry) => entry.state;
 export const entryEngaged = (entry) => entry.state !== "idle";
 
-export const contributionItem = (offered, record, surface = "margin", cluster = null) =>
+const contributionItem = (offered, record, surface = "margin", cluster = null) =>
   Object.freeze({
     cluster,
     kind: "contribution",

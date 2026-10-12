@@ -15,7 +15,7 @@
 import { keeps, keepsText } from "/runtime/widget-api.js";
 
 export const N = 40;
-export const MIN_RUN = 6;
+const MIN_RUN = 6;
 
 export const INPUTS = {
   random: "Random",

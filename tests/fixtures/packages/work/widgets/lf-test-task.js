@@ -7,7 +7,7 @@ import {
   keepsText,
   once,
   readWork,
-  watchUpdates,
+  watchReports,
   widgetController,
   workAncestor,
 } from "/runtime/widget-api.js";
@@ -38,7 +38,7 @@ customElements.define(
         if (thread) this.append(thread);
       }
       this.#controller.subscribe(() => {});
-      watchUpdates(this, () => {
+      watchReports(this, () => {
         const row = readWork(
           workAncestor(this, "scope") ?? this.parentElement,
         ).goals.find((row) => row.element === this);

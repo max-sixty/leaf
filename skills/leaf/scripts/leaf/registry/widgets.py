@@ -412,6 +412,14 @@ def _validate_widget_interactions(
         raise RegistryError(
             f"{path}: <{tag}> x-awaits value must name a user-written x-state verb"
         )
+    # A retired Question was asked and has ended, so the flag that retires it has to be
+    # one registration already reads as stopping the widget asking.
+    retired = awaits.get("retired")
+    if retired and awaits.get("when", {}).get(retired) != [False]:
+        raise RegistryError(
+            f"{path}: <{tag}> x-awaits retires with `{retired}`, but its `when` does not "
+            f"require `{retired}` absent"
+        )
     # A blanket answer is one decision per Question, taken through the widget's deciding
     # verb, so it names an outcome that verb declares and the verb answers the Question.
     if (blanket := awaits.get("all")) and (

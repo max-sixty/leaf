@@ -1358,7 +1358,7 @@
         font: 14px / 21px var(--mono);
         cursor: pointer;
       }
-      lf-merge-film .film-terminal-line:focus-visible {
+      lf-merge-film .film-terminal-line[data-lf-focus] {
         outline-offset: -2px;
       }
       lf-merge-film .film-phone-line {
@@ -1757,48 +1757,6 @@
 <style>
       @import url("/page/theme.css");
 </style>
-<!-- annotation-workspace.html authored styles -->
-<style>
-      #aw-regions {
-        display: grid;
-        grid-template-columns: minmax(0, 2fr) minmax(20rem, 1fr);
-        min-block-size: 0;
-      }
-      #aw-research,
-      #aw-conversations {
-        min-inline-size: 0;
-        min-block-size: 0;
-      }
-      #aw-conversations {
-        display: flex;
-        flex-direction: column;
-        gap: var(--sp-3);
-      }
-      #aw-conversations > h2 {
-        margin: 0;
-        flex: none;
-      }
-      #aw-annotations {
-        inline-size: 100%;
-        block-size: 100%;
-        min-block-size: 0;
-        flex: 1 1 0;
-        --lf-holds-height: 1;
-      }
-      #aw-navigation {
-        display: flex;
-        flex-wrap: wrap;
-        gap: var(--sp-3);
-      }
-      @media (width < 720px), (height < 480px) {
-        #aw-regions {
-          grid-template-columns: minmax(0, 1fr);
-        }
-        #aw-annotations {
-          flex: none;
-        }
-      }
-</style>
 <!-- current-proposed-comparison.html authored styles -->
 <style>
       /* The regions side by side, stacked where the workspace flows. */
@@ -1841,6 +1799,8 @@
 </style>
 <!-- feature-gallery.html authored styles -->
 <style>
+      @import url("/page/theme.css");
+
       #bg-metrics > dl {
         margin: 0;
         padding: var(--sp-3);
@@ -2270,7 +2230,7 @@
           you: "2be2443f0bb6cc49fc86b52f340e6073",
           resolved: "bab3cdfcfb8c02aacbb27da731de947a",
           summary: "9ee465bb3f9c1fa309ea9cb1767fa365",
-          updates: "bg-progress-question",
+          progress: "bg-progress-question",
         }[view];
         void sample.showThread(thread, {
           surface: "panel",
@@ -2580,8 +2540,8 @@ catalog.</p>
             pays twice.
           </p>
           <p>
-            Every other card is either cosmetic, has a safe retry, or affects one
-            customer who has a workaround. None gets worse by waiting a week.
+            None of the other cards gets worse by waiting a week. Each is cosmetic for
+            most users, safe to retry, has a manual workaround, or has few reports.
           </p>
         </section>
         <section class="panel" id="triage-moves">
@@ -6206,7 +6166,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
             <dd><output data-atlas-count="stopped">0</output></dd>
           </dl>
           <button type="button" class="button atlas-refresh" disabled>
-            Show updates
+            Show latest
           </button>
           <details class="atlas-stopped">
             <summary>Stopped work</summary>
@@ -6219,90 +6179,6 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
           <lf-activity id="atlas-record"></lf-activity>
         </section>
       </aside>
-</lf-tab>
-
-<lf-tab id="corpus-annotation-workspace" label="Annotation workspace">
-<header>
-        <h1>Measurement review</h1>
-        <nav id="aw-navigation" aria-label="Review regions">
-          <a href="#aw-finding">Finding</a>
-          <a href="#aw-next-run">Next run</a>
-          <a href="#aw-conversations">Conversations</a>
-        </nav>
-      </header>
-
-      <div id="aw-regions">
-        <lf-pane id="aw-research" label="Sampling evidence">
-          <header><h2>Repeat before changing the calibration</h2></header>
-          <div id="aw-evidence">
-            <p id="aw-finding">
-              The third block has a wider range. Repeat with unchanged calibration
-              before treating it as a persistent change.
-            </p>
-            <table id="aw-measurements">
-              <caption>
-                Illustrative sensor readings from one bench session
-              </caption>
-              <thead>
-                <tr>
-                  <th scope="col">Block</th>
-                  <th scope="col">Readings (mV)</th>
-                  <th scope="col">Range (mV)</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <th scope="row">First</th>
-                  <td>10.1, 10.2, 10.0, 10.1</td>
-                  <td>0.2</td>
-                </tr>
-                <tr>
-                  <th scope="row">Second</th>
-                  <td>10.2, 10.1, 10.3, 10.2</td>
-                  <td>0.2</td>
-                </tr>
-                <tr>
-                  <th scope="row">Third</th>
-                  <td>9.7, 10.5, 10.0, 10.6</td>
-                  <td>0.9</td>
-                </tr>
-              </tbody>
-            </table>
-            <section id="aw-run-decision">
-              <lf-ask id="aw-next-run">
-                <h3>How should the repeat be sampled?</h3>
-                <p>
-                  Keep the sensor, calibration and interval fixed. Four readings match
-                  the earlier blocks; eight give more evidence about the range.
-                </p>
-                <lf-options id="aw-sampling" choose>
-                  <lf-option id="aw-four-readings">
-                    Four readings · two minutes
-                  </lf-option>
-                  <lf-option id="aw-eight-readings">
-                    Eight readings · four minutes
-                  </lf-option>
-                </lf-options>
-              </lf-ask>
-            </section>
-          </div>
-        </lf-pane>
-
-        <aside
-          id="aw-conversations"
-          aria-labelledby="aw-conversations-heading"
-          tabindex="-1"
-        >
-          <h2 id="aw-conversations-heading">Conversations and actions</h2>
-          <lf-annotation-rail id="aw-annotations"></lf-annotation-rail>
-        </aside>
-      </div>
-      <footer>
-        <p id="aw-comment-route">
-          Select a reading or passage to comment on it. Conversations stay in this
-          workspace; Threads opens the complete discussion.
-        </p>
-      </footer>
 </lf-tab>
 
 <lf-tab id="corpus-current-proposed-comparison" label="Current Proposed Comparison">
@@ -6427,6 +6303,29 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
           </lf-options>
         </lf-ask>
       </footer>
+</lf-tab>
+
+<lf-tab id="corpus-playwright-paired-results" label="Playwright Paired Results">
+<h1>Compare reviewed results</h1>
+      <p>
+        These two views deliberately pair different Review outcomes in one recording.
+        Selecting Reviewed result aligns the declared checkpoints, whose native times
+        remain distinct.
+      </p>
+      <lf-trace-compare id="matched-results"
+        ><lf-trace id="paired-before" label="Before" source="release-journey"
+          ><lf-trace-bookmark
+            label="Reviewed result"
+            key="reviewed"
+            target="trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-phase-trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-call-4e380b5061c4982e-after"
+          ></lf-trace-bookmark></lf-trace
+        ><lf-trace id="paired-after" label="After" source="release-journey"
+          ><lf-trace-bookmark
+            label="Reviewed result"
+            key="reviewed"
+            target="trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-phase-trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-call-0684e283ed722175-after"
+          ></lf-trace-bookmark></lf-trace
+      ></lf-trace-compare>
 </lf-tab>
 
 <lf-tab id="corpus-review-queue" label="Review Queue">
@@ -7270,13 +7169,15 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               ><span class="bg-feature-detail">: short verdicts on a passage</span>
             </h2>
             <p id="bg-reactions-guide">
-              Select words and press <kbd>E</kbd>, or hover an agent reply and use its
-              corner control. The picker is feedback for the agent, not chat decoration.
-              Press and hold a reaction to read its word; slide to another to read that
-              one, and let go on the one you mean, or off the picker to choose none. A
-              saved passage reaction leaves only its emoji; press it to reveal the
-              separate “Remove” control, then press that control to take the reaction
-              back.
+              Select words and press <kbd>E</kbd>, or focus the comment field and press
+              <kbd>Tab</kbd> for Suggest and reactions. The field keeps one primary
+              action, Dictate when available or Send; these other responses have no
+              mouse or touch opener. An agent reply has its own corner control. The
+              picker is feedback for the agent, not chat decoration. Press and hold a
+              reaction to read its word; slide to another to read that one, and let go
+              on the one you mean, or off the picker to choose none. A saved passage
+              reaction leaves only its emoji; press it to reveal the separate “Remove”
+              control, then press that control to take the reaction back.
             </p>
             <p id="bg-react-ok">
               <strong>1 · 👍 · keep.</strong> The spare key is with reception.
@@ -7358,6 +7259,21 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </p>
             </section>
 
+            <section id="bg-comment-dictation">
+              <h3>Dictate a comment</h3>
+              <p id="bg-comment-dictation-guide">
+                In a browser with speech recognition, every empty comment or reply box
+                offers a microphone where Send will stand. Press it and speak: the empty
+                box says “Listening…”, then your words appear with the microphone lit.
+                Press the microphone again to stop and review. Typing takes over
+                immediately. Send submits the words shown; Escape leaves the box with
+                its draft kept. If dictation fails, an empty box names the reason and
+                offers Retry dictation. Words already heard stay editable. Try this in
+                the page comment card, on a passage, and in a thread reply; each uses
+                the same control.
+              </p>
+            </section>
+
             <section id="bg-design-comments">
               <h3>
                 <strong>Design mode</strong
@@ -7394,7 +7310,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 <kbd>w</kbd> again and start over this guide: the stroke joins the kept
                 drawing rather than replacing it. On a touch screen, “Draw mode” is in
                 “More page controls”, and “Undo stroke” and “Exit Draw mode” stand on
-                the banner while the mode holds.
+                the banner while the mode holds. Try drawing over a choice control: the
+                stroke marks the choice without selecting it. Leaf’s comment box and
+                draft editing controls remain usable while Draw mode holds.
               </p>
             </section>
 
@@ -7540,7 +7458,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <button
                 type="button"
                 class="button"
-                data-view="updates"
+                data-view="progress"
                 aria-pressed="false"
               >
                 Progress messages
@@ -7574,7 +7492,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   <strong>A summarized discussion.</strong> The workshop planning thread
                   keeps its earlier decisions in a summary.
                 </p>
-                <p id="bg-thread-updates">
+                <p id="bg-thread-progress">
                   <strong>Progress messages.</strong> Show the folded checks from the
                   answer’s header, then hide them again.
                 </p>
@@ -7582,44 +7500,6 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </lf-sample>
           </section>
 
-          <section id="bg-page-annotations">
-            <p class="eyebrow bg-feature-elements">lf-annotation-rail</p>
-            <h3>Page-owned annotations</h3>
-            <p>
-              Alt-click the recommendation in this practice window to comment. The reply
-              and actions stay in the page's own annotation area. Choose a route, then
-              use Undo to return to the open question.
-            </p>
-            <lf-sample
-              id="bg-page-annotations-sample"
-              label="practice route review"
-              window
-            >
-              <template
-                id="bg-page-annotations-page"
-                data-sample
-                data-annotations="page"
-              >
-                <style>
-                  #bg-page-annotations-rail {
-                    inline-size: 100%;
-                  }
-                </style>
-                <h1>Workshop route</h1>
-                <p id="bg-page-annotations-finding">
-                  The shorter path leaves more time to inspect the cooling loop.
-                </p>
-                <lf-ask id="bg-page-annotations-ask">
-                  <h2>Which path should the inspection take?</h2>
-                  <lf-options id="bg-page-annotations-options" choose>
-                    <lf-option id="bg-page-annotations-short">Short path</lf-option>
-                    <lf-option id="bg-page-annotations-long">Full circuit</lf-option>
-                  </lf-options>
-                </lf-ask>
-                <lf-annotation-rail id="bg-page-annotations-rail"> </lf-annotation-rail>
-              </template>
-            </lf-sample>
-          </section>
           <section id="bg-threads">
             <h2>
               <strong>Threads</strong
@@ -7761,8 +7641,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               page opens: its status-line notice also reaches the live region without
               moving focus. A new question, response failure, or return to page activity
               uses that same line. Replies still unread when the page opens are
-              announced once on arrival; rereading a stage or tool update creates no new
-              notice.
+              announced once on arrival; rereading a stage change or tool activity
+              creates no new notice.
             </p>
             <p id="bg-reply-lifetime">
               <strong>An unfinished reply.</strong> Open a thread inline or in Threads
@@ -7903,7 +7783,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                     <strong>An existing thread.</strong> The sample agenda has room for
                     one more topic. Its speech-bubble control is green, and hovering it
                     shows “On you” under the label. The image question still needs an
-                    answer even though the agent added a later progress update. In
+                    answer even though the agent added a later progress message. In
                     Threads, “On you” still says to answer the question. Open the
                     control and reply: the control turns blue as the thread comes back
                     to the agent. The same reading fills the panel’s “On you” filter and
@@ -7977,7 +7857,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 latest exchange stays below the summary, and keyboard focus can reach
                 the disclosure.
               </p>
-              <p id="bg-thread-updates">
+              <p id="bg-thread-progress">
                 <strong>Progress messages.</strong> The ephemeral schedule checks fold
                 automatically when their final answer arrives, without adding a digest.
                 Choose “Progress messages” in the practice page, then use “Show 2
@@ -8008,7 +7888,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               Compare the filled conclusion with its unfilled supporting detail in
               either color scheme. Open the disclosure by click, tap, or Tab and Enter:
               its hairline and chevron remain, and the conclusion keeps the stronger
-              fill.
+              fill. Click or Tab between the summaries: the same focus ring follows the
+              summary that receives keyboard input.
             </p>
             <details id="bg-theme-support">
               <summary>Inspect the supporting calculation</summary>
@@ -8208,13 +8089,13 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               control; a status face carries the same workflow when no control survives.
               Face anatomy shows the icon-or-glyph choice, a related-reading count, and
               the transient label with its quieter context. User interaction compares
-              rest, hover or keyboard focus, an open disclosure, and a selected page
-              reading. Hover and <kbd>Tab</kbd> onto the live samples to exercise their
-              real feedback. The projection sample stands at this exhibit's margin; open
-              Page Map to see that same contributed control as a full labeled row.
-              Reload to see the one-time pulse as “Working” arrives. A control dims only
-              while its user action is waiting for the log to confirm it. Open a thread
-              and shorten the window: its messages scroll between the header and reply
+              rest, hover or focus, an open disclosure, and a selected page reading.
+              Click and <kbd>Tab</kbd> onto the live samples to exercise their real
+              feedback. The projection sample stands at this exhibit's margin; open Page
+              Map to see that same contributed control as a full labeled row. Reload to
+              see the one-time pulse as “Working” arrives. A control dims only while its
+              user action is waiting for the log to confirm it. Open a thread and
+              shorten the window: its messages scroll between the header and reply
               field, and the scrollbar spans those messages alone. Scroll the page to
               give a short conversation more room; the card expands once all its
               messages fit. The reply field keeps the same inset at both sides and below
@@ -8738,8 +8619,8 @@ gallery/
                 reactions, user actions, and published versions. The board move near the
                 end was taken back, so its row stays struck through and marked “undone”.
                 Press a thread row to open its thread, or a widget row to travel to the
-                widget. New updates wait behind the fixed control while you read; press
-                it to reveal them.
+                widget. New rows wait behind the fixed control while you read; press it
+                to reveal them.
               </p>
               <lf-activity id="bg-activity"></lf-activity>
             </section>
@@ -9277,7 +9158,7 @@ switch --readers checkout-api,orders-api</code></pre>
                   via="uv run bench-gallery"
                   >184 ms</lf-num
                 >, its run receipt, and the command that produced it. Because the source
-                has a newer update, <code>page check</code> reports that the measurement
+                has a newer value, <code>page check</code> reports that the measurement
                 is behind its source.
               </p>
             </section>
@@ -9535,8 +9416,8 @@ switch --readers checkout-api,orders-api</code></pre>
         <p>
           This ordinary website has two buttons named Review. Playwright recorded each
           click; Leaf's comments identify the captured action, image or saved element.
-          Play the captured sequence, or drag the blue handle to scrub and pause on a
-          detail.
+          Each click is a bar spanning its recorded call, so the review shows what the
+          page looked like before, during and after it.
         </p>
       </header>
       <section id="trace-review">
@@ -9564,9 +9445,14 @@ switch --readers checkout-api,orders-api</code></pre>
             individual page filters; a single-page recording needs no selector.
           </li>
           <li>
-            Select Documentation reviewed or API reviewed on the timeline. Hover or
-            focus each number to read its name and time; close moments stay separate.
-            Zoom in to spread their times and Whole recording to restore the overview.
+            Select Documentation reviewed or API reviewed on the timeline. Hover a flag
+            to read its moments' names and times; moments too close to label apart share
+            one flag. Zoom in, or pinch, to separate them; scroll sideways to pan, and
+            Whole recording restores the overview.
+          </li>
+          <li>
+            Drag along the ruler, or drag the playhead, to scrub. Between captures the
+            readout names the capture on screen and when it was taken.
           </li>
           <li>
             Start playback and scroll down over the captured image until the controls
@@ -9581,8 +9467,9 @@ switch --readers checkout-api,orders-api</code></pre>
             tree shows its own capture time.
           </li>
           <li>
-            Enable Show intermediate frames to include the browser’s filmstrip on that
-            same timeline. Left and Right step through the displayed stops.
+            Intermediate filmstrip images share the action timeline. Left and Right step
+            through its captured stops; Home keeps the first available image visible
+            with its capture time.
           </li>
           <li>
             Comment on one saved Review button, move to another action, and follow the

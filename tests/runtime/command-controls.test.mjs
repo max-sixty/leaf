@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   commandScope,
+  commandsOn,
+  commandsWithin,
+  projectCommandScope,
   keys,
   paintKeys,
   reflectFirstScopes,
@@ -429,7 +432,7 @@ test("source constraints and derived disabled output share one availability read
   const projection = document.createElement("button");
   owner.append(projection);
   trackContributionControl(
-    [...contributionEntries()].find((offered) => offered.target === owner),
+    [...contributionEntries()].find((offered) => offered.target() === owner),
     "map",
     "apply",
     projection,
@@ -718,8 +721,9 @@ test("a disappearing projected command refuses instead of becoming a generic act
   owner.remove();
 });
 
-// Filling a child shortcut face can resize its native click target before activation.
-test("a lent hint rejects button children and keeps its external seat after withdrawal", async () => {
+// Filling an in-flow face would resize the click target holding it before activation, so
+// every lent face, a button's child included, keeps an out-of-flow seat.
+test("a lent hint inside a button keeps its out-of-flow seat after withdrawal", async () => {
   const { createCommandHints } =
     await import("../../skills/leaf/assets/runtime/keyboard/command-hints.js");
   const { registerCoveringAuxiliarySurface } =
@@ -745,24 +749,93 @@ test("a lent hint rejects button children and keeps its external seat after with
   control.focus();
   const hints = createCommandHints({ presentedControl: () => null });
   try {
-    assert.throws(() => hints.paint(), {
-      name: "TypeError",
-      message: "leaf: probe.hint-seat binding badge must be outside native buttons",
-    });
-    const shadowHost = document.createElement("span");
-    control.append(shadowHost);
-    shadowHost.attachShadow({ mode: "open" }).append(badge);
-    assert.throws(() => hints.paint(), {
-      name: "TypeError",
-      message: "leaf: probe.hint-seat binding badge must be outside native buttons",
-    });
-    control.before(badge);
     hints.paint();
     assert.equal(badge.classList.contains("lf-binding-seat"), true);
     hints.destroy();
     assert.equal(badge.classList.contains("lf-binding-seat"), true);
-    assert.equal(control.contains(badge), false);
+    assert.equal(control.contains(badge), true);
   } finally {
     owner.remove();
   }
+});
+
+test("template scopes follow current rows and retire without removing projected commands", async () => {
+  const { html, nothing, render } = await import("/vendor/browser-runtime.js");
+  const root = document.createElement("section");
+  document.body.append(root);
+  const invoked = [];
+  const rows = (id, key, available = true) => [
+    {
+      id,
+      title: id,
+      keys: [key],
+      when: () => available,
+      run: () => invoked.push(id),
+    },
+  ];
+  const paint = (title, declaration, options, active = true) =>
+    render(
+      html`<span ${active ? commandsOn(title, declaration, options) : nothing}></span>`,
+      root,
+    );
+  const part = paint("First scope", rows("probe.first", "x"));
+  const element = root.querySelector("span");
+  reflectFirstScopes();
+  assert.equal(element.getAttribute("aria-keyshortcuts"), "x");
+  commandsWithin(root)[0].row.run();
+
+  paint("Second scope", rows("probe.second", "y"), { when: () => false });
+  reflectFirstScopes();
+  assert.equal(commandsWithin(root).length, 0);
+  assert.equal(element.getAttribute("aria-keyshortcuts"), null);
+  paint("Second scope", rows("probe.second", "y"));
+  reflectFirstScopes();
+  const [current] = commandsWithin(root);
+  assert.equal(current.scope.title, "Second scope");
+  assert.equal(current.row.id, "probe.second");
+  current.row.run();
+  assert.deepEqual(invoked, ["probe.first", "probe.second"]);
+  assert.equal(root.querySelector("span"), element);
+  assert.equal(element.getAttribute("aria-keyshortcuts"), "y");
+  paint("Second scope", rows("probe.second", "y", false));
+  reflectFirstScopes();
+  assert.equal(commandsWithin(root).length, 0);
+  assert.equal(element.getAttribute("aria-keyshortcuts"), null);
+  paint("Second scope", rows("probe.second", "y"));
+  reflectFirstScopes();
+  const writes = new MutationObserver(() => {});
+  writes.observe(element, { attributes: true });
+  paint("Second scope", rows("probe.second", "y"));
+  reflectFirstScopes();
+  assert.deepEqual(writes.takeRecords(), [], "an unchanged scope writes no attributes");
+  writes.disconnect();
+
+  const projected = commandScope("Projected", rows("probe.projected", "z"));
+  projectCommandScope(element, "test", projected);
+  paint("Unused", [], undefined, false);
+  assert.deepEqual(
+    commandsWithin(root).map(({ row }) => row.id),
+    ["probe.projected"],
+  );
+  assert.equal(element.getAttribute("aria-keyshortcuts"), "z");
+
+  paint(commandScope("Returned", rows("probe.returned", "x")));
+  part.setConnected(false);
+  assert.deepEqual(
+    commandsWithin(root).map(({ row }) => row.id),
+    ["probe.projected"],
+  );
+  paint("While detached", rows("probe.detached", "y"));
+  assert.deepEqual(
+    commandsWithin(root).map(({ row }) => row.id),
+    ["probe.projected"],
+  );
+  part.setConnected(true);
+  assert.deepEqual(
+    commandsWithin(root).map(({ row }) => row.id),
+    ["probe.detached", "probe.projected"],
+  );
+  render(nothing, root);
+  assert.equal(commandsWithin(root).length, 0);
+  root.remove();
 });

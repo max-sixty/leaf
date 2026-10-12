@@ -1689,13 +1689,16 @@ def test_an_ask_framing_a_figure_lays_its_options_across(browser, serve):
 def test_options_laid_across_take_a_widened_asks_width(browser, serve):
     """The column bounds a line of text, and no card's line is wider than its column, so
     an Ask granted the wide measure for its figure lays its cards under all of it rather
-    than at the measure beside an empty strip."""
+    than at the measure beside an empty strip. Room for more columns than it has
+    options holds no empty column beside them: the three cards share the whole row."""
     page = open_page(browser, serve(ACROSS_WIDE_ASK_PAGE))
     resized(page, 1726, 900)
     at = page.evaluate(ACROSS_GEOMETRY, "wide")
     assert at["ask"] > 720, at
     assert abs(at["list"] - at["ask"]) <= 1, at
     assert len(set(at["tops"])) == 1, at
+    # The group's frame takes 2px of its width.
+    assert abs(sum(at["widths"]) - (at["list"] - 2)) <= 2, at
 
 
 def clear_of_the_bottom_chrome(page, selector):

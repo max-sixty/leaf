@@ -56,24 +56,19 @@
    A surface's first placement then lands in the frame that asks for it rather than
    after a fetch. */
 
-import { afterPresentation } from "/runtime/presentation.js";
-import { keeps, layoutPx as px, atLayoutPrecision } from "/runtime/keeps.js";
-import {
-  anchorElement,
-  anchorFor,
-  anchorHolder,
-  anchorName,
-} from "/runtime/css-anchors.js";
-import { holdFocus } from "/runtime/focus.js";
-import { shownBand } from "/runtime/geometry.js";
+import { afterPresentation } from "../presentation.js";
+import { keeps, layoutPx as px, atLayoutPrecision } from "../keeps.js";
+import { anchorElement, anchorFor, anchorHolder, anchorName } from "../css-anchors.js";
+import { holdFocus } from "../focus.js";
+import { shownBand } from "../geometry.js";
 import {
   followScroll,
   scrollFollows,
   scrollMotions,
   scrollOrigins,
-} from "/runtime/scroll-motion.js";
-import { containingReadingRegionFor } from "/runtime/reading-regions.js";
-import { upFrom, renderedParent } from "/runtime/shadow.js";
+} from "../scroll-motion.js";
+import { containingReadingRegionFor } from "../reading-regions.js";
+import { upFrom, renderedParent } from "../shadow.js";
 
 let floatingUiModule = null;
 export const floatingUi = () =>

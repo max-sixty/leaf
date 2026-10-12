@@ -19,25 +19,25 @@
    presenter writes those attributes and never the bar's visibility, and composition
    writes only whether the bar stands inline (`data-lf-presentation`), so neither leaves
    a visibility behind for the other to undo. */
-import { cancelRender, nextRender } from "/runtime/rendering.js";
-import { resolveAnchor } from "/runtime/anchor-resolution.js";
-import { sameAnchor } from "/runtime/anchor-coordinate.js";
-import { declareOffFlowSurface } from "/runtime/off-flow.js";
-import { rightCover, shownBox } from "/runtime/geometry.js";
+import { cancelRender, nextRender } from "../../rendering.js";
+import { resolveAnchor } from "../../anchor-resolution.js";
+import { sameAnchor } from "../../anchor-coordinate.js";
+import { declareOffFlowSurface } from "../../off-flow.js";
+import { rightCover, shownBox } from "../../geometry.js";
 import {
   passageGeometry,
   rangeGeometry,
   targetElement,
   targetParts,
   targetRange,
-} from "/runtime/resolved-target.js";
-import { blockAt, pageRange, quoteFrom, segmentsIn } from "/runtime/passages.js";
-import { pageSelection, selectionAnchor } from "/runtime/composing/capture.js";
-import { closeLayer, holdFocus, focusDestination } from "/runtime/focus.js";
-import { coarsePointer } from "/runtime/pointer.js";
-import { LAYOUT } from "/runtime/widget-elements.js";
-import { under } from "/runtime/shadow.js";
-import { union } from "/runtime/rect.js";
+} from "../../resolved-target.js";
+import { blockAt, pageRange, quoteFrom, segmentsIn } from "../../passages.js";
+import { pageSelection, selectionAnchor } from "../../composing/capture.js";
+import { closeLayer, holdFocus, focusDestination } from "../../focus.js";
+import { coarsePointer } from "../../pointer.js";
+import { LAYOUT } from "../../widget-elements.js";
+import { under } from "../../shadow.js";
+import { union } from "../../rect.js";
 import { floatingPlacement, floatingUi } from "../floating.js";
 import {
   commentAttachment,
@@ -45,8 +45,8 @@ import {
   commentBoundary,
   commentPlacement,
 } from "../comment-placement.js";
-import { pointBand } from "/runtime/pointed-place.js";
-import { keeps, layoutPx } from "/runtime/keeps.js";
+import { pointBand } from "../../pointed-place.js";
+import { keeps, layoutPx } from "../../keeps.js";
 
 export function createFloatingResponsePlacement({
   bar: fabBar,

@@ -293,8 +293,9 @@ export const clearDraft = (ctx) => {
 // that value durably before settling the exact source generation, so a later source
 // edit is never discarded. A failed destination write keeps its local branch and the
 // persisted source. Every live destination view reads the same transferred draft.
-// This explicit content move also moves Resume writing, with the source's caret.
-export function transferDraft(from, to, text) {
+// This explicit content move also moves Resume writing, with the source's caret, unless
+// the destination is no box the user can resume in (`resume: false`).
+export function transferDraft(from, to, text, { resume = true } = {}) {
   const source = activeDraftRecord(from);
   if (!source || from === to) return false;
   const editor =
@@ -305,11 +306,12 @@ export function transferDraft(from, to, text) {
       ? writingPlace.selection
       : readCaret(editor && editorInput(editor));
   const durable = saveDraft(to, text);
-  keepWritingPlace({
-    context: to,
-    selection: selection ?? [0, 0],
-    generation: randomId(),
-  });
+  if (resume)
+    keepWritingPlace({
+      context: to,
+      selection: selection ?? [0, 0],
+      generation: randomId(),
+    });
   if (durable && settleDraft(from, source.attempt))
     projectDraftRecord(from, draftCache.get(from).record);
   tellDraft(to, text);
@@ -427,6 +429,17 @@ export function sendMessage(ctx, owns, send) {
     answer(null);
     return null;
   }
+  // A first message opens a thread keyed by its attempt. Until the log takes it, the
+  // draft it was sent from owns what is written under it, and a reply a refusal handed
+  // back to that draft goes on to the thread this send opens (`keepRefusedWords`).
+  if (!ctx.startsWith("reply:")) {
+    openedFrom.set(current.attempt, ctx);
+    const held = activeDraftRecord(heldReply(ctx));
+    if (held?.text)
+      transferDraft(heldReply(ctx), `reply:${current.attempt}`, held.text, {
+        resume: false,
+      });
+  }
   // A sent first message now has a durable conversation identity: its attempt is
   // the thread key before and after admission. Continue there, with an empty reply.
   // Refusal returns to the same original editor unless a later edit chose another.
@@ -442,6 +455,7 @@ export function sendMessage(ctx, owns, send) {
   if (sentPlace) keepWritingPlace(sentPlace);
   void Promise.resolve(flight).then((sent) => {
     answer(sent);
+    if (sent) openedFrom.delete(current.attempt);
     if (
       !sent &&
       sentPlace &&
@@ -452,6 +466,13 @@ export function sendMessage(ctx, owns, send) {
   });
   return { attempt: current.attempt, id: `${PENDING}${current.attempt}` };
 }
+
+// The draft each first message still in flight was sent from, by its attempt, and the
+// context where that draft holds a reply written under the thread a refusal withdrew.
+// The draft, not the attempt, is what lasts: a refusal keeps the attempt only until the
+// user edits the words, and the thread comes back under whichever one is sent.
+const openedFrom = new Map();
+const heldReply = (ctx) => `reply-after:${ctx}`;
 
 // Existing draft subscriptions own current editor identity and lifetime. The store
 // supplies active words and an optional submission payload, or null and no payload
@@ -523,28 +544,44 @@ export function forgetWritingPlace(ctx) {
 }
 // What a refusal left the user, given every attempt it refused, read once each sender's
 // own answer has returned its words (`standGesture`) and any owner has reopened its box
-// for them. Words back in a box on screen need no sentence. Words back only in a box out
-// of view are the ones a refusal otherwise appears to lose, so they become the Resume
-// writing destination, a content change to that draft like any other, and the refusal's
-// notice carries the sentence naming that address (delivery.js). A reply to a message
-// the same refusal withdrew has no box anywhere: its draft keys by that thread
-// (`reply:<attempt>`), which comes back when the comment is sent again under the attempt
-// a refusal keeps, so it is no place to resume and the notice says where it waits.
+// for them.
+//
+// A thread this tab opened goes with its first message, and with it the box under it,
+// whose draft keys by that message's attempt (`reply:<attempt>`), whether its words were
+// sent behind the message or still unsent. Those words go to the draft the message was
+// sent from (`openedFrom`), which carries them to the thread its next send opens, edited
+// or not (`sendMessage`); Resume writing standing in the withdrawn box moves to that
+// draft, the one place the user acts to get them back.
+//
+// Words back in a box on screen need no sentence. Words back only in a box out of view
+// are the ones a refusal otherwise appears to lose, so they become the Resume writing
+// destination, a content change to that draft like any other, and the refusal's notice
+// carries the sentence naming that address (delivery.js).
 export function keepRefusedWords(attempts) {
-  const refused = new Set(attempts);
+  let held = 0;
+  for (const attempt of attempts) {
+    const from = openedFrom.get(attempt);
+    openedFrom.delete(attempt);
+    const under = `reply:${attempt}`;
+    const reply = activeDraftRecord(under)?.text;
+    if (from === undefined || !reply) continue;
+    const resumed = writingPlace?.context === under;
+    const before = activeDraftRecord(heldReply(from))?.text;
+    transferDraft(under, heldReply(from), before ? `${before}\n\n${reply}` : reply, {
+      resume: false,
+    });
+    if (resumed)
+      keepWritingPlace({ context: from, selection: [0, 0], generation: randomId() });
+    held += 1;
+  }
   const returned = attempts.flatMap((attempt) => {
     const ctx = [...draftContexts()].find(
       (context) => activeDraftRecord(context)?.attempt === attempt,
     );
     return ctx === undefined ? [] : [ctx];
   });
-  const waiting = returned.filter(
-    (ctx) => ctx.startsWith("reply:") && refused.has(ctx.slice("reply:".length)),
-  );
-  for (const ctx of waiting) forgetWritingPlace(ctx);
   const hidden = returned.filter(
     (ctx) =>
-      !waiting.includes(ctx) &&
       ![...draftEditors].some((view) => {
         const input = view.ctx === ctx && editorInput(view);
         return Boolean(input?.isConnected && input.checkVisibility());
@@ -557,7 +594,7 @@ export function keepRefusedWords(attempts) {
       keepWritingPlace({ context: ctx, selection: [0, 0], generation: randomId() });
   const sentences = [
     hidden.length && "Draft kept — g i resumes writing",
-    waiting.length && "Reply kept — it returns when its comment sends",
+    held && "Reply kept — it returns when its comment sends",
   ].filter(Boolean);
   return sentences.length ? sentences.join(". ") : null;
 }

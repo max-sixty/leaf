@@ -1865,17 +1865,23 @@ def test_a_reply_behind_a_refused_parent_is_withdrawn_rather_than_sent(
     assert not [
         route for route in held if "pending:" in (route.request.post_data or "")
     ], "a gesture reached the wire naming a thread the log never took"
-    # The reply's draft keys by its thread's stable name, which is the parent's attempt.
-    assert stored_draft_text(page, f"reply:{attempt}") == words
+    # The thread went with its parent, so the reply's words wait with the parent's draft.
+    assert stored_draft_text(page, f"reply:{attempt}") is None
+    assert stored_draft_text(page, "reply-after:general") == words
     consume_browser_errors(page, "400")
 
 
-def test_a_reply_behind_a_refused_parent_says_where_its_words_wait(held_events, serve):
-    """A refusal can hand back more words than the gesture delivery was sending: a reply
-    written into the parent's pending thread goes too. With the parent's words back in
-    a box on screen, the reply's are the ones out of view, under a thread the refusal
-    withdrew, so the notice says where they wait. Sending the comment again under its
-    attempt brings the thread back, and the reply's box with it."""
+@pytest.mark.parametrize("reply_sent", [True, False], ids=["sent", "unsent"])
+@pytest.mark.parametrize("edited", [False, True], ids=["as-sent", "edited"])
+def test_a_reply_under_a_refused_parent_comes_back_with_it(
+    held_events, serve, reply_sent, edited
+):
+    """A refusal takes down the thread a comment opened, and the box under it: a reply
+    written there, sent behind the comment or not, keys by the comment's attempt, which
+    the refusal withdraws and an edit of the comment replaces. The words go to the
+    comment's own draft instead, so the notice says where they wait, Resume writing
+    leads to that draft, and the thread its next send opens, edited or not, has the
+    reply back in its box."""
     browser, held = held_events
     page = open_page(browser, serve(LONG_PAGE))
     page.locator(".lf-threads-toggle").click()
@@ -1889,7 +1895,8 @@ def test_a_reply_behind_a_refused_parent_says_where_its_words_wait(held_events, 
     expect(card).to_have_count(1)
     reply = "A reply written while the parent was in flight."
     write(card.locator("leaf-text").first, reply)
-    card.get_by_role("button", name="Send", exact=True).click()
+    if reply_sent:
+        card.get_by_role("button", name="Send", exact=True).click()
     # The user goes back to the page comment box, so the parent's words return in view.
     box = page_comment(page)
 
@@ -1909,21 +1916,45 @@ def test_a_reply_behind_a_refused_parent_says_where_its_words_wait(held_events, 
         "Couldn't send — refused before append. "
         "Reply kept — it returns when its comment sends"
     )
+    expect(card).to_have_count(0)
+
+    # Resume writing leads to the comment, the one place that brings the reply back.
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-page-comment-card")).to_be_hidden()
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(box).to_be_focused()
+    expect(box).to_have_js_property("value", parent)
+    text = parent
+    if edited:
+        page.keyboard.press("ControlOrMeta+End")
+        page.keyboard.type(" Edited.")
+        text = parent + " Edited."
 
     page.locator(".lf-general .lf-compose-submit").click()
     holding(page, held, 1, "the parent sent again")
-    assert held[0].request.post_data_json["attempt"] == attempt
+    assert (held[0].request.post_data_json["attempt"] == attempt) is not edited
     held.pop(0).continue_()
     page.unroute("**/api/event")
     round_trip(page)
     sent = next(
         event
         for event in events_model.read_events(serve.page_dir)
-        if event.get("text") == parent
+        if event.get("text") == text
     )
     thread = page.locator(f'.lf-thread[data-id="{sent["id"]}"]')
     expect(thread.locator("leaf-text").first).to_have_js_property("value", reply)
-    consume_browser_errors(page, "400")
+    # An unsent reply's box goes down with the thread; the notice says where its words
+    # went, which is what the guard's report is about.
+    consume_browser_errors(
+        page,
+        "400",
+        *(
+            []
+            if reply_sent
+            else [f'typed words left the screen without a key or press: "{reply}"']
+        ),
+    )
 
 
 def test_a_refused_comment_takes_its_message_back_and_returns_the_words(

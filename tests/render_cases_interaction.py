@@ -1447,6 +1447,7 @@ WORKSHOP_THREADS_PAGE = leaf_page(
 )
 LUNCH_THREAD = "72e031c5bf0d485ba9054628e09869d4"
 PHOTO_THREAD = "2be2443f0bb6cc49fc86b52f340e6073"
+PHOTO_QUESTION = "99c0fe07394842658a16eaeb73300ca8"
 PROJECTOR_THREAD = "bab3cdfcfb8c02aacbb27da731de947a"
 WORKSHOP_THREAD_EVENTS = tuple(
     {"author": "agent", "agent": "Codex", **event}
@@ -1477,8 +1478,19 @@ WORKSHOP_THREAD_EVENTS = tuple(
             "kind": "reply",
             "parent": PHOTO_THREAD,
             "responds": PHOTO_THREAD,
+            "id": PHOTO_QUESTION,
             "question": True,
             "text": "Does the room photo show enough, or should I reshoot it wider?",
+            "ts": "2026-09-02T00:12:55-07:00",
+        },
+        # Newer than the question and not one: the thread stays on the user for the
+        # question while its recency is this message's.
+        {
+            "kind": "reply",
+            "parent": PHOTO_THREAD,
+            "responds": PHOTO_QUESTION,
+            "text": "I also added the room number to the agenda. The image question "
+            "above still needs your answer.",
             "ts": "2026-09-02T00:12:56-07:00",
         },
         {

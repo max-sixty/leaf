@@ -29,7 +29,9 @@
    the user's words, its semantic membership ends, and a selected allocation holds off
    fallback disclosure. Dismissal or choosing another card releases it at once, outside
    the geometry rule (#2387's choice): the allocation has no closed form to shrink to
-   when another card opens. The model builder asks both questions while it builds the
+   when another card opens, and the list's place hold keeps the chosen card where it
+   stood, as it does for an open card closing above it (thread-list.js,
+   `holdThroughDisclosure`). The model builder asks both questions while it builds the
    reading (thread-list.js), so a kept allocation is a row of that reading, committed
    and restored with the cards beside it. Rejected: deciding withdrawals by a copy of
    the rule beside `keeping`, as paint the list spliced into each reading it drew
@@ -40,7 +42,7 @@ import { holdFocus, onStanding, focusDestination, focused } from "../focus.js";
 import { RetainedFace } from "../retained-face.js";
 import { ThreadView } from "./thread-card.js";
 import { threadHoldsDraft } from "./replies.js";
-import { forwardToThread } from "./focus.js";
+import { forwardToThread, threadFocusStop } from "./focus.js";
 import { passOn, retainUserIntent } from "../user-intent.js";
 import { layoutChanged } from "../widget-elements.js";
 import { isFolding } from "./folding.js";
@@ -68,6 +70,14 @@ const turnOnItsWay = (thread) =>
     (message) =>
       (message.id.startsWith(PENDING) && !message.token) || message.edited?.pending,
   );
+
+// The focus stop of drawn row `row`: a card's title, a withdrawn notice's Dismiss.
+const rowStop = (row) =>
+  row.kind === "thread"
+    ? threadFocusStop(row.node)
+    : row.kind === "withdrawn"
+      ? row.node?.querySelector("button")
+      : null;
 
 class ThreadListView extends RetainedFace {
   #commands = null;
@@ -248,6 +258,17 @@ class ThreadListView extends RetainedFace {
 
   navigationThreads() {
     return this.#visibleRows().map((row) => row.node);
+  }
+
+  // Each shown row's focus stop in the list's order, which the arrows walk (panel.js):
+  // a card's title, or a withdrawn notice's Dismiss.
+  focusStops() {
+    return this.#rows.map(rowStop).filter((stop) => stop?.checkVisibility());
+  }
+
+  // Whether `node` is a row's focus stop, read without layout for the shortcut bar.
+  isFocusStop(node) {
+    return Boolean(node) && this.#rows.some((row) => rowStop(row) === node);
   }
 
   // The shown cards in the page's order, whichever order the list stands in.

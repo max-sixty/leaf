@@ -154,9 +154,17 @@
   color: var(--ink);
   background: var(--chip);
 }
-:scope:is(lf-shot) .lf-shotdelta {
+:scope:is(lf-shot) .lf-shotmid {
   grid-area: 1 / 3;
-  justify-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  min-width: 0;
+  gap: 2px;
+}
+:scope:is(lf-shot) .lf-shotdelta {
+  min-width: 0;
   padding-inline: 4px;
   text-align: center;
   line-height: 1.2;
@@ -172,6 +180,11 @@
   --lf-shot-side-tint: var(--add-tint);
   --lf-shot-side-ink: var(--ok-ink);
 }
+:scope:is(lf-shot) .lf-shotcap[data-lf-state=pixels] {
+  flex: none;
+  --lf-shot-side-tint: var(--warn-tint);
+  --lf-shot-side-ink: var(--warn-ink);
+}
 :scope:is(lf-shot) .lf-shotcap:hover {
   background: var(--chip);
 }
@@ -184,7 +197,7 @@
   color: var(--muted);
   box-shadow: none;
 }
-:scope:is(lf-shot):not(:has(.lf-shotcap[aria-pressed=true])) .lf-shotcap {
+:scope:is(lf-shot):not(:has(.lf-shotcap[aria-pressed=true])) .lf-shotcap:is([data-lf-state=before], [data-lf-state=after]) {
   color: var(--lf-shot-side-ink);
 }
 :scope:is(lf-shot) .lf-shotdiff {
@@ -217,6 +230,38 @@
   font-weight: 650;
 }
 :scope:is(lf-shot):not([outlines]) :is(.lf-shotdiff, .lf-shotdelta[data-lf-shot-delta=areas]) {
+  display: none;
+}
+:scope:is(lf-shot) > .lf-shotpixels {
+  display: none;
+  position: relative;
+  grid-area: 2 / 1;
+  z-index: 3;
+  overflow: clip;
+  cursor: pointer;
+  border: 1px solid var(--rule);
+  border-radius: 0 0 var(--r) var(--r);
+  background: var(--card);
+}
+:scope:is(lf-shot)[data-lf-shot-view=pixels]:not([data-lf-shot-mode]:not([data-lf-shot-mode=flip]), [data-lf-shot-crop=true]) > .lf-shotpixels {
+  display: block;
+}
+:scope:is(lf-shot) > .lf-shotpixels > img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: auto;
+  filter: grayscale(1);
+  opacity: .28;
+}
+:scope:is(lf-shot) > .lf-shotpixels > span {
+  position: absolute;
+  inset: 0;
+  background: var(--warn);
+  mask: var(--lf-shot-pixels) 0 0 / 100% 100% no-repeat;
+}
+:scope:is(lf-shot)[data-lf-shot-crop=true] .lf-shotcap[data-lf-state=pixels] {
   display: none;
 }
 :scope:is(lf-shot) > input.lf-shotflip {
@@ -279,8 +324,10 @@
   :scope:is(lf-shot) .lf-shotcap[data-lf-state=after]::after {
     content: " · bottom";
   }
-  :scope:is(lf-shot) > input.lf-shotflip {
-    display: none;
+  :scope:is(lf-shot) > input.lf-shotflip,
+  :scope:is(lf-shot) > .lf-shotpixels,
+  :scope:is(lf-shot) .lf-shotcap[data-lf-state=pixels] {
+    display: none !important;
   }
   :scope:is(lf-shot) > .lf-shotrail {
     height: auto;

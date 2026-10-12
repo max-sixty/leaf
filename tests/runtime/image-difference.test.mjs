@@ -4,7 +4,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { describeDifference, differingRegions } from "/runtime/image-difference.js";
+import {
+  changedPixels,
+  describeDifference,
+  differingRegions,
+} from "/runtime/image-difference.js";
 
 // A blank opaque image, and a copy with the given rectangles repainted.
 const blank = (width, height) => ({
@@ -79,6 +83,19 @@ test("a pixel moved 48 levels is outlined, and none moved less is", async () => 
     { x: 119, y: 59, width: 22, height: 12, kind: "changed" },
   ]);
   assert.deepEqual(outlines(strong, "after"), outlines(strong, "before"));
+});
+
+test("the changed-pixel mask is opaque where a pixel moved far, faint where slight, clear elsewhere", () => {
+  // The after image is two rows taller, as a page that grew is.
+  const after = painted(blank(20, 12), [2, 2, 1, 1, 0, 0], [5, 5, 1, 1, 0, 230]);
+  const { width, height, data } = changedPixels(blank(20, 10), after);
+  const alpha = (x, y) => data[(y * width + x) * 4 + 3];
+  assert.deepEqual([width, height], [20, 12]);
+  assert.equal(alpha(2, 2), 255);
+  assert.equal(alpha(5, 5), 96);
+  assert.equal(alpha(9, 9), 0);
+  // A row only the taller image has changed throughout.
+  assert.equal(alpha(9, 11), 255);
 });
 
 test("content that changed in place is outlined in both frames, whole", async () => {

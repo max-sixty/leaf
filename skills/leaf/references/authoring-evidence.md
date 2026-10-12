@@ -196,3 +196,10 @@ outline stands where the prose puts the change, capture a case that shows the
 change, or say that nothing changed. Where it reads "only slight changes", the
 reader will hardly see the change, so name it in the prose, or say that nothing but
 redrawing changed.
+Add `pixels` where the reader needs to see exactly which pixels changed, as when
+the change is a shift of a few pixels or a recolour that flipping barely shows, or
+when the claim is that nothing else changed. The rail then offers a third view
+beside the reading, the after image greyed with every changed pixel painted over
+it, so build no difference image of your own. Leave it off where the change
+reflows much of the frame, since nearly every pixel there changes and the view
+says less than the outlines.

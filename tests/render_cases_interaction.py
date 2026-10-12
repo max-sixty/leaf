@@ -4,6 +4,7 @@ import json
 import re
 from datetime import datetime, timedelta
 
+import tinycss2
 from browser_sources import browser_source
 from interact_support import add_test_widget, append_carried_log_record, append_command
 from leaf.schema import ELEMENT_ID
@@ -1537,7 +1538,8 @@ def serve_interaction_gallery(serve):
     holds the paragraph the Send-a-comment and Threads replays import their thread
     from, with that thread seeded on it. The stage's size and scale, which every
     replay's geometry rests on, are the gallery's own rules, so they come along: each
-    top-level rule of its style sheet that names an interaction class.
+    top-level rule or block of its style sheet, as tinycss2 parses it, that names an
+    interaction class. An `@import` has no block, so the gallery's theme stays behind.
     """
     source = FEATURE_GALLERY.read_text(encoding="utf-8")
     section = re.search(
@@ -1545,8 +1547,14 @@ def serve_interaction_gallery(serve):
     )
     assert section is not None, "the feature gallery lost its interaction section"
     sheet = re.search(r"<style>(.*?)</style>", source, re.DOTALL)[1]
-    rules = "".join(
-        rule for rule in re.split(r"(?<=\n      \}\n)", sheet) if "interaction" in rule
+    rules = "\n".join(
+        tinycss2.serialize([rule])
+        for rule in tinycss2.parse_stylesheet(
+            sheet, skip_comments=True, skip_whitespace=True
+        )
+        if rule.type in {"qualified-rule", "at-rule"}
+        and rule.content is not None
+        and "interaction" in tinycss2.serialize([rule])
     )
     assert ".interaction-frame[data-interaction-ready]" in rules, rules
     html = leaf_page(

@@ -41,7 +41,7 @@ import { keys } from "./keyboard/scopes.js";
 import { bannerRows, watchBannerRows } from "./banner-toolbar.js";
 import { readThreads } from "./thread/state.js";
 import { watchThreads } from "./thread/watch.js";
-import { threadAttention } from "./thread/workflow.js";
+import { threadAttention, workflowLabel } from "./thread/workflow.js";
 import { threadSummary } from "./thread/model.js";
 import { messageReading } from "./thread/messages.js";
 import {
@@ -53,13 +53,15 @@ import {
   tellDraft,
 } from "./drafts.js";
 import { textField } from "./composing/text-field.js";
-import { readQueues, watchQueues } from "./queue-api.js";
+import { queueItemKey, readQueues, watchQueues } from "./queue-api.js";
+import { queueTitle } from "./queue-title.js";
+import { questionWords } from "./questions/answer.js";
 import { versionPicker } from "./version-picker.js";
 import { reducedMotion } from "./motion.js";
 import { pagePresented } from "./page-paint.js";
 import { focusDestination, focused, onStanding, releaseFocus } from "./focus.js";
 import { sizeObserver } from "./rendering.js";
-import { watchSemantic } from "./semantic-state.js";
+import { agentName, readApplication, watchSemantic } from "./semantic-state.js";
 
 const prefs = () => document.documentElement.lfChrome;
 // The Codex panel's tween: one strong ease-out for every change of size and fade.
@@ -83,7 +85,15 @@ const FILTERS = Object.freeze(["all", "unread", "drafts", "resolved"]);
 const capital = (word) => word[0].toUpperCase() + word.slice(1);
 const coarse = () => matchMedia("(pointer: coarse)").matches;
 
-export function createFloatingPanel({ wireInput, threadActions, read, openThread }) {
+export function createFloatingPanel({
+  wireInput,
+  threadActions,
+  read,
+  openThread,
+  questions: questionView,
+  queueActions,
+  withdraw,
+}) {
   const host = el("section", "lf-ui lf-floating-panel");
   host.setAttribute("aria-label", "Leaf");
   const card = el("div", "lf-fp-card");
@@ -311,6 +321,10 @@ export function createFloatingPanel({ wireInput, threadActions, read, openThread
   });
   function transition(before) {
     const after = trail.at(-1);
+    if (after?.view !== "questions") {
+      seated = null;
+      seatHeights.clear();
+    }
     const changed =
       (before ? routeKey(before) : null) !== (after ? routeKey(after) : null);
     leaving = changed && before && after ? before : null;
@@ -618,18 +632,200 @@ export function createFloatingPanel({ wireInput, threadActions, read, openThread
       </button>`;
   }
 
-  function questionsView() {
-    const { questions } = readQueues();
-    return html`${
-      questions.length
-        ? questions.map((item) =>
-            menuRow(item.subject ?? item.kind, "", () => {
-              close();
-              item.open?.();
-            }),
-          )
-        : html`<p class="lf-fp-empty">Nothing waits on you.</p>`
+  // ---------- Questions: answered where they are read ----------
+  // The three lists are the publisher's (`readQueues`): what waits on the user, on the
+  // agent, and what is done. An item the user answers here stays where it stood, saying
+  // its answer and offering Undo, until the view closes, so answering one question never
+  // carries the next under the pointer.
+  let queueTab = "you";
+  let seated = null; // queue item keys standing in the open Questions view
+  // The height each seated card first stood at, which it keeps while seated, so an
+  // answer that shortens it moves nothing below.
+  const seatHeights = new Map();
+  const QUEUE_TABS = Object.freeze({ you: "On you", agent: "On the agent", done: "Done" });
+  const queueLists = () => {
+    const reading = readQueues();
+    return reading.phase === "ready"
+      ? { you: reading.questions, agent: reading.tasks, done: reading.done }
+      : { you: [], agent: [], done: [] };
+  };
+
+  // The undo list's entry for the gesture that answered an ask, where it can still be
+  // taken back (undo.js).
+  const answerGesture = (ask) => {
+    const id = ask?.answer?.event?.id ?? ask?.answer?.event;
+    if (!id) return null;
+    const entry = readApplication().effective.view?.undo.find(
+      ({ event }) => event.id === id || event.attempt === id,
+    );
+    return entry?.event ?? null;
+  };
+  const tabLabel = (tab, lists) =>
+    `${tab === "agent" ? `On ${agentName()}` : QUEUE_TABS[tab]}${
+      tab === "done" ? "" : ` ${lists[tab].length}`
     }`;
+
+  function questionCard(item, list) {
+    const ask = item.kind === "ask" ? item.ask : null;
+    const thread = item.thread ? threadByKey(item.thread) : null;
+    // A prose ask is a message in its thread: the thread names it, and the message's
+    // words, as they read, are its prompt.
+    const message =
+      ask?.source.kind === "reply" && thread
+        ? thread.msgs.find((candidate) => candidate.id === ask.message)
+        : null;
+    const title = message ? threadSummary(thread).topic : queueTitle(item);
+    const said = message
+      ? messageReading(message, { panel: false, reactions: [], workflows: [] }).body
+          .plainText
+      : ask?.prompt?.text;
+    const prompt = said && said.trim() !== title.trim() ? said : "";
+    const answered = ask && ask.status !== "open";
+    const choices = ask && !answered && ask.source.kind === "widget"
+      ? questionView.choicesOf(ask)
+      : null;
+    const gesture = answered ? answerGesture(ask) : null;
+    const discuss = thread
+      ? html`<button
+          type="button"
+          class="lf-fp-quiet"
+          @click=${() => open({ view: "thread", thread: thread.key })}
+        >
+          Discuss
+        </button>`
+      : nothing;
+    const arrive = html`<button
+      type="button"
+      class="lf-fp-quiet"
+      @click=${() => {
+        close();
+        void (ask ? questionView.open(ask.id) : queueActions.open(queueItemKey(item)));
+      }}
+    >
+      Show
+    </button>`;
+    let answers;
+    if (list !== "you" && !answered)
+      answers = html`<span class="lf-fp-said">${
+        item.running?.text ?? workflowLabel(item.workflow) ?? ""
+      }</span>${thread ? discuss : nothing}`;
+    else if (answered)
+      answers = html`<span class="lf-fp-said"
+          >${ask.status === "withdrawn" ? "Withdrawn" : `Answered ${questionWords(ask) ?? ""}`.trim()}</span
+        >${
+          gesture
+            ? html`<button type="button" class="lf-fp-quiet" @click=${() => withdraw(gesture)}>
+                Undo
+              </button>`
+            : nothing
+        }`;
+    else if (ask?.source.kind === "approval") {
+      const approval = approvalReading();
+      answers = html`<button
+          type="button"
+          class="lf-fp-answer"
+          ?disabled=${Boolean(approval?.reason)}
+          title=${approval?.reason ?? nothing}
+          @click=${() => approve()}
+        >
+          ${approval?.text ?? "Approve version"}
+        </button>`;
+    } else if (choices?.length)
+      answers = html`${choices.map(
+          (choice) =>
+            html`<button
+              type="button"
+              class="lf-fp-answer"
+              aria-pressed=${String(choice.chosen)}
+              @click=${() => {
+                choice.press();
+                paint();
+              }}
+            >
+              ${capital(choice.label)}
+            </button>`,
+        )}${discuss}`;
+    else if (item.offers?.done)
+      answers = html`<button
+          type="button"
+          class="lf-fp-answer"
+          @click=${() => queueActions.done(queueItemKey(item))}
+        >
+          Done</button
+        >${discuss}${arrive}`;
+    else if (ask?.source.kind === "reply" && thread)
+      answers = html`<button
+        type="button"
+        class="lf-fp-answer"
+        @click=${() => open({ view: "thread", thread: thread.key })}
+      >
+        Reply
+      </button>`;
+    else answers = html`${arrive}${discuss}`;
+    const key = queueItemKey(item);
+    return html`<section
+      class="lf-fp-question"
+      data-list=${list}
+      data-key=${key}
+      style=${seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""}
+    >
+      ${
+        prompt
+          ? html`<h3 class="lf-fp-qtitle">${title}</h3>
+              <p class="lf-fp-prompt">${prompt}</p>`
+          : html`<h3 class="lf-fp-qtitle lf-fp-whole">${title}</h3>`
+      }
+      <div class="lf-fp-answers">${answers}</div>
+    </section>`;
+  }
+
+  function questionsView() {
+    const lists = queueLists();
+    const all = [...lists.you, ...lists.agent, ...lists.done];
+    const byKey = new Map(all.map((item) => [queueItemKey(item), item]));
+    const current = lists[queueTab].map(queueItemKey);
+    // The seats this opening of the view holds: those it showed, still in the reading
+    // wherever they now stand, then any that joined this list since.
+    seated = [
+      ...(seated ?? []).filter((key) => byKey.has(key)),
+      ...current.filter((key) => !(seated ?? []).includes(key)),
+    ];
+    const items = seated.map((key) => byKey.get(key));
+    return html`<div class="lf-fp-tools">
+        <div class="lf-fp-filters" role="group" aria-label="Show">
+          ${Object.keys(QUEUE_TABS).map(
+            (tab) =>
+              html`<button
+                type="button"
+                aria-pressed=${String(queueTab === tab)}
+                @click=${() => {
+                  queueTab = tab;
+                  seated = null;
+                  seatHeights.clear();
+                  paint();
+                }}
+              >
+                ${tabLabel(tab, lists)}
+              </button>`,
+          )}
+        </div>
+      </div>
+      ${
+        items.length
+          ? repeat(items, queueItemKey, (item) =>
+              questionCard(
+                item,
+                lists.you.includes(item) ? "you" : lists.agent.includes(item) ? "agent" : "done",
+              ),
+            )
+          : html`<p class="lf-fp-empty">${
+              {
+                you: "Nothing waits on you.",
+                agent: `${agentName()} owes nothing here.`,
+                done: "Nothing is done yet.",
+              }[queueTab]
+            }</p>`
+      }`;
   }
 
   function viewTemplate(route) {
@@ -680,6 +876,15 @@ export function createFloatingPanel({ wireInput, threadActions, read, openThread
       paint();
     }
     landReader();
+    seatQuestions();
+  }
+  function seatQuestions() {
+    if (trail.at(-1)?.view !== "questions") return;
+    for (const card of stage.querySelectorAll(
+      '.lf-fp-view:not([data-leaving]) .lf-fp-question[data-key]',
+    ))
+      if (!seatHeights.has(card.dataset.key))
+        seatHeights.set(card.dataset.key, card.getBoundingClientRect().height);
   }
   // A thread the reader opens, or answers, or asks to see the news of, stands at its end.
   function landReader() {

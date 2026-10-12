@@ -601,6 +601,12 @@ const floatingPanel =
         threadActions: app.threadActions,
         read: app.read,
         openThread: app.threadDestinations.openPageThread,
+        questions: {
+          choicesOf: questions.choicesOf,
+          open: (id) => app.openQuestion(id),
+        },
+        queueActions: app.queueActions,
+        withdraw: app.withdraw,
       })
     : null;
 // The page's general comment box: the card under the banner's control, or the floating

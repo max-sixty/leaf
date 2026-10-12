@@ -132,8 +132,28 @@ html[data-lf-floating-chrome] .lf-chrome {
      tweens once, to the view arriving. */
   .lf-fp-view[data-leaving] { pointer-events: none; position: absolute;
     inset-inline: 0; bottom: 0; }
-  .lf-fp-view[data-view="threads"] { height: var(--lf-fp-view-height); }
-  .lf-fp-view[data-view="threads"] { padding-top: 0; }
+  .lf-fp-view:is([data-view="threads"], [data-view="questions"]) {
+    height: var(--lf-fp-view-height); padding-top: 0; }
+  /* A question reads as its title, its prompt, and the answers it takes, answered
+     here; what waits on the agent is quieter, a line of where it has got. */
+  .lf-fp-question { padding: 14px 10px; border-bottom: 1px solid var(--rule); }
+  .lf-fp-question:last-child { border-bottom: 0; }
+  .lf-fp-qtitle { margin: 0 0 4px; font: inherit; font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* A question that is its own title reads whole, up to a few lines. */
+  .lf-fp-qtitle.lf-fp-whole { white-space: normal; line-height: 1.55; display: -webkit-box;
+    -webkit-box-orient: vertical; -webkit-line-clamp: 4; }
+  .lf-fp-prompt { margin: 0 0 10px; line-height: 1.55; display: -webkit-box;
+    -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; }
+  .lf-fp-answers { display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+    margin-top: 8px; }
+  .lf-fp-answer { border: 1px solid var(--rule); min-height: 32px; padding-inline: 12px;
+    border-radius: 8px; }
+  .lf-fp-answer:first-child { background: var(--lf-fp-hover); }
+  .lf-fp-answer[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+  .lf-fp-quiet { color: var(--muted); }
+  .lf-fp-said { color: var(--muted); font-size: var(--t-6); margin-right: 4px; }
+  .lf-fp-question[data-list="agent"] .lf-fp-qtitle { font-weight: 500; }
   .lf-fp-view hr { border: 0; border-top: 1px solid var(--rule); margin: 6px 10px; }
   .lf-fp-item, .lf-fp-thread {
     display: flex; align-items: center; justify-content: space-between; gap: 16px;

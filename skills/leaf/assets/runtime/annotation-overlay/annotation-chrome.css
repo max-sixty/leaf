@@ -270,8 +270,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
       calc(var(--lf-comment-frame-bottom) - var(--lf-grip-out));
     border-radius: calc(6px + var(--lf-grip-out)); }
   @media (pointer: coarse) { .lf-fab-bar > .lf-surface-grip { --lf-grip-out: 12px; } }
-  .lf-fab-bar:is([data-lf-presentation="inline"], [data-lf-target-only]) > .lf-surface-grip {
-    display: none; }
+  /* A target-only box is not carried; one seated in a widget hides its grip in that
+     widget's tree (response.css). */
+  .lf-fab-bar[data-lf-target-only] > .lf-surface-grip { display: none; }
   .lf-margin-preview-nav { display: flex; flex: none; align-items: center;
     gap: 0; color: var(--muted-2); font-size: 10px; }
   .lf-margin-preview-nav[hidden] { display: none; }

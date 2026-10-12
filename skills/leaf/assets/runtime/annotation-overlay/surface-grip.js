@@ -10,8 +10,9 @@
    the owner is told (`dropped`), with the surface's moved box where it moved, which it
    hands to its placement as a frame to adopt (comment-placement.js, `adopt`), the same
    handoff a sent comment's box makes to its card, so from then on the surface stands
-   where the user put it relative to what it is about, and scrolling carries it there. The move lasts as long as that placement
-   holds its side: a resize, another thread, or closing the surface chooses afresh.
+   where the user put it relative to what it is about, and scrolling carries it there.
+   The move lasts as long as that placement holds its side: a resize, another thread, or
+   closing the surface chooses afresh.
 
    A press on the grip takes no focus, so the comment being written keeps its caret. The
    move is presentation, not a decision, so nothing reaches the log. */

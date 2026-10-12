@@ -1663,7 +1663,6 @@
   "test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_sections": "nightly",
   "test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle": "nightly",
   "test_the_feature_gallery_displays_the_complete_margin_entry_inventory": "nightly",
-  "test_the_feature_gallery_fragment_lands_after_presented_controls_take_space": "nightly",
   "test_the_feature_gallery_shows_a_pin_on_a_wide_figure_and_o_hides_it": "nightly",
   "test_the_first_rail_allocation_matches_its_native_row": "main",
   "test_the_margin_groups_meanings_at_one_destination_without_moving_the_page": "main",

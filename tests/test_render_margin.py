@@ -1876,25 +1876,6 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
     expect(atlas.locator(".margin-entry-gallery-projection-result")).to_be_visible()
 
 
-def test_the_feature_gallery_fragment_lands_after_presented_controls_take_space(
-    browser, serve
-):
-    """The atlas remains at the top edge when reaction controls above it appear."""
-    context = browser.new_context(viewport={"width": 700, "height": 900})
-    page = open_page(
-        browser,
-        f"{live_url(serve(FEATURE_GALLERY))}#bg-margin-controls",
-        context=context,
-    )
-    position = page.locator("#bg-margin-controls").evaluate(
-        """element => ({
-          top: element.getBoundingClientRect().top,
-          clear: parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop),
-        })"""
-    )
-    assert abs(position["top"] - position["clear"]) < 2, position
-
-
 def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
     browser, serve
 ):

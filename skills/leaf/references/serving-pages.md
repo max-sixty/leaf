@@ -97,7 +97,8 @@ serve it from the session that will now own it. An enabled standing service
 restarts independently of session ownership.
 
 Serving or writing a page vendored at another protocol refuses with the same init
-command. If restart fails,
+command. Versions the page saved before that re-vendor stay in its history but no
+longer open. If restart fails,
 follow init's diagnostic; an enabled page's watcher also tries one revival.
 Init reads the log under Leaf's kernel transport contract. If init cannot read an
 earlier page's log, or the page still misbehaves once re-vendored, initialize a new

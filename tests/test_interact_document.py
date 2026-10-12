@@ -1062,7 +1062,7 @@ def test_a_version_that_leaves_the_moves_column_alone_needs_not_write_it(page_di
         (page_dir / "index.html").read_text().replace("<h2>Plan</h2>", "<h2>Plans</h2>")
     )
     assert check(page_dir).exit_code == 0, check(page_dir).output
-    publish(page_dir, 2)
+    publish(page_dir)
     assert _todo_order(page_dir) == ["a", "x", "b", "c"]
 
 
@@ -1073,7 +1073,7 @@ def test_a_version_that_writes_the_move_owns_its_order(page_dir):
     move = _drop_x_between_a_and_b(page_dir)
     _write_board(page_dir, "naxbc")
     assert check(page_dir).exit_code == 0, check(page_dir).output
-    publish(page_dir, 2)
+    publish(page_dir)
     assert _todo_order(page_dir) == ["n", "a", "x", "b", "c"]
     with pytest.raises(events_model.EventRefused, match="markup now places its unit"):
         append_command(
@@ -1085,7 +1085,7 @@ def test_a_later_version_can_reposition_a_card_without_retracting_its_move(page_
     """Authored placements may change while the original move remains logged."""
     _drop_x_between_a_and_b(page_dir)
     _write_board(page_dir, "naxbc")
-    publish(page_dir, 2)
+    publish(page_dir)
     _write_board(page_dir, "naxcb")
     assert check(page_dir).exit_code == 0, check(page_dir).output
     _write_board(page_dir, "nacxb")
@@ -1105,7 +1105,7 @@ def test_a_reorder_the_next_version_wrote_survives_a_later_one(page_dir):
     publish(page_dir)
     _move(page_dir, "c", "c-todo", "0i")
     _write_board(page_dir, "cab")
-    publish(page_dir, 2)
+    publish(page_dir)
     _write_board(page_dir, "abc")
     (page_dir / "index.html").write_text(
         (page_dir / "index.html").read_text().replace("<h2>Plan</h2>", "<h2>Plans</h2>")
@@ -1156,7 +1156,7 @@ def test_a_move_on_a_replaced_revision_lands_only_where_its_column_held(page_dir
     _write_board(page_dir, "abc", "x")
     publish(page_dir)
     _write_board(page_dir, "nabc", "x")
-    publish(page_dir, 2)
+    publish(page_dir)
     with pytest.raises(
         events_model.EventRefused, match="authors 'c-todo' differently"
     ) as refused:
@@ -1168,7 +1168,7 @@ def test_a_move_on_a_replaced_revision_lands_only_where_its_column_held(page_dir
     (page_dir / "index.html").write_text(
         (page_dir / "index.html").read_text().replace("<h2>Plan</h2>", "<h2>Plans</h2>")
     )
-    publish(page_dir, 3)
+    publish(page_dir)
     _move(page_dir, "b", "c-done", "i", revision=2)
     assert _todo_order(page_dir) == ["n", "a", "x", "c"]
 
@@ -2035,13 +2035,13 @@ def test_the_live_source_can_honor_the_latest_revision_decision(page_dir):
         .read_text()
         .replace("<title>t</title>", "<title>t · v2</title>")
     )
-    publish(page_dir, 2)
+    publish(page_dir)
     (page_dir / "index.html").write_text(
         before_choice(
             PAGE.replace("<title>t</title>", "<title>t · v3</title>"), SUGGESTION
         )
     )
-    publish(page_dir, 3)
+    publish(page_dir)
     append_command(
         page_dir,
         {
@@ -3062,12 +3062,11 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
 
 
 def test_absorption_is_by_id_never_inferred_from_markup(page_dir):
-    """Editing a report's target preserves its recorded news until settlement."""
-    _tasks_version(page_dir, "active")
+    """A report whose value the stamped markup already shows stays news until a
+    stamp settles it by id, and editing its target does not change that."""
+    _tasks_version(page_dir, "review")
     publish(page_dir)
     assert _report(page_dir, "t-parser", "status", "value=review").exit_code == 0
-    _tasks_version(page_dir, "review")
-    publish(page_dir, version=2)
     _tasks_version(page_dir, "done")
     result = check(page_dir)
     assert result.exit_code == 0, result.output
@@ -3787,7 +3786,7 @@ def test_a_later_version_can_reuse_a_source(page_dir, clear):
     }
     historical = data_model.read_data(page_dir, old_registry)["sources"]["project-feed"]
     assert "error" in historical and "value" not in historical
-    publish(page_dir, version=2)
+    publish(page_dir)
     assert (
         state_json(page_dir)["data_bindings"]["project-feed"]["contract"]
         == "other-rows"
@@ -4749,7 +4748,7 @@ def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
             command("active", False, "ledger_id,amount\n7,42") + "</section>",
         )
     )
-    publish(page_dir, 2)
+    publish(page_dir)
     assert questions_on_you(state_json(page_dir)) == []
 
 

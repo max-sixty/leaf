@@ -737,7 +737,7 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace("</section>", subjects + "</section>")
     )
-    publish(page_dir, version=2)
+    publish(page_dir)
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "Act?"}
     )
@@ -1610,7 +1610,7 @@ def test_markup_enters_only_through_the_cli_gate(server, page_dir):
     """The browser door refuses the field rather than silently dropping it: everything
     the log holds under `markup` has been through `check_markup`, which is what lets
     the thread structure and the panel index it unasked."""
-    publish(page_dir, version=1)
+    publish(page_dir)
     before = events_model.read_events(page_dir)
     status, body = fetch(
         f"{server}/api/event",

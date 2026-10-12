@@ -64,7 +64,6 @@ from interact_support import (
     queue_board_registry,
     read_page_data,
     stamp,
-    stamp_activation,
     styled,
     trial_version,
     wait_for,
@@ -1561,7 +1560,7 @@ def test_late_gesture_wakes_for_the_active_vocabulary(page_dir, active_ask):
     layer = deepcopy(registry_storage.load_registry(page_dir))
     awaits = layer["lf-options"].pop("x-awaits")
 
-    def publish_choice(has_ask, version):
+    def publish_choice(has_ask):
         vocabulary = deepcopy(layer)
         if has_ask:
             vocabulary["lf-options"]["x-awaits"] = awaits
@@ -1574,11 +1573,11 @@ def test_late_gesture_wakes_for_the_active_vocabulary(page_dir, active_ask):
         if has_ask:
             group = '<lf-ask id="ask"><h2>Which one?</h2>' + group + "</lf-ask>"
         (page_dir / "index.html").write_text(model.leaf_page("Choice", group))
-        publish(page_dir, version=version)
+        publish(page_dir)
 
-    publish_choice(not active_ask, 1)
+    publish_choice(not active_ask)
     original = files_model.latest_revision(page_dir)
-    publish_choice(active_ask, 2)
+    publish_choice(active_ask)
     assert files_model.latest_revision(page_dir) > original
 
     action = append_command(
@@ -1834,19 +1833,9 @@ def test_candidate_vocabulary_leaves_removed_page_widgets_to_captured_history(pa
     )
     restated = original.replace('value="author"', 'value="author-next" restated')
     (page_dir / "index.html").write_text(restated)
-    second = stamp_activation(page_dir)
-    assert second.error is None and second.created
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "note",
-            "author": "agent",
-            "version": 2,
-            "revision": second.revision,
-            "text": "Retract the local choice.",
-            "restated": ["local-choice"],
-        },
-    )
+    assert publish(page_dir, "Retract the local choice.")["restated"] == [
+        "local-choice"
+    ]
 
     authored.write_text("{}")
     (page_dir / "index.html").write_text(PAGE)
@@ -3274,7 +3263,7 @@ def test_independent_state_does_not_reopen_an_answer_even_after_retirement(
     assert result["c1"]["resolved"]["id"] == accepted["id"]
     retired = source.replace(snippet, '<p id="proposed">Ship after validation.</p>')
     (page_dir / "index.html").write_text(retired)
-    publish(page_dir, 2)
+    publish(page_dir)
     result = event_folds_model.build_threads(
         events_model.read_events(page_dir),
         passages_model.enclosing_ids(structure_model.SourceDocument(retired)),

@@ -7850,7 +7850,7 @@ def test_a_delivery_and_page_state_agree_on_what_a_floor_took_back(
             "anchor": {"section": "picks"},
         },
     )
-    publish(page_dir, 1)
+    publish(page_dir)
     answered = append_command(
         page_dir,
         {
@@ -14712,7 +14712,7 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
         claimed,
         {"kind": "comment", "id": "which", "author": "user", "text": "which of these?"},
     )
-    publish(claimed, 1)
+    publish(claimed)
     append_command(
         claimed,
         {

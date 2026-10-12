@@ -58,7 +58,7 @@ document that runs the runtime, served or exported, carries an inline prepaint t
 marks a startup failure before the module graph or stylesheet can fail, so the theme
 gives back the readable fallback. A served page's inline bootstrap also supervises
 the failure. It reloads when the server incarnation, layer generation, or website
-release changes. A published page also reloads when its release-addressed probe
+release changes, except for a fault that is the page's own, which no server fixes. A published page also reloads when its release-addressed probe
 disappears. A rejected or unchanged re-vendor preserves its running server and
 layer, so neither triggers a reload. Source files carry neither
 script, and an export no supervisor.

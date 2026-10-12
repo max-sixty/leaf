@@ -102,10 +102,12 @@
 
 import {
   SAID,
+  declaredRoot,
   UI_MARKS,
   hostIn,
   inUi,
   overIn,
+  refuseShadowRoot,
   pageShadowRoots,
   shadowHost,
   shadowRootsIn,
@@ -114,7 +116,8 @@ import {
   upFrom,
 } from "./shadow.js";
 import { decisionFor, registry } from "./registry.js";
-import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
+import { PAGE_PAINT_ATTRIBUTE, pagePresented } from "./page-paint.js";
+import { reportPageError } from "./layer-client.js";
 import { readApplication } from "./semantic-state.js";
 import { COLLAPSE, TEXT_BLOCK } from "./passage-facts.js";
 import { textUnits } from "./text-alignment.js";
@@ -296,35 +299,48 @@ export const pageWords = (node) => Boolean(node) && !inChrome(node) && !inUi(nod
 // with it. A refusal whose message is a property name reaches its author as the runtime
 // being broken, which is the one thing it isn't.
 //
-// The refusal is final, and this is the one place that makes it so. Every reader of the
-// page's words passes through here, so whichever reaches the bare text first declares
-// the page failed (`lf-startup-failed`), as the page's own fault, which no server
-// update fixes: the readable fallback shows at once, the notice says the page has a
-// problem, and the runtime stops rendering and taking page keys (leaf.js), whose
-// frames and keys each read the page again and threw this again. A reader that still
-// reaches it, such as a renderer answering a later publication, is handed the same
-// refusal, which a report that has carried it once drops (`reportCarried`).
-let refusal = null;
-export const elementOver = (n) => {
-  if (n.parentElement) return n.parentElement;
-  if (refusal) throw refusal;
+const bareTextRefusal = (n) => {
   const host = shadowHost(n.getRootNode());
   const at = host
     ? `<${host.localName}${host.id ? ` id="${host.id}"` : ""}>`
     : "a module";
-  refusal = new Error(
+  return new Error(
     `${at} staged bare text into a shadow root: ` +
       `${JSON.stringify(n.data.trim().slice(0, 40).trim())} has no element over it, ` +
       `so the page holds no block, cell or fence for it. Give a module's rendered ` +
       `words an element to sit in.`,
   );
-  window.dispatchEvent(
-    new CustomEvent("lf-startup-failed", {
-      detail: { reason: refusal.message, error: refusal, page: true },
-    }),
-  );
-  throw refusal;
 };
+export const elementOver = (n) => {
+  if (n.parentElement) return n.parentElement;
+  throw bareTextRefusal(n);
+};
+// The walk asks it of a declared root before crossing in, and the refusal is final: the
+// root is refused for good (`refuseShadowRoot`, shadow.js), and from then on every walk,
+// this one included, reads its host as it reads a host whose root the registry does not
+// declare, by the host's own children, which are the words the file holds. So the page
+// refuses the text once, here, whichever reader reaches it first, and no reader meets it
+// again. Thrown out of each reader instead, it was refused again on every repaint frame,
+// key and selection, each an uncaught error and each a report. The one refusal is
+// reported to the agent here, and before the page presents it is also the page's
+// startup failure, its own fault, which no server update fixes: it is declared
+// (`lf-startup-failed`, `page`), so the readable fallback shows at once, the notice says
+// the page has a problem, and the page never presents (leaf.js). A page already
+// presented keeps running without those words.
+function refusesBareText(root) {
+  const bare = [...root.childNodes].find((n) => n.nodeType === Node.TEXT_NODE);
+  if (!bare) return false;
+  refuseShadowRoot(root);
+  const refusal = bareTextRefusal(bare);
+  reportPageError(refusal);
+  if (!pagePresented())
+    window.dispatchEvent(
+      new CustomEvent("lf-startup-failed", {
+        detail: { reason: refusal.message, error: refusal, page: true },
+      }),
+    );
+  return true;
+}
 // The widget a reading belongs to. `.lf-ui` says the runtime built this rather than the
 // author, and a reading rooted at the document takes that straight: everything the layer
 // holds is the layer's, which is the whole of what the anchor pass and the version diff
@@ -523,7 +539,8 @@ function walk(root, onText, skip = null, onBreak = null) {
     }
     for (let child = node.firstChild; child; child = child.nextSibling) {
       if (child.nodeType === Node.TEXT_NODE) {
-        // A shadow root's own text has no element over it, which elementOver refuses.
+        // A shadow root's own text has no element over it, which elementOver refuses:
+        // a root the walk crosses into was asked first, so this is a root handed in.
         if (node.nodeType !== Node.ELEMENT_NODE) elementOver(child);
         onText(child, ctx);
         continue;
@@ -542,11 +559,12 @@ function walk(root, onText, skip = null, onBreak = null) {
         // crosses exactly those — so a walk that entered any open root read
         // words the anchor side could never place, and a widget's undeclared
         // root anchored quotes astray instead of staying opaque. The render gate
-        // names an undeclared root; this leaves its words alone.
-        const declared = child.shadowRoot && registry[child.localName]?.["x-shadow"];
-        if (declared) {
+        // names an undeclared root; this leaves its words alone, as it does a root
+        // refused for its bare text.
+        const declared = declaredRoot(child);
+        if (declared && !refusesBareText(declared)) {
           passed.set(child, inner);
-          visit(child.shadowRoot, crossed(inner));
+          visit(declared, crossed(inner));
         } else visit(child, inner);
       }
     }

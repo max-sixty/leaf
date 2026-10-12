@@ -14,9 +14,7 @@
    of `new ResizeObserver`. The lint gate
    refuses the browser's own in the runtime and in the bundled packages, so the loop and
    the reading answer for every owner there without a list of them. Coalescing owners
-   keep their own flags; this module holds the one queue behind them. For the same
-   reason `stopRendering` is the one switch that ends every owner's rendering, for a page
-   the runtime has given up on.
+   keep their own flags; this module holds the one queue behind them.
 
    The neutral `queued-work.js` home binds a callback's one deferred invocation to that same lifecycle,
    for host schedules which own their own order rather than using this frame queue.
@@ -116,8 +114,6 @@ let heard = false;
 let quiet = false;
 let checking = false;
 let preparations = 0;
-// The page has been given up on (`stopRendering`).
-let stopped = false;
 
 /** Keep finite preparation pending until it commits or its owner retires. */
 export function holdRendering() {
@@ -134,7 +130,6 @@ export function holdRendering() {
 
 function request(into, callback) {
   const id = ++lastId;
-  if (stopped) return id;
   into.set(id, enqueueWork(callback));
   if (!running && !frame) frame = requestAnimationFrame(pass);
   unsettle();
@@ -187,19 +182,6 @@ async function pass(time) {
 }
 
 const owedThisScript = new Map();
-
-/** Run nothing more, for a page the runtime has given up on (`lf-startup-failed`, in
- * leaf.js). What is queued, the rest of a running pass and what this script owes
- * included, retires unrun, and every later request is dropped. */
-export function stopRendering() {
-  stopped = true;
-  cancelAnimationFrame(frame);
-  frame = 0;
-  for (const queue of [queued, running, afterPaint, owedThisScript]) {
-    for (const job of queue?.values() ?? []) cancelWork(job);
-    queue?.clear();
-  }
-}
 function settleScript() {
   // A callback asked for while the others run is visited too: a Map's iteration reaches
   // what joins it before the end.
@@ -213,7 +195,6 @@ function settleScript() {
   }
 }
 export function afterScript(callback) {
-  if (stopped) return;
   if (!owedThisScript.size) queueMicrotask(settleScript);
   if (!owedThisScript.has(callback))
     owedThisScript.set(callback, enqueueWork(callback));

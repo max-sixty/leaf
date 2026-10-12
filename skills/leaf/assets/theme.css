@@ -685,7 +685,7 @@ td.num {
 ol.steps {
   list-style: none;
   counter-reset: step;
-  --lf-list-inset: 0px;
+  padding-inline-start: 0;
 }
 ol.steps > li {
   counter-increment: step;

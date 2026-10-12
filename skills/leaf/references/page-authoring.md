@@ -337,10 +337,11 @@ start. A narrower frame still bounds it. `available` uses all room left by the p
 shell, frames, chrome, and a margin resident that takes its side, such as a sidebar
 standing in the margin or the contents map's spine; the markers beside it then stand as
 pins on it, and it moves below a note hanging level with it. A native `table` given
-either takes its columns' natural width up to that room: one that fits the column
-starts where the prose starts, and a wider one grows evenly about the prose axis, or to
-the right where a sidebar stands in the left margin. A block in a list item measures
-its room from the column too, so it stands on the prose axis however deep the list.
+either takes its columns' natural width up to that room: one that fits where it stands
+starts where the text around it starts, and a wider one grows evenly about the prose
+axis, or to the right where a sidebar stands in the left margin. A block in a list item
+or another indented block takes its room from the column, so it stands where the same
+block in the page's flow would, however deep the indent.
 An `lf-ask` or a callout keeps the column: a block of its own that declares a width
 breaks out of it on a column page, and widens it in a wider flow.
 Use these names on the semantic block itself, including a native `table`, `lf-code`, or

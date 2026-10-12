@@ -372,7 +372,7 @@
     if (box.localName === "details") return !box.open && child.localName !== "summary";
     return getComputedStyle(box).contentVisibility === "hidden";
   };
-  const residency = () => {
+  const seat = () => {
     const body = document.body;
     if (!body) return false;
     // The page's `main` (passages.js, `pageDocument`), read here before any module runs.
@@ -536,6 +536,57 @@
     // Module-time adoption announces changed seats to reading-region discovery;
     // before upgrade the same attributes already provide the final authored box.
     return true;
+  };
+  // How far each breakout's holder stands in from the column on each side
+  // (`--lf-indent-l`, `--lf-indent-r`), which the breakout's room counts as its own
+  // (layouts.css): a list item, a list the page resets, a page's own indented block,
+  // whatever moved it, read off the boxes rather than declared by each kind of holder.
+  // Read with the column, in the same pass, so a breakout parsed before first paint is
+  // placed before it paints, and one inserted later is read on the pass its insertion
+  // schedules (content-layout.js). A holder that is not rendered keeps the last
+  // reading, and a breakout never read stands as if its holder were the column.
+  const contentEdges = (element) => {
+    const box = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    return {
+      left:
+        box.left + parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft),
+      right:
+        box.right - parseFloat(style.borderRightWidth) - parseFloat(style.paddingRight),
+    };
+  };
+  const BREAKOUT = '[data-lf-space]:not([data-lf-space="column"])';
+  const indent = (main) => {
+    let changed = false;
+    const breakouts = main.querySelectorAll(BREAKOUT);
+    if (!breakouts.length) return false;
+    const column = contentEdges(main);
+    for (const breakout of breakouts) {
+      let holder = breakout.parentElement;
+      while (holder !== main && getComputedStyle(holder).display === "contents")
+        holder = holder.parentElement;
+      if (!holder.checkVisibility()) continue;
+      const edges = contentEdges(holder);
+      const sides = [
+        ["--lf-indent-l", Math.max(0, Math.round(edges.left - column.left))],
+        ["--lf-indent-r", Math.max(0, Math.round(column.right - edges.right))],
+      ];
+      for (const [property, length] of sides) {
+        const value = length ? `${length}px` : "";
+        if (breakout.style.getPropertyValue(property) === value) continue;
+        if (!sourceShells.has(breakout))
+          sourceShells.set(breakout, breakout.cloneNode(false));
+        if (value) setRuntimeRootStyle(breakout, property, value);
+        else removeRuntimeRootStyle(breakout, property);
+        changed = true;
+      }
+    }
+    return changed;
+  };
+  const residency = () => {
+    const seated = seat();
+    const main = document.querySelector("body > main");
+    return (main ? indent(main) : false) || seated;
   };
 
   // The id a URL fragment spells, for location.hash and for a link's href alike, from

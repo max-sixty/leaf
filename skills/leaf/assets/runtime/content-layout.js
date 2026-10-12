@@ -37,11 +37,35 @@ function readResidency() {
 export function scheduleResidency() {
   if (residencyOpen) residencyPending ||= nextRender(residencyPass);
 }
+// The same read also says how far each breakout's holder stands in from the column
+// (prepaint.js, `indent`), so a breakout a revision or a widget inserts, or one a
+// holder reveals, is read on the pass its arrival schedules, before the frame paints it.
+const BREAKOUT = '[data-lf-space]:not([data-lf-space="column"])';
+const bringsBreakout = (node) =>
+  node.nodeType === Node.ELEMENT_NODE &&
+  (node.matches(BREAKOUT) || node.querySelector(BREAKOUT) !== null);
 export function openResidency({ onRead }) {
   readFinished = onRead;
   residencyOpen = true;
   document.addEventListener("toggle", scheduleResidency, { capture: true });
   window.addEventListener("resize", scheduleResidency);
+  const main = pageDocument();
+  if (main)
+    new MutationObserver((records) => {
+      if (
+        records.some((record) =>
+          record.type === "attributes"
+            ? bringsBreakout(record.target)
+            : [...record.addedNodes].some(bringsBreakout),
+        )
+      )
+        scheduleResidency();
+    }).observe(main, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["data-lf-space", "hidden"],
+    });
   readResidency();
 }
 

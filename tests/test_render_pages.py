@@ -2380,58 +2380,124 @@ def test_a_scrolling_breakout_table_keeps_its_caption_in_its_scrollport(
     assert root_overflow(page) == 0
 
 
-@pytest.mark.parametrize("direction", ["ltr", "rtl"])
-def test_a_breakout_in_nested_list_items_grows_about_the_prose_axis(
-    browser, serve, direction
-):
-    """A list indents its items from the column, so a block that breaks out of an item
-    three lists deep holds its room 72px from the column's start. Measured from the item,
-    the breakout centred on the item, 36px off the prose; measured from the column, a
-    wide block, an available block and a table granted room all stand on the prose
-    axis, the available block reaches both edges of the room, and a table that fits the
-    column starts where the prose starts."""
-    cells = "".join(f"<td>measured value {i}</td>" for i in range(8))
-    blocks = (
-        '<div id="wide" data-width="wide">A wide block.</div>'
-        '<div id="available" data-width="available">An available block.</div>'
-        f'<table id="table" data-width="wide"><tr>{cells}</tr></table>'
-        '<table id="narrow" data-width="available"><tr><th>Plan</th><td>60</td></tr>'
+INDENTED_CELLS = "".join(f"<td>measured value {i}</td>" for i in range(8))
+
+
+def _indented(name):
+    """The breakouts one indented holder holds, each id prefixed with the holder's."""
+    return (
+        f'<div id="{name}-wide" data-width="wide">Wide.</div>'
+        f'<div id="{name}-available" data-width="available">Available.</div>'
+        f'<table id="{name}-table" data-width="available"><tr>{INDENTED_CELLS}</tr>'
         "</table>"
+        f'<table id="{name}-narrow" data-width="available"><tr><th>Plan</th>'
+        "<td>60</td></tr></table>"
     )
-    body = (
-        '<h1>Lists</h1><p id="prose">A paragraph at the measure, long enough to fill '
-        "the column it stands in from one edge to the other.</p>"
-        f"<ul><li>One<ol><li>Two<ul><li>Three{blocks}</li></ul></li></ol></li></ul>"
-    )
-    source = leaf_page("Nested lists", body).replace(
+
+
+INDENTED_PAGE = leaf_page(
+    "Indented holders",
+    '<h1>Holders</h1><p id="prose">A paragraph at the measure, long enough to fill '
+    "the column it stands in from one edge to the other.</p>"
+    + _indented("control")
+    + f'<ul><li>One<ol><li>Two<ul><li id="nested">Three{_indented("nested")}</li></ul>'
+    "</li></ol></li></ul>"
+    + f'<ol class="steps"><li id="steps">A step{_indented("steps")}</li></ol>'
+    + f'<ul class="plain"><li id="plain">An item{_indented("plain")}</li></ul>'
+    + f'<div class="inset" id="inset">An indented block{_indented("inset")}</div>',
+    head="<style>ul.plain { padding: 0; list-style: none; }"
+    " .inset { padding-left: 40px; }</style>",
+)
+
+
+@pytest.mark.parametrize("posture", ["even", "map", "sidebar", "phone"])
+@pytest.mark.parametrize("direction", ["ltr", "rtl"])
+def test_a_breakout_in_an_indented_holder_measures_its_room_from_the_column(
+    browser, serve, direction, posture
+):
+    """A holder that stands in from the column, however it got there, gives a block
+    that breaks out of it the column's room: three nested list items, a step list whose
+    items pad themselves, a list the page resets to no indent, and a page's own indented
+    block. The runtime reads how far each holder stands in rather than each kind of
+    holder declaring it, so a wide or available block in any of them takes the same box
+    as one in the page's flow, on the prose axis, beside a contents map and with a
+    sidebar in the margin as on a plain column, and on a phone. A table wider than its
+    holder stands where one in the page's flow does: centred on the prose axis, or from
+    the prose's left edge beside a margin sidebar. One that fits its holder stays with
+    it, starting where the holder's text starts."""
+    source = INDENTED_PAGE
+    if posture == "map":
+        source = source.replace(
+            '<main class="layout-column">',
+            '<main class="layout-column"><aside class="sidebar">'
+            '<lf-toc id="toc"></lf-toc></aside>',
+            1,
+        )
+    elif posture == "sidebar":
+        source = source.replace(
+            '<main class="layout-column">',
+            '<main class="layout-column"><aside class="sidebar">'
+            "<p>Owner: payments. Window: Thursday.</p></aside>",
+            1,
+        )
+    source = source.replace(
         '<html lang="en">', f'<html lang="en" dir="{direction}">', 1
     )
     page = open_page(browser, serve(source))
-    resized(page, 1440, 900)
-    at = page.evaluate("""() => {
+    if posture == "phone":
+        resized(page, 390, 844)
+    else:
+        resized(page, 1440, 900)
+    margins_laid_out(page)
+    at = page.evaluate(
+        """(direction) => {
       const edges = (el) => {
         const box = el.getBoundingClientRect();
         return {left: box.left, right: box.right, centre: (box.left + box.right) / 2};
       };
-      return {
-        prose: edges(document.getElementById('prose')),
-        holder: edges(document.getElementById('wide').parentElement),
-        wide: edges(document.getElementById('wide')),
-        available: edges(document.getElementById('available')),
-        table: edges(document.querySelector('#table tr')),
-        narrow: edges(document.querySelector('#narrow tr')),
-        room: [24, innerWidth - 24],
+      const textStart = (el) => {
+        const box = el.getBoundingClientRect(), style = getComputedStyle(el);
+        return direction === 'rtl'
+          ? box.right - parseFloat(style.paddingRight) - parseFloat(style.borderRightWidth)
+          : box.left + parseFloat(style.paddingLeft) + parseFloat(style.borderLeftWidth);
       };
-    }""")
-    prose = at["prose"]
-    assert abs(at["holder"]["centre"] - prose["centre"]) >= 30, at
-    for block in ("wide", "available", "table"):
-        assert at[block]["centre"] == pytest.approx(prose["centre"], abs=1), (block, at)
-    assert at["wide"]["right"] - at["wide"]["left"] == pytest.approx(1080, abs=1), at
-    assert at["available"]["left"] == pytest.approx(at["room"][0], abs=1), at
-    assert at["available"]["right"] == pytest.approx(at["room"][1], abs=1), at
+      const reading = {
+        margin: document.querySelector('main').getAttribute('data-lf-margin') ?? '',
+        prose: edges(document.getElementById('prose')),
+      };
+      for (const name of ['control', 'nested', 'steps', 'plain', 'inset'])
+        reading[name] = {
+          wide: edges(document.getElementById(`${name}-wide`)),
+          available: edges(document.getElementById(`${name}-available`)),
+          table: edges(document.querySelector(`#${name}-table tr`)),
+          narrow: edges(document.querySelector(`#${name}-narrow tr`)),
+          text: textStart(document.getElementById(`${name}-narrow`).parentElement),
+        };
+      return reading;
+    }""",
+        direction,
+    )
+    if posture in ("map", "sidebar"):
+        assert posture in at["margin"].split(), at
+    control, prose = at["control"], at["prose"]
     start = "left" if direction == "ltr" else "right"
-    assert at["narrow"][start] == pytest.approx(prose[start], abs=1), at
+    assert abs(at["nested"]["text"] - control["text"]) >= 70, at
+    for name in ("nested", "steps", "plain", "inset"):
+        holder = at[name]
+        for block in ("wide", "available", "table"):
+            for edge in ("left", "right"):
+                assert holder[block][edge] == pytest.approx(
+                    control[block][edge], abs=1
+                ), (name, block, edge, at)
+        assert holder["narrow"][start] == pytest.approx(holder["text"], abs=1), (
+            name,
+            at,
+        )
+    if posture in ("even", "map"):
+        assert control["wide"]["centre"] == pytest.approx(prose["centre"], abs=1), at
+        assert control["table"]["centre"] == pytest.approx(prose["centre"], abs=1), at
+    elif posture == "sidebar":
+        assert control["table"]["left"] == pytest.approx(prose["left"], abs=1), at
     assert root_overflow(page) == 0
 
 

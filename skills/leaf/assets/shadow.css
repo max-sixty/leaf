@@ -681,23 +681,12 @@ button.lf-thread-notice[data-lf-focus] {
 :where(:root, .lf-thread-transcript) th[scope=row] {
   font-weight: 600;
 }
-@property --lf-indent-l { syntax: "<length>"; inherits: true; initial-value: 0px; }
-@property --lf-indent-r { syntax: "<length>"; inherits: true; initial-value: 0px; }
 :where(:root, .lf-thread-transcript) :is(ul, ol) {
   margin: 10px 0;
-  --lf-list-inset: 24px;
-  padding-inline-start: var(--lf-list-inset);
-  --lf-list-base-l: var(--lf-indent-l);
-  --lf-list-base-r: var(--lf-indent-r);
+  padding-inline-start: 24px;
 }
 :where(:root, .lf-thread-transcript) li {
   margin: 6px 0;
-}
-:where(:root, .lf-thread-transcript) :is(ul, ol) > li:dir(ltr) {
-  --lf-indent-l: calc(var(--lf-list-base-l) + var(--lf-list-inset));
-}
-:where(:root, .lf-thread-transcript) :is(ul, ol) > li:dir(rtl) {
-  --lf-indent-r: calc(var(--lf-list-base-r) + var(--lf-list-inset));
 }
 :where(:root, .lf-thread-transcript) hr {
   border: none;

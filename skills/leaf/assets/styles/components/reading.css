@@ -186,22 +186,8 @@
      color: var(--muted); font-weight: 600;
      border-bottom-color: var(--border-2); }
 :where(:root, .lf-thread-transcript) th[scope="row"] { font-weight: 600; }
-/* A list indents its items from the column at their inline start, and says by how much
-   on each side (`--lf-indent-l`, `--lf-indent-r`: the distance from the column's edge to
-   a box's), so a block that breaks out of an item grows about the prose axis rather
-   than the item's own (layouts.css). Each item adds its list's inset to what its list
-   stood at, which the list reads from its own holder (`--lf-list-base-l`,
-   `--lf-list-base-r`), so no box defines its indent from itself. */
-@property --lf-indent-l { syntax: "<length>"; inherits: true; initial-value: 0px; }
-@property --lf-indent-r { syntax: "<length>"; inherits: true; initial-value: 0px; }
-:where(:root, .lf-thread-transcript) :is(ul, ol) { margin: 10px 0; --lf-list-inset: 24px;
-     padding-inline-start: var(--lf-list-inset);
-     --lf-list-base-l: var(--lf-indent-l); --lf-list-base-r: var(--lf-indent-r); }
+:where(:root, .lf-thread-transcript) :is(ul, ol) { margin: 10px 0; padding-inline-start: 24px; }
 :where(:root, .lf-thread-transcript) li { margin: 6px 0; }
-:where(:root, .lf-thread-transcript) :is(ul, ol) > li:dir(ltr) {
-     --lf-indent-l: calc(var(--lf-list-base-l) + var(--lf-list-inset)); }
-:where(:root, .lf-thread-transcript) :is(ul, ol) > li:dir(rtl) {
-     --lf-indent-r: calc(var(--lf-list-base-r) + var(--lf-list-inset)); }
 :where(:root, .lf-thread-transcript) hr { border: none; border-top: 1px solid var(--rule); margin: 40px 0; }
 
 /* One owner for message type and spacing on every surface, including widget shadow

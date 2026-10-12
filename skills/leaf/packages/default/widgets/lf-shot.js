@@ -570,7 +570,9 @@ customElements.define(
         nextFrame(() => {
           const { width, height, data } = compareImagePixels(...shots);
           const canvas = new OffscreenCanvas(width, height);
-          canvas.getContext("2d").putImageData(new ImageData(data, width, height), 0, 0);
+          canvas
+            .getContext("2d")
+            .putImageData(new ImageData(data, width, height), 0, 0);
           void canvas
             .convertToBlob({ type: "image/png" })
             .then((blob) =>

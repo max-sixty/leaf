@@ -205,11 +205,15 @@ const open = (url, alt, from) => {
       // A delayed load belongs only to the image the reader still has open.
       if (attempt !== opening || !mediaViewer.open) return;
       // The fitted image never exceeds a size the file states, so a larger box means
-      // it states none (an SVG with only a viewBox), and the box is its size.
+      // it states none (an SVG with only a viewBox). Such an image keeps its shape and
+      // takes the size that covers the screen, so it refits as the window grows and
+      // zooms past its fit.
       const fitted = image.getBoundingClientRect();
+      const shape = fitted.width / fitted.height;
+      const cover = Math.max(window.screen.width, window.screen.height * shape);
       const [width, height] =
         fitted.width > image.naturalWidth + 0.5
-          ? [fitted.width, fitted.height]
+          ? [cover, cover / shape]
           : [image.naturalWidth, image.naturalHeight];
       render(null, stage);
       const current = new PhotoSwipe({

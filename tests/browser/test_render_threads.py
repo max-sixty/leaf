@@ -2940,17 +2940,28 @@ def test_linked_images_zoom_and_return_to_the_report(browser, serve, tmp_path, o
         page.unroute("**/photoswipe.esm.js")
         page.keyboard.press("Escape")
         expect(viewer).to_be_hidden()
-    # The diagram fills the room it fits in, not the browser's 300x150 stand-in.
+    # The diagram fills the room it fits in, not the browser's 300x150 stand-in, and
+    # still does once the window grows. It zooms past that fit for a closer look.
+    fills = """() => {
+      const stage = document.querySelector('.lf-media-viewer-stage');
+      const inset = getComputedStyle(stage);
+      const room = [
+        stage.clientWidth - parseFloat(inset.paddingLeft) - parseFloat(inset.paddingRight),
+        stage.clientHeight - parseFloat(inset.paddingTop) - parseFloat(inset.paddingBottom),
+      ];
+      const box = document.querySelector('.lf-media-viewer .pswp__img')
+        .getBoundingClientRect();
+      return [box.width, box.height].some((side, i) => Math.abs(side - room[i]) < 1);
+    }"""
     resized(page, 1440, 500)
     page.locator("#diagram a").click()
-    fitted = viewer.locator("img.pswp__img")
-    expect(fitted).to_be_visible()
-    room = viewer.locator(".lf-media-viewer-stage").evaluate(
-        """stage => { const inset = getComputedStyle(stage);
-          return stage.clientHeight - parseFloat(inset.paddingTop)
-            - parseFloat(inset.paddingBottom); }"""
-    )
-    assert fitted.bounding_box()["height"] == pytest.approx(room, abs=1)
+    expect(viewer.locator("img.pswp__img")).to_be_visible()
+    assert page.evaluate(fills)
+    resized(page, 1440, 800)
+    page.wait_for_function(fills)
+    expect(
+        viewer.get_by_role("button", name="Zoom to actual size", exact=True)
+    ).to_be_enabled()
     page.keyboard.press("Escape")
     expect(viewer).to_be_hidden()
     for width in (1440, 390):

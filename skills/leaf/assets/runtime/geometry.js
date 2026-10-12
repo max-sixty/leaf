@@ -2,7 +2,7 @@
  * window the page shows, and the one conversion from viewport boxes to
  * document-positioned chrome. */
 import { excludedByInert, renderedParent, uiInside, under, upFrom } from "./shadow.js";
-import { nativeModalAdmits } from "./keyboard/layer-stack.js";
+import { nativeModalAdmits, watchLayerChanges } from "./keyboard/layer-stack.js";
 import {
   clippingAxes,
   hasArea,
@@ -745,54 +745,70 @@ Object.defineProperty(document, FRAME_VIEW, {
     return within ? frameView(frame, within) : null;
   },
 });
-// The frames holding this page, innermost first, as far as same-origin holders reach.
-// An isolated sample's holder is another origin, which answers over the sample's port,
-// and WebKit reports even reading `frameElement` there as a sandbox violation.
-function* holdingFrames() {
-  if (sampleVisibility()) return;
-  for (let frame = window.frameElement; frame;) {
-    yield frame;
-    frame = frame.ownerDocument.defaultView.frameElement;
-  }
-}
+// The frame holding this page, where its holder is of this origin. An isolated sample's
+// holder is another origin, which answers over the sample's port, and WebKit reports
+// even reading `frameElement` there as a sandbox violation.
+const holdingFrame = () => (sampleVisibility() ? null : window.frameElement);
 export function containingView() {
-  const [frame] = holdingFrames();
+  const frame = holdingFrame();
   if (!frame) return window === window.top ? layoutWindow() : null;
   return frame.ownerDocument[FRAME_VIEW]?.(frame) ?? null;
 }
 // Everything besides a reader's own boxes that changes what `seenRect` and
 // `containingView` read, so a reader of what the user sees watches it here rather than
-// keeping its own list: a scroll, a shadow stage's included (`watchScrolls`), or a resize
-// of this window or of any page holding it,
-// their visual viewports, which a soft keyboard or a pinch-pan moves without either, a
-// layer closing, chrome the room is measured against changing size or ending a slide
-// (`ROOM_MOVED`), and each holding frame moving in its holder's viewport, which no event
-// in either page announces. Returns the call that stops watching.
+// keeping its own list: a scroll, a shadow stage's included (`watchScrolls`); a resize;
+// the visual viewport, which a soft keyboard or a pinch-pan moves without either; a
+// native layer opening or closing, which changes what a modal admits
+// (`watchLayerChanges`); and chrome the room is measured against changing size or
+// ending a slide (`ROOM_MOVED`). In a same-origin frame it watches the same of the
+// holding page, through its document, and of the pages holding that one in turn, and
+// the frame moving in its holder's viewport, which no event in either page announces.
+// Returns the call that stops watching.
 export const ROOM_MOVED = "lf-room-moved";
 export const announceRoom = (target) =>
   target.dispatchEvent(new Event(ROOM_MOVED, { bubbles: true, composed: true }));
+const WATCH_ROOM = Symbol.for("leaf.watchRoom");
+Object.defineProperty(document, WATCH_ROOM, {
+  value: (callback) => watchRoom(callback),
+});
 export function watchRoom(callback) {
-  const stops = [];
-  const watch = (win) => {
-    const listen = (target, type, capture) => {
-      target?.addEventListener(type, callback, capture);
-      stops.push(() => target?.removeEventListener(type, callback, capture));
-    };
-    if (win === window) stops.push(watchScrolls(callback));
-    else listen(win, "scroll", true);
-    listen(win, "resize", false);
-    listen(win.visualViewport, "scroll", false);
-    listen(win.visualViewport, "resize", false);
-    listen(win.document, "close", true);
-    listen(win.document, ROOM_MOVED, true);
-  };
-  watch(window);
-  for (const frame of holdingFrames()) {
-    const owner = frame.ownerDocument.defaultView;
-    const moves = new owner.IntersectionObserver(callback, { threshold: [0, 1] });
+  const viewport = window.visualViewport;
+  const listening = [
+    [window, "resize"],
+    [viewport, "scroll"],
+    [viewport, "resize"],
+    [document, ROOM_MOVED, true],
+  ];
+  for (const [target, type, capture] of listening)
+    target.addEventListener(type, callback, capture);
+  const stops = [
+    watchScrolls(callback),
+    watchLayerChanges(callback),
+    () => {
+      for (const [target, type, capture] of listening)
+        target.removeEventListener(type, callback, capture);
+    },
+  ];
+  const frame = holdingFrame();
+  const holder = frame?.ownerDocument[WATCH_ROOM];
+  if (holder) {
+    // What this page leaves in its holder goes with the page, whether or not the
+    // watcher ever stops, so a reloaded frame leaves no listener of its old self there.
+    const moves = new frame.ownerDocument.defaultView.IntersectionObserver(callback, {
+      threshold: [0, 1],
+    });
     moves.observe(frame);
-    stops.push(() => moves.disconnect());
-    watch(owner);
+    const unhold = holder(callback);
+    const leave = (event) => {
+      if (!event.persisted) stopHolding();
+    };
+    const stopHolding = () => {
+      moves.disconnect();
+      unhold();
+      window.removeEventListener("pagehide", leave);
+    };
+    window.addEventListener("pagehide", leave);
+    stops.push(stopHolding);
   }
   return () => {
     for (const stop of stops) stop();
@@ -859,11 +875,10 @@ export function growthAfterIsSeen(node, clips = new Map()) {
 // Calls `leave` once `holds(node, clips)` stops holding for every one of `nodes`, and
 // again each time it stops after holding once more; returns the step that stops
 // watching. `holds` is a reading of geometry such as `seenRect` or `growthIsSeen`. Every
-// watch is read in one rendering pass with one clip cache, after any scroll in the page
-// or a stage (arrivals.js, `watchScrolls`), a resize or pinch, or a watched node entering
-// or leaving the window, which a change of layout moving it does; a node standing still
-// under chrome that changes size is read at the next of those. A pass calls `leave` only
-// once every watch is read, so one that redraws cannot stale another's reading.
+// watch is read in one rendering pass with one clip cache, after anything that changes
+// what the page shows of its window (`watchRoom`), or a watched node entering or leaving
+// the window, which a change of layout moving it does. A pass calls `leave` only once
+// every watch is read, so one that redraws cannot stale another's reading.
 const watches = new Set();
 let watchPass = null;
 let unlisten = null;
@@ -876,19 +891,6 @@ const readWatches = () => {
 const rereadWatches = () => {
   watchPass ??= nextRender(readWatches);
 };
-function listenForWatches() {
-  const stopScrolls = watchScrolls(rereadWatches);
-  const viewport = window.visualViewport;
-  window.addEventListener("resize", rereadWatches);
-  viewport.addEventListener("resize", rereadWatches);
-  viewport.addEventListener("scroll", rereadWatches);
-  return () => {
-    stopScrolls();
-    window.removeEventListener("resize", rereadWatches);
-    viewport.removeEventListener("resize", rereadWatches);
-    viewport.removeEventListener("scroll", rereadWatches);
-  };
-}
 export function whenNone(nodes, holds, leave) {
   let held = null;
   const watch = {
@@ -902,7 +904,7 @@ export function whenNone(nodes, holds, leave) {
     },
   };
   watches.add(watch);
-  unlisten ??= listenForWatches();
+  unlisten ??= watchRoom(rereadWatches);
   const observer = new IntersectionObserver(rereadWatches);
   for (const node of nodes) observer.observe(node);
   return () => {

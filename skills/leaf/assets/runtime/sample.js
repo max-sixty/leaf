@@ -362,7 +362,7 @@ export function mountSample(
     attributeFilter: ["inert", "open", "hidden", "aria-hidden", "class", "style"],
   });
   const nativeTransition = () => nextRender(visibility);
-  for (const type of ["beforetoggle", "toggle"])
+  for (const type of ["beforetoggle"])
     document.addEventListener(type, nativeTransition, true);
   const unwatch = onSampleVisibility(visibility);
   const undress = registerSampleDress(frame, (dress) =>
@@ -507,7 +507,7 @@ export function mountSample(
       seen.disconnect();
       size.disconnect();
       admission.disconnect();
-      for (const type of ["beforetoggle", "toggle"])
+      for (const type of ["beforetoggle"])
         document.removeEventListener(type, nativeTransition, true);
       lifetime.disconnect();
       unwatch();

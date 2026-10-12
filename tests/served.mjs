@@ -37,14 +37,14 @@ export function servedReading(name) {
   return structuredClone(RECORDS.readings[name]);
 }
 
-// A Question as a work queue lists it, holding `question`; `changes` set where it
-// stands, for a test whose served reading states its Questions by hand.
-export const servedQuestionItem = (question, changes) =>
-  served("question_item", {
-    id: question.id,
-    thread: question.thread,
-    title: question.prompt.text,
-    question,
+// An ask as Questions lists it, holding `ask`; `changes` set where it stands, for a
+// test whose served reading states its asks by hand.
+export const servedAskItem = (ask, changes) =>
+  served("ask_item", {
+    id: ask.id,
+    thread: ask.thread,
+    title: ask.prompt.text,
+    ask,
     ...changes,
   });
 
@@ -52,7 +52,8 @@ export const servedQuestionItem = (question, changes) =>
 export const servedGestureSequence = () => structuredClone(RECORDS.gestures);
 
 // The shared state definition cases, each as the two definitions the server serves.
-export const servedStateDefinitionCases = () => structuredClone(RECORDS.state_definitions);
+export const servedStateDefinitionCases = () =>
+  structuredClone(RECORDS.state_definitions);
 
 // Cross-runtime typed Question values use the same real server fold.
 export const servedQuestionValues = () => structuredClone(RECORDS.question_values);

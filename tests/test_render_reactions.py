@@ -2626,7 +2626,7 @@ def _thread(page_dir):
             "agent": "Claude",
             "parent": root,
             "text": "Forty is what the slowest device we ship on can hold.",
-            "question": True,
+            "ask": True,
         },
     )
     return root, reply["id"]

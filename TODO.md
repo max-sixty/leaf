@@ -90,7 +90,7 @@ has tried; settle that before building it.
 
 - **#3 — Prevent an obsolete execution from closing continued work.** A later
   `task start` records a new execution, but admission still accepts an older
-  session's `task_end`. Test competing continuations and keep the delayed result
+  session's `todo_end`. Test competing continuations and keep the delayed result
   from closing the newer work ([comparison proposal](notes/comparisons.md#concrete-follow-up-proposals-2026-10-04-revised-2026-10-05)).
 
 - **Compare Leaf authoring with plain HTML (#19).** The
@@ -288,8 +288,8 @@ A queue is one `lf-tabs list="side"` beside its open item (`page-authoring.md`, 
 workspace"). The first real one, a 21-item triage page, showed these. Its list's
 height and where a switch lands wait on the workspace decision under Layout.
 
-- **Start `q` from the open item's Question.** From a row, `q` goes to the queue's first
-  open Question, and `1` then picks for an item the user isn't looking at. The walk
+- **Start `q` from the open item's ask.** From a row, `q` goes to the queue's first
+  open ask, and `1` then picks for an item the user isn't looking at. The walk
   measures from focus (`queue-walk.js`), and the row precedes every
   panel; `t` and `T` measure the same way. A tab could stand at the view it opens for
   the walks (`standing-target.js`), while `c` on a row still names the row.
@@ -361,11 +361,11 @@ on 2026-10-07.
   them, but nothing runs them first. Write `evals/` cases in which agents author each
   kind and measure how often what they write fails to draw, then run the kinds agents
   get wrong and stop running those they reliably get right.
-- **Derive the waiting banner from the page's open Question.** Consider using the Question's
+- **Derive the waiting banner from the page's open ask.** Consider using the ask's
   words when no explicit waiting detail is needed. **Unconfirmed:** try pages with
-  several open Questions and an informational page before choosing how the banner
+  several open asks and an informational page before choosing how the banner
   explains who owes the next move. Keep explicit agent status available when the
-  Question alone does not explain the wait.
+  ask alone does not explain the wait.
 
 ### Development velocity
 
@@ -447,34 +447,27 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **Explore independent jobs.** Work out their identity, observer, continuation
   owner, and outcomes across background commands, delegates, and external waits.
   See the [Thread plan](notes/threads.md#independent-jobs-delegation-and-continuation).
-- **Model how work breaks into pieces.** A task links only to its thread, widget or
+- **Model how work breaks into pieces.** A to-do links only to its thread, widget or
   page. Most real work forms a fuzzy hierarchy: much of planning is breaking a goal into
   pieces, and the breakdown changes as the work teaches what the goal needs, with
   pieces split, merged, dropped or moved under another parent. Fixed trees, like Pi's
   owned subtasks or a tracker's parent and child tickets, are too brittle for that.
   Find a shape that holds a changing breakdown, and say what it means for the queues:
   whether a parent ends when its children do, and whose queue shows a child. Two links
-  are already planned: none for a task answering the user's comment, and one back to
+  are already planned: none for a to-do answering the user's comment, and one back to
   the dispatcher for work handed to another session (step 7 of
   [What needs you](notes/what-needs-you/page.html#task-hierarchy)). Trigger: a page
   whose work the user wants to see broken down.
-- **Tell the agent when to ask before ending its own task.** The agent ends its tasks
-  itself, and asks first, with a Question or a thread question, when the result needs the
-  user's sign-off
+- **Tell the agent when to ask before ending its own to-do.** The agent ends its to-dos
+  itself, and asks first, with a widget ask or a prose ask in a thread, when the result
+  needs the user's sign-off
   ([What needs you](notes/what-needs-you/page.html#task-done)). The shipped
-  instructions don't yet say when that is. Trigger: an agent ends a task as done that
+  instructions don't yet say when that is. Trigger: an agent ends a to-do as done that
   the user wanted to see first.
 - **Let the user edit items in the Questions panel.** The user's only edit today is Done
-  on a task the agent put on them, so dropping a task, renaming it or ending one of the
+  on a to-do the agent put on them, so dropping a to-do, renaming it or ending one of the
   agent's means asking in a thread. Editing the row directly in the panel would record the user's change as
   their own move. Trigger: a user writes a comment only to close or adjust an item.
-- **Name the record both queues share.** The page calls what's on the user Questions
-  and what's on the agent Tasks, while the code, the event log, `leaf page state` and
-  `leaf task open --on user` still call the shared record a task. "Task" also means
-  the harness's unit of work, as in a task claim. Obligation, commitment and item are
-  the candidates weighed
-  ([What needs you](notes/what-needs-you/page.html#internal-name)). Trigger: the
-  two meanings of task confuse an agent or a reader of the code.
 - **Multiplayer:** let several users share a page, each recorded as themselves.
   Every browser event is `author: "user"` today, so the log cannot say who moved,
   commented or voted, and nothing records who has the page open. Claude Code
@@ -483,7 +476,7 @@ Revisit these when their stated trigger becomes real; they are not an active que
   building a feed or presence on it.
 - **Show which pane has focus, and move between panes by key.** A terminal marks
   its active pane and one key moves to the next. In a workspace today the arrow keys
-  walk a side list, `q` reaches the next open Question, and a pane body that scrolls is a
+  walk a side list, `q` reaches the next item on Questions, and a pane body that scrolls is a
   Tab stop, but nothing marks the active pane and no key moves from one pane to the
   next. The runtime already tracks it: `userReadingRegion` (`reading-regions.js`) is the
   pane holding focus, or else the last one pressed, wheeled or touched, and `j`/`k`/`d`/`u`

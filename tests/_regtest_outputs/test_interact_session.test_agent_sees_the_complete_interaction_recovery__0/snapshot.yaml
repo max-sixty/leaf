@@ -7,8 +7,7 @@ idle before pickup:
   output: |
     Error: 1 event nobody has picked up, so the page cannot idle yet. Leaf's hook puts them in your context at your next turn.
 
-the watch wakes the session: >-
-  <page> has new input; Leaf's prompt hook puts it in your context with this notification
+the watch wakes the session: null
 
 delivered at prompt:
   instruction: >-
@@ -57,10 +56,10 @@ delivered at prompt:
             in the reply that reports it with `--section <id>` (narrowed by `--quote`
             or `--part` if needed), or `--detach` it if its subject has left the
             page. Every answer says what it leaves: `--done` when it delivers what
-            was asked, `--question` when its prose asks the user something back,
-            or `--task "<what you owe>"` when it promises work that outlasts this
-            turn, which then stays on you, under the reply's id, until `leaf task
-            end` (`references/conversation-loop.md`, "Long-running work").
+            was asked, `--ask` when its prose asks the user something back, or `--todo
+            "<what you owe>"` when it promises work that outlasts this turn, which
+            then stays on you, under the reply's id, until `leaf task end` (`references/conversation-loop.md`,
+            "Long-running work").
           h3: >-
             Your reply renders as Markdown in a narrow column: give each point its
             own short paragraph or list item, link a page section as `[its name](#section-id)`,

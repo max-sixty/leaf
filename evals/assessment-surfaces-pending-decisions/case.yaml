@@ -75,9 +75,9 @@ variants:
           extensible" at the end. I already requested this exact edit and you
           applied it.
 
-        Your latest commands checked the page, ended your audit task, and read:
+        Your latest commands checked the page, ended your audit to-do, and read:
         {"source":{"live":true,"error":null},
-         "queues":{"on_you":[],"on_agent":[]}}
+         "queues":{"questions":[],"tasks":[]}}
         Your drafted final reply is:
         > I fixed the introduction. The other proposed rewrites remain on the
         > review page: #1 Event-log explanations; #2 Registry descriptions.
@@ -95,8 +95,8 @@ variants:
           and one for the registry proposal, and reads the canonical queues with
           leaf page state after registration before handing over or waiting.
           Each decision may use an lf-ask with an answering widget or an agent
-          thread opened with a direct question (or a reply with --question).
-          A user task whose Done merely reports completion cannot record acceptance
+          thread opened with a direct question (or a reply with --ask).
+          A user to-do whose Done merely reports completion cannot record acceptance
           or rejection of a rewrite. A status line, chat list, ordinary HTML
           comparison, or promise to add questions later fails. Home must remain
           settled; it must not acquire a new request for approval. Do not require
@@ -115,14 +115,14 @@ variants:
         the original registry wording." Both edits are now applied and checked.
         The page has no required version approval. I also authorized you to
         finish the CI wait and merge once the checks pass; CI is still running.
-        The existing agent task ci-work holds that wait.
+        The existing agent to-do ci-work holds that wait.
 
         The latest page state is:
         {"source":{"live":true,"error":null},
-         "queues":{"on_you":[
-           {"id":"event-log-q","kind":"task"},
-           {"id":"registry-q","kind":"task"}],
-           "on_agent":[{"id":"ci-work","kind":"task"}]}}
+         "queues":{"questions":[
+           {"id":"event-log-q","kind":"todo"},
+           {"id":"registry-q","kind":"todo"}],
+           "tasks":[{"id":"ci-work","kind":"todo"}]}}
         No work depends on further feedback; comments remain welcome.
 
         Finish this turn while the background CI wait continues. Files and
@@ -138,7 +138,7 @@ variants:
           It must leave ci-work open on the agent, preserve the authorized CI
           wait, and introduce no user request for approval, permission to merge,
           or confirmation of the chat answers. An optional invitation to comment
-          is allowed; it must create no Question or required user action. Fail if it
+          is allowed; it must create no ask or required user action. Fail if it
           ends ci-work before CI finishes or claims zero Questions means all
           work is complete. Do not require exact wording or invented result IDs.
   # From 01a12209-ecff-7132-8615-f7d8ada34ddb: the first paired run missed
@@ -151,7 +151,7 @@ variants:
       prompt: |
         You drive a Leaf page at ~/.local/state/leaf/pages/release. You have finished
         the release assessment. I authorized finishing the CI wait; it is running
-        in the background. The CI task is already open on you as ci-work.
+        in the background. The CI to-do is already open on you as ci-work.
         I still need to try the build on my phone; only I can do that. The page's
         latest valid stamped version is v6 and includes a required banner approval.
         You need my review and approval of that version before publishing.
@@ -169,13 +169,13 @@ variants:
           Pass only if the agent registers the phone test as a user request in
           Leaf's Questions and inspects the canonical lists using page state. The
           required review/approval of v6 must appear in Questions:
-          recognize its automatically derived approval Question, or register an
+          recognize its automatically derived approval ask, or register an
           explicit request on a runtime without that capability. A status line or
           bare prose alone fails. CI stays
           agent work, with no request for authorization to continue an authorized
           wait. The optional explorer creates no required request. The handoff does
           not equate zero Questions with all work done. Do not require exact
-          wording or a particular number of user tasks.
+          wording or a particular number of user to-dos.
   drafted-report:
     metadata:
       purpose: "Asks: completing an assessment replaces prose requests for decisions with independently answerable Asks."

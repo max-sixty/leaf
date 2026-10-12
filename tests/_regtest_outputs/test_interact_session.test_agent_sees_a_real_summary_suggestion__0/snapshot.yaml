@@ -88,7 +88,7 @@ delivery:
           the reply that reports it with `--section <id>` (narrowed by `--quote`
           or `--part` if needed), or `--detach` it if its subject has left the page.
           Every answer says what it leaves: `--done` when it delivers what was asked,
-          `--question` when its prose asks the user something back, or `--task "<what
+          `--ask` when its prose asks the user something back, or `--todo "<what
           you owe>"` when it promises work that outlasts this turn, which then stays
           on you, under the reply's id, until `leaf task end` (`references/conversation-loop.md`,
           "Long-running work").

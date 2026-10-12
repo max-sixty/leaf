@@ -6471,7 +6471,7 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
         serve.page_dir,
         {"to": asked, "for": asked},
         "One choice remains. Which store should own the result?",
-        question=True,
+        ask=True,
     )
     page = open_page(
         browser,
@@ -9576,7 +9576,7 @@ def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(
     expect_asks_answered(page, "2/2")
     banner_control(page, ".lf-queue").click()
     page.locator(".lf-queue-done > summary").click()
-    done = page.locator(".lf-queue-done .lf-queue-row[data-lf-kind='question']")
+    done = page.locator(".lf-queue-done .lf-queue-row[data-lf-kind='ask']")
     expect(done).to_have_count(2)
     assert set(done.evaluate_all("rows => rows.map(row => row.dataset.lfAt)")) == {
         "widget:off-workaround-review",

@@ -109,8 +109,8 @@ customElements.define(
       this.list = offer("ul");
       this.counts = offer("p", "counts");
       this.queues = Object.fromEntries(
-        ["onYou", "onAgent", "done"].map((key, i) => {
-          const heading = offer("h4", "", ["On you", "On agent", "Done"][i]);
+        ["questions", "tasks", "done"].map((key, i) => {
+          const heading = offer("h4", "", ["Questions", "Tasks", "Done"][i]);
           const list = offer("ul");
           const group = offer("div", "group");
           group.append(heading, list);
@@ -268,7 +268,7 @@ customElements.define(
       const answered = questions.all.filter(
         (question) => question.status === "answered",
       );
-      // Counts cover every Question; this summary lists completed widget choices.
+      // Counts cover every ask; this summary lists completed widget choices.
       const labels = questions.all
         .filter(
           (question) =>
@@ -279,7 +279,7 @@ customElements.define(
       keepsText(
         this.counts,
         [
-          `${questions.user.length} Questions on you`,
+          `${questions.user.length} asks on you`,
           ...(answered.length ? [`${answered.length} answered`] : []),
           ...labels,
         ].join(" · "),

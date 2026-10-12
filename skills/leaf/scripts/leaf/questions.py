@@ -202,7 +202,7 @@ def thread_questions(
             for rec in (fragment.lf_elements if fragment else [])
         ):
             continue
-        if message["kind"] == "reply" and not message.get("question"):
+        if message["kind"] == "reply" and not message.get("ask"):
             continue
         answer = next(
             (

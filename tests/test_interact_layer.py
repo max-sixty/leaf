@@ -572,10 +572,10 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     assert both.exit_code == 2
     assert "No such option '--for'" in both.output
 
-    [task] = written(
-        ["thread", "reply", str(page_dir), later, "--text", "On it.", "--task", "Trace"]
+    [todo] = written(
+        ["thread", "reply", str(page_dir), later, "--text", "On it.", "--todo", "Trace"]
     )
-    assert (task["parent"], task["task"]) == (later, "Trace")
+    assert (todo["parent"], todo["todo"]) == (later, "Trace")
 
     [closed] = written(["thread", "resolve", str(page_dir), later])
     assert (closed["kind"], closed["parent"]) == ("resolve", later)

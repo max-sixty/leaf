@@ -307,7 +307,7 @@ def steps(
             )
         else:
             require(
-                reply.get("question") is True,
+                reply.get("ask") is True,
                 "the prose question does not await the user's answer",
             )
         require(

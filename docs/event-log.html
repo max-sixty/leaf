@@ -151,7 +151,7 @@ flowchart TD
         <h2>Verb declarations</h2>
         <p id="verbs-lede">
           This is everything <code>lf-options</code> tells Leaf about its three verbs
-          and when its question counts as answered.
+          and when its ask counts as answered.
         </p>
         <lf-code id="options-verbs" language="json" data-width="wide">
           <pre>
@@ -207,13 +207,13 @@ flowchart TD
             <code>multiple</code> group.</lf-note
           >
           <lf-note at="17"
-            >The Question's typed answer comes from the standing
+            >The ask's typed answer comes from the standing
             <code>choose</code> value.</lf-note
           >
           <lf-note at="18"
             >A single-choice group is answered when an option is selected. A
             multiple-choice group is answered when the user presses Done. Undo can make
-            the Question unanswered again.</lf-note
+            the ask unanswered again.</lf-note
           >
         </lf-code>
         <p id="coordinate">
@@ -431,8 +431,8 @@ flowchart TD
             record's line in the log.</lf-note
           >
           <lf-note at="35"
-            >This pick makes the Question's answered condition hold, so it completes the
-            Question. <code>null</code> means it closes no thread; a group with a
+            >This pick makes the ask's answered condition hold, so it completes the
+            ask. <code>null</code> means it closes no thread; a group with a
             <code>resolves</code> attribute would name one here.</lf-note
           >
           <lf-note at="55"

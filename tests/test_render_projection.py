@@ -3979,10 +3979,10 @@ customElements.define("lf-conditional", class extends HTMLElement {
         # The phase move is the agent's to answer. The Question leaves the user's
         # queue when its condition closes, retaining its withdrawn inventory row.
         expect(
-            page.locator("[data-lf-queue='you'] .lf-queue-row[data-lf-kind='question']")
+            page.locator("[data-lf-queue='you'] .lf-queue-row[data-lf-kind='ask']")
         ).to_have_count(count)
         withdrawn = page.locator(
-            "[data-lf-queue='done'] .lf-queue-row[data-lf-kind='question']"
+            "[data-lf-queue='done'] .lf-queue-row[data-lf-kind='ask']"
         )
         expect(withdrawn).to_have_count(1 - count)
         if not count:

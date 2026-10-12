@@ -39,19 +39,19 @@ class BrowserReading(NamedTuple):
 
 
 def _apply_thread_attention(
-    threads: list[dict], questions: dict, workflows: list[dict], tasks: list[dict]
+    threads: list[dict], asks: dict, workflows: list[dict], todos: list[dict]
 ) -> None:
-    """Attach the shared attention aggregate, with user Questions taking precedence.
+    """Attach the shared attention aggregate, with the user's asks taking precedence.
 
     This is the browser's one reading of whose turn a thread is: `needs_user` for
-    an open Question or a question the agent's latest turn leaves (`user_prompt`), or a
-    response the user must recover; `waiting` while a workflow holds the thread with
-    the agent, which covers every input `events.unanswered_turns` holds, or while a
-    task the agent opened on it stands; else None. `workflows` are
+    an open ask or a question the agent's latest turn leaves (`user_prompt`), or an
+    update the user must send again (`resend`); `waiting` while a workflow holds the
+    thread with the agent, which covers every input `events.unanswered_turns` holds,
+    or while a to-do the agent opened on it stands; else None. `workflows` are
     `served_workflows`, so the first that qualifies is the one the thread waits on,
-    and a workflow speaks before a task. `tasks` are the agent's open tasks, each
+    and a workflow speaks before a to-do. `todos` are the agent's open to-dos, each
     stamped with its `thread`."""
-    user_threads = {question["thread"] for question in questions["user"]}
+    user_threads = {ask["thread"] for ask in asks["user"]}
     by_thread: dict[str, list[dict]] = {}
     for workflow in workflows:
         if workflow["thread"] is not None:
@@ -63,19 +63,19 @@ def _apply_thread_attention(
         if thread["id"] in user_threads or thread["user_prompt"]:
             thread["attention"] = {
                 "kind": "needs_user",
-                "reason": "question",
+                "reason": "ask",
                 "workflow": None,
             }
             continue
         candidates = by_thread.get(thread["id"], [])
-        if recovery := next(
+        if resend := next(
             (workflow for workflow in candidates if workflow["next_actor"] == "user"),
             None,
         ):
             thread["attention"] = {
                 "kind": "needs_user",
-                "reason": "recovery",
-                "workflow": recovery["id"],
+                "reason": "resend",
+                "workflow": resend["id"],
             }
         elif waiting := next(
             (workflow for workflow in candidates if workflow["holds_thread"]), None
@@ -85,18 +85,18 @@ def _apply_thread_attention(
                 "reason": "uncertain" if waiting["condition"] else "workflow",
                 "workflow": waiting["id"],
             }
-        elif task := next(
-            (task for task in tasks if task["thread"] == thread["id"]), None
+        elif todo := next(
+            (todo for todo in todos if todo["thread"] == thread["id"]), None
         ):
             thread["attention"] = {
                 "kind": "waiting",
-                "reason": "task",
+                "reason": "todo",
                 "workflow": None,
                 # The line of the start running on it, while one holds it.
-                "task": {
-                    "id": task["id"],
-                    "title": task["title"],
-                    "line": task["running"]["text"] if task["running"] else None,
+                "todo": {
+                    "id": todo["id"],
+                    "title": todo["title"],
+                    "line": todo["running"]["text"] if todo["running"] else None,
                 },
             }
         else:
@@ -277,23 +277,21 @@ def browser_state(
         if key not in {"workflows", "tasks"}
     }
     workflows = work.workflows
-    tasks, ended_tasks = durable.page_tasks(work.activity["tasks"])
+    todos, ended_todos = durable.page_tasks(work.activity["tasks"])
     _apply_thread_attention(
         thread["threads"],
-        thread["questions"],
+        thread["asks"],
         workflows,
-        [task for task in tasks if task["owner"] == "agent"],
+        [todo for todo in todos if todo["owner"] == "agent"],
     )
-    # Each view's Questions are its own document's beside the frozen thread's, so
-    # each view carries the queues they add up to and the ones approving it waits on.
+    # Each view's asks are its own document's beside the frozen thread's, so each
+    # view carries the lists they add up to and the asks approving it waits on.
     for view in views.values():
-        questions = view["document"]["questions"]["all"] + thread["questions"]["all"]
+        asks = view["document"]["asks"]["all"] + thread["asks"]["all"]
         view["queues"] = queues(
-            thread["threads"], workflows, tasks, ended_tasks, collection(questions)
+            thread["threads"], workflows, todos, ended_todos, collection(asks)
         )
-        view["approval_blocking"] = [
-            question["id"] for question in approval_blocking(questions)
-        ]
+        view["approval_blocking"] = [ask["id"] for ask in approval_blocking(asks)]
     if wants_history(readings[revision] for revision in view_revisions):
         words = GestureWords(events, active_registry, revisions or readings.__getitem__)
         page_history = {
@@ -314,8 +312,8 @@ def browser_state(
         "thread": thread,
         "activity": activity,
         "workflows": workflows,
-        "tasks": tasks,
-        "ended_tasks": ended_tasks,
+        "todos": todos,
+        "ended_todos": ended_todos,
         "receipts": [event for event in events if event.get("attempt")],
         # Every thread whose history each logged event changes
         # (`thread_context.thread_memberships`), which the browser reads for the

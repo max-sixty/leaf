@@ -124,7 +124,7 @@ from these:
   kept in view, such as a postmortem beside its timeline, is instead a `layout-sidebar`
   page whose `aside` sticks ("A wide page", below).
 - **Several views of one artifact** are one `lf-tabs` set: page tabs for
-  project-scale views that share one history, Threads panel, Question inventory, and
+  project-scale views that share one history, Threads panel, ask inventory, and
   revision sequence, and a tabbed section for local alternatives within the
   surrounding view. Page tabs are sections of one page: each panel takes the page's
   width, so a Layout class on `main` widens every tab, and a sidebar stands beside
@@ -293,9 +293,9 @@ A workspace usually takes it, and so can a dense pane or table on a column page.
 
 A queue whose items open one at a time beside it, such as tickets, cases or findings to
 decide, is one `lf-tabs list="side"` as the body: its list is the queue and each item an
-`lf-tab`, so one opens beside the list and a link or a Question opens its own, and a row
-whose item's Questions are all answered shows a check, with the picked answer beside it
-where the item holds one Question. Write no script to select, hide or mark an item; the tab
+`lf-tab`, so one opens beside the list and a link or an ask opens its own, and a row
+whose item's asks are all answered shows a check, with the picked answer beside it
+where the item holds one ask. Write no script to select, hide or mark an item; the tab
 set does all three. Where the items fall into kinds the user works through in turn,
 such as merge, close and FYI, give each `lf-tab` its kind as `group` and keep each
 kind's items together: the list sets each run under a heading of its group.
@@ -387,7 +387,7 @@ need neither override.
 Leaf's default draws markers, passage marks and contextual replies over the page.
 For an arrangement that places annotations in the document instead, select
 `data-annotations="page"` on `body`. This choice omits the overlay's modules,
-styles and geometry. Exact comments, Questions, decisions, Undo, live revisions and
+styles and geometry. Exact comments, asks, decisions, Undo, live revisions and
 drawing capture still use the shared Leaf mechanisms. Changing the selection
 replaces the document through the ordinary revision lifetime.
 
@@ -478,7 +478,7 @@ This preference persists across pages on the same origin and removes Leaf's char
 shortcuts and their hints; commands and ordinary control navigation remain available.
 A package can arrange conversations and obligations with the canonical APIs in
 `module-authoring.md`, "Owning the primary conversation presentation" and "Reading
-Questions and obligation queues". Leaf owns their state, rendering, and activation;
+asks and obligation queues". Leaf owns their state, rendering, and activation;
 page composition can choose their layout.
 
 Keep content within its allocated column, visual surface, or pane. The theme scrolls a `<pre>` or a table
@@ -591,7 +591,7 @@ before returning to the surrounding page. Every live sample supplies **Full view
 which expands the same child to a whole Leaf window at viewport size. **Return to
 page**, or Escape after closing the child's controls, restores the embedded view
 with its choices, drafts, and history intact. Reset creates a fresh page from the template.
-Child decisions and comments do not change the parent's log or Question inventory.
+Child decisions and comments do not change the parent's log or ask inventory.
 Set a page-wide body declaration, such as `data-annotations="page"`, on the sample
 template when the child needs it. Leaf carries that declaration onto the child's
 body; the surrounding page keeps its own choice.
@@ -769,16 +769,16 @@ navigation. Follow the page's links and operate its navigation with pointer and 
 At each destination, check that the visible content and focus leave the user
 oriented and able to continue; compare equivalent moves across the page's views.
 
-For a page with Questions, the check also saves the window at each of the first eight
+For a page with asks, the check also saves the window at each of the first eight
 as `q` reaches it from the top, which is how a user working the page meets each
 question. At each arrival, confirm that the question, shared premise, alternatives,
 and evidence that distinguishes them are visible together, the displayed numbers
 match the available actions, and the next press of `q` reaches the next thing waiting
-on the user (an open Question, a thread whose question is theirs, or an update to send again)
+on the user (an open ask, a thread whose question is theirs, or an update to send again)
 while the complete page remains visible.
 
 Without a way to inspect the rendered page, read `leaf page state <page>`'s
-`state` and `tasks` alongside the active HTML to review the words, evidence, and
+`state` and `todos` alongside the active HTML to review the words, evidence, and
 available choices. Report the render command's result separately from the visual
 and keyboard review you could not perform. If the command cannot launch a browser,
 it says so and goes on: report the render check as unfinished, and, where it also

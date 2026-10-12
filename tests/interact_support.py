@@ -913,18 +913,18 @@ def state_json(d):
     return json.loads(result.output)
 
 
-def questions_on_you(state):
-    """Widget requests on the user's queue, retaining source and prompt identity."""
+def asks_on_user(state):
+    """Widget asks on the user's Questions, retaining source and prompt identity."""
     return [
         {
             "id": item["id"],
-            "tag": item["question"]["source"]["tag"],
-            "widget": item["question"]["source"]["id"],
-            "widget_tag": item["question"]["source"]["tag"],
+            "tag": item["ask"]["source"]["tag"],
+            "widget": item["ask"]["source"]["id"],
+            "widget_tag": item["ask"]["source"]["tag"],
             "thread": item["thread"],
         }
-        for item in state["queues"]["on_you"]
-        if item["kind"] == "question" and item["question"]["source"]["kind"] == "widget"
+        for item in state["queues"]["questions"]
+        if item["kind"] == "ask" and item["ask"]["source"]["kind"] == "widget"
     ]
 
 
@@ -1463,7 +1463,7 @@ def declare_work(page_dir, line, *, item=None, ts=None, **voice):
             or append_carried_log_record(
                 page_dir,
                 {
-                    "kind": "task",
+                    "kind": "todo",
                     "author": "agent",
                     "owner": "agent",
                     "subject": {"kind": "page"},
@@ -1495,9 +1495,9 @@ def end_work(page_dir):
             append_carried_log_record(
                 page_dir,
                 {
-                    "kind": "task_end",
+                    "kind": "todo_end",
                     "author": "agent",
-                    "task": task["id"],
+                    "todo": task["id"],
                     "outcome": "done",
                 },
             )
@@ -1950,18 +1950,15 @@ def add_test_widget(package: Path, tag: str, *, upgrade: bool = False) -> dict:
 
 @pytest.fixture
 def declared_reading_package(tmp_path, monkeypatch):
-    """A module-free vocabulary for shared said-word and painted-fact contracts."""
+    """A module-free vocabulary for the shared said-word contract."""
     monkeypatch.chdir(tmp_path)
     package = tmp_path / ".leaf"
     add_test_widget(package, "lf-reading")
     registry_path = package / "registry.json"
     registry = json.loads(registry_path.read_text())
     reading = registry["lf-reading"]
-    reading["properties"].update(
-        {"label": {"type": "string"}, "state": {"type": "string"}}
-    )
+    reading["properties"].update({"label": {"type": "string"}})
     reading["x-says"] = {"label": "before"}
-    reading["x-paints"] = ["state"]
     registry_path.write_text(json.dumps(registry))
     return "./.leaf"
 
@@ -2108,9 +2105,13 @@ SnapshotHandlerRegistry.add_handler(
 def consume_pending_input(session_id):
     """Hand the session its pending input as a hook does inline: one complete
     envelope, confirmed as it is handed over."""
-    from leaf import delivery, state
+    from leaf import delivery, hook_transport, state
 
-    batches = delivery.pending_batches(session_id)
+    batches = [
+        plan.batch
+        for plan in hook_transport.read_plans(session_id)
+        if plan.batch and plan.harness.hooks_carry()
+    ]
     if not batches:
         return None
     payload = delivery.freeze_delivery(batches)

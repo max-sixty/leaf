@@ -102,7 +102,6 @@ from render_harness import (
     CORPUS_SOURCES,
     EXAMPLE_PACKAGES,
     EXAMPLES,
-    FEATURE_GALLERY,
     LONG_PAGE,
     RECURRING_RESIZE_NOTICE,
     RELEASE_FOCUS,
@@ -239,7 +238,7 @@ def _panel(name: str) -> str:
     return f'<section class="panel" id="{name}"><h2>{name}</h2><p>Words.</p></section>'
 
 
-def test_the_render_gate_fails_a_wide_page_that_scrolls_sideways_only_between_viewports(
+def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewports(
     browser, serve
 ):
     """A body beside its track, and a row that spills only from 600 to 900px: both fixed
@@ -254,7 +253,6 @@ def test_the_render_gate_fails_a_wide_page_that_scrolls_sideways_only_between_vi
 </div>
 <p id="mid-spill">{"A line that wraps at both viewports and runs on unbroken between them. " * 4}</p>
 """,
-        layout="wide",
         head="""<style>
 #tracks { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
 @media (min-width: 600px) and (max-width: 900px) { #mid-spill { white-space: nowrap; } }
@@ -979,16 +977,15 @@ def test_readiness_reopens_on_current_presentation_and_ignores_superseded_work(
             'test:current-readiness', document.body,
           );
           window.probeOlderSettled = false;
-          window.probeOlder = probePresentation.present(
-            'older',
-            new Promise(resolve => { window.releaseProbeOlder = resolve; }),
-          ).then(() => { probeOlderSettled = true; });
+          const older = probePresentation.present('older');
+          older.resolve(new Promise(resolve => { window.releaseProbeOlder = resolve; }));
+          window.probeOlder = older.ready.then(() => { probeOlderSettled = true; });
         }"""
     )
     assert page.locator("body").get_attribute("data-lf-presented") == "1"
     assert page.evaluate(readiness) == "presented"
 
-    page.evaluate("() => probePresentation.present('newer', undefined)")
+    page.evaluate("() => probePresentation.present('newer').resolve()")
     wait_until_ready(page)
     assert page.evaluate("() => probeOlderSettled") is False
 
@@ -2889,18 +2886,17 @@ def test_verbatim_wrapper_owns_prose_and_order_but_not_nested_widget_rendering(
 def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
     browser, serve, tmp_path, monkeypatch, declared_reading_package
 ):
-    """Bug-back for the other thing a declaration promises: that the words arrive. Both
-    word passes stop at a shadow boundary on purpose — which widgets the page holds is
+    """Bug-back for the other thing a declaration promises: that the words arrive. The
+    word pass stops at a shadow boundary on purpose — which widgets the page holds is
     the document's question — so an element a module stages into its own tree keeps its
-    declarations and gets neither pass, and the failure is silence: no error, no missing
+    declarations and gets no pass, and the failure is silence: no error, no missing
     box, nothing a reading of the drawn page can tell from an attribute with nothing to
-    say. Here a project widget stages a declared child, whose declaration names both keys, and
-    the gate is asked for each.
+    say. Here a project widget stages a declared child whose declaration names an
+    x-says word, and the gate is asked for it.
 
-    A staged element rather than a module that wipes its own body after the passes have
-    run, which is the same failure by the reachable-today route: that one is a race with
-    the next poll for the painted half, and a bug-back that has to win a race is a
-    bug-back that reports the machine."""
+    A staged element rather than a module that wipes its own body after the pass has
+    run, which is the same failure by a route that races the module's own render, and
+    a bug-back that has to win a race is a bug-back that reports the machine."""
     monkeypatch.chdir(tmp_path)
     add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
@@ -2922,7 +2918,6 @@ def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
         '      const staged = document.createElement("lf-reading");\n'
         '      staged.id = "staged-reading";\n'
         '      staged.setAttribute("label", "09:00");\n'
-        '      staged.setAttribute("state", "failure");\n'
         '      staged.textContent = "The feeder stopped.";\n'
         "      shadowStage(this, [staged]);\n"
         "    }\n"
@@ -2935,9 +2930,6 @@ def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
     ).failures
 
     assert any('never says "09:00"' in f for f in failures), failures
-    assert any('paints state="failure" and says nothing' in f for f in failures), (
-        failures
-    )
 
 
 def test_the_render_gate_catches_a_shadow_host_whose_own_words_never_render(
@@ -2945,10 +2937,9 @@ def test_the_render_gate_catches_a_shadow_host_whose_own_words_never_render(
 ):
     """Bug-back for the half a reading of the markup cannot see. `textContent` returns a
     hidden light-DOM span and `querySelector` finds it, so a check written against the
-    markup passes on a page whose user is handed neither word. Asking `says()` for the
-    words and a box for the clipped one is what tells the two apart — the layer's own
-    reading enters a declared root in the host's stead, and a span rendered nowhere has
-    no rects."""
+    markup passes on a page whose user is never handed the word. Asking `says()` for
+    the words is what tells the two apart — the layer's own reading enters a declared
+    root in the host's stead."""
     monkeypatch.chdir(tmp_path)
     add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
@@ -2957,9 +2948,7 @@ def test_the_render_gate_catches_a_shadow_host_whose_own_words_never_render(
     declaration.pop("x-verbatim")  # the module shows a tree of its own, not the body
     declaration["x-shadow"] = True
     declaration["properties"]["label"] = {"type": "string"}
-    declaration["properties"]["urgent"] = {"type": "boolean"}
     declaration["x-says"] = {"label": "before"}
-    declaration["x-paints"] = ["urgent"]
     registry_path.write_text(json.dumps(declarations, indent=2))
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
@@ -2982,7 +2971,6 @@ def test_the_render_gate_catches_a_shadow_host_whose_own_words_never_render(
     ).failures
 
     assert any('never says "Escalated"' in f for f in failures), failures
-    assert any('paints urgent="" and says nothing' in f for f in failures), failures
 
 
 @pytest.mark.nightly  # a sweep over the whole corpus
@@ -3088,7 +3076,7 @@ def scroll_findings(page):
     return scroll_followers(scroll_writes(page, SCROLL_PASS, READING_SCROLLER))
 
 
-def rest_findings(page, source):
+def rest_findings(page):
     """A page nobody touches writes nothing, asks for no frame, moves no focus, and runs
     no animation without end, in its own document or any it frames. Its clock still
     ticks, to read the server and age what it shows, and a tick that changed nothing
@@ -3098,12 +3086,6 @@ def rest_findings(page, source):
 
     The reader has asked for reduced motion, which is when a page owes stillness: one who
     allows motion may be shown a page's own film playing itself (rust-sort's)."""
-    if source == FEATURE_GALLERY:
-        gallery_frames = page.locator("[data-interaction-frame]")
-        assert gallery_frames.count() > 0
-        expect(
-            page.locator("[data-interaction-frame][data-interaction-ready]")
-        ).to_have_count(gallery_frames.count())
     return at_rest(page)
 
 
@@ -3847,7 +3829,7 @@ def test_a_still_page_comes_back_from_every_journey_as_it_was(browser, serve, so
     url = serve(source)
     page = still_page(browser, url, width=RESIZE_PATH[0])
     findings = {
-        "at rest": rest_findings(page, source),
+        "at rest": rest_findings(page),
         "closed surfaces": surface_findings(page),
         "resized from the widest": resize_findings(page, RESIZE_PATH),
         "typed boxes": typed_box_findings(page),
@@ -4707,10 +4689,11 @@ def test_a_table_fills_its_declared_allocation_or_frame_and_a_bare_one_keeps_its
     browser, serve
 ):
     """A table directly in a panel runs its rules to the panel's inner edge, where they
-    used to stop short and read as a table cut off. An explicit allocation, on the
-    table or its figure, also sizes the painted rows, not just their scrollport.
-    The same table with no allocation keeps to what its columns hold. A table too
-    wide for the panel still scrolls inside it.
+    used to stop short and read as a table cut off. An explicit allocation on the
+    table's figure also sizes the painted rows, not just their scrollport. The same
+    table with no allocation keeps to what its columns hold, and so does one granted the
+    room itself, which is a limit rather than a size: its rows stand where the prose
+    starts. A table too wide for the panel still scrolls inside it.
     Code in a cell is set relative to the cell's text rather than at the chip size."""
     url = serve(FRAMED_TABLES_PAGE)
     page = open_page(browser, url)
@@ -4724,7 +4707,8 @@ def test_a_table_fills_its_declared_allocation_or_frame_and_a_bare_one_keeps_its
         const bare = document.querySelector('#bare'), framed = document.querySelector('#framed');
         const wide = document.querySelector('#wide-framed');
         const cell = framed.querySelector('td'), code = cell.querySelector('code');
-        const allocated = ['allocated', 'figure-table'].map(id => {
+        const own = document.querySelector('#allocated');
+        const allocated = ['figure-table'].map(id => {
             const table = document.getElementById(id);
             return Math.round(inner(table) - rowEnd(table));
         });
@@ -4732,6 +4716,9 @@ def test_a_table_fills_its_declared_allocation_or_frame_and_a_bare_one_keeps_its
             allocated,
             framedShort: Math.round(inner(framed.parentElement) - rowEnd(framed)),
             bareShort: Math.round(inner(bare.parentElement) - rowEnd(bare)),
+            ownShort: Math.round(inner(own) - rowEnd(own)),
+            ownStart: Math.round(own.querySelector('tr').getBoundingClientRect().left
+                - bare.querySelector('tr').getBoundingClientRect().left),
             wideScrolls: wide.scrollWidth - wide.clientWidth,
             wideInside: Math.round(inner(wide.parentElement) - wide.getBoundingClientRect().right),
             codeRatio: parseFloat(getComputedStyle(code).fontSize)
@@ -4742,6 +4729,7 @@ def test_a_table_fills_its_declared_allocation_or_frame_and_a_bare_one_keeps_its
     assert abs(measured["framedShort"]) <= 1, measured
     assert all(abs(short) <= 1 for short in measured["allocated"]), measured
     assert measured["bareShort"] > 100, "the bare table fills its column"
+    assert measured["ownShort"] > 100 and measured["ownStart"] == 0, measured
     assert measured["wideScrolls"] > 0 and measured["wideInside"] >= 0, measured
     assert measured["codeRatio"] == pytest.approx(0.9, abs=0.01), measured
     assert root_overflow(page) == 0

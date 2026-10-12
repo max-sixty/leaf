@@ -47,7 +47,6 @@ from interact_support import (
     page_packages,
     page_state,
     publish,
-    questions_on_you,
     read_page_data,
     record_claim,
     release_codex_command,
@@ -55,7 +54,6 @@ from interact_support import (
     retire_test_services,
     running_http_server,
     spawn_probe,
-    thread_records,
     vendored_at_another_protocol,
     wait_for,
 )
@@ -90,7 +88,6 @@ from leaf import server_rows as server_rows_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
-from leaf import thread_context as thread_context_model
 from leaf import thread_titles as thread_titles_model
 from leaf import vendoring as vendoring_model
 from leaf.refusals import Refused
@@ -477,9 +474,7 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
     before = event_model.read_events(page_dir)
     children = []
     for _ in range(2):
-        status, raw = fetch(
-            f"{server}/api/samples", data=b'{"template":"practice","passive":true}'
-        )
+        status, raw = fetch(f"{server}/api/samples", data=b'{"template":"practice"}')
         assert status == 200, raw
         child = server + json.loads(raw)["url"].rstrip("/")
         children.append(child)
@@ -489,7 +484,6 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
             "Selected thread",
             "Seeded reply",
         ]
-        assert b"data-lf-sample-passive" in fetch(child + "/")[1]
     assert children[0] != children[1]
     assert event_model.read_events(page_dir) == before
     status, raw = fetch(f"{server}/api/samples", data=b'{"template":"missing"}')
@@ -2139,7 +2133,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     )
     assert status == 400
     assert json.loads(body)["error"] == (
-        "v2 still has unanswered widget Questions: widget:choice"
+        "v2 still has unanswered widget asks: widget:choice"
     )
 
     status, body = fetch(
@@ -2191,7 +2185,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     )
     assert status == 400
     assert json.loads(body)["error"] == (
-        "v2 still has unanswered widget Questions: widget:thread-approval"
+        "v2 still has unanswered widget asks: widget:thread-approval"
     )
 
     status, body = fetch(
@@ -3060,34 +3054,6 @@ def test_a_refusal_from_corrupt_page_state_is_an_answered_fault(server, page_dir
     }
 
 
-def test_flocked_refuses_a_platform_without_cross_process_locking(
-    page_dir, monkeypatch
-):
-    """A no-op lock cannot honestly promise one append for one attempt."""
-    monkeypatch.setattr(cleanup_model, "fcntl", None)
-    with (
-        pytest.raises(RuntimeError, match="cross-process file locking"),
-        cleanup_model.flocked(page_dir / ".lock"),
-    ):
-        pass
-
-
-def test_server_startup_refuses_a_platform_without_cross_process_locking(
-    page_dir, monkeypatch
-):
-    """Standing startup must fail before it opens a socket or records a URL."""
-    monkeypatch.setattr(cleanup_model, "fcntl", None)
-    monkeypatch.setattr(leases_model, "fcntl", None)
-    with pytest.raises(RuntimeError, match="cross-process file locking"):
-        hosting_model.cmd_serve(page_dir, standing=True, harness=None)
-    with pytest.raises(RuntimeError, match="cross-process file locking"):
-        hosting_model.start_server(page_dir, standing=True, harness=None)
-    with pytest.raises(RuntimeError, match="cross-process file locking"):
-        leases_model.lock_is_held(page_dir / "server.lock")
-    assert not (page_dir / "server.lock").exists()
-    assert not (page_dir / "service.json").exists()
-
-
 def test_server_validates_an_action_against_its_version_and_widget(server, page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
     board = registry["lf-board"]["x-example"]
@@ -3136,7 +3102,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
                 "action": "move",
                 "detail": {"unit": "card-baffle", "value": "col-doing", "rank": "10"},
             },
-            "rank '10' is not a rank key",
+            "'10' does not match",
         ),
     ]
     before = len(event_model.read_events(page_dir))
@@ -3166,7 +3132,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
             lambda registry: json.dumps(
                 {key: value for key, value in registry.items() if key != "$languages"}
             ),
-            "registry must declare",
+            "'$languages' is a required property",
         ),
     ],
 )
@@ -6099,171 +6065,6 @@ def test_stamp_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_d
         ("note", 2, 2),
         ("action", None, 2),
     ]
-
-
-def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
-    """The tolerance above has to reach the readings built on it, or it buys nothing.
-
-    `read_events` skips a torn line and keeps reading, so a reply can outlive the
-    message it answers — the one way the log tears from inside the product's own
-    grammar rather than from someone editing the file. Two readings walk that
-    relation: `thread_names`, which resolves a reply to the thread it is in,
-    and `build_threads`, which builds the thread itself. The first was made to
-    degrade and the second went on raising, so a page that had lost one line answered
-    `page state` with a KeyError and handed the session picking it up nothing at all —
-    the reply included, which was still perfectly readable.
-
-    Both now put the surviving reply under the id the lost message was known by, so an
-    action naming that id in `resolves` still finds its thread and the two readings
-    cannot disagree about which thread a message is in. Every reading that names the
-    thread names it by that id, and one that looked the thread up through its opening
-    message found nothing there."""
-    source = page_dir / "index.html"
-    source.write_text(
-        source.read_text().replace(
-            "</main>", '<lf-activity id="feed"></lf-activity></main>'
-        )
-    )
-    publish(page_dir)
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "comment",
-            "id": "c-lost",
-            "author": "user",
-            "revision": 1,
-            "text": "the question nobody can read any more",
-        },
-    )
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "reply",
-            "id": "r-kept",
-            "author": "agent",
-            "parent": "c-lost",
-            "revision": 1,
-            "text": "the answer that survived it",
-            "markup": (
-                '<lf-ask id="orphan-decision"><h3>Which repair?</h3>'
-                '<lf-options id="orphan-choice" choose>'
-                '<lf-option id="orphan-retry">Retry it</lf-option>'
-                "</lf-options></lf-ask>"
-            ),
-        },
-    )
-    log = page_dir / "events.jsonl"
-    lines = log.read_text(encoding="utf-8").split("\n")
-    torn = next(i for i, line in enumerate(lines) if '"id": "c-lost"' in line)
-    lines[torn] = lines[torn][: len(lines[torn]) // 2]  # the tear a crash leaves
-    log.write_text("\n".join(lines), encoding="utf-8")
-
-    events = event_model.read_events(page_dir)
-    assert [e["id"] for e in events if e["kind"] == "reply"] == ["r-kept"], (
-        "the tear took the reply with it, so nothing below is being read"
-    )
-    names = thread_context_model.thread_names(events)
-    assert (names["r-kept"], names["c-lost"]) == ("c-lost", "c-lost")
-    threads = event_folds_model.build_threads(events, {})  # nothing published to sit on
-    assert list(threads) == ["c-lost"], (
-        f"the two readings put the reply in different threads: {list(threads)}"
-    )
-    assert [m["id"] for m in threads["c-lost"]["msgs"]] == ["r-kept"]
-    # The lost id names the thread; its root is the reply that survived, under that
-    # reply's own id, because a reply or resolve addressed to the root has to name a
-    # message the append door can find.
-    assert threads["c-lost"]["id"] == "c-lost"
-    assert threads["c-lost"]["root"] is threads["c-lost"]["msgs"][0]
-
-    # The surviving message is still the frozen document that owns its widgets.
-    # Reading only the thread shell would miss this harder half of the torn-root case:
-    # its question has to remain actionable and every element still names the lost
-    # root as its thread.
-    open_state = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
-    assert open_state.exit_code == 0, open_state.output
-    open_reading = json.loads(open_state.output)
-    assert questions_on_you(open_reading) == [
-        {
-            "id": "widget:orphan-choice",
-            "tag": "lf-options",
-            "widget": "orphan-choice",
-            "widget_tag": "lf-options",
-            "thread": "c-lost",
-        }
-    ]
-    orphan_elements = [
-        element for element in open_reading["elements"] if element["thread"] == "c-lost"
-    ]
-    assert [element["id"] for element in orphan_elements] == [
-        "orphan-decision",
-        "orphan-choice",
-        "orphan-retry",
-    ]
-    # The browser reads the same thread under the same id, so its open Ask makes the
-    # thread the user's turn.
-    [served_thread] = page_state(page_dir)["browser"]["thread"]["threads"]
-    assert served_thread["id"] == "c-lost"
-    assert served_thread["attention"]["kind"] == "needs_user"
-
-    closed = append_carried_log_record(
-        page_dir,
-        {"kind": "resolve", "author": "user", "parent": "c-lost"},
-    )
-
-    # And both commands an agent uses: state reports the current fact, while the
-    # exact thread lookup recovers every surviving record that explains it.
-    state = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
-    assert state.exit_code == 0, state.output
-    closed_reading = json.loads(state.output)
-    [thread] = closed_reading["threads"]
-    assert thread == {
-        "id": "c-lost",
-        "title": None,
-        "anchor": None,
-        "detached_from": None,
-        "resolved": "user",
-        "unread": [],
-        "attention": None,
-    }
-    assert questions_on_you(closed_reading) == []
-    assert [
-        element["id"]
-        for element in closed_reading["elements"]
-        if element["thread"] == "c-lost"
-    ] == [element["id"] for element in orphan_elements]
-    assert thread_records(page_dir, "c-lost") == ["r-kept", closed["id"]]
-    history = CliRunner().invoke(
-        cli_model.cli, ["page", "state", str(page_dir), "c-lost"]
-    )
-    assert history.exit_code == 0, history.output
-    [kept] = json.loads(history.output)["content"]
-    assert (kept["message"], kept["text"]) == ("r-kept", "the answer that survived it")
-
-    # The history feed names the thread each row was made in, with the words of the
-    # first message it still holds.
-    rows = {row["id"]: row for row in page_state(page_dir)["browser"]["history"]}
-    lost_thread = {
-        "id": "c-lost",
-        "title": None,
-        "opening": "the answer that survived it",
-    }
-    assert rows["r-kept"]["thread"] == lost_thread
-    assert rows[closed["id"]]["thread"] == lost_thread
-
-    # The thread's id still names the thread to the writers, as it does for any
-    # thread whose opening comment survives; the reply is addressed through the
-    # first message the thread still holds, since the id names no event.
-    replied = CliRunner().invoke(
-        cli_model.cli,
-        ["thread", "reply", str(page_dir), "c-lost", "--text", "Retrying."],
-    )
-    assert replied.exit_code == 0, replied.output
-    assert json.loads(replied.output)["parent"] == "r-kept"
-    resolved = CliRunner().invoke(
-        cli_model.cli, ["thread", "resolve", str(page_dir), "c-lost"]
-    )
-    assert resolved.exit_code == 0, resolved.output
-    assert json.loads(resolved.output)["parent"] == "r-kept"
 
 
 def test_sample_fixtures_share_captured_history_but_isolate_child_gestures(

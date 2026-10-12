@@ -27,8 +27,8 @@ const modules = [
       "};\n",
   },
   {
-    // The schema admission holds a comment's drawing to, which the runtime's own
-    // validator reads its bounds from (`runtime/composing/drawing-record.js`).
+    // The schema admission holds a comment's drawing to, which the runtime reads the
+    // bounds a draft is drawn within from (`runtime/composing/drawing-record.js`).
     out: `${assets}/runtime/composing/drawing-schema.js`,
     from: ["$events", "kinds", "comment", "record", "properties", "drawing"],
     code: (schema) => `export const drawingSchema = ${JSON.stringify(schema)};\n`,

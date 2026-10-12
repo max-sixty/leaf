@@ -7,8 +7,8 @@ import re
 import pytest
 from interact_support import add_test_widget, append_carried_log_record, append_command
 from leaf import event_log as events_model
-from leaf import projection as projection_model
 from leaf import schema as schema_model
+from leaf.registry.contract import RANK
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -272,7 +272,7 @@ def test_z_puts_a_card_back_where_the_version_had_it(browser, serve):
     (moved,) = actions(serve.page_dir)
     rank = moved["detail"].pop("rank")
     assert moved["detail"] == {"unit": "card-baffle", "value": "col-done"}
-    assert projection_model.RANK.fullmatch(rank)
+    assert re.fullmatch(RANK, rank)
     assert [(e["kind"], e.get("undoes")) for e in log if e["kind"] == "undo"] == [
         ("undo", moved["id"])
     ]

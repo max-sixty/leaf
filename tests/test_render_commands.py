@@ -26,7 +26,6 @@ from leaf.render_gate.page_code import run_page_code
 from playwright.sync_api import expect
 from render_cases_layout import (
     BADGE_CHROME,
-    PAINTED_IN_SILENCE_PAGE,
     SHORT_CHIP_PAGE,
     SHOT_PAGE,
     SHOT_SRC,
@@ -311,8 +310,8 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
             "turn": "turn-1",
         },
     )
-    on_you = state_json(serve.page_dir)["queues"]["on_you"]
-    assert {"kind": "widget", "id": "ship"} in [item["subject"] for item in on_you]
+    questions = state_json(serve.page_dir)["queues"]["questions"]
+    assert {"kind": "widget", "id": "ship"} in [item["subject"] for item in questions]
 
     def check():
         ran = subprocess.run(
@@ -683,7 +682,6 @@ def test_a_wide_shot_owns_comparison_actions_in_its_native_rail(browser, serve, 
         "Inspect captured controls",
         '<h1>Inspect captured controls</h1><div style="overflow-x:auto;inline-size:100%">'
         f'<div style="inline-size:1280px;max-inline-size:none">{shot}</div></div>',
-        layout="wide",
     )
     page = open_page(
         browser,
@@ -1498,52 +1496,6 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
             '<lf-option id=c-lax> puts "opens in a new tab" under .lf-ui, where no '
             "comment can reach it"
         ),
-    ], found
-
-
-def test_render_reports_a_painted_fact_whose_word_was_drawn_nowhere(
-    browser, serve, declared_reading_package
-):
-    """The x-paints half of the same gate, and the line it draws between two silences.
-
-    A widget may paint a fact — `kind="failure"` is a visual state and no text node —
-    and it owes a user who is listening the same fact in words. The runtime
-    writes that word, so what is left to check is whether anything drew it. Asking
-    is asking for a box, and only an element that is being laid out has one to give:
-    a disclosure nobody opened, a tab nobody switched to and a shut thread panel
-    all lay out nothing, and their emptiness is the ancestor's answer rather than
-    the widget's.
-
-    So the two silences part here, and this holds one of them: a word drawn nowhere
-    on a page that is on screen is reported, and the same widget behind a fold is
-    not, there being nothing to measure and the fold being the user's to open.
-    That exemption is what lets a widget riding a message out, in
-    `test_render_leaves_a_widget_riding_a_reply_out_of_that_reading`.
-
-    The other silence — a word the runtime never wrote, which is a fault wherever
-    the element stands — no fixture can stage: `quietFacts` returns the attribute's
-    own value or its name, so a declared paint always gets its word, and the branch
-    is reachable only by a regression in `renderQuiet` itself. What holds it is the
-    corpus with that regression put back: silence `renderQuiet` and every painted
-    option in the examples is reported, an option in a tab nobody opened among them.
-    Skipping the unrendered element before asking whether
-    a word exists is what drops that one, so the order of the two questions here is
-    the contract, and this test does not pin it."""
-    found = [
-        f.split("] ", 1)[1]
-        for f in render_gate_model.render_version(
-            browser,
-            serve(
-                PAINTED_IN_SILENCE_PAGE,
-                packages=(*EXAMPLE_PACKAGES, declared_reading_package),
-            ),
-        ).failures
-    ]
-    assert sorted(set(found)) == [
-        (
-            '<lf-reading id=p-seen> paints state="failure" and says nothing a user '
-            "listening can hear"
-        )
     ], found
 
 

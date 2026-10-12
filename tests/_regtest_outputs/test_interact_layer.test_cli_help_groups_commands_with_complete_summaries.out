@@ -4,21 +4,22 @@ Usage: leaf [OPTIONS] COMMAND [ARGS]...
   Build and run interactive pages a session shares with its user.
 
 Options:
-  --version  Print this running Leaf payload's source version.
+  --version  Print the commit this Leaf runs from, with its commit or install
+             date.
   --root     Print the payload directory this leaf runs from.
   --help     Show this message and exit.
 
 Commands:
   codex     Launch Codex and connect Leaf pages to its tasks.
   data      Set or clear page-bound external data.
-  delivery  Read input delivered by any Leaf harness.
+  delivery  Read a delivery by its id, and confirm you received it.
   file      Bind existing local files for editing on a page.
   package   Create, check, install, and run packages.
   page      Create, check, stamp, and read pages.
-  response  Answer exact response references carried by a delivery.
+  response  Reply to an update by the reference its delivery gave.
   server    Start, run, or stop the local server.
   status    Say the page waits on its user, or is done.
-  task      Open, start, or end tasks on the page, yours or the user's.
+  task      Open or end to-dos, and start work on your Tasks.
   thread    Open, answer, edit, summarize, or resolve a thread.
   wait      Confirm a delivery, if given, then wait for the next batch.
 
@@ -128,10 +129,11 @@ Commands:
 ## response
 Usage: leaf response [OPTIONS] COMMAND [ARGS]...
 
-  A response reference selects its page, input and frozen thread destination.
+  Reply to a user update with the reference its delivery printed as
+  `answer.ref`.
 
 Options:
   --help  Show this message and exit.
 
 Commands:
-  reply  Author a complete addressed reply.
+  reply  Reply to the update a reference names.

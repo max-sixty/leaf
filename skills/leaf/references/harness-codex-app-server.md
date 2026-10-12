@@ -29,8 +29,8 @@ thread at once. Later working messages stay in Codex. Your completed final
 commits the reply through the same durable writer as `leaf response reply`,
 unless an explicit successful reply already answered it.
 
-For a reply needing widgets, a prose question awaiting the user (`--question`),
-work promised beyond this turn (`--task`), a title or a changed anchor, author it
+For a reply needing widgets, a prose ask awaiting the user (`--ask`),
+work promised beyond this turn (`--todo`), a title or a changed anchor, author it
 with `leaf response reply <answer.ref>` and the rich options in
 [threads](threads.md). The command validates saved edits and commits immediately.
 The completed final yields to an explicit successful answer already in the log;
@@ -85,15 +85,11 @@ Terminal launch and independent-shell setup are in `references/codex-setup.md`.
 
 ### Full Leaf handoff
 
-Use the canonical browser page by default. Run `leaf server start <page>` and
-retain its exact keyed URL, and hand it over for a local browser. This runs Leaf's
-theme, package widgets, anchored comments, versions, and state stream unchanged.
-
-Serving starts or joins the task's delivery adapter before returning the URL,
-using `LEAF_CODEX_APP_SERVER` as its endpoint. Re-serving restores an adapter that
-stopped, including when the page server is already running. Follow
-`references/conversation-loop.md`, "Status and handoff". The adapter
-watches every page this task owns, and a completed turn does not stop it.
+Serve and hand the page over as `references/harness-codex.md`, "Full Leaf handoff",
+describes. Here the delivery adapter that serving starts or joins uses
+`LEAF_CODEX_APP_SERVER` as its endpoint. Re-serving restores an adapter that
+stopped. The adapter watches every page this task owns, and a completed turn does
+not stop it.
 
 `leaf codex start <page>` connects delivery explicitly when claiming without
 serving. It prints `{"task", "app_server", "started"}`; a null `app_server` means
@@ -104,7 +100,3 @@ than the one that adapter holds.
 A `leaf wait` this task already runs, or a watcher task, carries input without the
 adapter, as `references/harness-codex.md`, "Routes without the adapter", describes; on those routes there is no App Server turn to bind, so
 answer with `leaf response reply <answer.ref>`.
-
-If serving refuses to connect delivery, fix its diagnostic before handing the
-page over. Serving honors an existing direct `leaf wait`; an explicit
-`leaf codex start` refuses while that wait holds the task's single wait lease.

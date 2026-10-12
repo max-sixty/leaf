@@ -572,10 +572,10 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     assert both.exit_code == 2
     assert "No such option '--for'" in both.output
 
-    [task] = written(
-        ["thread", "reply", str(page_dir), later, "--text", "On it.", "--task", "Trace"]
+    [todo] = written(
+        ["thread", "reply", str(page_dir), later, "--text", "On it.", "--todo", "Trace"]
     )
-    assert (task["parent"], task["task"]) == (later, "Trace")
+    assert (todo["parent"], todo["todo"]) == (later, "Trace")
 
     [closed] = written(["thread", "resolve", str(page_dir), later])
     assert (closed["kind"], closed["parent"]) == ("resolve", later)
@@ -1443,10 +1443,7 @@ def test_kernel_selectors_name_no_package_tag():
     lf-toc serves lf-toc and no other contents map, and binds the kernel to one
     package's vocabulary. A kernel sheet's selectors and `@scope` preludes, and the
     selectors the runtime hands a DOM query, use no tag a bundled package declares as
-    a type selector.
-
-    The interaction gallery still finds its tabs by tag (F86, which moves it into a
-    package); the reading names that one leak so it can only shrink."""
+    a type selector."""
     tags = {
         tag
         for registry in schema_model.BUNDLED_PACKAGES.glob("*/registry.json")
@@ -1507,18 +1504,17 @@ def test_kernel_selectors_name_no_package_tag():
             for found in query.findall(code)
             if leaks_in(found[1])
         ]
-    assert leaks == [
-        "runtime/interaction-gallery.js: lf-tabs",
-        "runtime/interaction-gallery.js: :scope > lf-tab",
-    ], leaks
+    assert leaks == [], leaks
 
 
 def test_every_widget_api_export_has_a_behavior_module_reader():
     """widget-api.js is the API behavior modules get, so each name it exports is one a
     behavior module imports (a bundled package's, a kernel widget's, an example's or a
-    fixture package's) or one a reference shows package authors in code. A name only
-    the render gate's probes read belongs in check-api.js, and one only the suite reads
-    is imported from its owning module, so neither widens the authoring API."""
+    fixture package's) or one a reference teaches package authors. The list of Lit's
+    names under module-authoring.md's "Lit exports" teaches none of them, so it keeps no
+    name alive. A name only the render gate's probes read belongs in check-api.js, and
+    one only the suite reads is imported from its owning module, so neither widens the
+    authoring API."""
     strip = lambda code: re.sub(r"(?<!:)//[^\n]*|/\*.*?\*/", "", code, flags=re.DOTALL)
     api = strip((schema_model.ASSETS / "runtime" / "widget-api.js").read_text())
     exported = {
@@ -1556,16 +1552,21 @@ def test_every_widget_api_export_has_a_behavior_module_reader():
         SKILL_ROOT / "SKILL.md",
         *schema_model.BUNDLED_PACKAGES.glob("*/instructions/*.md"),
     ]
+    # The list of Lit's names has its own section, which teaches none of them.
+    listed = re.compile(
+        r"^### Lit exports\n.*?(?=^#|\Z)", flags=re.DOTALL | re.MULTILINE
+    )
     in_code = "\n".join(
         code
         for path in references
         for code in re.findall(
-            r"```.*?```|`[^`\n]+`", path.read_text(), flags=re.DOTALL
+            r"```.*?```|`[^`\n]+`", listed.sub("", path.read_text()), flags=re.DOTALL
         )
     )
     shown = {name for name in exported if re.search(rf"\b{name}\b", in_code)}
 
     assert {"once", "html", "widgetController"} <= imported, "no import read"
+    assert sorted(imported - exported) == [], "widget imports absent from widget-api"
     assert sorted(exported - imported - shown) == []
 
 
@@ -1976,7 +1977,6 @@ def test_server_inputs_require_a_transition_without_browser_changes(
     assert second["generation"] != first["generation"]
     assert second["server"] != first["server"]
     assert second["fingerprint"] == first["fingerprint"]
-    assert second["runtime"] == first["runtime"]
 
 
 def test_site_page_accepts_events_across_build_and_container_python_versions(
@@ -2004,52 +2004,68 @@ PLAIN_PAGE = (
 )
 
 
-def test_the_browser_gate_refuses_a_page_another_leaf_vendored(tmp_path, monkeypatch):
-    """A page whose runtime moved under it names the re-vendor, not a missing export.
-
-    The gate's probe modules come from the running Leaf and the runtime they import
-    comes from the page, so a page vendored by another one breaks in the browser.
-    """
+def test_the_browser_gate_reads_a_page_another_leaf_vendored(tmp_path, monkeypatch):
+    """A Leaf update leaves the render gate working on a page an earlier Leaf vendored
+    at this protocol: its own probes import the page's older runtime by name, and need
+    only the names they import, not the same bytes."""
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
     page = tmp_path / "page"
     initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
     (page / "index.html").write_text(PLAIN_PAGE, encoding="utf-8")
-    assert (
-        interact_files.read_json(page / "registry.json")["$layer"]["runtime"]
-        == layer_model.payload_runtime_fingerprint()
-    )
-
-    # The page keeps the runtime the Leaf that vendored it had, which is the state a
-    # plugin update leaves behind.
+    # Another Leaf's runtime: the same names, other bytes, and the identity an earlier
+    # Leaf recorded for them.
+    geometry = page / "runtime" / "geometry.js"
+    older = geometry.read_text(encoding="utf-8") + "\n// an earlier Leaf's runtime\n"
+    geometry.unlink()
+    geometry.write_text(older, encoding="utf-8")
     stamp = page / "registry.json"
     vendored = interact_files.read_json(stamp)
-    before = "sha256:" + "b" * 64
-    vendored["$layer"]["runtime"] = before
+    vendored["$layer"]["runtime"] = "sha256:" + "b" * 64
+    stamp.unlink()
     stamp.write_text(json.dumps(vendored), encoding="utf-8")
 
     result = runner.invoke(cli_model.cli, ["page", "check", "--render", str(page)])
 
+    assert result.exit_code == 0, result.output
+    assert "render checks passed" in result.output
+
+
+def test_the_browser_gate_names_the_re_vendor_when_its_probes_cannot_link(
+    tmp_path, monkeypatch
+):
+    """A page whose runtime lacks a name the gate's probes import names the re-vendor,
+    not a missing export, which would read as a defect in the page."""
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    page = tmp_path / "page"
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    assert initialized.exit_code == 0, initialized.output
+    (page / "index.html").write_text(PLAIN_PAGE, encoding="utf-8")
+    check_api = page / "runtime" / "check-api.js"
+    exports = check_api.read_text(encoding="utf-8")
+    assert 'export { renderedParent, uiInside, upFrom } from "./shadow.js";' in exports
+    check_api.unlink()
+    check_api.write_text(
+        exports.replace(
+            "export { renderedParent, uiInside, upFrom }",
+            "export { renderedParent, uiInside }",
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(cli_model.cli, ["page", "check", "--render", str(page)])
+
     assert result.exit_code != 0, result.output
-    assert before in result.output
+    assert "upFrom" in result.output
     assert f"leaf page init {page}" in result.output
-
-    # A page from before the identity was recorded reads as carrying no runtime, which
-    # the gate cannot confirm either.
-    del vendored["$layer"]["runtime"]
-    stamp.write_text(json.dumps(vendored), encoding="utf-8")
-
-    unstamped = runner.invoke(cli_model.cli, ["page", "check", "--render", str(page)])
-
-    assert unstamped.exit_code != 0, unstamped.output
-    assert f"leaf page init {page}" in unstamped.output
 
 
 def test_the_browser_gate_opens_away_from_the_project_a_page_selected(
     tmp_path, monkeypatch
 ):
-    """The gate confirms the runtime it serves probes against from the payload alone.
+    """The gate opens a page away from the project its packages were selected in.
 
     `$layer.packages` records a project-relative selection, resolved against the
     directory `page init` ran in, so a reading composed from the page's packages would
@@ -5314,7 +5330,7 @@ def test_package_check_refuses_a_malformed_reaction_token(tmp_path, monkeypatch,
     result = runner.invoke(cli_model.cli, ["package", "check", ".leaf"])
 
     assert result.exit_code != 0
-    assert "$reactions.tokens must map lowercase token names" in result.output
+    assert "$reactions.tokens.nod" in result.output
 
 
 def test_the_register_is_the_only_way_a_key_enters_the_runtime():
@@ -5335,10 +5351,10 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     key; the same listener handles pointer input. prepaint.js records inputs
     from the document's first script. focus.js reads keys as the end of a label press
     and as a Tab's step; neither answers a command. The
-    interaction log records keys and answers none. A covering surface's Tab loop keeps
-    the platform's own sequential navigation inside it. The code block's copy control
-    hands Tab back to its source, and the block's Enter moves to that control, which no
-    register row declares. Another is how every drift this register replaced began — a
+    interaction log records keys and answers none. The modal Tab loop keeps the
+    platform's own sequential navigation inside a standing modal, after the dispatcher.
+    The code block's copy control hands Tab back to its source. Another is how every
+    drift this register replaced began — a
     `keydown` beside a display list, the two of them free to disagree about which keys the
     widget answers."""
     layer = ROOT / "skills/leaf"
@@ -5366,8 +5382,8 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
         "prepaint.js": 1,
         "focus.js": 2,
         "interaction-log.js": 1,
-        "auxiliary-surfaces.js": 1,
-        "code-copy.js": 2,
+        "layer-stack.js": 1,
+        "code-copy.js": 1,
     }, (
         f"the runtime's keydown listeners changed: {listed}. A key belongs in the "
         "register (keys(el, title, rows)), which is what lets a surface promise it."

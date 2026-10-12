@@ -4,8 +4,9 @@
    the log sequence, because overlapping poll and POST responses can order the authorities
    differently. `watchData(widget, input, callback)` delivers a clone of `{source,
    contract, revision, run, updated, value, origin}`, or `null` while the bound source has no
-   readable value. Subscriptions pause while their owner is absent and resume with
-   its newest snapshot. Contract, publication, or validity changes redeliver; overlapping
+   readable value. Subscriptions pause while their owner is absent, and a return
+   delivers by the rule every returning paint follows (`readingPaint` in
+   `presence.js`). Contract, publication, or validity changes redeliver; overlapping
    reads await the same in-flight rendering before stamping the version presented. Its
    synchronous time readings refresh independently of data delivery. The returned
    cleanup's `refresh()` repaints the last delivered reading through the same clock
@@ -22,21 +23,11 @@ import {
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
 import { registry } from "./registry.js";
-import { clocked } from "./presence.js";
 import { reportPageError, requestJson } from "./layer-client.js";
 import { watchOwner } from "./arrivals.js";
+import { readingPaint } from "./presence.js";
 
 export function acceptData(candidate, taken) {
-  if (
-    !candidate ||
-    typeof candidate !== "object" ||
-    Array.isArray(candidate) ||
-    typeof candidate.version !== "string" ||
-    !candidate.sources ||
-    typeof candidate.sources !== "object" ||
-    Array.isArray(candidate.sources)
-  )
-    throw new TypeError("state data must carry a version and sources");
   return applicationState.acceptData(candidate, taken);
 }
 
@@ -85,14 +76,6 @@ export async function notifyDataSubscribers() {
 // `projectData` remains the rendering boundary: this helper delivers records but writes no
 // DOM and keeps no widget-specific cache.
 export function watchData(element, input, callback) {
-  if (!(element instanceof Element))
-    throw new TypeError("watchData element must be a widget element");
-  if (typeof input !== "string" || !input)
-    throw new TypeError("watchData input must be a non-empty string");
-  if (typeof callback !== "function")
-    throw new TypeError(
-      `watchData(${element.localName}, ${input}) callback must be a function`,
-    );
   const declaration = registry[element.localName]?.["x-data"]?.[input];
   if (!declaration)
     throw new Error(
@@ -103,14 +86,12 @@ export function watchData(element, input, callback) {
   // element and therefore establishes a new subscription when authored markup changes.
   const source = element.getAttribute(declaration.source);
   const failureContext = `data subscriber failed for ${element.localName}#${element.id} input ${input} source ${source}`;
-  const paint = clocked(element, callback);
+  const paint = readingPaint(element, callback);
   const selectedSource = applicationState.select((root) =>
     source && Object.hasOwn(root.data.sources, source)
       ? root.data.sources[source]
       : null,
   );
-  let delivered = false;
-  let deliveredIdentity;
   let completion = Promise.resolve();
   const region = `data:${element.id}:${input}:${++subscriptionSequence}`;
   let presentation = null;
@@ -123,23 +104,21 @@ export function watchData(element, input, callback) {
     subscriptions.delete(subscription);
     stopSelection?.();
     stopSelection = null;
-    pendingDelivery?.settle();
     pendingDelivery = null;
-    paint.stop();
     presentation?.disconnect();
     presentation = null;
-    delivered = false;
   }
   function stop() {
     if (stopped) return;
     stopped = true;
     stopLifetime?.();
     disconnect();
+    paint.stop();
   }
   // A null delivery stands until the accepted source reading changes, including
   // recovery from an incompatible contract without a new content revision.
   const deliver = (snapshot, identity, mounting = false) => {
-    if (!delivered || deliveredIdentity !== identity) {
+    if (paint.owes(identity)) {
       if (snapshot)
         snapshot.origin = {
           input,
@@ -147,12 +126,8 @@ export function watchData(element, input, callback) {
           contract: declaration.contract,
           revision: snapshot.revision,
         };
-      // Claim this source reading before invoking package code so a synchronous
-      // failure or re-entrant notification cannot redeliver the same failed value.
-      delivered = true;
-      deliveredIdentity = identity;
       const mount = presentation;
-      const rendering = paint(structuredClone(snapshot));
+      const rendering = paint(identity, structuredClone(snapshot));
       completion = Promise.resolve(rendering).catch((error) => {
         reportPageError(error, failureContext);
         if (mounting && presentation === mount) stop();
@@ -163,7 +138,7 @@ export function watchData(element, input, callback) {
   const update = (sourceStore, mounting = false) => {
     const identity = readingIdentity(sourceStore);
     const incompatible = sourceStore && sourceStore.contract !== declaration.contract;
-    if (incompatible && (!delivered || deliveredIdentity !== identity))
+    if (incompatible && paint.owes(identity))
       reportPageError(
         `data source ${source} carries contract ${sourceStore.contract}; ` +
           `watchData(${element.localName}, ${input}) requires ${declaration.contract}`,
@@ -185,25 +160,15 @@ export function watchData(element, input, callback) {
     const identity = readingIdentity(sourceStore);
     // A source can return to the reading already on screen while a later one is
     // staged; that staged reading must be replaced rather than left to paint.
-    if (!pendingDelivery && delivered && deliveredIdentity === identity) return;
-    pendingDelivery?.settle();
-    let settle;
-    const pending = {
-      sourceStore,
-      completion: new Promise((resolve) => {
-        settle = resolve;
-      }),
-      settle: (rendering) => settle(rendering),
-    };
-    pendingDelivery = pending;
-    void presentation.present(identity, pending.completion);
+    if (!pendingDelivery && !paint.owes(identity)) return;
+    // The new ticket releases a staged one that never painted.
+    pendingDelivery = { sourceStore, ticket: presentation.present(identity) };
   };
   function notifySelected() {
     const pending = pendingDelivery;
-    if (!pending) return completion;
+    if (!pending) return;
     pendingDelivery = null;
-    pending.settle(updateSafely(pending.sourceStore));
-    return pending.completion;
+    pending.ticket.resolve(updateSafely(pending.sourceStore));
   }
   // A publisher selection captures this mount's source. Its initial subscription call
   // is the mount delivery; later accepted publications stage the selected value and its
@@ -220,7 +185,7 @@ export function watchData(element, input, callback) {
       stopSelection = selectedSource.subscribe((sourceStore) => {
         if (mounting) {
           const rendering = update(sourceStore, true);
-          if (!stopped) void mount.present(deliveredIdentity, rendering);
+          if (!stopped) mount.present(readingIdentity(sourceStore)).resolve(rendering);
           return rendering;
         }
         stage(sourceStore);
@@ -238,9 +203,7 @@ export function watchData(element, input, callback) {
     subscriptions.add(subscription);
   }
   stopLifetime = watchOwner(element, { connect, disconnect });
-  stop.refresh = () => {
-    if (!stopped && element.isConnected && delivered) return paint.refresh();
-  };
+  stop.refresh = paint.refresh;
   return stop;
 }
 
@@ -248,21 +211,6 @@ export function watchData(element, input, callback) {
 // accepted before its subscriber renders; loading through that older manifest must not
 // fetch a same-key deferred value from the replacement.
 export async function loadDeferred(manifest, key) {
-  if (
-    !manifest ||
-    typeof manifest.source !== "string" ||
-    !manifest.source ||
-    typeof manifest.revision !== "string" ||
-    !manifest.revision
-  )
-    throw new TypeError("loadDeferred needs a source delivery");
-  if (typeof key !== "string" || !key)
-    throw new TypeError("loadDeferred key must be a non-empty string");
-  const records = registry.$data?.contracts?.[manifest.contract]?.records;
-  if (!records?.deferred)
-    throw new Error(
-      `loadDeferred contract ${manifest.contract} defers no record field`,
-    );
   const { source, revision } = manifest;
   const current = () => {
     const reading = runtime.data.sources[source];
@@ -277,20 +225,11 @@ export async function loadDeferred(manifest, key) {
       `source ${source} revision ${revision} changed before loading deferred ${key}`,
     );
   if (offlineInteractive) {
-    const reading = offlineData()?.sources?.[source];
-    if (
-      !reading ||
-      reading.contract !== manifest.contract ||
-      reading.revision !== revision
-    )
-      throw new Error("interactive export deferred value does not match its source");
-    const items = reading.value?.[records.items];
-    const matches = Array.isArray(items)
-      ? items.filter((item) => item?.[records.key] === key)
-      : [];
-    if (matches.length !== 1 || !(records.deferred in matches[0]))
-      throw new Error("interactive export deferred value does not match its key");
-    return structuredClone(matches[0][records.deferred]);
+    const records = registry.$data.contracts[manifest.contract].records;
+    const item = offlineData().sources[source].value[records.items].find(
+      (item) => item[records.key] === key,
+    );
+    return structuredClone(item[records.deferred]);
   }
   const params = new URLSearchParams({ source, source_revision: revision, key });
   const answer = await requestJson(
@@ -298,13 +237,6 @@ export async function loadDeferred(manifest, key) {
     {},
     "deferred value",
   );
-  if (
-    answer.revision !== revision ||
-    answer.source !== source ||
-    answer.contract !== manifest.contract ||
-    answer.key !== key
-  )
-    throw new Error("deferred value response does not match its request");
   if (!current())
     throw new Error(
       `source ${source} revision ${revision} changed while loading deferred ${key}`,

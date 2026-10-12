@@ -11,11 +11,12 @@ import {
   materializeContributionControls,
   contributionEntry,
   presentContributionEntry,
-} from "/runtime/contribution-controls.js";
-import { contributionSource } from "/runtime/contributions.js";
-import { el, offer } from "/runtime/widget-elements.js";
-import { keeps, keepsHidden } from "/runtime/keeps.js";
-import { holdFocus } from "/runtime/focus.js";
+  presentContributionReceipts,
+} from "../contribution-controls.js";
+import { contributionSource } from "../contributions.js";
+import { el, offer } from "../widget-elements.js";
+import { keeps, keepsHidden } from "../keeps.js";
+import { holdFocus } from "../focus.js";
 
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
 const TAG = "leaf-margin-cluster";
@@ -151,8 +152,9 @@ export function createMarginClusterViews({
 
   function materializeOne(item) {
     if (item.kind === "contribution") {
-      const node = controlsOf(item.offered, item.surface).get(item.record.key);
+      const node = controlsOf(item.offered, "margin").get(item.record.key);
       if (item.cluster) node.lfEntry = item.cluster;
+      presentContributionReceipts(node, item.receipt, false);
       return node;
     }
     if (item.kind === "reading") return materializeReading(item);

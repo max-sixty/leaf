@@ -11,17 +11,12 @@ domains: undo in `events` and widget meaning in `event_meaning`.
 from pathlib import Path
 
 from leaf.event_log import APPEND_STAMPED, EventRefused, new_event_id
-from leaf.event_meaning import (
-    AdmissionReadings,
-    admit_widget_event,
-    direct_dependencies,
-)
-from leaf.events import build_threads, spoken_turns, undo_error
+from leaf.event_meaning import AdmissionReadings, admit_widget_event
+from leaf.events import build_threads, spoken_turns, taken_back, undo_error
 from leaf.files import version_revisions
 from leaf.layer import incompatible_layer
 from leaf.page_view import CandidatePageView, PageView
 from leaf.projection import (
-    RANK,
     authored_positions,
     record_members,
 )
@@ -138,13 +133,6 @@ def declared_event_error(event: dict, tag: str, registry: dict):
         )
     if message := schema_error(detail_schema(entry, spec), event["detail"]):
         return f"<{tag}> {kind} {event['action']!r} detail is invalid: {message}"
-    if message := schema_error(
-        {"type": "array", "items": {"type": "string", "minLength": 1}},
-        direct_dependencies(event, spec),
-    ):
-        return (
-            f"<{tag}> {kind} {event['action']!r} identity fields are invalid: {message}"
-        )
     return None
 
 
@@ -203,12 +191,6 @@ def position_record_error(
         return (
             f"position record destination {target_id!r} is <{target['tag']}>, "
             f"not <{record['within']}>"
-        )
-    rank = event["detail"]["rank"]
-    if not RANK.fullmatch(rank):
-        return (
-            f"position record rank {rank!r} is not a rank key: base-36 digits "
-            "0-9a-z not ending in 0"
         )
 
     def holder(node: dict):
@@ -514,9 +496,7 @@ def _approval_error(view, event: dict, events: list, registry: dict):
     )
     if unanswered:
         identities = ", ".join(question["id"] for question in unanswered)
-        return (
-            f"v{event['version']} still has unanswered widget Questions: {identities}"
-        )
+        return f"v{event['version']} still has unanswered widget asks: {identities}"
     return None
 
 
@@ -577,11 +557,19 @@ def _anchored_comment_error(view, event: dict, registry: dict):
 
 
 def _parent_error(event: dict, events: list) -> str | None:
+    """A parent is a message the log holds and no undo took back. Every thread fold
+    drops a withdrawn message (`build_threads`), so an event naming one would stand
+    on a message no reading shows; with `UndoReading` refusing to withdraw a message
+    another stands on, every standing message's parent stands too."""
     if "parent" not in event:
         return None
-    messages = {logged["id"] for logged in events if logged["kind"] in MESSAGE_KINDS}
-    if event["parent"] not in messages:
-        return f"unknown parent {event['parent']!r}"
+    parent = event["parent"]
+    if not any(
+        logged["id"] == parent and logged["kind"] in MESSAGE_KINDS for logged in events
+    ):
+        return f"unknown parent {parent!r}"
+    if parent in taken_back(events):
+        return f"parent {parent!r} has been taken back"
     return None
 
 
@@ -703,9 +691,9 @@ def _task_error(view, event: dict, readings) -> str | None:
     )
     if start := start_reading(event):
         event = start
-    elif event["kind"] not in {"task", "task_end"}:
+    elif event["kind"] not in {"todo", "todo_end"}:
         return None
-    workflows = readings.work.workflows if event["kind"] != "task_end" else []
+    workflows = readings.work.workflows if event["kind"] != "todo_end" else []
     if progress_parent is not None and not any(
         item["input"] == event["item"]
         and item["next_actor"] == "agent"
@@ -742,7 +730,7 @@ def _task_error(view, event: dict, readings) -> str | None:
             None,
         )
         if question is not None:
-            return f"{widget!r} already has Question {question['id']!r}; use that Question instead of opening duplicate work"
+            return f"{widget!r} already has ask {question['id']!r}; use that ask instead of opening duplicate work"
         return None
 
     owed = {item["input"] for item in workflows if item["next_actor"] == "agent"}
@@ -826,7 +814,7 @@ def admitted_event(view, events: list, event: dict) -> dict:
         raise EventRefused(error)
     if kind in WIDGET_KINDS:
         event = admit_widget_event(view.document(event["revision"]), event, readings)
-    if kind == "task" and event["subject"]["kind"] == "widget":
+    if kind == "todo" and event["subject"]["kind"] == "widget":
         # The revision the task was opened against, which the stamp that completes
         # it must come after (`publishing`).
         event = {**event, "revision": view.revisions[-1]}

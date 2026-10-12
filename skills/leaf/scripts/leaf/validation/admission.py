@@ -86,20 +86,13 @@ def logged_id(events: list, value: str, responses: dict) -> str | None:
     message is the one id whose writer turns on its thread rather than on
     itself — naming the thread for a proactive message is refused while the thread owes a
     response, whichever of its messages is owed it — so it is read through
-    `thread_obligation`, the same reading `post_reply`'s guard refuses on.
-
-    A thread's id is its opening comment's, so an agent holding a thread id names
-    it as a message. Where the log lost that comment the id names no event, yet
-    still names the thread to every thread command (`thread.thread_addressed`).
+    `thread_obligation`, the same reading `post_reply`'s guard refuses on. A
+    thread's id is its opening comment's, so an agent holding a thread id names it
+    as a message.
     """
     event = next((event for event in events if event.get("id") == value), None)
     if event is None:
-        if value not in thread_names(events):
-            return None
-        return (
-            f"{value} is a thread whose opening message this page's log lost — "
-            f"`leaf thread reply <page> {value}` replies in it"
-        )
+        return None
     kind = event["kind"]
     article = "an" if kind[:1] in "aeiou" else "a"
     held = f"{value} is {article} {kind} in this page's log"
@@ -195,7 +188,7 @@ def check_markup(
                 (
                     "thread markup must use vocabulary shared by the active registry "
                     "and every pinned revision; otherwise ask with --text (and "
-                    "--question for a reply)"
+                    "--ask for a reply)"
                 )
             ]
             if pinned_errors

@@ -14,7 +14,7 @@ The replaceable record is independently locked, pruned on writes after one day,
 and ignored when its format does not belong to this implementation.
 """
 
-import json
+import copy
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -134,11 +134,8 @@ def observe_user_view(page_dir: Path, payload: dict) -> bool:
     error = schema_error(_PAYLOAD, payload)
     if error:
         raise ValueError(f"invalid user view: {error}")
-    try:
-        # Besides strict JSON numbers, this detaches callers' mutable observations.
-        record = json.loads(json.dumps(payload, allow_nan=False))
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"invalid user view JSON: {exc}") from exc
+    # The stamps below are the store's, so they go on a copy of the caller's report.
+    record = copy.deepcopy(payload)
     if record["checks"] and record["checks"]["sequence"] > record["sequence"]:
         raise ValueError("user view checks sequence exceeds report sequence")
     now = _now()

@@ -47,7 +47,7 @@ vars:
 
     The playground's Design control chooses among A to D, and a page-local Case
     selector switches between "Heading rewritten", "Paragraph rewritten" and
-    "Passage unchanged". The page is a wide page.
+    "Passage unchanged".
 
     Write the playground using the installed leaf:leaf skill; read the playground
     package's instructions at packages/playground/instructions/author.md inside the

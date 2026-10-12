@@ -10,7 +10,7 @@ import { readApplication } from "../semantic-state.js";
 import { registry } from "../registry.js";
 import { watchProjection } from "../projection-watch.js";
 
-export const readQuestions = () => readApplication().effective.questions;
+export const readQuestions = () => readApplication().effective.asks;
 
 export const questionEntry = (question) => registry[question?.source.tag]?.["x-awaits"];
 // The Questions approving the shown version waits on, which the server names
@@ -18,14 +18,12 @@ export const questionEntry = (question) => registry[question?.source.tag]?.["x-a
 // Approval needs an admitted inventory, so its gate never reads unknown as empty: with
 // no admitted reading nothing says which Questions still stand, and this answers null.
 export function approvalBlockingQuestions() {
-  const { questions, view } = readApplication().effective;
+  const { asks: questions, view } = readApplication().effective;
   if (questions.phase !== "ready" || !view) return null;
   const blocking = new Set(view.approval_blocking);
   return questions.all.filter((question) => blocking.has(question.id));
 }
 
 export function watchQuestions(owner, callback) {
-  if (typeof callback !== "function")
-    throw new TypeError("A Question watcher needs a callback");
   return watchProjection(owner, () => callback(readQuestions()));
 }

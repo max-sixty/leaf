@@ -312,8 +312,6 @@ export const uploadMedia = async (file) => {
   } finally {
     countTraffic("acked");
   }
-  if (typeof answer?.path !== "string")
-    throw new Error("image upload returned no media path");
   return answer.path;
 };
 

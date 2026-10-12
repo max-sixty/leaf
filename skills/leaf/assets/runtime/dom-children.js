@@ -1,33 +1,8 @@
 /* Retained DOM child reconciliation. */
 import { diffArrays } from "/vendor/jsdiff.esm.js";
-import { render as renderTemplate } from "/vendor/browser-runtime.js";
-import { holdFocus } from "./focus.js";
 import { move } from "./dom-move.js";
 
 const detach = (node) => node.remove();
-
-// Engines without native state-preserving moves still need their editor restored.
-export function render(value, container, options) {
-  const restore = holdFocus(container);
-  const part = renderTemplate(value, container, options);
-  restore?.();
-  return part;
-}
-
-// Destructive replacement ends any template ownership, including directives. Lit's
-// public RootPart.setConnected(false) disposes that lifetime, but render() has no
-// public reset API. Its pinned, deliberately unminified cache key must be discarded
-// with the markers so either native or template recovery can start afresh. A bounded
-// render stores its cache on renderBefore, a direct child, rather than the container.
-export function replaceChildren(container, ...nodes) {
-  for (const owner of [container, ...container.childNodes]) {
-    const part = owner._$litPart$;
-    if (!part || (owner !== container && part.parentNode !== container)) continue;
-    part.setConnected(false);
-    delete owner._$litPart$;
-  }
-  container.replaceChildren(...nodes);
-}
 
 // Make `parent`'s children `nodes`, in order, without moving a node already in place.
 // Removing stale nodes first leaves each following survivor exactly one place forward.

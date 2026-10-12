@@ -48,13 +48,8 @@
    Visibility reads `shownParts`, not the target's raw client rect: a project may set
    `display: contents` while its rendered descendants remain usable, and a collapsed
    target has no rendered part to offer. */
-import { TAB_STOP } from "/runtime/control-selectors.js";
-import {
-  afterScript,
-  cancelRender,
-  nextRender,
-  sizeObserver,
-} from "/runtime/rendering.js";
+import { TAB_STOP } from "../control-selectors.js";
+import { afterScript, cancelRender, nextRender, sizeObserver } from "../rendering.js";
 import {
   shellRight,
   shownBand,
@@ -62,7 +57,7 @@ import {
   shownParts,
   shownWindow,
   skipped,
-} from "/runtime/geometry.js";
+} from "../geometry.js";
 import {
   renderedChildren,
   renderedParent,
@@ -70,32 +65,33 @@ import {
   shadowHost,
   under,
   upFrom,
-} from "/runtime/shadow.js";
-import { scrollerFor } from "/runtime/reading-regions.js";
-import { boundedBlockOf } from "/runtime/bounds.js";
-import { pageScroller } from "/runtime/scrolling.js";
-import { pageDocument } from "/runtime/passages.js";
+} from "../shadow.js";
+import { scrollerFor } from "../reading-regions.js";
+import { boundedBlockOf } from "../bounds.js";
+import { pageScroller } from "../scrolling.js";
+import { pageDocument } from "../passages.js";
 import { arrivals, packRows, rowPosture, seatRows } from "./margin-placement.js";
-import { overlaps } from "/runtime/rect.js";
-import { pointBand } from "/runtime/pointed-place.js";
+import { overlaps } from "../rect.js";
+import { pointBand } from "../pointed-place.js";
 import {
   followScroll,
   scrollFollows,
   scrollMotions,
   scrolledBy,
   scrollsContent,
-} from "/runtime/scroll-motion.js";
-import { residencyStarted } from "/runtime/content-layout.js";
-import { keeps, layoutPx } from "/runtime/keeps.js";
-import { declarationFor } from "/runtime/registry.js";
-import { LAYOUT } from "/runtime/widget-elements.js";
-import { inChrome } from "/runtime/passages.js";
+} from "../scroll-motion.js";
+import { residencyStarted } from "../content-layout.js";
+import { keeps, layoutPx } from "../keeps.js";
+import { move } from "../dom-move.js";
+import { declarationFor } from "../registry.js";
+import { LAYOUT } from "../widget-elements.js";
+import { inChrome } from "../passages.js";
 import {
   anchorReading,
   carriedAnchor,
   nameAnchor,
   scrollsWith,
-} from "/runtime/css-anchors.js";
+} from "../css-anchors.js";
 
 const rows = new Map();
 // A contents target's first shown part can leave while its declaration remains.
@@ -173,16 +169,6 @@ function carrierFor(anchor, axes, run) {
   }
   return held[axes][run];
 }
-// Moves `node`, keeping the focus a row inside it holds through that row's own
-// handoff (`options.move`).
-function moveHolding(node, move) {
-  const held = node.contains(document.activeElement)
-    ? document.activeElement.closest(".lf-margin-cluster")
-    : null;
-  const owner = rows.get(held);
-  if (owner?.move) owner.move(move);
-  else move();
-}
 const isCarrier = (node) => node?.classList.contains("lf-margin-carrier");
 // The page's sideways scroll as the last pass placed rows: a rail row's carrier
 // follows its anchor down the page but stands across it in the window.
@@ -234,19 +220,11 @@ function carryScroll(node, motions) {
       parent = part;
       layers.push(part);
     }
-    const move = () => {
-      previous.before(root);
-      if (parent) parent.append(node);
-      if (previous !== node) previous.remove();
-    };
-    // The native subtree moves only when its source/axis graph changes. Its row
-    // owner retains focus and expanded controls through that placement transition.
-    const held = node.contains(document.activeElement)
-      ? document.activeElement.closest(".lf-margin-cluster")
-      : null;
-    const owner = rows.get(node) ?? rows.get(held);
-    if (owner?.move) owner.move(move);
-    else move();
+    // The native subtree moves only when its source/axis graph changes, keeping the
+    // user's place in its row (`move`).
+    if (previous.parentNode) move(previous.parentNode, root, previous);
+    if (parent) move(parent, node, null);
+    if (previous !== node) previous.remove();
   }
   if (motions.length)
     translations.set(node, {
@@ -935,8 +913,7 @@ function observeLayout() {
 }
 
 // Each row states its target (`anchor`), the row inside it it stands level with, if any
-// (`point`, pointed-place.js), its place among the others in the layer (`order`), and how
-// to move it between lanes without dropping the focus it holds (`move`).
+// (`point`, pointed-place.js), and its place among the others in the layer (`order`).
 export function registerMarginRow(row, options = {}) {
   rows.set(row, options);
   observeLayout();
@@ -1241,7 +1218,8 @@ export function layoutMarginRows({ retainSeats = false } = {}) {
   for (const [lane, members] of byLane) {
     if (lane !== layer.root) {
       const root = motionRoot(lane);
-      if (lastLane.nextElementSibling !== root) lastLane.after(root);
+      if (lastLane.nextElementSibling !== root)
+        move(lastLane.parentNode, root, lastLane.nextSibling);
       lastLane = root;
     }
     // A carrier needs the viewport as its containing block, which a lane carried by
@@ -1253,7 +1231,7 @@ export function layoutMarginRows({ retainSeats = false } = {}) {
     const runs = new Map();
     let previous = null;
     for (const read of members) {
-      const { row, options } = read;
+      const { row } = read;
       if (read.target) {
         const axes = read.place === "rail" ? "y" : "xy";
         if (!read.carrier || !carries) read.home = lane;
@@ -1273,7 +1251,7 @@ export function layoutMarginRows({ retainSeats = false } = {}) {
         let at = cursors.get(lane);
         if (at && at.parentElement !== lane) at = null;
         if (at === home) cursors.set(lane, home.nextElementSibling);
-        else moveHolding(home, () => lane.insertBefore(home, at));
+        else move(lane, home, at);
         cursors.set(home, home.firstElementChild);
       }
       const root = motionRoot(row);
@@ -1284,9 +1262,7 @@ export function layoutMarginRows({ retainSeats = false } = {}) {
         cursors.set(home, root.nextElementSibling);
         continue;
       }
-      const into = () => home.insertBefore(root, before);
-      if (options.move) options.move(into);
-      else into();
+      move(home, root, before);
       cursors.set(home, before);
     }
   }

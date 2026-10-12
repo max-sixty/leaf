@@ -759,7 +759,7 @@ test("a lent hint inside a button keeps its out-of-flow seat after withdrawal", 
   }
 });
 
-test("a template scope's re-render runs its latest callbacks and reads only its own element", async () => {
+test("a scope's attachment and re-render run its latest callbacks and read only its own element", async () => {
   const { html, render } = await import("/vendor/browser-runtime.js");
   const other = document.createElement("button");
   document.body.append(other);
@@ -802,6 +802,14 @@ test("a template scope's re-render runs its latest callbacks and reads only its 
   assert.equal(element.getAttribute("aria-keyshortcuts"), "y");
   commandsWithin(root)[0].row.run();
   assert.deepEqual(invoked, ["third"]);
+
+  const added = document.createElement("button");
+  root.append(added);
+  keys(added, "Added", [{ id: "probe.added", keys: ["z"], title: "z" }]);
+  reflectFirstScopes();
+  reflectKeys();
+  assert.equal(otherReads, 0, "an imperative attachment reads no other scoped element");
+  assert.equal(added.getAttribute("aria-keyshortcuts"), "z");
   root.remove();
   other.remove();
 });
@@ -819,7 +827,7 @@ test("a template scope refused on re-render withdraws its shortcuts, and its ali
           {
             id: "probe.first",
             keys: ["y"],
-            contextKeys: ["Enter"],
+            contextKeys: ["1"],
             title: "a",
             run() {},
           },
@@ -832,7 +840,7 @@ test("a template scope refused on re-render withdraws its shortcuts, and its ali
   reflectFirstScopes();
   reflectKeys();
   const element = root.querySelector("button");
-  assert.equal(element.getAttribute("aria-keyshortcuts"), "y Enter");
+  assert.equal(element.getAttribute("aria-keyshortcuts"), "y 1");
   paint("Second", false);
   reflectFirstScopes();
   assert.deepEqual(
@@ -845,6 +853,33 @@ test("a template scope refused on re-render withdraws its shortcuts, and its ali
   reflectKeys();
   assert.equal(commandsWithin(root).length, 0);
   assert.equal(element.getAttribute("aria-keyshortcuts"), null);
+  root.remove();
+});
+
+test("a template scope's rows read the element the template renders", async () => {
+  const { html, render } = await import("/vendor/browser-runtime.js");
+  const { DISCLOSE } =
+    await import("../../skills/leaf/assets/runtime/keyboard/disclosure.js");
+  const root = document.createElement("section");
+  document.body.append(root);
+  render(
+    html`<details>
+      <summary
+        ${commandsOn("Disclosure", (summary) => [
+          { id: "probe.disclose", keys: () => DISCLOSE(summary), title: "toggle" },
+        ])}
+      ></summary>
+    </details>`,
+    root,
+  );
+  reflectFirstScopes();
+  reflectKeys();
+  const summary = root.querySelector("summary");
+  assert.match(summary.getAttribute("aria-keyshortcuts"), /ArrowRight/);
+  summary.parentElement.open = true;
+  paintKeys();
+  reflectKeys();
+  assert.match(summary.getAttribute("aria-keyshortcuts"), /ArrowLeft/);
   root.remove();
 });
 

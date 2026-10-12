@@ -1,8 +1,51 @@
+/* Scroll positions, and whose each one is.
+
+   A box stands where the reader chose, or where layout put it. The reader chooses with
+   a wheel, a key or a scrollbar, through a Leaf landing (landing-scroll.js), and through
+   the browser's own navigation, such as find-in-page opening a closed disclosure onto
+   its match. Layout puts a box where a clamp leaves it as content shrinks, where scroll
+   anchoring adjusts it, and at the offset it kept while it did not scroll. Continuity's
+   shift restore (version.js) undoes only layout's moves, so it asks which boxes the
+   reader has chosen for since its reading (`chosenSince`).
+
+   The platform draws the line: a scroll sequence ends with `scrollend`, whoever started
+   it, and layout's moves start none (measured in Chromium and WebKit). So a `scrollend`
+   on a box is a choice, with two exceptions. A place keeper's write returns the reader
+   to a place they already had (reading-place.js, `restorePlace`; user-place.js,
+   `placeKeeper`; continuity's move of the page with its band), so it says where it
+   left each box (`placeKept`), and a sequence ending there is the keeper's. A landing
+   in motion counts from its start (`chooseScroll`), since layout it caused can be
+   announced before its sequence ends. A sequence can end frames after its last
+   `scroll` event, as WebKit's do, so continuity takes a reading at the end too. Like
+   that record, this listens on the document, which a scroll inside a shadow root does
+   not reach. */
+
 // The browser's document scrollport. Keeping the platform's root as the one page
 // scroller lets fragment links, history restoration, wheel/touch input, and browser UI
 // all describe the same reading position. Auxiliary surfaces still own their nested
 // scrollports; scrollerFor is the shared answer when a caller may stand in either.
 export const pageScroller = document.scrollingElement;
+
+let choices = 0;
+const chosen = new WeakMap();
+const kept = new WeakMap();
+// How many choices the reader has made so far, for a keeper to note with a reading.
+export const scrollChoices = () => choices;
+// Whether the reader chose where `box` stands after the `count`th choice.
+export const chosenSince = (box, count) => (chosen.get(box) ?? 0) > count;
+export const chooseScroll = (box) => chosen.set(box, ++choices);
+export function placeKept(...boxes) {
+  for (const box of boxes) kept.set(box, box.scrollTop);
+}
+document.addEventListener(
+  "scrollend",
+  ({ target }) => {
+    const box = target === document ? pageScroller : target;
+    if (kept.get(box) !== box.scrollTop) chooseScroll(box);
+    kept.delete(box);
+  },
+  { capture: true, passive: true },
+);
 
 // The furthest a box scrolls down: its scroll height less what its scrollport shows.
 export const scrollLimit = (box) => Math.max(0, box.scrollHeight - box.clientHeight);

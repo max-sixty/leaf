@@ -12,11 +12,9 @@
    status.
 
    A thread's `id` is its one identity: the id the server keys it by, which every Question,
-   workflow, placement, and view names it by. Its `root` is the first message it still
-   holds, a message like any other, and what a reply or settlement addresses as its
-   `parent`. The two differ where the log lost a thread's opening message
-   (`events.build_threads`), and for a thread this tab opened, whose id is its pending
-   message's until the log answers. */
+   workflow, placement, and view names it by. Its `root` is its opening message, a
+   message like any other, and what a reply or settlement addresses as its `parent`. A
+   thread this tab opened goes by its pending message's id until the log answers. */
 import { sameAnchor } from "../anchor-coordinate.js";
 import { PENDING } from "./identity.js";
 
@@ -244,7 +242,7 @@ export function foldThreads(threads, gestures) {
       thread.resolved = null;
       // A question asked since still waits on the user: new words for an older message
       // answer none (`events.exchange`), so the user stays first, as the log will say.
-      if (thread.attention?.reason !== "question") thread.attention = sending(gesture);
+      if (thread.attention?.reason !== "ask") thread.attention = sending(gesture);
     } else if (gesture.kind === "resolve" || gesture.kind === "unresolve") {
       const thread =
         byName.get(gesture.parent) ??

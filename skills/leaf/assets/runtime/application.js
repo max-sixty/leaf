@@ -344,26 +344,21 @@ export function mountApplication(dependencies) {
       }),
     read,
   });
-  const registerThreadPanel = ({ controller, threadsBox, view, required = false }) => {
-    let registration;
-    registration = threadPresenter.registerPanel({
+  const registerThreadPanel = ({ controller, threadsBox, view }) =>
+    threadPresenter.registerPanel({
       controller,
       threadsBox,
-      required,
       view: {
         ...view,
         card: {
           ...cardView,
-          nativeAuthored: (message) =>
-            required && !threadPresenter.primaryOwnsMessage(message),
+          nativeAuthored: (message) => !threadPresenter.primaryOwnsMessage(message),
           travel: { ...cardView.travel, ...view.travel },
         },
         placedAt: dependencies.anchorPlacement.placedAt,
-        repaintThread: required ? refreshThread : () => registration.update(),
+        repaintThread: refreshThread,
       },
     });
-    return registration;
-  };
 
   const accountPending = (receipts) => {
     const left = ledger.present(receipts);
@@ -484,8 +479,6 @@ export function mountApplication(dependencies) {
     registerMirrorConsumer(owner, render, { commands: inlineView });
 
   const registerThreadPresentation = (owner, { render, reveal }) => {
-    if (typeof reveal !== "function")
-      throw new TypeError("A Thread presentation needs a reveal callback");
     const reader = createPrimaryReader(owner, render, inlineView, () =>
       threadPresenter.present(),
     );
@@ -547,7 +540,7 @@ export function mountApplication(dependencies) {
       const question = readQuestions().all.find((item) => item.id === id);
       if (!question) return Promise.resolve(false);
       if (question.source.kind === "approval")
-        return queueActions.open(JSON.stringify(["question", question.id]));
+        return queueActions.open(JSON.stringify(["ask", question.id]));
       if (question.source.kind === "reply") {
         showHeld(question.thread);
         return threadDestinations.openPageThread(question.message, {

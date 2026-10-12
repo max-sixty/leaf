@@ -44,7 +44,7 @@ from .service import (
     prepare_claim,
     same_claim,
 )
-from .state import require_cross_process_locking, write_json
+from .state import write_json
 
 TEMPORARY_SERVER_NOTE = "server   temporary (stops with this command)"
 
@@ -367,7 +367,6 @@ class TemporaryPageServer:
 
 def cmd_serve_temporary(page_dir: Path) -> None:
     """Run the process-owned page server used by browser automation."""
-    require_cross_process_locking()
     server = TemporaryPageServer(page_dir)
     print(json.dumps({"url": server.url}), flush=True)
     print(TEMPORARY_SERVER_NOTE, file=sys.stderr, flush=True)
@@ -516,7 +515,6 @@ def cmd_serve(
     from .layer import payload_provenance
     from .server_rows import RowPublisher
 
-    require_cross_process_locking()
     lease = None
     httpd = None
     delivery = (
@@ -647,7 +645,6 @@ def _starting_server(
     claim: dict | None = None,
 ):
     """Prepare a private serving resource and expose its owner before accepting."""
-    require_cross_process_locking()
     with starting_detached(
         [
             "server",
@@ -752,7 +749,6 @@ def cmd_stop(
     disables a service something enabled meanwhile, and keeps whatever mark the
     record then carries, so a restart waiting out the old server's lease does not
     write its mark back over a plain stop that landed during the wait."""
-    require_cross_process_locking()
     stopped = False
     first = True
     while True:

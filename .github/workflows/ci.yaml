@@ -27,8 +27,6 @@ concurrency:
 
 jobs:
   test:
-    # Keep branch protection's required check name; it now covers the full gate.
-    name: lint
     concurrency:
       # One push suite at a time: it holds a runner for over an hour, and GitHub's
       # concurrency pool is per-account, shared with the other repos here. A running

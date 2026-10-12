@@ -392,7 +392,7 @@ def test_a_frozen_move_that_owes_nothing_stands_in_its_thread_without_holding_it
                 "parent": "e1",
                 "responds": "e1",
                 "text": "Here is the board. Which card goes first?",
-                "question": True,
+                "ask": True,
                 "markup": board,
             },
             {
@@ -412,7 +412,7 @@ def test_a_frozen_move_that_owes_nothing_stands_in_its_thread_without_holding_it
     threads = model.threads(state)
     assert threads["e1"]["attention"] == {
         "kind": "needs_user",
-        "reason": "question",
+        "reason": "ask",
         "workflow": None,
     }
     assert threads["e4"]["attention"] == {
@@ -476,17 +476,17 @@ def test_question_lifecycle_selects_current_prompt_and_preserves_first_settlemen
     add("comment", "first", text="Which route?")
     add("reply", "checking", parent="first", text="Checking.")
     add("reply", "progress", parent="first", text="Still checking.", ephemeral=True)
-    state = add("reply", "second", parent="first", text="Which colour?", question=True)
+    state = add("reply", "second", parent="first", text="Which colour?", ask=True)
     assert model.threads(state)["first"]["user_prompt"] == {
         "message": "second",
         "version": "second",
     }
-    assert state["tasks"] == []
-    assert [question["id"] for question in state["thread"]["questions"]["all"]] == [
+    assert state["todos"] == []
+    assert [question["id"] for question in state["thread"]["asks"]["all"]] == [
         "reply:first",
         "reply:second",
     ]
-    assert [question["id"] for question in state["thread"]["questions"]["user"]] == [
+    assert [question["id"] for question in state["thread"]["asks"]["user"]] == [
         "reply:second"
     ]
     state = add("reply", "reaction", "user", parent="second", token="keep")
@@ -494,31 +494,31 @@ def test_question_lifecycle_selects_current_prompt_and_preserves_first_settlemen
         "message": "first",
         "version": "first",
     }
-    assert [question["id"] for question in state["thread"]["questions"]["user"]] == [
+    assert [question["id"] for question in state["thread"]["asks"]["user"]] == [
         "reply:first"
     ]
-    assert state["thread"]["questions"]["all"][1]["answer"]["event"]["id"] == "reaction"
+    assert state["thread"]["asks"]["all"][1]["answer"]["event"]["id"] == "reaction"
     state = add(
-        "task_end",
+        "todo_end",
         "end",
-        task="reply:first",
+        todo="reply:first",
         outcome="dropped",
         detail="Asked elsewhere",
     )
     assert model.threads(state)["first"]["user_prompt"] is None
     state = add("reply", "answer", "user", parent="first", text="Route A")
-    first, second = state["thread"]["questions"]["all"]
+    first, second = state["thread"]["asks"]["all"]
     assert (first["status"], first["answer"]) == ("withdrawn", None)
     assert (second["status"], second["answer"]["event"]["id"]) == (
         "answered",
         "reaction",
     )
-    state = add("reply", "third", parent="first", text="Which size?", question=True)
+    state = add("reply", "third", parent="first", text="Which size?", ask=True)
     state = add("resolve", "close", "user", parent="first")
-    assert state["tasks"] == []
+    assert state["todos"] == []
     assert model.threads(state)["first"]["user_prompt"] is None
     state = add("unresolve", "reopen", "user", parent="first")
-    assert [question["id"] for question in state["thread"]["questions"]["user"]] == [
+    assert [question["id"] for question in state["thread"]["asks"]["user"]] == [
         "reply:third"
     ]
     assert model.threads(state)["first"]["user_prompt"] == {
@@ -545,11 +545,11 @@ def test_frozen_ask_attention_comes_from_its_widget_without_a_prose_task():
     assert thread["user_prompt"] is None
     assert thread["attention"] == {
         "kind": "needs_user",
-        "reason": "question",
+        "reason": "ask",
         "workflow": None,
     }
-    assert state["tasks"] == []
-    [question] = state["thread"]["questions"]["all"]
+    assert state["todos"] == []
+    [question] = state["thread"]["asks"]["all"]
     assert question["id"] == "widget:routes"
     assert question["next_actor"] == "user"
     events.append(
@@ -562,9 +562,9 @@ def test_frozen_ask_attention_comes_from_its_widget_without_a_prose_task():
     )
     state = model.reading(HUB, events)
     assert model.threads(state)["e1"]["user_prompt"] is None
-    assert state["tasks"] == []
-    assert state["ended_tasks"] == []
-    [question] = state["thread"]["questions"]["all"]
+    assert state["todos"] == []
+    assert state["ended_todos"] == []
+    [question] = state["thread"]["asks"]["all"]
     assert (question["status"], question["answer"]["value"]) == (
         "answered",
         ["route-a"],

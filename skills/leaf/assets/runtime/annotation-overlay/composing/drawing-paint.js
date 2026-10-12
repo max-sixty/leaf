@@ -4,7 +4,7 @@
  * geometry, cache or scheduled work; native drawing-ink renders its records beside
  * active/draft ink. Page-owned annotation presentation omits this producer entirely.
  */
-import { exactTarget } from "/runtime/resolved-target.js";
+import { exactTarget } from "../../resolved-target.js";
 
 export function postedDrawings(threads, anchors) {
   const drawings = [];

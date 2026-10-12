@@ -6,8 +6,8 @@
  * only the Responses HTTP request, applies the per-container model rate limit, and
  * logs request, header, first-byte, first-output and completion timings. Of the
  * streamed response it records only the type of the first output event and its item,
- * never content. `worker/README.md`, "Sandbox and rate limits" and "Hosted-agent
- * diagnostics", describe both.
+ * never content. `worker/README.md`, "Sandbox and rate limits" and "Hosted turns",
+ * describe both.
  */
 
 import { type OutboundHandlerContext } from "@cloudflare/containers";

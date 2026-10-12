@@ -44,6 +44,23 @@ import { signal } from "./signals-core.js";
 
 
 
+/** One presentation of a value, which the renderer settles with its proof once the
+ * value is on screen, or rejects when painting it failed. `resolve` adopts a promise of
+ * proof, so a renderer already holding its paint's promise hands that over; resolving
+ * with nothing commits without proof. `ready` is the coordinator's verdict: it settles
+ * once the region committed this presentation, fail-soft proof included, and rejects
+ * when the failure stands with the region still pending.
+ *
+ * A renderer may leave a ticket open while it withholds a reading, as a widget does
+ * through a drag. The handle settles that hold itself, with nothing, once a newer
+ * presentation or `disconnect` supersedes it, so no renderer tracks its own holds. A
+ * ticket the renderer already resolved, with a paint still running included, is left
+ * to that paint: it is what reports the paint's failure, and the document keeps
+ * whatever state that failure reached. The release waits a microtask, so a paint whose
+ * synchronous part supersedes its own ticket, by claiming the region again, still
+ * hands its promise over first. */
+
+
 
 
 
@@ -335,14 +352,22 @@ export function createPresentationCoordinator
 
     changed();
 
+    // Releases the newest presentation. Resolving a ticket again does nothing, so this
+    // settles only a hold its renderer left open.
+    let latest                      = null;
+
     const present = (
       value       ,
-      completion                            ,
       failSoft                             ,
-    ) => {
+    )                            => {
+      const { promise: completion, resolve, reject } = Promise.withResolvers
+
+       ();
+      const superseded = latest;
+      latest = () => queueMicrotask(() => resolve(undefined));
       const ready = (async () => {
         if (regions.get(region) !== record) {
-          await Promise.resolve(completion).catch(() => undefined);
+          await completion.catch(() => undefined);
           return;
         }
         const ticket                                                        = {
@@ -404,10 +429,15 @@ export function createPresentationCoordinator
       // creating a browser-level unhandled rejection. Callers that await `ready` still
       // receive the same rejection and can turn it into an owning startup failure.
       void ready.catch(() => undefined);
-      return ready;
+      // Released behind the ticket that replaces it, so an obsolete value cannot briefly
+      // acknowledge this epoch between two presentations.
+      superseded?.();
+      return Object.freeze({ resolve, reject, ready });
     };
 
     const disconnect = () => {
+      latest?.();
+      latest = null;
       if (regions.get(region) !== record) return;
       regions.delete(region);
       const retiringBarrier = barrier;
@@ -581,9 +611,9 @@ export function createPresentationCoordinator
 
 /** Epoch presenters and the one pass that paints them.
  *
- * Every renderer owes the same three moves — open a ticket inside the synchronous
- * publication that opened the epoch, release the hold it inherited, and paint the newest
- * value once that publication has settled. A schedule starts the presenters it collected
+ * Every renderer owes the same two moves — open a ticket inside the synchronous
+ * publication that opened the epoch, and paint the newest value once that publication
+ * has settled. A schedule starts the presenters it collected
  * in ascending `order` and repeats while painting has collected more.
  *
  * Starting is all the order buys, and the guarantee is worth stating exactly: when a
@@ -602,9 +632,9 @@ export function createPresentationCoordinator
  * The pass cannot await a presenter before starting the next, and a claim cannot wait
  * for the reading it supersedes, for the same reason: a renderer may be holding its
  * reading open — on a widget that has not prepared, on a gesture the user has not
- * finished — and anything queued behind that hold would never be drawn at all. What a
- * superseded paint keeps is its own ticket, so the coordinator still reports its
- * failure, because the DOM keeps whatever state that failure reached.
+ * finished — and anything queued behind that hold would never be drawn at all. The
+ * handle releases a superseded hold; a superseded paint keeps its own ticket, so the
+ * coordinator still reports its failure.
  */
 export const PRESENTATION_HELD = Symbol("presentation held");
 
@@ -622,25 +652,14 @@ export function createPresentationSchedule(
   let running                  = [];
   let scheduled = false;
   let settling = false;
-  let pass
-
-
-
-           = null;
+  let pass                                    = null;
 
   function open() {
-    pass ??= (() => {
-      let settle             ;
-      let refuse                            ;
-      const promise = new Promise      ((resolve, reject) => {
-        settle = resolve;
-        refuse = reject;
-      });
-      // A caller that ignores this promise reads the failure from the coordinator's
-      // report instead, so it must not raise a browser-level unhandled rejection.
-      void promise.catch(() => undefined);
-      return { promise, settle, refuse };
-    })();
+    if (pass) return;
+    pass = Promise.withResolvers      ();
+    // A caller that ignores this promise reads the failure from the coordinator's
+    // report instead, so it must not raise a browser-level unhandled rejection.
+    void pass.promise.catch(() => undefined);
   }
 
   function collect(order        , run                     ) {
@@ -685,8 +704,8 @@ export function createPresentationSchedule(
     settling = false;
     const finished = pass ;
     pass = null;
-    if (failed) finished.refuse(failure);
-    else finished.settle();
+    if (failed) finished.reject(failure);
+    else finished.resolve();
   }
 
   /** The page has caught up with the root it is reading. */
@@ -711,69 +730,32 @@ export function createPresentationSchedule(
 
 
 
-
-
     let handle                                          = null;
-    let held                                              = null;
     let generation = 0;
 
-    function claim(value       )         {
+    function claim(value       )        {
       const claimed = ++generation;
-      let resolve                                     ;
-      let reject                            ;
-      const completion = new Promise                   ((done, fail) => {
-        resolve = done;
-        reject = fail;
-      });
-      // The only reading this claim has to answer for is a withheld one, which by
-      // definition will never answer for itself. A paint still running keeps its own
-      // ticket: it is what reports its own failure, and the document keeps whatever
-      // state that failure reached. Answering for it here would fulfil the ticket its
-      // rejection was going to travel on, and the fault would go unreported.
-      const inherited = held;
-      held = null;
       handle ??= attach();
-      const ready =
-        handle?.present(value, completion                      , failSoft) ??
-        Promise.resolve();
-      // The coordinator reports every rejection. Observe it here so a renderer can
-      // deliberately leave its region pending without also raising a browser-level
-      // unhandled rejection.
-      void ready.catch(() => undefined);
-      // Release the superseded hold behind the replacement, so an obsolete value cannot
-      // briefly acknowledge this epoch between two claims.
-      inherited?.(undefined);
-      return { claimed, value, resolve, reject, ready };
+      return { claimed, value, presentation: handle.present(value, failSoft) };
     }
 
-    async function run(ticket        ) {
-      // Superseded before it painted. The claim that superseded it already installed
-      // its own ticket, so the region is not waiting on this one for anything; settling
-      // it releases the coordinator's continuation, which would otherwise hold this
-      // reading's value for as long as the document lives.
-      if (ticket.claimed !== generation) {
-        ticket.resolve(undefined);
-        return;
-      }
-      let withheld = false;
+    async function run({ claimed, value, presentation }       ) {
+      // Superseded before it painted: the newer claim's ticket already released this one.
+      if (claimed !== generation) return;
+      let painted                                                       ;
       try {
-        const painted = paint(ticket.value, () => ticket.claimed === generation);
-        if (painted === PRESENTATION_HELD) {
-          withheld = true;
-          // `held` is the current withheld reading, and a reading superseded while it
-          // was deciding to withhold is not that. Nothing observable turns on it — the
-          // stale hold would release a ticket no longer standing for the region — but
-          // one name meaning one thing is worth a line.
-          if (ticket.claimed === generation) held = ticket.resolve;
-        } else ticket.resolve(await painted);
+        painted = paint(value, () => claimed === generation);
       } catch (error) {
-        ticket.reject(error);
+        painted = Promise.reject(error);
       }
+      // A withheld reading keeps its ticket open until a newer claim or `disconnect`
+      // releases it, so there is no answer to wait for.
+      if (painted === PRESENTATION_HELD) return;
+      presentation.resolve(painted);
       // The coordinator's answer is the verdict on this reading. It resolves once the
       // region has committed one, fail-soft proof included, and rejects when the failure
-      // stands with the region still pending. A withheld reading keeps its ticket open
-      // instead, so there is no answer to wait for.
-      if (!withheld) await ticket.ready;
+      // stands with the region still pending.
+      await presentation.ready;
     }
 
     function sync(value       )                {
@@ -786,9 +768,6 @@ export function createPresentationSchedule(
 
     function disconnect() {
       generation += 1;
-      const inherited = held;
-      held = null;
-      inherited?.(undefined);
       handle?.disconnect();
       handle = null;
     }

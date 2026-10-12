@@ -76,7 +76,7 @@ SECTIONING_TAGS = {"section", "article", "main", "body"}
 # overlay rail or keeps that margin for its own residents. Delivery honours a width,
 # bound or height only where it means something (`authored_on`, schema.DECLARED_MARKS).
 AUTHORED_ALLOCATIONS = {
-    "data-width": ("column", "wide", "available"),
+    "data-width": ("wide", "available"),
     "data-bound": ("start", "end"),
     "data-height": re.compile("[1-9][0-9]*"),
     "data-rail": ("right", "none"),
@@ -326,11 +326,13 @@ class SourceDocument:
         # {tag, line, attrs, parent, direct, children, text, body, holder}
         self.lf_elements = []
         self.samples = []
-        # id → the innermost lf-* element standing around it, an element's own id
-        # standing in itself. Where an id lives is structure; which of those elements is
-        # a slot a decision retires and which widget holds it is the registry's word,
-        # read by whoever has one, so this parse need not know a widget by name.
-        self.within = {}
+        # id → the record of the innermost lf-* element standing around it, an
+        # element's own id standing in itself. Where an id lives is structure; which of
+        # those elements is a slot a decision retires and which widget holds it is the
+        # registry's word, read by whoever has one, so this parse need not know a widget
+        # by name. Containment as enclosing ids, which liveness reads, is
+        # `passages.enclosing_ids`.
+        self.holders = {}
         # {tag, line, under} per id-less pointable block, where under is the nearest
         # ancestor carrying an id. This is where a user's aim would otherwise land.
         self.bare_blocks = []
@@ -448,7 +450,7 @@ class SourceDocument:
         identity = attrs.get("id")
         if identity:
             self.all_ids.append(identity)
-            self.within[identity] = holder
+            self.holders[identity] = holder
 
         in_head = "head" in ancestors
         in_main = "main" in ancestors
@@ -547,7 +549,7 @@ class SourceDocument:
             }
             self.lf_elements.append(record)
             if identity:
-                self.within[identity] = record
+                self.holders[identity] = record
             return record
         return None
 

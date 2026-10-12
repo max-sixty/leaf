@@ -2527,6 +2527,13 @@ RESTYLED = """async ([selector, how]) => {
   await new Promise((resolve) => setTimeout(resolve));
   if (how === 'class') holder.classList.add('deeper');
   else if (how === 'style') holder.style.paddingInlineStart = '64px';
+  else if (how === 'remove') {
+    // Unwatched by the removal itself, in the microtask it queues, before a rendering
+    // update could report the removed box's size.
+    holder.closest('main > ul').remove();
+    await null;
+    return {replaced: window.lfWatchedHolder(holder)};
+  }
   else {
     // As a revision replaces a passage: the list holding the holder, anew, with one
     // more list inside.
@@ -2573,12 +2580,13 @@ WATCHED_HOLDERS = """(() => {
 })();"""
 
 
-@pytest.mark.parametrize("how", ["class", "style", "insert"])
+@pytest.mark.parametrize("how", ["class", "style", "insert", "remove"])
 def test_a_breakout_moved_in_after_load_re_lands_before_it_paints(browser, serve, how):
     """A breakout whose holder stands further in after load stays on the prose axis
     from the first paint that shows it, without waiting for a frame's margin pass or
     the next resize: one a revision's replacement puts a list deeper, and a holder a
-    class or an inline style pads anew, which inserts nothing. Each is read again in the rendering update
+    class or an inline style pads anew, which inserts nothing. A holder a revision
+    removes, with or without a replacement, is no longer watched. Each is read again in the rendering update
     that lays the change out, before that update paints."""
     source = INDENTED_PAGE.replace(
         " .inset { padding-left: 40px; }",
@@ -2593,15 +2601,20 @@ def test_a_breakout_moved_in_after_load_re_lands_before_it_paints(browser, serve
         "(id) => document.getElementById(id).getBoundingClientRect().left",
         f"{holder[1:]}-narrow",
     )
+    assert page.evaluate(
+        "(selector) => lfWatchedHolder(document.querySelector(selector))", holder
+    )
     with held_frames(page):
         at = page.evaluate(RESTYLED, [holder, how])
+    # The holders watched for a change of width are the ones the reading measured: a
+    # revision's replacement, or a removal alone, leaves the holder it removed unwatched.
+    assert at["replaced"] == (how in ("class", "style")), at
+    if how == "remove":
+        return
+    assert at["current"], at
     assert at["moved"]["left"] > before + 20, ("the holder was not padded", at)
     for edge in ("left", "right"):
         assert at["wide"][edge] == pytest.approx(at["control"][edge], abs=1), at
-    # The holders watched for a change of width are the ones the reading measured: a
-    # revision's replacement leaves the holder it removed unwatched.
-    assert at["current"], at
-    assert at["replaced"] == (how != "insert"), at
 
 
 def test_a_sample_fills_the_room_its_authored_width_takes(browser, serve):

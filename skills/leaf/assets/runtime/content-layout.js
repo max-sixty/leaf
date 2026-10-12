@@ -54,9 +54,11 @@ const BREAKOUT = '[data-lf-space]:not([data-lf-space="column"])';
 const bringsBreakout = (node) =>
   node.nodeType === Node.ELEMENT_NODE &&
   (node.matches(BREAKOUT) || node.querySelector(BREAKOUT) !== null);
-// The holders the last reading measured, each with the width it last reported: the
-// observer watches exactly these, so a holder a revision removed, or one that no longer
-// holds a breakout drawn, stops delivering.
+// The holders the last reading measured and the page still holds, each with the width
+// it last reported: the observer watches exactly these, so a holder a revision removed,
+// or one that no longer holds a breakout drawn, stops delivering. A removal alone moves
+// no breakout that stays, so it reconciles the watch without a reading, in the
+// microtask the removal queues, before the removed box could report its zero width.
 const holderWidths = new Map();
 const holderSizes = sizeObserver((entries) => {
   let widened = false;
@@ -73,12 +75,12 @@ const holderSizes = sizeObserver((entries) => {
 function watchHolders() {
   const holders = document.documentElement.lfInitial.indentHolders();
   for (const holder of holderWidths.keys()) {
-    if (holders.has(holder)) continue;
+    if (holders.has(holder) && holder.isConnected) continue;
     holderWidths.delete(holder);
     holderSizes.unobserve(holder);
   }
   for (const [holder, width] of holders) {
-    if (holderWidths.has(holder)) continue;
+    if (holderWidths.has(holder) || !holder.isConnected) continue;
     holderWidths.set(holder, width);
     holderSizes.observe(holder);
   }
@@ -106,6 +108,8 @@ export function openResidency({ onRead }) {
         )
       )
         readIndents();
+      else if (records.some((record) => [...record.removedNodes].some(bringsBreakout)))
+        watchHolders();
     }).observe(main, {
       childList: true,
       subtree: true,

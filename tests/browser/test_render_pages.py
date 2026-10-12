@@ -2709,47 +2709,43 @@ def test_a_sidebar_pages_track_is_its_aside_in_the_order_it_is_written(browser, 
 
 
 def test_a_sidebar_pages_track_stays_in_view_only_beside_the_body(browser, serve):
-    """Beside the body, a track taller than the window stays in view below the banner
-    as the body scrolls, scrolls what it holds so its end is reachable, and is the
-    reading region its words scroll in. A footer stays clear of it at the page's end.
-    Stacked, whether the window is narrow, the body's content needs the page's width,
-    or the track's own content needs more than its share, it scrolls with the page
-    rather than standing over the body, however the window reached that width; and a
-    second track beside it is no body to stand beside."""
+    """Beside the body, the one block a track holds stays in view below the banner as the
+    body scrolls, scrolls what it holds so its end is reachable, and is the reading
+    region its words scroll in; it never reaches over a footer. Stacked, whether the
+    window is narrow or the body's content needs the page's width, it scrolls with the
+    page rather than standing over the body, as it does where a second track takes the
+    body's place beside it. A track of several blocks flows as written."""
     body = "<div id='body'>" + "<p>Body paragraph. " * 600 + "</p></div>"
-    track = (
-        "<aside id='track'><p id='follow-up'>Follow-up to check.</p>"
+    block = (
+        "<div id='block'><p id='follow-up'>Follow-up to check.</p>"
         + "<p>Follow-up to check.</p>" * 60
+        + "</div>"
     )
     wide = "<div style='min-width: 1300px'>A block 1300px wide.</div>"
     footer = "<footer id='foot'><p>Reviewed by the platform team.</p></footer>"
     read = """async () => {
       const box = (id) => document.getElementById(id)?.getBoundingClientRect();
       const { scrollerFor } = await window.__lfRuntimeImport('/runtime/reading-regions.js');
-      return { top: box('track').top, bottom: box('track').bottom,
+      return { top: box('block').top, bottom: box('block').bottom,
                foot: box('foot')?.top ?? Infinity, innerHeight,
+               position: getComputedStyle(document.getElementById('block')).position,
                banner: document.querySelector('.lf-banner').getBoundingClientRect().bottom,
                scroller: scrollerFor(document.getElementById('follow-up'))?.id ?? null };
     }"""
     cases = (
-        # (what follows the track's opening, the body's lead, after the body, widths, beside)
-        ("", "", footer, (900,), True),
-        ("", "", "", (390,), False),
-        ("", wide, "", (1440,), False),
-        (
-            "<div style='min-width: 650px'>A block 650px wide.</div>",
-            "",
-            "",
-            (1440, 900),
-            False,
-        ),
-        ("</aside><aside id='second'><p>Owners.</p>", "", "", (900,), False),
+        # (the track, the body's lead, after the body, widths, whether the block sticks)
+        (block, "", footer, (900,), True),
+        (block, "", "", (1440, 900), True),
+        (block, "", "", (390,), False),
+        (block, wide, "", (1440,), False),
+        (block + "</aside><aside><p>Owners.</p>", "", "", (900,), False),
+        (block + "<p>Owners.</p>", "", "", (900,), False),
     )
-    for opening, lead, after, widths, beside in cases:
+    for track, lead, after, widths, sticks in cases:
         source = leaf_page(
             "a sidebar page",
-            "<header><h1>Review</h1></header>"
-            + track.replace("<p ", opening + "<p ", 1)
+            "<header><h1>Review</h1></header><aside id='track'>"
+            + track
             + "</aside>"
             + body.replace("<p>", lead + "<p>", 1)
             + after,
@@ -2758,23 +2754,21 @@ def test_a_sidebar_pages_track_stays_in_view_only_beside_the_body(browser, serve
         page = open_page(browser, serve(source))
         for width in widths:
             resized(page, width, 600)
-        marked = expect(page.locator("#track"))
-        if beside:
-            marked.to_have_attribute("data-lf-beside", "")
-        else:
-            marked.not_to_have_attribute("data-lf-beside", "")
         page.evaluate("scrollTo(0, 1500)")
         at = page.evaluate(read)
-        if beside:
-            assert at["banner"] <= at["top"] <= at["banner"] + 40, at
-            assert at["bottom"] <= at["innerHeight"], at
-            assert at["scroller"] == "track", at
+        if sticks:
+            assert at["position"] == "sticky", (widths, at)
+            assert at["banner"] <= at["top"] <= at["banner"] + 40, (widths, at)
+            assert at["bottom"] <= at["innerHeight"], (widths, at)
+            assert at["scroller"] == "block", (widths, at)
             page.evaluate("scrollTo(0, document.documentElement.scrollHeight)")
             at = page.evaluate(read)
             assert at["bottom"] <= at["foot"], at
         else:
-            assert at["top"] < 0, (widths, at)
-            assert at["scroller"] != "track", (widths, at)
+            assert at["top"] < 0, (widths, track[-40:], at)
+            if "Owners" not in track:
+                assert at["position"] != "sticky", (widths, at)
+                assert at["scroller"] != "block", (widths, at)
 
 
 @pytest.mark.parametrize("rail", [True, False])

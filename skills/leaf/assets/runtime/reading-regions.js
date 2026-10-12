@@ -114,26 +114,32 @@ export function registerReadingRegion({ id, host, body }) {
 }
 
 // The boxes a page's Layout makes scroll, which no widget owns: the workspace's body,
-// which scrolls as a whole where a pane in it does not bound itself, and a sidebar
-// while it sticks beside what it accompanies (layouts.css). The stylesheet marks each
-// child of `main` it makes one (`--lf-reading-region: layout`), and each is registered
-// like any other region, so what it holds is carried by it rather than by the page. Its
-// id is its element's where it has one, and its place among the marked boxes otherwise.
-// Chrome layout asks on every pass, since a revision can replace `main`'s children and
-// a resize can change which of them scroll.
+// which scrolls as a whole where a pane in it does not bound itself, a column page's
+// sidebar standing in the margin, and the one block a sidebar page's track holds while
+// it stands beside the body (layouts.css). The stylesheet marks each one
+// (`--lf-reading-region: layout`): a child of `main`, or the only child of one that is
+// not itself marked. Each is registered like any other region, so what it holds is
+// carried by it rather than by the page. Its id is its place among the marked boxes,
+// and its element's id where it has one. Chrome layout asks on every pass, since a
+// revision can replace `main`'s children and a resize can change which of them scroll.
 const layoutRegions = new Map();
+const marked = (box) =>
+  box.checkVisibility() &&
+  getComputedStyle(box).getPropertyValue("--lf-reading-region").trim() === "layout";
 export function syncLayoutRegion() {
   const main = pageDocument();
   const bodies = main
-    ? [...main.children].filter(
-        (child) =>
-          child.checkVisibility() &&
-          getComputedStyle(child).getPropertyValue("--lf-reading-region").trim() ===
-            "layout",
-      )
+    ? [...main.children].flatMap((child) => {
+        if (marked(child)) return [child];
+        const only = child.childElementCount === 1 ? child.firstElementChild : null;
+        return only && marked(only) ? [only] : [];
+      })
     : [];
   const ids = new Map(
-    bodies.map((body, at) => [body, `lf-region:layout:${body.id || at}`]),
+    bodies.map((body, at) => [
+      body,
+      `lf-region:layout:${at}${body.id ? `:${body.id}` : ""}`,
+    ]),
   );
   for (const [body, region] of layoutRegions)
     if (ids.get(body) !== region.id) {

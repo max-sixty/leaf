@@ -246,11 +246,13 @@ than a new split per row whose edges land somewhere new each time.
 
 "Contents navigation" sets where the overview's outline goes at each width.
 
-While the track stands beside the body, the Layout keeps it in view as the body
-scrolls: it sticks just below Leaf's banner and any page tab strip, and a track taller
-than the window scrolls on its own, so its end stays reachable. Where the two stack, the
-track scrolls with the page. Write no `position`, `top`, height or overflow for the
-track or the blocks in it.
+To keep the track in view while the body scrolls beside it, put everything the track
+holds in one block, as the `div` in the example above does. While the track stands
+beside the body, the Layout sticks that block just below Leaf's banner and any page tab
+strip, and a block taller than the window scrolls on its own, so its end stays
+reachable. Where the two stack, the block scrolls with the page, and a track of several
+blocks always does. Write no `position`, `top`, height or overflow for the track or the
+blocks in it.
 
 Draw each region the same way, as a `section.panel` with a short heading, and keep a
 `.callout` with a status tone (`warn`, `danger`, `ok`) for the one thing the reader must

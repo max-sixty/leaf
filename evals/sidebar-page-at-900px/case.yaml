@@ -21,8 +21,8 @@ variants:
     description: sidebar-page-at-900px/instructions
     metadata:
       purpose: 'A sidebar page read at 900px: the Layout already keeps its track beside the body there
-        and keeps it in view as the body scrolls, so the page leaves the Layout''s widths and the
-        track''s sticking alone.'
+        and keeps the one block it holds in view as the body scrolls, so the page puts the checklist
+        in that block and leaves the Layout''s widths and sticking alone.'
       tags:
       - layout
       executor: null
@@ -47,9 +47,10 @@ variants:
         `layout-sidebar` and the checklist is in its track. The page's own CSS leaves the
         Layout's widths alone: fail if it sets `flex`, `flex-basis`, `grid-template-columns`
         or `display` on `main`, the body or the track, or adds a media or container query to
-        keep them side by side. The Layout keeps the track in view as the log scrolls, so the
-        page's CSS leaves that alone too: fail if it makes the track or a block inside it
-        `position: sticky`, or sets the track's `top`, `height`, `max-height` or `overflow`.
+        keep them side by side. The checklist is in one block, the track's only child
+        element, which the Layout keeps in view as the log scrolls, so the page's CSS leaves
+        that alone too: fail if it makes the track or a block inside it `position: sticky`, or
+        sets the `top`, `height`, `max-height` or `overflow` of the track or its block.
     - type: llm-rubric
       metric: completed-log-in-document-flow
       value: |

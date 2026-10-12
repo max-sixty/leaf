@@ -34,7 +34,8 @@ assert:
     child of `main`, and that `aside` comes before the element holding the six areas in
     the document's order, so a phone, which stacks the two, shows the verdict and the
     list first. The page's own CSS does not rebuild the arrangement: fail if it declares
-    a grid or flex layout for `main`, or moves the verdict with `order`. The Layout keeps
-    the `aside` in view beside the areas, so fail if the page's CSS makes the `aside` or
-    a block inside it `position: sticky`, or sets the `aside`'s `top`, `height`,
-    `max-height` or `overflow`.
+    a grid or flex layout for `main`, or moves the verdict with `order`. The verdict and
+    the list are in one block, the `aside`'s only child element, which the Layout keeps in
+    view beside the areas; fail if the page's CSS makes the `aside` or a block inside it
+    `position: sticky`, or sets the `top`, `height`, `max-height` or `overflow` of the
+    `aside` or its block.

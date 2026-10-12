@@ -11,8 +11,7 @@ import { pageDocument } from "./passages.js";
 // authored resident on its preferred side, or in flow when there is no room. The
 // column's runtime grid offset is removed before measuring, including RTL, while an
 // authored offset remains part of its room. --lf-resident (layouts.css) declares posture
-// preferences; data-lf-margin and the shell's --lf-column-shift publish their geometry,
-// and data-lf-beside whether a sidebar page's track stands beside its body.
+// preferences; data-lf-margin and the shell's --lf-column-shift publish their geometry.
 // Read at most once per frame after widgets upgrade. Every completed read notifies
 // the selected annotation owner, including an unchanged or missing column; only a
 // changed reading repaints page geometry. Imports never start this document owner.

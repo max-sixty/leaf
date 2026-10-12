@@ -457,35 +457,44 @@
   }
   main.layout-sidebar > :is(header, footer) { flex: 1 0 100%; margin-block: 0; }
   main.layout-sidebar > :not(header, footer) { flex: 2 1 30rem; margin-block: 0; }
-  main.layout-sidebar > aside { flex: 1 1 18rem; --lf-resident: track; overflow-anchor: none; }
+  main.layout-sidebar > aside { flex: 1 1 18rem; }
   main.layout-sidebar > :not(header, footer) > :first-child { margin-top: 0; }
-  /* Beside the body, the track stays in view while the body scrolls: it sticks a gap
-   * below Leaf's banner and any page tab strip, and scrolls what it holds within the
-   * window, so a track taller than the window keeps its end reachable rather than
-   * hiding it until the page ends. Stacked, it is only as tall as what it holds and
-   * flows with the page, since stuck it would stand over the body. Which of the two it
-   * is depends on the window's width and on what the body's content needs, which no
-   * query can read, so the margin reading says so on the track (`data-lf-beside`,
-   * prepaint.js `residency`). Like a column's sidebar standing in the margin, it starts
-   * the slot and landing band again for what it holds, keeps a focused control's ring
-   * room (`--lf-head-inset`), anchors no reading (`overflow-anchor`), and is a reading
-   * region of the Layout's own (`--lf-reading-region`, reading-regions.js). A scroller's
-   * automatic minimum width is zero, which would let it stay beside a body it no longer
-   * fits beside once it sticks, so it keeps its content's minimum. It sticks inside
-   * `main`, so it keeps clear of a footer by the room the reading measures below its
-   * line (`--lf-track-end`). */
+  /* A track that holds one block keeps that block in view while the body scrolls beside
+   * it: the block sticks a gap below Leaf's banner and any page tab strip, and scrolls
+   * what it holds within the window, so a track taller than the window keeps its end
+   * reachable. The track runs its line's height, so the block sticks only inside it:
+   * never past the body it stands beside, over a footer, or into the next row.
+   *
+   * Stacked, the block flows with the page. The track is a size container, so its block
+   * asks how wide it is: a track beside the body takes about a third of the page, at most
+   * about 520px at the widest page, while a stacked one takes the whole of `main`, which
+   * is most of the window and over 45rem wherever the window is. That holds whatever
+   * stacked it, a narrow window or a body whose content needs the page's width, which no
+   * query on the window could tell. The container keeps the track's content from setting
+   * its minimum width, so a wide block in it scrolls sideways rather than stacking the
+   * page.
+   *
+   * Like a column's sidebar standing in the margin, the block starts the slot and landing
+   * band again for what it holds, keeps a focused control's ring room
+   * (`--lf-head-inset`), anchors no reading (`overflow-anchor`), and is a reading region
+   * of the Layout's own (`--lf-reading-region`, reading-regions.js). */
+  main.layout-sidebar > aside:has(> :only-child) {
+    align-self: stretch;
+    container: lf-track / inline-size;
+  }
   @media screen {
     main.layout-sidebar { --lf-top-outer: var(--lf-top); }
-    main.layout-sidebar > aside[data-lf-beside] {
-      position: sticky;
-      top: calc(var(--lf-top-outer) + var(--sp-4));
-      --lf-top: 0px; --lf-top-covered: 0px; --lf-landing-room: 0px;
-      --lf-head-inset: initial;
-      --lf-reading-region: layout;
-      min-width: min-content;
-      max-height: calc(var(--lf-view-height) - 2 * var(--sp-4));
-      overflow-y: auto;
-      margin-block-end: var(--lf-track-end, 0px);
+    @container lf-track (width < min(70cqi, 45rem)) {
+      main.layout-sidebar > aside > :only-child {
+        position: sticky;
+        top: calc(var(--lf-top-outer) + var(--sp-4));
+        --lf-top: 0px; --lf-top-covered: 0px; --lf-landing-room: 0px;
+        --lf-head-inset: initial;
+        --lf-reading-region: layout;
+        max-height: calc(var(--lf-view-height) - 2 * var(--sp-4));
+        overflow-y: auto;
+        overflow-anchor: none;
+      }
     }
   }
   /* Tiles: equal cells, as many to a row as fit at 9rem each, and every cell in a row

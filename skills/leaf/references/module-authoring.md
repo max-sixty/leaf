@@ -42,7 +42,7 @@ Each rule names the section that documents its helpers.
   tests wait for that work too ("Scheduling paints"); write repeated state through
   `keeps` ("Writes that change nothing").
 - Record durable user state only through the widget controller, and keep working state
-  in `tabStore` ("The widget controller", "First paint").
+  in `tabStore` ("The widget controller", "Tab-local working state").
 - Register commands at upgrade ("Commands and keyboard routes").
 - Place focus with `focusDestination`, never `element.focus()` ("Focus and layers").
 - Animate through `motion`, never `element.animate` ("Motion").
@@ -111,7 +111,9 @@ the owner left. A callback that throws or rejects is reported once, as a page er
 naming the element, and its subscription stays: the next changed reading calls it again.
 So return the promise of any paint that finishes later, abandon unfinished work on
 departure, keep finished nodes where they are, and have `start` restore whatever its
-cleanup cleared.
+cleanup cleared. A `renderState` or controller subscriber that throws also replaces what
+the widget shows with its fail-soft box ("Upgrade"), since the rest of its view may be
+half drawn.
 
 `readingPaint(element, draw)` gives a reading of the module's own the same rule. Build it
 once, before `whileConnected`. The returned `paint(key, ...args)` calls `draw(...args)`
@@ -166,9 +168,9 @@ as `keeps-first-box` ([packages.md, "Seeing it"](packages.md#seeing-it)).
   summing its line heights in the theme. Delivery writes it into each occurrence for the
   first paint, and the module removes it (`:scope > [data-lf-prepaint]`) in the same
   step that draws its replacement.
-- Where the structure depends on the instance's authored members or remembered tab
-  values, declare `x-initial` instead: the rooted path of a classic JavaScript bundle
-  that registers one synchronous producer with
+- Where the structure depends on the instance's authored members or on values it keeps
+  in `tabStore` ("Tab-local working state"), declare `x-initial` instead: the rooted
+  path of a classic JavaScript bundle that registers one synchronous producer with
   `document.documentElement.lfInitial.register(tag, render)`. Delivery draws each host
   with it as soon as the host's source has arrived, so the widget first appears whole
   while prose before it can paint; with scripts disabled, the authored host stays as
@@ -191,10 +193,6 @@ as `keeps-first-box` ([packages.md, "Seeing it"](packages.md#seeing-it)).
   member `openingView(holder, members)` returns, and until the module upgrades show only
   the member marked `data-lf-opening`, as `lf-tabs` does. Record each member the widget
   shows with `keepView(holder, member)`, so a reload reopens it.
-
-`tabStore.get(key)` and `tabStore.set(key, value)` keep a string of a widget's working
-state, such as which group the user collapsed, for this page in this browser tab;
-setting `null` removes it. An `x-initial` producer reads the same store.
 
 ## Rendering
 
@@ -478,6 +476,13 @@ back without a `defer`.
 `present(promise)` registers asynchronous visible preparation, such as a renderer
 loading; the page does not read as ready until it settles.
 
+### Tab-local working state
+
+State the user arranges but does not record, such as which group they collapsed, stays
+out of the log. `tabStore.get(key)` and `tabStore.set(key, value)` keep a string of it
+for this page in this browser tab, and setting `null` removes it. An `x-initial`
+producer reads the same store, so the first paint can draw that state ("First paint").
+
 ## Declared widget state
 
 A registry-declared widget implements a total, idempotent `renderState(state)`. It
@@ -638,6 +643,12 @@ at upgrade. The dispatcher, shortcut bar, command reference, `aria-keyshortcuts`
 inline hints all read those same declarations. `options` is the scope's own `when`
 predicate, alone or as `{when}`.
 
+`commandScope(title, rows, options)` declares the same scope as a capability, for
+controls Leaf rather than the widget creates: put it on a margin entry's `scope`
+("Margin contributions"), and each projection attaches it to its own visible control.
+Where the same command set also applies to retained widget DOM, attach that one
+capability with `commands(element, scope)` rather than declaring the rows again, as here:
+
 ```javascript
 const actions = commandScope("In a classifier", [
   {
@@ -655,18 +666,13 @@ const actions = commandScope("In a classifier", [
 commands(classifier, actions);
 ```
 
-`commandScope(title, rows, options)` declares a scope as a capability, for controls Leaf
-rather than the widget creates: put it on a margin entry's `scope` ("Margin
-contributions"), and each projection attaches it to its own visible control. Where the
-same command set also applies to retained widget DOM, attach that one capability with
-`commands(element, scope)` rather than declaring the rows again. In a template,
-`commandsOn(title, rows, options)` attaches a scope to its element: once per connection,
-taking the current declaration on each render, and withdrawing its attachment when the
-directive leaves. When rows read the element they stand on, pass a function of that
-element in place of the rows, such as
+In a template, `commandsOn(title, rows, options)` attaches a scope to its element: once
+per connection, taking the current declaration on each render, and withdrawing its
+attachment when the directive leaves. When rows read the element they stand on, pass a
+function of that element in place of the rows, such as
 `commandsOn(title, (summary) => [{ keys: () => DISCLOSE(summary), … }])`; it runs on
-each render, so it only builds rows. Declare a template's scope there rather than looking
-its element up after rendering.
+each render, so it only builds rows. Declare a template's scope there rather than
+looking its element up after rendering.
 
 ### Command rows
 
@@ -1263,8 +1269,10 @@ The icon is decorative; the button supplies its accessible label.
 Each page reading below has a `watch…(owner, callback)` subscription; register it once for
 each owner. `watchQuestions`, `watchQueues`, `watchThreads`, `watchReports` and
 `watchHistory` share these rules. Each calls the callback on the microtask after
-subscribing and again, at most once per microtask, after each application publication, so
-several changes in one task make one call. It pauses while the owner is away and reads
+subscribing, then again, at most once per microtask, whenever the application publishes
+a new reading, a drag starts or stops holding the page's projection back ("Pointer
+presses"), or the page dispatches `PRESENTATION` ("Startup and presentation"). Several
+of these in one task make one call. It pauses while the owner is away and reads
 again on a return by the rule in "Connection lifetimes"; moving the owner within one
 mutation batch keeps it. The returned function retires the subscription for good,
 including queued reads and clock paints. Its `refresh()` reruns the same clock-tracked

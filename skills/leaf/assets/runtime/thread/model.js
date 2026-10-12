@@ -158,7 +158,7 @@ const pendingSeat = (message) =>
 // the fold takes them from the server's reading of that gesture (`after`, served
 // beside the thread) rather than deciding them: the attention, drawn on a send's own
 // local workflow, which shares its pending id, where the thread waits on the send,
-// and the owed asks as `owed`, which the published Questions read. Of several
+// and the owed asks as `owed`, which the published asks and Questions read. Of several
 // pending gestures on one thread, the last decides, a turn reopening what a
 // settlement before it closed, and a reply's reading covers a rewrite beside it,
 // since a reply answers what a rewrite would and more, and a reaction that settles

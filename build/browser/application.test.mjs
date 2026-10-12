@@ -79,8 +79,8 @@ const wireQuestion = (
   status: "open",
   next_actor: "user",
 });
-// A view's asks as the served lists hold them: each the user owes on Questions, and
-// each that is answered or withdrawn, done.
+// A view's asks as the served lists hold them: each the user owes on Questions, each
+// that is answered or withdrawn, done, and each open one no one owes, held.
 const askQueues = (asks) => {
   const item = (ask) =>
     servedAskItem(ask, {
@@ -92,6 +92,9 @@ const askQueues = (asks) => {
     done: asks
       .filter((ask) => ask.status !== "open")
       .map((ask) => ({ ...item(ask), state: "done", ended: null, detail: null })),
+    held: asks
+      .filter((ask) => ask.status === "open" && ask.next_actor !== "user")
+      .map(item),
   };
 };
 const coordinate = ["choice", "choice", "decide"];
@@ -131,7 +134,7 @@ const state = (taken, events = []) => ({
         undo: [],
         reports: [],
         published_at: null,
-        queues: { questions: [], tasks: [], done: [] },
+        queues: { questions: [], tasks: [], done: [], held: [] },
         approval_blocking: [],
         document: {
           asks: noAsks(),
@@ -1346,10 +1349,10 @@ test("a pending prose reply does not hide a frozen structural Ask", () => {
 });
 
 test("a reply reopening a thread over an Ask puts the Ask back on the user at once", () => {
-  // A resolution suppresses the Ask the thread carries, so the server lists no
-  // Question on the user; the reply reopens the thread, and the server read it giving
-  // the Ask back. The thread and the Questions list both say so in the reply's own
-  // turn rather than one of them when the log answers.
+  // A resolution suppresses the Ask the thread carries, so the server holds it rather
+  // than listing it on Questions; the reply reopens the thread, and the server read it
+  // giving the Ask back. The thread and Questions both say so in the reply's own turn
+  // rather than one of them when the log answers.
   const root = {
     kind: "comment",
     id: "question",
@@ -1364,6 +1367,7 @@ test("a reply reopening a thread over an Ask puts the Ask back on the user at on
     next_actor: null,
   };
   accepted.browser.thread.asks = { all: [frozen], user: [], unanswered: [frozen] };
+  accepted.browser.views[1].queues = askQueues([frozen]);
   const ask = {
     attention: { kind: "needs_user", reason: "ask", workflow: null },
     owed: [frozen.id],
@@ -1376,6 +1380,7 @@ test("a reply reopening a thread over an Ask puts the Ask back on the user at on
   ];
   app.adopt(accepted);
   assert.deepEqual(app.read().effective.asks.user, []);
+  assert.deepEqual(app.read().effective.queues.questions, []);
 
   app.enqueue(
     {
@@ -1387,11 +1392,15 @@ test("a reply reopening a thread over an Ask puts the Ask back on the user at on
     },
     "now",
   );
-  const { thread, asks } = app.read().effective;
+  const { thread, asks, queues } = app.read().effective;
   assert.deepEqual(thread.all[0].attention, ask.attention);
   assert.deepEqual(
     asks.user.map(({ id }) => id),
     [frozen.id],
+  );
+  assert.deepEqual(
+    queues.questions.map(({ kind, id }) => [kind, id]),
+    [["ask", frozen.id]],
   );
 });
 

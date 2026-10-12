@@ -330,6 +330,8 @@ function advance(
 
 
 
+
+
 /** One verb's state as composition stamps it (`registry.contract.stamp_states`). */
 
 
@@ -575,15 +577,16 @@ function localTasks(
   };
 }
 
-const NO_QUEUES             = { questions: [], tasks: [], done: [] };
+const NO_QUEUES             = { questions: [], tasks: [], done: [], held: [] };
 
 /* What is on the user (Questions), what is on the agent (Tasks), and what is done:
  * the view's served lists (`served_state.queues`), with this tab's unresolved sends
  * placed against them. A send moves an item the server listed when it changes that
  * item's record: a Done or its undo moves a to-do between its list and done, an
  * approval or its undo moves the approval ask, and prose sent in a thread, or settling
- * it, takes that thread's ask and its resend off the user. It adds only the items it
- * alone implies: the answer a pending send is owed, and the resend a refused one
+ * it, takes that thread's ask and its resend off the user, and one reopening a resolved
+ * thread puts a held ask its record now gives the user back on. It adds only the items
+ * it alone implies: the answer a pending send is owed, and the resend a refused one
  * leaves. A pending send also stands for the response the thread was already owed.
  * Nothing here selects a list again. */
 function localQueues(
@@ -671,6 +674,7 @@ function localQueues(
   return {
     questions: [
       ...served.questions.filter(standsOpen).map(current),
+      ...served.held.filter(standsOpen).map(current),
       ...reopenedFor("user").map(asOpen),
       ...threads.flatMap((thread) =>
         retrying(thread.id)

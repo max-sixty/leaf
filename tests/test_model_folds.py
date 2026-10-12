@@ -580,7 +580,8 @@ def test_after_is_what_each_gesture_leaves_the_thread_as_the_log_reads_it():
     recovers a pick whose answer failed. Each served
     `after[kind]` is checked against the reading of the log with that gesture
     appended: its attention, the waiting one's workflow aside, and the asks the
-    user owes in the thread."""
+    user owes in the thread. Each ask it owes is one the served lists already carry,
+    on Questions or held, so the browser places it rather than building it."""
     asked = {"kind": "comment", "text": "Chart the year."}
     prose = {
         "kind": "reply",
@@ -655,9 +656,13 @@ def test_after_is_what_each_gesture_leaves_the_thread_as_the_log_reads_it():
         ]
 
     for name, events in cases.items():
-        thread = model.threads(model.reading(HUB, events))["e1"]
+        served = model.reading(HUB, events)
+        thread = model.threads(served)["e1"]
+        lists = served["views"]["1"]["queues"]
+        carried = {item["id"] for item in lists["questions"] + lists["held"]}
         for kind, gesture in gestures.items():
             after = thread["after"][kind]
+            assert after is None or set(after["owed"]) <= carried, (name, kind)
             if (kind == "resolve") == bool(thread["resolved"]) and kind in {
                 "resolve",
                 "unresolve",

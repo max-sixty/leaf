@@ -602,32 +602,15 @@ def declare_data_input(
         assert activated.error is None
 
 
-def stamp_activation(d):
-    """Activate the source as `page stamp` does: checked against the standing
-    log with transitions allowed, ahead of the note that records them."""
-    from leaf.validation.source import check_source
+def publish(d, text="published"):
+    """Stamp the source as the next version, through `page stamp`'s own path.
 
-    with service_model.PageTransaction(d) as page:
-        checked = check_source(d, page.events)
-        return revisioning_model.activate_checked_source(page, checked)
+    The stamped version is the user-seen baseline: `page check` compares against
+    the last one, and an action can only ever be made against one the server
+    exposed. Returns the stamp's note."""
+    from leaf.publishing import cmd_stamp
 
-
-def publish(d, version=1):
-    """Append the note event that makes a version the user-seen baseline:
-    `page check` compares against the last *published* version, and an action
-    can only ever be made against one the server exposed."""
-    activated = stamp_activation(d)
-    assert activated.error is None and activated.revision is not None
-    append_carried_log_record(
-        d,
-        {
-            "kind": "note",
-            "author": "agent",
-            "version": version,
-            "revision": activated.revision,
-            "text": "published",
-        },
-    )
+    return cmd_stamp(d, text)
 
 
 def let_a_pick_settle_a_thread(page_dir, thread):

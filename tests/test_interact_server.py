@@ -2115,7 +2115,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
 ):
     """The declaration is the decision, and the door holds anything posting past the banner
     to it: a version that never asked has no approval to record."""
-    publish(page_dir, version=1)
+    publish(page_dir)
 
     status, body = fetch(
         f"{server}/api/event",
@@ -2132,7 +2132,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
         '<title>t</title>\n<meta name="lf-review" content="sign-off">',
     ).replace("<lf-options>", '<lf-options id="choice" choose>')
     (page_dir / "index.html").write_text(signoff)
-    publish(page_dir, version=2)
+    publish(page_dir)
     status, body = fetch(
         f"{server}/api/event",
         data=json.dumps({"kind": "done", "version": 2}).encode(),
@@ -2224,7 +2224,7 @@ def test_the_transcript_reports_only_an_approval_that_stands(page_dir):
         '<title>t</title>\n<meta name="lf-review" content="sign-off">',
     )
     (page_dir / "index.html").write_text(signoff)
-    publish(page_dir, version=1)
+    publish(page_dir)
     approval = append_carried_log_record(
         page_dir, {"kind": "done", "author": "user", "version": 1}
     )
@@ -2350,7 +2350,7 @@ def test_a_refused_attempt_is_re_read_against_the_page_that_refused_it(
     this gate is the mirror of the one a user meets — cheapest to walk the door
     through, standing in for the refusals whose ground really does move under them
     (`unknown parent`, `undo_error`, `action_contract_error` behind a re-vendor)."""
-    publish(page_dir, 1)
+    publish(page_dir)
     draft = {
         "kind": "comment",
         "revision": 2,
@@ -2365,7 +2365,7 @@ def test_a_refused_attempt_is_re_read_against_the_page_that_refused_it(
     (page_dir / "index.html").write_text(
         PAGE.replace("<title>t</title>", "<title>Moved</title>")
     )
-    publish(page_dir, 2)
+    publish(page_dir)
 
     # The same press, once r2 is live: the refusal was about the page, and the page
     # has moved.
@@ -2568,7 +2568,7 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
         2: structure_model.SourceDocument(new_page),
     }
     (page_dir / "index.html").write_text(old_page)
-    publish(page_dir, 1)
+    publish(page_dir)
     reaction = append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "token": "keep"},
@@ -2591,7 +2591,7 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
         },
     )
     (page_dir / "index.html").write_text(new_page)
-    publish(page_dir, 2)
+    publish(page_dir)
     append_carried_log_record(
         page_dir,
         {
@@ -2741,7 +2741,7 @@ def test_each_view_offers_only_the_gestures_it_paints(page_dir):
         2: structure_model.SourceDocument(new_page),
     }
     (page_dir / "index.html").write_text(old_page)
-    publish(page_dir, 1)
+    publish(page_dir)
 
     def choose(widget, option):
         return append_command(
@@ -2915,12 +2915,12 @@ def test_a_comparison_view_refuses_a_future_log_boundary(server, page_dir):
 
 
 def test_state_projects_only_the_shown_and_next_revisions(server, page_dir):
-    publish(page_dir, 1)
+    publish(page_dir)
     for version in (2, 3):
         (page_dir / "index.html").write_text(
             PAGE.replace("<title>t</title>", f"<title>v{version}</title>")
         )
-        publish(page_dir, version)
+        publish(page_dir)
 
     status, body = fetch(f"{server}/api/state?revision=1")
 
@@ -3091,11 +3091,11 @@ def test_server_startup_refuses_a_platform_without_cross_process_locking(
 def test_server_validates_an_action_against_its_version_and_widget(server, page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
     board = registry["lf-board"]["x-example"]
-    publish(page_dir, version=1)
+    publish(page_dir)
     (page_dir / "index.html").write_text(
         FLOW_PAGE.replace("</section>", board + "\n</section>")
     )
-    publish(page_dir, version=2)
+    publish(page_dir)
 
     invalid = [
         (
@@ -4531,7 +4531,7 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
         page_dir, "patches", {"files": [{"key": "a.py", "patch": "new"}]}
     )
     (page_dir / "index.html").write_text(
-        (page_dir / "index.html").read_text().replace("<h1>A</h1>", "<h1>B</h1>")
+        (page_dir / "index.html").read_text().replace("<h2>Plan</h2>", "<h2>Next</h2>")
     )
     publish(page_dir)
 
@@ -4574,7 +4574,7 @@ def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):
     """
     source = PAGE.replace("<lf-options>", '<lf-options id="picks" choose>')
     (page_dir / "index.html").write_text(source)
-    publish(page_dir, 1)
+    publish(page_dir)
     picked = append_command(
         page_dir,
         {
@@ -4591,7 +4591,7 @@ def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):
         .replace('id="flag-first"', 'id="flag-first" restated')
         .replace("</main>", '<lf-activity id="recent"></lf-activity></main>')
     )
-    publish(page_dir, 2)
+    publish(page_dir)
     active = files_model.active_descriptor(page_dir, event_model.read_events(page_dir))
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
@@ -4628,9 +4628,9 @@ def test_comparison_revision_reads_stay_inside_the_page_transaction(
     """A lazy historical projection holds the log/claim boundary until it finishes."""
     from leaf.served_state import context as read_context
 
-    publish(page_dir, 1)
+    publish(page_dir)
     (page_dir / "index.html").write_text(PAGE.replace("Plan", "A revised plan"))
-    publish(page_dir, 2)
+    publish(page_dir)
     latest = event_model.read_events(page_dir)[-1]["seq"]
     observed = []
     original = read_context.read_revision

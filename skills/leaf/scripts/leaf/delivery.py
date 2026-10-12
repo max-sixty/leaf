@@ -44,7 +44,7 @@ from .harness import session_harness
 from .machine import state_home
 from .refusals import Refused
 from .schema import CURSOR_FILE, WIDGET_KINDS
-from .service import PageTransaction, requires_agent_attention
+from .service import PageTransaction, requires_agent_attention, unacknowledged
 from .state import (
     flocked,
     open_session_turn,

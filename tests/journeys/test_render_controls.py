@@ -3094,7 +3094,8 @@ def test_covering_threads_keeps_the_user_inside(browser, serve):
     resized(page, 400, 640)
     panel_settled(page)
 
-    # A complete pass through more stops than this panel holds has to wrap within it.
+    # A complete pass through more stops than this panel holds goes out to the browser's
+    # own interface and comes back round to the panel, never behind it.
     focus_stops = page.locator(
         ".lf-thread-panel button:visible, .lf-thread-panel input:visible, "
         ".lf-thread-panel leaf-text:visible, .lf-thread-panel [tabindex='0']:visible, "
@@ -3111,10 +3112,11 @@ def test_covering_threads_keeps_the_user_inside(browser, serve):
     for _ in range(focus_stops.count() + 3):
         page.keyboard.press("Tab")
         assert page.evaluate(
-            "() => document.querySelector('.lf-thread-panel').contains(document.activeElement)"
+            "() => document.activeElement === document.body"
+            "   || document.querySelector('.lf-thread-panel').contains(document.activeElement)"
         ), "Tab reached a control behind the covering Threads panel"
         wrapped = wrapped or edge.evaluate("el => el === document.activeElement")
-    assert wrapped, "Tab never wrapped to the panel's first stop"
+    assert wrapped, "Tab never came back round to the panel's first stop"
 
     page.locator(".lf-thread-filter-toggle").click()
     open_filter = page.locator('[data-filter-value="open"]')

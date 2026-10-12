@@ -263,7 +263,7 @@ const open = (url, alt, from) => {
       });
       current.on("keydown", (event) => {
         // PhotoSwipe owns only native panning in the active viewer. Leaf owns zoom,
-        // cancellation, scopes and the modal Tab loop (layer-stack.js). Its document
+        // cancellation and scopes, and Tab stays the browser's. Its document
         // listener must never act behind a newer layer or reinterpret text typed there.
         const key = event.originalEvent;
         if (

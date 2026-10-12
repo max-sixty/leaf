@@ -9579,8 +9579,8 @@ def test_sending_flashes_only_the_new_message(browser, serve, surface):
 @pytest.mark.parametrize(
     ("surface", "how"),
     # Every surface once, the two routes alternating where both reach Send. The
-    # anchored composer's Tab walks its field and response options (`response.tab`),
-    # so its Send takes no keyboard press; Enter is that route. `pause` stands one
+    # anchored composer's Tab from its field opens its response options
+    # (`comment.options`), so its Send takes no keyboard press; Enter is that route. `pause` stands one
     # Tab past Send, which the keyboard route proves.
     [
         ("card", "pointer"),

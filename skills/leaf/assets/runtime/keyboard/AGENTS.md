@@ -143,7 +143,7 @@ Closing More or standing outside it retires the checkpoint.
 scopes), `register.js` (scope order, page commands, the Escape ladder),
 `dispatch.js` (precedence), `controller.js` (input lifecycle), `text-entry.js`
 (native editing and activation claims), `layer-stack.js` (popovers and dialogs over the
-page, whether a node stands in one, and the Tab loop every modal holds), `page.js` (the
+page, whether a node stands in one, and why Tab in them stays the browser's), `page.js` (the
 page's own parts and the foot of the ladder), `go-to-sequence.js` (the `g` grammar),
 `control-keys.js`,
 `key-sequence.js`, `shortcut-bar.js`, `command-reference.js`, `hints.js`,

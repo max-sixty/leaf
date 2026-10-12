@@ -79,6 +79,7 @@ from render_harness import (
     sending,
     shortcut_bar_text,
     stamp_page,
+    stored_draft_text,
     take_browser_errors,
     told,
     undo,
@@ -13244,6 +13245,79 @@ def test_a_second_rewrite_lands_over_a_first_still_sending(browser, serve):
         ("Second.", edits[0]["id"]),
     ]
     expect(message.locator(".lf-msg-kept")).to_have_count(0)
+    page.unroute_all(behavior="wait")
+
+
+def test_a_second_rewrite_over_a_refused_first_goes_with_it(browser, serve):
+    """A rewrite written over one still sending names that one, by its pending id. When
+    the log refuses the first, those written over it have nothing left to stand on: they
+    go with it, the latest words back in the message's rewrite draft, rather than
+    standing on the message as unsent words over an id the log never took."""
+    url = serve(THREAD_DIFF_PAGE)
+    d = serve.page_dir
+    mine = append_carried_log_record(
+        d,
+        {
+            "kind": "comment",
+            "id": "rewritten",
+            "author": "user",
+            "revision": 1,
+            "text": "Fit the north bracket.",
+            "anchor": {"section": "cd-q"},
+        },
+    )
+    page = open_page(browser, url)
+    resized(page, 1200, 900)
+    page.locator(".lf-threads-toggle").click()
+    message = page.locator(f'.lf-thread .lf-msg[data-mid="{mine["id"]}"]')
+    held = []
+    later = []
+
+    def route(route):
+        if route.request.method != "POST":
+            route.continue_()
+        elif not held:
+            held.append(route)
+        else:
+            later.append(route.request.post_data_json)
+            route.continue_()
+
+    page.route("**/api/event", route)
+    editor = message.locator(".lf-msg-editor leaf-text")
+    message.locator(".lf-msg-text").dblclick()
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.type("First.")
+    page.keyboard.press("Enter")
+    holding(page, held, 1, "the first rewrite")
+    message.locator(".lf-msg-text").dblclick()
+    expect(editor).to_be_focused()
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.type("Second.")
+    page.keyboard.press("Enter")
+    # A third over the second names only the second, so it goes by way of it.
+    message.locator(".lf-msg-text").dblclick()
+    expect(editor).to_be_focused()
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.type("Third.")
+    page.keyboard.press("Enter")
+
+    attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        held.pop(0).fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+    round_trip(page)
+    assert [event for event in later if event.get("kind") == "edit"] == []
+    assert not [e for e in events_model.read_events(d) if e["kind"] == "edit"]
+    expect(message.locator(".lf-msg-text")).to_have_text("Fit the north bracket.")
+    assert stored_draft_text(page, f"rewrite:{mine['id']}") == "Third."
+    consume_browser_errors(page, "400")
     page.unroute_all(behavior="wait")
 
 

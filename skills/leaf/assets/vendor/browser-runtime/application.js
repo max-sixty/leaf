@@ -29,6 +29,7 @@ import {
   editForAttempt,
   isThreadEvent,
   isTurnEvent,
+  namesEvent,
   turnMessage,
 } from "../../runtime/pending/model.js";
 import { PENDING } from "../../runtime/thread/identity.js";
@@ -1297,18 +1298,28 @@ export function createSemanticApplication({
       publish({ unresolved });
     },
     // The POST refused `attempt`, or it can no longer be sent. What depends on it goes
-    // with it: an undo of it, and a reply to its message. Returns those attempts.
+    // with it: every gesture naming it by its pending id (`namesEvent`), such as an undo
+    // of it, a reply to its message or a rewrite written over it, and so on down, since
+    // a rewrite over that rewrite names only the one between. Returns those attempts.
     refuse(attempt        ) {
       const refused = entry(attempt);
       if (!refused) return [];
-      const dependents = publisher
-        .read()
-        .unresolved.filter(
-          (item) =>
-            item.undoTarget === attempt ||
-            (refused.thread && item.event.parent === refused.thread.id),
-        )
-        .map((item) => item.event.attempt);
+      const ledger = publisher.read().unresolved;
+      const gone = [refused.localId];
+      const dependents           = [];
+      for (let grew = true; grew; ) {
+        grew = false;
+        for (const item of ledger)
+          if (
+            item.event.attempt !== attempt &&
+            !dependents.includes(item.event.attempt) &&
+            gone.some((id) => namesEvent(item.event, id))
+          ) {
+            dependents.push(item.event.attempt);
+            gone.push(item.localId);
+            grew = true;
+          }
+      }
       const { unresolved } = transition("refuse", new Map([[attempt, null]]));
       publish({
         unresolved: unresolved.filter(

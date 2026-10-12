@@ -48,6 +48,22 @@ export const editForAttempt = (event, timestamp) => ({
   pending: true,
 });
 
+// The fields through which a command names another event: a reply's or settlement's
+// `parent`, a rewrite's `message` and the revision it was written over (`base`), an
+// undo's `undoes`. A gesture of this tab's still sending is named there by its pending
+// id, so these are the gesture's dependencies on the ledger: one naming a gesture the
+// log refused goes with it (`refuse`, application.ts). A new field naming an event
+// joins this list, and nothing that reads dependencies changes.
+const NAMING_FIELDS = /** @type {const} */ (["parent", "message", "base", "undoes"]);
+
+/** Whether `event` names the event `id` in any field that names an event.
+ * @param {import("../../../../../build/browser/domain.ts").Command} event @param {string} id
+ */
+export const namesEvent = (event, id) =>
+  NAMING_FIELDS.some(
+    (field) => /** @type {Record<string, unknown>} */ (event)[field] === id,
+  );
+
 /** @template {{event: import("../../../../../build/browser/domain.ts").Command, namedParent?: string}} T
  * @param {readonly T[]} entries @param {string} id @param {string[] | null} kinds
  */

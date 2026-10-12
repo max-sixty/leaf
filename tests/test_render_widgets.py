@@ -7718,15 +7718,7 @@ def test_a_refused_undo_keeps_the_outcome_and_can_be_retried(browser, serve):
     ]
 
 
-# `folded` is the layer's own division of the pair rather than a convenience: accept
-# rests in the rail as the target's primary margin entry, and reject is one press behind `…`.
-@pytest.mark.parametrize(
-    "outcome,verb,folded",
-    [("accept", "Accepted", False), ("reject", "Rejected", True)],
-)
-def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(
-    browser, serve, outcome, verb, folded
-):
+def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(browser, serve):
     """The line saying a block carries a comment goes in the block, and a block inside a
     widget is still a block — so `textContent` on a widget's own slot now returns the
     author's words with the runtime's appended. A suggestion labels itself from that slot,
@@ -7740,13 +7732,31 @@ def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     # Vacuous otherwise: the slot the label is read from has to carry the comment.
     expect_comment_notes(page, "lf-new #now", 1)
-    control = page.locator(f"[data-lf-margin-for='sug'] .lf-sug-{outcome}")
-    (unfolded_button(control) if folded else control).click()
-    expect(page.locator(".lf-live")).to_have_text(
-        f"{verb} suggested change: Retry three times."
-    )
-    expect(page.locator(".lf-notice")).to_have_text("")
-    expect(page.locator(".lf-notice")).not_to_have_class(re.compile(r"\bshow\b"))
+    # Accept rests in the rail as the target's primary margin entry, and reject is one
+    # press behind `…`; an undo between them hands the decision back.
+    for outcome, verb, folded in (
+        ("accept", "Accepted", False),
+        ("reject", "Rejected", True),
+    ):
+        control = page.locator(f"[data-lf-margin-for='sug'] .lf-sug-{outcome}")
+        (unfolded_button(control) if folded else control).click()
+        expect(page.locator(".lf-live")).to_have_text(
+            f"{verb} suggested change: Retry three times."
+        )
+        if outcome == "accept":
+            expect(page.locator(".lf-notice")).to_have_text("")
+            expect(page.locator(".lf-notice")).not_to_have_class(
+                re.compile(r"\bshow\b")
+            )
+        else:
+            # The undo before it said so in the notice; the decision says nothing there.
+            expect(page.locator(".lf-notice")).not_to_contain_text(verb)
+        round_trip(page)
+        if outcome == "accept":
+            undo(page)
+            expect(page.locator("#sug")).not_to_have_attribute(
+                "data-lf-state", re.compile(".+")
+            )
 
 
 def test_a_decided_change_folds_away_rather_than_vanishing(browser, serve):
@@ -11984,24 +11994,34 @@ def test_an_html_document_previews_its_own_styles_and_refreshes_from_its_source(
     expect(updated_heading).to_have_css("color", "rgb(12, 93, 47)")
 
 
-@pytest.mark.parametrize("language", [None, "python"])
-def test_a_text_document_refresh_keeps_selection_in_unchanged_text(
-    browser, serve, language
-):
-    """Changing evidence beside a selected passage keeps its native selection."""
-    tag = '<lf-text-document id="document" source="document-text"'
-    if language:
-        tag += f' language="{language}"'
-    tag += "></lf-text-document>"
+def test_a_text_document_refresh_keeps_selection_in_unchanged_text(browser, serve):
+    """Changing evidence beside a selected passage keeps its native selection, in a
+    plain document and in one whose tokens split the text into coloured spans."""
+    tags = (
+        '<lf-text-document id="plain-document" source="plain-text"></lf-text-document>'
+        '<lf-text-document id="python-document" source="python-text" language="python">'
+        "</lf-text-document>"
+    )
     source = LONG_LINE_DIFF_PAGE.replace(
-        '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>', tag
+        '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>', tags
     )
     url = serve(source)
-    data_model.cmd_data_set(
-        serve.page_dir, "document-text", 'first = "old"\nsecond = "selected"\n'
-    )
+    for name in ("plain-text", "python-text"):
+        data_model.cmd_data_set(
+            serve.page_dir, name, 'first = "old"\nsecond = "selected"\n'
+        )
     page = open_page(browser, url)
-    code = page.locator("lf-text-document code")
+    for document, name in (
+        ("#plain-document", "plain-text"),
+        ("#python-document", "python-text"),
+    ):
+        refresh_keeps_selection(page, serve, document, name)
+
+
+def refresh_keeps_selection(page, serve, document, name):
+    """Select a word in `document`, change another line of its `name` source, and
+    find the selection and the page's scroll where they were."""
+    code = page.locator(f"{document} code")
     code.scroll_into_view_if_needed()
     ends = code.evaluate("""row => {
       const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
@@ -12019,14 +12039,12 @@ def test_a_text_document_refresh_keeps_selection_in_unchanged_text(
     before = page.evaluate(reading)
     assert before["selection"] == "selected"
     data_model.cmd_data_set(
-        serve.page_dir,
-        "document-text",
-        'first = "new beginning"\nsecond = "selected"\n',
+        serve.page_dir, name, 'first = "new beginning"\nsecond = "selected"\n'
     )
     told(page)
     rendered(page)
     expect(code).to_contain_text('first = "new beginning"')
-    assert page.evaluate(reading) == before
+    assert page.evaluate(reading) == before, document
 
 
 @pytest.mark.parametrize("manifest, changes_kind", [(False, True), (True, False)])
@@ -12802,11 +12820,11 @@ def test_horizontal_wheel_reaches_the_diff_reader(request, serve, engine, wide_h
     assert reader.evaluate("el => el.scrollLeft") > 0
 
 
-@pytest.mark.parametrize("left", [0, 150])
 def test_a_diff_hunk_landing_preserves_sideways_reading_outside_its_shadow_tree(
-    browser, serve, left
+    browser, serve
 ):
-    """A hunk step moves vertically without travelling sideways through its host."""
+    """A hunk step moves vertically without travelling sideways through its host,
+    from the host's start and from partway across it."""
     source = leaf_page(
         "Sideways patch",
         '<h1>Review</h1><div id="sideways">'
@@ -12819,14 +12837,17 @@ def test_a_diff_hunk_landing_preserves_sideways_reading_outside_its_shadow_tree(
     data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
     page = open_page(browser, url)
     page.keyboard.press("Tab")
-    page.locator("#patch summary").first.focus()
-    page.locator("#sideways").evaluate("(el, left) => { el.scrollLeft = left; }", left)
-    before = page.locator("#sideways").evaluate("el => el.scrollLeft")
-    assert before == left
-    page.keyboard.press("]")
-    expect(page.locator(".lf-walk-position")).to_have_text("Hunk 1 of 3")
-    scroll_settled(page)
-    assert page.locator("#sideways").evaluate("el => el.scrollLeft") == before
+    for left in (0, 150):
+        page.locator("#patch summary").first.focus()
+        page.locator("#sideways").evaluate(
+            "(el, left) => { el.scrollLeft = left; }", left
+        )
+        before = page.locator("#sideways").evaluate("el => el.scrollLeft")
+        assert before == left
+        page.keyboard.press("]")
+        expect(page.locator(".lf-walk-position")).to_have_text("Hunk 1 of 3")
+        scroll_settled(page)
+        assert page.locator("#sideways").evaluate("el => el.scrollLeft") == before
 
 
 def test_a_backward_hunk_step_from_the_diff_itself_opens_one_file_and_lands_in_it(

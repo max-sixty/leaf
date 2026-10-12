@@ -11,6 +11,7 @@ import {
   materializeContributionControls,
   contributionEntry,
   presentContributionEntry,
+  presentContributionReceipts,
 } from "../contribution-controls.js";
 import { contributionSource } from "../contributions.js";
 import { el, offer } from "../widget-elements.js";
@@ -151,8 +152,9 @@ export function createMarginClusterViews({
 
   function materializeOne(item) {
     if (item.kind === "contribution") {
-      const node = controlsOf(item.offered, item.surface).get(item.record.key);
+      const node = controlsOf(item.offered, "margin").get(item.record.key);
       if (item.cluster) node.lfEntry = item.cluster;
+      presentContributionReceipts(node, item.receipt, false);
       return node;
     }
     if (item.kind === "reading") return materializeReading(item);

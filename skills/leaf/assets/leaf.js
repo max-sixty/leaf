@@ -277,7 +277,8 @@ const auxiliarySurfaces = createAuxiliarySurfaces({
 });
 const navigation = createNavigation({
   panelElements,
-  openThreads: threadListController.openThreads,
+  threadCards: threadListController.threadCards,
+  openThreadsInPageOrder: threadListController.openThreadsInPageOrder,
   panelIsOpen,
   narrowing,
   coveringAuxiliaryScroller: auxiliarySurfaces.coveringScroller,
@@ -485,7 +486,6 @@ app = mountApplication({
   },
 });
 app.registerThreadPanel({
-  required: true,
   controller: threadListController,
   threadsBox,
   view: {

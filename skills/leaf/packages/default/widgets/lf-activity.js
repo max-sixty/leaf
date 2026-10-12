@@ -59,6 +59,7 @@ import {
   keepsHidden,
   keepsText,
   excerptWords,
+  move,
 } from "/runtime/widget-api.js";
 
 import {
@@ -312,7 +313,7 @@ customElements.define(
         // Read synchronously, so the shared clock repaints this reading when it turns.
         const time = item.querySelector(".lf-activity-time");
         keepsText(time, ago(row.ts));
-        if (item !== next) this.#list.insertBefore(item, next);
+        if (item !== next) move(this.#list, item, next);
         else next = next.nextElementSibling;
       }
       for (const [id, { item }] of this.#rows)

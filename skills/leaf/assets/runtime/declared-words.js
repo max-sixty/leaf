@@ -51,6 +51,7 @@ import { elementDeclarations, registry, tagsDeclaring } from "./registry.js";
 import { watchArrivals } from "./arrivals.js";
 import { highlightBlocks } from "./syntax.js";
 import { keeps } from "./keeps.js";
+import { move } from "./dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 
 const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
@@ -98,7 +99,7 @@ export function quietWord(el, word) {
     textContent: word,
   });
   span.dataset.lfGen = "1";
-  el.insertBefore(span, title ? title.nextSibling : el.firstChild);
+  move(el, span, title ? title.nextSibling : el.firstChild);
 }
 
 // External page links keep native link behavior but make the boundary explicit: the
@@ -411,7 +412,8 @@ export function renderSaid(root) {
         const beforeLeadingChrome = [...el.childNodes].find(
           (n) => !(n.nodeType === 1 && n.dataset.lfSaid),
         );
-        el.insertBefore(
+        move(
+          el,
           span,
           (edge === "before"
             ? beforeLeadingChrome

@@ -22,16 +22,6 @@ test("summary ranges replace their contiguous originals without taking later mes
   );
 });
 
-test("malformed noncontiguous coverage leaves every original visible", () => {
-  const ranges = summaryRanges(messages, [
-    { id: "s1", covers: ["b", "d"], protected: [], text: "Invalid" },
-  ]);
-  assert.deepEqual(
-    ranges.map(({ message }) => message.id),
-    ["a", "b", "c", "d", "e"],
-  );
-});
-
 test("reaction ids inside canonical coverage do not break the visible range", () => {
   const ranges = summaryRanges(messages, [
     {

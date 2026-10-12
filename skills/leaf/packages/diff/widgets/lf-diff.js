@@ -132,10 +132,7 @@ async function sourceRecords(source) {
 // A manifest record's patch, fetched for the delivery that listed it, must hold that
 // one file.
 async function deferredFile(snapshot, path) {
-  const patch = await loadDeferred(snapshot, path);
-  if (typeof patch !== "string")
-    throw new Error("the deferred patch is not unified patch text");
-  const files = await parsedFiles(patch);
+  const files = await parsedFiles(await loadDeferred(snapshot, path));
   if (files.length !== 1 || files[0].name !== path)
     throw new Error(`the deferred patch for ${path} does not contain that one file`);
   return files[0];
@@ -163,8 +160,6 @@ function sourceLines(file) {
         }
         continue;
       }
-      if (part.type !== "change")
-        throw new Error(`unsupported ${part.type} line in ${file.name}`);
       for (let index = 0; index < part.deletions; index++)
         lines.push({ path: file.name, hunk, side: "old", oldLine: oldLine++ });
       for (let index = 0; index < part.additions; index++)
@@ -454,11 +449,7 @@ function diffBody(nodes) {
 // existing datum coordinate supplies its focus counterpart when that content changes.
 function rowSpan(node) {
   const value = node.style.gridRow || getComputedStyle(node).gridRow;
-  const matches = [...value.matchAll(/span\s+(\d+)/g)];
-  const count = Number(matches.at(-1)?.[1]);
-  if (!Number.isInteger(count))
-    throw new Error("Pierre returned a diff grid without a finite row span");
-  return count;
+  return Number([...value.matchAll(/span\s+(\d+)/g)].at(-1)[1]);
 }
 
 // A file's datum owns its controls even when its evidence changes kind. Only the
@@ -642,7 +633,6 @@ async function renderFile(file, sharedStyles) {
   markSyntax(rendered, foreground);
 
   const pre = rendered.querySelector("pre");
-  if (!pre) throw new Error(`Pierre returned no diff for ${file.name || "a file"}`);
   const viewport = pre.querySelector("code[data-code]") ?? pre;
   // Its last row clears the overlay scrollbar the pointer widens (shadow.css).
   viewport.classList.add("lf-text-scroller");
@@ -1035,14 +1025,11 @@ customElements.define(
     threadPair(row) {
       this.threadPairs ??= new Map();
       const content = row.parentElement;
-      const pre = content?.closest("pre");
-      const gutter = pre?.querySelector("[data-gutter]");
+      const gutter = content.closest("pre").querySelector("[data-gutter]");
       const lineIndex = row.dataset.lineIndex;
-      const gutterRow = [...(gutter?.children ?? [])].find(
+      const gutterRow = [...gutter.children].find(
         (candidate) => candidate.dataset.lineIndex === lineIndex,
       );
-      if (!content?.matches("[data-content]") || !gutter || !gutterRow)
-        throw new Error("Pierre returned a diff line without its paired gutter row");
       let pair = this.threadPairs.get(content);
       if (!pair) {
         pair = {

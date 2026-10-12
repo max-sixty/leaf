@@ -5,8 +5,6 @@ import { html, nothing, repeat } from "../../vendor/browser-runtime.js";
 
 import { labelOf, spell, word } from "./bindings.js";
 
-const STATES = new Set(["neutral", "pressed"]);
-
 // A sequence row may name several presses, while an ordinary row still carries one compact
 // label. Keep that distinction structured until the DOM is built: spaces in a label are
 // words inside one step, never guessed back into a sequence.
@@ -49,7 +47,6 @@ export function keySequenceModel(
   const reading = steps.map((text, index) => {
     const state = states[index];
     const spoken = spokenSteps[index];
-    if (!STATES.has(state)) throw new Error(`leaf: unknown key state ${String(state)}`);
     return Object.freeze({ text, spoken, state });
   });
   return Object.freeze({

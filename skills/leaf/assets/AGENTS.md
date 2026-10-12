@@ -500,7 +500,7 @@ boolean only when false has one clear meaning; otherwise declare named values.
 The Python reader models only transformations the registry declares. A module that
 changes text in a way the file cannot reproduce is fenced: browser capture stops at the
 fence, so a selection crossing it never becomes a quote the file cannot confirm.
-Declare modelable words with `x-says`, `x-paints`, or the content key, and keep a
+Declare modelable words with `x-says` or the content key, and keep a
 widget fenced when its transformation cannot be represented.
 
 ## Render gates

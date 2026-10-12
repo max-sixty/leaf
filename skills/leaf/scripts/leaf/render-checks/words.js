@@ -286,47 +286,33 @@ export function unreadSyntax() {
 
 // Words a declaration promised and the page never got. Every other reading here works
 // from what the browser drew, and that is exactly what cannot see this one: a word that
-// never arrived looks the same as an attribute with nothing to say, and a fact the page
-// paints in colour alone is a fact no measurement of a drawn page has ever read. The
-// registry is what knows the difference — x-says names the attributes whose values are
-// words at the element's edge, x-paints the ones drawn as paint and spoken to a user
-// listening (renderQuiet) — so the declaration is what this asks against.
+// never arrived looks the same as an attribute with nothing to say. The registry is what
+// knows the difference — x-says names the attributes whose values are words at the
+// element's edge — so the declaration is what this asks against.
 //
-// Both passes run once at the upgrade, before an async widget's own render lands, so a
+// The pass runs once at the upgrade, before an async widget's own render lands, so a
 // module that rebuilds its body from a settle() promise takes the words out with it and
-// nothing on the page says so. renderQuiet re-runs on each replay and renderSaid never
-// does, which decides how long each stays gone rather than whether it goes.
+// nothing on the page says so.
 //
-// It reads every open root (OPEN_ROOTS) where both word passes stop at the boundary on
+// It reads every open root (OPEN_ROOTS) where the word pass stops at the boundary on
 // purpose: which widgets the page holds is the document's question, and settling a
 // staged widget's nesting in a sweep would be writing that contract where nobody would
 // look for it (the layer's AGENTS.md). So a staged element keeps its declarations and
-// gets neither pass, which is exactly where a promised word reaches nobody in silence —
+// gets no pass, which is exactly where a promised word reaches nobody in silence —
 // reported here, to the module's author, at handover.
 //
-// Both halves ask the *rendered* page rather than the markup, and a shadow host is why:
-// an element that stages a tree keeps its light DOM in the document and out of every box,
-// so both passes find the host, write there, and leave `textContent` and `querySelector`
-// reporting words the user will never get. Each half gets to the rendered page its own
-// way, because they read different things. Words are `says()`, the layer's one answer to
+// It asks the *rendered* page rather than the markup, and a shadow host is why: an
+// element that stages a tree keeps its light DOM in the document and out of every box,
+// so the pass finds the host, writes there, and leaves `textContent` and `querySelector`
+// reporting words the user will never get. Words are `says()`, the layer's one answer to
 // what an element says rather than a second reading spelled here — asked of the host's
 // root where there is one, since the walk behind it substitutes a declared root for a
-// *child* and never for the element it was handed. The quiet word is in no such reading,
-// wearing the .lf-ui that `says` skips on purpose, so what is asked of it is its box: a
-// span clipped to a pixel still has one wherever it renders, and none at all where it
-// doesn't. Which is only a question worth putting where the element renders at all — a
-// collapsed card, a tab nobody opened and a shut thread panel all lay out nothing, and
-// their rects report the ancestor rather than the widget. That is the *second* failure
-// here, a word the widget wrote and then hid. The first one, a word it never wrote, is a
-// fault wherever the element stands, since a tab the user has not opened is a tab they
-// can open. Splitting them that way is what retired the [hidden] exemption this carried:
-// `hidden` and `hidden="until-found"` are two of the ways an element stops rendering, and
-// asking whether it renders covers both and the panel besides.
+// *child* and never for the element it was handed.
 export function silentWords(declarations) {
   const found = [];
   const all = openRoots(document);
   const every = (tag) => all.flatMap((r) => [...r.querySelectorAll(tag)]);
-  for (const [tag, entry] of Object.entries(declarations)) {
+  for (const [tag, entry] of Object.entries(declarations))
     for (const attr of Object.keys(entry["x-says"] ?? {}))
       for (const el of every(tag)) {
         const value = el.getAttribute(attr);
@@ -335,28 +321,6 @@ export function silentWords(declarations) {
             `${at(el)} declares ${attr} as x-says and never says ` + `"${value}"`,
           );
       }
-    // The word itself is renderQuiet's to derive, and this asks only that the
-    // element carries one: a widget painting a fact and saying nothing is the
-    // whole of the failure, and all a second copy of the derivation would add is
-    // a second place to change it.
-    for (const attr of entry["x-paints"] ?? [])
-      for (const el of every(tag)) {
-        if (!el.hasAttribute(attr)) continue;
-        const quiet = el.querySelector(":scope > .lf-quiet");
-        // A missing word is the fault, and it is the fault wherever the
-        // element stands: a tab the user has not opened is still a tab
-        // they can open. What the box is asked for is the second failure,
-        // a word the widget wrote and then hid, and that question can only
-        // be put to an element that is being laid out — a message in a shut
-        // panel lays out nothing, so its rects report the panel's state and
-        // would be read as the widget's.
-        if (quiet && (quiet.getClientRects().length || !el.checkVisibility())) continue;
-        found.push(
-          `${at(el)} paints ${attr}="${el.getAttribute(attr)}" ` +
-            `and says nothing a user listening can hear`,
-        );
-      }
-  }
   return found;
 }
 

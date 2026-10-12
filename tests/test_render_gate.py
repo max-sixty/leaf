@@ -2886,18 +2886,17 @@ def test_verbatim_wrapper_owns_prose_and_order_but_not_nested_widget_rendering(
 def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
     browser, serve, tmp_path, monkeypatch, declared_reading_package
 ):
-    """Bug-back for the other thing a declaration promises: that the words arrive. Both
-    word passes stop at a shadow boundary on purpose — which widgets the page holds is
+    """Bug-back for the other thing a declaration promises: that the words arrive. The
+    word pass stops at a shadow boundary on purpose — which widgets the page holds is
     the document's question — so an element a module stages into its own tree keeps its
-    declarations and gets neither pass, and the failure is silence: no error, no missing
+    declarations and gets no pass, and the failure is silence: no error, no missing
     box, nothing a reading of the drawn page can tell from an attribute with nothing to
-    say. Here a project widget stages a declared child, whose declaration names both keys, and
-    the gate is asked for each.
+    say. Here a project widget stages a declared child whose declaration names an
+    x-says word, and the gate is asked for it.
 
-    A staged element rather than a module that wipes its own body after the passes have
-    run, which is the same failure by the reachable-today route: that one is a race with
-    the next poll for the painted half, and a bug-back that has to win a race is a
-    bug-back that reports the machine."""
+    A staged element rather than a module that wipes its own body after the pass has
+    run, which is the same failure by a route that races the module's own render, and
+    a bug-back that has to win a race is a bug-back that reports the machine."""
     monkeypatch.chdir(tmp_path)
     add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
@@ -2919,7 +2918,6 @@ def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
         '      const staged = document.createElement("lf-reading");\n'
         '      staged.id = "staged-reading";\n'
         '      staged.setAttribute("label", "09:00");\n'
-        '      staged.setAttribute("state", "failure");\n'
         '      staged.textContent = "The feeder stopped.";\n'
         "      shadowStage(this, [staged]);\n"
         "    }\n"
@@ -2932,9 +2930,6 @@ def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
     ).failures
 
     assert any('never says "09:00"' in f for f in failures), failures
-    assert any('paints state="failure" and says nothing' in f for f in failures), (
-        failures
-    )
 
 
 def test_the_render_gate_catches_a_shadow_host_whose_own_words_never_render(
@@ -2942,10 +2937,9 @@ def test_the_render_gate_catches_a_shadow_host_whose_own_words_never_render(
 ):
     """Bug-back for the half a reading of the markup cannot see. `textContent` returns a
     hidden light-DOM span and `querySelector` finds it, so a check written against the
-    markup passes on a page whose user is handed neither word. Asking `says()` for the
-    words and a box for the clipped one is what tells the two apart — the layer's own
-    reading enters a declared root in the host's stead, and a span rendered nowhere has
-    no rects."""
+    markup passes on a page whose user is never handed the word. Asking `says()` for
+    the words is what tells the two apart — the layer's own reading enters a declared
+    root in the host's stead."""
     monkeypatch.chdir(tmp_path)
     add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
@@ -2954,9 +2948,7 @@ def test_the_render_gate_catches_a_shadow_host_whose_own_words_never_render(
     declaration.pop("x-verbatim")  # the module shows a tree of its own, not the body
     declaration["x-shadow"] = True
     declaration["properties"]["label"] = {"type": "string"}
-    declaration["properties"]["urgent"] = {"type": "boolean"}
     declaration["x-says"] = {"label": "before"}
-    declaration["x-paints"] = ["urgent"]
     registry_path.write_text(json.dumps(declarations, indent=2))
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
@@ -2979,7 +2971,6 @@ def test_the_render_gate_catches_a_shadow_host_whose_own_words_never_render(
     ).failures
 
     assert any('never says "Escalated"' in f for f in failures), failures
-    assert any('paints urgent="" and says nothing' in f for f in failures), failures
 
 
 @pytest.mark.nightly  # a sweep over the whole corpus

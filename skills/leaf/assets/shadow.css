@@ -1738,12 +1738,22 @@ pre:hover + .lf-code-copy,
   :root[data-lf-live] .lf-code-copy {
     display: none;
   }
+  :host-context(html[data-lf-live]) .lf-code-copy {
+    display: none;
+  }
 }
 @media (pointer: coarse), (hover: none) {
   :root:not([data-lf-live]) .lf-code-copy {
     opacity: 1;
   }
+  :host-context(html:not([data-lf-live])) .lf-code-copy {
+    opacity: 1;
+  }
   :root:not([data-lf-live]) :is(pre[data-lf-focus] + .lf-code-copy, .lf-code-copy.lf-code-copy-focused) {
+    opacity: 0;
+    pointer-events: none;
+  }
+  :host-context(html:not([data-lf-live])) :is(pre[data-lf-focus] + .lf-code-copy, .lf-code-copy.lf-code-copy-focused) {
     opacity: 0;
     pointer-events: none;
   }

@@ -1630,7 +1630,7 @@ def test_layer_style_sources_consume_the_runtime_layout_names():
     styles = schema_model.ASSETS / "styles"
     sheet = (styles / "theme.css").read_text() + (styles / "chrome.css").read_text()
 
-    [read_property] = read[str(surfaces)]["calls"]["getPropertyValue"]
+    [[read_property]] = read[str(surfaces)]["calls"]["getPropertyValue"]
     for spelling in (
         read_property + ":",
         "var(" + read[str(edges)]["constants"]["THREAD_PANEL_PROP"] + ")",
@@ -1655,9 +1655,11 @@ def test_prepaint_marks_the_state_the_stylesheet_reads():
     read = json.loads(js_facts("literals", [bootstrap, prepaint]))
     theme = (assets / "theme.css").read_text()
 
-    assert "data-lf-live" in read[str(bootstrap)]["calls"]["toggleAttribute"]
+    assert ["data-lf-live", True] in read[str(bootstrap)]["calls"]["toggleAttribute"]
     assert "html[data-lf-live]" in theme
-    assert "data-lf-interactive" in read[str(prepaint)]["calls"]["toggleAttribute"]
+    assert ["data-lf-interactive", True] in read[str(prepaint)]["calls"][
+        "toggleAttribute"
+    ]
     assert "html[data-lf-interactive]" in theme
     assert 'script[type="module"][src="/leaf.js"]' not in theme
 

@@ -5,7 +5,7 @@
 //   node tests/js_facts.mjs keydown FILE...   `name:line` of every keydown listener
 //   node tests/js_facts.mjs exports FILE...   {file: {names, default}} per module
 //   node tests/js_facts.mjs queries FILE...   {file: [selector]} handed to DOM queries
-//   node tests/js_facts.mjs literals FILE...  {file: {constants, calls}} string literals
+//   node tests/js_facts.mjs literals FILE...  {file: {constants, calls}} literal values
 //
 // Every module is read with acorn. A TypeScript module is read once amaro has blanked
 // its types in place, so what it exports is what it runs: a type, which nothing runs,
@@ -129,8 +129,9 @@ function queries() {
 }
 
 // Each module's string constants, top-level `const NAME = "…"` and the members of a
-// top-level object literal (`NAME.key`, `Object.freeze` included), and the string
-// first argument of each method call, by method name.
+// top-level object literal (`NAME.key`, `Object.freeze` included), and the arguments
+// of each method call whose first is a string, by method name: each argument's
+// literal value, or null where it is not a literal.
 function literals() {
   const read = {};
   for (const file of files) {
@@ -156,11 +157,11 @@ function literals() {
               );
       }
     }
+    const value = (node) => text(node) ?? (node.type === "Literal" ? node.value : null);
     walk(tree(file), (node) => {
       const name = method(node);
-      const argument = name && text(node.arguments[0]);
-      if (argument !== null && argument !== undefined)
-        (calls[name] ??= []).push(argument);
+      if (name && text(node.arguments[0]) !== null)
+        (calls[name] ??= []).push(node.arguments.map(value));
     });
     read[file] = { constants, calls };
   }

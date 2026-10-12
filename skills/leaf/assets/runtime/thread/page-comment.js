@@ -30,7 +30,11 @@
    The box joins the card the first time the card opens, in the same turn, and stays;
    a connected field builds its editor, so a page whose card never opens builds none.
    Until then it holds its draft unconnected. */
-import { showNativeLayer, closeNativeLayer } from "../keyboard/layer-stack.js";
+import {
+  showNativeLayer,
+  closeNativeLayer,
+  isNativeLayer,
+} from "../keyboard/layer-stack.js";
 import { el } from "../widget-elements.js";
 import { iconElement } from "../icons.js";
 import { textField } from "../composing/text-field.js";
@@ -83,7 +87,7 @@ export function createPageComment({
 
   const hint = () => (designModeActive() ? "Comment on the design" : NAME);
   const holds = () => Boolean(loadDraft("general")?.trim());
-  const cardIsOpen = () => card.matches(":popover-open");
+  const cardIsOpen = () => isNativeLayer(card);
   keys(card, "In the page comment card", [
     {
       id: "comment.card-close",

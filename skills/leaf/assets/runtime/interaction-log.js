@@ -3,6 +3,7 @@
 import { TEXT_BOX } from "./control-selectors.js";
 import { PAGE_ROOT } from "./context.js";
 import { focused } from "./focus.js";
+import { isNativeLayer } from "./keyboard/layer-stack.js";
 import { randomId } from "./ids.js";
 
 // A document with no declared root has no server to record to: an interactive export,
@@ -162,7 +163,7 @@ function describe(event) {
   if (event.type === "resize") entry.viewport = [window.innerWidth, window.innerHeight];
   if (event.type === "visibilitychange") entry.visibility = document.visibilityState;
   if (["beforetoggle", "toggle"].includes(event.type) && target instanceof Element)
-    entry.open = target.matches(":popover-open, dialog[open], details[open]");
+    entry.open = target.open === true || isNativeLayer(target);
   if (event.type === "fullscreenchange")
     entry.fullscreen = document.fullscreenElement
       ? {

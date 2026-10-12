@@ -144,7 +144,7 @@ export function createAuxiliarySurfaces({
         next &&
         document.hasFocus() &&
         !restored &&
-        !nativeLayerHolding(deepFocus())?.matches(":popover-open")
+        !nativeLayerHolding(deepFocus())?.hasAttribute("popover")
       )
         focusDestination(landingIn(next), "return");
     });

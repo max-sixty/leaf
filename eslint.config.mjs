@@ -557,6 +557,56 @@ const placementsRule = {
   },
 };
 
+// Whether a node is an open native layer, or stands in one, is asked of
+// keyboard/layer-stack.js (`isNativeLayer`, `nativeLayerHolding`, `nativeLayers`). A
+// selector naming the open state answers it again, and the copies drift: a
+// `dialog[open]` read once counted the auxiliary envelope, a nonmodal dialog that is
+// always open, as a layer. The rule reads the selector a `matches`, `closest` or
+// `querySelector(All)` call is given; the option names the files that keep their own
+// test, each with its reason beside it.
+const OPEN_LAYER_SELECTOR = /:popover-open|:modal\b|dialog\[open\]/u;
+const SELECTOR_METHODS = new Set([
+  "matches",
+  "closest",
+  "querySelector",
+  "querySelectorAll",
+]);
+export const openLayersRule = {
+  meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
+  create(context) {
+    const file = path
+      .relative(standingRepoRoot, context.filename ?? context.getFilename())
+      .split(path.sep)
+      .join("/");
+    if ((context.options[0] ?? []).includes(file)) return {};
+    return {
+      CallExpression(node) {
+        const { callee } = node;
+        const [selector] = node.arguments;
+        if (
+          callee.type !== "MemberExpression" ||
+          callee.computed ||
+          !SELECTOR_METHODS.has(callee.property.name) ||
+          !selector
+        )
+          return;
+        const text =
+          selector.type === "Literal"
+            ? selector.value
+            : selector.type === "TemplateLiteral"
+              ? selector.quasis.map((quasi) => quasi.value.cooked).join("")
+              : null;
+        if (typeof text === "string" && OPEN_LAYER_SELECTOR.test(text))
+          context.report({
+            node,
+            message:
+              "Ask keyboard/layer-stack.js whether a node is an open layer or stands in one (isNativeLayer, nativeLayerHolding, nativeLayers) rather than selecting the open state.",
+          });
+      },
+    };
+  },
+};
+
 // A layer hands the user back as it closes in one act (`closeLayer(close, land)` in
 // focus.js), so the platform's own hand-back and the owner's reach readers once, as where
 // the user ends up. A return made anywhere else is a layer return beside it, which
@@ -726,6 +776,7 @@ const architecturePlugin = {
     "semantic-store-ownership": semanticStoreOwnershipRule,
     "standing-listeners": standingListenersRule,
     placements: placementsRule,
+    "open-layers": openLayersRule,
     "layer-returns": layerReturnsRule,
     "root-state-ownership": {
       meta: { type: "problem", schema: [] },
@@ -1279,6 +1330,19 @@ export default [
           "skills/leaf/assets/runtime/composing/text-field.js",
           // The shared CodeMirror adapter places its own native editor.
           "skills/leaf/assets/runtime/editor-view.js",
+        ],
+      ],
+      "architecture/open-layers": [
+        "error",
+        [
+          // The owner.
+          "skills/leaf/assets/runtime/keyboard/layer-stack.js",
+          // `leftClosedLayer` asks of every dialog, nonmodal ones included, since closing
+          // any of them hands focus back; layer-stack.js imports this module.
+          "skills/leaf/assets/runtime/focus.js",
+          // `excludedByInert` stops at a modal alone, the one layer that escapes inherited
+          // inertness; layer-stack.js imports this module.
+          "skills/leaf/assets/runtime/shadow.js",
         ],
       ],
       "architecture/layer-returns": [

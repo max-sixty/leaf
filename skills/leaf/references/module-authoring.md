@@ -458,7 +458,9 @@ Open a native modal dialog or popover with `showNativeLayer(layer, {source})`;
 focus inside a sample; use `focusDestination` for the intended arrival. A popover keeps
 its `source` when the runtime re-seats it, as it does when a panel starts or stops
 covering the page. Close a native dialog or popover with `closeNativeLayer(layer)`,
-which prevents the native return from taking input from the containing page. A layer
+which prevents the native return from taking input from the containing page.
+`isNativeLayer(node)` asks whether a popover is open or a dialog stands modal; lint
+refuses a selector that asks it again. A layer
 closes with `closeLayer(close, land)`: `close` hides it, and `land` puts a user who stood
 in it where the close takes them, usually `handBack(openerOf(layer))`, which lets go onto
 the page where the opener is gone. Readers of where the user stands hear only where they

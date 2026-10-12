@@ -8,7 +8,7 @@
  * its shortcut (keyboard/control-keys.js), so each has one writer. It never
  * fetches a document, chooses a version, or decides what a comparison means.
  */
-import { closeNativeLayer } from "./keyboard/layer-stack.js";
+import { closeNativeLayer, isNativeLayer } from "./keyboard/layer-stack.js";
 import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 
 import { dismissBannerControls } from "./banner-toolbar.js";
@@ -106,7 +106,7 @@ class VersionPickerView {
   }
 
   isOpen() {
-    return this.menu.matches(":popover-open");
+    return isNativeLayer(this.menu);
   }
 
   close() {

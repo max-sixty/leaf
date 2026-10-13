@@ -431,7 +431,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     text, dot = page.locator(".lf-status-detail"), page.locator(".lf-banner .lf-dot")
     summary = page.locator(".lf-status-text")
     UNHELD = (
-        "No session holds this page. Your updates are saved."
+        "No session holds this page. Updates are saved."
         " It picks up again when a session does."
     )
 
@@ -540,10 +540,10 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
             transaction, [first_comment], phase="opened", session="s", turn="turn-1"
         )
     declare("waiting", "your read on the plan")
-    expect(summary).to_have_text("Claude working — picked up your comment")
+    expect(summary).to_have_text("Claude working — picked up my comment")
     expect(text).to_have_text(
         re.compile(
-            r"^\s*Claude picked up your comment and hasn't said what it's doing yet"
+            r"^\s*Claude picked up my comment and hasn't said what it's doing yet"
         )
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -611,7 +611,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         # remedy — nobody needs to touch a terminal for a comment to reach a live wait.
         declare("working", "revising the plan", quiet_for=20 * 60)
         expect(text).to_have_text(
-            "Claude last checked in 20m ago: revising the plan. Your updates are saved."
+            "Claude last checked in 20m ago: revising the plan. Updates are saved."
             " Waiting on Claude: 1 reply, 1 to-do (Work on the page)."
         )
         expect(dot).to_have_class(re.compile(r"\baway\b"))
@@ -628,7 +628,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         declare("working", "revising the plan", quiet_for=6 * 60, turn_ended=5 * 60)
         expect(text).to_have_text(
             "Claude’s turn ended 5m ago: revising the plan."
-            " Your updates are saved. Waiting on Claude: 1 reply, 1 to-do (Work on the page)."
+            " Updates are saved. Waiting on Claude: 1 reply, 1 to-do (Work on the page)."
         )
         expect(dot).to_have_class(re.compile(r"\baway\b"))
 
@@ -641,7 +641,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         declare("working", "revising the plan", quiet_for=5 * 60, turn_ended=5 * 60)
         expect(text).to_have_text(
             "Claude’s turn ended 5m ago: revising the plan."
-            " Your updates are saved. Waiting on Claude: 1 reply, 1 to-do (Work on the page)."
+            " Updates are saved. Waiting on Claude: 1 reply, 1 to-do (Work on the page)."
         )
 
         # A turn that has only just ended still holds it. An agent that ends its turn
@@ -680,7 +680,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     # No watcher, but Claude checked in moments ago, so it is between turns.
     declare("waiting")
     expect(text).to_have_text(
-        "Claude isn't watching right now. Your updates are saved."
+        "Claude isn't watching right now. Updates are saved."
         " It picks them up next turn. Waiting on Claude: 1 reply."
     )
 
@@ -691,7 +691,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     # message was sent it as it arrived.
     declare("working", "running the migration", quiet_for=6 * 60, turn_ended=5 * 60)
     expect(text).to_have_text(
-        "Claude isn't watching right now. Your updates are saved."
+        "Claude isn't watching right now. Updates are saved."
         " It picks them up next turn. Waiting on Claude: 1 reply, 1 to-do (Work on the page)."
     )
     expect(dot).to_have_class(re.compile(r"\baway\b"))
@@ -711,7 +711,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     )
     declare("working", "running the migration", quiet_for=6 * 60, turn_ended=5 * 60)
     expect(text).to_have_text(
-        "Claude’s turn ended 5m ago. Your updates are saved."
+        "Claude’s turn ended 5m ago. Updates are saved."
         " Nothing is answering them, so nudge it in the terminal."
         " Waiting on Claude: 2 replies, 1 to-do (Work on the page)."
     )

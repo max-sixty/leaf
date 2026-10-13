@@ -209,10 +209,10 @@ test("attention names the outstanding question rather than the latest message", 
   });
   const [thread] = readThreadRecords([source], NO_DOCUMENT, new Map(), []);
   const attention = threadAttention(thread);
-  assert.equal(attention.label, "On you to answer");
+  assert.equal(attention.label, "My turn to answer");
   assert.equal(
     threadAttention({ ...thread, user_prompt: null }).label,
-    "On you to answer",
+    "My turn to answer",
   );
   assert.equal(
     threadAttention({
@@ -226,7 +226,7 @@ test("attention names the outstanding question rather than the latest message", 
         }),
       ],
     }).label,
-    "On you to resend",
+    "My turn to resend",
   );
   assert.equal(
     threadAttention({
@@ -240,7 +240,7 @@ test("attention names the outstanding question rather than the latest message", 
         }),
       ],
     }).label,
-    "On you to retry",
+    "My turn to retry",
   );
   assert.equal(
     threadAttention({

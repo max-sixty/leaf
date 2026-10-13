@@ -394,9 +394,15 @@ def _name_thread(
             return
         reading = generate(request, page_dir)
         written = write_title(page_dir, thread, reading.pop("title"), session_id)
-    # A refusal's words can quote the title, which is drawn from the user's.
+    # A refusal's words can quote the title, which is drawn from the user's; its
+    # code cannot.
     except EventRefused as error:
-        record("thread_title_failed", thread=thread, error=type(error).__name__)
+        record(
+            "thread_title_failed",
+            thread=thread,
+            error=type(error).__name__,
+            code=error.findings[0].code,
+        )
         return
     # Every class, because this thread's only way to report is `record`: a failure
     # here leaves the thread untitled, and nothing else would say why.

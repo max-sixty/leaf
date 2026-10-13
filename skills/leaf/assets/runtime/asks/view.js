@@ -181,7 +181,7 @@ export function createAskView({
         busy: answeringAll.has(outcome),
         offered: Boolean(n),
         text: `${label} all (${n})`,
-        title: `${label} every one still waiting on you`,
+        title: `${label} every one still waiting on me`,
         outcome,
       });
     });
@@ -653,7 +653,7 @@ export function createAskView({
   function goToAsk(next, asks) {
     const ready = arriveAtAsk(next).then((arrived) => {
       if (!arrived) return false;
-      const state = unansweredIds().has(next.id) ? "waiting on you" : "answered";
+      const state = unansweredIds().has(next.id) ? "waiting on me" : "answered";
       const index = asks.findIndex((ask) => ask.id === next.id);
       announce(walkPositionLabel("Ask", index + 1, asks.length, state));
       return true;

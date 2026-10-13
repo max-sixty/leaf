@@ -162,7 +162,10 @@ event's unique identity, and runs its gates against the page
 and current log, derives server-owned
 meaning and `attention`, and validates the record against its stored-record contract.
 Using the event's revision keeps re-vendoring from reinterpreting an open document.
-A refusal returns a command error or a final HTTP 400. A fault raises instead, since
+A refusal (`EventRefused`) rests on one finding (`findings.Finding`): a stable `code`
+and `values` naming the refused event's `kind` and what the gate read, the words
+written once in `findings._TEXT`. It returns a command error or a final HTTP 400 whose
+body carries `findings` beside the `error` the browser shows. A fault raises instead, since
 it may land either side of the append; the HTTP transport's one fault boundary
 (`http.PageEndpoint._answer`) records it and answers HTTP 500 without `final`, so
 the browser retries the same attempt.

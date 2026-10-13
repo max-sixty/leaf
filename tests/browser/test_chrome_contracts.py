@@ -354,7 +354,7 @@ def test_a_thread_news_resolves_stays_where_it_stands_until_the_user_moves_on(
 def test_news_that_answers_a_thread_waiting_on_you_leaves_its_card_in_place(
     browser, serve
 ):
-    """Under "Waiting on you", the user's answer from another tab takes the thread out
+    """Under "Waiting on me", the user's answer from another tab takes the thread out
     of the view. Its card, open in front of them, stays where it stands, and its
     summary's title row stays the same size when the answered status disappears; the
     browser fixture's shift watch fails anything that moves. The news lands well after
@@ -381,7 +381,7 @@ def test_news_that_answers_a_thread_waiting_on_you_leaves_its_card_in_place(
         {"kind": "reply", "author": "user", "parent": asked, "token": "keep"},
     )
     told(page)
-    expect(page.locator(".lf-needs")).to_have_text("You (0)")
+    expect(page.locator(".lf-needs")).to_have_text("Me (0)")
     rendered(page)
     expect(card).to_be_visible()
     assert card.locator(".lf-thread-summary").bounding_box() == stood

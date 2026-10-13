@@ -73,6 +73,7 @@ from functools import cached_property
 from pathlib import Path
 
 from .events import note_settlements, taken_back
+from .findings import Finding
 from .refusals import Refused
 from .thread_context import thread_names
 
@@ -260,7 +261,7 @@ def todo_error(
     owed: set[str],
     todos,
     asks,
-) -> str | None:
+) -> Finding | None:
     """Why the append door refuses a to-do, start or end event, or None.
 
     A to-do stands on an admitted widget, page element or page; a to-do on a
@@ -286,13 +287,11 @@ def todo_error(
         item = event["item"]
         if item in owed or any(todo["id"] == item for todo in log.owed):
             return None
-        return (
-            f"{item!r} is neither an open to-do of yours nor an update you owe an answer to; start the "
-            "id a delivered update or `leaf task open` gave you"
-        )
+        return Finding("unowed-start", values={"item": item})
     if kind != "todo_end":
         return None
     identity = event["todo"]
+    named = {"todo": identity}
     todo = next((todo for todo in todos() if todo["id"] == identity), None)
     if todo is None:
         ask = next(
@@ -301,26 +300,26 @@ def todo_error(
         )
         if ask is not None:
             if ask["source"]["kind"] == "approval":
-                return (
-                    f"ask {identity!r} requires the user's approval of "
-                    f"v{ask['source']['version']}; it ends at the page's Approval control"
+                return Finding(
+                    "approval-ask",
+                    values={**named, "version": ask["source"]["version"]},
                 )
             if ask["source"]["kind"] == "widget":
-                return f"{identity!r} is a widget ask; its source owns the answer, so retire it in the document"
+                return Finding("widget-ask", values=named)
             if event["author"] != "agent":
-                return "the user's reply or settling reaction answers a prose ask"
+                return Finding("users-prose-ask", values=named)
             if ask["status"] != "open":
-                return f"ask {identity!r} is already {ask['status']}"
+                return Finding("ended-ask", values={**named, "status": ask["status"]})
             if event["outcome"] == "failed":
-                return "a prose ask ends `done` when the user answered it elsewhere, or `dropped` when it no longer applies"
+                return Finding("failed-prose-ask", values=named)
             return None
         if ended := log.ends.get(identity):
-            return f"to-do {identity!r} has already ended ({ended['state']})"
-        return f"unknown to-do {identity!r}"
+            return Finding("ended-todo", values={**named, "state": ended["state"]})
+        return Finding("unknown-todo", values=named)
     if todo["state"] != "open":
-        return f"to-do {identity!r} has already ended ({todo['state']})"
+        return Finding("ended-todo", values={**named, "state": todo["state"]})
     if event["author"] == "user" and todo["owner"] != "user":
-        return f"to-do {identity!r} is the agent's; the user ends only a to-do on them"
+        return Finding("agents-todo", values=named)
     return None
 
 

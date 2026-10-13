@@ -174,7 +174,7 @@ export function messageReading(
     unread: message.unread,
     attempt: message.attempt ?? null,
     author: message.author,
-    by: message.author === "agent" ? message.agent : "You",
+    by: message.author === "agent" ? message.agent : "Me",
     timestamp: message.ts,
     age: ago(message.ts),
     // What the message said before its last rewrite is the edited mark's to tell, since
@@ -330,7 +330,7 @@ export class MessageView {
             this.#kept
               ? html`<span
                   class="lf-msg-kept"
-                  title="Your rewrite is kept; open it to save or cancel"
+                  title="The rewrite is kept; open it to save or cancel"
                   >unsaved edit</span
                 >`
               : nothing

@@ -256,9 +256,7 @@ export class MessageEditor {
     // Words kept over the user's own edit still sending name it by its pending id, which
     // is no change of anyone else's.
     if (keptOver && keptOver !== base && !keptOver.startsWith(PENDING))
-      notice(
-        `This message changed since you wrote your edit. It now says: “${said()}”`,
-      );
+      notice(`This message changed since this edit began. It now says: “${said()}”`);
     this.#reveal = reveal;
     this.node = offer("div", "lf-msg-editor");
     this.input = offer(TEXT_FIELD);
@@ -267,7 +265,7 @@ export class MessageEditor {
     const save = offer("button", "lf-msg-control lf-msg-edit-save");
     const cancel = offer("button", "lf-msg-control lf-msg-edit-cancel");
     cancel.type = "button";
-    cancel.title = "Cancel, discarding your changes";
+    cancel.title = "Cancel, discarding my changes";
     cancel.textContent = "Cancel";
     actions.append(cancel);
     // The box's last line, where the caret stands on opening: the field's own lines are
@@ -320,7 +318,7 @@ export class MessageEditor {
     this.#putAside = putAside;
     const sync = wireInput(this.input, {
       hint: "Edit message",
-      accessibleName: () => `Edit your message: ${said().slice(0, 60)}`,
+      accessibleName: () => `Edit my message: ${said().slice(0, 60)}`,
       sends: "save",
       icon: null,
       sendBtn: save,
@@ -356,7 +354,7 @@ export class MessageEditor {
           id: "message.edit.previous",
           keys: ["ArrowUp"],
           description:
-            "From the start of an unchanged box, edit your message before this one",
+            "From the start of an unchanged box, edit my message before this one",
           title: "edit previous message",
           // A walk passes over words as they stand: words the user changed hold ↑ for
           // the caret, as a reply box holding words does, until Save or Escape. It

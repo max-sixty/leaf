@@ -2629,10 +2629,10 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
         strip.locator('.lf-react[data-token="keep"]').click()
     ok = events_model.read_events(serve.page_dir)[-1]
     assert ok["token"] == "keep" and ok["parent"] == reply
-    expect(page.locator(".lf-needs")).to_have_text("You (0)")  # none
+    expect(page.locator(".lf-needs")).to_have_text("Me (0)")  # none
     expect(page.locator(".lf-thread:not([hidden])")).to_have_count(
         0
-    )  # out of "waiting on you"
+    )  # out of "waiting on me"
     # The mark, pressed again, is the eraser — and the wait comes back with the undo.
     page.locator(".lf-needs").click()
     expect(page.locator(".lf-thread")).to_have_count(1)
@@ -2643,7 +2643,7 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
         strip.locator('.lf-react[data-token="keep"]').click()
     withdrawn = events_model.read_events(serve.page_dir)[-1]
     assert withdrawn["kind"] == "undo" and withdrawn["undoes"] == ok["id"]
-    expect(page.locator(".lf-needs")).to_have_text("You (1)")
+    expect(page.locator(".lf-needs")).to_have_text("Me (1)")
     expect(strip.locator('.lf-react[data-token="keep"]')).to_have_attribute(
         "aria-pressed", "false"
     )

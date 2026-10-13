@@ -26,6 +26,7 @@ from interact_support import (
     fresh_process,
     publish,
     read_page_data,
+    refused_on,
     stamp,
     state_json,
     suggest,
@@ -230,10 +231,11 @@ def test_a_version_that_writes_the_move_owns_its_order(page_dir):
     assert check(page_dir).exit_code == 0, check(page_dir).output
     publish(page_dir)
     assert _todo_order(page_dir) == ["n", "a", "x", "b", "c"]
-    with pytest.raises(events_model.EventRefused, match="markup now places its unit"):
+    with pytest.raises(events_model.EventRefused) as refused:
         append_command(
             page_dir, {"kind": "undo", "author": "user", "undoes": move["id"]}
         )
+    assert refused_on(refused.value).code == "absorbed-move"
 
 
 def test_a_later_version_can_reposition_a_card_without_retracting_its_move(page_dir):

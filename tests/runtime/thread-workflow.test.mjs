@@ -86,7 +86,7 @@ test("thread attention gives an open user ask precedence over agent work", () =>
   };
   assert.deepEqual(threadAttention(thread), {
     kind: "needs_user",
-    label: "On you to answer",
+    label: "My turn to answer",
     workflow: recovery,
     secondary: "Working",
   });
@@ -120,7 +120,7 @@ test("a frozen move that owes nothing leaves an owed thread on the user alone", 
   const [record] = readThreadRecords(threads, FROZEN_BOARD, new Map(), workflows);
   assert.deepEqual(threadAttention(record), {
     kind: "needs_user",
-    label: "On you to answer",
+    label: "My turn to answer",
     workflow: null,
     secondary: "",
   });

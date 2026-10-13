@@ -279,7 +279,7 @@ def page_binding(page_dir: Path) -> tuple[dict, dict | None]:
     def bind() -> tuple[dict, dict | None]:
         identity = layer_metadata(page_dir)
         if refusal := incompatible_layer(page_dir, load_registry(page_dir)):
-            raise RuntimeError(refusal)
+            raise RuntimeError(str(refusal))
         return identity, preview_metadata(page_dir)
 
     return memo(page_dir, _Binding).get(None, bind)

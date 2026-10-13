@@ -170,6 +170,9 @@ it may land either side of the append; the HTTP transport's one fault boundary
 (`http.PageEndpoint._answer`) records it and answers HTTP 500 without `final`, so
 the browser retries the same attempt.
 
+Task completion, whether a `todo_end` or a note's to-do settlements, uses the
+latest-start authority defined in `todos.py`.
+
 Transports own only their input boundary: which kinds and fields they accept.
 `thread.post_reply` matches its own `attempt` before the door, by kind and response
 address rather than the whole payload, so a CLI retry with reworded text returns

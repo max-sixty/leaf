@@ -549,6 +549,49 @@
     color: var(--lf-fp-muted);
     font: 12px var(--sans);
   }
+  .lf-fp-end {
+    display: inline-flex;
+    align-self: center;
+    align-items: center;
+    gap: 8px;
+  }
+  .lf-fp-chevron {
+    width: 12px;
+    height: 12px;
+    margin-inline-end: -2px;
+    color: var(--lf-fp-muted);
+  }
+  .lf-fp-copy {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 4px;
+    padding: 5px 8px 8px;
+  }
+  .lf-fp-copy-label {
+    grid-column: 1 / -1;
+    line-height: 20px;
+  }
+  .lf-fp-copy-text {
+    min-width: 0;
+    height: 28px;
+    padding: 0 8px;
+    border: 1px solid var(--lf-fp-ring);
+    border-radius: 6px;
+    background: none;
+    color: var(--ink);
+    font: 12px var(--mono);
+  }
+  .lf-fp-copy .lf-fp-quiet {
+    padding: 0 8px;
+    font-size: 12px;
+  }
+  .lf-fp-copy-note {
+    grid-column: 1 / -1;
+    margin: 4px 0 0;
+    color: var(--lf-fp-muted);
+    font-size: 12px;
+  }
   .lf-fp-item[data-lf-urgent] .lf-fp-value {
     color: var(--accent);
   }
@@ -743,7 +786,6 @@
     :is(.lf-floating-panel, .lf-fp-ground) {
       --lf-fp-width: calc(100vw - 20px - var(--lf-safe-left) - var(--lf-safe-right));
     }
-    .lf-fp-annotate,
     .lf-fp-keys {
       display: none;
     }

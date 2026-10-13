@@ -163,6 +163,7 @@ def page_delivery(
     asset_root: str | None = None,
     share_url: str | None = None,
     vocabulary_root: str | None = None,
+    probe: str | None = None,
 ) -> Delivery:
     """How an HTTP host delivers a page's document: supervised before anything loads.
 
@@ -173,6 +174,11 @@ def page_delivery(
     themselves. A keyed top-level page declares its share address here, including
     on a bare-URL reload. Disposable samples and public website documents have no
     such address. `write_live_shell` delivers published documents the same way.
+
+    `probe` is where a tab asks whether its source has moved on to another layer or
+    release (`layer-client.js`, `sourceMovedOn`, and `bootstrap.js`'s startup
+    recovery), so its answer must name the layer or release a fresh document would
+    start under. It defaults to the kernel's registry, whose answer names its release.
     """
     assets = asset_root if asset_root is not None else page_root
     address = DeliveryAddress(page_root, assets)
@@ -194,7 +200,7 @@ def page_delivery(
         f'data-lf-layer="{layer_id}"{release}{share} '
         f'data-lf-page-root="{html.escape(page_root, quote=True)}" '
         f'data-lf-entry="{html.escape(address("/leaf.js"), quote=True)}" '
-        f'data-lf-probe="{html.escape(address("/registry.json"), quote=True)}" '
+        f'data-lf-probe="{html.escape(probe or address("/registry.json"), quote=True)}" '
         f'data-lf-vocabulary-root="{html.escape(content_address("/registry.json"), quote=True)}">'
         f"{bootstrap}</script>"
     )
@@ -913,6 +919,16 @@ class PageEndpoint:
             page_root=self.page_root,
             asset_root=self._document_asset_root(self._active_revision()),
             vocabulary_root=self._artifact_root(revision),
+            # With a release, a changed kernel is a changed release, which every answer
+            # names. Without one, a runtime edit re-vendors the page into its next
+            # revision while the kernel's immutable registry goes on naming the layer it
+            # was captured under, so the probe asks the page's registry, which answers
+            # for the active revision.
+            probe=(
+                self.page_root.rstrip("/") + "/registry.json"
+                if self.release is None
+                else None
+            ),
             share_url=(
                 str(
                     self.request.url.replace(

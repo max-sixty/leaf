@@ -1585,7 +1585,7 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
     fallback = sample("working · fallback")
     expect(resting).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
     expect(resting).not_to_have_attribute("data-lf-turn", re.compile(".+"))
-    expect(sample("on you")).to_have_attribute("data-lf-turn", "user")
+    expect(sample("my turn")).to_have_attribute("data-lf-turn", "user")
     expect(picked_up).to_have_attribute("data-lf-agent-workflow", "picked_up")
     expect(picked_up).to_have_css(
         "border-top-color",

@@ -410,7 +410,7 @@ user-visible benefit and why it cannot wait. Bytes off that path, such as a lazi
 loaded module, a vendored file, or the install's size, are not on their own a reason
 for a change.
 
-Land through a pull request or with `wt merge`, which squash-merges to `main`.
-A failing check the change doesn't cause blocks nothing (`tests/AGENTS.md`, "Run
-what the change needs"). Tend sessions follow
-**Landing** in `.claude/skills/running-tend/SKILL.md`.
+Land through a pull request or with `wt merge`, which squash-merges to `main`. For
+now, a failing check the change doesn't cause blocks nothing (`tests/AGENTS.md`, "Run
+what the change needs"). Tend sessions follow **Landing** in
+`.claude/skills/running-tend/SKILL.md`.

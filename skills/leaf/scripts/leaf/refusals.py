@@ -8,20 +8,12 @@ its parent, and a long-lived caller (the Codex adapter, the website) carries on.
 refusal raised from a helper the server and a harness share cannot end their process,
 and an exception that is not a refusal keeps its traceback rather than printing as one.
 
+A gate that refuses on what it found raises `findings.Rejected`, whose `findings` are
+records with a code and fields; any other refusal has none. A boundary that answers
+in JSON writes `json()`, as the event door's refusal answer does.
+
 Imports nothing from Leaf, so the lowest module can raise it.
 """
-
-
-class Refusal(str):
-    """A gate's reason with separate words for the user whose gesture it refuses,
-    where the reason names internals that user never sees."""
-
-    user: str
-
-    def __new__(cls, reason: str, user: str):
-        refusal = super().__new__(cls, reason)
-        refusal.user = user
-        return refusal
 
 
 class Refused(Exception):
@@ -29,8 +21,18 @@ class Refused(Exception):
 
     `str()` is the reason the agent or the command line reads. `user` is what a
     browser shows the person whose gesture it was: the reason itself, unless the gate
-    worded it for them (`Refusal`)."""
+    worded it for them (`findings.Rejected`)."""
+
+    findings: tuple = ()
 
     def __init__(self, reason: str):
         super().__init__(reason)
-        self.user = getattr(reason, "user", reason)
+        self.user = reason
+
+    def json(self) -> dict:
+        """The refusal as a JSON reader takes it: its words, and the record of each
+        finding it refused on (`findings.Finding.json`)."""
+        return {
+            "error": str(self),
+            "findings": [finding.json() for finding in self.findings],
+        }

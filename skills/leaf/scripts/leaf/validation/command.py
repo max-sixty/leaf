@@ -63,8 +63,7 @@ def _check(page_dir: Path, render: bool, as_json: bool) -> int:
     # re-vendor that repairs it comes first (`layer.incompatible_layer`).
     if refusal := write_refusal(page_dir):
         if as_json:
-            found = Finding("invalid-registry", values={"error": refusal})
-            report = {"status": 1, "findings": [found.json()], "browser": None}
+            report = {"status": 1, "findings": [refusal.json()], "browser": None}
             print(json.dumps(report, ensure_ascii=False))
         else:
             print(f"Error: {refusal}", file=sys.stderr)

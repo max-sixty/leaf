@@ -101,7 +101,7 @@ export const queueList = queueFurniture.list;
 export const queueNextBtn = el("button", "lf-btn lf-queue-next", "Next question");
 queueNextBtn.type = "button";
 queueNextBtn.hidden = true;
-queueNextBtn.title = "Go to the next question waiting on you (q)";
+queueNextBtn.title = "Go to the next question waiting on me (q)";
 // The walk steps on from where the user stands, so a press leaves them standing there
 // rather than moving focus onto the button, as a gesture step on the banner does.
 queueNextBtn.addEventListener("mousedown", (event) => event.preventDefault());

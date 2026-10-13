@@ -6,7 +6,10 @@ from pathlib import Path
 
 import model_folds as model
 import pytest
-from interact_support import served_thread
+from interact_support import (
+    refused_on,
+    served_thread,
+)
 from leaf import asks as asks_model
 from leaf.gesture_words import element_name
 from leaf.passages import SourceReading
@@ -706,8 +709,9 @@ def test_todo_validation_does_not_rewrite_ask_identity_and_refuses_bare_source()
     }
     admitted = admitted_event(door, events, command)
     assert command["todo"] == admitted["todo"] == "reply:prompt"
-    with pytest.raises(EventRefused, match="unknown to-do 'prompt'"):
+    with pytest.raises(EventRefused) as refused:
         admitted_event(door, events, {**command, "todo": "prompt"})
+    assert refused_on(refused.value).code == "unknown-todo"
 
 
 @pytest.mark.parametrize("state", ["answered", "withdrawn"])

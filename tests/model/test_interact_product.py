@@ -29,6 +29,7 @@ from interact_support import (
     page_state,
     publish,
     published,
+    refused_on,
     response_reference,
     served_thread,
     state_json,
@@ -1526,15 +1527,16 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
     )
     before = events_model.read_events(page_dir)
     for target, refusal in [
-        (answer["id"], "is not user-authored"),
-        (reaction["id"], "has no words to revise"),
-        ("no-such-message", "unknown message"),
+        (answer["id"], "foreign-message"),
+        (reaction["id"], "wordless-message"),
+        ("no-such-message", "unknown-message"),
     ]:
-        with pytest.raises(EventRefused, match=refusal):
+        with pytest.raises(EventRefused) as refused:
             append_command(
                 page_dir,
                 {"kind": "edit", "author": "user", "message": target, "text": "x"},
             )
+        assert refused_on(refused.value).code == refusal
     assert events_model.read_events(page_dir) == before
 
 

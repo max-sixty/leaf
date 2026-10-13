@@ -185,7 +185,7 @@ def test_thread_rows_name_action_in_existing_status(browser, serve):
 
     asked = page.locator(f'.lf-thread[data-id="{PHOTO_THREAD}"]')
     expect(asked.locator(":scope > .lf-thread-summary .lf-thread-status")).to_have_text(
-        "On you to answer"
+        "My turn to answer"
     )
     summary = asked.locator(":scope > .lf-thread-summary")
     recency = summary.locator(".lf-thread-recency")
@@ -5406,7 +5406,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     # made from the diff would open the composer on the diff rather than reach the panel
     # at all. Uncommented, too: a click on a mark opens the thread it carries.
     page.locator("#how-store").click()
-    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("waiting on you")
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("waiting on me")
     page.keyboard.press("w")
     expect(page.locator(".lf-thread-panel")).not_to_be_visible()
 
@@ -5417,9 +5417,9 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     page.keyboard.press("Shift+t")
     panel_settled(page)
     expect(page.locator(OPEN_TITLE)).to_be_focused()
-    expect(page.locator(".lf-needs")).to_have_text("You (1)")
+    expect(page.locator(".lf-needs")).to_have_text("Me (1)")
     expect(page.locator(".lf-needs")).to_have_attribute("title", re.compile(r"\(w\)$"))
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("waiting on you")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("waiting on me")
     # `c` from that thread enters its reply box, and there `w` is a character like any
     # other — the typing scope claims what types one, so the row stands down and the line
     # drops it. Escaping out onto the thread makes it live again. Both directions,
@@ -5429,10 +5429,10 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     expect(
         page.locator(".lf-threads > .lf-thread:not([hidden])[open] leaf-text")
     ).to_be_focused()
-    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("waiting on you")
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("waiting on me")
     page.keyboard.press("Escape")
     expect(page.locator(OPEN_TITLE)).to_be_focused()
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("waiting on you")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("waiting on me")
     page.keyboard.press("w")
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(1)
     expect(page.locator(f'.lf-thread[data-id="{theirs}"]')).to_have_count(1)
@@ -5453,7 +5453,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     ).to_have_count(1)
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
     expect(page.locator(".lf-thread-view-summary")).to_have_text(
-        "1 of 2 open threads · On you"
+        "1 of 2 open threads · On me"
     )
     expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "true")
 
@@ -5491,7 +5491,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     reply.type("Forty is plenty.")
     page.locator(f'.lf-thread[data-id="{theirs}"] .lf-thread-send').click()
     round_trip(page)
-    expect(page.locator(".lf-needs")).to_have_text("You (0)")
+    expect(page.locator(".lf-needs")).to_have_text("Me (0)")
     expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "false")
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(2)
     expect(
@@ -5499,7 +5499,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     ).to_be_focused()
     expect(page.locator(".lf-needs")).to_be_disabled()
     expect(page.locator(".lf-needs")).to_have_attribute(
-        "title", "Nothing shown is waiting on you"
+        "title", "Nothing shown is waiting on me"
     )
 
 
@@ -5550,11 +5550,11 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     )
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    expect(page.locator(".lf-needs")).to_have_text("You (1)")
+    expect(page.locator(".lf-needs")).to_have_text("Me (1)")
     expect(page.locator(".lf-thread")).to_have_count(2)
     expect(
         page.locator(f'.lf-thread[data-id="{asked}"] .lf-thread-status')
-    ).to_have_text("On you to answer")
+    ).to_have_text("My turn to answer")
     expect(
         page.locator(f'.lf-thread[data-id="{answered}"] .lf-thread-status')
     ).to_have_count(0)
@@ -5590,7 +5590,7 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
         "</lf-options></lf-ask>",
     )
     told(page)
-    expect(page.locator(".lf-needs")).to_have_text("You (2)")
+    expect(page.locator(".lf-needs")).to_have_text("Me (2)")
     expect(page.locator(f'.lf-thread[data-id="{answered}"]')).to_have_count(1)
     assert page.evaluate("() => window.__backendContext") == {
         "message": True,
@@ -5601,7 +5601,7 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     focus_panel_thread(page.locator(f'.lf-thread[data-id="{answered}"]'))
     page.locator("#backend-sqlite").click()
     round_trip(page)
-    expect(page.locator(".lf-needs")).to_have_text("You (1)")
+    expect(page.locator(".lf-needs")).to_have_text("Me (1)")
     expect(
         page.locator(f'.lf-thread[data-id="{answered}"]:not([hidden])')
     ).to_have_count(0)
@@ -5617,18 +5617,18 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     # The answer shows as sent at once; whether it answers the Ask is the server's
     # reading, so the thread stays on the user until that arrives.
     status = page.locator(f'.lf-thread[data-id="{asked}"] .lf-thread-status')
-    expect(status).to_have_attribute("title", "On you to answer · Sending")
+    expect(status).to_have_attribute("title", "My turn to answer · Sending")
     expect(reply).to_have_js_property("value", "")
     held.pop().continue_()
     page.unroute("**/api/event")
     round_trip(page)
     # The reading takes the thread off the user, and the user goes with it out of
-    # "Waiting on you" (thread-card.js, `#speak`).
-    expect(page.locator('[data-filter-value="user"]')).to_have_text("You (0)")
+    # "Waiting on me" (thread-card.js, `#speak`).
+    expect(page.locator('[data-filter-value="user"]')).to_have_text("Me (0)")
     expect(page.locator('[data-filter-value="user"]')).to_have_attribute(
         "aria-pressed", "false"
     )
-    expect(page.locator(".lf-needs")).to_have_text("You (0)")
+    expect(page.locator(".lf-needs")).to_have_text("Me (0)")
     expect(page.locator(f'.lf-thread[data-id="{asked}"]')).to_be_visible()
 
 
@@ -5683,14 +5683,14 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     # `needs_user` for recovery: the margin and panel name the action owed.
     margin = page.locator('[data-lf-margin-for="cd-q"] > .lf-margin-marker')
     expect(margin).to_have_attribute("data-lf-turn", "user")
-    expect(margin.locator(".lf-margin-entry-context")).to_have_text("On you to resend")
+    expect(margin.locator(".lf-margin-entry-context")).to_have_text("My turn to resend")
 
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     panel = page.locator(f'.lf-msg[data-mid="{receipt["id"]}"]')
     expect(panel.locator(".lf-msg-failure")).to_have_text("Not answered")
     status = page.locator(f'.lf-thread[data-id="{unanswered["id"]}"] .lf-thread-status')
-    expect(status).to_have_text("On you to resend")
+    expect(status).to_have_text("My turn to resend")
     assert status.evaluate("el => el.scrollWidth <= el.clientWidth"), (
         "the summary clips its failure status"
     )
@@ -5714,12 +5714,12 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
         card.get_by_role("button", name="Send", exact=True).click()
     holding(page, held, 1, "the recovery resend")
     expect(status).to_have_attribute(
-        "title", "On you to resend · Not answered · Sending"
+        "title", "My turn to resend · Not answered · Sending"
     )
     expect(draft).to_have_js_property("value", "")
     held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
-    expect(status).to_have_text("On you to resend")
-    expect(recovery).to_have_text("You (1)")
+    expect(status).to_have_text("My turn to resend")
+    expect(recovery).to_have_text("Me (1)")
     expect(recovery).to_be_enabled()
     expect(draft).to_have_js_property("value", "Try the south pair again.")
     page.unroute("**/api/event")
@@ -8326,7 +8326,7 @@ def test_a_narrowing_hides_a_thread_without_taking_its_ask_off_the_page(browser,
     page.locator(".lf-needs").click()
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
     expect(page.locator(".lf-thread-view-summary")).to_have_text(
-        "1 of 2 open threads · On you"
+        "1 of 2 open threads · On me"
     )
     expect(
         page.locator('.lf-threads > .lf-thread[hidden][data-resolved="false"]')
@@ -8345,7 +8345,7 @@ def test_a_narrowing_hides_a_thread_without_taking_its_ask_off_the_page(browser,
 def test_a_reply_that_takes_its_card_out_of_the_view_takes_the_user_with_it(
     browser, serve
 ):
-    """The user's own reply answers the question, so "Waiting on you" no longer holds
+    """The user's own reply answers the question, so "Waiting on me" no longer holds
     the thread. Their turn widens the view to show it and leaves them standing on it,
     as a sent reply does, rather than dropping them on the list once the log answers
     (the user's decision, 2026-10-07, #46 on the rewrite survey)."""

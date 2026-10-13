@@ -9,6 +9,7 @@ from functools import cache
 from pathlib import Path
 from typing import NamedTuple
 
+from .findings import Finding
 from .locations import located, locations_overlap
 from .machine import package_store
 from .refusals import Refused
@@ -395,7 +396,7 @@ def payload_server_fingerprint() -> str:
     )
 
 
-def incompatible_layer(page_dir: Path, registry: dict) -> str | None:
+def incompatible_layer(page_dir: Path, registry: dict) -> Finding | None:
     """Why this Leaf can neither serve a page nor write its log, given the registry it
     would serve the page under; None when it may. Either the registry's `$events`
     were vendored at another `protocol` than this Leaf's own
@@ -417,23 +418,28 @@ def incompatible_layer(page_dir: Path, registry: dict) -> str | None:
     (`incompatible_revision`).
     """
     if (vendored := _foreign_protocol(registry)) is not None:
-        return (
-            f"{page_dir} was vendored by a Leaf at page protocol {vendored}, and this "
-            f"Leaf ({PLUGIN_ROOT}) speaks protocol {kernel_protocol()}, so it cannot "
-            f"serve the page or write its log. Re-vendor it with "
-            f"`leaf page init {page_dir}`."
+        return Finding(
+            "foreign-layer",
+            values={
+                "page": str(page_dir),
+                "vendored": vendored,
+                "leaf": str(PLUGIN_ROOT),
+                "protocol": kernel_protocol(),
+            },
         )
     if retired := _retired_keys(registry):
-        return (
-            f"{page_dir} was vendored by a Leaf that declares "
-            f"{', '.join(retired)}, which this Leaf ({PLUGIN_ROOT}) no longer admits, "
-            f"so it cannot serve the page or write its log. Re-vendor it with "
-            f"`leaf page init {page_dir}`."
+        return Finding(
+            "retired-layer",
+            values={
+                "page": str(page_dir),
+                "retired": retired,
+                "leaf": str(PLUGIN_ROOT),
+            },
         )
     return None
 
 
-def incompatible_revision(revision: int, registry: dict) -> str | None:
+def incompatible_revision(revision: int, registry: dict) -> Finding | None:
     """Why this Leaf can neither serve one of a page's revisions nor admit input made
     against it, given the registry that revision captured: it was saved at another
     protocol, or its vocabulary uses an x- key this Leaf no longer admits, the two
@@ -452,23 +458,19 @@ def incompatible_revision(revision: int, registry: dict) -> str | None:
     the revision without what it declares, such as a framed ask's prompt.
     """
     if (saved := _foreign_protocol(registry)) is not None:
-        why = (
-            f"was saved at page protocol {saved}, and this Leaf speaks protocol "
-            f"{kernel_protocol()}"
+        return Finding(
+            "foreign-revision",
+            values={
+                "revision": revision,
+                "saved": saved,
+                "protocol": kernel_protocol(),
+            },
         )
-    elif retired := _retired_keys(registry):
-        why = (
-            f"was saved by a Leaf that declares {', '.join(retired)}, which this "
-            f"Leaf no longer admits"
+    if retired := _retired_keys(registry):
+        return Finding(
+            "retired-revision", values={"revision": revision, "retired": retired}
         )
-    else:
-        return None
-    return (
-        f"Revision {revision} {why}, so it cannot serve that revision or accept "
-        f"input made against it. Revisions saved since the page was re-vendored "
-        f"still open, and serving the page saves one from its source; where that "
-        f"fails, `leaf page check` names why."
-    )
+    return None
 
 
 def _retired_keys(registry: dict) -> list[str]:

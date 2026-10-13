@@ -436,9 +436,9 @@ export function renderSaid(root) {
 // report, and restatement origins without three writers fighting over the same seat.
 function quietFacts(el) {
   const words = el.hasAttribute(PAGE_PAINT_ATTRIBUTE.restated)
-    ? ["rewritten since your decision"]
+    ? ["rewritten since I decided"]
     : [];
-  if (el.hasAttribute(PAGE_PAINT_ATTRIBUTE.userOverride)) words.push("your change");
+  if (el.hasAttribute(PAGE_PAINT_ATTRIBUTE.userOverride)) words.push("my change");
   if (el.hasAttribute(PAGE_PAINT_ATTRIBUTE.reported)) words.push("reported state");
   return words.join(", ");
 }

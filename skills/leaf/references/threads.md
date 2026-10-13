@@ -201,7 +201,7 @@ A progress message is progress text, so it cannot carry `--ask`, `--todo`,
 markup, failure or an anchor move. Put questions and results in ordinary replies.
 
 A widget whose registry entry declares `x-awaits` already poses an ask
-and keeps its thread "On you" while that ask awaits the user. Leaf refuses
+and keeps its thread "My turn" while that ask awaits the user. Leaf refuses
 `--ask` beside such markup; the widget's state is the one reading.
 
 Correct an agent-authored message, including a predecessor's, without adding another turn:

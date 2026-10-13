@@ -63,6 +63,7 @@ from leaf.registry import widgets as registry_widgets
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate.preview import preview_server
 from leaf.revisioning import activate_source
+from leaf.validation.source import check_source
 from model_folds import leaf_page
 from packaging.requirements import Requirement
 from packaging.specifiers import SpecifierSet
@@ -312,6 +313,10 @@ def test_response_reply_names_a_page_vendored_at_another_protocol(claimed, serve
     assert checked.returncode != 0, checked.stdout
     assert f"leaf page init {claimed}" in checked.stderr
     assert interact_files.list_revisions(claimed) == [1]
+    [refusal] = check_source(claimed, events_model.read_events(claimed)).errors
+    record = json.loads(json.dumps(refusal.json()))
+    assert record["code"] == "foreign-layer"
+    assert record["values"]["page"] == str(claimed)
 
 
 def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(page_dir):
@@ -336,8 +341,7 @@ def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(page_dir
     )
     revendor = f"leaf page init {page_dir}"
     assert registry_storage.load_registry(page_dir) is not None
-    refusal = write_refusal(page_dir)
-    assert refusal and "x-question-context" in refusal and revendor in refusal
+    assert write_refusal(page_dir).values["retired"] == ["x-question-context"]
     checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
     assert checked.exit_code != 0
     assert "x-question-context" in checked.output and revendor in checked.output
@@ -347,7 +351,14 @@ def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(page_dir
     report = json.loads(as_json.output)
     assert report["status"] == 1 and report["browser"] is None
     [finding] = report["findings"]
-    assert finding["code"] == "invalid-registry" and revendor in finding["text"]
+    assert finding["code"] == "retired-layer" and revendor in finding["text"]
+    # Full source composition first rejects this retired key inventory; the
+    # layer-only transport gate above reports the retired-layer refusal.
+    [refusal] = check_source(page_dir, events_model.read_events(page_dir)).errors
+    source_finding = json.loads(json.dumps(refusal.json()))
+    assert source_finding["code"] == "keys-documentation"
+    assert source_finding["values"]["missing"] == ["x-ask-context"]
+    assert source_finding["values"]["unadmitted"] == ["x-question-context"]
 
     vendored(lambda keys: keys.pop("x-question-context"))
     assert write_refusal(page_dir) is None

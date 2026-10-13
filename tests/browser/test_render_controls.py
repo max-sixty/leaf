@@ -1915,7 +1915,7 @@ def test_required_approval_is_an_ask_until_approved(browser, serve, width):
     page = open_page(browser, serve(html))
     page.set_viewport_size({"width": width, "height": 900})
     questions = page.get_by_role(
-        "button", name="Questions: 1 waiting on you", exact=True, include_hidden=True
+        "button", name="Questions: 1 waiting on me", exact=True, include_hidden=True
     )
     expect(questions).to_be_attached()
     target = page.evaluate("""async () => {
@@ -1935,7 +1935,7 @@ def test_required_approval_is_an_ask_until_approved(browser, serve, width):
     expect(
         page.get_by_role(
             "button",
-            name="Questions: 0 waiting on you",
+            name="Questions: 0 waiting on me",
             exact=True,
             include_hidden=True,
         )
@@ -1976,7 +1976,7 @@ def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serv
     panel_settled(page)
     history = page.locator(".lf-threads > .lf-system")
     questions = page.get_by_role(
-        "button", name="Questions: 1 waiting on you", exact=True, include_hidden=True
+        "button", name="Questions: 1 waiting on me", exact=True, include_hidden=True
     )
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -2008,7 +2008,7 @@ def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serv
     round_trip(page)
     expect(button).to_have_text("✓ Version approved")
     expect(button).to_have_attribute(
-        "title", "Approved. Press z to undo while approval is still your latest update"
+        "title", "Approved. Press z to undo while approval is still the latest update"
     )
 
     expect(history).to_contain_text("Approved")
@@ -3646,7 +3646,7 @@ def test_a_phone_s_one_row_seats_a_finger_s_steps_and_leaves_the_counts_out(
         viewport={"width": 390, "height": 800}, has_touch=True, is_mobile=True
     )
     page = open_page(browser, serve(SUGGESTION_PAGE), context=context)
-    expect(page.locator(".lf-status-detail")).to_contain_text("Waiting on you")
+    expect(page.locator(".lf-status-detail")).to_contain_text("Waiting on me")
     page_at_rest(page)
     resting = page.evaluate(BANNER_ROWS)
     assert_banner_as_stated(resting, wrapped=False)

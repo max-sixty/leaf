@@ -9,6 +9,7 @@ from interact_support import (
     append_carried_log_record,
     append_command,
     record_claim,
+    refused_on,
     working,
 )
 from leaf import delivery as delivery_model
@@ -1019,9 +1020,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     # The rule stands at the log's own door as well as in the browser's controller, so
     # the state a quoted widget would reconcile cannot be written in the first place.
     # Any sender reaches that door; this one is the CLI's side of it.
-    with pytest.raises(
-        events_model.EventRefused, match="quoted material takes no input"
-    ):
+    with pytest.raises(events_model.EventRefused) as refused:
         append_command(
             serve.page_dir,
             {
@@ -1033,6 +1032,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
                 "detail": {"outcome": "accept"},
             },
         )
+    assert refused_on(refused.value).code == "quoted-widget"
     page = open_page(browser, url)
     assert page.locator(".lf-error").count() == 0
 

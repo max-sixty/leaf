@@ -5,7 +5,12 @@ import math
 import re
 
 import pytest
-from interact_support import add_test_widget, append_carried_log_record, append_command
+from interact_support import (
+    add_test_widget,
+    append_carried_log_record,
+    append_command,
+    refused_on,
+)
 from leaf import event_log as events_model
 from leaf import schema as schema_model
 from leaf.registry.contract import RANK
@@ -1796,7 +1801,7 @@ def test_an_undo_reveals_the_prior_winner_before_its_send_finishes(
     )
     response = held[0].fetch()
     refusal = response.json()
-    assert response.status == 400 and "already been taken back" in refusal["error"]
+    assert response.status == 400 and refused_on(refusal).code == "withdrawn-gesture"
     assert other_undo in refusal["state"]["events"]
     if not refusal_first:
         cut.restore()

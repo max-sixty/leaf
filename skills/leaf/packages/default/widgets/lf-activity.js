@@ -95,7 +95,7 @@ const reaction = (owner, token) =>
 
 const actorOf = (row) =>
   row.author === "user"
-    ? "You"
+    ? "Me"
     : row.author === "page"
       ? "Page"
       : (row.agent ?? row.author);

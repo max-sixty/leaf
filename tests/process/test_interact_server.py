@@ -48,6 +48,7 @@ from interact_support import (
     publish,
     read_page_data,
     record_claim,
+    refused_on,
     release_codex_command,
     response_reference,
     retire_test_services,
@@ -993,7 +994,7 @@ def test_a_visual_comment_must_name_an_authored_part(server, page_dir):
         }
         status, body = fetch(f"{server}/api/event", data=json.dumps(mixed).encode())
         assert status == 400
-        assert b"names a box rather than a passage" in body
+        assert refused_on(body).code == "visual-with-passage"
 
     invalid = {
         **valid,
@@ -1002,7 +1003,9 @@ def test_a_visual_comment_must_name_an_authored_part(server, page_dir):
     }
     status, body = fetch(f"{server}/api/event", data=json.dumps(invalid).encode())
     assert status == 400
-    assert 'known: ["node:A", "node:B"]' in json.loads(body)["error"]
+    undeclared = refused_on(body)
+    assert undeclared.code == "undeclared-visual"
+    assert undeclared.values["declared"]["tokens"] == ["node:A", "node:B"]
 
 
 def test_a_datum_comment_names_the_source_revision_its_section_displayed(
@@ -1063,7 +1066,7 @@ def test_a_datum_comment_names_the_source_revision_its_section_displayed(
     }
     status, body = fetch(f"{server}/api/event", data=json.dumps(unsupplied).encode())
     assert status == 400
-    assert "source 'other-patch' has never been supplied" in json.loads(body)["error"]
+    assert refused_on(body).code == "datum-unsupplied-source"
 
     data_model.cmd_data_set(page_dir, "other-patch", "unrelated patch")
     wrong_source = {
@@ -1073,7 +1076,11 @@ def test_a_datum_comment_names_the_source_revision_its_section_displayed(
     }
     status, body = fetch(f"{server}/api/event", data=json.dumps(wrong_source).encode())
     assert status == 400
-    assert "is not bound by section 'patch'" in json.loads(body)["error"]
+    unbound = refused_on(body)
+    assert (unbound.code, unbound.values["section"]) == (
+        "datum-unbound-source",
+        "patch",
+    )
 
 
 def test_the_door_takes_a_passage_anchor_the_runtime_already_resolved(server, page_dir):
@@ -1661,10 +1668,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
         data=json.dumps({"kind": "done", "version": 1}).encode(),
     )
     assert status == 400
-    assert json.loads(body)["error"] == (
-        'v1 does not declare <meta name="lf-review" content="sign-off">, '
-        "so it has no approval to record"
-    )
+    assert refused_on(body).code == "not-sign-off"
 
     signoff = PAGE.replace(
         "<title>t</title>",
@@ -1677,8 +1681,10 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
         data=json.dumps({"kind": "done", "version": 2}).encode(),
     )
     assert status == 400
-    assert json.loads(body)["error"] == (
-        "v2 still has unanswered widget asks: widget:choice"
+    unanswered = refused_on(body)
+    assert (unanswered.code, unanswered.values["asks"]) == (
+        "unanswered-asks",
+        ["widget:choice"],
     )
 
     status, body = fetch(
@@ -1729,9 +1735,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
         data=json.dumps({"kind": "done", "version": 2}).encode(),
     )
     assert status == 400
-    assert json.loads(body)["error"] == (
-        "v2 still has unanswered widget asks: widget:thread-approval"
-    )
+    assert refused_on(body).values["asks"] == ["widget:thread-approval"]
 
     status, body = fetch(
         f"{server}/api/event",
@@ -1836,7 +1840,7 @@ def test_server_makes_attempt_identity_atomic_without_deduplicating_content(
     changed = {**first, "text": "Different payload under the same attempt."}
     status, body = fetch(f"{server}/api/event", data=json.dumps(changed).encode())
     assert status == 409
-    assert "already belongs to another event" in json.loads(body)["error"]
+    assert refused_on(body).code == "attempt-conflict"
 
     later = {**first, "attempt": "attempt-00000002"}
     status, body = fetch(f"{server}/api/event", data=json.dumps(later).encode())
@@ -1899,7 +1903,8 @@ def test_a_refused_attempt_is_re_read_against_the_page_that_refused_it(
     }
     status, body = fetch(f"{server}/api/event", data=json.dumps(draft).encode())
     assert status == 400
-    assert json.loads(body)["error"] == "comment revision must be one of [1]"
+    stale = refused_on(body)
+    assert (stale.code, stale.values["revisions"]) == ("unknown-revision", [1])
 
     (page_dir / "index.html").write_text(
         PAGE.replace("<title>t</title>", "<title>Moved</title>")
@@ -1922,7 +1927,7 @@ def test_a_refused_attempt_is_re_read_against_the_page_that_refused_it(
     moved = {**draft, "revision": 1}
     status, body = fetch(f"{server}/api/event", data=json.dumps(moved).encode())
     assert status == 409
-    assert "already belongs to another event" in json.loads(body)["error"]
+    assert refused_on(body).code == "attempt-conflict"
     comments = [
         event
         for event in event_model.read_events(page_dir)
@@ -1988,12 +1993,13 @@ def test_action_door_owns_created_child_meaning(server, page_dir):
     }
     status, body = fetch(f"{server}/api/event", data=json.dumps(forged).encode())
     assert status == 400, body
-    assert "meaning" in json.loads(body)["error"]
+    forging = refused_on(body)
+    assert forging.code == "invalid-event" and "meaning" in forging.values["error"]
     # An authored option is not the user's to write into being.
     authored = {**base, "detail": {"option": "delivery-now", "text": "Now again"}}
     status, body = fetch(f"{server}/api/event", data=json.dumps(authored).encode())
     assert status == 400, body
-    assert "already names an authored element" in json.loads(body)["error"]
+    assert refused_on(body).code == "created-exists"
 
 
 def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_dir):
@@ -2619,7 +2625,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
                 "action": "move",
                 "detail": {"unit": "card-baffle", "value": "col-doing", "rank": "0i"},
             },
-            "unknown action widget",
+            ("unknown-sender", None),
         ),
         (
             {
@@ -2629,7 +2635,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
                 "action": "move",
                 "detail": {"unit": "card-baffle", "value": "col-doing", "rank": "0i"},
             },
-            "<lf-diagram> does not declare action verb",
+            ("undeclared-verb", None),
         ),
         (
             {
@@ -2639,7 +2645,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
                 "action": "move",
                 "detail": {"unit": "card-baffle", "value": "col-doing", "rank": 0},
             },
-            "detail is invalid",
+            ("invalid-detail", "/rank"),
         ),
         (
             {
@@ -2649,14 +2655,15 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
                 "action": "move",
                 "detail": {"unit": "card-baffle", "value": "col-doing", "rank": "10"},
             },
-            "'10' does not match",
+            ("invalid-detail", "/rank"),
         ),
     ]
     before = len(event_model.read_events(page_dir))
-    for event, message in invalid:
+    for event, expected in invalid:
         status, body = fetch(f"{server}/api/event", data=json.dumps(event).encode())
         assert status == 400, event
-        assert message in json.loads(body)["error"]
+        found = refused_on(body)
+        assert (found.code, found.values.get("field")) == expected
     assert len(event_model.read_events(page_dir)) == before
 
     # The page may have advanced since the gesture, so resolve the sender from
@@ -2704,7 +2711,7 @@ def test_server_preserves_the_active_vocabulary_when_candidate_registry_is_broke
         ).encode(),
     )
     assert status == 400, body
-    assert "unknown action widget" in json.loads(body)["error"]
+    assert refused_on(body).code == "unknown-sender"
     assert not [e for e in event_model.read_events(page_dir) if e["kind"] == "action"]
     status, state = fetch(f"{server}/api/state")
     assert status == 200
@@ -2779,13 +2786,13 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
         ).encode(),
     )
     assert status == 400
-    assert "stands inside an exhibit" in json.loads(body)["error"]
+    assert refused_on(body).code == "quoted-widget"
     status, body = fetch(
         f"{server}/api/event",
         data=json.dumps({**choose, "widget": "text-pick"}).encode(),
     )
     assert status == 400
-    assert "unknown action widget" in json.loads(body)["error"]
+    assert refused_on(body).code == "unknown-sender"
 
 
 def test_concurrent_posts_never_tear_the_log(server, page_dir):
@@ -4413,8 +4420,9 @@ def test_a_revision_saved_before_a_re_vendor_neither_opens_nor_takes_input(page_
         "subject": {"kind": "widget", "id": "rollout-card"},
         "title": "Check the rollout",
     }
-    with pytest.raises(event_model.EventRefused, match=f"page protocol {foreign}"):
+    with pytest.raises(event_model.EventRefused) as unadmitted:
         append_command(page_dir, todo)
+    assert refused_on(unadmitted.value).values["saved"] == foreign
     (page_dir / "index.html").write_text(board.replace("Ship it", "Ship it now"))
     revisioning_model.activate_source(page_dir)
     old, new = (
@@ -5447,7 +5455,7 @@ def test_a_hold_comment_can_only_hold_its_declared_exact_section(server, page_di
     }
     status, body = fetch(f"{server}/api/event", data=json.dumps(ambiguous).encode())
     assert status == 400
-    assert "exact-section anchor" in json.loads(body)["error"]
+    assert refused_on(body).code == "hold-target"
 
     for target in ("plain-goal", "plan"):
         bad = {
@@ -5457,7 +5465,7 @@ def test_a_hold_comment_can_only_hold_its_declared_exact_section(server, page_di
         }
         status, body = fetch(f"{server}/api/event", data=json.dumps(bad).encode())
         assert status == 400
-        assert "matching x-thread-seat hold target" in json.loads(body)["error"]
+        assert refused_on(body).code == "hold-target"
 
 
 def test_stamp_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_dir):

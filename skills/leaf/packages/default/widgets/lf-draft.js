@@ -271,7 +271,7 @@ export default class extends HTMLElement {
         control: () => this.#control("cancel"),
         decision: true,
         title: "Cancel",
-        description: "Cancel the edit, discarding your changes",
+        description: "Cancel the edit, discarding my changes",
         when: () => Boolean(this.#editor),
         run: () => this.#close(true),
       },
@@ -290,7 +290,7 @@ export default class extends HTMLElement {
     if (this.#editor) this.#editor.readOnly = !this.#available();
     render(
       html`<span ${offered("lf-draft-status")} role="status"
-          >${this.#failed ? "Save failed. Your edit is kept." : ""}</span
+          >${this.#failed ? "Save failed. The edit is kept." : ""}</span
         >
         <div ${offered("lf-draft-tools")} data-lf-runtime>
           ${ACTIONS.map(

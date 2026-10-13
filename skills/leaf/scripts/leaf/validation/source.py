@@ -307,7 +307,7 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
         return SourceCheck(
             reading,
             registry,
-            [Finding("invalid-registry", values={"error": refusal})],
+            [refusal],
             [],
         )
     stored_data = read_data(page_dir, registry)

@@ -28,13 +28,18 @@ what the module header of `runtime/floating-panel.js` now states:
   where the panel was left (`rest`).
 - **The field holds the status**, a thread's turn in a thread, and passing notices,
   which no longer stand at the window's head (`--lf-notice-seat: panel`).
-- **Marks with counts in the row**: the question mark, the thread mark with a dot
-  for news, and the pen, which opens Annotations. Send stands in their place while
-  the user types. Annotations leaves out Select element, which the user starts on
+- **Marks with counts in the row**: the question mark and the thread mark with a
+  dot for news. Send stands in their place while the user types. (The pen that
+  opened Annotations left the row on 13 October: "remove the pen, keep
+  annotations".) Annotations leaves out Select element, which the user starts on
   the page by selecting words or pressing `s` ("I don't think we need the select
   mode").
 - **The leaf's menu is a small menu** of one-line rows with each row's shortcut
-  (the toolbar row contract's `shortcut`), the agent's state at its head.
+  (the toolbar row contract's `shortcut`), the agent's state at its head. A row that
+  opens a list of its own ends in a chevron. Navigate holds All pages and Search
+  page; Page Map, Resume writing, Restore selection and Align current item at top
+  keep their keys and leave the menu (the row group `keys`); where no keyboard is
+  there to reach them, a finger finds them under Navigate.
 - **Where the user is sits at a view's top edge**, with its filters, search,
   Resolve and Close beside it; the destination line and the thread-actions row went.
 - **Motion moves no layout**: every change of size takes effect in one step and a

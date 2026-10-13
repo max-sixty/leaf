@@ -75,7 +75,6 @@ from render_cases_navigation import (
 )
 from render_cases_widgets import (
     GENERIC_VISUAL_LAYER,
-    GENERIC_VISUAL_PAGE,
     PART_DIAGRAM_PAGE,
     prefixed_visual_layer,
     visual_widgets,
@@ -728,42 +727,42 @@ def test_recursive_rows_share_the_window_and_keep_pane_furniture_in_view(
     assert flow["upper"]["height"] > 720, flow
 
 
-def test_readiness_reopens_on_current_presentation_and_ignores_superseded_work(
+def test_readiness_reopens_on_widget_preparation_and_retires_removed_work(
     browser, serve
 ):
-    """The presented stamp stays set while the page's readiness reopens on current
-    presentation work, and work a newer presentation superseded never holds it."""
-    readiness = "() => document.querySelector('script[data-lf-entry]').lfReadiness()"
-    page = open_page(browser, serve(LONG_PAGE))
-    assert page.evaluate(readiness) is None
+    """Current widget preparation holds readiness; a removed owner's work retires.
 
+    The pure coordinator tests cover ticket supersession. This browser case protects
+    its integration with captured widgets, native removal, and the readiness facade.
+    """
+    readiness = "() => document.querySelector('script[data-lf-entry]').lfReadiness()"
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Current readiness",
+                '<lf-suggestion id="readiness"><lf-new>A proposed change.</lf-new></lf-suggestion>',
+            )
+        ),
+    )
+    assert page.evaluate(readiness) is None
     page.evaluate(
         """async () => {
-          const {
-            attachApplicationPresentation,
-            setPresentationFailureReporter,
-          } = await window.__lfRuntimeImport('/runtime/semantic-state.js');
-          setPresentationFailureReporter(() => {});
-          window.probePresentation = attachApplicationPresentation(
-            'test:current-readiness', document.body,
-          );
+          const {widgetController} = await window.__lfWidgetApi();
           window.probeOlderSettled = false;
-          const older = probePresentation.present('older');
-          older.resolve(new Promise(resolve => { window.releaseProbeOlder = resolve; }));
-          window.probeOlder = older.ready.then(() => { probeOlderSettled = true; });
+          const work = new Promise(resolve => { window.releaseProbeOlder = resolve; });
+          window.probeOlder = work.then(() => { probeOlderSettled = true; });
+          widgetController(document.getElementById('readiness')).present(work);
         }"""
     )
     assert page.locator("body").get_attribute("data-lf-presented") == "1"
     assert page.evaluate(readiness) == "presented"
-
-    page.evaluate("() => probePresentation.present('newer').resolve()")
+    page.locator("#readiness").evaluate("node => node.remove()")
     wait_until_ready(page)
     assert page.evaluate("() => probeOlderSettled") is False
-
     page.evaluate("() => releaseProbeOlder()")
     page.evaluate("() => probeOlder")
     assert page.evaluate(readiness) != "presented"
-    page.evaluate("() => probePresentation.disconnect()")
 
 
 def test_an_async_reading_probe_is_refused_instead_of_awaited(browser, serve):
@@ -1078,99 +1077,10 @@ def test_the_render_gate_requires_a_declared_threads_host_and_a_defined_element(
     ), failures
 
 
-def test_the_render_gate_resolves_registered_visual_inventories(browser, serve):
-    """The gate resolves every authored token through the generic package contract,
-    one registered visual per case on one page: one that draws every part, and one
-    that draws `inner` only in another state, which resolves through its
-    registration's reveal. Reveals come after every other reading, so a defect in the
-    opening state stands even when revealing a part draws it away. A reveal that throws
-    is a caught package fault, and its finding keeps the throw site even without a
-    pageerror event."""
-    cases = {
-        "lf-test-visual": {},
-        "lf-test-visual-staged": {"staged": True},
-        "lf-test-visual-repaired": {
-            "staged": True,
-            "opening_fill": "var(--accent-glow)",
-            "repair_fill_on_reveal": True,
-        },
-    }
-    entry = GENERIC_VISUAL_LAYER["lf-test-visual"]
-    layer = {
-        tag: {
-            **entry,
-            "x-example": f'<{tag} id="example" parts="outer inner html"></{tag}>',
-        }
-        for tag in cases
-    }
-    widgets = {}
-    for tag, configuration in cases.items():
-        widgets |= visual_widgets(tag=tag, **configuration)
-    # Its own copy of the fixture, whose reveal throws, under a path of its own.
-    throws = visual_widgets(tag="lf-test-visual-throws", staged=True)
-    layer["lf-test-visual-throws"] = {
-        **entry,
-        "x-example": '<lf-test-visual-throws id="example" parts="outer inner html">'
-        "</lf-test-visual-throws>",
-    }
-    widgets["throws/visual-fixture.js"] = throws["visual-fixture.js"].replace(
-        'if (id !== "inner") return;',
-        'if (id !== "inner") return; null.revealInner();',
-    )
-    widgets["lf-test-visual-throws.js"] = throws["lf-test-visual-throws.js"].replace(
-        "./visual-fixture.js", "./throws/visual-fixture.js"
-    )
-    markup = GENERIC_VISUAL_PAGE.replace(
-        "</main>",
-        '<lf-test-visual-staged id="staged" parts="outer inner html">'
-        "</lf-test-visual-staged>\n"
-        '<lf-test-visual-repaired id="repaired" parts="outer inner html">'
-        "</lf-test-visual-repaired>\n"
-        '<lf-test-visual-throws id="throws" parts="outer inner html">'
-        "</lf-test-visual-throws>\n</main>",
-    )
-
-    failures = render_gate_model.render_version(
-        browser.unwatched, serve(markup, layer_registry=layer, layer_widgets=widgets)
-    ).failures
-
-    thrown = [f for f in failures if f.at == "<lf-test-visual-throws id=throws>"]
-    assert len(thrown) == 2, failures
-    problems = [problem for f in thrown for problem in f.values["problems"]]
-    assert [problem["kind"] for problem in problems] == ["unrevealable"] * 2, thrown
-    assert all('File "' not in problem["error"] for problem in problems), thrown
-    assert all(
-        "TypeError:" in problem["error"]
-        and "visual-fixture.js:" in problem["error"]
-        and "at reveal" in problem["error"]
-        for problem in problems
-    ), thrown
-    rest = [f for f in failures if f not in thrown]
-    assert rest, "the repaired visual's opening fill went unread"
-    assert all(
-        f.code == "invalid-paint"
-        and "repaired" in f.at
-        and f.values["property"] == "fill"
-        for f in rest
-    ), failures
-
-
 def test_the_render_gate_refuses_visual_inventories_it_cannot_trust(
     browser, serve, tmp_path, monkeypatch
 ):
-    """A visual's inventory is checked before anything is read off the page, so these
-    refusals share a page whose readings end there.
-
-    A part declaration without a registered inventory cannot silently fall back: the
-    CLI can validate authored tokens without rendering them, so the browser gate holds
-    the other half, and every matching instance must register the inventory from
-    which Leaf derives both lookup directions before semantic visual anchors can
-    publish. An inventory that leaves a declared part unregistered, or names a part
-    with no descendant surface, is refused by element with the throw site of what it
-    could not read. And a prefixed visual authors no tokens, so the gate has none to
-    resolve; what it holds is the widget to its own declaration, refusing a registered
-    id outside it and only that one: `outer` and `inner` stand inside the prefixes
-    left."""
+    """A provider must register a valid inventory whose ids its prefixes admit."""
     monkeypatch.chdir(tmp_path)
     add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     callout = json.loads((tmp_path / ".leaf" / "registry.json").read_text())[
@@ -1192,8 +1102,7 @@ def test_the_render_gate_refuses_visual_inventories_it_cannot_trust(
     )
     markup = CUSTOM_WIDGET_PAGE.replace(
         "</main>",
-        """<lf-test-visual id="missing" parts="outer absent"></lf-test-visual>
-<lf-test-visual id="outside" parts="outer inner html"></lf-test-visual>
+        """<lf-test-visual id="outside" parts="all"></lf-test-visual>
 <lf-test-visual-prefixed id="prefixed"></lf-test-visual-prefixed>
 </main>""",
     )
@@ -1215,14 +1124,9 @@ def test_the_render_gate_refuses_visual_inventories_it_cannot_trust(
     }, failures
     visual = problems("lf-test-visual")
     assert [(scheme, at, problem["kind"]) for scheme, at, problem in visual] == [
-        (scheme, f"<lf-test-visual id={ident}>", kind)
+        (scheme, "<lf-test-visual id=outside>", "unreadable")
         for scheme in ("light", "dark")
-        for ident, kind in (
-            ("missing", "unregistered-parts"),
-            ("outside", "unreadable"),
-        )
     ], failures
-    assert visual[0][2]["parts"] == ["absent"]
     unread = [problem["error"] for _, _, problem in visual if "error" in problem]
     assert len(unread) == 2, failures
     assert all(
@@ -1245,7 +1149,7 @@ def test_replay_findings_keep_the_throw_site(browser, serve):
     """A direct complete-state replay retains the package's original exception."""
     page = open_page(browser, serve(SHORT_SUGGESTION))
     page.evaluate("""async () => {
-      const {validationWidgetStates} = await window.__lfRuntimeImport('/runtime/check-api.js');
+      const {validationWidgetStates} = await window.__lfCheckApi();
       const widget = validationWidgetStates().find(s => s.widget?.renderState).widget;
       window.restoreReplay = () => { widget.renderState = original; };
       const original = widget.renderState;
@@ -1262,11 +1166,8 @@ def test_replay_findings_keep_the_throw_site(browser, serve):
     assert "replayProjection" in finding["error"]
 
 
-def test_the_render_gate_reports_each_refusing_diagram(browser, serve):
-    """A parts list leaving a node unlisted and a class sharing its namespace's
-    identity, which layout cannot traverse, are independent refusals, and the gate
-    reports both: an invalid inventory ends a scheme's reading early but keeps what
-    the console already said."""
+def test_the_render_gate_refuses_duplicate_diagram_identities(browser, serve):
+    """A class sharing its namespace's identity fails before layout traverses it."""
     page = PART_DIAGRAM_PAGE.replace(
         "</lf-diagram>",
         """</lf-diagram>
@@ -1280,12 +1181,7 @@ classDiagram
     )
     failures = render_gate_model.render_version(browser.unwatched, serve(page)).failures
     assert [(f.scheme, f.code, f.at) for f in failures] == [
-        (scheme, code, at)
-        for scheme in ("light", "dark")
-        for code, at in (
-            ("console-error", ""),
-            ("visual-parts", "<lf-diagram id=flow>"),
-        )
+        (scheme, "console-error", "") for scheme in ("light", "dark")
     ], failures
     assert all(
         f.values["text"].startswith(
@@ -1294,11 +1190,6 @@ classDiagram
         )
         for f in failures
         if f.code == "console-error"
-    ), failures
-    assert all(
-        f.values["problems"] == [{"kind": "unlisted-parts", "parts": ["node:U"]}]
-        for f in failures
-        if f.code == "visual-parts"
     ), failures
 
 
@@ -1724,7 +1615,7 @@ def test_the_render_gate_checks_custom_controls_at_their_form_boundary(browser, 
     page = open_page(browser, serve(leaf_page("Custom control", "<h1>Controls</h1>")))
     page.evaluate(
         """async () => {
-          const { offer } = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const { offer } = await window.__lfWidgetApi();
           customElements.define('test-control', class extends HTMLElement {
             static formAssociated = true;
             constructor() {
@@ -1760,7 +1651,7 @@ def test_the_render_gate_checks_undeclared_shadow_roots_inside_thread_chrome(
     page = open_page(browser, serve(leaf_page("Reply widget", "<h1>Reply</h1>")))
     page.evaluate(
         """async () => {
-          const {offer} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {offer} = await window.__lfWidgetApi();
           for (const tag of ['generated-control', 'reply-widget'])
             customElements.define(tag, class extends HTMLElement {
               constructor() {
@@ -1964,7 +1855,7 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
     page = open_page(browser, url)
     resized(page, 1280, 900)
     current = page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/validation.js'))"
+        "async () => (await window.__lfCheckApi())"
         ".validationWidgetStates().flatMap(({widget, state}) =>"
         " Object.values(state).map(current => [widget.id, current.action]))"
     )
@@ -2238,9 +2129,9 @@ def test_rest_waits_for_contained_arrival_before_arming(browser, serve):
     wait_until_ready(child)
     child.evaluate(
         """async () => {
-            const {deferredArrival} = await window.__lfRuntimeImport('/runtime/presentation.js');
+            const {afterPresentation} = await window.__lfWidgetApi();
             const entry = document.querySelector('script[data-lf-entry]');
-            deferredArrival(new Promise(resolve => {
+            afterPresentation(() => new Promise(resolve => {
                 entry.releaseArrival = () => {
                     document.body.setAttribute('data-arrived', 'yes');
                     resolve();
@@ -2524,10 +2415,10 @@ OPEN_THREADS = '.lf-threads-toggle[data-lf-count]:not([data-lf-count="0"])'
 # (geometry.js) holds to the viewport, every clip and the chrome, as
 # anchor-resolution.js composes the two for a passage.
 IN_THREAD = """async () => {
-  const {THREAD, SAY_BOX} = await window.__lfRuntimeImport('/runtime/thread/selectors.js');
-  const {focused} = await window.__lfRuntimeImport('/runtime/focus.js');
-  const {closestAcross} = await window.__lfRuntimeImport('/runtime/passages.js');
-  const {seenRect} = await window.__lfRuntimeImport('/runtime/geometry.js');
+  const {THREAD, SAY_BOX} = await window.__lfCheckApi();
+  const {focused} = await window.__lfWidgetApi();
+  const {closestAcross} = await window.__lfCheckApi();
+  const {seenRect} = await window.__lfCheckApi();
   const at = focused();
   const thread = at && closestAcross(at, THREAD);
   const drawn = at?.checkVisibility({opacityProperty: true, visibilityProperty: true});
@@ -2663,7 +2554,7 @@ def resize_findings(page, path):
         rendered(page)
         page.wait_for_function(
             """async () => {
-            const {readingRegions} = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+            const {readingRegions} = await window.__lfCheckApi();
             const boxes = new Set([document.scrollingElement, ...readingRegions().map(region => region.body)]);
             for (const box of boxes) box.scrollTo({left: 0, top: 0, behavior: 'instant'});
             return true;
@@ -2673,7 +2564,7 @@ def resize_findings(page, path):
         rendered(page)
         reading = page.wait_for_function(
             """async () => {
-            const {readingRegions} = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+            const {readingRegions} = await window.__lfCheckApi();
             const position = box => [box.scrollLeft, box.scrollTop];
             return Object.fromEntries([
                 ['$page', position(document.scrollingElement)],
@@ -2753,9 +2644,9 @@ def into_the_page(page):
     for _ in range(12):
         page.keyboard.press("Tab")
         if page.evaluate("""async () => {
-            const {focused} = await window.__lfRuntimeImport('/runtime/focus.js');
-            const {takesLetters} = await window.__lfRuntimeImport('/runtime/focus.js');
-            const {closestAcross} = await window.__lfRuntimeImport('/runtime/passages.js');
+            const {focused} = await window.__lfWidgetApi();
+            const {takesLetters} = await window.__lfCheckApi();
+            const {closestAcross} = await window.__lfCheckApi();
             const at = focused();
             return Boolean(at && closestAcross(at, 'main') && !takesLetters(at));
         }"""):
@@ -4218,7 +4109,7 @@ def test_dragging_an_edge_preserves_user_state(browser, serve, pointer):
     page.keyboard.press("ArrowLeft")
     page.keyboard.press("Shift+ArrowLeft")
     editing = composer.evaluate("""async input => {
-        const {captureDraftEditing} = await __lfRuntimeImport('/runtime/drafts.js');
+        const {captureDraftEditing} = await window.__lfCheckApi();
         return captureDraftEditing(input);
     }""")
     drag()
@@ -4255,7 +4146,7 @@ def test_dragging_an_edge_preserves_user_state(browser, serve, pointer):
     expect(composer).to_be_focused()
     expect(composer).to_have_js_property("value", "half a comment")
     resumed = composer.evaluate("""async input => {
-        const {captureDraftEditing} = await __lfRuntimeImport('/runtime/drafts.js');
+        const {captureDraftEditing} = await window.__lfCheckApi();
         return captureDraftEditing(input);
     }""")
     assert resumed["context"] == editing["context"]

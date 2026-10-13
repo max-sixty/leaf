@@ -282,7 +282,7 @@ function wireDeclaredButtons(scope) {
 // either says so — a `when` or an `at` nobody wrote means always, which is what makes the
 // first contributor's silence carry rather than the second's answer.
 const either = (a, b) => (a && b ? () => a() || b() : undefined);
-export const elementScopes = new WeakMap();
+const elementScopes = new WeakMap();
 // The scopes other owners project onto an element, keyed by the owner, so one control can
 // carry several: a margin entry holds its widget's scope and an ask's digit route at once.
 const projectedScopes = new WeakMap();

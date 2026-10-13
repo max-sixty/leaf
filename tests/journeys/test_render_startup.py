@@ -83,14 +83,8 @@ def test_the_gallery_embeds_an_ordinary_stamped_page(browser, serve):
 
 def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
     preview = {
-        "kind": "example",
         "example": "triage-board",
         "checkout": "fb77",
-        "commit": "26499ea1abcd",
-        "dirty": True,
-        "committed": (datetime.now().astimezone() - timedelta(days=3)).isoformat(
-            timespec="seconds"
-        ),
         "interaction": "user",
         "started": "2026-08-31T12:00:00+00:00",
     }
@@ -98,6 +92,21 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         viewport={"width": 1200, "height": 900},
         permissions=["clipboard-read", "clipboard-write"],
     )
+    producer = {
+        "commit": "26499ea1abcd",
+        "dirty": True,
+        "committed": (datetime.now().astimezone() - timedelta(days=3)).isoformat(
+            timespec="seconds"
+        ),
+    }
+
+    def provenance(route):
+        response = route.fetch()
+        reading = response.json()
+        reading["layer"]["producer"] = producer
+        route.fulfill(response=response, json=reading)
+
+    context.route("**/api/state*", provenance)
     page = open_page(
         browser,
         serve(leaf_page("Preview", "<h1>Preview</h1>"), preview=preview),
@@ -119,7 +128,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
     assert "interaction: user" in diagnostics
     assert "commit: 26499ea1abcd" in diagnostics
     assert "dirty: true" in diagnostics
-    assert f"committed: {preview['committed']}" in diagnostics
+    assert f"committed: {producer['committed']}" in diagnostics
     assert "layer generation:" in diagnostics
     assert "layer fingerprint: sha256:" in diagnostics
     assert "revision: 1" in diagnostics
@@ -127,6 +136,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
     assert "?t=" not in diagnostics
     page.close()
 
+    context.unroute("**/api/state*", provenance)
     ordinary = open_page(
         browser,
         serve(leaf_page("Ordinary", "<h1>Ordinary</h1>")),
@@ -207,7 +217,7 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     page.wait_for_function("() => window.releaseHeldPageInterface !== undefined")
     page.evaluate(
         """async () => {
-          const {nextFrame} = await window.__lfRuntimeImport('/runtime/rendering.js');
+          const {nextFrame} = await window.__lfWidgetApi();
           await new Promise(resolve => nextFrame(() => nextFrame(resolve)));
         }"""
     )
@@ -780,7 +790,7 @@ def test_an_idle_page_keeps_its_dom_and_data_subscriptions_at_rest(browser, serv
     page.evaluate(
         """async () => {
           await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-          const {watchData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {watchData} = await window.__lfWidgetApi();
           window.idleDeliveries = 0;
           window.stopIdleData = watchData(document.querySelector('lf-feed'), 'rows', () => {
             window.idleDeliveries++;
@@ -808,7 +818,7 @@ def test_failed_clock_paints_do_not_starve_other_widgets_or_restart_polling(
     page = open_page(browser, serve(LONG_PAGE))
     page.evaluate(
         """async () => {
-          const {clocked, clockValue} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {clocked, clockValue} = await window.__lfWidgetApi();
           window.clockVersion = 0;
           for (const stage of ['read', 'paint', 'async']) {
             const paint = clocked(document.body, () => {
@@ -1063,7 +1073,7 @@ customElements.define('lf-probe',class extends HTMLElement {connectedCallback(){
     )
     expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
     page.evaluate(
-        """async()=>{const host=document.querySelector('lf-probe');host.shadowRoot.append(document.createTextNode('Broken author words'));const {textNodesUnder}=await __lfRuntimeImport('/runtime/passages.js');[...textNodesUnder(document.body)];}"""
+        """async()=>{const host=document.querySelector('lf-probe');host.shadowRoot.append(document.createTextNode('Broken author words'));const {textNodesUnder}=await window.__lfWidgetApi();[...textNodesUnder(document.body)];}"""
     )
     assert page.evaluate("document.documentElement.hasAttribute('data-lf-interactive')")
     expect(

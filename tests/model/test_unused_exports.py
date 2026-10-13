@@ -17,7 +17,7 @@ module here, such as `vendor/browser-runtime.js`, is a read of that module.
 
 The readers that are not JavaScript are found by word, and only in the files that hold
 them: a Python test that imports runtime modules inside a string
-(`__lfRuntimeImport('/runtime/…')`) or a render gate that calls probes by name, a
+through the widget or diagnostic entry, or a render gate that calls probes by name, a
 page's inline script, and a contract's prose. A name counts as read where one of
 those files names it as a word, so a name that collides with another word there can
 still hide an unused export.

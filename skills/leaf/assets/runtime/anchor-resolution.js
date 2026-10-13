@@ -189,28 +189,23 @@ export function revealAddressed(source, key) {
   return source.lfRevealDatum?.(key) ?? null;
 }
 
-// A generated visual part keeps a semantic id its provider's declaration admits
-// (`visualPartAdmission`). Element ids never escape into the event log; the
-// declaration bounds the inventory core will trust. No rank when the visual declares
-// no parts at all.
-const visualPartRank = (visual) =>
-  visual
-    ? visualPartAdmission(visual, registry[visual.localName]?.["x-visual"])?.rank
-    : null;
+// A generated visual part keeps an id its provider's declaration admits.
+const visualAdmission = (visual) =>
+  visual ? visualPartAdmission(visual, registry[visual.localName]?.["x-visual"]) : null;
 
 const wholeVisualSurface = (element) =>
   registry[element?.localName]?.["x-visual"] ? element : null;
 
-/** The registered parts a visual's declaration admits, in declaration order. */
+/** The admitted parts in their registered inventory order. */
 export function visualParts(visual, { strict = false } = {}) {
-  const rank = visualPartRank(visual);
-  if (!rank) return [];
-  return (strict ? registeredVisualParts(visual) : usableVisualParts(visual))
-    .filter((part) => rank(part.id) >= 0)
-    .sort((a, b) => rank(a.id) - rank(b.id));
+  const admits = visualAdmission(visual);
+  if (!admits) return [];
+  return (strict ? registeredVisualParts(visual) : usableVisualParts(visual)).filter(
+    (part) => admits(part.id),
+  );
 }
 
-const admitsVisualPart = (visual, part) => visualPartRank(visual)?.(part) >= 0;
+const admitsVisualPart = (visual, part) => visualAdmission(visual)?.(part) ?? false;
 
 function visualPart(visual, part) {
   return admitsVisualPart(visual, part) ? registeredVisualPart(visual, part) : null;
@@ -223,8 +218,8 @@ function revealVisualPart(visual, part) {
 }
 
 function visualPartAt(visual, target) {
-  const rank = visualPartRank(visual);
-  return rank ? usableVisualPartAt(visual, target, (part) => rank(part.id) >= 0) : null;
+  const admits = visualAdmission(visual);
+  return admits ? usableVisualPartAt(visual, target, (part) => admits(part.id)) : null;
 }
 
 export const visualPartLabel = (visual, part) =>

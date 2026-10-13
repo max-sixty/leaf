@@ -280,7 +280,6 @@ def visual_anchor_error(event: dict, page_by_id: dict, registry: dict):
                 "visual": visual,
                 "section": section,
                 "declared": {
-                    "tokens": list(available.tokens),
                     "prefixes": list(available.prefixes),
                     "all": available.all,
                 },

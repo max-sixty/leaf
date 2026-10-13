@@ -181,7 +181,7 @@
     // comment names — it asked only about overflow, so paint containment and
     // content-visibility clipped a ring away with nothing said, and it measured the
     // padding box with the scrollbar's gutter still in it.
-    const { shownBand } = await window.__lfRuntimeImport("/runtime/check-api.js");
+    const { shownBand } = await window.__lfCheckApi();
     const holds = (a, b) => {
       for (let n = b; n; n = n.parentNode || n.host) if (n === a) return true;
       return false;

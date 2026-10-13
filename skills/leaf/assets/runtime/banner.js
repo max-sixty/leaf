@@ -534,18 +534,19 @@ let previewDiagnostics = "";
 function renderPreview(state) {
   const preview = state.preview;
   if (!preview) return;
+  const producer = state.layer.producer ?? {};
   // A user preview claims the page, so every press on it — the agent's own
   // screenshots included — comes back to the session as user input. That is the
   // mode worth marking; an unclaimed preview delivers nothing and needs no warning.
   const kind = preview.interaction === "user" ? "User" : "Preview";
-  const stem = `${kind} · ${preview.checkout}${preview.commit ? `@${preview.commit}` : ""}`;
-  const age = payloadAge(preview);
+  const stem = `${kind} · ${preview.checkout}${producer.commit ? `@${producer.commit}` : ""}`;
+  const age = payloadAge(producer);
   // The preview names the checkout and the Leaf that vendored the page
-  // (`preview_metadata`). Where another Leaf serves it (`state.leaf`), that follows.
+  // (`state.layer.producer`). Where another Leaf serves it (`state.leaf`), that follows.
   const served = state.leaf
     ? ` · served by ${shortCommit(state.leaf)}${payloadAge(state.leaf) ? ` · ${payloadAge(state.leaf)}` : ""}`
     : "";
-  const label = `${preview.commit && preview.dirty ? `${stem}+` : stem}${age ? ` · ${age}` : ""}${served}`;
+  const label = `${producer.commit && producer.dirty ? `${stem}+` : stem}${age ? ` · ${age}` : ""}${served}`;
   const safeUrl = new URL(location.href);
   safeUrl.searchParams.delete("t");
   previewDiagnostics = [
@@ -553,9 +554,9 @@ function renderPreview(state) {
     `example: ${preview.example}`,
     `checkout: ${preview.checkout}`,
     `interaction: ${preview.interaction}`,
-    ...(preview.commit ? [`commit: ${preview.commit}`] : []),
-    ...(preview.dirty !== undefined ? [`dirty: ${preview.dirty}`] : []),
-    ...payloadDateLines(preview),
+    ...(producer.commit ? [`commit: ${producer.commit}`] : []),
+    ...(producer.dirty !== undefined ? [`dirty: ${producer.dirty}`] : []),
+    ...payloadDateLines(producer),
     ...(state.leaf ? otherPayloadLines("served by", state.leaf) : []),
     `started: ${preview.started}`,
     `layer generation: ${state.layer.generation}`,

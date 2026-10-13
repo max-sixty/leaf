@@ -428,9 +428,4 @@ def _render_scheme(
     found = _scheme_findings(context)
     if then is not None:
         then(page, registry)
-    # Revealing a part moves its visual off the state every reading above checked, so
-    # the reveals come last, on a page nothing reads again.
-    found += map(
-        Finding.read, evaluate_probe(page, "unrevealedVisualProviders", declarations)
-    )
     return ended(found, resize_notices, complete=True)

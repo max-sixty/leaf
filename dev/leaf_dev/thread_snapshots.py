@@ -209,8 +209,8 @@ class SnapshotRun:
         }
         window = page.evaluate(
             """async clip => {
-              const {bannerFoot} = await window.__lfRuntimeImport('/runtime/geometry.js');
-              return {left: clip.x, top: Math.max(clip.y, bannerFoot()),
+              const {shownWindow} = await window.__lfWidgetApi();
+              return {left: clip.x, top: Math.max(clip.y, shownWindow().top),
                 right: clip.x + clip.width, bottom: clip.y + clip.height};
             }""",
             clip,

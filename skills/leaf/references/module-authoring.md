@@ -1554,11 +1554,7 @@ records. `reveal(id)` settles the visual on the requested part when someone foll
 thread, even if the part is already visible, so cancel any pending work that would retire
 it before returning. `label(id)` names a part in Threads without changing the visual's
 state, and returns `null` for an unknown id. The returned `update()` says the parts or
-their geometry changed; call it after any such rendering change. An `x-visual.parts`
-declaration may set `complete: true` where listing some drawn parts while leaving their
-peers unaddressable would confuse a reader: the render check then requires a nonempty
-authored list to name every registered part, and omitting the attribute keeps the visual
-as one target.
+their geometry changed; call it after any such rendering change.
 
 ## Threads
 

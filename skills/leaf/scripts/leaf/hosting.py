@@ -23,7 +23,13 @@ from urllib.parse import urlsplit
 
 from .detached import Handshake, StartRefused, starting_detached
 from .harness import Harness, claim_harness, harness_argument, session_harness
-from .leases import end_if_terminated, page_locked, release_lease, take_lease
+from .leases import (
+    end_if_terminated,
+    lock_is_held,
+    page_locked,
+    release_lease,
+    take_lease,
+)
 from .refusals import Refused
 from .schema import SERVER_LOCK, SERVICE_FILE
 from .server import (
@@ -769,8 +775,15 @@ def cmd_stop(
             if owner is not _StopScope.ANY_OWNER and not same_claim(page.claim, owner):
                 return stopped
             # The server may release its lease immediately after we disable it.
-            stopped = stopped or running_server(page_dir) is not None
             service = read_service(page_dir)
+            # Whether a server runs is the lease's to say: one an older Leaf started
+            # over a record this version cannot read holds it without a readable
+            # record to show it by.
+            stopped = (
+                stopped
+                or running_server(page_dir) is not None
+                or (service is None and lock_is_held(page_dir / SERVER_LOCK))
+            )
             if service is None:
                 # A record this version cannot read names no service it could
                 # disable. Discarding it is what stops a server an older Leaf
@@ -832,6 +845,18 @@ def restarting_server(page_dir: Path):
     next start or stop writes a record without it.
     """
     service = read_service(page_dir)
+    if service is None and lock_is_held(page_dir / SERVER_LOCK):
+        # A server runs over a record this version cannot read, as one an older Leaf
+        # started does. It has no lifetime this version could bring back, so it
+        # stops and stays stopped.
+        cmd_stop(page_dir)
+        print(
+            f"{page_dir}'s server stays stopped; `leaf server start {page_dir}` "
+            "serves it again.",
+            file=sys.stderr,
+        )
+        yield
+        return
     if not service or not service["enabled"]:
         yield
         return

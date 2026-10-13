@@ -8,6 +8,7 @@ import json
 import os
 import signal
 import subprocess
+import sys
 import threading
 import urllib.parse
 import urllib.request
@@ -18,10 +19,10 @@ import pytest
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from interact_support import (
-    HELD_LEASES,
     STATED_TIMEOUT,
     append_carried_log_record,
     available_loopback_port,
+    fixture_service,
     publish,
     record_claim,
     serving,
@@ -548,19 +549,63 @@ def test_server_run_persistent_refuses_to_adopt_a_session_server(page_dir):
     assert "server stop" in result.output
 
 
-def test_a_service_record_this_version_cannot_read_is_no_service(page_dir):
+# A server an older Leaf started: it holds the serving lease and exits once its
+# record is gone, as `server.stop_when_service_ends` does.
+OLDER_SERVER = """
+import sys, time
+from pathlib import Path
+from leaf.leases import take_lease
+page = Path(sys.argv[1])
+lease = take_lease(page / "server.lock")
+print("held" if lease else "refused", flush=True)
+while (page / "service.json").exists():
+    time.sleep(0.02)
+"""
+
+
+def older_server(page_dir, spawn):
+    """An older Leaf's persistent serve: its `"lifetime": "standing"` record, and a
+    process holding the lease over it."""
+    fixture_service(page_dir, 1, "standing")
+    process = spawn(
+        [sys.executable, "-c", OLDER_SERVER, str(page_dir)],
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    assert process.stdout.readline().strip() == "held"
+    return process
+
+
+def test_a_service_record_this_version_cannot_read_is_no_service(page_dir, spawn):
     """An older Leaf recorded a persistent serve as `"lifetime": "standing"`. This
     version reads that record as absent rather than as a session server, so a
-    persistent start is not refused as one, and an explicit stop discards the
-    record, which is what ends a server an older Leaf runs over it."""
-    serving(page_dir, 1, "standing")
+    persistent start is not refused as one. An explicit stop discards the record,
+    which is what ends a server an older Leaf runs over it, and reports it stopped:
+    whether a server ran is the lease's to say, not the record's."""
+    process = older_server(page_dir, spawn)
     assert server_model.read_service(page_dir) is None
     assert server_model.running_server(page_dir) is None
     assert hosting_model._reuse_server(page_dir, None, persistent=True) is None
-    leases_model.release_lease(HELD_LEASES.pop())
 
-    assert hosting_model.cmd_stop(page_dir) is False
+    assert hosting_model.cmd_stop(page_dir) is True
     assert not (page_dir / "service.json").exists()
+    assert process.wait(timeout=STATED_TIMEOUT) == 0
+    assert not leases_model.lock_is_held(page_dir / "server.lock")
+
+
+def test_a_re_vendor_stops_a_server_whose_record_it_cannot_read(
+    page_dir, spawn, capsys
+):
+    """`page init` re-vendors with no server running, since the layer a server serves
+    is what the re-vendor replaces. A server an older Leaf runs over a record this
+    version cannot read is still running, so the re-vendor stops it first, and it
+    stays stopped: there is no lifetime this version could bring it back under."""
+    process = older_server(page_dir, spawn)
+    with hosting_model.restarting_server(page_dir):
+        assert not leases_model.lock_is_held(page_dir / "server.lock")
+    assert process.wait(timeout=STATED_TIMEOUT) == 0
+    assert not (page_dir / "service.json").exists()
+    assert "stays stopped" in capsys.readouterr().err
 
 
 def test_a_persistent_server_outlives_a_session_that_picks_the_page_up(

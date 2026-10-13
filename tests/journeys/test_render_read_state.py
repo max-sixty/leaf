@@ -276,7 +276,7 @@ def test_an_acknowledgement_neither_waits_for_nor_holds_up_a_gesture(browser, se
         == []
     )
     assert page.evaluate(
-        "async () => !(await window.__lfRuntimeImport('/runtime/application.js')).hasPending()"
+        "async () => (await window.__lfCheckApi()).readApplication().unresolved.length === 0"
     )
 
     card.get_by_role("button", name="Resolve thread").click()

@@ -1225,11 +1225,11 @@ def test_coalesced_rendering_jobs_keep_their_own_input_source(
     )
     page.evaluate(
         """async ({scheduler,order}) => {
-          const module=await __lfRuntimeImport('/runtime/rendering.js');
+          const module=await window.__lfWidgetApi();
           let schedule=module[scheduler];
           if(scheduler==='presenter') {
-            const {bindQueuedWork}=await __lfRuntimeImport('/runtime/queued-work.js');
-            const {createPresentationSchedule}=await __lfRuntimeImport('/vendor/browser-runtime.js');
+            const {bindQueuedWork}=await window.__lfCheckApi();
+            const {createPresentationSchedule}=await window.__lfCheckApi();
             const presentations=createPresentationSchedule(bindQueuedWork);
             // This test observes scheduling, so a ticket that accepts the paint is enough.
             const attach=()=>({present:()=>({resolve:()=>{},ready:Promise.resolve()})});
@@ -1271,11 +1271,11 @@ def test_a_rendering_jobs_returned_async_tail_stays_passive(browser, serve, sche
     )
     page.evaluate(
         """async scheduler => {
-      const {nextRender}=await __lfRuntimeImport('/runtime/rendering.js');
+      const {nextRender}=await window.__lfWidgetApi();
       let schedule=nextRender;
       if(scheduler==='presenter') {
-        const {bindQueuedWork}=await __lfRuntimeImport('/runtime/queued-work.js');
-        const {createPresentationSchedule}=await __lfRuntimeImport('/vendor/browser-runtime.js');
+        const {bindQueuedWork}=await window.__lfCheckApi();
+        const {createPresentationSchedule}=await window.__lfCheckApi();
         const presentations=createPresentationSchedule(bindQueuedWork);
         // This test observes scheduling, so a ticket that accepts the paint is enough.
         const attach=()=>({present:()=>({resolve:()=>{},ready:Promise.resolve()})});

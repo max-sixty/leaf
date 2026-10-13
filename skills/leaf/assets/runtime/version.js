@@ -1529,13 +1529,11 @@ export function createVersionController({
         doc.documentElement,
         authoredHtmlAttributes,
       );
-      // Delivery states each revision's declared review on its root, where the theme
-      // reads the banner's rows from it, so the arriving revision's comes across with it.
-      keeps(
-        document.documentElement,
-        "data-lf-review",
-        doc.documentElement.getAttribute("data-lf-review"),
-      );
+      // Delivery states each revision's declared review and page Layout on its root,
+      // where the theme reads the banner's rows and the Layout its body's geometry, so
+      // the arriving revision's come across with it.
+      for (const name of ["data-lf-review", "data-lf-layout"])
+        keeps(document.documentElement, name, doc.documentElement.getAttribute(name));
       authoredBodyAttributes = replaceAuthoredAttributes(
         document.body,
         doc.body,

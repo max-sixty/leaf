@@ -294,7 +294,7 @@ def test_automatic_read_refusal_keeps_message_unread(browser, serve):
     assert _read_events(serve.page_dir) == []
     assert (
         page.evaluate("""async () => {
-      const {readApplication} = await window.__lfRuntimeImport('/runtime/semantic-state.js');
+      const {readApplication} = await window.__lfCheckApi();
       return readApplication().authoritative.taken;
     }""")
         == response.json()["state"]["taken"]

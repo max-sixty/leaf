@@ -26,6 +26,10 @@ A product document is served as builders read it, with the parts other sources o
 composed in (`page_fixtures.authored_markup`), and an edit to one of those owners
 refreshes it like an edit to the document.
 
+The preview vendors from a cached compiled installation, shared with the suite and
+developer probes. Runtime and compiler edits prepare a new kernel; authored-page edits
+reuse it. The source checkout remains the owner of its watched inputs and provenance.
+
 While it runs, `watchfiles` reports edits. Initialization decides whether the layer
 actually changed; identical saves leave the browser and server alone. A source or
 `.page/` companion edit is stamped into the live page at the same URL; a layer edit
@@ -67,6 +71,7 @@ from leaf.refusals import Refused
 from leaf.schema import BROWSER_DIRS, VENDORED_FILES
 
 from leaf_dev import ROOT
+from leaf_dev.distribution import COMPILER_INPUTS, cached_installation
 from leaf_dev.example_data import named_source, page_files
 from leaf_dev.leaf_assets import CACHE as ASSETS_CACHE
 from leaf_dev.leaf_assets import assets_lock
@@ -422,6 +427,7 @@ def refresh_preview(
     them. A refused stamp restores the previous mutable inputs as well.
     """
     try:
+        launcher = cached_installation(runtime) / "bin/leaf"
         incoming = incoming_files(source)
         incoming_digest = authored_digest(incoming)
         source_changed = incoming_digest != state["authored"]
@@ -489,7 +495,14 @@ def refresh_preview(
             refresh_media(source, page, partial(leaf, launcher, runtime))
         state["authored"] = incoming_digest
         mark_preview(source, page, runtime, service.user, state["authored"])
-    except (LeafFailed, Refused, ValueError, OSError) as error:
+    except (
+        LeafFailed,
+        Refused,
+        ValueError,
+        OSError,
+        RuntimeError,
+        subprocess.CalledProcessError,
+    ) as error:
         return refused(error)
     return True
 
@@ -535,6 +548,7 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path]) -> Watched:
     layer = {
         *(str(path) for path in package),
         *(str(path) for path in payload_server_inputs(runtime)),
+        *(str(ROOT / path) for path in COMPILER_INPUTS),
     }
     manifest = source_manifest(source)
     companions = page_files(source)
@@ -709,6 +723,7 @@ def serve_preview(
     service = None
     changes = None
     try:
+        launcher = cached_installation(runtime) / "bin/leaf"
         prepared_page = None
         if resumed:
             service = PreviewService(page, user, prepared_claim)
@@ -994,6 +1009,7 @@ def export_preview(
     from leaf_dev.arms import run_directory
 
     out_dir = run_directory(TMP / "exports")
+    launcher = cached_installation(runtime) / "bin/leaf"
     with tempfile.TemporaryDirectory(prefix="preview-export-", dir=TMP) as staging:
         page = Path(staging) / "page"
         prepared = prepare_page(

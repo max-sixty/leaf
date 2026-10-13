@@ -484,7 +484,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
         # winner in force has to appear for the gate to reapply it at all.
         in_force = page.evaluate(
             """async ids => {
-              const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+              const {widgetController} = await window.__lfWidgetApi();
               return ids.filter(id => Object.values(
                 widgetController(document.getElementById(id)).read().actions,
               ).some(action => action.inForce.length));
@@ -675,7 +675,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
         )
     assert (
         page.evaluate(
-            "async () => (await window.__lfRuntimeImport('/runtime/context.js')).runtime.state.agent"
+            "async () => (await window.__lfCheckApi()).readApplication().authoritative.agent"
         )
         == "Agent"
     )

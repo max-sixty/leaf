@@ -63,6 +63,7 @@ from .structure import (
     SourceDocument,
     annotation_mode,
     element_attrs,
+    page_layout,
     rel_tokens,
     review_mode,
     rewrite_attribute_references,
@@ -150,7 +151,9 @@ def rebase_css(
 
 def rebase_module(data: bytes, base: str, address: Address) -> bytes:
     """Re-address every literal import of an authored module at `base`."""
-    return bind_imports(data, authored_imports(data, base), address)
+    return bind_imports(
+        data, authored_imports(data, base), lambda path: address(quote(path, safe="/"))
+    )
 
 
 def rebase_document(
@@ -742,9 +745,10 @@ def compose_document(
     hears of it, so it comes before that. Used `x-initial` bundles follow it and
     register the package producers that the body's parser invocations run; and it
     stands before the theme, since a
-    script after a stylesheet still loading waits for it. The root carries the host's attributes and the page's
+    script after a stylesheet still loading waits for it. The root carries the host's attributes, the page's
     declared review (`data-lf-review`), which the render-blocking theme reads to
-    reserve the banner a sign-off page will draw before the runtime draws it. The
+    reserve the banner a sign-off page will draw before the runtime draws it, and the
+    page's Layout (`data-lf-layout`), whose body rules must hold before `main` is parsed. The
     import map precedes every script, since a browser reads no map once a module has
     begun to load.
     """
@@ -831,6 +835,8 @@ def compose_document(
     root = dict(delivery.html_attributes)
     if (review := review_mode(document)) is not None:
         root["data-lf-review"] = review
+    if (layout := page_layout(document)) is not None:
+        root["data-lf-layout"] = layout
     if root:
         attributes = _attributes(root)
         insertions.append(

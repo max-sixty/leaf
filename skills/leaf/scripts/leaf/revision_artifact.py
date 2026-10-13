@@ -49,13 +49,19 @@ import turbohtml
 from tinycss2.serializer import serialize_string_value
 from tree_sitter import Language, Parser, Query, QueryCursor
 
-from leaf.files import file_stamp, latest_revision, revision_orders, revision_path
+from leaf.files import file_stamp, latest_revision, list_revisions, revision_path
 from leaf.page_memory import Slot, memo
 from leaf.passages import SourceReading, enclosing_ids
 from leaf.refusals import Refused
 from leaf.registry.contract import is_element_name
 from leaf.render_checks import PROBE_SOURCES
-from leaf.schema import BROWSER_DIRS, CONTENT_TYPES, SERVED_PATH, VENDORED_FILES
+from leaf.schema import (
+    BROWSER_DIRS,
+    CONTENT_TYPES,
+    JAVASCRIPT_SUFFIXES,
+    SERVED_PATH,
+    VENDORED_FILES,
+)
 from leaf.state import fsync_parents
 from leaf.structure import (
     SourceDocument,
@@ -68,29 +74,8 @@ from leaf.structure import (
 PUBLIC_MODULES = ("/runtime/widget-api.js",)
 
 
-def current_artifact(bundle: Path) -> bool:
-    """Ignore a capture missing the current manifest at its inventory boundary."""
-    try:
-        manifest = json.loads((bundle / "manifest.json").read_bytes())
-    except (OSError, ValueError):
-        return False
-    return isinstance(manifest, dict) and {
-        "html",
-        "title",
-        "entries",
-        "executable",
-        "widgets",
-        "public_modules",
-        "layer",
-        "declarations",
-        "implementations",
-        "resources",
-    }.issubset(manifest)
-
-
 RESOURCE_TYPES = {
     **CONTENT_TYPES,
-    ".mjs": "application/javascript",
     ".woff": "font/woff",
     ".woff2": "font/woff2",
     ".ttf": "font/ttf",
@@ -103,11 +88,6 @@ _IMPORT_NODES = Query(
     _JAVASCRIPT,
     "(import_statement) @node (export_statement) @node "
     "(call_expression function: (import)) @node",
-)
-JAVASCRIPT_SUFFIXES = frozenset(
-    suffix
-    for suffix, mime in RESOURCE_TYPES.items()
-    if mime == "application/javascript"
 )
 
 
@@ -878,7 +858,7 @@ def stage_artifact(page_dir: Path, revision: int, artifact: RevisionArtifact) ->
     durable = not memo(page_dir, Disposable).held
     revisions = page_dir / "revisions"
     revisions.mkdir(exist_ok=True)
-    if revision in revision_orders(page_dir):
+    if revision in list_revisions(page_dir):
         raise ArtifactError(f"revision r{revision} already exists")
     name = artifact_name(revision, artifact)
     destination = revisions / name
@@ -1316,25 +1296,12 @@ def captured_imports(data: bytes, logical_path: str, resources: Mapping[str, Res
         yield from authored_imports(data, logical_path)
         return
     for start, end, specifier in javascript_imports(data, logical_path):
-        parsed = urlsplit(specifier)
-        if (
-            not specifier
-            or parsed.scheme
-            or parsed.netloc
-            or parsed.query
-            or parsed.fragment
-            or "\\" in specifier
-            or any(ord(char) < 33 for char in specifier)
-        ):
+        target = dependency_path(specifier, logical_path, module=True)
+        if target is None:
             raise ArtifactError(
                 f"{logical_path}: {specifier!r}: captured layer import is not local"
             )
-        target = posixpath.normpath(
-            parsed.path
-            if parsed.path.startswith("/")
-            else posixpath.join(posixpath.dirname(logical_path), parsed.path)
-        )
-        if not target.startswith("/") or target not in resources:
+        if target not in resources:
             raise ArtifactError(
                 f"{logical_path}: {specifier!r}: captured layer import is missing"
             )

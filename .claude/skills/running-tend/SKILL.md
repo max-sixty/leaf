@@ -46,7 +46,10 @@ the diff most plausibly introduces, chosen from the product paths and contracts
 it touches rather than the test files it edits, and within the local limit in
 `tests/AGENTS.md` ("Run what the change needs"): the complete `test` job
 reports the rest once the change lands. A docs-only or generated-workflow change
-may need none; a selected failure withholds approval.
+may need none. A failing selected test or PR check withholds approval only when the change causes
+it. Confirm an inherited failure against current `main` per `/tend-ci-runner:monitor-ci`,
+record that evidence in the review, and approve when the change has no other findings;
+`tests/AGENTS.md`, "Run what the change needs", governs landing despite that failure.
 Where a test itself is at issue, `tests/AGENTS.md` says which boundary it
 belongs at. For a change that can alter browser startup, apply `AGENTS.md`'s
 **Working on the repository** performance rule to the candidate and base

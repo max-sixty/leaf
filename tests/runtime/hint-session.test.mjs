@@ -192,6 +192,15 @@ test("Tab and Shift+Tab walk the map aloud, round from either end, and Enter tak
   assert.deepEqual(map.taken, ["two"]);
 });
 
+test("a walk begun with Shift+Tab starts at the last target and walks back", (t) => {
+  const map = hintMap(t, ["one", "two", "three"]);
+  map.session.arm();
+  map.shiftTab();
+  assert.equal(map.heard(), "Hint d: Link, three. Press Enter to go there.");
+  map.shiftTab();
+  assert.equal(map.heard(), "Hint s: Link, two. Press Enter to go there.");
+});
+
 test("a typed letter puts the walk back at the head of what it leaves", (t) => {
   const map = hintMap(t, ["one", "two", "three", "four"]);
   map.session.arm();

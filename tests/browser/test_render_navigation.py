@@ -8095,6 +8095,8 @@ def test_generated_hints_are_browsable_without_entering_the_paint_layer(browser,
 
     page.keyboard.press("g")
     expect(page.locator(CHIPS)).to_have_count(2)
+    for chip in page.locator(CHIPS).all():
+        expect(chip).to_be_visible()
     expect(page.locator(".lf-go-to-hints")).to_have_attribute("aria-hidden", "true")
     expect(page.locator(".lf-live")).to_contain_text("2 visible targets")
     expect(line).to_contain_text("browse hints")

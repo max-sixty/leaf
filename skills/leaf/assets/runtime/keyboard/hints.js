@@ -383,7 +383,13 @@ export function createHintSession({
   function walk(direction) {
     const targets = hinted();
     if (!targets.length) return;
-    at = (at + direction + targets.length) % targets.length;
+    // Nothing heard yet, the walk starts at whichever end it walks from.
+    at =
+      at < 0
+        ? direction > 0
+          ? 0
+          : targets.length - 1
+        : (at + direction + targets.length) % targets.length;
     const target = targets[at];
     beginWalk(walkKey, "Target", () =>
       listWalkPosition(hinted(), hinted()[at], { identity }),

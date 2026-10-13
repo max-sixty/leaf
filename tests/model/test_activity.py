@@ -1073,6 +1073,13 @@ def test_the_activity_a_claim_its_turn_and_their_silence_come_to(page_dir, dead_
         delivery_model.record_pickup(
             transaction, [first_comment], phase="opened", session="s", turn="turn-1"
         )
+    # Fresh page work keeps its own sentence beside the comment the turn picked up.
+    _, activity = declare("working", "revising the plan")
+    assert (activity["kind"], activity["detail"]) == ("working", "revising the plan")
+    assert (
+        activity["counts"]["handling"],
+        activity["counts"]["handling_comments"],
+    ) == (1, 1)
     _, activity = declare("waiting", "your read on the plan")
     assert (activity["kind"], activity["detail"]) == ("working", "")
     assert (
@@ -1256,3 +1263,32 @@ def test_an_ended_pickup_keeps_the_invitation_the_agent_declared(page_dir):
     assert (activity["counts"]["pending"], activity["counts"]["queued"]) == (0, 0)
     [view] = state["browser"]["views"].values()
     assert [item["kind"] for item in view["queues"]["tasks"]] == ["answer"]
+
+
+def test_newer_page_work_takes_the_activity_from_an_older_thread_start(page_dir):
+    """The page's activity says the agent's latest word about what it is doing: a
+    start on the page's own task after a start on a thread's comment replaces the
+    thread's line there, while the thread keeps its own on its workflow."""
+    comment = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Why?"},
+    )
+    record_claim(page_dir, id="s", pid=os.getpid(), agent="Claude")
+    with service_model.PageTransaction(page_dir) as transaction:
+        delivery_model.record_pickup(transaction, [comment])
+    started = CliRunner().invoke(
+        cli_model.cli,
+        ["task", "start", str(page_dir), comment["id"], "reading the traces"],
+    )
+    assert started.exit_code == 0, started.output
+    activity = page_state(page_dir)["activity"]
+    assert (activity["kind"], activity["detail"]) == ("working", "reading the traces")
+
+    working(page_dir, "drafting v2")
+    state = page_state(page_dir)
+    assert (state["activity"]["kind"], state["activity"]["detail"]) == (
+        "working",
+        "drafting v2",
+    )
+    [workflow] = [w for w in state["workflows"] if w["input"] == comment["id"]]
+    assert workflow["at_work"]

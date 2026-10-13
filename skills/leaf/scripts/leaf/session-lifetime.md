@@ -36,7 +36,7 @@ The table lists each fact the projection reads, and when it stops being believed
 | acknowledgement cursor | `cursor.json` | whatever confirms the complete delivery reached its durable consumer: a Claude Code or Pi hook once it has published an inline delivery, the session's explicit `leaf delivery ack` after a pointer reading, `leaf wait --ack` after a printed one, or the Codex adapter | when its seq is past the log's end, or a fresh log replaces the one it named; monotonic within one log |
 | pickup transition | a `pickup` event in `events.jsonl` | the adapter records `queued` when Codex accepts a batch it does not observe; whatever puts the batch into a turn records `opened` with session and turn identity: a direct `leaf wait --ack` confirmation, an inline hook's or a pointer reader's explicit confirmation of a Claude Code or Pi hook delivery, the prompt hook re-presenting an acknowledged unanswered update, or an App Server turn start | never; each event/phase/session/turn transition is idempotent |
 | page claim: unique acquisition, session generation, display name, harness | `<state-home>/claims/<page-key>.json`; the session partition holds a symlink locator to it | `server start` from an agent harness; references the session lifetime publication | the referenced generation ended or was replaced, or the shared harness lifetime is gone: the pid, the background job's directory, or the desktop Codex chat's validated native transcript at the path in its session record; archive moves that source and delete removes it |
-| service lifetime | `service.json` | `server start` at launch: session, or standing | `leaf server stop`; a session server also retires when no live claim holds it |
+| service lifetime | `service.json` | `server start` at launch: session, or persistent | `leaf server stop`; a session server also retires when no live claim holds it |
 | Codex delivery record | `sessions/<session>.deliveries/` in the state home | the detached adapter or an embedded App Server harness | an unaccepted record is inactive while the session owns no page; an accepted record moves under `history/` after every batch is receipted; a record, live or archived, goes at the next scan that finds its pages all gone: its own task's reading, its next archiving, or any Codex adapter's retirement, which scans every task's records and removes a directory it empties |
 | Codex adapter log | `sessions/<session>.codex.log` | the detached adapter's own output, begun afresh when serving or `leaf codex start` starts a new adapter | removed when the adapter retires owning no page; a run that ended any other way leaves it for the next start of that task |
 | Leaf delivery | `<state-home>/deliveries/<id>.json` | whatever presents a delivery freezes its harness-neutral envelope first | once every page it names is gone, removed when the next delivery is frozen; until then every transport resolves the same immutable id |
@@ -197,7 +197,7 @@ resuming that chat retains its page ownership. The native chat source keeps ever
 page it owns alive, independently of browser attention.
 
 Where nothing answers for the declaration, activity reports the page unheld rather
-than repeating it. A page with a standing service spends most of its life unheld,
+than repeating it. A page with a persistent service spends most of its life unheld,
 and picks up again when a session takes it.
 
 ## Watchers
@@ -371,7 +371,7 @@ to serve. They inspect the session's retained claims, including those whose owne
 has expired. An enabled session service with inactive ownership or no exact live
 server lease emits a reconnect notice with `leaf server start <page>`, which restores
 serving and the delivery of updates. The notice also covers the orphan grace period,
-while the old listener may still be running. Stopped services, standing services,
+while the old listener may still be running. Stopped services, persistent services,
 developer previews, and pages another session claimed are excluded.
 
 `reconnect.py` reserves one notice per harness/session/page in
@@ -437,7 +437,7 @@ service. A revival is a start by the Leaf running the wait, so it is refused as 
 start is for a page this Leaf cannot serve (`layer.incompatible_layer`): the
 wait prints the refusal and reads the page as lost, and the service stays enabled
 until `server stop`. Neither path changes the page's authored work status. A serve
-from a bare shell claims nothing, and a claim on a standing page comes and goes
+from a bare shell claims nothing, and a claim on a persistent page comes and goes
 without changing its service.
 
 A `leaf wait` revives an enabled service whose process has died, once per death, and
@@ -455,7 +455,7 @@ nor ends on it, and goes on watching until the page goes idle or changes hands.
 delivery before any page acquisition: Codex holds its adapter-start lock until the
 serving producer commits the claim, so a newly ready adapter cannot retire for lack of
 pages during that handoff. An existing direct wait is honored. `server run` prepares
-the same delivery before binding in the foreground. Standing and temporary serves
+the same delivery before binding in the foreground. Persistent and temporary serves
 prepare no delivery. `leaf codex start` prepares the adapter under its start lock and
 then publishes the page claim, without serving.
 

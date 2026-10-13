@@ -201,9 +201,11 @@ Work on an update that finishes inside the turn needs no to-do.
 Everything you need from the user belongs in **Questions**, whether an answer,
 decision, permission, review, or action elsewhere. Ask a direct question and register
 it by one of the routes below. Prose in the page, a status line, and a question in
-chat alone do not register it. A recommendation leaves its decision open. An
-optional invitation to comment creates no obligation; if you need feedback before
-continuing, make it an ask.
+chat alone do not register it. Keep every independently answerable proposal you
+present for the user's judgment in Questions until decided or withdrawn.
+Recommending one to do next leaves the others open. A request for review needs an
+ask even when preparation is already your work or other work can continue. An
+optional invitation to comment on information creates no obligation.
 
 The banner's Questions count and the Questions panel show everything waiting on the
 user: these requests, and any update whose send failed and needs sending again.

@@ -353,7 +353,7 @@ def test_every_restore_case_a_user_can_return_to_is_arrived_in(browser, serve):
         a["name"] for a in restore_cases
     ]
     # And each was the restore case it names rather than that one plus everything the
-    # reloads before it left standing — a difference no finding could show on its own,
+    # reloads before it left open — a difference no finding could show on its own,
     # since all of them would still be reported, each under a name that had stopped
     # being true. Only the other restore cases' keys are held against an arrival: the
     # page writes its own reading position on the way out of every load, so a store
@@ -370,9 +370,9 @@ def test_a_user_arrives_at_what_they_left_rather_than_watching_it_arrive(
     """A page put back the way the user left it is simply there, and does not assemble
     itself in front of them.
 
-    Standing a drawer up is a gesture and gestures move: the drawer slides in over a fifth
+    Opening a drawer is a gesture and gestures move: the drawer slides in over a fifth
     of a second and the document steps aside to make the room. Coming back to a drawer
-    that was already standing is not a gesture — nothing was just decided, and a page
+    that was already open is not a gesture — nothing was just decided, and a page
     that replays the decisions on arrival would be showing the user a fifth of a
     second of furniture instead of what they came back to read. The auxiliary-surface
     owner passes arrival separately from a gesture, so even a drawer whose first paint
@@ -400,9 +400,9 @@ def test_a_user_arrives_at_what_they_left_rather_than_watching_it_arrive(
     So the poll is held on every load and let go once the surface is up, which is this
     suite's answer to a race wherever it finds one, and the reading it waits for is the
     page's own. The window that opens is also the one this test is about: it is where a
-    restore is put back, and standing in it is strictly more than catching it.
+    restore is put back, and waiting in it is strictly more than catching it.
 
-    What the user left standing is the restore case the runtime declares, all of them
+    What the user left open is the restore case the runtime declares, all of them
     in turn, so a fourth remembered surface is covered the day it starts remembering.
     """
     url = serve(CHANGE_SHAPES_PAGE)
@@ -432,7 +432,7 @@ def test_a_user_arrives_at_what_they_left_rather_than_watching_it_arrive(
         return found
 
     def arrive():
-        """One load, standing in the arrival rather than catching it as it goes past."""
+        """One load, waiting in the arrival rather than catching it as it goes past."""
         held = []
         polls = itertools.count()
         page.route(
@@ -460,8 +460,8 @@ def test_a_user_arrives_at_what_they_left_rather_than_watching_it_arrive(
     restore_cases = user_view_restore_cases(page)
     assert len(restore_cases) > 1, "the runtime declares nothing to arrive in"
 
-    # The control, and the whole reason the silences below say anything: standing the
-    # drawer up by hand is the gesture whose motion the arrivals must not have. What it
+    # The control, and the whole reason the silences below say anything: opening the
+    # drawer by hand is the gesture whose motion the arrivals must not have. What it
     # paints is the runtime's business and is not named here; that it paints at all is
     # this reading's, and a reading that reports nothing when something moved would
     # pass every assertion after it.

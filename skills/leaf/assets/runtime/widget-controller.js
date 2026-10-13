@@ -93,7 +93,7 @@ function createWidgetController(owner) {
   let deferredReading = null;
   let stopSelection = null;
   let renderHandle = null;
-  // Whether the standing reading's total render and every subscriber completed.
+  // Whether the current reading's total render and every subscriber completed.
   let drawn = false;
   let preparationHandle = null;
   const pendingPreparations = new Map();

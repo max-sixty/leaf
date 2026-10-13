@@ -123,7 +123,7 @@ def test_later_events_do_not_veto_source_readings(page_dir):
     assert live.error is None and live.revision == 1
     live = revisioning_model.activate_source(page_dir)
 
-    # The source is the active revision, so an append leaves the answer standing.
+    # The source is the active revision, so an append leaves the answer in force.
     append_carried_log_record(
         page_dir,
         {
@@ -1496,11 +1496,11 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
 
     def owed_answers():
         state = state_json(page_dir)
-        standing = set(state["activity"]["obligations"])
+        owed = set(state["activity"]["obligations"])
         return [
             (item["input"], item["message"], item["answer"])
             for item in state["workflows"]
-            if item["id"] in standing
+            if item["id"] in owed
         ]
 
     asked = append_command(
@@ -2100,7 +2100,7 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
 
 
 def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
-    """`page state` lists every standing reaction, beside threads that
+    """`page state` lists every reaction in force, beside threads that
     leave a bare one out — paint on the page is not a thread — and takes a
     reaction back in once someone answers it, as the panel does. The transcript
     prints one as the user's mark rather than a turn. Its durable token is enough;

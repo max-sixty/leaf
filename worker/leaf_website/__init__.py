@@ -1059,7 +1059,7 @@ class WebsiteCodexHarness:
             # request made and never named. This harness owns the thread, so it tells
             # the provider to drop whatever it began rather than waiting to adopt it,
             # and gives up the delivery and any reply reservation it holds rather than
-            # leaving them standing, because both would otherwise block the
+            # leaving them held, because both would otherwise block the
             # `startup_failed` receipt the Worker writes when this raises — the
             # receipt that tells the user to send the message again.
             self._withdraw_delivery(

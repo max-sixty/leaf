@@ -611,7 +611,7 @@ def test_news_from_elsewhere_moves_nothing_in_a_short_panel_thread(browser, serv
         == widths
     )
 
-    # The press means the face it drew, so the reaction already standing sends
+    # The press means the face it drew, so the reaction already in force sends
     # nothing, and acting in the thread shows what it holds.
     logged = len(events_model.read_events(serve.page_dir))
     thread.locator(f'.lf-msg[data-mid="{answer}"]').hover()

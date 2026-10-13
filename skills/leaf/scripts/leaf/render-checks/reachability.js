@@ -24,7 +24,7 @@ export function reachabilityReading() {
 // words is a line tall wherever it is laid out, which leaves a flattened chip caught.
 //
 // Declared, not read off the computed display, because a custom element with no rule
-// left standing computes as inline: a theme that lost the chip block would silence the
+// left computes as inline: a theme that lost the chip block would silence the
 // check that exists to catch it.
 //
 // [hidden] needs its own exclusion: hidden="until-found" (what a closed tab wears)

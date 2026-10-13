@@ -376,7 +376,7 @@ def record(
         arg=applied_before_move,
     )
     if "card-oncall" not in folded_board(page_dir)["col-during"]:
-        raise RuntimeError("the board move did not reach the page's standing log")
+        raise RuntimeError("the board move did not reach the page's current log")
     return frames, durations
 
 

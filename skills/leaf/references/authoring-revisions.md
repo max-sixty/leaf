@@ -13,7 +13,7 @@ revision and `source.error` says why; reconcile the candidate by stable id and c
 before editing. `data_bindings` names each external source and the widgets that read
 it, and `data/<source>.json` holds its publication; change its value with
 `leaf data set`. `leaf page state <page> <id>` narrows the reading to what the id
-names: a page widget's element, standing actions, asks and workflows, or a thread's
+names: a page widget's element, actions in force, asks and workflows, or a thread's
 messages with their frozen HTML content, which changes only through that thread.
 
 ## Publish several authored files together
@@ -122,7 +122,7 @@ context, collapsed the same way. Put deferred work in the list of work with enou
 context to resume it.
 
 An ask the user answered and you have acted on is finished work too. Move it whole
-to the finished work with the user's answer standing, and put anything still worth
+to the finished work with the user's answer in force, and put anything still worth
 asking in a new ask under new ids. An `lf-options` group takes `settled` there,
 which collapses it to the pick. The answered ask is the record of what the user
 was asked and chose: say what came of the choice beside it, and correct its words

@@ -772,7 +772,7 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
     expect(view).to_have_count(0)
     comparison = shot.locator(".lf-shotcomparison")
     expect(comparison).to_be_attached()
-    standing = comparison.get_attribute("position")
+    before = comparison.get_attribute("position")
     press.click()
     expect(view).to_be_visible()
     expect(press).to_have_attribute("title", "Hide changed pixels")
@@ -785,12 +785,12 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
     press.click()
     expect(view).to_be_hidden()
     expect(press).to_have_attribute("title", "Show changed pixels")
-    assert comparison.get_attribute("position") == standing
+    assert comparison.get_attribute("position") == before
     press.press("Enter")
     expect(view).to_be_visible()
     view.click()
     expect(view).to_be_hidden()
-    assert comparison.get_attribute("position") == standing
+    assert comparison.get_attribute("position") == before
     press.press("Enter")
     after = shot.locator('.lf-shotcap[data-lf-state="after"]')
     after.click()

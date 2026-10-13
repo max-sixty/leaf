@@ -312,7 +312,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    faces and version rows keep the padding floor described above. Inline offered words
    remain inline: like links in prose, their words determine their target.
 
-   .lf-outline-chip is halved on how it is spelled, because the class dresses a standing
+   .lf-outline-chip is halved on how it is spelled, because the class dresses a plain
    chip as well as a press and a chip is not something to aim at. */
 [data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer="checkbox"], [data-lf-offer="radio"], .lf-skip)),
 .lf-btn, .button, .lf-outline-chip:is(button, [role="button"]), .lf-thread-notice:is(button), .lf-react, .lf-msg-control,

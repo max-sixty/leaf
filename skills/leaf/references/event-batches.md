@@ -75,7 +75,7 @@ Each event keeps its stored fields and order, less the browser's retry key
   together they cover this event's case and the answer it owes.
 
 The batch-level `threads` carry each thread's title (null until named),
-anchor, closure state, earlier messages, and standing gestures on sent widgets.
+anchor, closure state, earlier messages, and gestures in force on sent widgets.
 A newly opened thread still carries its metadata; messages already in the
 batch are omitted from its history. A long thread includes
 its opening and most recent messages, with `elided` counting omitted records.

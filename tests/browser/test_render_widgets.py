@@ -6158,7 +6158,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
         page.keyboard.press("q")
         # The ring is painted from the focus, in the frame after the press, so waiting
         # for it on the Ask this press stepped to is both the wait and the assertion —
-        # a bare count would pass on the ring an earlier press left standing.
+        # a bare count would pass on the ring an earlier press left in place.
         expect(page.locator(f"#{expected}[data-lf-ask]")).to_have_count(1)
         # And exactly one decision wears it, the user standing in one place at a time.
         expect(page.locator(STANDING_ASK)).to_have_count(1)
@@ -7431,7 +7431,7 @@ def test_a_thread_seated_in_a_widget_is_not_a_change_to_the_document(browser, se
 def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, serve):
     """The edit is one log arrival and both views fold it onto the original message.
 
-    Neither view gains a second message. Their standing message nodes survive the
+    Neither view gains a second message. Their existing message nodes survive the
     arrival, so an edit cannot disturb a user working elsewhere in the same thread;
     only the prose inside changes, and both heads disclose that it changed.
     """
@@ -7507,7 +7507,7 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
           && window.__editedPanel === document.querySelector(
             '.lf-msg[data-mid="{message["id"]}"]')
           && window.__editedWidget === document.querySelector('#edited-message-choice')"""
-    ), "the edit replaced a standing message or its frozen widget"
+    ), "the edit replaced an existing message or its frozen widget"
     assert (
         next(
             event
@@ -7704,7 +7704,7 @@ def test_the_questions_control_opens_open_and_answered_asks(browser, serve):
 def test_an_answered_asks_words_are_its_widgets_semantic_state(browser, serve):
     """Each family names its answer from the state it was answered with.
 
-    A draft says its standing words, a playground the instruction it sent rather than
+    A draft says its current words, a playground the instruction it sent rather than
     whatever its controls show now, and an option the user added is named by the
     rendered words its `add` carried. A `multiple` group answered by Done with no pick
     of the user's names its authored choice."""
@@ -8153,7 +8153,7 @@ def test_an_answered_boxless_ask_reopens_on_its_visible_revision_control(
     expect_asks_answered(page, "0/4")
 
 
-def test_a_drawer_the_user_left_standing_comes_back_standing(browser, serve):
+def test_a_drawer_the_user_left_open_comes_back_open(browser, serve):
     """Reloading is not resetting: a drawer someone stood up to watch stays stood, the
     rule the thread panel already keeps. Which makes the reload the one moment a
     drawer is put up by something other than a press, and that is where it broke — the
@@ -8383,7 +8383,7 @@ def test_one_drawer_stands_at_a_time(browser, serve, other_leaf):
     expect(leaves).to_be_hidden()
 
     # Exchanging one covering drawer for another is lateral, so one Escape closes the
-    # drawer standing and lands the user on the page; the drawer it replaced is not put
+    # drawer open and lands the user on the page; the drawer it replaced is not put
     # back, and they reach it the way they reached it the first time.
     page.keyboard.press("Escape")
     expect(decisions).to_be_hidden()
@@ -8656,7 +8656,7 @@ def test_the_covered_words_gate_still_reads_two_of_a_chart_s_labels_on_each_othe
 ):
     """The other half of the exemption above, put back as a bug: a label's own lines are
     one run of words the drawing lays out together, and two labels landing on each other
-    is the fault this pass exists to report. Arranged by standing one whole <text> on
+    is the fault this pass exists to report. Arranged by placing one whole <text> on
     another rather than by spreading a label's lines, because the hold asks which <text>
     drew a line and not how far a line was moved.
 
@@ -8666,7 +8666,7 @@ def test_the_covered_words_gate_still_reads_two_of_a_chart_s_labels_on_each_othe
     chart stops being read against every other word of that chart — and nothing else in
     the suite would say so. The corpus sweeps and the copy assert this pass returns
     nothing, which a wider hold only makes more true, and the exemption above defeats the
-    predicate wholesale, so it reports the same either way. The only standing bug-back on
+    predicate wholesale, so it reports the same either way. The only existing bug-back on
     this pass reporting is the float's, and that is an HTML page whose runs never get an
     SVG label at all."""
     page = open_page(browser, serve(CHART_PAGE))

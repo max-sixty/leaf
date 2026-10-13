@@ -21,11 +21,11 @@ from functools import partial
 from typing import NamedTuple
 
 from leaf.events import (
+    approvals_in_force,
     awaits_agent,
     conversation_turns,
     is_reaction,
     retractions,
-    standing_approvals,
     taken_back,
     unanswered_agent_turn,
 )
@@ -101,7 +101,7 @@ def settles(reaction: dict, turn: str, tokens: dict) -> bool:
 
 @dataclass(frozen=True)
 class ThreadAsks:
-    """Prose asks and their settlement from one standing thread.
+    """Prose asks and their settlement from one current thread.
 
     Each record retains its source message, content version, state and settling
     event. Widget asks have their own reading and never become prose asks.
@@ -151,7 +151,7 @@ def collection(records: list[dict]) -> dict:
 def approval_ask(document, revision: int, events: list) -> dict | None:
     """Sign-off for an exact public stamp as one canonical ask.
 
-    Draft revisions owe none. Only a standing done event for this public version
+    Draft revisions owe none. Only a done event in force for this public version
     supplies the typed answer; an undo makes the same ask open again.
     Approval admission counts widget asks alone, so this record cannot
     block its own answer.
@@ -162,7 +162,7 @@ def approval_ask(document, revision: int, events: list) -> dict | None:
     approved = next(
         (
             event
-            for event in reversed(standing_approvals(events))
+            for event in reversed(approvals_in_force(events))
             if event["version"] == version
         ),
         None,
@@ -299,7 +299,7 @@ def asking(attrs: dict, when: dict) -> bool:
 
 
 def replayed_attrs(rec: dict, projection: StateProjection) -> dict:
-    """An element's attributes under the declared standing projection: authored
+    """An element's attributes under the declared current projection: authored
     markup overlaid with every surviving value record; independent verbs coexist."""
     attrs = rec["attrs"]
     unit = attrs.get("id")
@@ -339,7 +339,7 @@ def previously_requested(
         effect = spec.get("record") or {}
         if (
             coordinate[:2] != (unit, unit)
-            or (event["kind"] == "action" and event["id"] not in projection.standing)
+            or (event["kind"] == "action" and event["id"] not in projection.in_force)
             or (revision is not None and event["revision"] != revision)
             or effect.get("kind") != "value"
             or effect["attr"] not in when
@@ -362,7 +362,7 @@ def previously_requested(
 
 
 def answer_verbs(entry: dict) -> dict:
-    """Each x-state verb whose standing state answers this widget's local ask,
+    """Each x-state verb whose current state answers this widget's local ask,
     mapped to the condition that state has to meet (x-awaits.answered)."""
     return (entry.get("x-awaits") or {}).get("answered") or {}
 
@@ -379,7 +379,7 @@ def verb_answers(
 ) -> bool:
     """Whether one answering verb's declared condition holds for this widget now.
 
-    The condition reads standing state and nothing else. `empty` asks the projected
+    The condition reads current state and nothing else. `empty` asks the projected
     containment the verb's position records leave; an attribute or value record reads
     through authored markup as well as the fold, so a version that honors the answer
     keeps it answered and a cleared value opens the ask again; any other verb answers
@@ -391,7 +391,7 @@ def verb_answers(
     if empty := condition.get("empty"):
         return container_empty(rec, empty, byid, registry, holders)
     # A condition without `empty` names a widget-unit verb (registry validation), so
-    # its standing action is the one at the widget's own coordinate for the verb.
+    # its action in force is the one at the widget's own coordinate for the verb.
     unit = rec["attrs"].get("id")
     held = projection.actions.get((unit, unit, verb))
     spec = entry["x-state"][verb]
@@ -493,7 +493,7 @@ def quoted_in(rec: dict, registry: dict) -> bool:
 def projected_action_holders(
     projection: StateProjection, byid: dict, registry: dict
 ) -> dict[str, dict]:
-    """Unit id → its enclosing vocabulary widget after standing position records
+    """Unit id → its enclosing vocabulary widget after the position records in force
     no later revision has absorbed; an absorbed move leaves its unit where the
     markup has it."""
     holders = {}
@@ -567,7 +567,7 @@ def answering_action(
     *,
     registered: bool = False,
 ) -> bool:
-    """Whether an action of `verb`, standing in `projection`, answers its widget's
+    """Whether an action of `verb`, in force in `projection`, answers its widget's
     ask: the instance asks or retains an earlier registration, and the verb's
     own condition holds with it in place. Editable answers retain user provenance
     after the author suppresses the request. Admission stamps `meaning.answer` on

@@ -37,6 +37,7 @@ from .files import (
     version_num,
     version_revisions,
 )
+from .findings import Rejected
 from .interaction_log import append_interactions, client_records
 from .layer import incompatible_layer, incompatible_revision, running_leaf, same_leaf
 from .locations import path_is_within
@@ -1191,7 +1192,7 @@ class PageEndpoint:
                 message,
                 asset_root,
             )
-        except ValueError as error:
+        except (ValueError, Rejected) as error:
             return self._refuse(str(error))
         root = f"{self.page_root}/api/samples/{identity}"
         return self._json(

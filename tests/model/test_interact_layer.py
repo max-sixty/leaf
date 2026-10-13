@@ -27,7 +27,7 @@ from interact_support import (
     add_test_widget,
     append_carried_log_record,
     case_alias,
-    command_refusal,
+    command_findings,
     element_declaration,
     fetch,
     install_payload,
@@ -3098,7 +3098,7 @@ def test_init_refuses_invalid_ids_in_a_registry_example(
     registry["lf-toned-note"]["x-example"] = example
     registry_path.write_text(json.dumps(registry))
 
-    refused = command_refusal(
+    [refused] = command_findings(
         "page", "init", "--package", "./.leaf", str(tmp_path / "page")
     )
 
@@ -3489,7 +3489,7 @@ def test_package_check_refuses_a_registry_example_that_violates_its_schema(
     entry["required"].append("tone")
     registry_path.write_text(json.dumps(registry))
 
-    refused = command_refusal("package", "check", ".leaf")
+    [refused] = command_findings("package", "check", ".leaf")
 
     assert (refused.code, refused.at) == ("invalid-example", "<lf-toned-note>")
     example = Finding.loads(refused.values["finding"])
@@ -3858,7 +3858,7 @@ def test_package_init_widget_checks_its_candidate_before_writing(tmp_path, monke
         packages_model, "starter_element_declaration", lambda tag: declaration
     )
 
-    refused = command_refusal(
+    [refused] = command_findings(
         "package", "init", str(package), "--widget", "lf-risk-note"
     )
 
@@ -4487,7 +4487,7 @@ def test_package_check_refuses_a_malformed_reaction_token(tmp_path, monkeypatch,
     registry["$reactions"] = {"tokens": {"nod": entry}}
     registry_path.write_text(json.dumps(registry))
 
-    refused = command_refusal("package", "check", ".leaf")
+    [refused] = command_findings("package", "check", ".leaf")
 
     assert refused.code == "layer-facts"
     assert refused.values["path"][:3] == ["$reactions", "tokens", "nod"]

@@ -176,14 +176,17 @@ def test_initial_producers_are_captured_once_and_called_after_each_complete_host
 
 
 def test_capture_refuses_a_declared_initial_producer_that_is_absent(tmp_path):
-    with pytest.raises(
-        ArtifactError, match=r"/page/early\.js: cannot capture dependency"
-    ):
+    with pytest.raises(ArtifactError) as refused:
         capture_artifact(
             tmp_path,
             SourceDocument(PAGE),
             {"lf-early": {"x-initial": "/page/early.js"}},
         )
+    [finding] = refused.value.findings
+    assert (finding.code, finding.values["file"]) == (
+        "dependency-unreadable",
+        "/page/early.js",
+    )
 
 
 def test_capture_follows_deep_and_cyclic_dependencies_once(tmp_path):
@@ -522,10 +525,13 @@ def test_capture_refuses_a_missing_svg_resource(tmp_path):
         '<svg><image href="/page/missing.svg"></image></svg></main>',
     )
 
-    with pytest.raises(
-        ArtifactError, match=r"/page/missing\.svg: cannot capture dependency"
-    ):
+    with pytest.raises(ArtifactError) as refused:
         capture_artifact(tmp_path, SourceDocument(source), {})
+    [finding] = refused.value.findings
+    assert (finding.code, finding.values["file"]) == (
+        "dependency-unreadable",
+        "/page/missing.svg",
+    )
 
 
 def test_inert_json_cannot_end_or_reshape_its_script_element():

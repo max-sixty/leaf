@@ -1,12 +1,13 @@
 """A finding: one thing a check found, as a record its readers take fields from.
 
 Every check behind `page check` and `package check` reports through this one type: the
-registry's validation, the markup checks, the page-code run, the render gate in each
-color scheme and viewport, its width sweep and advice, and the widget quality report.
-The suite's browser fixture reports through it too: what the browser said, and what its
-health sensors (`tests/*_watch.js`) found. A refusal raised with what a check found
-(`Rejected`, such as `RegistryError`) carries the records, so a command that reports it
-reads them from it. Each is produced where it is detected, the browser probes and
+registry's validation, the markup checks, a sample's initial history, the capture of a
+revision, the page-code run, the render gate in each color scheme and viewport, its
+width sweep and advice, and the widget quality report. The suite's browser fixture
+reports through it too: what the browser said, and what its health sensors
+(`tests/*_watch.js`) found. A refusal raised with what a check found (`Rejected`, such
+as `RegistryError` and `ArtifactError`) carries the records, so a command that reports
+it reads them from it. Each is produced where it is detected, the browser probes and
 sensors included, which return records rather than sentences, and its words are written
 here and nowhere else. The command boundary prints `str(finding)` for a reader and
 `finding.json()` for `--json`, and a failing test prints the words; every
@@ -350,6 +351,39 @@ def _shift_evidence(v: dict) -> str:
     return f"\nshift evidence: {json.dumps(v['evidence'], ensure_ascii=False)}"
 
 
+def _captured(words):
+    """A capture finding's words: the file it read (`file`) and the reference in it
+    (`specifier`), where it names them, then `words`."""
+
+    def said(at: str, v: dict) -> str:
+        where = "".join(
+            [
+                f"{v['file']}: " if "file" in v else "",
+                f"{v['specifier']!r}: " if "specifier" in v else "",
+            ]
+        )
+        return where + words(v)
+
+    return said
+
+
+def _fixture(words):
+    """A sample history finding's words: the script it read (`reference`) and, for
+    one of its events, which (`event`), then `words`."""
+
+    def said(at: str, v: dict) -> str:
+        where = f"data-sample-events {v['reference']!r}"
+        if "event" in v:
+            return f"{where}, event {v['event']}: {words(v)}"
+        return f"{where}{words(v)}"
+
+    return said
+
+
+def _listed(findings: list[dict]) -> str:
+    return "\n".join(f"  - {Finding.loads(found)}" for found in findings)
+
+
 # The words for each code, from the finding's `at` and `values`. A console code's
 # words are what the console said; read by the gate in a color scheme, beside findings
 # of its own, it says "console: " first.
@@ -602,8 +636,37 @@ _TEXT = {
     "not-utf8": lambda at, v: f"{v['path']} is not UTF-8: {v['error']}",
     # A layer this Leaf can neither serve nor write under (`layer.incompatible_layer`).
     "invalid-registry": lambda at, v: v["error"],
-    "capture-failed": lambda at, v: v["error"],
-    "sample-history": lambda at, v: v["error"],
+    # A sample's initial history, read from the JSON script its template names.
+    "sample-source-both": lambda at, v: (
+        "use either data-sample-events or data-sample-threads, not both"
+    ),
+    "sample-script": _fixture(
+        lambda v: " must name one script in the markup declaring its template"
+    ),
+    "sample-script-type": _fixture(
+        lambda v: " needs an inline application/json script"
+    ),
+    "sample-json": _fixture(lambda v: f": invalid JSON: {v['error']}"),
+    "sample-array": _fixture(lambda v: " must contain an array of event objects"),
+    "fixture-publication": _fixture(
+        lambda v: "publication is owned by the checked source publisher"
+    ),
+    "fixture-kind": _fixture(lambda v: f"kind must be one of {json_value(v['kinds'])}"),
+    "fixture-ts": _fixture(lambda v: "ts must be an ISO timestamp with a time zone"),
+    "fixture-id-repeated": _fixture(lambda v: f"event id {v['id']!r} already exists"),
+    "fixture-id-taken": _fixture(
+        lambda v: f"event id {v['id']!r} is already a document or message widget id"
+    ),
+    "fixture-media": _fixture(
+        lambda v: "; ".join(str(Finding.loads(found)) for found in v["findings"])
+    ),
+    "fixture-markup": _fixture(
+        lambda v: f"{v['kind']} markup doesn't validate:\n{_listed(v['findings'])}"
+    ),
+    "fixture-ids-taken": _fixture(
+        lambda v: f"message widget ids already taken by events: {json_value(v['ids'])}"
+    ),
+    "fixture-refused": _fixture(lambda v: v["error"]),
     "missing-vendored": lambda at, v: (
         f"{v['file']} missing from the page directory; run `leaf page init` to vendor"
         " the layer"
@@ -1367,6 +1430,54 @@ _TEXT = {
             f" its schema does not admit: {v['reason']}",
         )
     ),
+    # Capturing the page and the files it loads as an immutable revision: `file` is
+    # the file a finding concerns, and `specifier` the reference in it.
+    "dependency-url": _captured(lambda v: f"invalid dependency URL: {v['error']}"),
+    "dependency-not-local": _captured(
+        lambda v: (
+            "dependency must be a local URL (module URLs have no query or"
+            " fragment), or an http(s) URL"
+        )
+    ),
+    "dependency-encoded": _captured(lambda v: "encoded dependency path is not allowed"),
+    "dependency-escapes": _captured(lambda v: "dependency escapes the page"),
+    "dependency-outside-page": _captured(
+        lambda v: "dependency escapes /page/ and /media/"
+    ),
+    "dependency-symlink": _captured(
+        lambda v: "dependency escapes its source directory through a symlink"
+    ),
+    "dependency-unreadable": _captured(
+        lambda v: f"cannot capture dependency: {v['error']}"
+    ),
+    "dependency-type": _captured(lambda v: "unsupported dependency MIME type"),
+    "module-not-local": _captured(
+        lambda v: "a module import must name a relative or absolute local URL"
+    ),
+    "module-type": _captured(
+        lambda v: "a module dependency must have JavaScript MIME type"
+    ),
+    "module-outside-page": _captured(
+        lambda v: "module imports may use /page/ or a public layer entry point"
+    ),
+    "script-not-utf8": _captured(lambda v: "JavaScript is not UTF-8"),
+    "script-outside-page": _captured(lambda v: "authored scripts must be under /page/"),
+    "stylesheet-type": _captured(
+        lambda v: "a stylesheet dependency must have CSS MIME type"
+    ),
+    "css-not-utf8": _captured(lambda v: "CSS is not UTF-8"),
+    "css-invalid": _captured(lambda v: f"invalid CSS: {v['error']}"),
+    "css-url": _captured(lambda v: "CSS url() requires one literal URL"),
+    "css-import": _captured(
+        lambda v: "CSS @import requires a stylesheet with CSS MIME type"
+    ),
+    "revision-exists": _captured(lambda v: f"revision r{v['revision']} already exists"),
+    "digest-collision": _captured(lambda v: "immutable artifact digest collision"),
+    "manifest-digest": _captured(
+        lambda v: "captured manifest digest does not match revision"
+    ),
+    "layer-import-remote": _captured(lambda v: "captured layer import is not local"),
+    "layer-import-missing": _captured(lambda v: "captured layer import is missing"),
     # The package check's refusal.
     "package": lambda at, v: v["text"],
     "leaf-version": lambda at, v: (

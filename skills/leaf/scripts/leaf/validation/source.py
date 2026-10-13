@@ -10,7 +10,7 @@ from leaf.data_contracts import (
     measurement_lag,
     working_data_document_readings,
 )
-from leaf.findings import Finding
+from leaf.findings import Finding, Rejected
 from leaf.passages import SourceReading
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import read_page_registry
@@ -206,12 +206,8 @@ def sample_errors(
                     if registry is not None
                     else []
                 )
-            except ValueError as error:
-                errors.append(
-                    Finding(
-                        "sample-history", values={"error": str(error)}, samples=samples
-                    )
-                )
+            except Rejected as error:
+                errors.extend(found.but(samples=samples) for found in error.findings)
                 child_events = []
             pending.append((child, child_events, child, samples))
             child_readings = initial_data_document_readings(
@@ -319,7 +315,7 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
                 widget_sources=page_registry.widget_sources,
             )
         except ArtifactError as error:
-            errors.append(Finding("capture-failed", values={"error": str(error)}))
+            errors.extend(error.findings)
     revision = predecessor_reading(page_dir, data, events, artifact)
 
     dropped_advice = sorted(revision.previous.document.ids - document.ids)

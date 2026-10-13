@@ -19,11 +19,11 @@ from .data_contracts import data_document_errors, initial_data_document_readings
 from .event_contracts import admitted_event, command_error
 from .event_log import EventRefused
 from .event_meaning import AdmissionReadings
-from .findings import Rejected
+from .findings import Finding, Rejected
 from .page_view import InitialPageView
 from .projection import generated_children, retirement_outcomes, rewritten_bodies
 from .registry.kernel import kernel_event_kinds
-from .registry.schema import aware_instant, json_value
+from .registry.schema import aware_instant
 from .state import now_iso
 from .structure import SourceDocument
 from .thread_context import sample_events, thread_names, thread_structure
@@ -33,6 +33,12 @@ from .validation.markup import text_media_errors
 
 def _non_json_number(value: str):
     raise ValueError(f"{value} is not a JSON number")
+
+
+def _refused(code: str, reference: str, **values) -> Rejected:
+    """The refusal of a sample's history, as the one finding that says why:
+    `reference` is the script its template names, and `values` what was read there."""
+    return Rejected([Finding(code, values={"reference": reference, **values})])
 
 
 def _fixture_anchor(anchor: dict, readings: AdmissionReadings) -> dict:
@@ -107,40 +113,29 @@ def initial_sample_events(
             )
         ]
     if "data-sample-threads" in attrs:
-        raise ValueError(
-            "use either data-sample-events or data-sample-threads, not both"
-        )
+        raise Rejected([Finding("sample-source-both")])
     scripts = [
         script
         for script in [*holder.inline_scripts, *holder.external_scripts]
         if script["attrs"].get("id") == reference
     ]
     if not reference or len(scripts) != 1:
-        raise ValueError(
-            f"data-sample-events {reference!r} must name one script in the markup "
-            "declaring its template"
-        )
+        raise _refused("sample-script", reference)
     script = scripts[0]
     if (
         script["attrs"].get("type", "").strip().lower() != "application/json"
         or "src" in script["attrs"]
     ):
-        raise ValueError(
-            f"data-sample-events {reference!r} needs an inline application/json script"
-        )
+        raise _refused("sample-script-type", reference)
     try:
         commands = json.loads(script["body"], parse_constant=_non_json_number)
     except ValueError as error:
         reason = error.msg if isinstance(error, json.JSONDecodeError) else str(error)
-        raise ValueError(
-            f"data-sample-events {reference!r}: invalid JSON: {reason}"
-        ) from error
+        raise _refused("sample-json", reference, error=reason) from error
     if not isinstance(commands, list) or any(
         not isinstance(item, dict) for item in commands
     ):
-        raise ValueError(
-            f"data-sample-events {reference!r} must contain an array of event objects"
-        )
+        raise _refused("sample-array", reference)
     child = template["document"]
     view = InitialPageView(child, registry, contracts)
     events = []
@@ -150,10 +145,12 @@ def initial_sample_events(
         try:
             event = deepcopy(command)
             if "publication" in event:
-                raise ValueError("publication is owned by the checked source publisher")
+                raise _refused("fixture-publication", reference, event=seq)
             kind = event.get("kind")
             if not isinstance(kind, str) or kind not in kinds:
-                raise ValueError(f"kind must be one of {json_value(sorted(kinds))}")
+                raise _refused(
+                    "fixture-kind", reference, event=seq, kinds=sorted(kinds)
+                )
             spec = kinds[kind]["record"]
             event.setdefault("id", f"{seq:08x}")
             event.setdefault("ts", constructed_at)
@@ -162,15 +159,15 @@ def initial_sample_events(
             if "revision" in spec["properties"]:
                 event["revision"] = 1
             if error := command_error(event, kinds):
-                raise ValueError(error)
+                raise _refused("fixture-refused", reference, event=seq, error=error)
             if aware_instant(event["ts"]) is None:
-                raise ValueError("ts must be an ISO timestamp with a time zone")
+                raise _refused("fixture-ts", reference, event=seq)
             if any(logged["id"] == event["id"] for logged in events):
-                raise ValueError(f"event id {event['id']!r} already exists")
-            if event["id"] in child.ids | thread_structure(events).ids:
-                raise ValueError(
-                    f"event id {event['id']!r} is already a document or message widget id"
+                raise _refused(
+                    "fixture-id-repeated", reference, event=seq, id=event["id"]
                 )
+            if event["id"] in child.ids | thread_structure(events).ids:
+                raise _refused("fixture-id-taken", reference, event=seq, id=event["id"])
             if event.get("anchor"):
                 event["anchor"] = _fixture_anchor(
                     event["anchor"], AdmissionReadings(view, events, registry)
@@ -178,7 +175,12 @@ def initial_sample_events(
             if "text" in event and (
                 errors := text_media_errors(event["text"], page_dir)
             ):
-                raise ValueError("; ".join(map(str, errors)))
+                raise _refused(
+                    "fixture-media",
+                    reference,
+                    event=seq,
+                    findings=[found.json(text=False) for found in errors],
+                )
             if "markup" in event:
                 fragment = SourceDocument(event["markup"])
                 readings = initial_data_document_readings(child, events, registry)
@@ -198,16 +200,24 @@ def initial_sample_events(
                     if kind == "comment"
                     else thread_names(events).get(event.get("parent")),
                 ):
-                    raise Rejected(errors, f"{kind} markup doesn't validate")
+                    raise _refused(
+                        "fixture-markup",
+                        reference,
+                        event=seq,
+                        kind=kind,
+                        findings=[found.json(text=False) for found in errors],
+                    )
                 if collision := fragment.ids & (
                     {logged["id"] for logged in events} | {event["id"]}
                 ):
-                    raise ValueError(
-                        f"message widget ids already taken by events: {json_value(sorted(collision))}"
+                    raise _refused(
+                        "fixture-ids-taken", reference, event=seq, ids=sorted(collision)
                     )
             events.append(admitted_event(view, events, event))
-        except (ValueError, EventRefused, Rejected) as error:
-            raise ValueError(
-                f"data-sample-events {reference!r}, event {seq}: {error}"
+        except (ValueError, EventRefused) as error:
+            # The event contract's and the anchor capture's own refusals, in their
+            # words.
+            raise _refused(
+                "fixture-refused", reference, event=seq, error=str(error)
             ) from error
     return events

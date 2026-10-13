@@ -21,7 +21,7 @@ from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
     available_loopback_port,
-    command_refusal,
+    command_findings,
     publish,
     record_claim,
     serving,
@@ -207,7 +207,7 @@ def test_a_refused_revendor_leaves_the_running_server_alone(page_dir):
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir()
     (overlay / "registry.json").write_text("{broken")
-    refused = command_refusal("page", "init", "--package", "./.leaf", str(page_dir))
+    [refused] = command_findings("page", "init", "--package", "./.leaf", str(page_dir))
 
     assert refused.code == "registry-json"
     assert server_model.running_server(page_dir)["url"] == url

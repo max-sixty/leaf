@@ -371,20 +371,22 @@ def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_p
             "</head>", '<script type="module" src="/page/app.js"></script></head>'
         )
     )
-    for source, diagnostic in [
-        ('import "./missing.js";', "cannot capture dependency"),
-        ('import "ftp://outside.example/module.js";', "http(s) URL"),
-        ('import "../../outside.js";', "public layer entry point"),
-        ('import "/runtime/events.js";', "public layer entry point"),
-        ('import "./data.json";', "JavaScript MIME"),
-        ('import "./escape.js";', "symlink"),
-        ('import "./data\\u002ejson";', "dependency must be a local URL"),
+    for source, code in [
+        ('import "./missing.js";', "dependency-unreadable"),
+        ('import "ftp://outside.example/module.js";', "dependency-not-local"),
+        ('import "../../outside.js";', "module-outside-page"),
+        ('import "/runtime/events.js";', "module-outside-page"),
+        ('import "./data.json";', "module-type"),
+        ('import "./escape.js";', "dependency-symlink"),
+        ('import "./data\\u002ejson";', "dependency-not-local"),
     ]:
         (authored / "app.js").write_text(source)
         refused = revisioning_model.activate_source(page_dir)
-        assert refused.error and diagnostic in refused.error, (source, refused.error)
+        assert refused.error, source
         assert refused.revision == previous and not refused.created
         assert files_model.latest_revision(page_dir) == previous
+        _, findings = check_findings(page_dir)
+        assert [finding.code for finding in findings] == [code], source
 
 
 def test_an_interrupted_capture_never_publishes_a_partial_revision(
@@ -433,8 +435,9 @@ def test_artifact_read_refuses_a_replaced_immutable_manifest(page_dir):
     revision = files_model.latest_revision(page_dir)
     _replace_manifest(page_dir, revision)
 
-    with pytest.raises(artifact_model.ArtifactError, match="manifest digest"):
+    with pytest.raises(artifact_model.ArtifactError) as refused:
         artifact_model.read_artifact(page_dir, revision)
+    assert [finding.code for finding in refused.value.findings] == ["manifest-digest"]
 
 
 def test_artifact_cache_holds_a_bundle_by_its_content_addressed_path(page_dir):
@@ -458,17 +461,19 @@ def test_stylesheet_dependencies_obey_the_same_capture_boundary(page_dir):
         PAGE.replace("</head>", '<link rel="stylesheet" href="/page/style.css"></head>')
     )
     previous = files_model.latest_revision(page_dir)
-    for css, diagnostic in [
-        ('@import "ftp://outside.example/style.css";', "http(s) URL"),
-        ('@import "./data.json";', "CSS MIME"),
-        ('@import url("./data.json");', "CSS MIME"),
-        ('main { background: url("../../private.svg"); }', "escapes"),
-        ('main { background: url("./missing.svg"); }', "cannot capture"),
+    for css, code in [
+        ('@import "ftp://outside.example/style.css";', "dependency-not-local"),
+        ('@import "./data.json";', "css-import"),
+        ('@import url("./data.json");', "css-import"),
+        ('main { background: url("../../private.svg"); }', "dependency-outside-page"),
+        ('main { background: url("./missing.svg"); }', "dependency-unreadable"),
     ]:
         (authored / "style.css").write_text(css)
         refused = revisioning_model.activate_source(page_dir)
-        assert refused.error and diagnostic in refused.error, (css, refused.error)
+        assert refused.error, css
         assert refused.revision == previous and not refused.created
+        _, findings = check_findings(page_dir)
+        assert [finding.code for finding in findings] == [code], css
 
 
 def test_an_image_loads_from_any_server(page_dir):
@@ -1848,23 +1853,31 @@ def test_reply_for_a_stale_event_reports_the_failed_fence(page_dir):
     [
         (
             '<script type="module" src="/leaf.js"></script>',
-            ("capture-failed", {"error": "public layer entry point"}),
+            (
+                "module-outside-page",
+                "",
+                {"file": "/index.html", "specifier": "/leaf.js"},
+            ),
         ),
         (
             '<link rel="stylesheet" href="/theme.css" media="print">',
-            ("capture-failed", {"error": "escapes /page/ and /media/"}),
+            (
+                "dependency-outside-page",
+                "",
+                {"file": "/index.html", "specifier": "/theme.css"},
+            ),
         ),
         (
             '<base href="https://outside.example/">',
-            ("document-declaration", {"at": "<base>"}),
+            ("document-declaration", "<base>", {}),
         ),
         (
             '<meta http-equiv="Content-Security-Policy" content="default-src none">',
-            ("document-declaration", {"at": "<meta>"}),
+            ("document-declaration", "<meta>", {}),
         ),
         (
             '<script type="importmap">{"imports": {}}</script>',
-            ("document-declaration", {"at": "<script>"}),
+            ("document-declaration", "<script>", {}),
         ),
     ],
     ids=["runtime-module", "theme", "base", "policy", "import-map"],
@@ -1877,14 +1890,9 @@ def test_check_rejects_authored_delivery_assets(page_dir, asset, expected):
     status, findings = check_findings(page_dir)
 
     assert status == 1
-    code, holds = expected
+    code, at, values = expected
     [finding] = findings
-    assert finding.code == code
-    # A capture refusal is still its exception's words (`capture-failed`).
-    if "error" in holds:
-        assert holds["error"] in finding.values["error"]
-    else:
-        assert finding.at == holds["at"]
+    assert found([finding], code, at, **values), finding
 
 
 @pytest.mark.parametrize(

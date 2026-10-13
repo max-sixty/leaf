@@ -43,7 +43,7 @@ from interact_support import (
     assert_revendor_serializes_writer,
     check,
     check_findings,
-    command_refusal,
+    command_findings,
     comment,
     declare_data_input,
     element_declaration,
@@ -3799,12 +3799,13 @@ def test_a_layer_restates_one_kind_s_handling_and_inherits_the_rest(page_dir, tm
 def init_refusal(page_dir) -> Finding:
     """What `page init` of the page's packages and the project layer `.leaf` over
     them stops at."""
-    return command_refusal(
+    [refused] = command_findings(
         "page",
         "init",
         *package_selection_args((*page_packages(), "./.leaf")),
         str(page_dir),
     )
+    return refused
 
 
 @pytest.mark.parametrize(
@@ -4764,30 +4765,39 @@ def test_source_reading_keeps_a_sample_out_of_its_parent_identity_space():
 
 
 @pytest.mark.parametrize(
-    ("markup", "error"),
+    ("markup", "code", "samples"),
     [
-        ("<noscript>invisible</noscript>", "the browser renders none of its content"),
-        ('<lf-unknown id="bad">Unknown</lf-unknown>', "unknown widget"),
-        ('<lf-draft id="change" restated><pre>Text</pre></lf-draft>', None),
-        ("<template data-sample><h1>Child</h1></template>", "needs a stable id"),
-        ('<p id="duplicate">One</p><p id="duplicate">Two</p>', "duplicate"),
+        ("<noscript>invisible</noscript>", "noscript", ("practice",)),
+        ('<lf-unknown id="bad">Unknown</lf-unknown>', "unknown-widget", ("practice",)),
+        ('<lf-draft id="change" restated><pre>Text</pre></lf-draft>', None, ()),
+        (
+            "<template data-sample><h1>Child</h1></template>",
+            "unnamed-sample",
+            ("practice",),
+        ),
+        (
+            '<p id="duplicate">One</p><p id="duplicate">Two</p>',
+            "duplicate-ids",
+            ("practice",),
+        ),
         (
             '<template id="nested" data-sample><noscript>hidden</noscript></template>',
-            "sample 'nested'",
+            "noscript",
+            ("practice", "nested"),
         ),
     ],
 )
 @pytest.mark.parametrize("holder", ["page", "message"])
-def test_check_validates_each_sample_document(page_dir, markup, error, holder):
-    result = sample_holder_check(
+def test_check_validates_each_sample_document(page_dir, markup, code, samples, holder):
+    findings = sample_holder_findings(
         page_dir, holder, f'<template id="practice" data-sample>{markup}</template>'
     )
-    if error is None:
-        assert result.exit_code == 0, result.output
+    errors = [finding for finding in findings if finding.severity == "error"]
+    if code is None:
+        assert errors == []
         return
-    assert result.exit_code != 0, result.output
-    assert "sample 'practice'" in result.output
-    assert error in result.output
+    [refused] = found(errors, code)
+    assert refused.samples == samples
 
 
 @pytest.mark.parametrize("poster", ["agent", "fixture"])
@@ -4804,37 +4814,46 @@ def test_a_message_sample_cannot_select_the_thread_holding_it(page_dir, poster):
             page_dir,
             {"kind": "comment", "id": "aabb0011", "author": "agent", "text": "Open"},
         )
-        result = CliRunner().invoke(
-            cli_model.cli,
-            ["thread", "reply", str(page_dir), "aabb0011", "--text", "Try:"]
-            + ["--markup", sample],
+        findings = command_findings(
+            "thread",
+            "reply",
+            str(page_dir),
+            "aabb0011",
+            "--text",
+            "Try:",
+            "--markup",
+            sample,
         )
     else:
         history = [
             {"kind": "comment", "id": "aabb0011", "author": "agent", "text": "Open"},
             {"kind": "reply", "parent": "aabb0011", "text": "Try:", "markup": sample},
         ]
-        result = sample_holder_check(
+        findings = sample_holder_findings(
             page_dir,
             "page",
             f'<script id="fixture" type="application/json">{json.dumps(history)}'
             '</script><template id="practice" data-sample'
             ' data-sample-events="fixture"><h1 id="child">Child</h1></template>',
         )
-    assert result.exit_code != 0, result.output
-    assert "which holds this message" in result.output
+        [markup] = found(findings, "fixture-markup", kind="reply")
+        findings = [Finding.loads(nested) for nested in markup.values["findings"]]
+    assert found(findings, "sample-loop", thread="aabb0011")
 
 
-def sample_holder_check(page_dir, holder, source):
+def sample_holder_findings(page_dir, holder, source) -> list[Finding]:
     """Declare `source`'s samples in the page and check it, or post them in a
     message: one gate checks a sample's child wherever its template is written."""
     if holder == "page":
         (page_dir / "index.html").write_text(
             PAGE.replace("</main>", source + "</main>")
         )
-        return check(page_dir)
+        _, findings = check_findings(page_dir)
+        return findings
     published(page_dir)
-    return comment(page_dir, "--text", "Try it:", "--markup", source)
+    return command_findings(
+        "thread", "open", str(page_dir), "--text", "Try it:", "--markup", source
+    )
 
 
 @pytest.mark.parametrize("nested", [False, True])
@@ -5637,132 +5656,144 @@ def test_a_sampled_thread_starts_as_its_source_log_leaves_it():
 
 
 @pytest.mark.parametrize(
-    ("history", "script_attrs", "template_attrs", "complaint"),
+    ("history", "script_attrs", "template_attrs", "code", "values"),
     [
         (
             "[]",
             'type="application/json"',
             'data-sample-events="missing"',
-            "must name one script",
+            "sample-script",
+            {"reference": "missing"},
         ),
         (
             "[]",
             'type="text/plain"',
             'data-sample-events="fixture"',
-            "inline application/json",
+            "sample-script-type",
+            {},
         ),
         (
             "[]",
             'type="application/json" src="/page/history.json"',
             'data-sample-events="fixture"',
-            "inline application/json",
+            "sample-script-type",
+            {},
         ),
         (
             '[{"kind":"comment","text":NaN}]',
             'type="application/json"',
             'data-sample-events="fixture"',
-            "invalid JSON",
+            "sample-json",
+            {"error": "NaN is not a JSON number"},
         ),
         (
             "{",
             'type="application/json"',
             'data-sample-events="fixture"',
-            "invalid JSON",
+            "sample-json",
+            {},
         ),
         (
             "{}",
             'type="application/json"',
             'data-sample-events="fixture"',
-            "array of event objects",
+            "sample-array",
+            {},
         ),
         (
             "[1]",
             'type="application/json"',
             'data-sample-events="fixture"',
-            "array of event objects",
+            "sample-array",
+            {},
         ),
         (
             '[{"kind": []}]',
             'type="application/json"',
             'data-sample-events="fixture"',
-            "kind must be one of",
+            "fixture-kind",
+            {"event": 1},
         ),
         (
             '[{"kind":"reply","parent":"absent","text":"Reply"}]',
             'type="application/json"',
             'data-sample-events="fixture"',
-            "unknown parent",
+            "fixture-refused",
+            {"event": 1},
         ),
         (
             '[{"kind":"comment","id":"aabb0011","text":"One"},{"kind":"comment","id":"aabb0011","text":"Two"}]',
             'type="application/json"',
             'data-sample-events="fixture"',
-            "already exists",
+            "fixture-id-repeated",
+            {"event": 2, "id": "aabb0011"},
         ),
         (
             '[{"kind":"comment","id":"child","text":"Collision"}]',
             'type="application/json"',
             'data-sample-events="fixture"',
-            "document or message widget id",
+            "fixture-id-taken",
+            {"event": 1, "id": "child"},
         ),
         (
             '[{"kind":"action","widget":"absent","action":"choose","detail":{"value":[]}}]',
             'type="application/json"',
             'data-sample-events="fixture"',
-            "unknown action widget",
+            "fixture-refused",
+            {"event": 1},
         ),
         (
             '[{"kind":"action"}]',
             'type="application/json"',
             'data-sample-events="fixture"',
-            "event is invalid",
+            "fixture-refused",
+            {"event": 1},
         ),
         (
             '[{"kind":"comment","text":"Bad clock","ts":"yesterday"}]',
             'type="application/json"',
             'data-sample-events="fixture"',
-            "ISO timestamp",
+            "fixture-ts",
+            {"event": 1},
         ),
         (
             "[]",
             'type="application/json"',
             'data-sample-events="fixture" data-sample-threads="aabb0011"',
-            "not both",
+            "sample-source-both",
+            {},
         ),
     ],
 )
 @pytest.mark.parametrize("holder", ["page", "message"])
 def test_sample_fixture_refusals_reach_page_check(
-    page_dir, history, script_attrs, template_attrs, complaint, holder
+    page_dir, history, script_attrs, template_attrs, code, values, holder
 ):
     source = (
         f'<script id="fixture" {script_attrs}>{history}</script>'
         f'<template id="practice" data-sample {template_attrs}>'
         '<h1 id="child">Child</h1></template>'
     )
-    result = sample_holder_check(page_dir, holder, source)
-    assert result.exit_code != 0, result.output
-    assert "sample 'practice'" in result.output
-    assert complaint in result.output
+    findings = sample_holder_findings(page_dir, holder, source)
+    [refused] = found(findings, code, **values)
+    assert refused.samples == ("practice",)
 
 
 @pytest.mark.parametrize(
-    ("markup", "complaint"),
+    ("markup", "code"),
     [
-        ('<lf-unknown id="widget">Unknown</lf-unknown>', "unknown widget"),
+        ('<lf-unknown id="widget">Unknown</lf-unknown>', "unknown-widget"),
         (
             '<lf-code id="child" language="python"><pre>1</pre></lf-code>',
-            "already taken",
+            "ids-taken",
         ),
         (
             '<lf-code id="code" language="python"><pre>1</pre></lf-code><style>p {color:red}</style>',
-            "stylesheet of the whole document",
+            "message-style",
         ),
     ],
 )
-def test_sample_fixture_message_markup_uses_the_message_gate(
-    page_dir, markup, complaint
-):
+def test_sample_fixture_message_markup_uses_the_message_gate(page_dir, markup, code):
     history = json.dumps(
         [{"kind": "comment", "author": "agent", "text": "Example", "markup": markup}]
     )
@@ -5772,10 +5803,13 @@ def test_sample_fixture_message_markup_uses_the_message_gate(
         '<h1 id="child">Child</h1></template>'
     )
     (page_dir / "index.html").write_text(PAGE.replace("</main>", source + "</main>"))
-    result = check(page_dir)
-    assert result.exit_code != 0, result.output
-    assert "sample 'practice'" in result.output
-    assert complaint in result.output
+    status, findings = check_findings(page_dir)
+    assert status != 0
+    [refused] = found(findings, "fixture-markup", kind="comment", event=1)
+    assert refused.samples == ("practice",)
+    assert found(
+        [Finding.loads(nested) for nested in refused.values["findings"]], code
+    ), refused
 
 
 @pytest.mark.parametrize(

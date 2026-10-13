@@ -5013,6 +5013,55 @@ def test_a_playground_rejects_range_values_that_do_not_land_on_its_step(browser,
     )
 
 
+def test_a_playground_control_written_in_the_preview_stands_beside_its_item(
+    browser, serve
+):
+    """The alert playground writes each alert's threshold and route beside that alert's
+    replay, and the page budget as the playground's own child. The budget stands in the
+    rail; each alert's controls are drawn where they are written, and a press there
+    changes the playground's one configuration and the instruction it sends."""
+    source = Path(__file__).parents[2] / "examples" / "alert-thresholds.html"
+    page = open_page(browser, serve(source))
+    playground = page.locator("#alert-playground")
+    rail = playground.locator(".lf-playground-controls")
+    expect(rail.locator("lf-playground-control")).to_have_count(2)
+    expect(rail.get_by_role("slider", name="On-call page budget")).to_be_visible()
+
+    latency = page.locator("#alert-latency-settings")
+    evidence = page.locator("#alert-latency-evidence").bounding_box()
+    settings = latency.bounding_box()
+    assert settings["x"] > evidence["x"] + evidence["width"] - 1
+    assert abs(settings["y"] - evidence["y"]) < 1
+
+    latency.get_by_role("radio", name="over 1,200 ms").click()
+    latency.get_by_role("radio", name="Ticket").click()
+    values = playground.evaluate("root => root.values")
+    assert values["latency-threshold"] == "1200ms"
+    assert values["latency-route"] == "ticket"
+    assert values["budget"] == 10
+    expect(page.locator("#alert-latency-replay tr.chosen th")).to_have_text(
+        "over 1,200 ms"
+    )
+    expect(page.locator('[data-total="oncall"] strong')).to_have_text("18")
+    expect(page.locator("#alert-instruction")).to_contain_text(
+        "payments-p99-latency over 1,200 ms, open a ticket"
+    )
+
+    # A press on a control in the preview takes focus as any control's does, so the
+    # keyboard goes on from the control last pressed rather than an earlier one.
+    rate = page.locator("#alert-rate-settings")
+    rate.get_by_role("radio", name="over 2%").click()
+    latency.get_by_role("radio", name="Page").click()
+    page.keyboard.press("ArrowRight")
+    values = playground.evaluate("root => root.values")
+    assert (values["rate-threshold"], values["latency-route"]) == ("2%", "ticket")
+
+    with sending(page, "the alert settings"):
+        playground.get_by_role("button", name="Apply these settings").click()
+    action = events_model.read_events(serve.page_dir)[-1]
+    assert action["detail"]["values"]["latency-route"] == "ticket"
+
+
 def test_a_quoted_playground_is_a_static_preview_with_its_authored_output(
     browser, serve
 ):

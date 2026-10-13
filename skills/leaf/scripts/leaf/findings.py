@@ -744,6 +744,11 @@ _TEXT = {
     "not-member": lambda at, v: (
         f"{_line(at, v)}: must be a direct member of "
         + " or ".join(f"<{owner}>" for owner in v["owners"])
+        + " or stand inside its "
+        + " or ".join(f"<{region}>" for region in v["within"])
+        if v["within"]
+        else f"{_line(at, v)}: must be a direct member of "
+        + " or ".join(f"<{owner}>" for owner in v["owners"])
         + (f", found <{v['parent']}>" if v["parent"] else "")
     ),
     "content-empty": lambda at, v: (

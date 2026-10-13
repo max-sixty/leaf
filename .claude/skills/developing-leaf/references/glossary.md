@@ -89,7 +89,9 @@ For an authored occurrence say *Leaf element*, never *instance* alone.
 An element declaration keeps independent dimensions in separate keys:
 
 - `x-content`, what its body holds: `markup`, `members`, `data`, or `empty`.
-- `x-owners`, the compound owner types that may hold it directly.
+- `x-owners`, the compound owner types that may hold it directly; with `x-within`, it
+  may also stand at any depth inside the regions that key names, belonging to the
+  nearest owner around them.
 - `x-reading-role`, an authored reading-structure role.
 - Every other `x-*` key declares a capability, not an element family.
 

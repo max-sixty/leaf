@@ -110,6 +110,7 @@ def _validate_widget_structure(
     for key, named in (
         ("x-owners", entry.get("x-owners", [])),
         ("x-unique", entry.get("x-unique", {}).values()),
+        ("x-within", entry.get("x-within", [])),
     ):
         if unknown := sorted(set(named) - set(declarations)):
             raise registry_error(

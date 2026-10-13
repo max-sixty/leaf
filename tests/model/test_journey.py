@@ -74,6 +74,17 @@ def test_release_publication_ignores_rebased_resource_urls_in_board():
     assert not journey.board_names_release(served, marker)
 
 
+def test_release_publication_ignores_inline_script_and_style_text():
+    marker = "71b197da"
+    authored = (
+        "<main>Release board unchanged"
+        f"<script>const release = '{marker}'</script>"
+        f"<style>.release {{ content: '{marker}' }}</style>"
+        "</main>"
+    )
+    assert not journey.board_names_release(authored, marker)
+
+
 @pytest.mark.parametrize("end", ["http", "browser"])
 def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(end):
     """Each step keeps the comments it sent, timed from the page's log on the

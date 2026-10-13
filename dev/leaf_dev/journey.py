@@ -476,7 +476,7 @@ def board_names_release(html: str, marker: str) -> bool:
     """Read board text and widget labels, excluding release-scoped resource URLs."""
     main = SourceDocument(html).tree.select_one("main")
     return main is not None and (
-        marker in main.text
+        marker in main.to_text()
         or any(
             marker in (element.attrs.get("label") or "")
             for element in main.find_all(True)

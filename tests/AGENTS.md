@@ -156,24 +156,25 @@ causes is the gate doing its job, even one your selection missed; fix it and pus
 now Leaf merges any change that introduces no new failure, a mode the user chose
 (2026-10-13) and may reassess as the suite and development improve. A failure the
 change doesn't cause, such as a test main's latest run also fails (run it by node id
-on main to confirm), blocks nothing and calls for no rerun: say so in the pull request
-and land it. `test` is a required check on `main`, so landing past such a failure
-takes `gh pr merge --admin`; `wt merge` refuses on any failure, so such a change lands
-through a pull request. Every other test is CI's to report: the `test` job in
-`ci.yaml` runs the `main` tier once main moves and every tier in the daily run, and
-`tend-ci-fix` answers what either fails. That trade is the user's choice (2026-10-04):
-a pull request can land green and break a test it never ran, and main can stay red
-while `tend-ci-fix` repairs it, so a red main is no reason to widen a change, its
-gate, or its test selection. One push suite always runs while newer commits land, and
-each new commit replaces the run waiting behind it, which GitHub records as cancelled;
-the daily run has a queue of its own. That is the design working: a suite per merge
-would report each commit slightly sooner at up to twenty times the CI usage. Root
-`AGENTS.md`, "Working on the repository", says which runs not to start by hand before
-landing. To learn what main fails, read that job's run, and reproduce a failure it
-names by node id. `tend-ci-fix` sees only that run, so a failure on main that it does
-not show, such as one only macOS reproduces, is left to a local session. Check whether
-a live session, worktree or open pull request already covers it; if none does, start a
-separate session (for example with `/dispatch`) to fix it and land the change.
+on main to confirm), blocks nothing and calls for no rerun: the change lands as it is.
+`test` is a required check on `main`, so only the maintainer can merge past such a
+failure: name it in the pull request as inherited and leave the merge to them. `wt
+merge` refuses on any failure, so such a change lands through a pull request. Every
+other test is CI's to report: the `test` job in `ci.yaml` runs the `main` tier once
+main moves and every tier in the daily run, and `tend-ci-fix` answers what either
+fails. That trade is the user's choice (2026-10-04): a pull request can land green and
+break a test it never ran, and main can stay red while `tend-ci-fix` repairs it, so a
+red main is no reason to widen a change, its gate, or its test selection. One push
+suite always runs while newer commits land, and each new commit replaces the run
+waiting behind it, which GitHub records as cancelled; the daily run has a queue of its
+own. That is the design working: a suite per merge would report each commit slightly
+sooner at up to twenty times the CI usage. Root `AGENTS.md`, "Working on the
+repository", says which runs not to start by hand before landing. To learn what main
+fails, read that job's run, and reproduce a failure it names by node id. `tend-ci-fix`
+sees only that run, so a failure on main that it does not show, such as one only macOS
+reproduces, is left to a local session. Check whether a live session, worktree or open
+pull request already covers it; if none does, start a separate session (for example
+with `/dispatch`) to fix it and land the change.
 
 CLI output and agent-facing text are regtest recordings in each tier directory's
 `_regtest_outputs/`, normalized for temporary paths and generated identities but

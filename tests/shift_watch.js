@@ -1,4 +1,28 @@
-// Checks the Stability contract using protected reading/control landmarks.
+// Checks the Stability contract: a box moving on screen without input, and typing that
+// carries its field.
+//
+// Two modes share the record of input below. Every watched page gets the gate. The
+// ledger, which the rest of this header describes, runs where the harness passes
+// `ledger`: on the watch's own tests, and on any test run with the variable `rerun`
+// names (`render_harness.shift_ledger`).
+//
+// The gate. Chrome's layout-shift entries say which painted boxes moved; Chrome leaves
+// out scrolling and transforms. The gate fails each entry's sources unless the record
+// of input owns that frame (a trusted gesture's counted rendering, a typing session,
+// the landing of a preparation an input began), or the runtime declares the move: the
+// page before it presents or as it returns from a hidden tab, and a source inside a
+// runtime region declared with `data-lf-reflow`, or following an `append` region down
+// within its scrollport. Ownership comes from that record, never from Chrome's
+// `hadRecentInput`: typing through `fill` sends no key, and the half-second window
+// hides a move no input caused. Typing reads only its field and the field's control,
+// region, media and painted ancestors, at the edit and on each frame until the session
+// closes. The gate reads no other geometry, so a failure names at most Chrome's five
+// sources, and a source Chrome leaves unnamed, as it leaves every node in a shadow
+// tree, by the node there whose box is the source's. Chrome reports layout boxes, not
+// words, so a box an editor reuses for other words reads as moving where the ledger
+// sees words stay put. A failure names `rerun`, which shows what moved and from where.
+//
+// The ledger checks the same contract using protected reading/control landmarks.
 //
 // Scope. The sensor credits movement the browser's own placement mechanisms produce,
 // modelled in general for any markup, never for one shape Leaf ships: scrolling,
@@ -99,8 +123,8 @@
 // verdict, reads completely and fails where any reading differs, naming the innermost
 // node that changed, so a source missing from this list is found rather than
 // leaving the readings between entries stale. A page that writes while it is read
-// announces its change by that write. A change to this gate runs the suite with
-// VERIFY = 1, which checks every frame.
+// announces its change by that write. A change to the ledger runs the suite with the
+// ledger on and VERIFY = 1, which checks every frame.
 //
 // Movement findings retain the exact comparison and credits that decided them,
 // alongside the sampled scroll/attachment/animation inputs. Only admitted failures
@@ -173,14 +197,17 @@
   // Native timeline startTime changes when playback rate changes. Input ownership
   // follows the operation that began motion, not that mutable clock coordinate.
   const beganAt = new WeakMap();
-  // Motion begun since `start` that moves a box; one still pending begins now.
+  // Motion begun since `start` that moves a box; one still pending begins now. Only the
+  // ledger credits motion, so the gate keeps none.
   const begun = (start) =>
-    allAnimations().filter(
-      (animation) =>
-        animation.playState === "running" &&
-        (beganAt.get(animation)?.at ?? animation.startTime ?? Infinity) >= start &&
-        moves(animation),
-    );
+    !ledger
+      ? []
+      : allAnimations().filter(
+          (animation) =>
+            animation.playState === "running" &&
+            (beganAt.get(animation)?.at ?? animation.startTime ?? Infinity) >= start &&
+            moves(animation),
+        );
   // A direct native anchor inset, not an unused var() fallback or a named
   // different anchor inside the expression. Floating placement writes this form.
   const anchorInset = (value, axis) => {
@@ -377,99 +404,105 @@
     for (const type of EVENTS)
       listen(tree, type, announce, { capture: true, passive: true });
   };
-  watchTree(document);
-  for (const type of ["resize", "hashchange", "pageshow", "focus", "blur"])
-    listen(window, type, announce, { capture: true, passive: true });
-  for (const type of ["resize", "scroll"])
-    window.visualViewport?.addEventListener(type, announce);
-  document.fonts?.addEventListener("loadingdone", announce);
-  // Emulated media changes style with no event but its query's.
-  for (const query of [
-    "print",
-    "(prefers-color-scheme: dark)",
-    "(prefers-reduced-motion: reduce)",
-    "(forced-colors: active)",
-    "(prefers-contrast: more)",
-  ])
-    matchMedia(query).addEventListener("change", announce);
-  // Page state that matches selectors or applies style without a DOM write.
-  const announcing = (proto, names) => {
-    for (const name of names) {
-      const own = Object.getOwnPropertyDescriptor(proto, name);
-      const original = own.set ?? own.value;
-      const wrapped = function (...args) {
-        announce();
-        return Reflect.apply(original, this, args);
-      };
-      Object.defineProperty(
-        proto,
-        name,
-        own.set ? { ...own, set: wrapped } : { ...own, value: wrapped },
-      );
-    }
-  };
-  announcing(CSSStyleSheet.prototype, [
-    "replace",
-    "replaceSync",
-    "insertRule",
-    "deleteRule",
-  ]);
-  announcing(StyleSheet.prototype, ["disabled"]);
-  announcing(Document.prototype, ["adoptedStyleSheets"]);
-  announcing(ShadowRoot.prototype, ["adoptedStyleSheets"]);
-  announcing(Animation.prototype, [
-    "cancel",
-    "finish",
-    "play",
-    "pause",
-    "reverse",
-    "updatePlaybackRate",
-    "persist",
-    "effect",
-    "timeline",
-    "startTime",
-    "currentTime",
-    "playbackRate",
-  ]);
-  announcing(KeyframeEffect.prototype, ["setKeyframes", "target", "composite"]);
-  announcing(AnimationEffect.prototype, ["updateTiming"]);
-  announcing(HTMLInputElement.prototype, [
-    "value",
-    "checked",
-    "indeterminate",
-    "setRangeText",
-    "stepUp",
-    "stepDown",
-  ]);
-  announcing(HTMLTextAreaElement.prototype, ["value", "setRangeText"]);
-  announcing(HTMLSelectElement.prototype, ["value", "selectedIndex"]);
-  announcing(HTMLOptionElement.prototype, ["selected"]);
-  // A custom state matches `:state()`; the runtime restates them freely, so only a
-  // call that changes the set announces.
-  const states = CustomStateSet.prototype;
-  const { add, delete: remove, clear, has } = states;
-  Object.assign(states, {
-    add(state) {
-      if (!has.call(this, state)) announce();
-      return add.call(this, state);
-    },
-    delete(state) {
-      if (has.call(this, state)) announce();
-      return remove.call(this, state);
-    },
-    clear() {
-      if (this.size) announce();
-      return clear.call(this);
-    },
-  });
   // Every shadow root, a closed one included, so a reading reaches every element.
   const roots = new Set();
+  // Announcements keep the ledger's readings current; the gate reads none.
+  if (ledger) {
+    watchTree(document);
+    for (const type of ["resize", "hashchange", "pageshow", "focus", "blur"])
+      listen(window, type, announce, { capture: true, passive: true });
+    for (const type of ["resize", "scroll"])
+      window.visualViewport?.addEventListener(type, announce);
+    document.fonts?.addEventListener("loadingdone", announce);
+    // Emulated media changes style with no event but its query's.
+    for (const query of [
+      "print",
+      "(prefers-color-scheme: dark)",
+      "(prefers-reduced-motion: reduce)",
+      "(forced-colors: active)",
+      "(prefers-contrast: more)",
+    ])
+      matchMedia(query).addEventListener("change", announce);
+    // Page state that matches selectors or applies style without a DOM write.
+    const announcing = (proto, names) => {
+      for (const name of names) {
+        const own = Object.getOwnPropertyDescriptor(proto, name);
+        const original = own.set ?? own.value;
+        const wrapped = function (...args) {
+          announce();
+          return Reflect.apply(original, this, args);
+        };
+        Object.defineProperty(
+          proto,
+          name,
+          own.set ? { ...own, set: wrapped } : { ...own, value: wrapped },
+        );
+      }
+    };
+    announcing(CSSStyleSheet.prototype, [
+      "replace",
+      "replaceSync",
+      "insertRule",
+      "deleteRule",
+    ]);
+    announcing(StyleSheet.prototype, ["disabled"]);
+    announcing(Document.prototype, ["adoptedStyleSheets"]);
+    announcing(ShadowRoot.prototype, ["adoptedStyleSheets"]);
+    announcing(Animation.prototype, [
+      "cancel",
+      "finish",
+      "play",
+      "pause",
+      "reverse",
+      "updatePlaybackRate",
+      "persist",
+      "effect",
+      "timeline",
+      "startTime",
+      "currentTime",
+      "playbackRate",
+    ]);
+    announcing(KeyframeEffect.prototype, ["setKeyframes", "target", "composite"]);
+    announcing(AnimationEffect.prototype, ["updateTiming"]);
+    announcing(HTMLInputElement.prototype, [
+      "value",
+      "checked",
+      "indeterminate",
+      "setRangeText",
+      "stepUp",
+      "stepDown",
+    ]);
+    announcing(HTMLTextAreaElement.prototype, ["value", "setRangeText"]);
+    announcing(HTMLSelectElement.prototype, ["value", "selectedIndex"]);
+    announcing(HTMLOptionElement.prototype, ["selected"]);
+    // A custom state matches `:state()`; the runtime restates them freely, so only a
+    // call that changes the set announces.
+    const states = CustomStateSet.prototype;
+    const { add, delete: remove, clear, has } = states;
+    Object.assign(states, {
+      add(state) {
+        if (!has.call(this, state)) announce();
+        return add.call(this, state);
+      },
+      delete(state) {
+        if (has.call(this, state)) announce();
+        return remove.call(this, state);
+      },
+      clear() {
+        if (this.size) announce();
+        return clear.call(this);
+      },
+    });
+  }
+  // The gate keeps the roots too, to find a source Chrome leaves unnamed.
   const attachShadow = Element.prototype.attachShadow;
   Element.prototype.attachShadow = function (init) {
     const root = attachShadow.call(this, init);
     roots.add(root);
-    watchTree(root);
-    announce();
+    if (ledger) {
+      watchTree(root);
+      announce();
+    }
     return root;
   };
   // A zero-sized native anchor independently exposes the compositor source pose
@@ -652,43 +685,45 @@
         .map((property) => [property, style[property]]),
     );
   };
-  const animate = Element.prototype.animate;
-  Element.prototype.animate = function (...args) {
-    announce();
-    const values = underlying(this);
-    const at = nativePerformance.now();
-    const animation = animate.apply(this, args);
-    beganAt.set(animation, { at });
-    origins.set(
-      animation,
-      Object.fromEntries(
-        animationProperties(animation)
-          .filter((property) => property in values)
-          .map((property) => [property, values[property]]),
-      ),
-    );
-    return animation;
-  };
-  // Reusing a native effect is a new operation when play resumes or reverse changes
-  // its direction. Changing playback rate alone does not transfer input ownership.
-  for (const method of ["play", "reverse"]) {
-    const original = Animation.prototype[method];
-    Animation.prototype[method] = function (...args) {
-      const beginning = method === "reverse" || this.playState !== "running";
-      const origin =
-        this.effect?.target &&
-        moves(this) &&
-        this.effect.getComputedTiming().progress === null
-          ? underlying(this.effect.target, this)
-          : null;
+  if (ledger) {
+    const animate = Element.prototype.animate;
+    Element.prototype.animate = function (...args) {
+      announce();
+      const values = underlying(this);
       const at = nativePerformance.now();
-      const result = original.apply(this, args);
-      if (beginning) {
-        beganAt.set(this, { at });
-        if (origin) origins.set(this, origin);
-      }
-      return result;
+      const animation = animate.apply(this, args);
+      beganAt.set(animation, { at });
+      origins.set(
+        animation,
+        Object.fromEntries(
+          animationProperties(animation)
+            .filter((property) => property in values)
+            .map((property) => [property, values[property]]),
+        ),
+      );
+      return animation;
     };
+    // Reusing a native effect is a new operation when play resumes or reverse changes
+    // its direction. Changing playback rate alone does not transfer input ownership.
+    for (const method of ["play", "reverse"]) {
+      const original = Animation.prototype[method];
+      Animation.prototype[method] = function (...args) {
+        const beginning = method === "reverse" || this.playState !== "running";
+        const origin =
+          this.effect?.target &&
+          moves(this) &&
+          this.effect.getComputedTiming().progress === null
+            ? underlying(this.effect.target, this)
+            : null;
+        const at = nativePerformance.now();
+        const result = original.apply(this, args);
+        if (beginning) {
+          beganAt.set(this, { at });
+          if (origin) origins.set(this, origin);
+        }
+        return result;
+      };
+    }
   }
   const observedStates = new WeakMap();
   const readMotion = (at, ending = null) => {
@@ -802,6 +837,11 @@
     // Poses belong to their synchronous observation time. The native frame start
     // is kept separately to associate Chrome's painted shift with that frame.
     const at = nativePerformance.now();
+    // The gate keeps only the frame's times, which ownership is judged by.
+    if (!ledger) {
+      if (frame) frames.push({ at, start: time });
+      return at;
+    }
     const selections = new Map(
       (
         document.querySelector("script[data-lf-entry]")?.lfFloatingSelections?.() ?? []
@@ -1161,8 +1201,9 @@
   let open = null;
   // The typing rule stops reading the open rendering, which runs on.
   const unwatch = () => {
-    if (open?.typing?.until === Infinity)
-      open.typing.until = read(nativePerformance.now(), false);
+    if (open?.typing?.until !== Infinity) return;
+    open.typing.until = read(nativePerformance.now(), false);
+    if (!ledger) sampleTyping(open.typing, open.typing.until);
   };
   const end = () => {
     unwatch();
@@ -1263,11 +1304,13 @@
         rendering.through = at;
       rendering.first = false;
     }
-    const motion = frames.at(-1).motion;
-    for (const rendering of renderings)
-      for (const animation of rendering.own)
-        if (animation.playState === "running") motion.push(animation);
-    audit();
+    if (ledger) {
+      const motion = frames.at(-1).motion;
+      for (const rendering of renderings)
+        for (const animation of rendering.own)
+          if (animation.playState === "running") motion.push(animation);
+      audit();
+    } else if (open?.typing?.until === Infinity) sampleTyping(open.typing, at);
     judge(waiting.splice(0));
     nativeFrame(tick);
   };
@@ -1276,6 +1319,23 @@
     const holding = [];
     for (let at = field; at instanceof Element; at = up(at)) holding.push(at);
     const start = nativePerformance.now();
+    if (!ledger) {
+      const found = holding.filter(
+        (node) =>
+          node === field ||
+          node.matches(interactive) ||
+          node.hasAttribute("data-lf-reflow") ||
+          readingMedia(node) ||
+          paintedHolder(node),
+      );
+      begin(
+        start,
+        { field, at: start, found: poses(found), samples: [], until: Infinity },
+        new Set(),
+        event,
+      );
+      return;
+    }
     const at = read(start, false);
     begin(
       start,
@@ -1389,9 +1449,9 @@
     sources.filter((source) => source.node !== node).map((source) => name(source.node));
   // Widgets upgrade after the authored document has painted,
   // and the frame that presents the page carries every box their upgrade reshaped. The
-  // page before it is presented runs until the second frame after the runtime stamps
-  // `data-lf-presented` on a page that has one (runtime/presentation.js). Fixing the
-  // defect deletes this.
+  // page before it is presented runs through the second frame after the runtime stamps
+  // `data-lf-presented` on a page that has one (runtime/presentation.js), whose paint
+  // the gate judges by that frame's start. Fixing the defect deletes this.
   let presented = null;
   new MutationObserver(() => {
     if (presented !== null || !document.body?.hasAttribute("data-lf-presented")) return;
@@ -1424,7 +1484,7 @@
   const presenting = ({ startTime }) =>
     document.querySelector("script[data-lf-entry]") &&
     (presented === null ||
-      startTime < presented ||
+      startTime <= presented ||
       returns.some(({ start, through }) => startTime >= start && startTime <= through));
   const permittedReflow = ({ node, previousRect, currentRect }, around) => {
     const element = node?.nodeType === Node.TEXT_NODE ? up(node) : node;
@@ -2262,6 +2322,207 @@
       });
     }
   };
+  // The gate (header, "The gate"). A holder's pose is its box, and that box in layout
+  // coordinates, which scrolling does not move; a removed holder has none.
+  const scrollOffset = (source) => {
+    const axes = scrollAxes(source);
+    const { scrollLeft: x, scrollTop: y } = source;
+    return { left: x * axes.x.x + y * axes.y.x, top: x * axes.x.y + y * axes.y.y };
+  };
+  const poses = (nodes) =>
+    new Map(
+      nodes.map((node) => {
+        if (!node.isConnected) return [node, null];
+        const rect = node.getBoundingClientRect();
+        let { left, top } = rect;
+        const add = (source) => {
+          if (!source.scrollLeft && !source.scrollTop) return;
+          const offset = scrollOffset(source);
+          left += offset.left;
+          top += offset.top;
+        };
+        // The root's border box travels with its own scroll.
+        if (node === document.scrollingElement) add(node);
+        for (
+          let child = node, parent = up(node);
+          parent instanceof Element;
+          child = parent, parent = up(parent)
+        ) {
+          if (getComputedStyle(child).position === "fixed") break;
+          add(parent);
+        }
+        return [node, { rect, layout: { left, top } }];
+      }),
+    );
+  const sampleTyping = (typing, at) => {
+    typing.samples.push({ at, poses: poses([...typing.found.keys()]) });
+    pruneSamples(typing.samples);
+  };
+  // Chrome leaves a source in a shadow tree unnamed. The deepest words, else the
+  // deepest element, there whose box, clipped to the viewport as Chrome clips it, is
+  // the source's new box stand for it; failing those, the element over that box says
+  // where it is.
+  const sourceNode = ({ node, currentRect }) => {
+    if (node) return node;
+    const range = document.createRange();
+    const matches = (rect) =>
+      [
+        Math.max(0, rect.left) - currentRect.left,
+        Math.max(0, rect.top) - currentRect.top,
+        Math.min(innerWidth, rect.right) - currentRect.right,
+        Math.min(innerHeight, rect.bottom) - currentRect.bottom,
+      ].every((gap) => Math.abs(gap) < 1);
+    let element = null,
+      words = null;
+    for (const root of roots) {
+      if (!root.host.isConnected) continue;
+      for (const each of root.querySelectorAll("*")) {
+        if (matches(each.getBoundingClientRect())) element = each;
+        for (const child of each.childNodes) {
+          if (child.nodeType !== Node.TEXT_NODE || !child.textContent.trim()) continue;
+          range.selectNodeContents(child);
+          if (matches(range.getBoundingClientRect())) words = child;
+        }
+      }
+    }
+    return words ?? element;
+  };
+  const sourceName = (node, { currentRect }) => {
+    if (node) return name(node);
+    const over = document.elementFromPoint(
+      currentRect.left + currentRect.width / 2,
+      currentRect.top + currentRect.height / 2,
+    );
+    return over ? `an unnamed box over ${name(over)}` : "an unnamed box";
+  };
+  const runtimeOwned = (ancestry) =>
+    ancestry.some((owner) => owner.matches(".lf-chrome, [data-lf-runtime]"));
+  // A source the runtime declares free to move: inside every `text` and `controls`
+  // region holding it, within the region's box and, in a `text` region, no control;
+  // or below an `append` region in that region's scrollport, carried down by its growth.
+  const declared = (node, { previousRect, currentRect }) => {
+    if (!node) return false;
+    const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
+    const ancestry = [];
+    for (let at = element; at instanceof Element; at = up(at)) ancestry.push(at);
+    const mode = (at) => at.getAttribute("data-lf-reflow");
+    if (["text", "controls"].includes(mode(element))) return false;
+    const regions = ancestry.filter((at) => ["text", "controls"].includes(mode(at)));
+    if (regions.length)
+      return regions.every((region) => {
+        const depth = ancestry.indexOf(region);
+        const frame = region.getBoundingClientRect();
+        return (
+          runtimeOwned(ancestry.slice(depth)) &&
+          (mode(region) === "controls" ||
+            !ancestry.slice(0, depth).some((at) => at.matches(interactive))) &&
+          currentRect.left >= frame.left - 1 &&
+          currentRect.top >= frame.top - 1 &&
+          currentRect.right <= frame.right + 1 &&
+          currentRect.bottom <= frame.bottom + 1
+        );
+      });
+    if (
+      Math.abs(currentRect.left - previousRect.left) >= 1 ||
+      currentRect.top <= previousRect.top
+    )
+      return false;
+    const port = ancestry.find(
+      (at) =>
+        at !== element &&
+        at !== document.scrollingElement &&
+        ["auto", "scroll", "hidden"].includes(getComputedStyle(at).overflowY),
+    );
+    return Boolean(
+      port &&
+      runtimeOwned(ancestry.slice(ancestry.indexOf(port))) &&
+      [...port.querySelectorAll('[data-lf-reflow="append"]')].some(
+        (region) =>
+          !region.contains(element) &&
+          region.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ),
+    );
+  };
+  // Chrome's sources are painted boxes, clipped to the viewport, so the field's holders
+  // are compared at the edit and at the frame after the paint, capped at the session's
+  // close.
+  const typedNatively = (entry, typing, painted) => {
+    const sample = typing.samples.findLast(
+      ({ at }) => at <= Math.min(painted, typing.until),
+    );
+    if (!sample) return;
+    for (const [node, before] of typing.found) {
+      const after = sample.poses.get(node);
+      if (!before || !after) continue;
+      const x =
+        carried(before.rect, after.rect, "left", "right") &&
+        Math.abs(after.layout.left - before.layout.left) >= 1;
+      const y =
+        carried(before.rect, after.rect, "top", "bottom") &&
+        Math.abs(after.layout.top - before.layout.top) >= 1;
+      if (!x && !y) continue;
+      const field = window.lfPlace(typing.field),
+        place = window.lfPlace(node);
+      report(`typing in ${field} moved ${place}`, {
+        code: "typing-moved",
+        node: place,
+        field,
+        by: by(before.rect, after.rect),
+        found: box(before.rect),
+        painted: box(after.rect),
+        beside: entry.sources
+          .filter((source) => source.node !== node)
+          .map((source) => sourceName(source.node, source)),
+        rerun,
+        evidence: {
+          kind: "typing",
+          node: place,
+          field,
+          paint_at: entry.startTime,
+          before: { at: typing.at, rect: box(before.rect), layout: before.layout },
+          after: { at: sample.at, rect: box(after.rect), layout: after.layout },
+        },
+      });
+    }
+  };
+  const gate = (entry, frame, next, rendering) => {
+    const at = entry.startTime;
+    const typing = rendering?.typing;
+    if (typing && at <= typing.until) {
+      if (frame !== -1) typedNatively(entry, typing, next);
+      return;
+    }
+    // Input dispatched in the painting frame comes after the frame's start, so the
+    // frame's own sampling time is owned too, as the ledger's audit has it.
+    const sampled = frames[frame]?.at ?? at;
+    if (
+      presenting(entry) ||
+      presenting({ startTime: frames[frame]?.start ?? at }) ||
+      inputOwns(at) ||
+      inputOwns(sampled)
+    )
+      return;
+    const latest = renderings.findLast(({ start }) => start <= sampled);
+    if (latest?.typing && sampled <= latest.typing.until) return;
+    const nodes = entry.sources.map(sourceNode);
+    const names = entry.sources.map((source, i) => sourceName(nodes[i], source));
+    const sources = entry.sources.map((source, i) => ({
+      node: names[i],
+      before: box(source.previousRect),
+      after: box(source.currentRect),
+    }));
+    entry.sources.forEach((source, i) => {
+      if (declared(nodes[i], source)) return;
+      report(`moved ${names[i]}`, {
+        code: "moved-without-input",
+        node: names[i],
+        by: by(source.previousRect, source.currentRect),
+        beside: names.filter((_, j) => j !== i),
+        rerun,
+        evidence: { kind: "native", paint_at: at, value: entry.value, sources },
+      });
+    });
+  };
   // Native observer delivery can precede the next health frame. Its passive pose
   // belongs to the native paint it reports; a later input cannot replace that pose
   // with its own geometry merely because health-frame sampling was delayed.
@@ -2279,6 +2540,10 @@
         continue;
       }
       const rendering = renderings.findLast(({ start }) => start <= at);
+      if (!ledger) {
+        gate(entry, frame, next, rendering);
+        continue;
+      }
       if (observed && frame !== -1)
         protectedMotion([frames[frame], frames[frame], observed]);
       const typing = rendering?.typing;
@@ -2296,7 +2561,7 @@
   const received = (entries) => {
     announce();
     resized();
-    for (const entry of entries) {
+    for (const entry of ledger ? entries : []) {
       const frame = frames.findLastIndex(({ start }) => start <= entry.startTime);
       // Layout follows the entering frame callback. Counted work can still own
       // that frame when the paint's timestamp is newer than its sampled pose. A

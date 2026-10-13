@@ -1,5 +1,7 @@
-"""The browser fixture fails the layout shifts the "Stability" rule forbids
-(`shift_watch.js`): a shift without input, and typing that carries its field."""
+"""The shift watch's ledger fails the layout shifts the "Stability" rule forbids
+(`shift_watch.js`): a shift without input, and typing that carries its field. Every
+test here runs the ledger; `test_render_shift_gate.py` holds the gate every other
+test runs."""
 
 from datetime import UTC, datetime
 from html import escape
@@ -19,6 +21,9 @@ from render_harness import (
     open_page,
     take_browser_errors,
 )
+
+# These tests prove the ledger's readings and credits.
+pytestmark = pytest.mark.shift_ledger
 
 # A field below a box. A key landing in the field grows the box above it, carrying the
 # field, or grows the field itself, as the page's `data-key` says.

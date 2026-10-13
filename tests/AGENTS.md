@@ -346,12 +346,18 @@ but those in a module marked `shifts_unsurveyed`, which await a fresh survey aft
 widget prepaint fixes. Surveyed tests in those modules opt in with `watch_shifts`
 (`render_harness.watches_shifts`). The watcher still
 exempts first presentation, whose remaining defects the widget quality check records
-in `known_widget_findings.py`. Playwright's clicks and keys are input, as is a
+in `known_widget_findings.py`. Playwright's clicks, keys and `fill` are input, as is a
 viewport resize; a script's `click()`, a `value` written by script, and the server's
-news are not. Chrome's recent-input window can nevertheless mask a shift for half a
-second after a click, so a test proving a news update's stability delivers it after
-that window. Fix what moved rather than consuming the report; shift reports have no
+news are not. Fix what moved rather than consuming the report; shift reports have no
 per-test allowances.
+
+The watch has two modes, which its header describes. Every test runs its gate, which
+judges Chrome's layout-shift entries by the watch's own record of input and names at
+most the five boxes Chrome attributes. `LEAF_SHIFT_LEDGER=1` runs its ledger instead,
+which reads every box on each changed frame to say what moved and from where; a gate
+failure names that setting. The watch's own tests choose their mode with the
+`shift_ledger` marker, as does a test whose page Chrome misreads, such as an editor
+reusing a line's box for other words.
 
 Typed words leaving the screen without a key or press, which the "Words stay where
 they were typed" rule forbids, is one too (`words_watch.js`), in every test of every

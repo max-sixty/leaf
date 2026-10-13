@@ -124,579 +124,572 @@ const soleSubstantiveElement = (owner) => {
   return children.length === 1 && children[0] instanceof Element ? children[0] : null;
 };
 
-customElements.define(
-  "lf-tabs",
-  class extends HTMLElement {
-    #buttons = new Map(); // panel → its strip button
-    #stopAsks = null;
-    #active = null;
-    #root = false;
-    #contextObserver = null;
-    #strip = null;
-    #covering = false;
-    #side = false;
-    #pageFlow = false;
-    #revealMotion = null;
-    #stopList = null;
+export default class extends HTMLElement {
+  #buttons = new Map(); // panel → its strip button
+  #stopAsks = null;
+  #active = null;
+  #root = false;
+  #contextObserver = null;
+  #strip = null;
+  #covering = false;
+  #side = false;
+  #pageFlow = false;
+  #revealMotion = null;
+  #stopList = null;
 
-    connectedCallback() {
-      if (!once(this)) {
-        this.#watchRootContext();
-        this.#syncRootContext();
-        return;
-      }
-      // Own panels only (a nested lf-tabs wires its own).
-      const panels = [...this.querySelectorAll(":scope > lf-tab")];
-      if (!panels.length) return;
-      const side = this.getAttribute("list") === "side";
-      this.#side = side;
+  connectedCallback() {
+    if (!once(this)) {
       this.#watchRootContext();
       this.#syncRootContext();
-      // The strip is a thing to work, and its tabs ride inside it, so paper drops the
-      // whole row and puts each panel's label back on the panel. What a tab says is not
-      // the strip's word though — it is the panel's name, and once the strip exists it
-      // is the only place that name is written. So the name goes in its own span,
-      // declared the page speaking, and the anchor pass reads it over the chrome around
-      // it: a user points at a tab's name the way they point at a heading. Its own
-      // span rather than the tab's whole text, because the Δ count lands here too and
-      // it is the runtime talking about the document.
-      //
-      // A press is a span wearing the role rather than a <button> (see `offer`), which
-      // is what makes a drag across the name possible at all.
-      const strip = offer("div", "lf-tabstrip");
-      this.#strip = strip;
-      strip.setAttribute("role", "tablist");
-      if (side) strip.setAttribute("aria-orientation", "vertical");
-      strip.append(this.#edge("start"));
-      // A queue sorts its items by the panels' `group`: each run of neighbouring panels
-      // with one group, or with none, is a box of its own in the list, so the list
-      // draws where one run ends and the next begins. A grouped run opens with a label
-      // of its group, the page's words. The label is no tab, so the walk passes it by,
-      // and a tablist holds only tabs, so the run is no role and the label is hidden
-      // from assistive technology, which hears the group in each tab's description
-      // instead (`#marks`). Any other set holds its tabs in the strip itself.
-      let run = strip;
-      for (const [index, panel] of panels.entries()) {
-        const group = panel.getAttribute("group");
-        if (side && (!index || group !== panels[index - 1].getAttribute("group"))) {
-          run = document.createElement("div");
-          run.className = "lf-tab-run";
-          run.setAttribute("role", "none");
-          if (group) {
-            const label = document.createElement("span");
-            label.className = "lf-tab-group";
-            label.setAttribute("aria-hidden", "true");
-            relabel(label, group, { says: true });
-            run.append(label);
-          }
-          strip.append(run);
+      return;
+    }
+    // Own panels only (a nested lf-tabs wires its own).
+    const panels = [...this.querySelectorAll(":scope > lf-tab")];
+    if (!panels.length) return;
+    const side = this.getAttribute("list") === "side";
+    this.#side = side;
+    this.#watchRootContext();
+    this.#syncRootContext();
+    // The strip is a thing to work, and its tabs ride inside it, so paper drops the
+    // whole row and puts each panel's label back on the panel. What a tab says is not
+    // the strip's word though — it is the panel's name, and once the strip exists it
+    // is the only place that name is written. So the name goes in its own span,
+    // declared the page speaking, and the anchor pass reads it over the chrome around
+    // it: a user points at a tab's name the way they point at a heading. Its own
+    // span rather than the tab's whole text, because the Δ count lands here too and
+    // it is the runtime talking about the document.
+    //
+    // A press is a span wearing the role rather than a <button> (see `offer`), which
+    // is what makes a drag across the name possible at all.
+    const strip = offer("div", "lf-tabstrip");
+    this.#strip = strip;
+    strip.setAttribute("role", "tablist");
+    if (side) strip.setAttribute("aria-orientation", "vertical");
+    strip.append(this.#edge("start"));
+    // A queue sorts its items by the panels' `group`: each run of neighbouring panels
+    // with one group, or with none, is a box of its own in the list, so the list
+    // draws where one run ends and the next begins. A grouped run opens with a label
+    // of its group, the page's words. The label is no tab, so the walk passes it by,
+    // and a tablist holds only tabs, so the run is no role and the label is hidden
+    // from assistive technology, which hears the group in each tab's description
+    // instead (`#marks`). Any other set holds its tabs in the strip itself.
+    let run = strip;
+    for (const [index, panel] of panels.entries()) {
+      const group = panel.getAttribute("group");
+      if (side && (!index || group !== panels[index - 1].getAttribute("group"))) {
+        run = document.createElement("div");
+        run.className = "lf-tab-run";
+        run.setAttribute("role", "none");
+        if (group) {
+          const label = document.createElement("span");
+          label.className = "lf-tab-group";
+          label.setAttribute("aria-hidden", "true");
+          relabel(label, group, { says: true });
+          run.append(label);
         }
-        const btn = selectableOffer("tab", "lf-tab-btn");
-        btn.setAttribute("aria-controls", panel.id);
-        const name = document.createElement("span");
-        name.className = "lf-tab-name";
-        relabel(name, panel.getAttribute("label"), { says: true });
-        btn.append(name);
-        btn.setAttribute("aria-label", panel.getAttribute("label"));
-        // A queue's row says more than its name: in a side list the panel's `summary`
-        // stands under it, the page's words like the name.
-        if (side && panel.hasAttribute("summary")) {
-          const summary = document.createElement("span");
-          summary.className = "lf-tab-summary";
-          relabel(summary, panel.getAttribute("summary"), { says: true });
-          btn.append(summary);
-        }
-        // The row's ask state (`#marks`) stands where the panel authors an ask; before the
-        // Δ count, which takes the next column.
-        if (side && elementsDeclaring(panel, "x-awaits").length) {
-          const answer = document.createElement("span");
-          answer.className = "lf-tab-answer";
-          answer.setAttribute("aria-hidden", "true");
-          const words = document.createElement("span");
-          words.className = "lf-tab-answer-words";
-          answer.append(words);
-          btn.append(answer);
-        }
-        const chip = document.createElement("span");
-        chip.className = "lf-tabdiff";
-        chip.setAttribute("aria-hidden", "true");
-        btn.append(chip);
-        btn.onclick = () => this.#activate(panel, "ordinary");
-        run.append(btn);
-        this.#buttons.set(panel, btn);
-        panel.setAttribute("role", "tabpanel");
-        panel.setAttribute("aria-label", panel.getAttribute("label"));
-        // The browser found something inside (find-in-page, an anchor jump), or
-        // the runtime is about to scroll a comment anchor into view: open up.
-        panel.addEventListener("beforematch", () => this.#activate(panel, "reveal"));
-        panel.addEventListener("lf-reveal", (event) => {
-          if (this.#active && this.#active !== panel) event.detail.replacedView();
-          const ready = this.#activate(panel, "reveal");
-          event.detail?.present?.(ready);
-        });
+        strip.append(run);
       }
-      // Roving focus per the ARIA tabs pattern: arrows move and activate, and wrap, which
-      // is a fact about this walk and so belongs in the words that name it.
-      const walk = (to) => {
-        const order = [...this.#buttons.values()];
-        // The strip takes no tab stop of its own, so focus inside it — which is the
-        // whole of when this scope holds — is always one of these buttons.
-        const at = order.indexOf(focused());
-        const next = order[to(at, order.length)];
-        // The strip is always on screen; focus scrolling a stuck tab back to its place
-        // in flow would move the view being left before the switch records it.
-        focusDestination(next, "move");
-        next.click();
-        beginWalk("tab", "Tab", () =>
-          listWalkPosition([...this.#buttons.values()], focused()),
-        );
-      };
-      // Across the row, back is the way the names run from.
-      const [back, ahead] = rowArrows(this);
-      commands(strip, "On a tab", [
-        {
-          id: "tab.activate",
-          keys: PRESS,
-          title: "open the tab",
-
-          // The tab already open has nothing for this press to do, so the line does not
-          // name it there; the walk beside it is what moves.
-          when: () => focused()?.getAttribute("aria-selected") !== "true",
-          run: () => focused().click(),
-        },
-        {
-          id: "tab.walk",
-          // A list standing beside its panels is read down, so it walks down too.
-          keys: side
-            ? ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]
-            : ["ArrowLeft", "ArrowRight"],
-          routes: [
-            ...(side
-              ? [
-                  { id: "tab.up", binding: "ArrowUp", title: "Previous tab" },
-                  { id: "tab.down", binding: "ArrowDown", title: "Next tab" },
-                ]
-              : []),
-            { id: "tab.previous", binding: back, title: "Previous tab" },
-            { id: "tab.next", binding: ahead, title: "Next tab" },
-          ],
-          title: "walk the tabs",
-          repeat: true,
-          run: (binding) =>
-            walk((at, n) =>
-              [ahead, "ArrowDown"].includes(binding) ? (at + 1) % n : (at - 1 + n) % n,
-            ),
-        },
-        {
-          id: "tab.edge",
-          keys: ["Home", "End"],
-          routes: [
-            { id: "tab.first", binding: "Home", title: "First tab" },
-            { id: "tab.last", binding: "End", title: "Last tab" },
-          ],
-          title: "first / last",
-          run: (binding) => walk((at, n) => (binding === "Home" ? 0 : n - 1)),
-        },
-      ]);
-      strip.append(this.#edge("end"));
-      this.prepend(strip);
-      this.#declareHeader();
-      this.classList.add("lf-rendered"); // the upgraded marker every widget uses
-      // Open on the tab the first paint showed: the one the address names, or this
-      // user's last, whose id resolves in later versions because check forbids
-      // dropping ids. It opens here, during upgrade, so the runtime's view restore
-      // measures final geometry.
-      this.#activate(openingView(this, panels), "arrival");
-      if (this.#root) {
-        this.#replaceLocation(this.#active);
+      const btn = selectableOffer("tab", "lf-tab-btn");
+      btn.setAttribute("aria-controls", panel.id);
+      const name = document.createElement("span");
+      name.className = "lf-tab-name";
+      relabel(name, panel.getAttribute("label"), { says: true });
+      btn.append(name);
+      btn.setAttribute("aria-label", panel.getAttribute("label"));
+      // A queue's row says more than its name: in a side list the panel's `summary`
+      // stands under it, the page's words like the name.
+      if (side && panel.hasAttribute("summary")) {
+        const summary = document.createElement("span");
+        summary.className = "lf-tab-summary";
+        relabel(summary, panel.getAttribute("summary"), { says: true });
+        btn.append(summary);
       }
-      // The Δ count follows the version diff; the runtime announces each toggle.
-      this.#listenForAsks();
-      watchComparison(this, () => this.#marks());
-      whileConnected(this, (signal) => {
-        this.#watchRootContext();
-        this.#syncRootContext();
-        this.#listenForHistory(signal);
-        const stripSize = this.#watchStrip();
-        const stopPanels = this.#side
-          ? [...this.#buttons.keys()].map((panel) =>
-              registerReadingRegion({
-                id: compoundReadingRegionId(this, `panel-${panel.id}`),
-                host: panel,
-                body: panel,
-              }),
-            )
-          : [];
-        this.#syncRegions();
-        return () => {
-          for (const stop of stopPanels) stop();
-          this.#stopList?.();
-          this.#stopList = null;
-          this.#revealMotion?.cancel();
-          this.#revealMotion = null;
-          stripSize.disconnect();
-          this.#contextObserver?.disconnect();
-          this.#contextObserver = null;
-          this.#covering = false;
-          syncRootHeader();
-        };
+      // The row's ask state (`#marks`) stands where the panel authors an ask; before the
+      // Δ count, which takes the next column.
+      if (side && elementsDeclaring(panel, "x-awaits").length) {
+        const answer = document.createElement("span");
+        answer.className = "lf-tab-answer";
+        answer.setAttribute("aria-hidden", "true");
+        const words = document.createElement("span");
+        words.className = "lf-tab-answer-words";
+        answer.append(words);
+        btn.append(answer);
+      }
+      const chip = document.createElement("span");
+      chip.className = "lf-tabdiff";
+      chip.setAttribute("aria-hidden", "true");
+      btn.append(chip);
+      btn.onclick = () => this.#activate(panel, "ordinary");
+      run.append(btn);
+      this.#buttons.set(panel, btn);
+      panel.setAttribute("role", "tabpanel");
+      panel.setAttribute("aria-label", panel.getAttribute("label"));
+      // The browser found something inside (find-in-page, an anchor jump), or
+      // the runtime is about to scroll a comment anchor into view: open up.
+      panel.addEventListener("beforematch", () => this.#activate(panel, "reveal"));
+      panel.addEventListener("lf-reveal", (event) => {
+        if (this.#active && this.#active !== panel) event.detail.replacedView();
+        const ready = this.#activate(panel, "reveal");
+        event.detail?.present?.(ready);
       });
     }
+    // Roving focus per the ARIA tabs pattern: arrows move and activate, and wrap, which
+    // is a fact about this walk and so belongs in the words that name it.
+    const walk = (to) => {
+      const order = [...this.#buttons.values()];
+      // The strip takes no tab stop of its own, so focus inside it — which is the
+      // whole of when this scope holds — is always one of these buttons.
+      const at = order.indexOf(focused());
+      const next = order[to(at, order.length)];
+      // The strip is always on screen; focus scrolling a stuck tab back to its place
+      // in flow would move the view being left before the switch records it.
+      focusDestination(next, "move");
+      next.click();
+      beginWalk("tab", "Tab", () =>
+        listWalkPosition([...this.#buttons.values()], focused()),
+      );
+    };
+    // Across the row, back is the way the names run from.
+    const [back, ahead] = rowArrows(this);
+    commands(strip, "On a tab", [
+      {
+        id: "tab.activate",
+        keys: PRESS,
+        title: "open the tab",
 
-    // A side list's panels are reading regions whatever their posture, as panes are, so
-    // the user's place in an item survives the workspace flowing and filling the window
-    // again. Its list is one only while it is a column scrolling on its own, while the
-    // set is told it has a definite height to fill (`--lf-full-height`, theme.css):
-    // elsewhere the strip keeps its open tab in view itself (`#showTab`), and observed
-    // as a region there, its own scrolling as it turned into a row ended the size
-    // observers' pass with notifications undelivered. Whether the set is told follows
-    // the window, so the strip's size observer asks again.
-    #syncRegions() {
-      if (!this.#side || !this.isConnected) return;
-      const told =
-        getComputedStyle(this).getPropertyValue("--lf-full-height").trim() === "1";
-      if (told === Boolean(this.#stopList)) return;
-      this.#stopList?.();
-      this.#stopList = told
-        ? registerReadingRegion({
-            id: compoundReadingRegionId(this, "list"),
-            host: this.#strip,
-            body: this.#strip,
-          })
-        : null;
+        // The tab already open has nothing for this press to do, so the line does not
+        // name it there; the walk beside it is what moves.
+        when: () => focused()?.getAttribute("aria-selected") !== "true",
+        run: () => focused().click(),
+      },
+      {
+        id: "tab.walk",
+        // A list standing beside its panels is read down, so it walks down too.
+        keys: side
+          ? ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]
+          : ["ArrowLeft", "ArrowRight"],
+        routes: [
+          ...(side
+            ? [
+                { id: "tab.up", binding: "ArrowUp", title: "Previous tab" },
+                { id: "tab.down", binding: "ArrowDown", title: "Next tab" },
+              ]
+            : []),
+          { id: "tab.previous", binding: back, title: "Previous tab" },
+          { id: "tab.next", binding: ahead, title: "Next tab" },
+        ],
+        title: "walk the tabs",
+        repeat: true,
+        run: (binding) =>
+          walk((at, n) =>
+            [ahead, "ArrowDown"].includes(binding) ? (at + 1) % n : (at - 1 + n) % n,
+          ),
+      },
+      {
+        id: "tab.edge",
+        keys: ["Home", "End"],
+        routes: [
+          { id: "tab.first", binding: "Home", title: "First tab" },
+          { id: "tab.last", binding: "End", title: "Last tab" },
+        ],
+        title: "first / last",
+        run: (binding) => walk((at, n) => (binding === "Home" ? 0 : n - 1)),
+      },
+    ]);
+    strip.append(this.#edge("end"));
+    this.prepend(strip);
+    this.#declareHeader();
+    this.classList.add("lf-rendered"); // the upgraded marker every widget uses
+    // Open on the tab the first paint showed: the one the address names, or this
+    // user's last, whose id resolves in later versions because check forbids
+    // dropping ids. It opens here, during upgrade, so the runtime's view restore
+    // measures final geometry.
+    this.#activate(openingView(this, panels), "arrival");
+    if (this.#root) {
+      this.#replaceLocation(this.#active);
     }
-
-    // What each panel holds, said with its summary as the tab's description: the
-    // version diff's marked passages, and in a side list its asks' state, with the answer
-    // once they are all answered.
-    #marks() {
-      for (const [panel, btn] of this.#buttons) {
-        const changed = comparisonChanges(panel).length;
-        keepsText(
-          btn.querySelector(":scope > .lf-tabdiff"),
-          changed ? `Δ${changed}` : "",
-        );
-        const slot = btn.querySelector(":scope > .lf-tab-answer");
-        const asks = slot ? asksIn(panel) : [];
-        const done = asks.filter((ask) => ask.status === "answered");
-        const answered = asks.length > 0 && done.length === asks.length;
-        const only = asks.length === 1 ? asks[0] : null;
-        const answer = answered && only ? askWords(only) : "";
-        if (slot) {
-          keeps(
-            slot,
-            "data-lf-asks",
-            answered ? "answered" : asks.length ? "open" : null,
-          );
-          keepsText(slot.firstElementChild, answer);
-        }
-        const group = this.#side && panel.getAttribute("group");
-        const description = [
-          group && `${group} group`,
-          panel.getAttribute("summary"),
-          changed === 1 ? "1 change" : changed ? `${changed} changes` : "",
-          !asks.length
-            ? ""
-            : !answered
-              ? only
-                ? "Unanswered"
-                : `${done.length} of ${asks.length} answered`
-              : only
-                ? answer
-                  ? `Answered: ${answer}`
-                  : "Answered"
-                : `All ${asks.length} answered`,
-        ]
-          .filter(Boolean)
-          .join(". ");
-        keeps(btn, "aria-description", description || null);
-      }
-    }
-
-    // A side list's answers follow the page's ask reading.
-    #listenForAsks() {
-      if (!this.#side || !this.#buttons.size || this.#stopAsks) return;
-      this.#stopAsks = watchAsks(this, () => this.#marks());
-    }
-
-    #activate(active, reason) {
-      if (!this.#buttons.has(active)) return;
-      // The open tab pressed again, or walked to, is the user's way back to it after
-      // scrolling the row away.
-      if (active === this.#active) {
-        this.#showTab(this.#buttons.get(active));
-        return Promise.resolve();
-      }
-      const previous = this.#active;
-      // A press or a traversal between views switches them; a reveal is travel to
-      // something inside the view, which the traveller lands.
-      const switched = this.#pageFlow && ["ordinary", "history"].includes(reason);
-      const pinnedBox =
-        previous &&
-        !this.#pageFlow &&
-        !this.#side &&
-        reason === "ordinary" &&
-        this.getBoundingClientRect().top < this.#strip.getBoundingClientRect().top - 1;
-      const change = () => {
-        const from = pageScroller.scrollTop;
-        if (this.#pageFlow && previous) this.#leave(previous);
-        if (this.#root && reason === "ordinary") this.#pushLocation(active);
-        // Whatever opened another view, the entry the user stands on names it, so
-        // Back and Forward to that entry return to this view. A fragment already
-        // inside it (a link's target) says so and stays.
-        else if (
-          this.#root &&
-          reason === "reveal" &&
-          this.#panelForLocation([active]) !== active
-        )
-          replaceEntry(this.#locationFor(active));
-        for (const [panel, btn] of this.#buttons) {
-          keeps(panel, "hidden", panel === active ? null : HIDDEN);
-          // A tabpanel of prose has no focusable content, so Tab reaches the open
-          // panel itself. hidden="until-found" skips only what a panel holds, not
-          // the panel. A scrolling panel also takes a native browser stop without
-          // tabindex, so explicitly exclude closed panels from the tab order.
-          keeps(panel, "tabindex", panel === active ? 0 : -1);
-          keeps(btn, "aria-selected", panel === active);
-        }
-        rove(this.#buttons.values(), this.#buttons.get(active));
-        this.#active = active;
-        const button = this.#buttons.get(active);
-        this.#showTab(button);
+    // The Δ count follows the version diff; the runtime announces each toggle.
+    this.#listenForAsks();
+    watchComparison(this, () => this.#marks());
+    whileConnected(this, (signal) => {
+      this.#watchRootContext();
+      this.#syncRootContext();
+      this.#listenForHistory(signal);
+      const stripSize = this.#watchStrip();
+      const stopPanels = this.#side
+        ? [...this.#buttons.keys()].map((panel) =>
+            registerReadingRegion({
+              id: compoundReadingRegionId(this, `panel-${panel.id}`),
+              host: panel,
+              body: panel,
+            }),
+          )
+        : [];
+      this.#syncRegions();
+      return () => {
+        for (const stop of stopPanels) stop();
+        this.#stopList?.();
+        this.#stopList = null;
         this.#revealMotion?.cancel();
         this.#revealMotion = null;
-        // A destination walk can change tabs without touching the strip. Give its
-        // selected name one quiet highlight; focus stays on the destination, and
-        // motion's shared gate answers reduced motion and initial presentation.
-        if (previous && reason === "reveal") {
-          const name = button.querySelector(":scope > .lf-tab-name");
-          this.#revealMotion = backgroundFlash(name, 650);
-        }
-        if (switched) this.#open(active, from);
-        else if (pinnedBox) scrollIntoReadingBand(this, this, "start", "instant");
-        else if (reason === "history") this.#land();
-        keepView(this, active);
-        const presentation = [];
-        for (const panel of [previous, active].filter(Boolean)) {
-          const child = soleSubstantiveElement(panel);
-          if (child) presentation.push(layoutChanged(child));
-        }
-        presentation.push(layoutChanged(this));
-        return Promise.all(presentation);
+        stripSize.disconnect();
+        this.#contextObserver?.disconnect();
+        this.#contextObserver = null;
+        this.#covering = false;
+        syncRootHeader();
       };
-      return this.#pageFlow && previous
-        ? preserveReadingRegions(this, change)
-        : change();
-    }
+    });
+  }
 
-    // The panel holding what the fragment names, read as Leaf's own arrival reads it, so
-    // the traversal and the landing agree on an id inside a widget's shadow tree.
-    #panelForLocation(panels, hash = location.hash) {
-      if (!this.#root) return null;
-      const target = fragmentTarget(hash);
-      return target ? (panels.find((panel) => under(target, panel)) ?? null) : null;
-    }
+  // A side list's panels are reading regions whatever their posture, as panes are, so
+  // the user's place in an item survives the workspace flowing and filling the window
+  // again. Its list is one only while it is a column scrolling on its own, while the
+  // set is told it has a definite height to fill (`--lf-full-height`, theme.css):
+  // elsewhere the strip keeps its open tab in view itself (`#showTab`), and observed
+  // as a region there, its own scrolling as it turned into a row ended the size
+  // observers' pass with notifications undelivered. Whether the set is told follows
+  // the window, so the strip's size observer asks again.
+  #syncRegions() {
+    if (!this.#side || !this.isConnected) return;
+    const told =
+      getComputedStyle(this).getPropertyValue("--lf-full-height").trim() === "1";
+    if (told === Boolean(this.#stopList)) return;
+    this.#stopList?.();
+    this.#stopList = told
+      ? registerReadingRegion({
+          id: compoundReadingRegionId(this, "list"),
+          host: this.#strip,
+          body: this.#strip,
+        })
+      : null;
+  }
 
-    #syncRootContext() {
-      const wasFlow = this.#pageFlow;
-      // The first tab set directly in the page is its navigation, whatever else the page
-      // holds beside it; a later one is a tabbed section like any nested set.
-      const main = this.parentElement;
-      this.#root =
-        Boolean(main?.matches("body > main")) &&
-        main.querySelector(":scope > lf-tabs") === this;
-      this.#pageFlow = this.#root && !this.#side;
-      keeps(this, "data-lf-tabs-flow", this.#pageFlow ? "page" : "box");
-      this.#declareHeader();
-      // A set that changed flow drew its open panel at another width.
-      if (wasFlow !== this.#pageFlow && this.#active) {
-        const child = soleSubstantiveElement(this.#active);
-        if (child) layoutChanged(child);
-        layoutChanged(this);
+  // What each panel holds, said with its summary as the tab's description: the
+  // version diff's marked passages, and in a side list its asks' state, with the answer
+  // once they are all answered.
+  #marks() {
+    for (const [panel, btn] of this.#buttons) {
+      const changed = comparisonChanges(panel).length;
+      keepsText(
+        btn.querySelector(":scope > .lf-tabdiff"),
+        changed ? `Δ${changed}` : "",
+      );
+      const slot = btn.querySelector(":scope > .lf-tab-answer");
+      const asks = slot ? asksIn(panel) : [];
+      const done = asks.filter((ask) => ask.status === "answered");
+      const answered = asks.length > 0 && done.length === asks.length;
+      const only = asks.length === 1 ? asks[0] : null;
+      const answer = answered && only ? askWords(only) : "";
+      if (slot) {
+        keeps(
+          slot,
+          "data-lf-asks",
+          answered ? "answered" : asks.length ? "open" : null,
+        );
+        keepsText(slot.firstElementChild, answer);
       }
+      const group = this.#side && panel.getAttribute("group");
+      const description = [
+        group && `${group} group`,
+        panel.getAttribute("summary"),
+        changed === 1 ? "1 change" : changed ? `${changed} changes` : "",
+        !asks.length
+          ? ""
+          : !answered
+            ? only
+              ? "Unanswered"
+              : `${done.length} of ${asks.length} answered`
+            : only
+              ? answer
+                ? `Answered: ${answer}`
+                : "Answered"
+              : `All ${asks.length} answered`,
+      ]
+        .filter(Boolean)
+        .join(". ");
+      keeps(btn, "aria-description", description || null);
     }
+  }
 
-    #watchRootContext() {
-      this.#contextObserver?.disconnect();
-      this.#contextObserver = null;
-      const main = this.parentElement;
-      if (!main?.matches("body > main")) return;
-      // Only a tab set arriving or leaving among main's children can change which is
-      // first.
-      this.#contextObserver = new MutationObserver(() => this.#syncRootContext());
-      this.#contextObserver.observe(main, { childList: true });
+  // A side list's answers follow the page's ask reading.
+  #listenForAsks() {
+    if (!this.#side || !this.#buttons.size || this.#stopAsks) return;
+    this.#stopAsks = watchAsks(this, () => this.#marks());
+  }
+
+  #activate(active, reason) {
+    if (!this.#buttons.has(active)) return;
+    // The open tab pressed again, or walked to, is the user's way back to it after
+    // scrolling the row away.
+    if (active === this.#active) {
+      this.#showTab(this.#buttons.get(active));
+      return Promise.resolve();
     }
+    const previous = this.#active;
+    // A press or a traversal between views switches them; a reveal is travel to
+    // something inside the view, which the traveller lands.
+    const switched = this.#pageFlow && ["ordinary", "history"].includes(reason);
+    const pinnedBox =
+      previous &&
+      !this.#pageFlow &&
+      !this.#side &&
+      reason === "ordinary" &&
+      this.getBoundingClientRect().top < this.#strip.getBoundingClientRect().top - 1;
+    const change = () => {
+      const from = pageScroller.scrollTop;
+      if (this.#pageFlow && previous) this.#leave(previous);
+      if (this.#root && reason === "ordinary") this.#pushLocation(active);
+      // Whatever opened another view, the entry the user stands on names it, so
+      // Back and Forward to that entry return to this view. A fragment already
+      // inside it (a link's target) says so and stays.
+      else if (
+        this.#root &&
+        reason === "reveal" &&
+        this.#panelForLocation([active]) !== active
+      )
+        replaceEntry(this.#locationFor(active));
+      for (const [panel, btn] of this.#buttons) {
+        keeps(panel, "hidden", panel === active ? null : HIDDEN);
+        // A tabpanel of prose has no focusable content, so Tab reaches the open
+        // panel itself. hidden="until-found" skips only what a panel holds, not
+        // the panel. A scrolling panel also takes a native browser stop without
+        // tabindex, so explicitly exclude closed panels from the tab order.
+        keeps(panel, "tabindex", panel === active ? 0 : -1);
+        keeps(btn, "aria-selected", panel === active);
+      }
+      rove(this.#buttons.values(), this.#buttons.get(active));
+      this.#active = active;
+      const button = this.#buttons.get(active);
+      this.#showTab(button);
+      this.#revealMotion?.cancel();
+      this.#revealMotion = null;
+      // A destination walk can change tabs without touching the strip. Give its
+      // selected name one quiet highlight; focus stays on the destination, and
+      // motion's shared gate answers reduced motion and initial presentation.
+      if (previous && reason === "reveal") {
+        const name = button.querySelector(":scope > .lf-tab-name");
+        this.#revealMotion = backgroundFlash(name, 650);
+      }
+      if (switched) this.#open(active, from);
+      else if (pinnedBox) scrollIntoReadingBand(this, this, "start", "instant");
+      else if (reason === "history") this.#land();
+      keepView(this, active);
+      const presentation = [];
+      for (const panel of [previous, active].filter(Boolean)) {
+        const child = soleSubstantiveElement(panel);
+        if (child) presentation.push(layoutChanged(child));
+      }
+      presentation.push(layoutChanged(this));
+      return Promise.all(presentation);
+    };
+    return this.#pageFlow && previous ? preserveReadingRegions(this, change) : change();
+  }
 
-    // A page-flow strip sticks under the banner over the whole document, so it is a
-    // sticky header of the root: its stated height (`--lf-tabstrip-h`, theme.css) joins
-    // the root's `scroll-padding` as `--lf-root-headers`, and every landing arrives
-    // below it. What the strip stands over inside its panels stacks through `--lf-top`
-    // (the package theme). A set that stops being the page's strip withdraws it only
-    // where no other set has become that strip.
-    #declareHeader() {
-      const covering = this.#pageFlow && Boolean(this.#strip?.isConnected);
-      if (covering === this.#covering) return;
-      this.#covering = covering;
-      syncRootHeader();
+  // The panel holding what the fragment names, read as Leaf's own arrival reads it, so
+  // the traversal and the landing agree on an id inside a widget's shadow tree.
+  #panelForLocation(panels, hash = location.hash) {
+    if (!this.#root) return null;
+    const target = fragmentTarget(hash);
+    return target ? (panels.find((panel) => under(target, panel)) ?? null) : null;
+  }
+
+  #syncRootContext() {
+    const wasFlow = this.#pageFlow;
+    // The first tab set directly in the page is its navigation, whatever else the page
+    // holds beside it; a later one is a tabbed section like any nested set.
+    const main = this.parentElement;
+    this.#root =
+      Boolean(main?.matches("body > main")) &&
+      main.querySelector(":scope > lf-tabs") === this;
+    this.#pageFlow = this.#root && !this.#side;
+    keeps(this, "data-lf-tabs-flow", this.#pageFlow ? "page" : "box");
+    this.#declareHeader();
+    // A set that changed flow drew its open panel at another width.
+    if (wasFlow !== this.#pageFlow && this.#active) {
+      const child = soleSubstantiveElement(this.#active);
+      if (child) layoutChanged(child);
+      layoutChanged(this);
     }
+  }
 
-    // A press at one edge of the strip, which pages the names that run past it (the
-    // package theme shows it only while there is more that way). It takes no tab stop:
-    // the tabs are the keyboard's route, and a focused tab brings itself into view.
-    #edge(to) {
-      const edge = document.createElement("span");
-      edge.className = "lf-tabstrip-scroll";
-      edge.dataset.to = to;
-      edge.setAttribute("aria-hidden", "true");
-      const face = document.createElement("span");
-      face.onclick = () => {
-        const strip = this.#strip;
-        const ahead = getComputedStyle(strip).direction === "rtl" ? -1 : 1;
-        strip.scrollBy({
-          left: ahead * (to === "start" ? -0.8 : 0.8) * strip.clientWidth,
-          behavior: scrollBehavior(),
-        });
-      };
-      edge.append(face);
-      return edge;
-    }
+  #watchRootContext() {
+    this.#contextObserver?.disconnect();
+    this.#contextObserver = null;
+    const main = this.parentElement;
+    if (!main?.matches("body > main")) return;
+    // Only a tab set arriving or leaving among main's children can change which is
+    // first.
+    this.#contextObserver = new MutationObserver(() => this.#syncRootContext());
+    this.#contextObserver.observe(main, { childList: true });
+  }
 
-    // A tab the row runs past is scrolled into the strip, and only the strip: a page
-    // strip sticks, and scrolling the page to it would move the view being read. It
-    // stops clear of the edge's press, which the strip states as its inline
-    // `scroll-padding` (the package theme). A row runs past where it holds more names
-    // than it shows. A side list's column runs past only where it scrolls on its own,
-    // in a workspace that fills the window (theme.css), and the tab comes into it the
-    // same way, down the column.
-    // Where the strip has room for it, the tab comes in with its run's label, so the
-    // name of the group the user opened stays beside it.
-    #showTab(btn) {
+  // A page-flow strip sticks under the banner over the whole document, so it is a
+  // sticky header of the root: its stated height (`--lf-tabstrip-h`, theme.css) joins
+  // the root's `scroll-padding` as `--lf-root-headers`, and every landing arrives
+  // below it. What the strip stands over inside its panels stacks through `--lf-top`
+  // (the package theme). A set that stops being the page's strip withdraws it only
+  // where no other set has become that strip.
+  #declareHeader() {
+    const covering = this.#pageFlow && Boolean(this.#strip?.isConnected);
+    if (covering === this.#covering) return;
+    this.#covering = covering;
+    syncRootHeader();
+  }
+
+  // A press at one edge of the strip, which pages the names that run past it (the
+  // package theme shows it only while there is more that way). It takes no tab stop:
+  // the tabs are the keyboard's route, and a focused tab brings itself into view.
+  #edge(to) {
+    const edge = document.createElement("span");
+    edge.className = "lf-tabstrip-scroll";
+    edge.dataset.to = to;
+    edge.setAttribute("aria-hidden", "true");
+    const face = document.createElement("span");
+    face.onclick = () => {
       const strip = this.#strip;
-      if (!btn) return;
-      if (strip.scrollHeight > strip.clientHeight) {
-        const room = strip.getBoundingClientRect();
-        const tab = btn.getBoundingClientRect();
-        const label = btn.parentElement.querySelector(":scope > .lf-tab-group");
-        const named = label && label.getBoundingClientRect();
-        const top =
-          named && tab.bottom - named.top <= room.height ? named.top : tab.top;
-        if (top < room.top) strip.scrollTop -= room.top - top;
-        else if (tab.bottom > room.bottom) strip.scrollTop += tab.bottom - room.bottom;
-      }
-      if (strip.scrollWidth <= strip.clientWidth) return;
+      const ahead = getComputedStyle(strip).direction === "rtl" ? -1 : 1;
+      strip.scrollBy({
+        left: ahead * (to === "start" ? -0.8 : 0.8) * strip.clientWidth,
+        behavior: scrollBehavior(),
+      });
+    };
+    edge.append(face);
+    return edge;
+  }
+
+  // A tab the row runs past is scrolled into the strip, and only the strip: a page
+  // strip sticks, and scrolling the page to it would move the view being read. It
+  // stops clear of the edge's press, which the strip states as its inline
+  // `scroll-padding` (the package theme). A row runs past where it holds more names
+  // than it shows. A side list's column runs past only where it scrolls on its own,
+  // in a workspace that fills the window (theme.css), and the tab comes into it the
+  // same way, down the column.
+  // Where the strip has room for it, the tab comes in with its run's label, so the
+  // name of the group the user opened stays beside it.
+  #showTab(btn) {
+    const strip = this.#strip;
+    if (!btn) return;
+    if (strip.scrollHeight > strip.clientHeight) {
       const room = strip.getBoundingClientRect();
-      const { scrollPaddingLeft, scrollPaddingRight } = getComputedStyle(strip);
-      const left = room.left + (Number.parseFloat(scrollPaddingLeft) || 0);
-      const right = room.right - (Number.parseFloat(scrollPaddingRight) || 0);
       const tab = btn.getBoundingClientRect();
       const label = btn.parentElement.querySelector(":scope > .lf-tab-group");
       const named = label && label.getBoundingClientRect();
-      const box =
-        named &&
-        Math.max(named.right, tab.right) - Math.min(named.left, tab.left) <=
-          right - left
-          ? {
-              left: Math.min(named.left, tab.left),
-              right: Math.max(named.right, tab.right),
-            }
-          : tab;
-      if (box.left < left) strip.scrollLeft -= left - box.left;
-      else if (box.right > right) strip.scrollLeft += box.right - right;
+      const top = named && tab.bottom - named.top <= room.height ? named.top : tab.top;
+      if (top < room.top) strip.scrollTop -= room.top - top;
+      else if (tab.bottom > room.bottom) strip.scrollTop += tab.bottom - room.bottom;
     }
+    if (strip.scrollWidth <= strip.clientWidth) return;
+    const room = strip.getBoundingClientRect();
+    const { scrollPaddingLeft, scrollPaddingRight } = getComputedStyle(strip);
+    const left = room.left + (Number.parseFloat(scrollPaddingLeft) || 0);
+    const right = room.right - (Number.parseFloat(scrollPaddingRight) || 0);
+    const tab = btn.getBoundingClientRect();
+    const label = btn.parentElement.querySelector(":scope > .lf-tab-group");
+    const named = label && label.getBoundingClientRect();
+    const box =
+      named &&
+      Math.max(named.right, tab.right) - Math.min(named.left, tab.left) <= right - left
+        ? {
+            left: Math.min(named.left, tab.left),
+            right: Math.max(named.right, tab.right),
+          }
+        : tab;
+    if (box.left < left) strip.scrollLeft -= left - box.left;
+    else if (box.right > right) strip.scrollLeft += box.right - right;
+  }
 
-    // The open tab stays in the row as the strip's width changes, and not only when a
-    // tab opens: a narrowed window, a panel opening beside the page, or a side list's
-    // column turning into a row would otherwise leave the open tab past the edge. It
-    // scrolls after the observer's delivery, since the scroll shows or hides an edge
-    // press, which the browser would otherwise report as a size change it could not
-    // deliver.
-    #watchStrip() {
-      const stripSize = sizeObserver(this.#positionStrip);
-      stripSize.observe(this.#strip);
-      return stripSize;
+  // The open tab stays in the row as the strip's width changes, and not only when a
+  // tab opens: a narrowed window, a panel opening beside the page, or a side list's
+  // column turning into a row would otherwise leave the open tab past the edge. It
+  // scrolls after the observer's delivery, since the scroll shows or hides an edge
+  // press, which the browser would otherwise report as a size change it could not
+  // deliver.
+  #watchStrip() {
+    const stripSize = sizeObserver(this.#positionStrip);
+    stripSize.observe(this.#strip);
+    return stripSize;
+  }
+
+  #positionStrip = frameFor(this, () => {
+    this.#syncRegions();
+    this.#showTab(this.#buttons.get(this.#active));
+  });
+
+  #listenForHistory(signal) {
+    // Back or Forward to an entry in another view switches to it, as a press does.
+    // One within the open view is the browser's to restore (history.js).
+    claimTraversals(
+      (url) => {
+        if (!this.#root) return null;
+        const view = this.#panelForLocation([...this.#buttons.keys()], url.hash);
+        return view && view !== this.#active
+          ? () => this.#activate(view, "history")
+          : null;
+      },
+      { signal },
+    );
+  }
+
+  #locationFor(panel) {
+    const url = new URL(location.href);
+    url.hash = panel.id;
+    return url;
+  }
+
+  #replaceLocation(panel) {
+    if (!panel || location.hash) return;
+    replaceEntry(this.#locationFor(panel));
+  }
+
+  #pushLocation(panel) {
+    if (location.hash === `#${panel.id}`) return;
+    pushEntry(this.#locationFor(panel));
+  }
+
+  // A page-flow view starts where its strip sticks, so an offset short of that is the
+  // shared header, not a place in the view.
+  #start() {
+    return (
+      this.getBoundingClientRect().top +
+      pageScroller.scrollTop -
+      parseFloat(getComputedStyle(this.#strip).top)
+    );
+  }
+
+  // A view the user read past its start keeps that place as a landmark in its own
+  // words, so the place survives what moves the pixels while the view is hidden: a
+  // resize, a new revision. It is kept per browser tab like the open tab itself, so a
+  // reload still returns each view to its place. A view left at its start keeps none.
+  #leave(panel) {
+    const read = pageScroller.scrollTop > this.#start() + 0.5;
+    tabStore.set(this.#placeKey(panel), read ? JSON.stringify(capturePlace()) : null);
+  }
+
+  // A view reopens at its place. One without keeps the header as the user has it,
+  // clamped to the view's start so a stuck strip stays stuck.
+  #open(panel, from) {
+    const start = this.#start();
+    let place = null;
+    try {
+      place = JSON.parse(tabStore.get(this.#placeKey(panel)));
+    } catch {
+      // An unreadable place is no place.
     }
+    pageScroller.scrollTop = place ? start : Math.min(from, start);
+    if (place) restorePlace(place);
+  }
 
-    #positionStrip = frameFor(this, () => {
-      this.#syncRegions();
-      this.#showTab(this.#buttons.get(this.#active));
-    });
+  // A box's views have no places of their own, and Back or Forward is made from wherever
+  // the user reads: left where it stood, a view shorter than the one it replaced puts
+  // them at the page's end, partway down it. So a traversal lands the set's start, as a
+  // page-flow view without a place lands at its own, and leaves a set already in view
+  // where it is.
+  #land() {
+    if (this.getBoundingClientRect().top < 0)
+      scrollIntoView(this, { block: "start", behavior: "instant" });
+  }
 
-    #listenForHistory(signal) {
-      // Back or Forward to an entry in another view switches to it, as a press does.
-      // One within the open view is the browser's to restore (history.js).
-      claimTraversals(
-        (url) => {
-          if (!this.#root) return null;
-          const view = this.#panelForLocation([...this.#buttons.keys()], url.hash);
-          return view && view !== this.#active
-            ? () => this.#activate(view, "history")
-            : null;
-        },
-        { signal },
-      );
-    }
-
-    #locationFor(panel) {
-      const url = new URL(location.href);
-      url.hash = panel.id;
-      return url;
-    }
-
-    #replaceLocation(panel) {
-      if (!panel || location.hash) return;
-      replaceEntry(this.#locationFor(panel));
-    }
-
-    #pushLocation(panel) {
-      if (location.hash === `#${panel.id}`) return;
-      pushEntry(this.#locationFor(panel));
-    }
-
-    // A page-flow view starts where its strip sticks, so an offset short of that is the
-    // shared header, not a place in the view.
-    #start() {
-      return (
-        this.getBoundingClientRect().top +
-        pageScroller.scrollTop -
-        parseFloat(getComputedStyle(this.#strip).top)
-      );
-    }
-
-    // A view the user read past its start keeps that place as a landmark in its own
-    // words, so the place survives what moves the pixels while the view is hidden: a
-    // resize, a new revision. It is kept per browser tab like the open tab itself, so a
-    // reload still returns each view to its place. A view left at its start keeps none.
-    #leave(panel) {
-      const read = pageScroller.scrollTop > this.#start() + 0.5;
-      tabStore.set(this.#placeKey(panel), read ? JSON.stringify(capturePlace()) : null);
-    }
-
-    // A view reopens at its place. One without keeps the header as the user has it,
-    // clamped to the view's start so a stuck strip stays stuck.
-    #open(panel, from) {
-      const start = this.#start();
-      let place = null;
-      try {
-        place = JSON.parse(tabStore.get(this.#placeKey(panel)));
-      } catch {
-        // An unreadable place is no place.
-      }
-      pageScroller.scrollTop = place ? start : Math.min(from, start);
-      if (place) restorePlace(place);
-    }
-
-    // A box's views have no places of their own, and Back or Forward is made from wherever
-    // the user reads: left where it stood, a view shorter than the one it replaced puts
-    // them at the page's end, partway down it. So a traversal lands the set's start, as a
-    // page-flow view without a place lands at its own, and leaves a set already in view
-    // where it is.
-    #land() {
-      if (this.getBoundingClientRect().top < 0)
-        scrollIntoView(this, { block: "start", behavior: "instant" });
-    }
-
-    #placeKey(panel) {
-      return `${PLACE_KEY}${this.id}:${panel.id}`;
-    }
-  },
-);
+  #placeKey(panel) {
+    return `${PLACE_KEY}${this.id}:${panel.id}`;
+  }
+}

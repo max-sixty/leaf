@@ -144,13 +144,13 @@ def test_a_source_widget_releases_its_fallback_face_when_it_renders(browser, ser
             "</lf-source-stage>"
             '<lf-code id="code" language="python"><pre>print(1)</pre></lf-code>'
             '<lf-diagram id="diagram"><pre>flowchart LR\nA --> B</pre></lf-diagram>'
-            '<lf-diff id="diff"><pre>--- a/a.py\n+++ b/a.py\n'
+            '<lf-diff id="diff"><pre>diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n'
             "@@ -1 +1 @@\n-old\n+new\n</pre></lf-diff>",
         ),
         layer_registry={"lf-source-view": source, "lf-source-stage": stage},
         layer_widgets={
             "lf-source-view.js": """
-customElements.define('lf-source-view', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     if (this.querySelector('button')) return;
     const button = document.createElement('button');
@@ -163,15 +163,15 @@ customElements.define('lf-source-view', class extends HTMLElement {
     });
     this.querySelector('pre').append(button);
   }
-});
+}
 """,
             "lf-source-stage.js": """
 import {shadowStage} from '/runtime/widget-api.js';
-customElements.define('lf-source-stage', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     if (!this.shadowRoot) shadowStage(this, [...this.childNodes]);
   }
-});
+}
 """,
         },
     )
@@ -2488,43 +2488,6 @@ def test_merge_film_inspection_has_touch_and_keyboard_routes(browser, serve):
     film.locator(".film-settings summary").tap()
     film.get_by_label("--no-squash", exact=True).check()
     expect(inspector).to_be_hidden()
-
-
-def test_newer_navigation_wins_while_a_call_diff_target_loads(browser, serve):
-    """A lazy exact-patch fetch must not undo a later tab choice and focus."""
-    example = Path(__file__).parents[2] / "examples" / "pr-walkthrough.html"
-    page = open_page(browser, live_url(serve(example)))
-    page.get_by_role("tab", name="CallDiff").click()
-    held = []
-    page.route("**/api/deferred*", lambda route: held.append(route))
-    page.get_by_role("link", name="src/summary.rs:259").first.click()
-    page.wait_for_function(
-        "() => document.querySelector('#pr-exact-patch').shadowRoot.querySelector('details[open]') !== null"
-    )
-    assert held, "the real exact-patch request must remain pending"
-
-    other = page.get_by_role("tab", name="Behavior diff")
-    other.click()
-    expect(other).to_be_focused()
-    before = page.evaluate(
-        "() => ({url: location.href, y: document.scrollingElement.scrollTop})"
-    )
-    page.unroute("**/api/deferred*")
-    for route in held:
-        route.continue_()
-    line = page.locator(
-        '#pr-exact-patch [data-lf-datum=\'["src/summary.rs","new",259]\']'
-    )
-    expect(line).to_have_count(1)
-    page.evaluate(
-        "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
-    )
-    expect(other).to_be_focused()
-    assert page.url == before["url"]
-    assert (
-        abs(page.evaluate("() => document.scrollingElement.scrollTop") - before["y"])
-        < 2
-    )
 
 
 TALL_BOARD_PAGE = leaf_page(
@@ -10787,9 +10750,9 @@ def test_a_backward_hunk_step_from_the_diff_itself_opens_one_file_and_lands_in_i
 
     Going forward, nothing-focused meant every hunk lay ahead and the walk stopped at the
     first. Going back it meant every hunk lay ahead too, so none lay behind: the walk ran
-    through the whole list, opened each file and fetched its lines, and landed nowhere. A
-    collapsed manifest is where that costs — one fetch per file — so the reading here is
-    the fetch count and the open count beside the landing, on the review's last hunk."""
+    through the whole list, opened each file and landed nowhere. A collapsed manifest
+    already holds each parsed file's evidence, so this step must open only the last
+    file and make no further request for it."""
     url = serve(MANIFEST_DIFF_PAGE)
     data_model.cmd_data_set(
         serve.page_dir,
@@ -10838,9 +10801,7 @@ def test_a_backward_hunk_step_from_the_diff_itself_opens_one_file_and_lands_in_i
         ".querySelectorAll('details[open]').length"
     )
     assert opened == 1, f"the step opened files it never reached: {opened} open"
-    assert len(fetched) == 1, (
-        f"one file's lines were needed, {len(fetched)} were fetched"
-    )
+    assert not fetched, f"opening parsed evidence fetched it again: {fetched}"
 
 
 def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
@@ -11204,11 +11165,11 @@ POINTER_REGISTRY = {
     }
 }
 POINTER_MODULE = """import { indicate } from "/runtime/widget-api.js";
-customElements.define("lf-pointer", class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() { indicate(this, "for", "3-4"); }
   disconnectedCallback() { indicate(this, "for", null); }
   point(key) { return indicate(this, "for", key); }
-});
+};
 """
 
 

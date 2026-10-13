@@ -15,6 +15,7 @@ from interact_support import (
     append_carried_log_record,
     append_command,
     asks_on_user,
+    command_refusal,
     delivered,
     page_packages,
     page_state,
@@ -143,9 +144,8 @@ def test_required_approval_is_an_ask_for_its_exact_stamp_until_approved(page_dir
         "approval",
     }
     assert done(page_dir, approval["id"])[0] == 400
-    refused = leaf("task", "end", page_dir, approval["id"], "done")
-    assert refused.exit_code != 0
-    assert "requires the user's approval of v1" in refused.output
+    refused = command_refusal("task", "end", page_dir, approval["id"], "done")
+    assert (refused.code, refused.values["version"]) == ("approval-ask", 1)
     status, response = endpoint_model.accept_event(
         page_dir, {"kind": "done", "version": 1}, dict
     )
@@ -326,17 +326,14 @@ def test_the_door_refuses_a_todo_off_the_page_and_an_outcome_twice(page_dir):
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "Hm."},
     )
-    missing = leaf("task", "open", page_dir, "no-such-thing", "Anything")
-    assert missing.exit_code != 0
-    assert "names no widget or element" in missing.output
-    unknown = leaf("task", "end", page_dir, "no-such-task", "done")
-    assert unknown.exit_code != 0
-    assert "unknown to-do" in unknown.output
+    missing = command_refusal("task", "open", page_dir, "no-such-thing", "Anything")
+    assert missing.code == "unknown-subject"
+    unknown = command_refusal("task", "end", page_dir, "no-such-task", "done")
+    assert unknown.code == "unknown-todo"
     # Work in a thread is opened by the reply that promises it, so a to-do's subject
     # is never a thread.
-    threaded = leaf("task", "open", page_dir, comment["id"], "Look into it")
-    assert threaded.exit_code != 0
-    assert "event is invalid" in threaded.output
+    threaded = command_refusal("task", "open", page_dir, comment["id"], "Look into it")
+    assert (threaded.code, threaded.values["field"]) == ("invalid-event", "/subject")
 
     todo = written(leaf("task", "open", page_dir, "page", "Look into it"))
     written(leaf("task", "end", page_dir, todo["id"], "dropped", "not needed"))
@@ -616,12 +613,8 @@ def test_working_names_a_move_until_its_answer_and_a_todo_until_its_end(page_dir
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "Tighten it."},
     )
-    refused = leaf("task", "start", page_dir, "no-such-move", "Reading it")
-    assert refused.exit_code != 0
-    assert (
-        "neither an open to-do of yours nor an update you owe an answer to"
-        in refused.output
-    )
+    refused = command_refusal("task", "start", page_dir, "no-such-move", "Reading it")
+    assert refused.code == "unowed-start"
 
     start = written(
         leaf("task", "start", page_dir, comment["id"], "Tightening the plan section")
@@ -713,9 +706,8 @@ def test_a_widget_todo_needs_a_seat_and_a_completing_stamp_ends_it(page_dir):
     `page stamp --completes` ends it done, citing that version."""
     (page_dir / "index.html").write_text(WORK_PAGE)
     publish(page_dir)
-    no_seat = leaf("task", "open", page_dir, "flow", "Redraw the graph")
-    assert no_seat.exit_code != 0
-    assert "has no work seat" in no_seat.output
+    no_seat = command_refusal("task", "open", page_dir, "flow", "Redraw the graph")
+    assert no_seat.code == "no-work-seat"
 
     todo = written(leaf("task", "open", page_dir, "rollout-card", "Check the rollout"))
     assert todo["subject"] == {"kind": "widget", "id": "rollout-card"}
@@ -956,12 +948,11 @@ def test_a_thread_ask_remains_distinct_from_explicit_user_work(page_dir):
             "--ask",
         )
     )
-    refused = leaf(
+    refused = command_refusal(
         "task", "open", page_dir, comment["id"], "Is it enough?", "--on", "user"
     )
     # A to-do's subject is never a thread; the thread asks with `--ask`.
-    assert refused.exit_code != 0
-    assert "event is invalid" in refused.output
+    assert (refused.code, refused.values["field"]) == ("invalid-event", "/subject")
 
     status, answer = done(page_dir, "reply:" + question["id"])
     assert status == 400, answer
@@ -1022,13 +1013,14 @@ def test_widget_ask_ends_through_its_source_and_agent_ends_a_prose_ask(page_dir)
             )["id"]
         )
     answered_elsewhere, dropped = asked
-    refused = leaf("task", "end", page_dir, ask["id"], "dropped", "Decided in chat")
-    assert refused.exit_code != 0
-    assert "is a widget ask; its source owns the answer" in refused.output
-    assert "retire it in the document" in refused.output
-    refused = leaf("task", "end", page_dir, answered_elsewhere, "failed", "No reply")
-    assert refused.exit_code != 0
-    assert "a prose ask ends `done`" in refused.output
+    refused = command_refusal(
+        "task", "end", page_dir, ask["id"], "dropped", "Decided in chat"
+    )
+    assert refused.code == "widget-ask"
+    refused = command_refusal(
+        "task", "end", page_dir, answered_elsewhere, "failed", "No reply"
+    )
+    assert refused.code == "failed-prose-ask"
     assert [item["id"] for item in state_json(page_dir)["queues"]["questions"]] == [
         ask["id"],
         *asked,
@@ -1080,18 +1072,18 @@ def test_widget_ask_ends_through_its_source_and_agent_ends_a_prose_ask(page_dir)
             "detail": {"value": ["flag-first"]},
         },
     )
-    answered = leaf("task", "end", page_dir, ask["id"], "done")
-    assert answered.exit_code != 0
-    assert "is a widget ask; its source owns the answer" in answered.output
+    answered = command_refusal("task", "end", page_dir, ask["id"], "done")
+    assert answered.code == "widget-ask"
 
 
 def test_user_work_cannot_duplicate_a_widget_ask(page_dir):
     """An ask owns the request; opening user work must name that canonical id."""
     asking(page_dir)
     [ask] = asks_on_user(state_json(page_dir))
-    result = leaf("task", "open", page_dir, "choice", "Check evidence", "--on", "user")
-    assert result.exit_code != 0
-    assert "already has ask 'widget:choice'" in result.output
+    result = command_refusal(
+        "task", "open", page_dir, "choice", "Check evidence", "--on", "user"
+    )
+    assert (result.code, result.values["ask"]) == ("duplicate-ask", "widget:choice")
     assert state_json(page_dir)["todos"] == []
     assert asks_on_user(state_json(page_dir)) == [ask]
 
@@ -1256,8 +1248,9 @@ def test_a_start_is_one_log_record_read_at_the_banner_and_the_move(
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "why?"}
     )
-    assert "neither an open to-do of yours nor an update you owe an answer to" in (
-        _start(page_dir, "nope", "reading the traces").output
+    assert (
+        command_refusal("task", "start", page_dir, "nope", "reading the traces").code
+        == "unowed-start"
     )
     assert _start(page_dir, "c1", "").exit_code != 0
 
@@ -1519,12 +1512,8 @@ def test_only_a_declared_widget_work_seat_is_admitted(page_dir, target):
     )
     publish(page_dir)
 
-    claimed = CliRunner().invoke(
-        cli_model.cli,
-        ["task", "open", str(page_dir), target, "Check the estimate"],
-    )
-    assert claimed.exit_code == 1
-    assert "has no work seat" in claimed.output
+    claimed = command_refusal("task", "open", page_dir, target, "Check the estimate")
+    assert claimed.code == "no-work-seat"
 
 
 def test_a_start_is_settled_by_log_order_not_a_second_precision_clock(page_dir):

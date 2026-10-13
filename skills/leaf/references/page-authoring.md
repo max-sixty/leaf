@@ -102,7 +102,8 @@ stands alone, since whoever reads it there has none of the page around it.
 
 Most pages use a reading column, `<main class="layout-column">`. Text stays within
 the column's measure; wider blocks extend beside it without moving the prose.
-Without a Layout class, `main`'s blocks fill the window's width. A diagram or board
+Without a Layout class, Leaf sets no page geometry: the page lays out as the browser
+lays out plain HTML, and `main`'s blocks fill its width. A diagram or board
 declares its preferred width in the registry; `data-width` makes the same request
 for other blocks, such as a wide table ("Bounds and widths", below). Compose the page
 from these:

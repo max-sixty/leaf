@@ -15,6 +15,23 @@
   inherits: false;
 }
 @layer lf-layouts {
+  /* A page Layout owns the page's geometry, the body's included, so a page with no
+   * Layout keeps the browser's. A page Layout takes the window from its edges: the body
+   * drops its margin and, on a live page other than a block sample (whose frame takes
+   * the body's height, theme.css), fills the window's height. `main` trims its
+   * first and last blocks' margins and leaves its own room above and below them
+   * (`--page-pad-start`, `--page-pad-end`); each Layout sets its gutter. */
+  body:has(> main:is(.layout-column, .layout-sidebar, .layout-workspace)) { margin: 0; }
+  @media screen {
+    html[data-lf-live]:not([data-lf-sample-block])
+      body:has(> main:is(.layout-column, .layout-sidebar, .layout-workspace)) {
+      min-height: 100%;
+    }
+  }
+  main:is(.layout-column, .layout-sidebar, .layout-workspace) {
+    --lf-block-frame: trim;
+    padding-block: var(--page-pad-start) var(--page-pad-end);
+  }
   /* The pane role's grammar (theme.css, where its look and the rest of its contract
    * are): which row each child stands in, and a body held to the pane's width with no
    * margin of its own. It is not a Layout a page pulls on, but it resets what a widget

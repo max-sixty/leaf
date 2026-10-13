@@ -75,6 +75,8 @@
   --sidebar-max: 344px;
   --col: 720px;
   --col-pad: 24px;
+  --page-pad-start: 72px;
+  --page-pad-end: 96px;
   --pane-bar-pad: 10px 14px;
   --pane-inset: 14px;
   --wide: 1080px;
@@ -232,7 +234,6 @@ html[data-lf-live][data-lf-floating-chrome] {
 body {
   position: static !important;
   box-sizing: border-box !important;
-  margin: 0;
   background: var(--paper);
   color: var(--ink);
   font: var(--t-4)/1.6 var(--serif);
@@ -250,7 +251,6 @@ html {
     scroll-padding-top: calc(var(--lf-top-covered) + var(--lf-landing-room));
     scroll-padding-bottom: calc(var(--lf-bottom-bar-h) + max(12px, var(--focus-ring-room)));
     body {
-      min-height: 100%;
       padding-bottom: var(--lf-bottom-bar-h);
     }
     body::before {
@@ -266,12 +266,8 @@ html {
     --lf-bottom-status-bottom: calc(14px + var(--lf-safe-bottom));
     --lf-bottom-status-translate: none;
     overflow-y: hidden;
-    body {
-      min-height: 0;
-    }
-    main {
-      padding-block: 24px;
-    }
+    --page-pad-start: 24px;
+    --page-pad-end: 24px;
   }
 }
 @media screen {
@@ -380,9 +376,7 @@ html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) {
 }
 main {
   position: relative;
-  --lf-block-frame: trim;
   container-name: lf-content-frame;
-  padding-block: 72px 96px;
   --lf-free-l: 0px;
   --lf-free-r: 0px;
 }
@@ -419,9 +413,9 @@ main {
   }
 }
 @media screen and (max-width: 640px) {
-  main {
-    padding-top: 28px;
-    padding-bottom: 72px;
+  :root {
+    --page-pad-start: 28px;
+    --page-pad-end: 72px;
   }
 }
 h1 {

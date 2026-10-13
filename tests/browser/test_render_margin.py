@@ -11008,7 +11008,8 @@ def test_a_pin_keeps_native_presses_inside_painted_walls_reachable(browser, serv
     """No clear seat leaves native controls reachable and the thread in Page Map.
 
     Adjacent painted cards leave no clear seat beside the second card. A pin at
-    its bounded home previously covered Action inside a tinted header.
+    its bounded home previously covered Action inside a tinted header. The cards
+    run edge to edge and end clear of the window's foot.
     """
     cards = "".join(
         f'<section id="card{i}" style="border:1px solid var(--rule);'
@@ -11018,7 +11019,14 @@ def test_a_pin_keeps_native_presses_inside_painted_walls_reachable(browser, serv
         "onclick=\"this.textContent='Opened'\">Action</button></div></section>"
         for i in range(12)
     )
-    url = serve(leaf_page("Pin controls", "<h1>Pin controls</h1>" + cards, layout=None))
+    url = serve(
+        leaf_page(
+            "Pin controls",
+            "<h1>Pin controls</h1>" + cards,
+            head="<style>body { margin: 0 } main { padding-block: 28px 72px }</style>",
+            layout=None,
+        )
+    )
     append_carried_log_record(
         serve.page_dir,
         {

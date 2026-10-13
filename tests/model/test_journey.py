@@ -69,9 +69,7 @@ def test_release_publication_ignores_rebased_resource_urls_in_board():
 
     marker = "71b197da"
     authored = '<main><img src="/page/chart.svg" alt="Current chart"></main>'
-    served = rebase_document(
-        authored, lambda path: f"/_leaf-release/{marker}{path}"
-    )
+    served = rebase_document(authored, lambda path: f"/_leaf-release/{marker}{path}")
     assert marker in served
     assert not journey.board_names_release(served, marker)
 

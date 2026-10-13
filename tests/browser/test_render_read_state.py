@@ -438,15 +438,17 @@ def test_a_message_the_banner_stops_covering_is_read_without_a_scroll(browser, s
 
 
 @pytest.mark.parametrize("pointer", ["fine", "coarse"])
-def test_a_reopening_in_a_page_seat_waits_where_reopen_stood(browser, serve, pointer):
+def test_a_reopening_in_a_page_seat_waits_in_its_resolved_summary(
+    browser, serve, pointer
+):
     """An agent's reply to a resolved thread reopens it. Drawn at once, the reopened
-    thread grew in place under the reader: its new turn and its reply box pushed the
-    page after it down. It stands as drawn, resolved, and its resolved row says what is
-    waiting in Reopen's place, preserving the row's height under either pointer. On a
-    phone a tap opens it; on the desktop `r` on the thread, which reopens a resolved
-    thread, does. The thread shows open, with the new turn after the earlier ones and
-    a reply box. Nothing before the opening is input, so the shift watch checks that
-    the hold moved nothing."""
+    thread would leave the seat's closed Resolved disclosure and grow under the reader:
+    its turns and its reply box pushed the page after it down. It stays folded there,
+    and the disclosure's summary says what is waiting, at the summary's height under
+    either pointer. A tap on the summary, or Enter on it, opens it, and the thread
+    shows open in the disclosure's place, with the new turn after the earlier ones, a
+    reply box, and the keyboard on it. Nothing before the opening is input, so the
+    shift watch checks that the hold moved nothing."""
     context = (
         browser.new_context(
             viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True
@@ -463,27 +465,29 @@ def test_a_reopening_in_a_page_seat_waits_where_reopen_stood(browser, serve, poi
     )
     page = open_page(browser, url, context=context)
     thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
-    _to_upper_third(thread)
+    resolved = page.locator(".lf-resolved-threads")
+    summary = resolved.locator(":scope > summary")
+    expect(summary).to_have_text("Resolved · 1")
+    expect(thread).to_be_hidden()
+    _to_upper_third(resolved)
     if pointer == "fine":
-        # The user stands in the thread as the reply comes, so `r` there is no arrival.
-        # The key before the focus makes the shortcut bar's redraw an answer to input.
+        # The user stands on the summary as the reply comes. The key before the focus
+        # makes the shortcut bar's redraw an answer to input.
         page.keyboard.press("Shift")
-        thread.focus()
-    height = _box_height(thread)
+        summary.focus()
+    height = _box_height(resolved)
     second = _agent_turn(serve.page_dir, root, "The roof cannot wait after all.")
     told(page)
-    row = thread.locator(":scope > .lf-page-thread-resolved")
-    news = row.get_by_role("button", name="Reopened · 1 new reply")
-    expect(news).to_be_visible()
-    expect(row.get_by_role("button", name="Reopen", exact=True)).to_have_count(0)
-    expect(thread.locator(".lf-msg")).to_have_count(2)
-    assert _box_height(thread) == pytest.approx(height, abs=0.5)
+    expect(summary).to_have_text("Resolved · 1 · Reopened · 1 new reply")
+    expect(thread).to_be_hidden()
+    assert _box_height(resolved) == pytest.approx(height, abs=0.5)
 
     if pointer == "coarse":
-        news.tap()
+        summary.tap()
     else:
-        page.keyboard.press("r")
-    expect(row).to_have_count(0)
+        page.keyboard.press("Enter")
+    expect(resolved).to_have_count(0)
+    expect(thread).to_be_focused()
     shown = thread.locator(".lf-msg")
     expect(shown).to_have_count(3)
     assert shown.evaluate_all("turns => turns.map(turn => turn.dataset.event)") == [

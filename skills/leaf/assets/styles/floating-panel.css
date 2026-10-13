@@ -38,6 +38,7 @@
       color-mix(in srgb, var(--ink) 19%, transparent)
     );
     --lf-fp-muted: color-mix(in srgb, var(--ink) 60%, transparent);
+    --lf-fp-quiet: color-mix(in srgb, var(--ink) 38%, transparent);
     --lf-fp-faint: color-mix(in srgb, var(--ink) 8%, transparent);
     --lf-fp-hover: color-mix(in srgb, var(--ink) 5%, transparent);
     --lf-fp-radius: 12px;
@@ -46,7 +47,10 @@
       540px,
       calc(100vw - 24px - var(--lf-safe-left) - var(--lf-safe-right))
     );
-    --lf-fp-view-height: min(440px, calc(100dvh - var(--lf-bottom-bar-h) - 96px));
+    /* A view is as tall as what it holds, up to this: the window less the row's band
+       and a band of the page above the box, so a long thread or list reads in most of
+       the window while the page still shows over it. */
+    --lf-fp-view-height: calc(100dvh - var(--lf-bottom-bar-h) - 160px);
   }
 
   /* The surface: a layer over the whole window, cut to the box's outline by the
@@ -177,17 +181,39 @@
     max-height: 30dvh;
     box-sizing: border-box;
     font: 14px / 22px var(--sans);
+    /* Send and the microphone stand beside the words rather than over their end, so
+       neither the words nor the status saying what the agent does keep room for them. */
+    --lf-field-end-room: 0px;
   }
   .lf-fp-box leaf-text[data-lf-focus] {
     outline: none;
   }
-  /* The empty field's words: the agent's status, a thread's turn, or a passing notice,
-     which reads in ink while it stands. */
-  .lf-fp-box .lf-compose-placeholder {
-    color: var(--lf-fp-muted);
+  /* The empty field's words read dimmer than anything written in it: the agent's
+     status, a thread's turn, and, once the caret is in, where the words go. A passing
+     notice is news, so it reads a step brighter until it passes. While the agent works,
+     its status carries the sheen that marks work under way (chrome.css), from its own
+     dim face to ink and back. The face is the field's placeholder part, so it holds
+     whether the words come with a key drawn beside them or alone. */
+  .lf-fp-box leaf-text::part(placeholder) {
+    color: var(--lf-fp-quiet);
   }
-  .lf-floating-panel[data-notice] .lf-fp-box .lf-compose-placeholder {
-    color: var(--ink);
+  .lf-floating-panel[data-says="notice"] .lf-fp-box leaf-text::part(placeholder) {
+    color: var(--lf-fp-muted);
+    font-weight: 500;
+  }
+  .lf-floating-panel[data-says="status"][data-tone="working"]
+    .lf-fp-box
+    leaf-text::part(placeholder) {
+    color: transparent;
+    background: linear-gradient(
+      110deg,
+      var(--lf-fp-quiet) 42%,
+      var(--ink) 50%,
+      var(--lf-fp-quiet) 58%
+    );
+    background-size: 200% 100%;
+    background-clip: text;
+    animation: lf-runtime-4f3c2a8d-sheen 2s ease-in-out infinite alternate;
   }
   .lf-fp-box .lf-compose-placeholder kbd {
     display: none;
@@ -316,8 +342,7 @@
     .lf-fp-field,
     .lf-fp-quick,
     .lf-fp-context,
-    .lf-fp-head,
-    .lf-fp-stage {
+    .lf-fp-opened {
       display: none;
     }
     /* The leaf fills the folded box, which is all of it a press can reach. */
@@ -386,6 +411,16 @@
   }
 
   /* ---------- an opened view: where the user is at its top edge ---------- */
+  /* Drawn only while a view is open, since it stands over the page while it is
+     (geometry.js, `declareOccluder`). */
+  .lf-fp-opened {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .lf-floating-panel:not([data-open]) .lf-fp-opened {
+    display: none;
+  }
   .lf-fp-head {
     display: flex;
     align-items: center;
@@ -831,6 +866,13 @@
       :is(.lf-fp-leaf, .lf-fp-badge, .lf-fp-news-dot) {
       animation: none;
     }
+    .lf-floating-panel[data-says="status"][data-tone="working"]
+      .lf-fp-box
+      leaf-text::part(placeholder) {
+      animation: none;
+      background: none;
+      color: var(--lf-fp-quiet);
+    }
     .lf-fp-peek,
     .lf-floating-panel[data-menu] .lf-fp-menu {
       transition: none;
@@ -846,6 +888,13 @@
     .lf-fp-menu,
     .lf-fp-peek {
       border: 1px solid CanvasText;
+    }
+    .lf-floating-panel[data-says="status"][data-tone="working"]
+      .lf-fp-box
+      leaf-text::part(placeholder) {
+      animation: none;
+      background: none;
+      color: GrayText;
     }
   }
 }

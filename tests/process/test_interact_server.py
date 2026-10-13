@@ -3058,28 +3058,39 @@ def test_a_pages_own_row_publications_do_not_rescan_its_neighbors(
     assert len(calls) == 2
 
 
-def test_neighbor_subscription_follows_a_row_directory_created_after_startup(
-    page_dir, tmp_path
+def test_neighbor_discovery_needs_no_native_subscription(
+    page_dir, tmp_path, monkeypatch
 ):
-    """A missing rows/ starts with its parent subscription, then subscribes rows/.
+    """A short-lived reader sees new rows even when native watches cannot start."""
+    from leaf import file_changes
 
-    The second publication's exact path proves delivery from the new directory,
-    rather than the synchronous stamp fallback finding it during a later read.
-    """
+    def no_watcher(*_args, **_kwargs):
+        raise RuntimeError("native watch unavailable")
+
+    monkeypatch.setattr(file_changes, "RustNotify", no_watcher)
     rows = machine_model.state_home() / "rows"
     assert not rows.exists()
     assert presence_model.neighbor_candidates() == ()
     neighbor = tmp_path / "new-neighbor"
     neighbour_page(neighbor, title="New neighbor")
     assert presence_model.neighbor_candidates()
-    published = rows / "second.json"
-    cleanup_model.write_json(published, {"page": str(tmp_path / "second")})
-    paths = set()
-    wait_for(
-        lambda: paths.update(presence_model._row_subscription.batch(0)) or paths,
-        lambda delivered: str(published) in delivered,
-        failure="the rows subscription did not receive the second publication",
-    )
+    second = tmp_path / "second"
+    cleanup_model.write_json(rows / "second.json", {"page": str(second)})
+    assert second in [page for page, _record in presence_model.neighbor_candidates()]
+
+
+def test_native_watcher_limit_has_an_actionable_refusal(tmp_path, monkeypatch):
+    from leaf import file_changes
+    from watchfiles._rust_notify import WatchfilesRustInternalError
+
+    def exhausted(*_args, **_kwargs):
+        raise WatchfilesRustInternalError(
+            "Error creating recommended watcher: Too many open files (os error 24)"
+        )
+
+    monkeypatch.setattr(file_changes, "RustNotify", exhausted)
+    with pytest.raises(Refused, match=r"fs\.inotify\.max_user_instances"):
+        file_changes.FileChanges({tmp_path: False}, lambda _path: True)
 
 
 def test_a_row_ages_at_the_canonical_deadline_and_recovers_after_cache_loss(

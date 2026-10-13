@@ -342,6 +342,38 @@ its owner writes. A `:has()` on the chrome root, `body` or `html` is read again 
 every write below it and restyles it (`test_no_has_rule_stands_on_a_root`), so the
 owner of such a condition states it as an attribute on the element the rule styles.
 
+### The browser answers first
+
+The browser runs a layout engine, a cascade, and a focus model on every page, and
+the runtime runs beside them. A script that computes one of their answers again
+disagrees with them at the edges, under zoom, subpixel rounding, a transform, or the
+page's own CSS, and each disagreement becomes another repair. So before a module
+measures, positions, stacks, isolates, or tracks something, find the browser feature
+that already decides it, and shape the markup and CSS so the runtime uses its answer:
+
+| Question | The browser feature that answers it |
+| --- | --- |
+| How large a box is, including the widest of several labels | grid and flex tracks, `min-content` and `max-content`, labels stacked in one grid cell |
+| Where a box stands against another box or the scroller holding it | the containing block, sticky positioning, anchor positioning, scroll timelines |
+| What covers what | stacking contexts and the top layer; `elementsFromPoint` to read it |
+| Whether a box is shown | `checkVisibility`, `IntersectionObserver` |
+| Which rules reach an element | cascade layers, `@scope`, and a shadow root as the boundary |
+| Where focus is, across shadow roots | `:focus`, `:focus-within`, `:host(:focus-within)`, `::part` |
+
+Where the feature nearly fits, change what the runtime asks of it, such as where a
+box lives in the DOM or which element carries a style, rather than computing its
+answer. A module that answers one of these questions in script says why in its
+header: the requirement the feature cannot meet and the case that shows it. A review
+asks for that reason, and a change that adds a script answer without one does not
+land. Patching a built-in prototype or a dependency's internals needs the same reason.
+
+A rendering pass reads layout before it writes. A read after a write makes the
+browser lay out the whole document at once, so a pass that alternates them pays a
+layout for every read; gather the pass's readings first, then write. A renderer that
+must read what another renderer wrote is ordered once, in
+`runtime/semantic-state.js`, and a new entry in that order needs the same reason as
+a script answer.
+
 ### One writer for each fact
 
 Each mutable fact has one authority and one browser writer. The application publisher
@@ -383,9 +415,9 @@ A question the runtime asks in many places has one owner, which every caller ask
 second copy usually starts where a symptom appeared and its author did not find the
 first, then drifts from it at the edges: under a stuck header, in a shadow tree, in
 right-to-left text. Before writing a predicate or reading, or approving one in review,
-look for its question here. A change that creates an owner adds its row; a caller that
-keeps its own test says why beside it. Rows marked *lint* are enforced in
-`eslint.config.mjs`.
+look for its question in "The browser answers first", then here. A change that
+creates an owner adds its row; a caller that keeps its own test says why beside it.
+Rows marked *lint* are enforced in `eslint.config.mjs`.
 
 | Question | Owner |
 | --- | --- |

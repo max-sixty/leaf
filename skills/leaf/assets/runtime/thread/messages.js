@@ -155,7 +155,7 @@ const authoredMessage = (message) => {
 const FAILURE_LABEL = "Not answered";
 export function messageReading(
   message,
-  { panel, nativeAuthored = false, reactions, workflows },
+  { panel, nativeAuthored = false, reactions, workflows, leaves = null },
 ) {
   const workflow = strongestWorkflow(workflows);
   const token = isReaction(message) ? reactionVocabulary()[message.token] : null;
@@ -171,6 +171,12 @@ export function messageReading(
     revision: message.revision,
     // A reply still streaming, which the answer it stands for completes in place.
     provisional: Boolean(message.provisional),
+    // The agent's progress message (`ephemeral`): a step of work in hand, which the
+    // thread shows as its working message until an answer folds it (thread-card.js).
+    progress: Boolean(message.ephemeral),
+    // What an answer leaves standing, while it stands: "Waiting on me" for the prose ask the
+    // user owes, "To-do open" for work it promised and has not ended (thread-card.js).
+    leaves,
     version: message.content_version,
     seq: moved(message).seq,
     unread: message.unread,
@@ -316,6 +322,11 @@ export class MessageView {
         <b>${model.by}</b
         ><span class="lf-msg-meta"
           ><time datetime=${model.timestamp}>${model.age}</time> ${receipt}
+          ${
+            model.leaves
+              ? html`<span class="lf-msg-leaves">${model.leaves}</span>`
+              : nothing
+          }
           ${
             model.failure
               ? html`<span class="lf-msg-failure">${FAILURE_LABEL}</span>`

@@ -2540,7 +2540,9 @@ def test_a_refusal_from_corrupt_page_state_is_an_answered_fault(server, page_dir
     publish(page_dir)
     revisions = page_dir / "revisions"
     [marker] = revisions.glob("r1-*.html")
-    shutil.copyfile(marker, revisions / "r1-0000000000000000.html")
+    duplicate = revisions / "r1-0000000000000000"
+    shutil.copytree(marker.with_suffix(""), duplicate)
+    duplicate.with_suffix(".html").write_bytes(marker.read_bytes())
     status, body = fetch(f"{server}/api/state")
     assert status == 500
     assert json.loads(body) == {
@@ -4325,7 +4327,23 @@ def test_a_revision_saved_before_a_re_vendor_neither_opens_nor_takes_input(page_
     )
     (page_dir / "index.html").write_text(board)
     foreign = vendored_at_another_protocol(page_dir)
-    revisioning_model.activate_source(page_dir)
+    # Build the capture an older Leaf left behind. This Leaf refuses to activate
+    # mutable source vendored at that older protocol.
+    page_registry = registry_storage.read_page_registry(page_dir)
+    document = structure_model.SourceDocument(board)
+    artifact = artifact_model.capture_artifact(
+        page_dir,
+        document,
+        page_registry.registry,
+        declaration_sources=page_registry.declaration_sources,
+        widget_sources=page_registry.widget_sources,
+    )
+    artifact_model.write_artifact(
+        page_dir,
+        1,
+        artifact,
+        passages_model.SourceReading(document, page_registry.registry),
+    )
     waiting = append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "Still there?"},

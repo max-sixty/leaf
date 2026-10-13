@@ -8,5 +8,5 @@ export const queueOffers = (item, ready, onUser) => ({
   done: ready && onUser && item.kind === "todo",
 });
 
-export const taskNoun = (item) =>
+export const itemNoun = (item) =>
   item.kind === "answer" && item.answer?.kind === "reply" ? "reply" : item.kind;

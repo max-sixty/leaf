@@ -1162,7 +1162,7 @@ def task_open(dir: str, subject: str, title: str, owner: str) -> None:
     the to-do is on the user: it ends at their Done, and you can end it too. Its id is
     the printed record's `id`. In a thread, the reply that promises work opens it
     (`--todo`), and one that asks the user is their ask (`--ask`)."""
-    from leaf.tasks import cmd_open
+    from leaf.todos import cmd_open
 
     _print_records(cmd_open(resolve_dir(dir), subject, title, owner))
 
@@ -1181,7 +1181,7 @@ def task_start(dir: str, item: str, text: str) -> None:
     beside the update or to-do and in the banner. Your answer to the update, or the
     to-do's end, ends the start. If your turn ends first, the item reads stalled
     until you answer it or start it again."""
-    from leaf.tasks import cmd_start
+    from leaf.todos import cmd_start
 
     _print_records(cmd_start(resolve_dir(dir), item, text))
 
@@ -1198,6 +1198,6 @@ def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> None:
     without creating a user answer: `done` records it answered elsewhere, DETAIL
     saying where, and `dropped` records it withdrawn. Widget asks end through
     their declared state or an authored withdrawal."""
-    from leaf.tasks import cmd_end
+    from leaf.todos import cmd_end
 
     _print_records(cmd_end(resolve_dir(dir), task_id, outcome, detail))

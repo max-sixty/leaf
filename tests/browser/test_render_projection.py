@@ -2,7 +2,6 @@
 
 import json
 import re
-from copy import deepcopy
 from datetime import datetime, timedelta
 from itertools import pairwise
 
@@ -50,18 +49,17 @@ from render_cases_interaction import (
     RETIRED_WIDGET_PAGE,
     RING,
     ROSTER_PAGE,
-    SEATED_ASK_ENTRY,
-    SEATED_QUESTION_PAGE,
+    SEATED_ASK_PAGE,
     SUGGESTION_PAGE,
     THREAD_ASKS,
     TRAVEL_PAGE,
     TWO_HOLDER_PAGE,
     WRAP_TOP,
+    answered_comment,
     backdate_note,
     drifting_widget,
     executable_revision,
     live_url,
-    seated_ask_module,
     stale_report,
 )
 from render_cases_layout import (
@@ -593,7 +591,10 @@ def test_diff_coordinates_keep_identity_separate_from_source_navigation(browser,
     assert resolved(["app.py", "new", 20]) == '["app.py","both",5,20]'
 
 
-def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(browser, serve):
+@pytest.mark.parametrize("manifest", [False, True])
+def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(
+    browser, serve, manifest
+):
     """Old source b.py and durable destination b.py identify different rename rows."""
     url = serve(
         leaf_page(
@@ -616,7 +617,9 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(browser,
         "diff --git a/a.py b/a.py\nnew file mode 100644\n"
         "--- /dev/null\n+++ b/a.py\n@@ -0,0 +1 @@\n+new_a()\n"
     )
-    data_model.cmd_data_set(serve.page_dir, "patch-data", patch_manifest(patch))
+    data_model.cmd_data_set(
+        serve.page_dir, "patch-data", patch_manifest(patch) if manifest else patch
+    )
     data_model.cmd_data_set(
         serve.page_dir,
         "calls-data",
@@ -665,7 +668,7 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(browser,
     data_model.cmd_data_set(
         serve.page_dir,
         "patch-data",
-        patch_manifest(long_preimage),
+        patch_manifest(long_preimage) if manifest else long_preimage,
     )
     told(page)
     expect(header).to_contain_text("legacy/very/long/original.py → c.py")
@@ -680,7 +683,7 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(browser,
     data_model.cmd_data_set(
         serve.page_dir,
         "patch-data",
-        patch_manifest(ambiguous),
+        patch_manifest(ambiguous) if manifest else ambiguous,
     )
     told(page)
     expect(header).to_contain_text("a.py → c.py")
@@ -704,6 +707,55 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(browser,
         )
         == "removed_b()"
     )
+
+    # Copies share a preimage without owning its identity. A modified original and
+    # two destinations cannot silently redirect an old-source link to the first copy.
+    def copied(destination):
+        return (
+            f"diff --git a/a.py b/{destination}\n"
+            f"similarity index 50%\ncopy from a.py\ncopy to {destination}\n"
+            f"--- a/a.py\n+++ b/{destination}\n"
+            f"@@ -1,2 +1,2 @@\n context()\n-removed_a()\n+copied_{destination[0]}()\n"
+        )
+
+    original = (
+        "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n"
+        "@@ -1,2 +1,2 @@\n context()\n-removed_a()\n+changed_a()\n"
+    )
+    for copy_patch in (original + copied("b.py"), copied("b.py") + copied("c.py")):
+        data_model.cmd_data_set(
+            serve.page_dir,
+            "patch-data",
+            patch_manifest(copy_patch) if manifest else copy_patch,
+        )
+        told(page)
+        links.nth(1).click()
+        expect(page.locator(".lf-live")).to_have_text(
+            "a.py:2 is not present in the exact patch"
+        )
+        assert page.locator("#patch").evaluate(
+            "(diff, key) => diff.lfDataDatum(JSON.stringify(key)) === null",
+            ["a.py", "source", "old", 2],
+        )
+        assert (
+            page.locator("#patch").evaluate(
+                "(diff, key) => diff.lfDataDatum(JSON.stringify(key)).textContent.trim()",
+                ["b.py", "old", 2],
+            )
+            == "removed_a()"
+        )
+        page.get_by_role("button", name="Comment on b.py", exact=True).click()
+        expect(page.locator("#lf-composer-quote")).to_contain_text("§ b.py · file")
+        page.keyboard.press("Escape")
+
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "patch-data",
+        patch_manifest(copied("b.py")) if manifest else copied("b.py"),
+    )
+    told(page)
+    links.nth(1).click()
+    expect(page.locator('#patch [data-lf-datum=\'["b.py","old",2]\']')).to_be_focused()
 
 
 def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
@@ -1367,7 +1419,9 @@ def test_a_large_diff_filters_and_navigates_lazy_files(browser, serve):
         "files": [
             {
                 "path": path,
-                "kind": "patch",
+                "operation": "modify",
+                "hunkCount": 1,
+                "binary": False,
                 "additions": 1,
                 "deletions": 1,
                 "patch": f"""diff --git a/{path} b/{path}
@@ -1393,6 +1447,11 @@ def test_a_large_diff_filters_and_navigates_lazy_files(browser, serve):
     # A source refresh rebuilds file shells; lazy rows inherit its new revision.
     refreshed = json.loads(json.dumps(manifest))
     refreshed["files"][0]["additions"] = 2
+    refreshed["files"][0]["patch"] = (
+        refreshed["files"][0]["patch"]
+        .replace("@@ -1 +1 @@", "@@ -1 +1,2 @@")
+        .replace('+return "new"', '+return "new"\n+return "newer"')
+    )
     data_model.cmd_data_set(serve.page_dir, "review-patch", refreshed)
     refreshed_revision = source_revision(serve.page_dir, "review-patch")
     told(page)
@@ -1665,7 +1724,7 @@ def test_live_news_keeps_the_reading_draft_and_resting_target(browser, serve):
     An unrelated source revision arrives while retaining the editor and restoring the
     page's reading position. Opening the reply proves the notice held genuine growth.
     """
-    source = SEATED_QUESTION_PAGE.replace(
+    source = SEATED_ASK_PAGE.replace(
         "</main>",
         '<p id="reading">The next passage remains where I am reading.</p>'
         + "<p>Further context. "
@@ -3113,7 +3172,7 @@ customElements.define("lf-conditional", class extends HTMLElement {
         if count:
             expect_asks_answered(page, "0/1")
             banner_control(page, ".lf-queue").click()
-        # The phase move is the agent's to answer. The Question leaves the user's
+        # The phase move is the agent's to answer. The ask leaves the user's
         # queue when its condition closes, retaining its withdrawn inventory row.
         expect(
             page.locator("[data-lf-queue='you'] .lf-queue-row[data-lf-kind='ask']")
@@ -3124,56 +3183,6 @@ customElements.define("lf-conditional", class extends HTMLElement {
         expect(withdrawn).to_have_count(1 - count)
         if not count:
             expect(withdrawn).to_contain_text("Withdrawn")
-
-
-def test_a_live_revision_reapplies_the_authored_thread_seat_predicate(browser, serve):
-    """An old seated thread cannot hide an Ask from a revision with no seat."""
-    entry = deepcopy(SEATED_ASK_ENTRY)
-    entry["properties"]["talk"] = {"type": "boolean"}
-    entry["x-thread-seat"]["when"] = {"talk": [True]}
-    entry["x-example"] = (
-        '<lf-verdict id="verdict-example" asks talk>Ship it?</lf-verdict>'
-    )
-    module = seated_ask_module(seat_attribute="talk")
-    first = leaf_page(
-        "Conditional thread seat",
-        '<lf-verdict id="question" asks talk>Ship it?</lf-verdict>',
-    )
-    second = leaf_page(
-        "Conditional thread seat",
-        '<lf-verdict id="question" asks>Ship it?</lf-verdict>',
-    )
-    page = open_page(
-        browser,
-        live_url(
-            serve(
-                first,
-                layer_registry={"lf-verdict": entry},
-                layer_widgets={"lf-verdict.js": module},
-            )
-        ),
-    )
-    composer = page.locator("#question > .lf-thread-seat > .lf-say")
-    write(composer.get_by_role("textbox"), "Please check the premise first.")
-    with sending(page, "the seated question"):
-        composer.get_by_role("button", name="Send", exact=True).click()
-
-    def user_asks():
-        # The Ask reading is the log's, so ask it of a page that has taken in what the
-        # server holds: a trip is over when the outbox empties, one beat before the
-        # answer it carried has been applied.
-        told(page)
-        return page.evaluate(
-            """async () => {
-              const {readQuestions} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-              return readQuestions().user.filter(q => q.source.kind === "widget").map(q => q.source.id);
-            }"""
-        )
-
-    assert user_asks() == []
-    stamp_page(serve.page_dir, second, "remove the thread seat")
-    wait_for_revision(page, 2)
-    assert user_asks() == ["question"]
 
 
 def test_revision_changes_keep_the_complete_heading_below_user_chrome(browser, serve):
@@ -3533,7 +3542,7 @@ def test_revision_reveals_an_active_region_without_any_reading_landmark(browser,
 
 
 def test_ask_repaints_keep_the_queues_reading_until_an_explicit_arrival(browser, serve):
-    """Question repaint keeps the list's reading; explicit arrival reveals its row."""
+    """Ask repaint keeps the list's reading; explicit arrival reveals its row."""
     questions = "".join(
         f'<lf-ask id="ask-{index}"><h2>Question {index} about this project</h2>'
         f'<lf-options id="options-{index}" choose>'
@@ -3578,7 +3587,7 @@ def test_ask_repaints_keep_the_queues_reading_until_an_explicit_arrival(browser,
     assert row.locator(".lf-queue-title").evaluate(
         "words => words.getBoundingClientRect().top >= "
         "words.closest('.lf-drawer-list').getBoundingClientRect().top"
-    ), "explicit Question navigation still reveals its matching row"
+    ), "explicit ask navigation still reveals its matching row"
 
 
 @pytest.mark.parametrize("newer_reading", [False, True])
@@ -4536,7 +4545,7 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
 
     for ask in ASKS_IN_ORDER[:3]:
         page.keyboard.press("q")
-        expect(page.locator(f"#{ask}")).to_have_attribute("data-lf-question", "1")
+        expect(page.locator(f"#{ask}")).to_have_attribute("data-lf-ask", "1")
     scroll_settled(page)
 
     # Ask travel now starts at the Ask's opening, which normally makes the coarse
@@ -4551,10 +4560,8 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
     stamp_page(d, ASKS_PAGE, "two")
     wait_for_revision(page, 2)
 
-    expect(page.locator("#t-baffles-decision")).to_have_attribute(
-        "data-lf-question", "1"
-    )
-    expect(page.locator("[data-lf-question]")).to_have_count(1)
+    expect(page.locator("#t-baffles-decision")).to_have_attribute("data-lf-ask", "1")
+    expect(page.locator("[data-lf-ask]")).to_have_count(1)
     # The condition the restore is for, stated rather than assumed: an earlier Ask's own
     # prose is on screen above the one the user was standing on, so a walk reading the
     # page alone starts behind them and steps forward onto the Ask they just left.
@@ -4566,7 +4573,7 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
     }""")
     assert 42 < position["earlierBottom"] <= position["decisionTop"], position
     page.keyboard.press("q")
-    expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-question", "1")
+    expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-ask", "1")
 
 
 def test_the_reading_position_restores_onto_a_section_that_draws_no_box(browser, serve):
@@ -4640,7 +4647,7 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
     page = open_page(browser, serve(ASKS_PAGE))
     question = page.locator("#live-question-decision")
     page.keyboard.press("q")
-    expect(question).to_have_attribute("data-lf-question", "1")
+    expect(question).to_have_attribute("data-lf-ask", "1")
     arrival_ring = question.evaluate(RING)
     assert arrival_ring == [
         "solid",
@@ -4671,7 +4678,7 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
     # Real presses verify the keyboard route as well as its focus treatment.
     page.keyboard.press("q")
     suggestion = page.locator("#sug-refill")
-    expect(suggestion).to_have_attribute("data-lf-question", "1")
+    expect(suggestion).to_have_attribute("data-lf-ask", "1")
     accept = suggestion_control(page, "sug-refill", "accept")
     accept.focus()
     # Tab inside the margin reaches the same suggestion's ✗ Reject, rendered from the
@@ -4711,18 +4718,18 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
 
     # Standing somewhere that asks nothing takes it off, rather than leaving it behind.
     page.locator("#h").click()
-    expect(page.locator("[data-lf-question]")).to_have_count(0)
+    expect(page.locator("[data-lf-ask]")).to_have_count(0)
 
     # A pointer landing inside an open decision is standing in it, though no walk brought
     # them there: the ring renders the focus rather than remembering a press.
     page.locator("#live-question .lf-another leaf-text").click()
-    expect(question).to_have_attribute("data-lf-question", "1")
+    expect(question).to_have_attribute("data-lf-ask", "1")
 
     # Answering takes it off with the focus still inside: the ring is for the question
     # the user is working, and an answered one is no longer a question.
     page.locator("#lq-token .lf-pick").click()
     expect_asks_answered(page, "2/5")
-    expect(page.locator("[data-lf-question]")).to_have_count(0)
+    expect(page.locator("[data-lf-ask]")).to_have_count(0)
     expect(page.locator("#lq-token .lf-pick")).to_be_focused()
 
     # The chrome's own control, which the user reaches by Tab or by the banner's own
@@ -4748,19 +4755,14 @@ def test_escape_lets_go_of_the_ask_the_user_is_standing_on(browser, serve):
     Map action leaves focus in a margin cluster."""
     url = serve(ASKS_PAGE)
     # A third action puts the suggestion's cluster beyond its two resting controls.
-    append_carried_log_record(
+    answered_comment(
         serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "Check this wording before accepting it.",
-            "anchor": {"section": "sug-refill"},
-        },
+        "Check this wording before accepting it.",
+        {"section": "sug-refill"},
     )
     page = open_page(browser, url)
     page.keyboard.press("q")
-    expect(page.locator("#live-question-decision[data-lf-question]")).to_have_count(1)
+    expect(page.locator("#live-question-decision[data-lf-ask]")).to_have_count(1)
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("let go")
     # And the reference says the same press in its own words. It said "Back out one
     # layer" for every rung, which was true while every rung took a layer of chrome off
@@ -4773,11 +4775,11 @@ def test_escape_lets_go_of_the_ask_the_user_is_standing_on(browser, serve):
     )
     page.keyboard.press("Escape")  # the reference's own rung, which hands focus back
     expect(page.locator(".lf-command-reference")).not_to_have_class(re.compile("open"))
-    expect(page.locator("#live-question-decision[data-lf-question]")).to_have_count(1)
+    expect(page.locator("#live-question-decision[data-lf-ask]")).to_have_count(1)
 
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
-    expect(page.locator("[data-lf-question]")).to_have_count(0)
+    expect(page.locator("[data-lf-ask]")).to_have_count(0)
     assert page.evaluate("() => document.activeElement === document.body")
     expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("let go")
 
@@ -4786,7 +4788,7 @@ def test_escape_lets_go_of_the_ask_the_user_is_standing_on(browser, serve):
     page.keyboard.press("q")
     expect(page.locator("#live-question-decision")).to_be_focused()
     page.keyboard.press("q")
-    expect(page.locator("#sug-refill[data-lf-question]")).to_have_count(1)
+    expect(page.locator("#sug-refill[data-lf-ask]")).to_have_count(1)
     walked_item = page.locator('[data-lf-margin-for="sug-refill"]')
     expect(walked_item.locator(":scope > .lf-margin-more")).to_be_visible()
     expect(walked_item.locator(":scope > .lf-margin-options")).to_be_hidden()
@@ -4797,7 +4799,7 @@ def test_escape_lets_go_of_the_ask_the_user_is_standing_on(browser, serve):
     walked_item.locator(":scope > .lf-margin-more").click()
     expect(walked_item.locator(":scope > .lf-margin-options")).to_be_visible()
     page.keyboard.press("q")
-    expect(page.locator("#t-baffles-decision[data-lf-question]")).to_have_count(1)
+    expect(page.locator("#t-baffles-decision[data-lf-ask]")).to_have_count(1)
     expect(walked_item.locator(":scope > .lf-margin-more")).to_be_visible()
     expect(walked_item.locator(":scope > .lf-margin-options")).to_be_hidden()
 
@@ -4917,7 +4919,7 @@ def test_the_ask_walk_follows_registry_declarations(browser, serve):
         "t-bath-decision",
     ]:
         page.keyboard.press("q")
-        expect(page.locator(f"#{expected}")).to_have_attribute("data-lf-question", "1")
+        expect(page.locator(f"#{expected}")).to_have_attribute("data-lf-ask", "1")
 
 
 def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
@@ -7044,7 +7046,7 @@ def test_a_done_press_answers_optimistically_and_only_once(browser, serve):
     ] == [("tq-set", "answer")]
 
 
-def test_closing_a_thread_withdraws_the_question_in_it(browser, serve):
+def test_closing_a_thread_withdraws_the_ask_in_it(browser, serve):
     """A question in a thread is the thread's, so closing the thread takes the decision
     with it. The group is still there to read in the Resolved state, and still holds no
     answer — what went is the page's claim on the user, who would otherwise carry a

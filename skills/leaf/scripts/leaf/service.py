@@ -409,7 +409,7 @@ class PageTransaction:
 
         The work the agent has in hand is no status: it is the log's `start` events,
         and the `put_down` that `leaf status` writes beside a declaration takes them
-        back (`tasks`). The stream the harness observes carries across a `waiting`,
+        back (`todos`). The stream the harness observes carries across a `waiting`,
         and `idle` clears it with the leaf."""
         status = {"state": state, "detail": detail, "ts": now_iso()}
         if state != "idle" and (stream := self.status.get("stream")):

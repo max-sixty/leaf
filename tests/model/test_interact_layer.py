@@ -36,6 +36,7 @@ from interact_support import (
     record_claim,
     shipped_payload,
     vendored_at_another_protocol,
+    vendored_before_the_ask_rename,
     wait_for,
 )
 from leaf import cli as cli_model
@@ -299,6 +300,101 @@ def test_response_reply_names_a_page_vendored_at_another_protocol(claimed, serve
     replied = _replying_after(claimed, server, vendored_at_another_protocol)
     assert replied.returncode != 0, replied.stdout
     assert f"leaf page init {claimed}" in replied.stderr
+
+
+def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(page_dir):
+    """A layer vendored before an x- key was renamed (`x-question-context`, now
+    `x-ask-context`) declares nothing under the new name, so this Leaf would quietly
+    drop what the key said. The layer still reads, but the one reading every server
+    and writer refuses on (`layer.incompatible_layer`) names the re-vendor, and so
+    does `page check`. A layer that lacks a key this Leaf added is refused nothing."""
+    from leaf.event_contracts import write_refusal
+
+    path = page_dir / "registry.json"
+
+    def vendored(change):
+        registry = json.loads(path.read_text())
+        change(registry["$keys"])
+        # Replaced rather than written through: a revision hard-links its files.
+        path.unlink()
+        path.write_text(json.dumps(registry))
+
+    vendored(
+        lambda keys: keys.update({"x-question-context": keys.pop("x-ask-context")})
+    )
+    revendor = f"leaf page init {page_dir}"
+    assert registry_storage.load_registry(page_dir) is not None
+    refusal = write_refusal(page_dir)
+    assert refusal and "x-question-context" in refusal and revendor in refusal
+    checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
+    assert checked.exit_code != 0
+    assert "x-question-context" in checked.output and revendor in checked.output
+    as_json = CliRunner().invoke(
+        cli_model.cli, ["page", "check", "--json", str(page_dir)]
+    )
+    report = json.loads(as_json.output)
+    assert report["status"] == 1 and report["browser"] is None
+    [finding] = report["findings"]
+    assert finding["code"] == "invalid-registry" and revendor in finding["text"]
+
+    vendored(lambda keys: keys.pop("x-question-context"))
+    assert write_refusal(page_dir) is None
+
+
+def test_response_reply_names_a_published_page_vendored_before_a_key_was_renamed(
+    claimed, server
+):
+    """Admission refuses an old page on the same reading the servers do, after a
+    revision is published as well as before: here the layer and the revision it
+    captured both use the key's old name, in `$keys` and on `lf-ask`, as the older
+    Leaf left them."""
+    replied = _replying_after(claimed, server, vendored_before_the_ask_rename)
+    assert replied.returncode != 0, replied.stdout
+    assert "x-question-context" in replied.stderr
+    assert f"leaf page init {claimed}" in replied.stderr
+    # The re-vendor it names repairs the page: init runs on it, and the reply goes.
+    for command in (["page", "init", str(claimed)], replied.args[len(LEAF_COMMAND) :]):
+        ran = subprocess.run(
+            [*LEAF_COMMAND, *command],
+            capture_output=True,
+            text=True,
+            timeout=STATED_TIMEOUT,
+            check=False,
+        )
+        assert ran.returncode == 0, ran.stderr
+    assert fetch(f"{server}/api/state")[0] == 200
+
+
+def test_a_layer_stamped_with_its_revision_still_names_the_revendor(page_dir):
+    """A page an older Leaf stamped holds that Leaf's layer twice, vendored and captured
+    in its active revision, and the captured copy excuses an unchanged layer from
+    validation. Once the page declares its own vocabulary, a fault the layer shows on
+    its own is still the layer's, named with the re-vendor, not the declarations'."""
+    publish(page_dir)
+    # The older Leaf's layer lacks a key this one added, in both copies.
+    captured = page_dir.glob("revisions/*/resources/registry.json")
+    for path in [page_dir / "registry.json", *captured]:
+        registry = json.loads(path.read_text())
+        del registry["$keys"]["x-work"]
+        # Replaced rather than written through: a revision hard-links its files.
+        path.unlink()
+        path.write_text(json.dumps(registry))
+    (page_dir / "page").mkdir(exist_ok=True)
+    (page_dir / "page" / "registry.json").write_text(
+        json.dumps({"lf-local-note": element_declaration("lf-local-note")})
+    )
+    # A fresh process, as the older Leaf's stamp was: this one holds the revision it
+    # captured in memory.
+    checked = subprocess.run(
+        [*LEAF_COMMAND, "page", "check", str(page_dir)],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=False,
+    )
+    assert checked.returncode != 0
+    assert "x-work" in checked.stderr
+    assert f"leaf page init {page_dir}" in checked.stderr
 
 
 def test_the_skill_routes_every_reference_it_ships():
@@ -827,7 +923,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "hooks/codex.json",
         "hooks/scripts/background-watch.py",
         "skills/leaf/SKILL.md",
-        "skills/leaf/references/authoring-questions.md",
+        "skills/leaf/references/authoring-asks.md",
         "skills/leaf/references/authoring-evidence.md",
         "skills/leaf/references/authoring-revisions.md",
         "skills/leaf/references/codex-watcher.md",
@@ -1719,7 +1815,7 @@ def test_layer_style_sources_consume_the_runtime_layout_names():
         read_property + ":",
         "var(" + read[str(edges)]["constants"]["THREAD_PANEL_PROP"] + ")",
         "var(" + read[str(edges)]["constants"]["DRAWER_SLOT_PROP"] + ")",
-        "[" + read[str(page_paint)]["constants"]["PAGE_PAINT_ATTRIBUTE.question"] + "]",
+        "[" + read[str(page_paint)]["constants"]["PAGE_PAINT_ATTRIBUTE.ask"] + "]",
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
     for spelling in (

@@ -24,7 +24,7 @@
  * re-laying the group.
  *
  * Laying cards across is the context's to ask for, where the reading down costs more
- * than it gives: a Question that frames a figure needs its options in the window with
+ * than it gives: an ask that frames a figure needs its options in the window with
  * that figure, and a stack of cards under it runs past the window's end
  * (`--lf-options-across`, ask.css). There the costs above are accepted: a card left
  * over on the last row, and a row as tall as its longest case. It is not a third form
@@ -91,7 +91,7 @@
    the wrong state partially active. A rule stays general only when its effect is true
    in every form. */
 /* Whether a joined group lays its titled options across rather than one to a row. The
- * group's holder declares it on itself, as a Question framing a figure does (ask.css),
+ * group's holder declares it on itself, as an ask framing a figure does (ask.css),
  * and the group reads it from its parent; it does not inherit, so a group nested in one
  * of those options keeps its own. */
 @property --lf-options-across { syntax: "<integer>"; inherits: false; initial-value: 0; }
@@ -298,7 +298,7 @@
  * multiple-choice card already wears, saying the slot is untaken and where the press
  * lands.
  *
- * The Question's binding badge temporarily takes that same opening-edge slot in either arity.
+ * The ask's binding badge temporarily takes that same opening-edge slot in either arity.
  * The slot is reserved beside the author's chip band and title on every card, so neither
  * a pick nor a binding badge moves or covers the words. A document-only chosen card keeps
  * the compact caption below: it has no live header state or binding badge. */
@@ -347,7 +347,7 @@
                      inset-inline-start: auto; inset-inline-end: var(--sp-2); }
    /* An empty draft offers only the route into its field, so that binding badge occupies
     * the Add seat while the press is hidden. Content reveals Add; once focus leaves the
-    * field, the Question's write route is available beside it again and takes the inner seat.
+    * field, the ask's write route is available beside it again and takes the inner seat.
     * The form names both seats below; this card presentation reserves them both before
     * either face appears. */
    & > .lf-another > .lf-key-badge {
@@ -449,7 +449,7 @@
                                         font-family: var(--sans); font-weight: 700; } }
 :scope:is(lf-option) .lf-pick[data-lf-focus] { outline: var(--focus-ring); --lf-focus-ring: options-pick;
                      outline-offset: var(--focus-ring-gap); border-radius: 4px; }
-/* The Question's action keys, worn on the option cells they bind. The gutter reads status,
+/* The ask's action keys, worn on the option cells they bind. The gutter reads status,
  * binding badge, then prose, so each badge starts after the status rule and ends before the
  * cell's words. A card aligns its digit with the top of its content; rows centre theirs. */
 :scope:is(lf-option) > .lf-key-badge { position: absolute; z-index: 1;
@@ -688,10 +688,10 @@
    * carried by the exact row, whichever input route brought it there.
    * The decision is an ancestor of the control, so it is matched as a widget root
    * (an lf-ask) as well as a descendant of one: a bare selector here reaches only
-   * descendants, and a Question standing at the page's top level kept its ring. */
-  :is(:scope, :scope *)[data-lf-question]:has(
+   * descendants, and an ask standing at the page's top level kept its ring. */
+  :is(:scope, :scope *)[data-lf-ask]:has(
     lf-options[choose]:not(:where([data-lf-exhibit]) *) [data-lf-focus]
-  ) { --lf-question-ring: none; }
+  ) { --lf-ask-ring: none; }
   /* A ringed row stands above its neighbours, so the line the next cell draws over its
    * edge does not cut its ring. */
   :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *)

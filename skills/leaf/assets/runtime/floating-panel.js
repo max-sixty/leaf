@@ -63,7 +63,7 @@ import { textField } from "./composing/text-field.js";
 import { draftOf } from "./composing/input.js";
 import { queueItemKey, readQueues, watchQueues } from "./queue-api.js";
 import { queueTitle } from "./queue-title.js";
-import { questionEnding } from "./questions/answer.js";
+import { askEnding } from "./asks/answer.js";
 import { versionMenu, versionPicker } from "./version-picker.js";
 import { noticeReading, registerNoticePresentation } from "./notifications.js";
 import { reducedMotion } from "./motion.js";
@@ -134,7 +134,7 @@ export function createFloatingPanel({
   wireInput,
   threadActions,
   registerThreadPresentation,
-  questions: questionView,
+  asks: askView,
   queueActions,
   withdraw,
 }) {
@@ -833,9 +833,7 @@ export function createFloatingPanel({
     const prompt = said && said.trim() !== title.trim() ? said : "";
     const answered = ask && ask.status !== "open";
     const choices =
-      ask && !answered && ask.source.kind === "widget"
-        ? questionView.choicesOf(ask)
-        : null;
+      ask && !answered && ask.source.kind === "widget" ? askView.choicesOf(ask) : null;
     const gesture = answered ? answerGesture(ask) : null;
     const discuss = thread
       ? html`<button
@@ -851,7 +849,7 @@ export function createFloatingPanel({
       class="lf-fp-quiet"
       @click=${() => {
         close();
-        void (ask ? questionView.open(ask.id) : queueActions.open(queueItemKey(item)));
+        void (ask ? askView.open(ask.id) : queueActions.open(queueItemKey(item)));
       }}
     >
       Show
@@ -862,7 +860,7 @@ export function createFloatingPanel({
           >${item.running?.text ?? workflowLabel(item.workflow) ?? ""}</span
         >${thread ? discuss : nothing}`;
     else if (answered)
-      answers = html`<span class="lf-fp-said">${questionEnding(ask)}</span>${
+      answers = html`<span class="lf-fp-said">${askEnding(ask)}</span>${
           gesture
             ? html`<button
                 type="button"

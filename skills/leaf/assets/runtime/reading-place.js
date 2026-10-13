@@ -18,9 +18,13 @@
  * blocks stand side by side at that line, as columns do, the line is taken from the one
  * across the reader's column: where their pointer last named their place, or failing
  * that where focus stands. Failing a line, the place is the first block's section;
- * failing that, the raw offset, which only the same scroller, at the same width and in
- * the same revision, can take back: otherwise it names other content, and the browser's
- * own scroll anchoring keeps what the reader saw better than it can. A bounded block
+ * failing that, the raw offset, which only the same scroller, at the same width and,
+ * where it shows the document, in the same revision, can take back: otherwise it names
+ * other content, and the browser's own scroll anchoring keeps what the reader saw better
+ * than it can. Leaf's own interface, such as the Threads list, draws what the log holds
+ * rather than the revision, and its words name no place, so where a revision reloads
+ * the document and nothing is left to anchor, the box that replaces the one that read
+ * the offset takes it back. A bounded block
  * following its newest entry has its end as its place (`bounds.js`, `followingItsEnd`),
  * however many entries have arrived since.
  * `capturePlace` reads one, of the page or of a reading region, and `restorePlace`
@@ -111,6 +115,9 @@ const focusedPlace = (reading) => {
     ? node
     : null;
 };
+// The box that read a raw offset, as local to this DOM as a focused place: a reading
+// that crosses a reload arrives without it (`rawOffsetFits`).
+const READ_BOX = Symbol("box that read the offset");
 // A box the edge cuts that draws what the reader sees without words of the page, and
 // how far through its height the edge cuts it: live like a focused place, and as local
 // to this DOM. A revision that keeps the node keeps the place; one that replaces it
@@ -464,12 +471,13 @@ export function capturePlace(region = null, blocks = textBlocks()) {
   const landmarkTop = (top, block, blockTop = top) =>
     block?.matches(HEADING) ? top + Math.max(0, -blockTop) : top;
   // The raw offset, with the width that wrapped the box's contents and the revision
-  // that drew them when it was read.
+  // that drew the document when it was read.
   const view = {
     y: box.scrollTop,
     scroller: scrollerIdentity(box),
     width: box.clientWidth,
     revision: runtime.currentRevision,
+    [READ_BOX]: new WeakRef(box),
   };
   const standing = focusedInView();
   const body = region?.body ?? pageDocument();
@@ -646,11 +654,14 @@ const sameScroller = (reading, scroller) =>
 // A raw offset names the same content only in the box that read it, at the width it
 // read it, in the revision that drew it: a box rewrapped to another width, or showing
 // a revision that added or took away content, puts something else there, where the
-// browser's own anchoring does better than the old offset.
+// browser's own anchoring does better than the old offset. Leaf's interface shows the
+// log, which a revision does not redraw, so a box of it that replaced the one that read
+// the offset, as a reloaded document's does, has nothing else to keep the reader's place.
 export const rawOffsetFits = (reading, scroller) =>
   sameScroller(reading, scroller) &&
   reading.width === scroller.clientWidth &&
-  reading.revision === runtime.currentRevision;
+  (reading.revision === runtime.currentRevision ||
+    (inUi(scroller) && reading[READ_BOX]?.deref() !== scroller));
 function scrollerIdentity(scroller) {
   if (scroller === pageScroller) return "$page";
   return readingRegions().find(({ body }) => body === scroller)?.id;

@@ -15,6 +15,7 @@ from render_cases_interaction import (
     PANEL_PAGE,
     WORKSHOP_THREAD_EVENTS,
     WORKSHOP_THREADS_PAGE,
+    answered_comment,
     live_url,
     panel_comment,
 )
@@ -274,8 +275,8 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
     expect(page.locator("#review-detail > footer")).to_contain_text(
         "This revision incorporates both answers"
     )
-    # The revision settles both questions; the Question inventory retains answers
-    # after an authored revision settles their sources (`questions.py`).
+    # The revision settles both questions; the ask inventory retains answers
+    # after an authored revision settles their sources (`asks.py`).
     expect_asks_answered(page, "2/2")
 
     actions = [
@@ -387,7 +388,7 @@ def test_comparison_choice_replays_and_is_applied_by_the_next_revision(browser, 
     )
     expect(page.locator("#comparison-policy")).to_have_attribute("settled", "")
     # The Ask reading keeps an Ask the user answered after a later version settles it
-    # (`questions.py`, the retained answered inventory).
+    # (`asks.py`, the retained answered inventory).
     expect_asks_answered(page, "1/1")
 
     actions = [
@@ -1135,7 +1136,7 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     heading.evaluate("el => { el.tabIndex = -1; el.focus(); }")
     expect(heading).to_be_focused()
     page.keyboard.press("q")
-    expect(page.locator(".lf-thread lf-ask[data-lf-question]")).to_be_focused()
+    expect(page.locator(".lf-thread lf-ask[data-lf-ask]")).to_be_focused()
     expect(line).to_contain_text("close threads")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
@@ -1156,16 +1157,8 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
             '<p id="dsc-body"><a id="revealed-link" href="#p2">Read next passage</a> ',
         )
     )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "A visible thread.",
-            "id": "filterthread",
-            "anchor": {"section": "opts-decision"},
-        },
+    thread = answered_comment(
+        serve.page_dir, "A visible thread.", {"section": "opts-decision"}
     )
     page = open_page(browser, url)
     resized(page, 1280, 800)
@@ -1282,21 +1275,21 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     )
 
     # Navigation can change the visible scene. This new map assigns its own hints;
-    # filtering must preserve this map's Question code rather than the earlier map's.
+    # filtering must preserve this map's ask code rather than the earlier map's.
     expect(
         page.locator(f'{CHIPS}[data-lf-go-to-target="revealed-link"]')
     ).to_have_count(1)
     ask_code = address_code(page, "Margin entry", "opts-decision", ask_key)
     page.keyboard.type(ask_code)
     expect(page.locator("#opts-decision")).to_be_focused()
-    expect(page.locator("#opts-decision")).to_have_attribute("data-lf-question", "1")
+    expect(page.locator("#opts-decision")).to_have_attribute("data-lf-ask", "1")
 
     # Scroll past the links to give the hyperlinks filter no members. An empty
     # filter stays empty through resize; Escape restores the complete map.
     page.locator("#opt-a").click()
     append_carried_log_record(
         serve.page_dir,
-        {"kind": "resolve", "author": "user", "parent": "filterthread"},
+        {"kind": "resolve", "author": "user", "parent": thread},
     )
     round_trip(page)
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="ask"]')).to_have_count(0)
@@ -1365,7 +1358,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
         "node => getComputedStyle(node).backgroundColor"
     )
 
-    # The Question route may scroll these hyperlinks out of the visible target map.
+    # The ask route may scroll these hyperlinks out of the visible target map.
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")

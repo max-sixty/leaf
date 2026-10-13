@@ -12,7 +12,7 @@ from leaf import event_log as events_model
 from leaf.render_checks import wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    SEATED_QUESTION_PAGE,
+    SEATED_ASK_PAGE,
     live_url,
     panel_comment,
 )
@@ -233,7 +233,7 @@ def test_a_failed_concurrent_question_send_keeps_the_accepted_attempt(
     """One request may lose its answer while another tab gets the same attempt
     accepted. The first tab adopts that durable outcome instead of reporting failure
     or offering the words as a second message."""
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     first = open_page(browser, url, context=one_user)
     second = open_page(browser, url, context=one_user)
     first_say = first.locator("#jobs > .lf-thread-seat > .lf-say")

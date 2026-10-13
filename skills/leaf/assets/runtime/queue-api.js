@@ -6,13 +6,13 @@
    current reading; a stale row cannot end a different to-do or revive an old route.
    An ask is answered through its source; only a to-do on the user offers
    Done. Navigation is supplied once by the existing queue walk. */
-import { readApplication } from "./semantic-state.js";
+import { readPart } from "./semantic-state.js";
 import { watchProjection } from "./projection-watch.js";
 import { announce } from "./notifications.js";
 
 export const queueItemKey = (item) => JSON.stringify([item.kind, item.id]);
 
-export const readQueues = () => readApplication().effective.queues;
+export const readQueues = readPart((root) => root.effective.queues);
 
 export function watchQueues(owner, callback) {
   return watchProjection(owner, (root) => root.effective.queues, callback);

@@ -29,9 +29,15 @@ export const applicationState = createSemanticApplication({
   },
 });
 export const readApplication = applicationState.read;
+// A reader of one part of the root, through its own selection. A key or button
+// reflection tracks what it reads (keyboard/scopes.js), so an accessor that reads the
+// whole root makes every reflection that calls it read again on every publication;
+// one that reads its part makes them read again only when that part moves.
+export const readPart = (derive) => applicationState.select(derive).read;
 // What the page calls its agent: the name the server's answer gives, or "the agent"
 // before one has arrived. Every surface naming the agent's side reads it here.
-export const agentName = () => readApplication().authoritative?.agent || "the agent";
+const agent = readPart((root) => root.authoritative?.agent ?? null);
+export const agentName = () => agent() || "the agent";
 // The same name where it opens a sentence or stands alone as a label.
 export const agentLabel = () =>
   agentName().replace(/^./, (first) => first.toUpperCase());

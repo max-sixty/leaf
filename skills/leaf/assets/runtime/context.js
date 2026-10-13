@@ -2,7 +2,7 @@
    delivered it, the interactive export's payload, and read-only views of the semantic
    root. Accepted facts are never installed here independently of application
    publication. */
-import { readApplication } from "./semantic-state.js";
+import { readPart } from "./semantic-state.js";
 
 // ---------- which address this document is ----------
 // Which version a document is comes from its served `lf-version` marker
@@ -97,12 +97,29 @@ export const runtimeResource = (path) => {
   return resource + located.hash;
 };
 
+// Each part the getters below read, through its own selection (`readPart`).
+const part = {
+  active: readPart((root) => root.authoritative?.active ?? null),
+  browser: readPart((root) => root.authoritative?.browser ?? null),
+  revision: readPart((root) => root.document.revision),
+  live: readPart((root) => root.document.live),
+  stamp: readPart((root) => root.document.stamp ?? null),
+  data: readPart((root) => root.data),
+  seq: readPart((root) => root.authoritative?.browser.basis.through_seq ?? null),
+  reading: readPart((root) => root.authoritative?.reading ?? null),
+  state: readPart((root) => root.authoritative),
+  phase: readPart((root) => root.phase),
+  versions: readPart((root) => root.authoritative?.versions ?? []),
+  workflows: readPart((root) => root.effective.workflows),
+  view: readPart((root) => root.effective.view),
+};
+
 export const runtime = {
   get active() {
-    return readApplication().authoritative?.active ?? null;
+    return part.active();
   },
   get browser() {
-    return readApplication().authoritative?.browser ?? null;
+    return part.browser();
   },
   // Whether the document shows the active revision. Activation only moves forward
   // (the publisher refuses an answer whose active revision went back), so a document
@@ -114,48 +131,46 @@ export const runtime = {
     );
   },
   get currentLabel() {
-    return readApplication().document.live && runtime.showsActive
+    return part.live() && runtime.showsActive
       ? runtime.active.label
       : runtime.currentStamp === null
         ? null
         : `v${runtime.currentStamp}`;
   },
   get currentRevision() {
-    return readApplication().document.revision;
+    return part.revision();
   },
   get currentStamp() {
-    return readApplication().document.live && runtime.showsActive
-      ? runtime.active.version
-      : (readApplication().document.stamp ?? null);
+    return part.live() && runtime.showsActive ? runtime.active.version : part.stamp();
   },
   get data() {
-    return readApplication().data;
+    return part.data();
   },
   get lastEventSeq() {
-    return readApplication().authoritative?.browser.basis.through_seq ?? null;
+    return part.seq();
   },
   get reading() {
-    return readApplication().authoritative?.reading ?? null;
+    return part.reading();
   },
   sessionReference: null,
   // Whether the server's latest answer refused this tab's key (`layer-client.js`).
   keyRefused: false,
   get state() {
-    return readApplication().authoritative;
+    return part.state();
   },
   registry: {},
   get statePhase() {
-    return readApplication().phase;
+    return part.phase();
   },
   get versions() {
-    return readApplication().authoritative?.versions ?? [];
+    return part.versions();
   },
   get workflows() {
-    return readApplication().effective.workflows;
+    return part.workflows();
   },
   // The shown revision's server view, less its basis, as the publisher resolved it.
   get view() {
-    return readApplication().effective.view;
+    return part.view();
   },
 };
 

@@ -6,11 +6,11 @@
    selection boundary. DOM resolution belongs to the views that need controls, words,
    focus, or geometry; it cannot change which asks exist or whether they await the
    user. */
-import { readApplication } from "../semantic-state.js";
+import { readApplication, readPart } from "../semantic-state.js";
 import { registry } from "../registry.js";
 import { watchProjection } from "../projection-watch.js";
 
-export const readAsks = () => readApplication().effective.asks;
+export const readAsks = readPart((root) => root.effective.asks);
 
 export const askEntry = (ask) => registry[ask?.source.tag]?.["x-awaits"];
 // The asks approving the shown version waits on, which the server names

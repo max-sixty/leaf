@@ -409,11 +409,12 @@ summary { align-content: center; }
 /* Every message header holds the same control-height row, including sticky margin
    heads. Thread actions and reactions must not change its metadata-to-body gap.
    An author may ellipsize while time and receipt use their own intrinsic room. */
-.lf-msg-head { display: flex; align-items: center; gap: var(--sp-2);
+:is(.lf-msg-head, .lf-thread-working-head) { display: flex; align-items: center;
+          gap: var(--sp-2);
           min-block-size: var(--lf-msg-head-height); box-sizing: border-box;
           min-width: 0; overflow: hidden; white-space: nowrap;
           font-size: var(--t-6); --lf-msg-name-size: 13px; }
-.lf-msg-head .lf-msg-meta { flex: 0 1 auto; overflow: hidden; }
+:is(.lf-msg-head, .lf-thread-working-head) .lf-msg-meta { flex: 0 1 auto; overflow: hidden; }
 /* A primary reader's message part holds its thread's news notice at the head's end,
    beside the message's own control rather than under it (controls.css). */
 .lf-primary-message > .lf-msg-head { position: relative; --lf-msg-head-room: 5rem;
@@ -425,7 +426,8 @@ summary { align-content: center; }
           max-inline-size: 5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lf-msg-head .lf-msg-sending { min-width: 0; overflow: hidden;
           text-overflow: ellipsis; }
-.lf-msg-head b { flex: 0 1 auto; min-width: 0; overflow: hidden;
+:is(.lf-msg-head, .lf-thread-working-head) b { flex: 0 1 auto; min-width: 0;
+          overflow: hidden;
           text-overflow: ellipsis; font-size: var(--lf-msg-name-size);
           font-weight: 600; color: var(--ink); }
 /* A checkpoint is agent-written reading context, followed by the retained originals

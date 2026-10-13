@@ -286,7 +286,7 @@ summary {
 .lf-thread-transcript > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) {
   margin-top: 0;
 }
-.lf-msg-head {
+:is(.lf-msg-head, .lf-thread-working-head) {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
@@ -298,7 +298,7 @@ summary {
   font-size: var(--t-6);
   --lf-msg-name-size: 13px;
 }
-.lf-msg-head .lf-msg-meta {
+:is(.lf-msg-head, .lf-thread-working-head) .lf-msg-meta {
   flex: 0 1 auto;
   overflow: hidden;
 }
@@ -327,7 +327,7 @@ summary {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.lf-msg-head b {
+:is(.lf-msg-head, .lf-thread-working-head) b {
   flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;

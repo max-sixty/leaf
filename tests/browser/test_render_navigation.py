@@ -1740,7 +1740,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
             )
             expect(later).to_be_hidden()
             card.locator(".lf-thread-working").get_by_role(
-                "button", name="Show progress", exact=True
+                "button", name="Show progress messages", exact=True
             ).click()
             expect(later).to_be_visible()
 

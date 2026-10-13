@@ -855,7 +855,7 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
     expect(thread.locator(".lf-thread-unread")).to_have_count(0)
     thread.locator(":scope > .lf-thread-summary").click()
     line = thread.locator(".lf-thread-working")
-    expect(line.locator(".lf-msg-head b")).to_have_text("Codex")
+    expect(line.locator(".lf-thread-working-head b")).to_have_text("Codex")
     expect(line.locator(".lf-thread-working-words")).to_have_text(
         "Trying a lighter weight"
     )
@@ -863,11 +863,11 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
     for step in steps:
         expect(thread.locator(f'.lf-msg[data-mid="{step["id"]}"]')).to_be_hidden()
 
-    show = line.get_by_role("button", name="Show progress", exact=True)
+    show = line.get_by_role("button", name="Show progress messages", exact=True)
     show.press("Enter")
     for step in steps:
         expect(thread.locator(f'.lf-msg[data-mid="{step["id"]}"]')).to_be_visible()
-    line.get_by_role("button", name="Hide progress", exact=True).press("Enter")
+    line.get_by_role("button", name="Hide progress messages", exact=True).press("Enter")
 
     answer = thread_model.post_reply(
         serve.page_dir,
@@ -985,7 +985,7 @@ def open_card_with_progress(browser, serve, request):
     panel_settled(page)
     thread = page.locator(f'.lf-thread[data-id="{root}"]')
     thread.locator(".lf-thread-working").get_by_role(
-        "button", name="Show progress", exact=True
+        "button", name="Show progress messages", exact=True
     ).click()
     progress = thread.locator(".lf-msg.agent .lf-msg-text")
     expect(progress).to_be_visible()
@@ -1407,7 +1407,7 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     runs = 2 if interleaved else 1
     expect(card.locator(".lf-thread-checkpoint")).to_have_count(runs)
     card.locator(".lf-thread-working").get_by_role(
-        "button", name="Show progress", exact=True
+        "button", name="Show progress messages", exact=True
     ).click()
     expect(original).to_be_visible()
     original.focus()

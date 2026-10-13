@@ -266,18 +266,20 @@ export function threadReading(thread, surface, commands, options) {
 // runs, as a title being generated is. The disclosure of the progress messages it
 // stands for holds its head's end, so a new step moves nothing beside it. It is the
 // transcript's last child, so it stands at the conversation's inset on every surface
-// and scrolls with it.
+// and scrolls with it. Its head wears a message head's face but not its class, since
+// it is no message: a message head's places (a margin's sticky head, held news) skip
+// it. It announces a new step or condition, but not its own disclosure's words.
 function workingView(working, toggle) {
-  return html`<div class="lf-msg-head">
+  return html`<div class="lf-thread-working-head">
       ${working.who ? html`<b>${working.who}</b>` : nothing}
       ${
         working.condition
           ? html`<span class="lf-msg-meta">${working.condition}</span>`
           : nothing
       }
-      <span class="lf-thread-working-toggle">${toggle}</span>
+      <span class="lf-thread-working-toggle" aria-live="off">${toggle}</span>
     </div>
-    <div class="lf-thread-working-words" aria-live="polite">${working.words}</div>`;
+    <div class="lf-thread-working-words">${working.words}</div>`;
 }
 
 function navigationSummary(model, control) {
@@ -519,6 +521,7 @@ export class ThreadView {
     this.#actions.className = "lf-thread-meta-actions";
     this.#transcript.className = "lf-thread-transcript";
     this.#working.className = "lf-thread-working";
+    this.#working.setAttribute("aria-live", "polite");
     // Native disclosure opens at the attribute checkpoint; queued toggle may arrive
     // after paint. Release held news here so the first opened body is current,
     // whether a summary, the panel list's choice (a walk to the card) or a
@@ -1332,7 +1335,7 @@ export class ThreadView {
       ? `${expanded ? (progress ? "Hide" : "Collapse") : "Show"} ${count} ${
           progress ? "progress" : "earlier"
         } message${count === 1 ? "" : "s"}`
-      : `${expanded ? "Hide" : "Show"} progress`;
+      : `${expanded ? "Hide" : "Show"} progress messages`;
     return html`<button
       type="button"
       class="lf-thread-disclosure lf-summary-expand"

@@ -98,7 +98,7 @@
   align-items: center;
   grid-template: var(--lf-shot-rail-size) / auto auto minmax(0, 1fr) auto auto;
   height: var(--lf-shot-rail-size);
-  padding: 0 11px;
+  padding: 0;
   border: 1px solid var(--rule);
   border-bottom: 0;
   border-radius: var(--r) var(--r) 0 0;
@@ -132,7 +132,7 @@
 }
 :scope:is(lf-shot) .lf-shotcap[data-lf-state=before] {
   grid-column: 1;
-  margin-inline-start: -5px;
+  border-start-start-radius: calc(var(--r) - 1px);
 }
 :scope:is(lf-shot) .lf-shot-open[data-lf-shot-open=before] {
   grid-column: 2;
@@ -142,7 +142,7 @@
 }
 :scope:is(lf-shot) .lf-shotcap[data-lf-state=after] {
   grid-column: 5;
-  margin-inline-end: -5px;
+  border-start-end-radius: calc(var(--r) - 1px);
 }
 :scope:is(lf-shot) .lf-shot-open {
   display: grid;

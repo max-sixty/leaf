@@ -959,6 +959,9 @@ def preview(
         raise click.UsageError("choose an example name or --source, not both")
     if user and export:
         raise click.UsageError("--user serves a page; omit --export")
+    # An explicitly selected runtime owns its launcher, including in the worker
+    # and the page commands it starts. A host override would redirect those calls.
+    os.environ.pop("LEAF_HOST_LAUNCHER", None)
     try:
         if worker:
             from leaf.detached import Handshake

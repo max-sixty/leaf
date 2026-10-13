@@ -3885,10 +3885,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     resized(page, 1440, 900)
     cluster = page.locator(f'[data-lf-margin-for="{target}"]')
     marker = cluster.locator(":scope > .lf-margin-marker")
-    expect(marker).to_have_attribute(
-        "data-lf-kinds",
-        "comment ask" if target == "bracket-decision" else "comment",
-    )
+    expect(marker).to_have_attribute("data-lf-kinds", "comment")
     expect(marker).not_to_have_attribute("data-lf-turn", re.compile(".+"))
     marker.evaluate("node => node.dataset.identityProbe = 'retained'")
     with_agent = _margin_entry_paint(marker)

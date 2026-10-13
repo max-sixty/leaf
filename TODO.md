@@ -335,6 +335,13 @@ height and where a switch lands wait on the workspace decision under Layout.
 - **Close the tally's small gaps.** On a phone the workspace header, tally
   included, scrolls away after Next; Undo's announcement doesn't name what it
   undid; the `q` help text is ambiguous; and a row's ○ mark has no legend.
+- **Call an ask one thing in the interface.** The Questions panel, "Next question"
+  and "In this question" say question, while a queue row's kind label, the walk
+  announcement ("Ask 2 of 3"), the `q` binding's description and the approval refusal
+  ("Answer every ask before approving") say ask (`queue-panel.js`, `queue-walk.js`,
+  `asks/view.js`, `banner.js`, `contribution-model.js`). The glossary defines the ask
+  record but not the user's word for it; choose one, likely question, as the list is
+  Questions.
 
 ### Recorded interaction review
 

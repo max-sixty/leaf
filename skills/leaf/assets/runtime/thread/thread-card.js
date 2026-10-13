@@ -185,7 +185,7 @@ export function threadReading(thread, surface, commands, options) {
   const openTodos = new Set((thread.todos ?? []).map(({ id }) => id));
   const leaves = (message) =>
     message.ask && message.id === asking
-      ? "Asks you"
+      ? "Waiting on me"
       : message.todo && openTodos.has(message.id)
         ? "To-do open"
         : null;

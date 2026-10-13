@@ -940,7 +940,7 @@ def test_an_answer_says_what_it_leaves_while_that_stands(browser, serve, request
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     for root, reply, words in (
-        (asked, question, "Asks you"),
+        (asked, question, "Waiting on me"),
         (promised, promise, "To-do open"),
     ):
         thread = page.locator(f'.lf-thread[data-id="{root}"]')

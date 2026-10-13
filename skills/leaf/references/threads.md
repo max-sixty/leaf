@@ -174,7 +174,7 @@ leaf response reply <answer.ref> --ask --text "Which store should own it?"
 leaf response reply <answer.ref> --todo "Rebuild the banner quieter" --text "Rebuilding it; it lands in v4."
 ```
 
-The user sees the declaration on the answer itself: its head reads **Asks you** while
+The user sees the declaration on the answer itself: its head reads **Waiting on me** while
 its prose ask is theirs to answer, and **To-do open** until you end the to-do. A
 promise declared `--done` reads as finished work, so declare what each answer leaves.
 

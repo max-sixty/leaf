@@ -88,7 +88,7 @@ def answered_comment(d, text, anchor):
 LIST_STATE = """() => {
   const list = document.querySelector(".lf-threads");
   return {
-    standing: [...list.children].filter((n) => !n.hidden)
+    listed: [...list.children].filter((n) => !n.hidden)
       .map((n) => n.dataset.id).filter(Boolean),
     walkable: [...list.querySelectorAll(":scope > .lf-thread:not([hidden])")].map(
       (n) => n.dataset.id,
@@ -468,7 +468,7 @@ SHORT_SUGGESTION = leaf_page(
 # started one motion", an index is "the motion this gesture started", and a sweep over it
 # steps or releases the frame the test is holding. A motion the test has already let go of
 # — a fold it finished on the way to the gesture under test — answers none of those, and
-# left standing it makes the count one too many, the index one place out, and a sweep
+# left in place it makes the count one too many, the index one place out, and a sweep
 # rewind a finished motion into the middle of a move the page has made. So a motion drops out of the list when it finishes. Cancelling
 # is the other way to end one, and it stays: `motion()` cancels its own last frame after
 # the caller's cleanup, and a cancelled motion is the positive control for a gesture the
@@ -1056,13 +1056,13 @@ def backdate_note(page_dir, version, hours):
 
 
 # One instance for every verb the vocabulary declares an action or a report for, so a
-# log holding one event apiece leaves the whole of it standing at once. `choose` and
+# log holding one event apiece leaves the whole of it in force at once. `choose` and
 # `answer` share one option-group unit but are distinct verbs, so both stand; two
 # suggestions let both of `decide`'s outcomes stand. The floor below derives the list
 # from the registry, so a newly declared verb fails here rather than passing
 # unexercised.
-STANDING_PAGE = leaf_page(
-    "standing state",
+IN_FORCE_PAGE = leaf_page(
+    "state in force",
     """
 <h1 id="ab-t">The v1 cutover</h1>
 <lf-ask id="ab-pick-decision"><h2>How should the schema migrate?</h2>
@@ -1127,16 +1127,16 @@ diff --git a/ab/bracket.py b/ab/bracket.py
 """,
 )
 
-# The event that leaves each declared verb standing, written out because a detail is
+# The event that leaves each declared verb in force, written out because a detail is
 # the verb's own shape and a schema is no help in inventing one.
 #
 # Two moves into one column, both to its head, because one move cannot say what this
-# gate has to get right. `move` folds by card, so each is its own standing entry with
+# gate has to get right. `move` folds by card, so each is its own entry in force with
 # its own rank: the column holds the second above the first, and re-applying either
 # set of them puts each card where its own rank says, whichever other moves stand. The
 # ranks are the ones lf-board sends: importer before the authored notes ("1"), then
 # notes before importer.
-STANDING_ACTIONS = [
+ACTIONS_IN_FORCE = [
     ("ab-pick", "choose", {"value": ["ab-stage"]}),
     ("ab-pick", "answer", {}),
     ("ab-pick", "add", {"option": "ab-rewrite", "text": "Rewrite the callers first"}),

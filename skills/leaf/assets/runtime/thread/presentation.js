@@ -68,7 +68,7 @@ export function createThreadPresentation({
   // The parts of the root a thread presentation draws: the fold itself, whose records
   // already carry the receipts and attention the workflows give them, and the document
   // whose messages, descriptors and revision the cards name. A publication that moves
-  // neither — a widget's own action, say — claims nothing, and the standing presentation
+  // neither — a widget's own action, say — claims nothing, and the current presentation
   // carries into the new epoch. The margin this presentation renders once it commits
   // also draws the Questions and the workflows; its own watcher follows those
   // (`annotationSelection`).

@@ -477,7 +477,7 @@ Codex falling back from its WebSocket probe to HTTP.
 
 When a hosted turn cannot answer, the user's update gets a failure receipt: a reply
 carrying `failure` in its thread for a message, or a failed pickup for an answer to an
-ask, which leaves the answer standing and lets the user answer again
+ask, which leaves the answer in force and lets the user answer again
 (`fail_answer` in `skills/leaf/scripts/leaf/thread.py`). The receipt's `failure` field holds one of three codes, and
 `worker/leaf_website/__init__.py` declares the words the user reads for each in
 `FAILURE_RECEIPTS`:

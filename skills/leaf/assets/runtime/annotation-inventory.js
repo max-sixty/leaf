@@ -12,7 +12,7 @@ import { KINDS } from "./contribution-model.js";
 import { excerptWords, labelWords } from "./words.js";
 import { contributionEntries } from "./contributions.js";
 import { marginInventory } from "./margin-model.js";
-import { standingPoint } from "./pointed-place.js";
+import { livePoint } from "./pointed-place.js";
 import { ago } from "./presence.js";
 import { runtime } from "./context.js";
 import { elementById, inChrome } from "./passages.js";
@@ -121,7 +121,7 @@ export function createAnnotationInventory({
   // what it is about, asks this.
   const points = new Map();
   const entryPoint = (entry) =>
-    entry ? standingPoint(targetFor(entry), points.get(entry.key)) : null;
+    entry ? livePoint(targetFor(entry), points.get(entry.key)) : null;
   const entryPlace = (entry) => entryPoint(entry) ?? targetFor(entry);
   // A pointed row is named by its words as the page reads them, cells and blocks apart.
   const pointName = (words) => {
@@ -228,27 +228,25 @@ export function createAnnotationInventory({
   // resolved record as collection, navigation and paint.
   function threadIdsAt(node) {
     const place = placeOf(node);
-    let standing = null;
+    let best = null;
     for (const thread of threadList()) {
       if (!threadHasDiscussion(thread)) continue;
       const placement = placedAt(thread.id);
       const target = placement?.place;
       if (!target || !under(place, target)) continue;
-      const point = standingPoint(target, placement.point);
+      const point = livePoint(target, placement.point);
       const rank = !point ? 1 : under(place, point) ? 2 : 0;
-      if (standing && target === standing.target && point === standing.point) {
-        standing.ids.push(thread.id);
+      if (best && target === best.target && point === best.point) {
+        best.ids.push(thread.id);
         continue;
       }
       if (
-        !standing ||
-        (target === standing.target
-          ? rank >= standing.rank
-          : under(target, standing.target))
+        !best ||
+        (target === best.target ? rank >= best.rank : under(target, best.target))
       )
-        standing = { target, point, rank, ids: [thread.id] };
+        best = { target, point, rank, ids: [thread.id] };
     }
-    return standing?.ids ?? [];
+    return best?.ids ?? [];
   }
 
   function collectEntries() {
@@ -266,7 +264,7 @@ export function createAnnotationInventory({
       const onUser = attention?.kind === "needs_user";
       const unread = thread.unread.length;
       const placement = placedAt(id);
-      const point = standingPoint(target, placement?.point);
+      const point = livePoint(target, placement?.point);
       const pointed = point
         ? { key: placement.pointRow, element: point, words: placement.pointWords }
         : null;
@@ -325,11 +323,9 @@ export function createAnnotationInventory({
         // glyph already shows.
         label: addressableLabel(target) || null,
         activate: () => {
-          const standing = readAsks().user.filter(
-            (ask) => ask.source.kind === "widget",
-          );
-          const next = standing.find((candidate) => candidate.id === id);
-          if (next) goToAsk(next, standing);
+          const asks = readAsks().user.filter((ask) => ask.source.kind === "widget");
+          const next = asks.find((candidate) => candidate.id === id);
+          if (next) goToAsk(next, asks);
         },
       });
     }

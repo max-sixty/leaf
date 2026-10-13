@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploy and verify the one standing Cloudflare development environment.
+# Deploy and verify the one persistent Cloudflare development environment.
 #
 # Publishes the current checkout, working tree included, to `leaf-website-dev`,
 # verifies the release, and benchmarks its workers.dev origin. It always selects the

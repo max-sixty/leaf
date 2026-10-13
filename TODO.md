@@ -56,10 +56,10 @@ has tried; settle that before building it.
   `PiHarness` has no `title_generator`, so a Pi page's thread is named only by the
   agent's reply. Give the page server a request on Pi's configured model, such as
   a print-mode run with tools, extensions and hooks off, and measure it.
-- **Keep a long Thread's standing visible.** Summary checkpoints already condense
+- **Keep a long Thread's current status visible.** Summary checkpoints already condense
   older messages. Test a current one-line reading of what is decided and what remains
   open, distinct from a historical summary, and decide how a revision invalidates it.
-  See the [Thread plan](notes/threads.md#current-standing).
+  See the [Thread plan](notes/threads.md#current-status).
 - **Test annotation placement in context.** Compare a pinned marker card with a
   sparse left-comment layout on a document and a workspace. Keep full history and
   search in Threads and use Page Map on narrow pages; show only one margin treatment
@@ -91,11 +91,6 @@ has tried; settle that before building it.
   acknowledgment could make an agent pause over an existing decision. Revisions
   currently remain unrestricted; decide whether such a reminder helps before
   adding one.
-
-- **#3 — Prevent an obsolete execution from closing continued work.** A later
-  `task start` records a new execution, but admission still accepts an older
-  session's `todo_end`. Test competing continuations and keep the delayed result
-  from closing the newer work ([comparison proposal](notes/comparisons.md#concrete-follow-up-proposals-2026-10-04-revised-2026-10-05)).
 
 - **#20 — Act on the plain HTML comparison.** The
   [comparison](notes/agent-usability-evals.md#authoring-against-plain-html-2026-10-12)
@@ -177,7 +172,7 @@ has tried; settle that before building it.
   before refining it (`skills/leaf/assets/AGENTS.md`, "Space and scrolling"). The
   redesign also settles how focus stays off page content a panel covers (Max,
   2026-10-10). His rule (2026-10-06): the panels dominate focus, so moving focus never
-  closes or changes a standing panel, and focus never lands on content a panel covers.
+  closes or changes an open panel, and focus never lands on content a panel covers.
   Tab walked onto page content under Threads, or under the Questions panel that shares
   its right edge, at 1440×900 on an example since retired; no surviving page has been
   checked for it. Making covered content inert

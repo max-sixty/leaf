@@ -3,7 +3,7 @@
  *
  * The application owner prepares complete, validated serializable candidates and
  * assigns their semantic epochs. Publication takes ownership of those values,
- * shares every subtree equal to the standing reading's, freezes them, and replaces one
+ * shares every subtree equal to the current reading's, freezes them, and replaces one
  * private signal synchronously. This module does not derive activity, reconcile
  * receipts, or perform transport and rendering.
  *
@@ -38,7 +38,7 @@ interface SnapshotReading<T> {
 }
 
 // Object.freeze says nothing about descendants or Map/Set entries. Only values this
-// owner has secured can skip traversal when a publication reuses a standing subtree.
+// owner has secured can skip traversal when a publication reuses an existing subtree.
 const secured = new WeakSet<object>();
 
 function immutable<T>(value: T, normalized = new WeakMap<object, object>()): Immutable<T> {

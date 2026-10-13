@@ -312,7 +312,7 @@ test("sharing keeps a JSON field named __proto__ an own field", () => {
 
 test("publisher secures shallow-frozen inputs and complete selected collections", () => {
   const key = { id: "thread" };
-  const collection = Object.freeze(new Map([[key, { words: ["standing"] }]]));
+  const collection = Object.freeze(new Map([[key, { words: ["kept"] }]]));
   const document = Object.freeze({ collection });
   const publisher = createApplicationPublisher({
     document,

@@ -15,7 +15,7 @@ probe results leave the tracked tree unchanged.
 ## Where tooling goes
 
 When agents keep writing the same throwaway script, the job becomes a `leaf-dev`
-command: a module here that owns its mechanism, registered in `cli.py`. Standing
+command: a module here that owns its mechanism, registered in `cli.py`. Recurring
 tooling that CI, a hook or an alias runs is a command here too, so the repository
 has no directory of loose scripts. A mechanism two tools need, such as building an
 arm or serving a page, lives in one module here and the others import it. Code
@@ -121,7 +121,7 @@ in `leaf-assets.json` and the README's image URLs that name it.
   and retained logs under `.tmp/verify-site/run-*/`. `worker/README.md` owns hosted-agent
   diagnostics and the failure contract.
 - `worker/deploy-dev.sh` (`pnpm run deploy:dev`) deploys the checkout
-  to the standing `leaf-website-dev` environment and verifies it. Production deploys
+  to the persistent `leaf-website-dev` environment and verifies it. Production deploys
   only through `.github/workflows/publish-site.yaml`.
 - `leaf-dev fetch-assets` fetches the `max-sixty/leaf-assets` revision pinned in
   `leaf-assets.json` (`leaf_assets.py`, which the site build also calls).

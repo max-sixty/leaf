@@ -68,7 +68,7 @@ function paintStateOrigins(projection) {
 }
 
 // A holder's settlement is the registry's slot relation read against its deciding
-// verb's standing outcome, so the layer paints it for every holder whether or not its
+// verb's outcome in force, so the layer paints it for every holder whether or not its
 // module renders anything. A module with a choreography of its own (lf-suggestion's
 // fold) has already run it in the publication, before this pass writes the same mark.
 // A holder in a message's frozen markup is painted before the thread mounts it, so it
@@ -96,7 +96,7 @@ export function createProjectionPresentation({ onDeferredReady }) {
   // while frozen widget markup is still joining the document; the pass paints it after.
   // A publication that moves none of the parts this paint draws — the fold's restated
   // and origin marks, each holder's settlement, against the authored states — claims
-  // nothing and carries the standing commit. The coverage stamp below reads the server's
+  // nothing and carries its last commit. The coverage stamp below reads the server's
   // view of the log beside the fold, and follows the coordinator rather than this claim.
   applicationPresenter({
     region: "projection:chrome",

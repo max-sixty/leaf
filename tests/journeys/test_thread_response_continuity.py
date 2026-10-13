@@ -228,7 +228,7 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
             page.evaluate("window.mirroredReplyEdits = []")
         else:
             other.bring_to_front()
-        standing = reply_editing_pose(editor)
+        resting = reply_editing_pose(editor)
         other.evaluate(
             """async parent => {
               const {saveDraft, tellDraft} = await window.__lfRuntimeImport('/runtime/drafts.js');
@@ -246,11 +246,11 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
         rendered(page)
         assert page.evaluate("window.mirroredReplyEdits") == []
         mirrored = reply_editing_pose(editor)
-        for coordinate in standing:
+        for coordinate in resting:
             assert mirrored[coordinate] == pytest.approx(
-                standing[coordinate], abs=0.5
+                resting[coordinate], abs=0.5
             ), (
-                standing,
+                resting,
                 mirrored,
             )
         before = editor.bounding_box()
@@ -313,7 +313,7 @@ def test_passive_reply_room_ends_at_native_edit_and_new_inline_measure(browser, 
     )
     told(page)
     rendered(page)
-    standing = reply_editing_pose(editor)
+    resting = reply_editing_pose(editor)
     other = open_page(browser, url, context=context)
     replacement = "\n".join(
         [
@@ -338,9 +338,9 @@ def test_passive_reply_room_ends_at_native_edit_and_new_inline_measure(browser, 
     expect(editor).to_have_js_property("value", replacement)
     rendered(page)
     mirrored = reply_editing_pose(editor)
-    for coordinate in standing:
-        assert mirrored[coordinate] == pytest.approx(standing[coordinate], abs=0.5), (
-            standing,
+    for coordinate in resting:
+        assert mirrored[coordinate] == pytest.approx(resting[coordinate], abs=0.5), (
+            resting,
             mirrored,
         )
     assert stored_draft_text(page, "reply:" + parent) == replacement
@@ -362,19 +362,19 @@ def test_passive_reply_room_ends_at_native_edit_and_new_inline_measure(browser, 
     expect(editor).to_have_js_property("value", replacement)
     rendered(page)
     canceled = reply_editing_pose(editor)
-    for coordinate in standing:
-        assert canceled[coordinate] == pytest.approx(standing[coordinate], abs=0.5), (
-            standing,
+    for coordinate in resting:
+        assert canceled[coordinate] == pytest.approx(resting[coordinate], abs=0.5), (
+            resting,
             canceled,
         )
     page.keyboard.insert_text("!")
     expect(editor).to_have_js_property("value", replacement + "!")
     rendered(page)
     edited = reply_editing_pose(editor)
-    assert edited["height"] > standing["height"] + 50, (standing, edited)
+    assert edited["height"] > resting["height"] + 50, (resting, edited)
     for coordinate in ("top", "firstLine"):
-        assert edited[coordinate] == pytest.approx(standing[coordinate], abs=0.5), (
-            standing,
+        assert edited[coordinate] == pytest.approx(resting[coordinate], abs=0.5), (
+            resting,
             edited,
         )
     page.set_viewport_size({"width": 1600, "height": 1100})

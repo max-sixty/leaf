@@ -1271,8 +1271,8 @@ def test_a_decision_retires_its_losing_slot_from_comments_reach(page_dir):
     """The user's accept removes lf-old from the page (the browser's anchor pass
     skips it), so a quote into it is refused naming the decision — posted, it would
     detach in front of them. The surviving slot quotes as ever, and a re-decision
-    moves the line: the reading follows the log the way replay does, last word
-    standing."""
+    moves the line: the reading follows the log the way replay does, the last word
+    in force."""
     suggested(page_dir)
     decide(page_dir, "accept")
     gone = comment(
@@ -1383,7 +1383,7 @@ def test_a_restated_suggestion_hands_its_slot_back(page_dir):
 
 
 def test_a_decision_the_user_took_back_hands_its_slot_back(page_dir):
-    """Withdrawing is the second way a decision stops standing, and the file's
+    """Withdrawing is the second way a decision stops being in force, and the file's
     reading owes it the same answer as `restated`: the retired half is on the page
     again, so a quote reaches it while the authored suggestion still exists."""
     suggested(page_dir)

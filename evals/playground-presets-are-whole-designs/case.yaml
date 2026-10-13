@@ -10,6 +10,9 @@
 # read in 6 of 6 runs of the change, which passed 4.
 # Also guards realistic candidate copy for the comment-growth guidance repair:
 # comparison labels belong around the diff, while the diff retains product text.
+# And guards the other side of playground-controls-stand-by-their-item: controls that
+# change every line of the diff stay in the rail rather than beside one line
+# (Claude Code: base 2/2, candidate 2/2).
 # A later grader called a gutter sign and code-edge bar a collision despite a
 # rendered 4px gap. The rubric now judges physical placement, including separation
 # inherited from the base layout, rather than both marks being near the left edge.
@@ -70,3 +73,10 @@ assert:
     4. The presets other than the baseline differ from each other in more than one
        control's value, so none is a slight variant of another.
     Fail if any one of these does not hold.
+- type: llm-rubric
+  metric: page-wide-controls-in-the-rail
+  value: |
+    Pass only if every `lf-playground-control` is written as a direct child of
+    `lf-playground`, so it stands in the rail, since each control changes how every
+    line of the diff is marked. Fail if any `lf-playground-control` is written inside
+    `lf-playground-preview`, such as beside one diff line.

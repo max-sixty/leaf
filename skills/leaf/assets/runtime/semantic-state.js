@@ -74,7 +74,7 @@ const documentPresenters = [];
 // before the page has read the log, or where this renderer was never mounted. The
 // region claims a presentation inside each publication that changes that selection,
 // and the paint runs on the pass that follows; a publication that leaves it unchanged
-// is no claim, so the region carries its standing commit into the new epoch
+// is no claim, so the region carries its last commit into the new epoch
 // (presentation.ts, `begin`). A selection shares unchanged parts across publications
 // (snapshot.ts), so a reading that names the parts it draws claims only when one of
 // them moves. What the paint reads beyond the root — the clock, a draft, the document's

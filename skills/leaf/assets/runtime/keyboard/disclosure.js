@@ -41,7 +41,7 @@ import { inChrome } from "../passages.js";
 // This pair is what DISCLOSE reads, so a toggle moves every row bound through it — and a
 // row's keys are named on two surfaces, the line the user sees and the
 // `aria-keyshortcuts` a listener is read. Repainting the line alone left the attribute
-// standing whichever way the row was when its scope was declared, naming the arrow that no
+// saying whichever way the row was when its scope was declared, naming the arrow that no
 // longer moves the section and withholding the one that does. The watcher that already
 // hears this write repaints the keys of the disclosure that moved, and the shared line with
 // them, so it is the one place both surfaces are kept together, rather than a repaint each
@@ -74,7 +74,7 @@ export const DISCLOSE = (el) => {
 export const DISCLOSURE_SELECTOR =
   'details > summary, :is(button, [role="button"])[aria-expanded]';
 
-// Which way the disclosure at this element is standing: open, shut, or null where it is
+// Which way the disclosure at this element is set: open, shut, or null where it is
 // not a disclosure at all — which is a question asked from wherever the user happens to
 // be, the reference listing a scope the page has rather than the one they are in.
 export function disclosed(el) {

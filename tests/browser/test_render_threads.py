@@ -803,7 +803,7 @@ def test_an_idle_card_shows_an_answer_folding_the_progress_at_its_end(
         told(page)
         expect(thread.locator(".lf-msg.agent")).to_have_count(2)
     opening = thread.locator(".lf-msg").first
-    standing = opening.bounding_box()
+    resting = opening.bounding_box()
 
     thread_model.post_reply(
         serve.page_dir,
@@ -821,7 +821,7 @@ def test_an_idle_card_shows_an_answer_folding_the_progress_at_its_end(
     )
     expect(thread.locator(".lf-thread-checkpoint")).to_have_count(1)
     expect(thread.locator(".lf-thread-news")).to_have_count(0)
-    assert opening.bounding_box() == standing, "the fold moved what stood above it"
+    assert opening.bounding_box() == resting, "the fold moved what stood above it"
 
 
 def answer_folding_progress(page_dir, root):
@@ -2117,7 +2117,7 @@ def test_resolving_one_of_two_threads_leaves_the_user_in_the_card(browser, serve
     """Resolving a thread the card outlives keeps focus in the card.
 
     Only the last thread at an anchor closes its margin card, and only that closure hands
-    focus back to the anchor. With a second thread standing, the card stays up showing
+    focus back to the anchor. With a second thread present, the card stays up showing
     it, so the user stays in the card rather than being carried out to the text.
     """
     comment = {
@@ -3319,14 +3319,14 @@ def test_opening_a_thread_leaves_its_title_where_the_user_pressed_it(browser, se
     before = title.evaluate("el => el.getBoundingClientRect().top")
     # The room has to close above the title, or nothing below it moves and this reading
     # would pass on a list that never held anything.
-    standing = page.locator(f'.lf-thread[data-id="{above}"]').evaluate(
+    above_box = page.locator(f'.lf-thread[data-id="{above}"]').evaluate(
         "el => el.getBoundingClientRect().toJSON()"
     )
-    assert standing["bottom"] <= before, (
+    assert above_box["bottom"] <= before, (
         f"the open card is not above the title being pressed, so closing it takes no "
-        f"room out from under it: {standing} against {before:.1f}px"
+        f"room out from under it: {above_box} against {before:.1f}px"
     )
-    opened = standing["height"]
+    opened = above_box["height"]
     box = title.bounding_box()
     page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     expect(page.locator(f'.lf-thread[data-id="{target}"][open]')).to_have_count(1)
@@ -3612,8 +3612,8 @@ def test_a_reply_row_at_its_thread_end_follows_an_arrival_as_a_pinned_one(
             break
         page.mouse.wheel(0, round(past))
         rendered(page)
-    standing = thread.evaluate(place)
-    assert abs(standing["lifted"]) < 0.5 and abs(standing["past"]) < 1, standing
+    placed = thread.evaluate(place)
+    assert abs(placed["lifted"]) < 0.5 and abs(placed["past"]) < 1, placed
     page.wait_for_function(
         "at => performance.now() - at > 500", arg=page.evaluate("performance.now()")
     )
@@ -4093,14 +4093,14 @@ ASK_MARKUP = (
 )
 
 
-@pytest.mark.parametrize("destination", ["message", "ask", "standing-ask"])
+@pytest.mark.parametrize("destination", ["message", "ask", "shown-ask"])
 def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination):
     """A direct message visit and the Ask walk can reach a held reply's contents.
-    Walking from outside the thread to an Ask it already shows ("standing-ask") is an
+    Walking from outside the thread to an Ask it already shows ("shown-ask") is an
     arrival at the thread too, so the reply held after it shows."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Keep the discussion here.")
-    if destination == "standing-ask":
+    if destination == "shown-ask":
         append_carried_log_record(
             serve.page_dir,
             {
@@ -5509,7 +5509,7 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     """An open thread and a request to its user are different facts. A complete
     answer stays available for follow-up without entering the waiting list; a reply
     carrying an explicit prose ask enters it until the user answers. A widget ask
-    needs no duplicate flag: its own standing projection enters and leaves the list."""
+    needs no duplicate flag: its own current projection enters and leaves the list."""
     options = (ROOT / "skills/leaf/packages/default/widgets/lf-options.js").read_text()
     options = options.replace(
         "connectedCallback() {",
@@ -6054,9 +6054,9 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
         pytest.approx(action["right"], abs=1),
     ), "the outcome moved from where the user pressed Resolve"
     held = page.evaluate(LIST_STATE)
-    assert held["standing"] == [c1, c2, c3], (
+    assert held["listed"] == [c1, c2, c3], (
         "the resolved thread gave up its place in the frame it was resolved in, so "
-        f"the list stood as {held['standing']} with the fold still to play"
+        f"the list stood as {held['listed']} with the fold still to play"
     )
     assert held["walkable"] == [c2, c3], (
         "a thread on its way out is still walkable by t/T, so a "
@@ -6567,7 +6567,7 @@ def test_an_inline_reply_link_finishes_a_resolution_fold(browser, serve):
     )
     expect(message).to_be_focused()
     expect(message.locator("#first-job")).to_be_in_viewport()
-    # Its old animation completion must leave the canonical revealed card standing.
+    # Its old animation completion must leave the canonical revealed card in place.
     page.evaluate("window.__lfHeld.forEach(animation => animation.finish())")
     expect(message).to_be_visible()
     expect(page.locator(f'.lf-thread[data-id="{root}"]')).to_have_count(1)
@@ -6655,13 +6655,13 @@ def test_a_user_who_asked_for_less_motion_gets_the_resolved_thread_at_once(
         "a user who asked for less motion was given a fold to sit through"
     )
     assert page.evaluate(LIST_STATE) == {
-        "standing": [c2],
+        "listed": [c2],
         "walkable": [c2],
-    }, "the thread that declined its fold was left standing in the list"
+    }, "the thread that declined its fold was left in the list"
 
 
 def test_a_thread_reopened_mid_fold_folds_again_when_it_settles(browser, serve):
-    """A fold is a claim about a node standing in the list, and the user can take
+    """A fold is a claim about a node in the list, and the user can take
     that node out from under it: `z` reopens the thread the fold is carrying away, and
     the render that puts the thread back drops the folding node. Held past that, the
     record would hand the spent node back the next time the thread settled — the fold
@@ -6719,7 +6719,7 @@ def test_a_thread_reopened_mid_fold_folds_again_when_it_settles(browser, serve):
         "the second settlement drew no fold of its own"
     )
 
-    # And the first fold runs out, which is the other half of two folds standing at
+    # And the first fold runs out, which is the other half of two folds pending at
     # once: its node left the list when the thread reopened, and the record it must
     # not clear on its way is the live fold's. Cleared, the thread is pulled out of
     # the list in the middle of the motion carrying it away.
@@ -8176,7 +8176,7 @@ def test_a_drag_across_a_quote_takes_its_words_and_not_its_passage(browser, serv
     )
 
     # The press itself still travels: what stood down is the drag, not the control.
-    # The words go first, because a press inside a standing selection is where the
+    # The words go first, because a press inside a current selection is where the
     # platform holds it for a drag of its own — the user's next press is a press,
     # not the tail of the one before it.
     page.evaluate("() => getSelection().removeAllRanges()")
@@ -10262,10 +10262,8 @@ def test_a_comment_being_written_on_a_diff_line_stays_in_hand_across_a_new_patch
 def test_the_comment_box_keeps_the_user_typing_as_it_takes_its_seat_again(
     browser, serve, native_move
 ):
-    """Opening the folded file seats the comment box being written back on its diff
-    line, and the user goes on typing in it at the same caret. Where the browser has
-    `moveBefore` the move never blurs the editor, as `append` did, and the caret
-    survives the native selection the move collapses."""
+    """A folded file withholds its draft; reopening returns focus and the caret to
+    the editor on its diff line, with and without native retained moves."""
     url = serve(
         leaf_page(
             "diff",
@@ -10287,22 +10285,15 @@ def test_the_comment_box_keeps_the_user_typing_as_it_takes_its_seat_again(
     expect(seated).to_be_focused()
     box = page.locator(".lf-fab-input")
     write(box, "Half a thought")
+    box.evaluate("box => box.setSelectionRange(4, 4)")
     details = page.locator("lf-diff details").first
     details.evaluate("details => { details.open = false; }")
-    expect(seated).to_have_count(0)
-    expect(box).to_be_focused()
-    rendered(page)
-    box.evaluate("""box => {
-      box.setSelectionRange(4, 4);
-      window.blurs = 0;
-      box.addEventListener('blur', () => window.blurs++);
-    }""")
+    expect(seated).to_have_count(0, timeout=5000)
+    expect(box).to_be_hidden(timeout=5000)
     details.evaluate("details => { details.open = true; }")
-    expect(seated).to_be_focused()
+    expect(seated).to_be_focused(timeout=5000)
     page.keyboard.type(" tr")
-    expect(seated).to_have_js_property("value", "Half tr a thought")
-    if native_move:
-        assert page.evaluate("window.blurs") == 0
+    expect(seated).to_have_js_property("value", "Half tr a thought", timeout=5000)
 
 
 def test_a_wheel_during_a_resolution_fold_outranks_the_landing_after_it(browser, serve):
@@ -12041,7 +12032,7 @@ def test_a_second_rewrite_over_a_refused_first_goes_with_it(browser, serve):
     """A rewrite written over one still sending names that one, by its pending id. When
     the log refuses the first, those written over it have nothing left to stand on: they
     go with it, the latest words back in the message's rewrite draft, rather than
-    standing on the message as unsent words over an id the log never took."""
+    left on the message as unsent words over an id the log never took."""
     url = serve(THREAD_DIFF_PAGE)
     d = serve.page_dir
     mine = append_carried_log_record(

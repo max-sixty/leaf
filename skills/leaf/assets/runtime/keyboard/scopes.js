@@ -655,7 +655,7 @@ export function commandScope(title, rows, options) {
 }
 
 // `projector` is whatever the projecting owner keys its projection by; projecting again
-// under the same key replaces that owner's scope and leaves every other owner's standing,
+// under the same key replaces that owner's scope and leaves every other owner's scope in place,
 // and a null capability withdraws it.
 export function projectCommandScope(control, projector, capability = null) {
   dirtyButtons.add(control);
@@ -764,7 +764,7 @@ function reflectElementShortcuts(element) {
   ].join(" ");
   keeps(element, "aria-keyshortcuts", shortcuts || null);
 }
-// Ahead of standing content, so an ambiguous declaration is refused under its own title
+// Ahead of the page's content, so an ambiguous declaration is refused under its own title
 // rather than under whichever surface reads its rows first.
 export function reflectFirstScopes() {
   reflectButtonsTracked();
@@ -773,7 +773,7 @@ export function reflectFirstScopes() {
     reflectTracked(scope.el);
   }
 }
-// Reflect after standing content has projected all of its scopes in the current
+// Reflect after the page's content has projected all of its scopes in the current
 // repaint frame. A focus move and a replacement can each ask for a paint, but the
 // shortcut attribute should represent only the final standing of that frame.
 // A scope refused here is reported, and the elements after it still paint.
@@ -784,7 +784,7 @@ export function reflectFirstScopes() {
 // the next frame. What it reads from the document is a mechanical change, and its writer
 // says so: `paintKeys()` marks every element, and `paintKeysWithin(root)` the ones a
 // renderer's paint touched. A publication that moves nothing an element read, and no
-// renderer whose output it reads, leaves its reflection standing.
+// renderer whose output it reads, leaves its reflection as it is.
 let keysDirty = true;
 const dirtyElements = new Set();
 const tracked = new WeakMap();

@@ -90,7 +90,7 @@ export function createAskView({
   // node, so materialize the existing thread projection there rather than
   // narrowing the semantic inventory to what happens to be in the DOM.
   //
-  // Bulk answers reuse standing nodes and materialize only those not built yet.
+  // Bulk answers reuse existing nodes and materialize only those not built yet.
   // Explicit arrivals reveal the addressed frozen turn, then use the canonical
   // destination policy to select and present its current reader.
   //
@@ -155,8 +155,10 @@ export function createAskView({
   // module exposes a method named for its deciding verb that takes the outcome; the
   // label is built from the outcome's word.
   //
-  // Built when the registry lands rather than written out above, so the second widget to
-  // declare one gets its control by declaring it. Each takes its place in the row rather
+  // Built from the asks each reading carries rather than written out above, so the second
+  // widget to declare one gets its control by declaring it, and a widget in a frozen
+  // message declares it under its own publication. Until the first state answer there
+  // are no asks, so there is no control yet. Each takes its place in the row rather
   // than a box of its own: a control with no siblings is a control the press sweep walks
   // past, and one that only ever appears at upgrade spends the spacer's slack, not the
   // room of anything to its right.
@@ -176,7 +178,7 @@ export function createAskView({
 
   // Each blanket answer with the asks it would take, from the list above. The banner
   // writes its controls and counts from this one reading, without naming an outcome in
-  // core; which outcomes exist is the registry's answer.
+  // core; which outcomes exist is what the asks' own declarations answer.
   function blanketAnswers(asks) {
     return [...bulkAnswers].map(([outcome, label]) => {
       const n = asks.filter((ask) => askEntry(ask)?.all === outcome).length;
@@ -392,7 +394,7 @@ export function createAskView({
   // The user's standing on an ask, said in terms a replaced document can still answer.
   // Focus by shape does not cross a document replacement — version.js says why — but an
   // ask is not a shape. Its id is a declared identity that the inventory, the Questions
-  // panel's rows, and the walk already resolve against whichever document is standing,
+  // panel's rows, and the walk already resolve against whichever document is current,
   // so a user working an ask when a revision lands is put back on the same ask rather
   // than dropped to `body`.
   //

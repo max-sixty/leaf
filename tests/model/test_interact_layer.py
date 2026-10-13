@@ -364,6 +364,43 @@ def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(page_dir
     assert write_refusal(page_dir) is None
 
 
+@pytest.mark.parametrize(
+    ("vendored", "named"),
+    [
+        (vendored_at_another_protocol, "page protocol 999"),
+        (vendored_before_the_ask_rename, "x-question-context"),
+    ],
+)
+def test_page_state_reports_a_layer_this_leaf_cannot_serve(page_dir, vendored, named):
+    """`page state` on a page this Leaf can neither serve nor write still prints its
+    reading, and says why under `source.error`, naming the re-vendor, from the one
+    reading the servers and the append door refuse on (`layer.incompatible_layer`).
+    Activation writes no revision under that layer, even for an edited source.
+
+    A fresh process, as an agent's is: this one holds the revision `publish`
+    captured in memory, under the vocabulary before the change."""
+    publish(page_dir)
+    vendored(page_dir)
+    source = page_dir / "index.html"
+    source.write_text(source.read_text().replace("<h2>Plan</h2>", "<h2>Plans</h2>"))
+    revisions = interact_files.list_revisions(page_dir)
+
+    result = subprocess.run(
+        [*LEAF_COMMAND, "page", "state", str(page_dir)],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    state = json.loads(result.stdout)
+    assert state["source"]["live"] is False
+    assert named in state["source"]["error"]
+    assert f"leaf page init {page_dir}" in state["source"]["error"]
+    assert state["active"]["revision"] == revisions[-1]
+    assert interact_files.list_revisions(page_dir) == revisions
+
+
 def test_response_reply_names_a_published_page_vendored_before_a_key_was_renamed(
     claimed, server
 ):

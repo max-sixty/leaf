@@ -307,7 +307,7 @@ DOM attributes never enter the semantic snapshot.
 A publication is also what starts a renderer. Each one names, as a selection of the
 root, the parts it draws; a publication that moves one claims its region inside that
 synchronous publication and paints the current root on the pass that follows, and one
-that moves none carries the region's standing commit into the new epoch. A caller that
+that moves none carries the region's last commit into the new epoch. A caller that
 changes what the page shows publishes and waits for proof rather than naming renderers
 or sequencing them. Where one renderer reads DOM another materializes,
 that order is declared once, beside the coordinator, not repeated at each publisher.

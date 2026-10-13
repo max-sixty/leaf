@@ -110,7 +110,7 @@ def _fixture_anchor(anchor: dict, readings: AdmissionReadings) -> dict:
 
     Browser admission receives targets already captured in a rendered document.
     A fixture has no such observation, so the existing file-side capture proves
-    its section and passage against the same standing projection instead.
+    its section and passage against the same current projection instead.
     """
     page = readings.page(1)
     document, projection = page.document, page.projection

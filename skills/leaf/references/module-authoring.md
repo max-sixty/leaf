@@ -445,7 +445,7 @@ its indication every animation frame; the driver's own narration says what the m
 means. An indication is browser state, like hover: the log never records it, and a new
 revision does not carry it. A widget whose parts have a face of their own styles
 `[data-lf-indicated]` on them; the default is an accent outline. A target that
-re-renders what a key addresses calls `layoutChanged(this)`, and every standing
+re-renders what a key addresses calls `layoutChanged(this)`, and every current
 indication resolves again.
 
 ## The widget controller
@@ -1451,10 +1451,10 @@ a widget that shows how long a worker has gone unheard.
 
 ### Reading version changes
 
-`comparisonChanges(owner)` returns the changed descendant elements in the standing version
+`comparisonChanges(owner)` returns the changed descendant elements in the current version
 comparison, excluding the owner itself; omit the owner to read every changed element. It
 reads the comparison's own record, not CSS markers, and returns an empty array with no
-comparison standing. `watchComparison(owner, callback)` calls the callback when the owner
+comparison active. `watchComparison(owner, callback)` calls the callback when the owner
 first connects and on each change to the comparison; on a return it calls only when the
 comparison changed while the owner was away. A callback that throws is reported, and the
 next change calls it again. Its returned function ends the watch. Use `comparisonChanges`
@@ -1589,7 +1589,7 @@ give it; its `root` is its opening message, which a reply or settlement names as
 after a failed response, and `"waiting"` one that is with the agent. Every Thread carries
 `offers: {open, reply, resolve, reopen}` for current command availability. Reply is
 admissible on a resolved Thread and reopens it. Each message's `reactions` is `null` or its
-current vocabulary and `choices`, including labels, glyphs and standing reactions.
+current vocabulary and `choices`, including labels, glyphs and reactions in force.
 
 `threadActions` adds a package's own controls over the current reading and Leaf's
 optimistic event path:
@@ -1634,8 +1634,8 @@ if (editor?.matches(":focus") && editor.setSelectionRange) {
 `reply`, `resolve`, `reopen` and `setReaction` return `null` when the current reading does
 not offer that action, otherwise a promise resolving to the admitted event, or `null` if
 admission refuses it. The action changes `readThreads()` at once; the server stays final. A
-reply needs non-empty text. `setReaction` names the desired standing state, so a stale
-control cannot invert a concurrent change: `false` withdraws a standing reaction, and the
+reply needs non-empty text. `setReaction` names the desired state, so a stale
+control cannot invert a concurrent change: `false` withdraws a reaction in force, and the
 token must be in the current layer's vocabulary on an addressable agent message.
 `create` accepts `text`, an optional `anchor`, `attempt`, `holds`, `about`, `drawing` and
 `suggestion`; empty text needs a drawing. It returns `{key, delivery}` synchronously, where

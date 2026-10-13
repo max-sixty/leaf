@@ -7,7 +7,7 @@
  * root wears its frame's nearest dressed ancestor's set, so a candidate that restyles
  * a whole page keys on that child's root and never on the page holding the frame. A
  * child takes its dress in its bootstrap, before it paints, reset children included,
- * and a new dress reaches every child already standing. */
+ * and a new dress reaches every child already present. */
 
 const dresses = new WeakMap();
 const children = new WeakMap();

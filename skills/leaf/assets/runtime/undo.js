@@ -45,12 +45,12 @@ export function createUndo({ post, stateApplying, unaccountedGesture }) {
     const { effective, unresolved } = readApplication();
     // Between versions the page holds no undo list to prune against.
     if (effective.view) {
-      const standing = new Set([
+      const liveAttempts = new Set([
         ...effective.view.undo.map(({ event }) => event.attempt),
         ...unresolved.map((entry) => entry.event.attempt),
       ]);
       for (const kept of reversals.keys())
-        if (!standing.has(kept)) reversals.delete(kept);
+        if (!liveAttempts.has(kept)) reversals.delete(kept);
     }
     reversals.set(attempt, reverse);
   }

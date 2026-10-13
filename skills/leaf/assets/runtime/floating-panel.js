@@ -14,13 +14,13 @@
  *   user folds it from the leaf's menu; a press on the leaf unfolds it, and it stays as
  *   it was left across pages (`rest`).
  * - **The row**: the leaf, the comment field, and marks with counts for On me and
- *   Threads, and on a desk a pen for annotating. The empty field says what the agent is
- *   doing or wants, in the banner's own words (`watchStatus`), or what a passing notice
- *   says, where a placeholder would say "Comment"; in a thread it says whose turn it is.
- *   A status reads dimmer than anything written, and while the agent works it carries
- *   the one sheen that marks work under way. Clicking in gives the placeholder to where
- *   the words go, and opens one quiet line above it naming who they go to; once words
- *   hide the placeholder, the line names where as well.
+ *   Threads. The empty field says what the agent is doing or wants, in the banner's own
+ *   words (`watchStatus`), or what a passing notice says, where a placeholder would say
+ *   "Comment"; in a thread it says whose turn it is. A status reads dimmer than anything
+ *   written, and while the agent works it carries the one sheen that marks work under
+ *   way. Clicking in gives the placeholder to where the words go, and opens one quiet
+ *   line above it naming who they go to; once words hide the placeholder, the line names
+ *   where as well.
  * - **Opened**: a view above the same row (On, Threads, a thread, Versions, or a
  *   group of the page's controls) with where the user is at its top edge. It lasts while
  *   it is used: Escape or a press on the page puts it away. It is as tall as what it
@@ -35,9 +35,12 @@
  *   `declareOccluder`).
  *
  * The leaf's menu is a small list above the leaf holding the rest of the page's
- * controls, each one line, with its key where it has one. The field the user clicks in
- * is the field they write in: a page comment where no thread is open, a reply where one
- * is. Each destination keeps its own native editor (its draft, caret and send), and the
+ * controls, each one line, with its key where it has one, and a chevron on a row that
+ * opens a list of its own (Versions, and the groups: Navigate, Annotations, About). A
+ * keyboard's convenience for where the reader stands, such as Resume writing, stands
+ * under Navigate only where no keyboard is there to reach it (banner-toolbar.js, the
+ * `keys` group). The field the user clicks in is the field they write in: a page
+ * comment where no thread is open, a reply where one is. Each destination keeps its own native editor (its draft, caret and send), and the
  * panel stands the current one in the field's place, so words never move between
  * editors.
  *
@@ -138,6 +141,10 @@ const HELD_ELSEWHERE = Object.freeze([
 // A row the menu or a group lists: neither held elsewhere nor the next step of a
 // gesture, which stands in the counts' place instead.
 const listed = (entry) => !entry.gesture && !HELD_ELSEWHERE.includes(entry.key);
+// Where a row stands in the menu: in its group, and a keyboard's convenience (`keys`)
+// under Navigate only where no keyboard is there to reach it, so a finger still can.
+const groupOf = (entry) =>
+  entry.group === "keys" && !advertisesKeys() ? "navigate" : entry.group;
 const FILTERS = Object.freeze(["open", "unread", "drafts", "resolved"]);
 const capital = (word) => word[0].toUpperCase() + word.slice(1);
 const coarse = () => matchMedia("(pointer: coarse)").matches;
@@ -574,11 +581,19 @@ export function createFloatingPanel({
   });
 
   // ---------- the leaf's menu ----------
+  // A row that opens a list of its own ends in a chevron, past its value, so the user
+  // knows before pressing that it leads further rather than acting.
   const menuItem = (
     label,
     end,
     press,
-    { urgent = false, disabled = false, role = "menuitem", row = null } = {},
+    {
+      urgent = false,
+      disabled = false,
+      role = "menuitem",
+      row = null,
+      opens = false,
+    } = {},
   ) =>
     html`<button
       type="button"
@@ -587,18 +602,21 @@ export function createFloatingPanel({
       class="lf-fp-item"
       ?disabled=${disabled}
       ?data-lf-urgent=${urgent}
+      ?data-opens=${opens}
       @click=${press}
     >
-      <span class="lf-fp-label">${label}</span>${end}
+      <span class="lf-fp-label">${label}</span
+      ><span class="lf-fp-end"
+        >${end}${opens ? iconTemplate("next", "lf-fp-chevron") : nothing}</span
+      >
     </button>`;
-  // A row's end says its value, or else its shortcut where a keyboard is there to press
-  // it.
+  // A row's end says its value, then its shortcut where a keyboard is there to press it.
   const rowEnd = (entry) =>
-    entry.value
-      ? html`<span class="lf-fp-value">${entry.value}</span>`
-      : entry.shortcut && advertisesKeys()
+    html`${entry.value ? html`<span class="lf-fp-value">${entry.value}</span>` : nothing}${
+      entry.shortcut && advertisesKeys()
         ? html`<kbd class="lf-fp-key">${entry.shortcut}</kbd>`
-        : nothing;
+        : nothing
+    }`;
   function rowFor(entry) {
     const view = OWN_VIEWS[entry.key];
     return menuItem(
@@ -618,6 +636,7 @@ export function createFloatingPanel({
         disabled: entry.disabled,
         role: menuOpen ? "menuitem" : null,
         row: entry.key,
+        opens: Boolean(view),
       },
     );
   }
@@ -627,7 +646,7 @@ export function createFloatingPanel({
     // the page's rows follow in the toolbar's order.
     const lead = Object.keys(OWN_VIEWS);
     const page = all
-      .filter((entry) => entry.group === "page" && listed(entry))
+      .filter((entry) => groupOf(entry) === "page" && listed(entry))
       .sort(
         (a, b) =>
           (lead.includes(a.key) ? lead.indexOf(a.key) : lead.length) -
@@ -636,7 +655,7 @@ export function createFloatingPanel({
     const keyboard = all.find((entry) => entry.key === "keyboard");
     const fold = all.find((entry) => entry.key === `command:${FOLD}`);
     const groups = Object.keys(GROUPS).filter((group) =>
-      all.some((entry) => entry.group === group && listed(entry)),
+      all.some((entry) => groupOf(entry) === group && listed(entry)),
     );
     // The state in a word over its one line, and the whole of it under that, which the
     // banner's disclosure gave: the menu is reached by pointer, key and finger alike.
@@ -658,8 +677,11 @@ export function createFloatingPanel({
       ${groups.map((group) =>
         menuItem(
           GROUPS[group],
-          html`<span class="lf-fp-value">${groupValue(group)}</span>`,
+          groupValue(group)
+            ? html`<span class="lf-fp-value">${groupValue(group)}</span>`
+            : nothing,
           () => open({ view: "group", group }),
+          { opens: true },
         ),
       )}
       <hr />
@@ -677,8 +699,35 @@ export function createFloatingPanel({
   function groupView(group) {
     return html`<div class="lf-fp-list">
       ${rows()
-        .filter((entry) => entry.group === group && listed(entry))
-        .map(rowFor)}
+        .filter((entry) => groupOf(entry) === group && listed(entry))
+        .map((entry) => (entry.copies ? copyRow(entry) : rowFor(entry)))}
+    </div>`;
+  }
+  // A row whose press copies a text, such as the share link, shows that text for the
+  // user to select as well, with its press beside it, since a browser offers the
+  // clipboard only to a secure context (https or localhost) and may refuse a write; the
+  // view stays open across the press, so the text is still there if the copy failed.
+  // Its value, which a one-line row would end with, says beneath it what the text is.
+  function copyRow(entry) {
+    const field = `lf-fp-copy-${entry.key}`;
+    return html`<div class="lf-fp-copy">
+      <label class="lf-fp-copy-label" for=${field}>${entry.label}</label>
+      <input
+        id=${field}
+        class="lf-fp-copy-text"
+        type="url"
+        readonly
+        .value=${entry.copies}
+        @focus=${(event) => event.target.select()}
+      /><button
+        type="button"
+        class="lf-fp-quiet"
+        ?disabled=${entry.disabled}
+        @click=${() => entry.press(heldStanding)}
+      >
+        Copy
+      </button>
+      ${entry.value ? html`<p class="lf-fp-copy-note">${entry.value}</p>` : nothing}
     </div>`;
   }
 
@@ -1412,15 +1461,7 @@ export function createFloatingPanel({
         >
           ${iconTemplate("comment", "lf-action-icon")}<span class="lf-fp-num"
             >${openCount() || ""}</span
-          ><span class="lf-fp-news" ?hidden=${!news}></span></button
-        ><button
-          type="button"
-          class="lf-fp-chip lf-fp-annotate"
-          aria-pressed=${String(top?.view === "group" && top.group === "annotate")}
-          aria-label="Annotate"
-          @click=${() => open({ view: "group", group: "annotate" })}
-        >
-          ${iconTemplate("edit", "lf-action-icon")}
+          ><span class="lf-fp-news" ?hidden=${!news}></span>
         </button>`,
       quick,
     );
@@ -1582,8 +1623,8 @@ export function createFloatingPanel({
       { capture: true },
     );
 
-  // Version travel (Shift+V, `g V`, the picker's own press) opens the versions menu,
-  // whichever route asks; in this chrome that opening is the panel's Versions view.
+  // Version travel (`g V`, the picker's own press) opens the versions menu, whichever
+  // route asks; in this chrome that opening is the panel's Versions view.
   versionMenu.addEventListener("beforetoggle", (event) => {
     if (event.newState !== "open") return;
     event.preventDefault();

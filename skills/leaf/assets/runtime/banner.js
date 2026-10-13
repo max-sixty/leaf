@@ -466,6 +466,7 @@ if (SHARE_ROOT) {
   const share = el("summary", "lf-btn", "Share");
   share.title = "Show this page's access link";
   const panel = el("div", "lf-share-panel");
+  const grants = "Grants access to all Leaf pages on this machine.";
   const label = el("label", "", "Share link");
   const link = offer("input", "lf-share-link");
   link.id = "lf-share-link";
@@ -478,11 +479,7 @@ if (SHARE_ROOT) {
   const copy = copyControl(copyButton, "Link copied", "Select and copy the link above");
   copy.copyLabel = "Copy link";
   copy.hidden = !navigator.clipboard?.writeText;
-  panel.append(
-    el("p", "", "Grants access to all Leaf pages on this machine."),
-    label,
-    copy,
-  );
+  panel.append(el("p", "", grants), label, copy);
   details.append(share, panel);
   details.addEventListener("toggle", () => {
     if (details.open) link.value = copy.value = shareUrl();
@@ -497,7 +494,9 @@ if (SHARE_ROOT) {
     rank: BANNER_CONTROL_RANK.share,
     // The press is the Copy link control's own, with its success and failure notices.
     row: {
-      label: "Copy share link",
+      label: "Share link",
+      value: grants,
+      copies: shareUrl,
       group: "about",
       press: () => {
         copy.value = shareUrl();

@@ -32,6 +32,7 @@
    presentation only while no newer user gesture has chosen another reading place. */
 import { anchorLabel } from "./messages.js";
 import { awaitsAgent, awaitsUser } from "./model.js";
+import { agentName } from "../semantic-state.js";
 import { retainUserIntent } from "../user-intent.js";
 import { bindQueuedWork } from "../queued-work.js";
 
@@ -41,6 +42,7 @@ const group = (kind, label, choices) =>
   Object.freeze({ kind, label, choices: Object.freeze(choices) });
 
 // Labels and choices are declarations, not facts recovered from rendered buttons.
+// The agent's choice is named as every surface names it, read when it renders.
 const FACETS = Object.freeze([
   group("status", "Status", [
     choice("status", "open", "Open"),
@@ -48,7 +50,9 @@ const FACETS = Object.freeze([
   ]),
   group("waiting", "Waiting on", [
     choice("waiting", "user", "Me", "lf-needs"),
-    choice("waiting", "agent", "Agent"),
+    choice("waiting", "agent", () =>
+      agentName().replace(/^./, (first) => first.toUpperCase()),
+    ),
   ]),
   group("scope", "Location", [
     choice("scope", "page", "Page"),
@@ -157,7 +161,15 @@ const includesThread = (reading, thread, place) =>
 
 const count = (rows, predicate) => rows.filter(predicate).length;
 const entryReading = (declaration, selected, amount, disabled, hidden = false) =>
-  Object.freeze({ ...declaration, selected, amount, disabled, hidden });
+  Object.freeze({
+    ...declaration,
+    label:
+      typeof declaration.label === "function" ? declaration.label() : declaration.label,
+    selected,
+    amount,
+    disabled,
+    hidden,
+  });
 
 // Counts describe each named subset under the other standing filters, including
 // Status clearing Waiting on. An active choice keeps its subset count; clearing it
@@ -173,7 +185,7 @@ function presentationReading(reading, threads, shown, places) {
     `${amount} ${lifecycle}${baseline === 1 ? "thread" : "threads"}`,
     reading.waiting === "all"
       ? null
-      : `On ${reading.waiting === "user" ? "me" : "agent"}`,
+      : `On ${reading.waiting === "user" ? "me" : agentName()}`,
     reading.scope !== "all" ? labelFor("scope", reading.scope) : null,
     reading.subject !== "all" ? labelFor("subject", reading.subject) : null,
     reading.onlyUnplaced ? labelFor("unplaced", "unplaced") : null,
@@ -257,7 +269,7 @@ function emptyReading(reading) {
       : reading.waiting === "user"
         ? "Nothing is waiting on me."
         : reading.waiting === "agent"
-          ? "Nothing is waiting on the agent."
+          ? `Nothing is waiting on ${agentName()}.`
           : reading.status === "resolved"
             ? "No resolved threads."
             : reading.status === "open"

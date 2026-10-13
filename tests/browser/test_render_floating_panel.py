@@ -695,6 +695,22 @@ def test_the_leaf_s_menu_marks_what_opens_a_list_and_leaves_key_conveniences_out
     assert set(listed.all_inner_texts()) <= {"All pages", "Search page"}
 
 
+def test_a_finger_finds_the_keyboard_s_conveniences_under_navigate(browser, serve):
+    """Where no keyboard is there to reach them, the conveniences the desk's menu leaves
+    to their keys stand under Navigate, so a finger keeps a way to each."""
+    context = browser.new_context(
+        viewport={"width": 1280, "height": 800}, has_touch=True
+    )
+    context.add_init_script(FLOATING)
+    page = open_page(browser, serve(LONG_PAGE, comments=1), context=context)
+    assert page.evaluate("() => matchMedia('(pointer: coarse)').matches")
+    page.locator(".lf-fp-leaf").click()
+    page.locator(".lf-fp-menu .lf-fp-item", has_text="Navigate").click()
+    listed = page.locator(".lf-fp-view[data-view=group] .lf-fp-label")
+    expect(listed.filter(has_text="Search page")).to_have_count(1)
+    expect(listed.filter(has_text="Align current item at top")).to_have_count(1)
+
+
 def test_the_share_link_shows_where_it_can_be_selected_without_a_clipboard(
     browser, serve
 ):

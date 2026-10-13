@@ -38,7 +38,8 @@ what the module header of `runtime/floating-panel.js` now states:
   (the toolbar row contract's `shortcut`), the agent's state at its head. A row that
   opens a list of its own ends in a chevron. Navigate holds All pages and Search
   page; Page Map, Resume writing, Restore selection and Align current item at top
-  keep their keys and leave the menu (the row group `keys`).
+  keep their keys and leave the menu (the row group `keys`); where no keyboard is
+  there to reach them, a finger finds them under Navigate.
 - **Where the user is sits at a view's top edge**, with its filters, search,
   Resolve and Close beside it; the destination line and the thread-actions row went.
 - **Motion moves no layout**: every change of size takes effect in one step and a

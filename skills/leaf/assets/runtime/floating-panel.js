@@ -33,8 +33,9 @@
  * The leaf's menu is a small list above the leaf holding the rest of the page's
  * controls, each one line, with its key where it has one, and a chevron on a row that
  * opens a list of its own (Versions, and the groups: Navigate, Annotations, About). A
- * row the keyboard reaches and the menu has no use for leaves it (banner-toolbar.js,
- * the `keys` group). The field the user clicks in is the field they write in: a page
+ * keyboard's convenience for where the reader stands, such as Resume writing, stands
+ * under Navigate only where no keyboard is there to reach it (banner-toolbar.js, the
+ * `keys` group). The field the user clicks in is the field they write in: a page
  * comment where no thread is open, a reply where one is. Each destination keeps its own native editor (its draft, caret and send), and the
  * panel stands the current one in the field's place, so words never move between
  * editors.
@@ -136,6 +137,10 @@ const HELD_ELSEWHERE = Object.freeze([
 // A row the menu or a group lists: neither held elsewhere nor the next step of a
 // gesture, which stands in the counts' place instead.
 const listed = (entry) => !entry.gesture && !HELD_ELSEWHERE.includes(entry.key);
+// Where a row stands in the menu: in its group, and a keyboard's convenience (`keys`)
+// under Navigate only where no keyboard is there to reach it, so a finger still can.
+const groupOf = (entry) =>
+  entry.group === "keys" && !advertisesKeys() ? "navigate" : entry.group;
 const FILTERS = Object.freeze(["open", "unread", "drafts", "resolved"]);
 const capital = (word) => word[0].toUpperCase() + word.slice(1);
 const coarse = () => matchMedia("(pointer: coarse)").matches;
@@ -629,7 +634,7 @@ export function createFloatingPanel({
     // the page's rows follow in the toolbar's order.
     const lead = Object.keys(OWN_VIEWS);
     const page = all
-      .filter((entry) => entry.group === "page" && listed(entry))
+      .filter((entry) => groupOf(entry) === "page" && listed(entry))
       .sort(
         (a, b) =>
           (lead.includes(a.key) ? lead.indexOf(a.key) : lead.length) -
@@ -638,7 +643,7 @@ export function createFloatingPanel({
     const keyboard = all.find((entry) => entry.key === "keyboard");
     const fold = all.find((entry) => entry.key === `command:${FOLD}`);
     const groups = Object.keys(GROUPS).filter((group) =>
-      all.some((entry) => entry.group === group && listed(entry)),
+      all.some((entry) => groupOf(entry) === group && listed(entry)),
     );
     // The state in a word over its one line, and the whole of it under that, which the
     // banner's disclosure gave: the menu is reached by pointer, key and finger alike.
@@ -682,7 +687,7 @@ export function createFloatingPanel({
   function groupView(group) {
     return html`<div class="lf-fp-list">
       ${rows()
-        .filter((entry) => entry.group === group && listed(entry))
+        .filter((entry) => groupOf(entry) === group && listed(entry))
         .map((entry) => (entry.copies ? copyRow(entry) : rowFor(entry)))}
     </div>`;
   }

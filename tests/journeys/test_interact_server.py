@@ -581,6 +581,7 @@ def test_server_round_trip(server, page_dir):
     assert json.loads(body) == {
         "ok": False,
         "error": "invalid JSON",
+        "findings": [],
         "final": True,
     }
 

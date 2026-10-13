@@ -32,9 +32,50 @@ interface ApplicationSnapshot {
   readonly semanticEpoch: number;
 }
 
-interface SnapshotReading<T> {
+export interface SnapshotReading<T> {
   read(): T;
   subscribe(listener: (value: T) => void): () => void;
+}
+
+// The readings a caller is collecting (`collectReads`), each with the first value it
+// gave. A reading records itself when read, after its own derivation, whose reads of
+// the root are the selection's rather than the caller's.
+let collecting: Map<SnapshotReading<unknown>, unknown> | null = null;
+function collected<T>(reading: SnapshotReading<T>, read: () => T): T {
+  const outer = collecting;
+  collecting = null;
+  let value: T;
+  try {
+    value = read();
+  } finally {
+    collecting = outer;
+  }
+  if (outer && !outer.has(reading)) outer.set(reading, value);
+  return value;
+}
+
+/**
+ * Run `run`, collecting every reading of a publication it reads synchronously, with
+ * the value it read: each selection, and the root itself where it is read whole. A
+ * watcher subscribes to exactly these, so it repaints when a part its paint read moves
+ * and for nothing else.
+ * Only reads of the publication count: a paint also reads and writes private signals,
+ * such as where the user stands, and subscribing it to those would have a paint that
+ * moves focus repaint itself. A failure still returns what was read before it.
+ */
+export function collectReads<T>(
+  run: () => T,
+): { reads: Map<SnapshotReading<unknown>, unknown> } & ({ value: T } | { error: unknown }) {
+  const outer = collecting;
+  const reads = new Map<SnapshotReading<unknown>, unknown>();
+  collecting = reads;
+  try {
+    return { reads, value: run() };
+  } catch (error) {
+    return { reads, error };
+  } finally {
+    collecting = outer;
+  }
 }
 
 // Object.freeze says nothing about descendants or Map/Set entries. Only values this
@@ -183,8 +224,15 @@ export function share<T>(prior: unknown, next: T): T {
 
 export function createApplicationPublisher<S extends ApplicationSnapshot>(initial: S) {
   const root = signal(immutable(initial));
+  const whole: SnapshotReading<Immutable<S>> = Object.freeze({
+    read: (): Immutable<S> => collected(whole, () => root.value),
+    subscribe: (listener: (value: Immutable<S>) => void) => root.subscribe(listener),
+  });
   return Object.freeze({
-    read: (): Immutable<S> => root.value,
+    read: whole.read,
+    // The root without subscribing or collecting, for the owner computing what it
+    // publishes next.
+    peek: (): Immutable<S> => root.peek(),
     publish(candidate: S): Immutable<S> {
       root.value = immutable(share(root.peek(), candidate));
       return root.peek();
@@ -194,11 +242,12 @@ export function createApplicationPublisher<S extends ApplicationSnapshot>(initia
       const selected = computed(
         () => (prior = immutable(share(prior, derive(root.value)))),
       );
-      return Object.freeze({
-        read: (): Immutable<T> => selected.value,
+      const reading: SnapshotReading<Immutable<T>> = Object.freeze({
+        read: (): Immutable<T> => collected(reading, () => selected.value),
         subscribe: (listener: (value: Immutable<T>) => void) =>
           selected.subscribe(listener),
       });
+      return reading;
     },
   });
 }

@@ -179,21 +179,9 @@ function goalView(goal, open, read) {
   };
 }
 
-// What a work reading draws from the root: every widget's state, the threads holding
-// them, the asks waiting on the user, the reports, and when the page was published,
-// which is when a worker no report names was last heard (`saidAt`).
-const workSelection = (root) => ({
-  widgets: root.effective.widgets,
-  threads: root.effective.thread.all,
-  asks: root.effective.asks.user,
-  reports: root.effective.view?.reports ?? null,
-  published: root.effective.view?.published_at ?? null,
-});
-
 /** Call `callback()` whenever what `readWork` reads moves, by the rules every page
  * reading's watcher shares (`projection-watch.js`); the callback reads its own scope. */
-export const watchWork = (owner, callback) =>
-  watchProjection(owner, workSelection, () => callback());
+export const watchWork = (owner, callback) => watchProjection(owner, () => callback());
 
 export function readWork(scope) {
   const readings = new Map();

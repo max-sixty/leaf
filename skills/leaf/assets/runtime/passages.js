@@ -119,7 +119,7 @@ import {
 import { decisionFor, registry } from "./registry.js";
 import { PAGE_PAINT_ATTRIBUTE, pageUpgraded } from "./page-paint.js";
 import { reportPageError } from "./layer-client.js";
-import { readApplication } from "./semantic-state.js";
+import { readPart } from "./semantic-state.js";
 import { COLLAPSE, TEXT_BLOCK } from "./passage-facts.js";
 import { textUnits } from "./text-alignment.js";
 import { excerptWords } from "./words.js";
@@ -170,14 +170,18 @@ export const verbatimBoundaryIdentity = new WeakMap();
 let settledFrom = [];
 let settled = new Map();
 let settledKey = "[]";
+const settlementInputs = readPart((root) => ({
+  widgets: root.effective.widgets,
+  authored: root.document.authored,
+}));
 function settlements() {
-  const { document: shown, effective } = readApplication();
-  const from = [effective.widgets, registry.$decisions];
+  const { widgets, authored } = settlementInputs();
+  const from = [widgets, authored, registry.$decisions];
   if (from.every((input, index) => input === settledFrom[index])) return settled;
   settledFrom = from;
   settled = new Map();
-  for (const [id, { state }] of effective.widgets) {
-    const tag = shown.authored.get(id)?.tag;
+  for (const [id, { state }] of widgets) {
+    const tag = authored.get(id)?.tag;
     const decision = registry.$decisions?.[tag];
     const outcome = decision && state[decision.verb]?.detail?.outcome;
     const retires = outcome ? decision.retires[outcome] : null;

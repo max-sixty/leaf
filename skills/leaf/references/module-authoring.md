@@ -1293,11 +1293,14 @@ The icon is decorative; the button supplies its accessible label.
 Each page reading below has a `watch…(owner, callback)` subscription; register it once for
 each owner. `watchAsks`, `watchQueues`, `watchThreads`, `watchReports` and
 `watchHistory` share these rules, as does `watchWork` ("Work hierarchies"). Each calls the callback on the microtask after
-subscribing, then again, at most once per microtask, whenever its own reading changes,
-a drag starts or stops holding the page's projection back ("Pointer presses"), or the
-page dispatches `PRESENTATION` ("Startup and presentation"). A publication that leaves
-the reading as it was calls nothing, so a callback that also reads something else, such
-as the document's nodes, watches that itself. Several
+subscribing, then again, at most once per microtask, whenever anything the callback read
+from the page's state has changed, a drag starts or stops holding the page's projection
+back ("Pointer presses"), or the page dispatches `PRESENTATION` ("Startup and
+presentation"). What the callback reads is tracked: its watcher's own reading, and any
+other reader it calls synchronously, such as `readWork`, `readAsks`, `reportSequence` or
+a widget controller's `read()`, so a callback never lists its inputs. A publication that
+moves none of them calls nothing. Reads after an `await` and reads of the document's
+nodes are not tracked; a callback that depends on them watches them itself. Several
 of these in one task make one call. It pauses while the owner is away and reads
 again on a return by the rule in "Connection lifetimes"; moving the owner within one
 mutation batch keeps it. The returned function retires the subscription for good,

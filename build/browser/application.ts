@@ -1134,7 +1134,7 @@ export function createSemanticApplication({
   }
 
   function publish(changes: Partial<typeof initial>) {
-    const prior = publisher.read();
+    const prior = publisher.peek();
     const next = { ...prior, ...changes } as typeof initial;
     // Shared against the current reading, so a part whose contents did not move keeps
     // its identity: that is what an epoch and every selection compare.
@@ -1177,7 +1177,7 @@ export function createSemanticApplication({
 
   // An answer taken, read through, or activated before the one already adopted.
   const overtaken = (state: AuthoritativeState) => {
-    const prior = publisher.read().authoritative;
+    const prior = publisher.peek().authoritative;
     return Boolean(
       prior &&
       (state.taken < prior.taken ||
@@ -1192,7 +1192,7 @@ export function createSemanticApplication({
     state: AuthoritativeState,
     candidate: SemanticDocument | number | null,
   ) => {
-    const prior = publisher.read();
+    const prior = publisher.peek();
     if (overtaken(state)) return false;
     const revision =
       typeof candidate === "number"
@@ -1215,7 +1215,7 @@ export function createSemanticApplication({
   const update = (attempt: string, change: (entry: LedgerEntry) => LedgerEntry) =>
     publish({
       unresolved: publisher
-        .read()
+        .peek()
         .unresolved.map((item) =>
           item.event.attempt === attempt ? change(item) : item,
         ),
@@ -1224,7 +1224,7 @@ export function createSemanticApplication({
   // event for it (or null), and the attempts that left. The caller publishes it.
   const transition = (signal: Signal, admitted: Map<string, Event | null>) => {
     const left: string[] = [];
-    const unresolved = publisher.read().unresolved.flatMap((item) => {
+    const unresolved = publisher.peek().unresolved.flatMap((item) => {
       if (!admitted.has(item.event.attempt)) return [item];
       const next = advance(item, signal, admitted.get(item.event.attempt) ?? null);
       if (!next) left.push(item.event.attempt);
@@ -1289,7 +1289,7 @@ export function createSemanticApplication({
     entry,
     identify(revision: number | null, stamp: number | null = null, live = false) {
       return publish({
-        document: { ...publisher.read().document, revision, stamp, live },
+        document: { ...publisher.peek().document, revision, stamp, live },
       });
     },
     setHostAvailable(hostAvailable: boolean) {
@@ -1297,12 +1297,12 @@ export function createSemanticApplication({
     },
     markRead(items: ContentVersion[]) {
       return publish({
-        markingRead: [...publisher.read().markingRead, ...structuredClone(items)],
+        markingRead: [...publisher.peek().markingRead, ...structuredClone(items)],
       });
     },
     settleMarkRead(items: ContentVersion[]) {
       const remaining = publisher
-        .read()
+        .peek()
         .markingRead.filter(
           (item) =>
             !items.some(
@@ -1312,7 +1312,7 @@ export function createSemanticApplication({
       return publish({ markingRead: remaining });
     },
     captureDocument(document: SemanticDocument) {
-      if (publisher.read().authoritative)
+      if (publisher.peek().authoritative)
         throw new Error("an admitted document changes only through adopt");
       return publish({
         document: {
@@ -1331,7 +1331,7 @@ export function createSemanticApplication({
     acceptData(data: typeof initial.data, taken: number) {
       if (taken < dataTaken) return false;
       dataTaken = taken;
-      if (data.version === publisher.read().data.version) return false;
+      if (data.version === publisher.peek().data.version) return false;
       publish({ data: structuredClone(data) });
       return true;
     },
@@ -1358,7 +1358,7 @@ export function createSemanticApplication({
     // projection, indistinguishable for many widgets from their authored condition,
     // so the second publication changes nothing and never reaches them.
     adopt(state: AuthoritativeState, document: SemanticDocument | null = null) {
-      const prior = publisher.read();
+      const prior = publisher.peek();
       if (!adoptable(state, document)) return false;
       const authoritative = structuredClone(state);
       // The reading and what it logs are one publication: the entries whose receipts
@@ -1400,7 +1400,7 @@ export function createSemanticApplication({
       plainText: string = event.text ?? event.token ?? "",
     ) {
       if (entry(event.attempt)) return null;
-      const before = publisher.read();
+      const before = publisher.peek();
       const localId = PENDING + event.attempt;
       const thread = isThreadEvent(event)
         ? { ...threadForAttempt(event, timestamp), plainText }
@@ -1497,7 +1497,7 @@ export function createSemanticApplication({
     refuse(attempt: string) {
       const refused = entry(attempt);
       if (!refused) return [];
-      const ledger = publisher.read().unresolved;
+      const ledger = publisher.peek().unresolved;
       const gone = [refused.localId];
       const dependents: string[] = [];
       for (let grew = true; grew; ) {
@@ -1537,7 +1537,7 @@ export function createSemanticApplication({
     release(attempts: Set<string>) {
       return publish({
         unresolved: publisher
-          .read()
+          .peek()
           .unresolved.filter(
             (item) => !(attempts.has(item.event.attempt) && RELEASABLE.has(item.state)),
           ),

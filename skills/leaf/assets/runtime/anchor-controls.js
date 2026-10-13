@@ -39,7 +39,7 @@ import { registerContribution } from "./contributions.js";
 import { commandScope } from "./keyboard/scopes.js";
 import { elementById, inChrome, pageQueryAll, pageReadingVersion } from "./passages.js";
 import { pageUpgraded } from "./page-paint.js";
-import { documentChanged, readApplication } from "./semantic-state.js";
+import { documentChanged, readPart } from "./semantic-state.js";
 import { registry } from "./registry.js";
 import { shadowHost, upFrom } from "./shadow.js";
 import { targetElement, targetParts, targetSegments } from "./resolved-target.js";
@@ -48,6 +48,7 @@ import { keeps, keepsText } from "./keeps.js";
 import { retainUserIntent } from "./user-intent.js";
 import { bareReaction } from "./thread/model.js";
 
+const shownDocument = readPart((root) => root.document);
 const MSG_REF = '.lf-msg-body a[href^="#"]';
 
 export function createAnchorControls({
@@ -225,7 +226,7 @@ export function createAnchorControls({
   // the responses it published.
   let plannedFor = null;
   function prepareVisualActions() {
-    const key = [pageReadingVersion(), documentChanged(), readApplication().document];
+    const key = [pageReadingVersion(), documentChanged(), shownDocument()];
     if (
       plannedFor?.every((part, index) => part === key[index]) &&
       !pendingVisualActions.size

@@ -28,7 +28,7 @@ import {
   registerNoticePresentation,
 } from "./notifications.js";
 import { watchProjection } from "./projection-watch.js";
-import { approvalSelection, readAsks } from "./asks/model.js";
+import { readAsks } from "./asks/model.js";
 import { createBannerStatusView } from "./banner-status-view.js";
 import { declareBanner } from "./geometry.js";
 import { agentName, applicationState } from "./semantic-state.js";
@@ -930,7 +930,7 @@ let signoff = false;
 export function mountBanner({ approveVersion, paintApproval }) {
   signoff = isSignoffDeclared();
   showBannerControl(approveBtn, signoff);
-  watchProjection(document.body, approvalSelection, () => paintApproval());
+  watchProjection(document.body, () => paintApproval());
   // The queues and the agent's name move with the application's publication, not only
   // with a state answer.
   applicationState

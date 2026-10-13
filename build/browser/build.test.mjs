@@ -32,6 +32,7 @@ test("locked source reproduces the complete committed output", async () => {
     "PRESENTATION_HELD",
     "PartType",
     "classMap",
+    "collectReads",
     "createPresentationCoordinator",
     "createPresentationSchedule",
     "createRef",

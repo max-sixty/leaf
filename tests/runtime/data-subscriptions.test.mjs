@@ -93,8 +93,7 @@ test("projection subscriptions follow their owner and cancel queued reads", asyn
       });
     let clock = 0;
     let cancelled = 0;
-    const epoch = (root) => root.semanticEpoch;
-    const cancel = watchProjection(owner, epoch, () => {
+    const cancel = watchProjection(owner, () => {
       cancelled += 1;
       clockValue(() => clock);
     });
@@ -106,7 +105,7 @@ test("projection subscriptions follow their owner and cancel queued reads", asyn
     });
     let calls = 0;
     let trackClock = false;
-    const stop = watchProjection(owner, epoch, () => {
+    const stop = watchProjection(owner, () => {
       calls += 1;
       if (trackClock) clockValue(() => clock);
     });
@@ -470,4 +469,49 @@ test("a subscriber that fails on return reports once and draws the next reading"
   assert.deepEqual(result, ["changed-away", "after-return"]);
   assert.equal(errors.mock.callCount(), 1);
   assert.match(errors.mock.calls[0].arguments[0], /return refused/);
+});
+
+test("a projection watcher repaints for what its paint read, however it read it", async () => {
+  const { watchProjection } = await import("/runtime/projection-watch.js");
+  const { applicationState, readPart } = await import("/runtime/semantic-state.js");
+  const host = readPart((root) => root.effective.hostAvailable);
+  const revision = readPart((root) => root.document.revision);
+  // Read through a helper, as a widget reads through `readWork`: the watcher is never
+  // told which part it draws.
+  const describe = () => (host() ? "online" : "offline");
+  const settle = () => new Promise((resolve) => setTimeout(resolve));
+  const owner = document.createElement("div");
+  document.body.append(owner);
+  const drawn = [];
+  const stop = watchProjection(owner, () => drawn.push(describe()));
+  await settle();
+  const initial = drawn.length;
+  applicationState.identify(revision() === 41 ? 42 : 41);
+  await settle();
+  const unread = drawn.length;
+  applicationState.setHostAvailable(!host());
+  await settle();
+  const read = drawn.length;
+  // A part that moved while the owner was away paints on its return; a return with
+  // nothing moved paints nothing.
+  owner.remove();
+  await settle();
+  applicationState.setHostAvailable(!host());
+  await settle();
+  document.body.append(owner);
+  await settle();
+  const returned = drawn.length;
+  owner.remove();
+  await settle();
+  document.body.append(owner);
+  await settle();
+  const unchanged = drawn.length;
+  stop();
+  applicationState.setHostAvailable(!host());
+  await settle();
+  owner.remove();
+  assert.deepEqual(
+    { initial, unread, read, returned, unchanged, stopped: drawn.length },
+    { initial: 1, unread: 1, read: 2, returned: 3, unchanged: 3, stopped: 3 },
+  );
 });

@@ -11,6 +11,7 @@ import {
   whenWidgetsPresented,
   presentDocument,
   projectionRegionsPresented,
+  readPart,
 } from "./semantic-state.js";
 import { announce, notice } from "./notifications.js";
 import { readAsks } from "./asks/model.js";
@@ -276,13 +277,17 @@ export function mountApplication(dependencies) {
       overlay?.paint(entries);
     }
   });
+  // The inventory lists the marks the projection's chrome paints, reading their nodes,
+  // which the watcher cannot track, so it reads the parts that move them itself, and
+  // reads them once that region has committed.
+  const annotationInputs = readPart(annotationSelection);
   const mountAnnotations = () => {
-    // The inventory lists the marks the projection's chrome paints, so it reads them
-    // once that region has committed.
     watchProjection(
       document.body,
-      annotationSelection,
-      () => renderAnnotations(),
+      () => {
+        annotationInputs();
+        renderAnnotations();
+      },
       () => projectionRegionsPresented([]),
     );
     document.addEventListener("lf-comparison", renderAnnotations);

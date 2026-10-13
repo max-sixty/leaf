@@ -1071,15 +1071,19 @@ def test_a_pointed_comment_keeps_the_rows_still_owed(browser, serve, case):
     )
     after = dict(page.evaluate(ROWS_ON, [target]))
     if case == "ask":
-        assert not dict(before).keys() & after.keys(), (
-            f"the answered Ask kept its marker: {after}"
-        )
+        expect(
+            page.locator(f'[data-lf-margin-for="{target}"] > .lf-margin-marker')
+        ).to_have_attribute("data-lf-kinds", "comment")
     else:
         for index, top in before:
             assert abs(after.get(index, 1e9) - top) <= 8, (
                 f"row {index} of the target moved from {top} to {after.get(index)}: {after}"
             )
-    added = [top for index, top in after.items() if index not in dict(before)]
+    added = (
+        list(after.values())
+        if case == "ask"
+        else [top for index, top in after.items() if index not in dict(before)]
+    )
     assert len(added) == 1 and abs(added[0] - depth) <= 30 and depth > 400, (
         f"the pointed comment has no row of its own at {depth}: {after}"
     )

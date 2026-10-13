@@ -987,16 +987,6 @@ main {
     --lf-top: 0px;
     --lf-holds-height: 1;
   }
-  /* The bound is the height a document gives a stream. A box that already holds its
-   * own height, such as a full-height workspace's pane body, has a height to give, so a
-   * bounded block that is all it holds takes that height, or the bound its page stated
-   * where that is less, rather than scrolling 28rem of it inside a box that would
-   * scroll too. */
-  @container style(--lf-holds-height: 1) {
-    [data-lf-bound]:only-child {
-      max-block-size: min(100%, var(--lf-bound, 100%));
-    }
-  }
 }
 /* A phone's vertical rhythm is a fact about the device, so this asks the window. */
 @media screen and (max-width: 640px) {

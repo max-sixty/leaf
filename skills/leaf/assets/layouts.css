@@ -251,9 +251,9 @@
      * the rule that sets the text's; the second rule grows `wide` and `available`, at the
      * weight of one attribute so each value's rule below refines it.
      *
-     * Only a document allocates it: every rule below is held to the column and the
-     * sidebar page, so a workspace, or a page with no Layout, gives a block the box it
-     * stands in and reads none of this.
+     * Only a document allocates it: every rule below but the one that keeps a block's
+     * content from widening its holder is held to the column and the sidebar page, so
+     * a workspace, or a page with no Layout, gives a block the box it stands in.
      *
      * The first rule is the room's arithmetic, read on every allocated box. A box allocated
      * the column reaches no further than its holder, so it has no surplus, unless it spans
@@ -282,18 +282,22 @@
       max-width: none;
       margin-left: calc(-1 * var(--lf-grow-l));
       margin-right: calc(-1 * var(--lf-grow-r));
-      /* The box's width is the room's and never its content's — that is the whole
-       * contract above — and this is where layout is told so. Without it the content's
-       * minimum is what every shrink-to-fit holder is floored at, and the row-form
-       * option is one: a table box hugging its label hugged a 985px graph instead,
-       * grew past the joined group's border, and the group's clip cut the exhibit off
-       * with nothing reported. Size containment zeroes the box's say in any ancestor's
-       * intrinsic width; what it holds already scrolls. */
-      contain: inline-size;
       /* The allocation is the box's outer width, as the column's is (theme.css), so a
        * padded callout granted `wide` stands at `--wide` beside a wide table rather than
        * its padding and border past it. */
       box-sizing: border-box;
+    }
+    /* A block that declares a wider room than the measure has a width that is its
+     * holder's or its room's and never its content's, on every page, a workspace's
+     * included: what it holds scrolls inside it. Without that the content's minimum is
+     * what every shrink-to-fit holder is floored at, and the row-form option is one: a
+     * table box hugging its label hugged a 985px graph instead, grew past the joined
+     * group's border, and the group's clip cut the exhibit off with nothing reported; a
+     * diagram in a workspace's 400px option group widened its row to 1,142px. Size
+     * containment zeroes the box's say in any ancestor's intrinsic width. So this one
+     * rule is held to no Layout. */
+    [data-lf-space]:where(:not([data-lf-space="column"])) {
+      contain: inline-size;
     }
     /* `wide` is one width wherever the block stands in a document. The breakout above
      * only grows a block past its holder, so in a holder already wider than `--wide`,
@@ -712,6 +716,17 @@
         overscroll-behavior: contain;
         scrollbar-gutter: stable;
         --lf-holds-height: 1;
+      }
+    }
+    /* A box the workspace scrolls has the window's height to give, so a bounded block
+     * that is all it holds takes that height, or the bound its page stated where that is
+     * less, rather than scrolling 28rem of it inside a box that would scroll too
+     * (`[data-lf-bound]`, theme.css). Only these boxes: one that holds its height with a
+     * cap alone, as a bounded block does, has no height for a percentage to take. */
+    @container style(--lf-holds-height: 1) {
+      :is(main.layout-workspace > :not(header, footer, [data-lf-reading-role="pane"]),
+        [data-lf-reading-role="pane"] > :not(header, footer)) > [data-lf-bound]:only-child {
+        max-block-size: min(100%, var(--lf-bound, 100%));
       }
     }
   }

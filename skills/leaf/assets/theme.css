@@ -417,11 +417,6 @@ main {
     --lf-top: 0px;
     --lf-holds-height: 1;
   }
-  @container style(--lf-holds-height: 1) {
-    [data-lf-bound]:only-child {
-      max-block-size: min(100%, var(--lf-bound, 100%));
-    }
-  }
 }
 @media screen and (max-width: 640px) {
   :root {

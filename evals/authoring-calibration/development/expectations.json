@@ -1,0 +1,124 @@
+{
+  "schema_version": 1,
+  "split": "development",
+  "evidence_status": "Controlled source differences and task requirements support these expectations. Required browser checks must be recorded before describing rendered behavior as independently observed.",
+  "cases": [
+    {
+      "id": "dev-7a91c5",
+      "contrast": "dev-ea0723",
+      "expected_findings": [],
+      "forbidden_findings": [
+        {
+          "id": "disclosure-not-missing",
+          "category": "false_alarm",
+          "claim": "The two missed incidents are missing or inaccessible.",
+          "source_basis": "The named incidents are in a native details element under the exact summary label '30-day evidence and incidents missed at 5%'. Native disclosure can reveal them."
+        },
+        {
+          "id": "counts-not-missing",
+          "category": "false_alarm",
+          "claim": "The 24/7 requirement or threshold counts are omitted.",
+          "source_basis": "The initial visible paragraph names 24/7 and no quiet hours; the summary and disclosure table carry the 2%/5% counts."
+        }
+      ],
+      "required_browser_checks": [
+        "The incidents start collapsed, then become visible by clicking the labeled summary.",
+        "Changing the select to 5% displays a 5% threshold; both phone and desktop are readable."
+      ]
+    },
+    {
+      "id": "dev-ea0723",
+      "contrast": "dev-7a91c5",
+      "expected_findings": [
+        {
+          "id": "missing-incident-identities",
+          "category": "information_missing",
+          "claim": "The page omits the two incident identities that the reader explicitly needs before deciding.",
+          "source_basis": "Compared with dev-7a91c5, exactly the paragraph naming the 19 September partial outage and 26 September card-network incident is removed. Counts remain, so the reader can infer two misses but cannot identify them from the page."
+        }
+      ],
+      "forbidden_findings": [],
+      "required_browser_checks": [
+        "Open the disclosure and inspect the page; no incident names are available.",
+        "The threshold selector still updates, isolating the missing evidence from control failure."
+      ]
+    },
+    {
+      "id": "dev-0db421",
+      "contrast": "dev-a63f18",
+      "expected_findings": [],
+      "forbidden_findings": [
+        {
+          "id": "unselected-not-missing",
+          "category": "false_alarm",
+          "claim": "SUP-82 or its rollout evidence is missing because the first screenshot shows SUP-81.",
+          "source_basis": "SUP-82 is in the ticket array and has its own visible navigation button. The click handler renders its complete evidence in the article."
+        },
+        {
+          "id": "queue-not-clipped",
+          "category": "false_alarm",
+          "claim": "The phone queue has no usable access to its ticket details.",
+          "source_basis": "The grid changes to one column below 650px; ticket buttons stay above the selected article."
+        }
+      ],
+      "required_browser_checks": [
+        "SUP-82 starts unselected, then its button exposes JOB-723, LF-9921, versions 4.12 and 4.11.",
+        "Select an outcome, visit SUP-83 and return to SUP-82; the outcome survives."
+      ]
+    },
+    {
+      "id": "dev-a63f18",
+      "contrast": "dev-0db421",
+      "expected_findings": [
+        {
+          "id": "missing-requested-ticket",
+          "category": "information_missing",
+          "claim": "SUP-82 is absent, so the reader cannot inspect or decide all requested tickets.",
+          "source_basis": "Compared with dev-0db421, only SUP-82's array record and matching navigation button are absent. There is no detail record or alternative route for that ticket."
+        }
+      ],
+      "forbidden_findings": [],
+      "required_browser_checks": [
+        "SUP-81 and SUP-83 can be selected and decided; SUP-82 has no control or detail.",
+        "Do not label SUP-82 merely unselected: it is absent from the fixture's source and reachable content."
+      ]
+    },
+    {
+      "id": "dev-84cb22",
+      "contrast": "dev-d31a64",
+      "expected_findings": [],
+      "forbidden_findings": [
+        {
+          "id": "scroll-not-clipping",
+          "category": "false_alarm",
+          "claim": "The rightmost phone columns are permanently clipped.",
+          "source_basis": "The 900px table is inside overflow:auto, a labeled focusable region. At 390px, native horizontal scrolling is the intended route."
+        }
+      ],
+      "required_browser_checks": [
+        "At 390px, the recommendation is initially offscreen but becomes visible by horizontal scrolling.",
+        "Tab to the table region and use ArrowRight; keyboard scrolling changes scrollLeft and reveals later columns.",
+        "The outer page stays within the viewport."
+      ]
+    },
+    {
+      "id": "dev-d31a64",
+      "contrast": "dev-84cb22",
+      "expected_findings": [
+        {
+          "id": "unreachable-phone-columns",
+          "category": "information_inaccessible",
+          "claim": "The phone reader cannot reach the residency, retention and recommendation columns through the page's ordinary visual or keyboard routes.",
+          "source_basis": "Compared with dev-84cb22, the wrapper uses overflow:clip and loses its region label and tabindex. The table remains 900px wide; its rightmost cells are not interactive. overflow:clip supplies no scroll container or alternate visual route. Screen-reader text presence does not establish visual phone reachability."
+        }
+      ],
+      "forbidden_findings": [],
+      "required_browser_checks": [
+        "At 390px, the recommendation remains outside the clipped wrapper after horizontal wheel input.",
+        "The wrapper is not keyboard focusable and does not scroll; there is no duplicate recommendation or responsive alternative.",
+        "The source still contains the recommendation: classify this as inaccessible, not absent."
+      ]
+    }
+  ]
+}
+

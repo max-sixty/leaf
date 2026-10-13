@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Session store executive summary</title>
+<style>
+:root { color-scheme: light; font: 17px/1.5 system-ui, sans-serif; color: #18242c; background: #f4f6f7; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { width: min(100% - 32px, 1000px); margin: 28px auto; }
+h1 { font-size: 1.8rem; line-height: 1.2; }
+h2 { font-size: 1.25rem; }
+section, details, article { background: white; border: 1px solid #c4ced4; border-radius: 8px; padding: 16px; margin: 16px 0; }
+summary, button, select, input { cursor: pointer; }
+summary { font-weight: 650; }
+button, select { font: inherit; padding: 8px 12px; border: 1px solid #81929e; border-radius: 5px; background: white; color: inherit; }
+button:focus-visible, summary:focus-visible, select:focus-visible, [tabindex]:focus-visible { outline: 3px solid #1769aa; outline-offset: 3px; }
+button[aria-pressed="true"] { background: #dcebf6; border-color: #1769aa; }
+label { display: block; margin-top: 12px; }
+table { border-collapse: collapse; text-align: left; }
+th, td { border: 1px solid #b5c1c8; padding: 10px; vertical-align: top; }
+th { background: #eaf0f3; }
+small { color: #465a68; }
+output { display: block; margin: 16px 0; font-weight: 650; }
+
+</style>
+</head>
+<body>
+<main>
+<h1>Session store executive summary</h1>
+<p>Move sessions to Postgres to make logout-everywhere immediate. Read p95 rises from 1.9 ms to 3.1 ms; the load test reaches 55% peak database CPU against a 70% alert. Use 30 days of dual-write before changing reads. Proceed only after the database owners approve the 55% peak CPU load.</p>
+</main>
+</body>
+</html>
+

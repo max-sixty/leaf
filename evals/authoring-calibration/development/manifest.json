@@ -1,0 +1,268 @@
+{
+  "schema_version": 1,
+  "split": "development",
+  "provenance": {
+    "authoring_revision": "4f7cc21c1497ce6d449f6ec22d9508651fd654c3",
+    "authoring_method": "Purpose-built controlled fixtures; not historical authored outputs.",
+    "runtime": {
+      "kind": "native-html",
+      "leaf_revision": null,
+      "external_resources": [],
+      "browser_identity": "Record in each capture run; not yet observed."
+    },
+    "evaluator_revision": "Record in each scoring run; not part of fixed fixture bytes.",
+    "authored_date": "2026-10-12",
+    "limits": "Expected findings name only the controlled task failure. These controls are not a general accuracy estimate or an aesthetic quality benchmark."
+  },
+  "cases": [
+    {
+      "id": "dev-7a91c5",
+      "artifact": "7a91c5.html",
+      "sha256": "18795f5a32307640e94877228224eea4739f55c5975e499f8cf68e814b18fbdb",
+      "request": "Make a page for reviewing the payments error threshold. Payments has 24/7 on-call coverage and no quiet hours. Over 2% would have paged 4 times in the last 30 days and caught all 3 real incidents. Over 5% would have paged once and caught 1 real incident; it would have missed the 19 September partial outage and the 26 September card-network incident. Let me select the final paging threshold. I need to inspect the threshold evidence and identify both incidents missed at 5% before deciding. Supporting evidence may be behind a clearly labeled disclosure.",
+      "messages": [],
+      "required_outcomes": [
+        {
+          "id": "facts",
+          "criterion": "Preserve 24/7 coverage with no quiet hours and the 2%/5% observed counts."
+        },
+        {
+          "id": "evidence",
+          "criterion": "Make the two named incidents missed at 5% reachable through a clear reader route."
+        },
+        {
+          "id": "decision",
+          "criterion": "Allow a final 2% or 5% threshold selection and display the chosen threshold."
+        }
+      ],
+      "viewports": [
+        {
+          "width": 900,
+          "height": 900
+        },
+        {
+          "width": 390,
+          "height": 844
+        }
+      ],
+      "routes": [
+        {
+          "action": "click",
+          "target": "30-day evidence and incidents missed at 5%",
+          "expected": "Disclosure opens and shows the evidence it contains."
+        },
+        {
+          "action": "select",
+          "target": "Final paging threshold",
+          "value": "Over 5%",
+          "expected": "Chosen threshold updates to 5%."
+        }
+      ]
+    },
+    {
+      "id": "dev-ea0723",
+      "artifact": "ea0723.html",
+      "sha256": "f51fc83943561f4e82759e42ec0e46b0e7a0a76388507d7b1ca7d5a4634c8b23",
+      "request": "Make a page for reviewing the payments error threshold. Payments has 24/7 on-call coverage and no quiet hours. Over 2% would have paged 4 times in the last 30 days and caught all 3 real incidents. Over 5% would have paged once and caught 1 real incident; it would have missed the 19 September partial outage and the 26 September card-network incident. Let me select the final paging threshold. I need to inspect the threshold evidence and identify both incidents missed at 5% before deciding. Supporting evidence may be behind a clearly labeled disclosure.",
+      "messages": [],
+      "required_outcomes": [
+        {
+          "id": "facts",
+          "criterion": "Preserve 24/7 coverage with no quiet hours and the 2%/5% observed counts."
+        },
+        {
+          "id": "evidence",
+          "criterion": "Make the two named incidents missed at 5% reachable through a clear reader route."
+        },
+        {
+          "id": "decision",
+          "criterion": "Allow a final 2% or 5% threshold selection and display the chosen threshold."
+        }
+      ],
+      "viewports": [
+        {
+          "width": 900,
+          "height": 900
+        },
+        {
+          "width": 390,
+          "height": 844
+        }
+      ],
+      "routes": [
+        {
+          "action": "click",
+          "target": "30-day evidence and incidents missed at 5%",
+          "expected": "Disclosure opens and shows the evidence it contains."
+        },
+        {
+          "action": "select",
+          "target": "Final paging threshold",
+          "value": "Over 5%",
+          "expected": "Chosen threshold updates to 5%."
+        }
+      ]
+    },
+    {
+      "id": "dev-0db421",
+      "artifact": "0db421.html",
+      "sha256": "58de6120d65d2d9718e9776712b7628c041a6086ccd797ec58b5d943b630aa8d",
+      "request": "Make a support queue where I can inspect each ticket and choose Refund, Fix, Escalate to engineering, or Close. SUP-81, Acorn Studio: duplicate $48 monthly charge; both payments settled on 2 October and neither was refunded. Suggested: refund the duplicate. SUP-82, Birch Transport: export job JOB-723 fails on the last multipart upload; release 4.12 fixes bug LF-9921, but Birch's region still runs 4.11. Suggested: escalate for the rollout. SUP-83, Cedar College: removed member's API token worked Sunday after removal Friday; support revoked it at 07:40 today. Suggested: escalate to security engineering. All three tickets and their decision evidence must be reachable; only one ticket needs to be open at a time.",
+      "messages": [],
+      "required_outcomes": [
+        {
+          "id": "coverage",
+          "criterion": "Provide all three requested tickets and their own evidence, including SUP-82's rollout fact."
+        },
+        {
+          "id": "navigation",
+          "criterion": "Let the reader select each ticket from the queue."
+        },
+        {
+          "id": "decision",
+          "criterion": "Let the reader choose and revisit each ticket's outcome."
+        }
+      ],
+      "viewports": [
+        {
+          "width": 900,
+          "height": 900
+        },
+        {
+          "width": 390,
+          "height": 844
+        }
+      ],
+      "routes": [
+        {
+          "action": "click",
+          "target": "SUP-82 · Birch Transport",
+          "expected": "SUP-82 evidence and its outcome control replace the initially open ticket."
+        },
+        {
+          "action": "select",
+          "target": "Outcome for SUP-82",
+          "value": "Escalate to engineering",
+          "expected": "SUP-82's choice is displayed and survives selecting another ticket and returning."
+        }
+      ]
+    },
+    {
+      "id": "dev-a63f18",
+      "artifact": "a63f18.html",
+      "sha256": "790d1eb8d9713e58421dca53acf317651a31902b8275bea528c12d269e02148b",
+      "request": "Make a support queue where I can inspect each ticket and choose Refund, Fix, Escalate to engineering, or Close. SUP-81, Acorn Studio: duplicate $48 monthly charge; both payments settled on 2 October and neither was refunded. Suggested: refund the duplicate. SUP-82, Birch Transport: export job JOB-723 fails on the last multipart upload; release 4.12 fixes bug LF-9921, but Birch's region still runs 4.11. Suggested: escalate for the rollout. SUP-83, Cedar College: removed member's API token worked Sunday after removal Friday; support revoked it at 07:40 today. Suggested: escalate to security engineering. All three tickets and their decision evidence must be reachable; only one ticket needs to be open at a time.",
+      "messages": [],
+      "required_outcomes": [
+        {
+          "id": "coverage",
+          "criterion": "Provide all three requested tickets and their own evidence, including SUP-82's rollout fact."
+        },
+        {
+          "id": "navigation",
+          "criterion": "Let the reader select each ticket from the queue."
+        },
+        {
+          "id": "decision",
+          "criterion": "Let the reader choose and revisit each ticket's outcome."
+        }
+      ],
+      "viewports": [
+        {
+          "width": 900,
+          "height": 900
+        },
+        {
+          "width": 390,
+          "height": 844
+        }
+      ],
+      "routes": [
+        {
+          "action": "click",
+          "target": "SUP-82 · Birch Transport",
+          "expected": "SUP-82 evidence and its outcome control replace the initially open ticket."
+        },
+        {
+          "action": "select",
+          "target": "Outcome for SUP-82",
+          "value": "Escalate to engineering",
+          "expected": "SUP-82's choice is displayed and survives selecting another ticket and returning."
+        }
+      ]
+    },
+    {
+      "id": "dev-84cb22",
+      "artifact": "84cb22.html",
+      "sha256": "ccc7bcd2918deaaac6ce8e01467ebcd2f1056d224fff291aa9a086062dc925a6",
+      "request": "Make a backup destination comparison that I can read on a 390-pixel-wide phone. I need restoration within 4 hours and EU-only residency. Harbor costs $180/month, restores in 2 hours, keeps data in the EU only and retains 30 days. Summit costs $140/month, restores in 8 hours, uses the EU and US and retains 90 days. Put the destination, cost, restore time, residency, retention and recommendation in a table. I must be able to reach the recommendation and compare the relevant values on the phone; a labeled horizontal table scroller is acceptable.",
+      "messages": [],
+      "required_outcomes": [
+        {
+          "id": "phone-reachability",
+          "criterion": "At 390px width, provide an ordinary visible or keyboard route to every table column, including the recommendation."
+        },
+        {
+          "id": "facts",
+          "criterion": "Preserve the two destinations' restoration/residency tradeoff and correct recommendation."
+        }
+      ],
+      "viewports": [
+        {
+          "width": 390,
+          "height": 844
+        }
+      ],
+      "routes": [
+        {
+          "action": "scroll_horizontal",
+          "target": "Comparison table",
+          "expected": "At 390px width, the last column becomes visible if the page supplies a horizontal scroller."
+        },
+        {
+          "action": "keyboard",
+          "target": "Comparison table region",
+          "value": "Tab, then ArrowRight",
+          "expected": "A keyboard reader can scroll the focusable table region when such a route exists."
+        }
+      ]
+    },
+    {
+      "id": "dev-d31a64",
+      "artifact": "d31a64.html",
+      "sha256": "7440f1496cfa572b5fd61060c75d1db03fd95a2d909259334009f76ffa869037",
+      "request": "Make a backup destination comparison that I can read on a 390-pixel-wide phone. I need restoration within 4 hours and EU-only residency. Harbor costs $180/month, restores in 2 hours, keeps data in the EU only and retains 30 days. Summit costs $140/month, restores in 8 hours, uses the EU and US and retains 90 days. Put the destination, cost, restore time, residency, retention and recommendation in a table. I must be able to reach the recommendation and compare the relevant values on the phone; a labeled horizontal table scroller is acceptable.",
+      "messages": [],
+      "required_outcomes": [
+        {
+          "id": "phone-reachability",
+          "criterion": "At 390px width, provide an ordinary visible or keyboard route to every table column, including the recommendation."
+        },
+        {
+          "id": "facts",
+          "criterion": "Preserve the two destinations' restoration/residency tradeoff and correct recommendation."
+        }
+      ],
+      "viewports": [
+        {
+          "width": 390,
+          "height": 844
+        }
+      ],
+      "routes": [
+        {
+          "action": "scroll_horizontal",
+          "target": "Comparison table",
+          "expected": "At 390px width, the last column becomes visible if the page supplies a horizontal scroller."
+        },
+        {
+          "action": "keyboard",
+          "target": "Comparison table region",
+          "value": "Tab, then ArrowRight",
+          "expected": "A keyboard reader can scroll the focusable table region when such a route exists."
+        }
+      ]
+    }
+  ]
+}
+

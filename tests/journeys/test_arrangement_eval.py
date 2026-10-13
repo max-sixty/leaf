@@ -207,7 +207,7 @@ def test_live_loop_carries_each_phase_to_the_author(tmp_path, monkeypatch):
         assert "7-day TTL" in answer.read_text()
         # The reader is held to its answer's shape, as the harness returns it.
         assert "--json-schema" in args
-        answer = {"option": "stay on managed Redis, 7-day TTL"}
+        answer = {"item_1": "stay on managed Redis, 7-day TTL"}
         trace = [
             {
                 "type": "result",

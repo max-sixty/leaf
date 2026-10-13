@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "split": "heldout",
+  "evidence_status": "Controlled source differences and task requirements support these expectations. Required browser checks must be recorded before describing rendered behavior as independently observed.",
+  "cases": [
+    {
+      "id": "heldout-415ce9",
+      "contrast": "heldout-20e36b",
+      "expected_findings": [],
+      "forbidden_findings": [
+        {
+          "id": "hidden-not-absent",
+          "category": "false_alarm",
+          "claim": "Permit dates or the eligible city are absent or inaccessible.",
+          "source_basis": "The labeled Restrictions button targets restrictions. The handler removes hidden from that section, revealing both permit dates and Lyon recommendation."
+        }
+      ],
+      "required_browser_checks": [
+        "Permit details start hidden.",
+        "Click Restrictions; its section replaces Overview and reveals both permit dates.",
+        "Return to Overview and open Restrictions through keyboard activation."
+      ]
+    },
+    {
+      "id": "heldout-20e36b",
+      "contrast": "heldout-415ce9",
+      "expected_findings": [
+        {
+          "id": "navigation-does-not-reveal",
+          "category": "interaction_failed",
+          "claim": "The Restrictions control does not open the permit evidence, leaving the reader unable to inspect eligibility.",
+          "source_basis": "The only change from heldout-415ce9 is the Restrictions button's data-panel value: overview instead of restrictions. Both offered buttons select overview, so the restrictions section remains hidden. Its presence in source is not a functioning reader route."
+        }
+      ],
+      "forbidden_findings": [
+        {
+          "id": "present-not-absent",
+          "category": "false_alarm",
+          "claim": "The author omitted the permit facts from the document.",
+          "source_basis": "Both permit dates and the Lyon recommendation remain in the hidden Restrictions section. The defect is its failed control/reachability."
+        }
+      ],
+      "required_browser_checks": [
+        "Click Restrictions; Overview remains visible and Restrictions stays hidden.",
+        "Keyboard activation produces the same failed route.",
+        "No other control reveals Restrictions."
+      ]
+    },
+    {
+      "id": "heldout-b8c1a4",
+      "contrast": "heldout-968e2f",
+      "expected_findings": [],
+      "forbidden_findings": [
+        {
+          "id": "summary-is-not-transcription",
+          "category": "false_alarm",
+          "claim": "The summary is defective for omitting daily p95 samples, Redis keyspace size, memory use or renewal detail.",
+          "source_basis": "The request explicitly asks for a short executive summary without raw daily measurements or an appendix. Those details are supporting notes, while all named required decision facts are preserved."
+        }
+      ],
+      "required_browser_checks": [
+        "Read the full paragraph; recommendation, p95 tradeoff, dual-write plan and explicit owner approval are visible.",
+        "The paragraph wraps and remains readable at 390px."
+      ]
+    },
+    {
+      "id": "heldout-968e2f",
+      "contrast": "heldout-b8c1a4",
+      "expected_findings": [
+        {
+          "id": "missing-approval-condition",
+          "category": "information_missing",
+          "claim": "The summary drops the explicit database-owner approval condition, so its recommendation no longer carries the requested go/no-go limit.",
+          "source_basis": "The only difference from heldout-b8c1a4 is removal of the sentence requiring database owners to approve 55% CPU before proceeding. The numeric 55%/70% comparison remains and does not substitute for owner approval."
+        }
+      ],
+      "forbidden_findings": [
+        {
+          "id": "summary-is-not-transcription",
+          "category": "false_alarm",
+          "claim": "The summary is defective for omitting raw daily p95 samples or an appendix.",
+          "source_basis": "The request explicitly says to omit them. The material omission is the approval condition."
+        }
+      ],
+      "required_browser_checks": [
+        "Read the full paragraph; it contains no approval requirement or alternate owner-approval route.",
+        "The remaining summary is readable at 390px, isolating missing content from clipping."
+      ]
+    }
+  ]
+}
+

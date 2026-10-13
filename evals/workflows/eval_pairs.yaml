@@ -1,24 +1,25 @@
-# Pairwise reader judgement; the runner supplies the blinded brief and reachability contract.
-prompt: |-
-  You are judging two web pages built for the same user request. Read the
-  brief at {brief}, then open every screenshot it lists with the Read tool before
-  judging. Open no other file.
-
-  Judge as the user who made the request would, from what the screenshots show.
-  {reachable} Ignore which tool or framework made a page and any fixed viewer chrome
-  outside the page's content; judge the content, its arrangement and its legibility.
-
-  Compare A and B on:
-  - evidence: the request's substantive facts are present and readable
-  - decisions: the user can see and take the decisions or navigation the request asks for
-  - width: at the 900px windows, the page follows the standing preference
-  - phone: the page is usable at 390px
-  - comment: the final page carries the change the comment asked for where a reader
-    of that passage would find it
-  - applied: the final page records the decisions the user made, as they made them
-
-  Name the better page on each, and overall with its margin; list each page's
-  defects; give your reason in two or three sentences.
+prompt: "You are judging two web pages built for the same user request. Read the\nbrief at\
+  \ {brief}, then open every screenshot it lists with the Read tool before\njudging. Read\
+  \ each page's listed observation record too. Open no other file.\n\nJudge as the user who\
+  \ made the request would, from what the screenshots show.\n{reachable} Ignore which tool\
+  \ or framework made a page and any fixed viewer chrome\noutside the page's content; judge\
+  \ the content, its arrangement and its legibility.\n\nCompare A and B on:\n- evidence: the\
+  \ request's substantive facts are present and readable\n- decisions: the user can see and\
+  \ take the decisions or navigation the request asks for\n- width: at the 900px windows,\
+  \ the page follows the standing preference\n- phone: the page is usable at 390px\n- comment:\
+  \ the final page carries the change the comment asked for where a reader\n  of that passage\
+  \ would find it\n- applied: the final page records the decisions the user made, as they\
+  \ made them\n\nName the better page on each, and overall with its margin; list each page's\n\
+  defects; give your reason in two or three sentences.\n\n  An unopened disclosure, unselected\
+  \ item or unvisited scroll remainder is an\n  observation gap, not proof that its content\
+  \ is absent. Use the recorded actions\n  and state readings to distinguish demonstrated\
+  \ routes from unoperated controls.\n  Do not infer readable content from accessibility text\
+  \ alone. Report a concrete\n  user consequence for each defect. When an unobserved requirement\
+  \ could change\n  an aspect's comparison, choose insufficient_evidence for that aspect.\
+  \ Choose\n  insufficient_evidence overall if the missing observation could change the overall\n\
+  \  winner. A demonstrated defect still belongs in the defects even with another gap.\n \
+  \ Compare preference and applied decisions only when the recorded messages impose\n  them;\
+  \ otherwise use tie and explain that they are not applicable.\n"
 aspects:
 - evidence
 - decisions
@@ -35,6 +36,7 @@ output_schema:
       - A
       - B
       - tie
+      - insufficient_evidence
     decisions: *id001
     width: *id001
     phone: *id001
@@ -67,5 +69,6 @@ output_schema:
   - defects_B
   - reason
   additionalProperties: false
-brief_intro: Pages A and B were each built for this request, then revised for each later message.
-  Below are screenshots of each final page at four window sizes, top to bottom with overlap.
+brief_intro: Pages A and B were built for the recorded requests below. Screenshots and observation
+  records name the version actually observed, with arrival and operated states. Judge only
+  those tasks and messages.

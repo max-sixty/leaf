@@ -20,8 +20,9 @@ import click
 
 from leaf_dev import LEAF_COMMAND
 from leaf_dev.arms import observed_sum
-from leaf_dev.arrangement_eval import CASES, TASKS, WIDTHS, later_messages, phases
-from leaf_dev.eval_pairs import samples
+from leaf_dev.arrangement_eval import WIDTHS
+from leaf_dev.authoring_score import sample_inputs
+from leaf_dev.eval_pairs import final_shots, samples
 
 LABELS = {"laptop": "Laptop", "narrow": "900px", "short": "900 × 600", "phone": "Phone"}
 
@@ -42,34 +43,43 @@ def leaf(*args: str) -> str:
 
 
 def condition(column: str) -> str:
-    return "HTML" if "/html/" in column else "Leaf"
+    if "/html/" in column:
+        return "HTML"
+    if "/base/" in column:
+        return "Leaf (base)"
+    if "/candidate/" in column:
+        return "Leaf (candidate)"
+    return column
 
 
 def measures(sample: dict, subject: str) -> dict:
     """What a sample's author spent over its phases, the final version's code, and
     whether its decision was applied as chosen."""
-    recorded = sample["diagnostics"]["phases"]
-    session = [recorded[str(p)]["trace"] for p in phases(subject) if str(p) in recorded]
-    final = recorded.get(str(phases(subject)[-1]), {})
+    recorded = {
+        int(key): value for key, value in sample["diagnostics"]["phases"].items()
+    }
+    selected = sample.get("phase") or max(recorded)
+    session = [recorded[p]["trace"] for p in sorted(recorded) if p <= selected]
+    final = recorded[selected]
     return {
         "minutes": observed_sum(p["minutes"] for p in session),
         "cost": observed_sum(p["cost_usd"] for p in session),
         "turns": sum(p["turns"] for p in session),
         "css": final.get("css_lines"),
         "script": final.get("script_lines"),
-        "applied": sample["checks"].get("decision-applied") is True,
+        "applied": (sample["checks"].get("decision-applied") is True)
+        if selected >= 4
+        and selected == max(recorded)
+        and "decision-applied" in sample["checks"]
+        else None,
     }
 
 
 def screens(page: Path, sample: dict, subject: str) -> dict[str, list[str]]:
     """The final version's screens by width, as page media paths."""
-    version = phases(subject)[-1]
     found = {
-        name: sorted(
-            sample["shots"].glob(f"p{version}-{name}-*.png"),
-            key=lambda path: int(path.stem.rsplit("-", 1)[1]),
-        )
-        for name in WIDTHS
+        name: [Path(path) for path in paths]
+        for name, paths in final_shots(sample, subject).items()
     }
     files = [str(path) for paths in found.values() for path in paths]
     added = {}
@@ -109,7 +119,13 @@ def verdict_line(pair: dict) -> str:
     orders = [o["overall"] if o else "no verdict" for o in pair["orders"]]
     named = [condition(o) if "/" in o else o for o in orders]
     if pair["winner"]:
+        if pair["winner"] == "tie":
+            return "Tie in both orders"
         return f"{condition(pair['winner'])} preferred in both orders"
+    if any(
+        o is None or o["overall"] == "insufficient_evidence" for o in pair["orders"]
+    ):
+        return "Insufficient observation for a winner"
     return f"Split: {named[0]} in one order, {named[1]} in the other"
 
 
@@ -138,8 +154,10 @@ def reasons(pair: dict) -> str:
 
 def pair_section(page: Path, subject: str, n: int, pair: dict | None, x, y) -> str:
     sid = f"{subject}-pair-{n}"
-    columns = [(condition(c), c, s) for c, s in (x, y)]
-    columns.sort(key=lambda item: item[0] != "Leaf")
+    columns = [
+        (condition(c), c, {**s, "phase": pair.get("phase") if pair else s.get("phase")})
+        for c, s in (x, y)
+    ]
     shots = {c: screens(page, s, subject) for _, c, s in columns}
     tabs = "".join(
         f'<lf-tab id="{sid}-{width}" label="{LABELS[width]}"><div class="pair-shots">'
@@ -151,6 +169,8 @@ def pair_section(page: Path, subject: str, n: int, pair: dict | None, x, y) -> s
         for width in WIDTHS
     )
     heading = verdict_line(pair) if pair else "Not judged"
+    if pair and pair.get("phase"):
+        heading = f"Version {pair['phase']}: {heading}"
     notes = ""
     if pair:
         notes = (
@@ -172,9 +192,11 @@ def outcome(subject: str, pairs: list[dict]) -> str:
     wins = [condition(p["winner"]) for p in judged if p["winner"]]
     if not judged:
         return "not judged"
-    return (
-        ", ".join(f"{c} {wins.count(c)}" for c in ("Leaf", "HTML"))
-        + f", split {len(judged) - len(wins)}"
+    return ", ".join(
+        [
+            *(f"{c} {wins.count(c)}" for c in dict.fromkeys(wins)),
+            f"no agreed winner {len(judged) - len(wins)}",
+        ]
     )
 
 
@@ -197,17 +219,32 @@ def shown(value, form: str, unit: str = "") -> str:
 def overview(found: dict, pairs: list[dict]) -> str:
     """One row per task: the pairwise outcome and each condition's mean cost."""
     rows = []
+    labels = sorted(
+        {condition(column) for columns in found.values() for column in columns}
+    )
     for subject, columns in sorted(found.items()):
+        compared = {
+            p.get("phase") for p in pairs if p["subject"] == subject and p.get("phase")
+        }
+        selected = next(iter(compared), None) if len(compared) <= 1 else None
+        columns = {
+            column: [{**sample, "phase": selected} for sample in members]
+            for column, members in columns.items()
+        }
         cost = {condition(c): means(subject, m)["cost"] for c, m in columns.items()}
         rows.append(
             f"<tr><td><a href='#task-{subject}'>{subject}</a></td>"
             f"<td>{outcome(subject, pairs)}</td>"
-            f"<td class='num'>{shown(cost.get('Leaf'), '.2f', '$')}</td>"
-            f"<td class='num'>{shown(cost.get('HTML'), '.2f', '$')}</td></tr>"
+            + "".join(
+                f"<td class='num'>{shown(cost.get(label), '.2f', '$')}</td>"
+                for label in labels
+            )
+            + "</tr>"
         )
     return (
         '<table id="overview"><thead><tr><th>Task</th><th>Pairs won</th>'
-        "<th>Leaf cost</th><th>HTML cost</th></tr></thead><tbody>"
+        + "".join(f"<th>{escape(label)} cost</th>" for label in labels)
+        + "</tr></thead><tbody>"
         + "".join(rows)
         + "</tbody></table>"
     )
@@ -215,7 +252,22 @@ def overview(found: dict, pairs: list[dict]) -> str:
 
 def task_section(page: Path, subject: str, columns: dict, pairs: list[dict]) -> str:
     judged = {p["pair"]: p for p in pairs if p["subject"] == subject}
+    compared = {p.get("phase") for p in judged.values() if p.get("phase")}
+    if len(compared) > 1:
+        raise click.ClickException(
+            f"{subject}: pair judgments compare different versions; make a report per version"
+        )
+    selected = next(iter(compared), None)
+    columns = {
+        column: [{**sample, "phase": selected} for sample in members]
+        for column, members in columns.items()
+    }
     rows = []
+    decision = any(
+        measures(sample, subject)["applied"] is not None
+        for members in columns.values()
+        for sample in members
+    )
     for column, members in sorted(columns.items()):
         mean = means(subject, members)
         rows.append(
@@ -226,8 +278,8 @@ def task_section(page: Path, subject: str, columns: dict, pairs: list[dict]) -> 
             f"<td class='num'>{shown(mean['css'], '.0f')}</td>"
             f"<td class='num'>{shown(mean['script'], '.0f')}</td>"
             + (
-                f"<td class='num'>{mean['applied']:.0%}</td>"
-                if CASES[subject].decision
+                f"<td class='num'>{shown(mean['applied'], '.0%')}</td>"
+                if decision
                 else ""
             )
             + "</tr>"
@@ -236,13 +288,31 @@ def task_section(page: Path, subject: str, columns: dict, pairs: list[dict]) -> 
         f'<table id="{subject}-measures"><thead><tr><th>Condition</th><th>Samples</th>'
         "<th>Minutes</th><th>Cost</th><th>Turns</th><th>CSS lines</th>"
         "<th>Script lines</th>"
-        + ("<th>Decision applied</th>" if CASES[subject].decision else "")
+        + ("<th>Decision applied (model-assisted)</th>" if decision else "")
         + "</tr></thead><tbody>"
         + "".join(rows)
         + "</tbody></table>"
     )
-    request = (TASKS / subject / "request.md").read_text()
+    sample = next(iter(columns.values()))[0]
+    recorded_inputs = sample_inputs(sample["metadata"], sample["run"], selected)
+    request = recorded_inputs["request"]
     first, second = sorted(columns)
+    if len(columns[first]) != len(columns[second]):
+        raise click.ClickException(
+            f"{subject}: report columns have unequal sample counts"
+        )
+    if any(n < 1 or n > len(columns[first]) for n in judged):
+        raise click.ClickException(
+            f"{subject}: verdict names a pair absent from this report"
+        )
+    for n, (a, b) in enumerate(zip(columns[first], columns[second]), 1):
+        if n in judged and judged[n]["samples"] != {
+            first: a["sample"],
+            second: b["sample"],
+        }:
+            raise click.ClickException(
+                f"{subject} pair {n}: verdict names different samples from this report"
+            )
     sections = "".join(
         pair_section(page, subject, n, judged.get(n), (first, x), (second, y))
         for n, (x, y) in enumerate(zip(columns[first], columns[second]), 1)
@@ -252,7 +322,7 @@ def task_section(page: Path, subject: str, columns: dict, pairs: list[dict]) -> 
         f"{outcome(subject, pairs)}</h2>{table}"
         "<details><summary>The request and the user's later messages</summary>"
         f'<pre id="{subject}-request">{escape(request)}</pre>'
-        + "".join(f"<p>{escape(line)}</p>" for line in later_messages(subject) if line)
+        + "".join(f"<p>{escape(line)}</p>" for line in recorded_inputs["messages"])
         + f"</details>{sections}</section>"
     )
 
@@ -265,7 +335,13 @@ def task_section(page: Path, subject: str, columns: dict, pairs: list[dict]) -> 
     required=True,
     type=click.Path(exists=True, file_okay=False, resolve_path=True, path_type=Path),
 )
-def eval_report(page: Path, runs: tuple[Path, ...]):
+@click.option(
+    "--pairs",
+    "pair_file",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="The explicit pairs.json from a new eval-pairs run.",
+)
+def eval_report(page: Path, runs: tuple[Path, ...], pair_file: Path | None):
     """Write PAGE, a Leaf page of the authored-task samples in RUNS.
 
     RUNS are run directories under `.tmp/eval/`; `eval-pairs` on the same runs
@@ -274,15 +350,21 @@ def eval_report(page: Path, runs: tuple[Path, ...]):
     if not (page / "events.jsonl").exists():
         leaf("page", "init", str(page))
     found = samples(list(runs))
-    pairs = next(
-        (
-            json.loads((run / "pairs.json").read_text())
-            for run in runs
-            if (run / "pairs.json").exists()
-        ),
-        [],
+    pairs = (
+        json.loads(pair_file.read_text())
+        if pair_file
+        else next(
+            (
+                json.loads((run / "pairs.json").read_text())
+                for run in runs
+                if (run / "pairs.json").exists()
+            ),
+            [],
+        )
     )
     found = {s: c for s, c in found.items() if len(c) == 2}
+    if any(pair["subject"] not in found for pair in pairs):
+        raise click.ClickException("Verdict names a task absent from this report")
     body = overview(found, pairs) + "".join(
         task_section(page, subject, columns, pairs)
         for subject, columns in sorted(found.items())
@@ -292,17 +374,17 @@ def eval_report(page: Path, runs: tuple[Path, ...]):
         f"""<!doctype html>
 <html lang="en">
 <head>
-<title>Leaf against plain HTML: eval outputs</title>
-<meta name="description" content="Each authored task's final pages from Leaf and plain HTML side by side, with what each cost and what the judges said.">
+<title>Authoring evaluation outputs</title>
+<meta name="description" content="Matched authoring outputs side by side with recorded evidence, spend and model judgments.">
 <style>{STYLE}</style>
 </head>
 <body>
 <main class="layout-column">
 <hgroup id="title"><p class="eyebrow">Runs {runs_text}</p>
-<h1>Leaf against plain HTML: eval outputs</h1></hgroup>
-<p class="lede" id="lede">Each task's final pages from both conditions, side by side at every
-width the judges saw, with each condition's mean spend and the pairwise judge's
-verdict and named defects. Select a screen to zoom it to full size.</p>
+<h1>Authoring evaluation outputs</h1></hgroup>
+<p class="lede" id="lede">The recorded versions from both columns, side by side at every
+width the judges saw, with each column's mean spend and the pairwise model's
+judgment and named defects. Select a screen to zoom it to full size.</p>
 <aside class="sidebar" id="contents-sidebar"><lf-toc id="contents" max-level="3"></lf-toc></aside>
 {body}
 </main>

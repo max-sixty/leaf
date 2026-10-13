@@ -713,8 +713,8 @@ function standFolded(row, fold, on) {
 //
 // A pin's seats, in the order it takes them, all touch its target (`seatRows`): just
 // outside the target's top-right corner; for a run of text, just after its last word,
-// where a reader finishes it; just inside the corner, on the target itself; and last
-// just above the corner. Above comes last because a pin there can read as the block
+// where a reader finishes it; just inside the corner, on the target itself, or further
+// down its right edge; and last just above the corner. Above comes last because a pin there can read as the block
 // above's, and stands outside what a pane shows when the pane is scrolled to its target.
 //
 // A row that can fold (its `fold.able()`, margin-projection.js) is seated at both sizes,
@@ -817,6 +817,7 @@ function pinSeating(rows, { bands, shell, pinInset }) {
       came: entry.came,
       seats: seatsAt(wide),
       corner: inline ? 2 : 1,
+      floor: Math.max(home.bottom, ...parts.map((part) => part.bottom)),
       cover,
       controls,
       folds: fold && { seats: seatsAt(across(1)), open: across(fold.controls()) },

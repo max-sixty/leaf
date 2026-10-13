@@ -104,15 +104,18 @@ export const inSeatingOrder = (rows) =>
 
 // Where every pin stands, in seating order, so a pin seated first is one the next keeps
 // off. Each pin offers its seats in the order it prefers them (`seats`, margin-layout.js
-// says which), and takes the first that covers nothing (`pinSpot`). A pin is meant to
-// read as its target's, so every seat touches the target; where none is clear, the pin
-// still stands by its target rather than wandering off to room elsewhere on the page,
-// and the reader hides annotations to see what it covers. It then takes, of the seats
-// that cover no control (where a press would reach the pin instead), the one that covers
-// least, so a pin over the end of a heading's line beats one over a paragraph; failing
-// that its `corner` seat, inside the target's top-right corner, slid left along the
-// target's top past the controls there, as a card's header keeps its buttons at its
-// right; and failing that the corner itself, pushed below any pin already seated there.
+// says which), and takes the first that covers nothing (`pinSpot`). Its corner seat
+// stands for the first spot down the target's right edge, as far as the target's
+// `floor`, that clears what is there: the empty end of a line below a full one.
+//
+// A pin is meant to read as its target's, so every seat touches the target. Where none
+// is clear, the pin still stands by its target rather than wandering off to room
+// elsewhere on the page, and the reader hides annotations to see what it covers. It
+// takes, of the seats that cover no control (where a press would reach the pin
+// instead), the one that covers least, so a pin over the end of a heading's line beats
+// one over a paragraph; failing that its corner seat slid left along the target's top
+// past the controls there, as a card's header keeps its buttons at its right; and
+// failing that the corner itself, pushed below any pin already seated there.
 //
 // A held pin keeps the rect it holds: unfolding its options widens it, and a seat taken
 // again at that width could move the control the user is pressing. It is seated first,
@@ -127,9 +130,10 @@ export const inSeatingOrder = (rows) =>
 // inside `bounds`, the toggle is seated only where the open width fits to its left: the
 // search's bounds give up that width on the left.
 //
-// Each pin is `{ key, came, held, seats, corner, cover, controls, bounds, folds,
+// Each pin is `{ key, came, held, seats, corner, floor, cover, controls, bounds, folds,
 // folded }`: `held` the rect it holds or null, `seats` its candidate rects, `corner` the
-// index among them of the one inside its target's corner, `cover` what it keeps
+// index among them of the one inside its target's corner, `floor` its target's bottom,
+// `cover` what it keeps
 // off (words, controls, media), `controls` the controls among them, `folds` the same pin
 // folded, `{ seats, open }` with `open` its width opened, where it can fold, and `folded`
 // whether it stands folded now, which a held pin keeps. The answer maps each key to its
@@ -157,17 +161,22 @@ export function seatRows(pins, { gap }) {
     const heldBounds = folded ? foldBounds : pin.bounds;
     let rect = held && inside(held, heldBounds) ? held : null;
     const avoiding = [...pin.cover, ...seated];
+    const lowered = (list) => [
+      ...list.slice(0, pin.corner),
+      slid(list[pin.corner], avoiding, gap, "down", pin.floor),
+      ...list.slice(pin.corner + 1),
+    ];
     if (!rect) {
-      rect = pinSpot(pin.seats, avoiding, pin.bounds);
+      rect = pinSpot(lowered(pin.seats), avoiding, pin.bounds);
       folded = !rect && Boolean(fold);
-      if (folded) rect = pinSpot(fold.seats, avoiding, foldBounds);
+      if (folded) rect = pinSpot(lowered(fold.seats), avoiding, foldBounds);
     }
     const seatsNow = folded ? fold.seats : pin.seats;
     const boundsNow = folded ? foldBounds : pin.bounds;
     const pressed = [...pin.controls, ...seated];
     rect ??=
       leastCovering(seatsNow, pin.cover, pressed, boundsNow) ??
-      slidClear(seatsNow[pin.corner], pressed, boundsNow, gap);
+      slid(seatsNow[pin.corner], pressed, gap, "left", boundsNow.left);
     if (!rect) {
       const corner = boundedHome(seatsNow[pin.corner], boundsNow);
       const push = packRows([{ key: pin.key, rect: corner }], gap, seated).get(pin.key);
@@ -209,14 +218,18 @@ function leastCovering(seats, cover, pressed, bounds) {
   return best;
 }
 
-// `seat` moved left past each of `boxes` it overlaps, or null once it would leave
-// `bounds`.
-function slidClear(seat, boxes, bounds, gap) {
+// `seat` moved past each of `boxes` it overlaps, `left` or `down`, or null once it
+// passes `limit`: the left edge it may not cross, or the bottom it may not.
+function slid(seat, boxes, gap, way, limit) {
   let rect = seat;
   for (let hit; (hit = boxes.find((box) => overlaps(box, rect)));) {
-    const left = hit.left - gap - (rect.right - rect.left);
-    if (left < bounds.left) return null;
-    rect = { ...rect, left, right: hit.left - gap };
+    const width = rect.right - rect.left;
+    const height = rect.bottom - rect.top;
+    rect =
+      way === "left"
+        ? { ...rect, left: hit.left - gap - width, right: hit.left - gap }
+        : { ...rect, top: hit.bottom + gap, bottom: hit.bottom + gap + height };
+    if (way === "left" ? rect.left < limit : rect.bottom > limit) return null;
   }
   return rect;
 }
@@ -224,5 +237,5 @@ function slidClear(seat, boxes, bounds, gap) {
 // The first of a pin's `seats` inside `bounds` that overlaps none of `boxes`, or null.
 export const pinSpot = (seats, boxes, bounds) =>
   seats.find(
-    (seat) => inside(seat, bounds) && !boxes.some((box) => overlaps(box, seat)),
+    (seat) => seat && inside(seat, bounds) && !boxes.some((box) => overlaps(box, seat)),
   ) ?? null;

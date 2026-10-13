@@ -125,6 +125,7 @@ const pin = (over = {}) => ({
   held: null,
   seats: [outside, corner, above],
   corner: 1,
+  floor: 144,
   cover: [],
   controls: [],
   bounds: box(4, -Infinity, 386, Infinity),
@@ -141,6 +142,14 @@ test("a pin takes the first of its seats that stands inside its bounds and cover
     rect: above,
     folded: false,
   });
+});
+
+test("a pin whose corner holds words takes the first clear spot down its target's edge", () => {
+  // A taller target: its first line runs to the corner, its second ends short of it.
+  const tall = pin({ floor: 300, cover: [title, box(24, 148, 200, 184)] });
+  assert.deepEqual(seatOf(tall).get("card").rect, box(318, 144, 362, 188));
+  // Below its floor is not the target's, so a short one takes the room above instead.
+  assert.deepEqual(seatOf(pin({ cover: [title] })).get("card").rect, above);
 });
 
 test("with no clear seat, a pin stands over words but keeps off a control", () => {

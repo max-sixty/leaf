@@ -10064,8 +10064,10 @@ def test_a_row_behind_an_inactive_tab_is_withheld(browser, serve):
     expect(row).to_be_visible()
 
 
-def test_a_touch_pin_stays_inside_a_non_scrolling_sample(browser, serve):
-    """A content-height sample keeps the complete finger-sized receipt in its frame."""
+def test_a_touch_sample_with_no_clear_pin_seat_keeps_its_receipt_in_page_map(
+    browser, serve
+):
+    """A short sample with no clear touch-sized seat retains the receipt in Page Map."""
     source = leaf_page(
         "A receipt inside a block sample",
         """
@@ -10091,21 +10093,15 @@ def test_a_touch_pin_stays_inside_a_non_scrolling_sample(browser, serve):
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
     )
     page = open_page(browser, serve(source), context=context)
-    status = page.frame_locator("#practice iframe").locator(
-        '.lf-margin-entry[data-lf-kinds="sent"]'
-    )
-    expect(status).to_be_visible()
-    reading = status.evaluate("""pin => ({
-      rect: pin.getBoundingClientRect().toJSON(),
-      height: innerHeight,
-      overflow: getComputedStyle(document.documentElement).overflowY,
-      touch: matchMedia('(pointer: coarse)').matches,
-    })""")
-    assert reading["touch"] and reading["overflow"] == "hidden", reading
-    assert reading["rect"]["height"] >= 44, reading
-    assert (
-        0 <= reading["rect"]["top"] < reading["rect"]["bottom"] <= reading["height"]
-    ), reading
+    frame = page.frame_locator("#practice iframe")
+    status = frame.locator('.lf-margin-entry[data-lf-kinds="sent"]')
+    expect(status).to_be_hidden()
+    frame.locator(".lf-banner-more").tap()
+    frame.locator(".lf-page-map-toggle").tap()
+    dialog = frame.get_by_role("dialog", name="Page Map", exact=True)
+    expect(dialog).to_be_visible()
+    expect(dialog).to_contain_text("Sent")
+    expect(dialog).to_contain_text("Print the workshop map")
 
 
 def test_a_pane_row_withheld_at_load_stands_once_its_target_scrolls_in(browser, serve):

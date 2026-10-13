@@ -35,6 +35,7 @@ from interact_support import (
     append_command,
     page_packages,
     publish,
+    refused_on,
     running_http_server,
     take_stream_activity,
     wait_for,
@@ -2422,13 +2423,14 @@ def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
     competing_writer_rejected = []
 
     def refuse(*args, **kwargs):
-        with pytest.raises(Refused, match="answered by this turn's messages"):
+        with pytest.raises(Refused) as refused:
             post_reply(
                 page_dir,
                 {"to": comment["id"], "for": comment["id"]},
                 "Competing tool reply",
                 identity={"agent": "Codex", "session": "hosted-thread"},
             )
+        assert refused_on(refused.value).code == "reserved-answer"
         competing_writer_rejected.append(True)
         if refusal is None:
             return {"turn": {}}

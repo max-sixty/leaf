@@ -608,12 +608,10 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
 
     # A refused title refuses the whole command, so no message goes up unnamed.
     before = events_model.read_events(page_dir)
-    unnamed = runner.invoke(
-        cli_model.cli,
-        ["thread", "open", str(page_dir), "--text", "and the cache?", "--title", ""],
+    unnamed = command_refusal(
+        "thread", "open", page_dir, "--text", "and the cache?", "--title", ""
     )
-    assert unnamed.exit_code != 0
-    assert "comment event is invalid" in unnamed.output
+    assert (unnamed.code, unnamed.values["kind"]) == ("invalid-event", "comment")
     assert events_model.read_events(page_dir) == before
 
     for command, rejected_kind in (
@@ -626,9 +624,11 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
             "thread_title",
         ),
     ):
-        refused = runner.invoke(cli_model.cli, command)
-        assert refused.exit_code != 0
-        assert f"{rejected_kind} event is invalid" in refused.output
+        refused = command_refusal(*command)
+        assert (refused.code, refused.values["kind"]) == (
+            "invalid-event",
+            rejected_kind,
+        )
         assert events_model.read_events(page_dir) == before
 
     # A reply's --title names only a thread nothing has named, so a name the harness

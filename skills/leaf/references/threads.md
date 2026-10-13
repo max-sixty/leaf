@@ -215,6 +215,9 @@ The page labels the message `edited`. Leaf keeps the original and every revision
 in the append-only event log. Only text is revised; any HTML markup stays frozen.
 A committed reply or `leaf thread` write prints the records it appended, one JSON
 line each, as `leaf page events` prints them. A refusal lists the ids it knows.
+Where a script reads the outcome, add `--json`: a refusal then prints one object,
+its `error` and the `findings` it rests on, each with a stable `code` and the
+`values` it names.
 
 The user can rewrite their own messages the same way. Their rewrite is a turn rather
 than a correction: it arrives as an `edit` event, with the message's new `text` and

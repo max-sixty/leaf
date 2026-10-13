@@ -5,12 +5,11 @@ import math
 import re
 
 import pytest
-from click.testing import CliRunner
 from interact_support import (
+    command_refusal,
     end_work_on,
     working,
 )
-from leaf import cli as cli_model
 from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -260,12 +259,8 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
         told(page)
 
     claim("card-migration", "checking the shard")
-    unsupported = CliRunner().invoke(
-        cli_model.cli,
-        ["task", "open", str(d), "jobs", "Price the alternatives"],
-    )
-    assert unsupported.exit_code != 0
-    assert "has no work seat" in unsupported.output
+    unsupported = command_refusal("task", "open", d, "jobs", "Price the alternatives")
+    assert unsupported.code == "no-work-seat"
 
     card_button = page.locator(
         '[data-lf-margin-for="card-migration"] > .lf-margin-marker'

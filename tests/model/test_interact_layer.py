@@ -388,15 +388,19 @@ def test_a_layer_stamped_with_its_revision_still_names_the_revendor(page_dir):
     # A fresh process, as the older Leaf's stamp was: this one holds the revision it
     # captured in memory.
     checked = subprocess.run(
-        [*LEAF_COMMAND, "page", "check", str(page_dir)],
+        [*LEAF_COMMAND, "page", "check", "--json", str(page_dir)],
         capture_output=True,
         text=True,
         timeout=STATED_TIMEOUT,
         check=False,
     )
     assert checked.returncode != 0
-    assert "x-work" in checked.stderr
-    assert f"leaf page init {page_dir}" in checked.stderr
+    [refused] = json.loads(checked.stdout)["findings"]
+    assert (refused["code"], refused["values"]["missing"]) == (
+        "keys-documentation",
+        ["x-work"],
+    )
+    assert refused["values"]["revendor"] == str(page_dir)
 
 
 def test_the_skill_routes_every_reference_it_ships():

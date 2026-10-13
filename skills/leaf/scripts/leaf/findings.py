@@ -280,16 +280,6 @@ def _outside_main(content: list[dict]) -> list[str]:
     ]
 
 
-def _pinned(v: dict) -> str:
-    revisions = v["revisions"]
-    return (
-        "pinned revision"
-        + ("s " if len(revisions) > 1 else " ")
-        + ", ".join(f"r{revision}" for revision in revisions)
-        + f" cannot render this thread markup: {Finding.loads(v['finding'])}"
-    )
-
-
 # What the layer does with a word a widget declares from one of its lists, where the
 # word is on it (`instances.DECLARED_WORDS`).
 _HONORED = {
@@ -298,11 +288,11 @@ _HONORED = {
 }
 
 
-def _unservable_layer(v: dict, why: str) -> str:
+def _unservable_layer(v: dict, why: str, action: str) -> str:
     """Why this Leaf can neither serve a page nor write its log (`layer`)."""
     return (
-        f"{v['page']} {why}, so it cannot serve the page or write its log. Re-vendor"
-        f" it with `leaf page init {v['page']}`."
+        f"{v['page']} {why}, so it cannot serve the page or write its log. {action}"
+        f" with `leaf page init {v['page']}`."
     )
 
 
@@ -864,11 +854,6 @@ _TEXT = {
         "<link rel=stylesheet> in message markup dresses the whole document it is put"
         " into; the page serves the one vendored theme it was reviewed with"
     ),
-    "pinned-unrenderable": lambda at, v: _pinned(v),
-    "pinned-vocabulary": lambda at, v: (
-        "thread markup must use vocabulary shared by the active registry and every"
-        " pinned revision; otherwise ask with --text (and --ask for a reply)"
-    ),
     "sample-loop": lambda at, v: (
         f"sample {_json(v['samples'])} selects thread {v['thread']!r}, which"
         " holds this message, so its child would hold the same sample again; select"
@@ -1405,8 +1390,7 @@ _TEXT = {
     # The package check's refusal.
     "package": lambda at, v: v["text"],
     "leaf-version": lambda at, v: (
-        f"Leaf {v['vendored']} vendored this page; this is Leaf {v['running']}. If the"
-        f" page misbehaves, `leaf page init {v['page']}` re-vendors it."
+        f"Leaf {v['vendored']} vendored this page; this is Leaf {v['running']}."
     ),
     # The widget quality report, for a widget's author.
     "unreadable-examples": lambda at, v: (
@@ -1437,11 +1421,13 @@ _TEXT = {
         v,
         f"was vendored by a Leaf at page protocol {v['vendored']}, and this Leaf"
         f" ({v['leaf']}) speaks protocol {v['protocol']}",
+        "Update the page's Leaf runtime",
     ),
     "retired-layer": lambda at, v: _unservable_layer(
         v,
         f"was vendored by a Leaf that declares {', '.join(v['retired'])}, which this"
         f" Leaf ({v['leaf']}) no longer admits",
+        "Re-vendor it",
     ),
     "foreign-revision": lambda at, v: _unservable_revision(
         v,
@@ -1536,6 +1522,10 @@ _TEXT = {
     "unowned-placement": lambda at, v: (
         f"{_invalid_record(v)}position record cannot put <{v['unit_tag']}>"
         f" {v['unit']!r} within <{v['found']}> {v['destination']!r}"
+    ),
+    "thread-widget-publication": lambda at, v: (
+        f"thread widget {v['widget']!r} belongs to publication "
+        f"r{v['publication']}, not r{v['revision']}"
     ),
     "unknown-members": lambda at, v: (
         f"{_invalid_record(v)}{', '.join(v['strangers'])} name no member of"

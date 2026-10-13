@@ -362,8 +362,8 @@ live under `$` keys; each tag entry is one complete schema.
 
 ## Working on the repository
 
-When the user is to choose among designs, show the candidates in a playground
-(`/developing-leaf`, "Explore an open design").
+When the user is to choose among designs, show the candidates side by side and let
+the user select one (`/developing-leaf`, "Explore an open design").
 
 Before finishing a feature:
 

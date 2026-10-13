@@ -726,13 +726,15 @@ def test_plain_check_reports_page_request_failures_but_ignores_optional_assets(
             "film.js": 'import { label } from "./helper.js";\n'
             "export const paint = el => (el.textContent = label);\n",
             "helper.js": 'export const label = "loaded";\n',
-            "widgets/lf-film.js": 'import { paint } from "../film.js";\n'
-            "customElements.define('lf-film', class extends HTMLElement {\n"
-            "  connectedCallback() { paint(this); }\n"
-            "});\n",
-            "widgets/lf-loader.js": "customElements.define('lf-loader', class extends HTMLElement {\n"
-            "  connectedCallback() { this.textContent = 'loaded'; }\n"
-            "});\n",
+            "widgets/lf-film.js": """import { paint } from "../film.js";
+export default class extends HTMLElement {
+  connectedCallback() { paint(this); }
+};
+""",
+            "widgets/lf-loader.js": """export default class extends HTMLElement {
+  connectedCallback() { this.textContent = 'loaded'; }
+};
+""",
         },
         media={"page/missing-image.png": solid_png(1, 1, (0, 0, 0))},
     )
@@ -802,14 +804,16 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
             "registry.json": json.dumps(FILM_DECLARATION),
             "film.js": "export const paint = (el, step) =>\n"
             "  (el.textContent = (step.cmp ?? []).map(String).join());\n",
-            "widgets/lf-film.js": 'import { paint } from "../film.js";\n'
-            "customElements.define('lf-film', class extends HTMLElement {\n"
-            "  connectedCallback() { paint(this, { cmp: 3 }); }\n"
-            "});\n",
-            "widgets/lf-loader.js": "customElements.define('lf-loader', class extends HTMLElement {\n"
-            "  connectedCallback() { this.load(); }\n"
-            "  async load() { await null; throw new Error('the trace never loaded'); }\n"
-            "});\n",
+            "widgets/lf-film.js": """import { paint } from "../film.js";
+export default class extends HTMLElement {
+  connectedCallback() { paint(this, { cmp: 3 }); }
+};
+""",
+            "widgets/lf-loader.js": """export default class extends HTMLElement {
+  connectedCallback() { this.load(); }
+  async load() { await null; throw new Error('the trace never loaded'); }
+};
+""",
         },
     )
     d = serve.page_dir
@@ -846,9 +850,10 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
         "  (el.textContent = [step.cmp].flat().map(String).join());\n"
     )
     (d / "page" / "widgets" / "lf-loader.js").write_text(
-        "customElements.define('lf-loader', class extends HTMLElement {\n"
-        "  connectedCallback() { this.textContent = 'loaded'; }\n"
-        "});\n"
+        """export default class extends HTMLElement {
+  connectedCallback() { this.textContent = 'loaded'; }
+};
+"""
     )
     clean = check(LEAF_BROWSER_EXECUTABLE=headless_shell)
     assert clean.returncode == 0, clean.stdout + clean.stderr

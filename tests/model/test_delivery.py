@@ -816,20 +816,17 @@ def test_a_delivered_gesture_on_a_sent_widget_keeps_its_message_in_a_long_thread
     parent = root["id"]
     asking_message = None
     for index in range(11):
-        message = {
-            "kind": "reply",
-            "author": "agent",
-            "parent": parent,
-            "text": f"Recovery context {index}.",
-        }
+        markup = ""
         if index == 2:
-            message["markup"] = (
+            markup = (
                 '<lf-options id="thread-commands" choose>'
                 '<lf-option id="restart"><strong>Restart</strong></lf-option>'
                 '<lf-option id="park"><strong>Park</strong></lf-option>'
                 "</lf-options>"
             )
-        sent = append_carried_log_record(page_dir, message)
+        sent = thread_model.post_reply(
+            page_dir, {"to": parent}, f"Recovery context {index}.", markup
+        )
         parent = sent["id"]
         if index == 2:
             asking_message = sent
@@ -955,6 +952,7 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
     asked = append_carried_log_record(
         page_dir,
         {
+            "revision": 1,
             "kind": "reply",
             "author": "agent",
             "parent": root["id"],

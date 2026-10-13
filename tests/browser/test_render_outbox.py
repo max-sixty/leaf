@@ -1008,7 +1008,7 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
     registry_path.write_text(json.dumps(declarations))
     (tmp_path / ".leaf" / "widgets" / "lf-outer-board.js").write_text(
         """import { once, widgetController } from "/runtime/widget-api.js";
-customElements.define("lf-outer-board", class extends HTMLElement {
+export default class extends HTMLElement {
   #controller = widgetController(this);
   #stop;
   connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
@@ -1019,7 +1019,7 @@ customElements.define("lf-outer-board", class extends HTMLElement {
       for (const card of order) column.append(document.getElementById(card));
     }
   }
-});
+};
 """
     )
     nested = leaf_page(
@@ -2534,14 +2534,14 @@ def _serve_preparing_thread(serve, page=SUGGESTION_PAGE):
         layer_widgets={
             "lf-preparation.js": """
 import {once, widgetController} from '/runtime/widget-api.js';
-customElements.define('lf-preparation', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     widgetController(this).present(fetch('/preparation-content').then(() => {
       this.dataset.ready = 'yes';
     }));
   }
-});
+};
 """
         },
     )

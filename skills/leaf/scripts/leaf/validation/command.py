@@ -14,13 +14,11 @@ import sys
 from pathlib import Path
 
 from leaf.event_log import read_events
-from leaf.files import list_revisions
 from leaf.findings import Finding
 from leaf.layer import payload_provenance, provenance_label, same_leaf
 from leaf.leases import page_locked
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import layer_metadata
-from leaf.revision_artifact import read_revision
 
 from .source import check_source
 
@@ -36,8 +34,8 @@ def leaf_versions(page_dir: Path) -> list[Finding]:
 
     Between protocol bumps an update can still break an older page (`AGENTS.md`,
     "Pages across Leaf updates"), and nothing compares the page's files with this
-    Leaf's to say so. Both versions and their dates let the agent judge whether a
-    page that misbehaves wants re-vendoring."""
+    Leaf's to say so. Both versions and their dates are informational; the protocol
+    compatibility check owns the instruction to update the page's runtime."""
     try:
         page_leaf = layer_metadata(page_dir).get("producer", {})
     except RegistryError:
@@ -122,15 +120,10 @@ def _check(page_dir: Path, render: bool, as_json: bool) -> int:
         return reported(0) if as_json else 0
     from leaf.render_gate.command import browser_check, print_browser_check
 
-    revisions = list_revisions(page_dir)
-    active = revisions[-1] if revisions else 0
-    revision = active
-    if not active or read_revision(page_dir, active).digest != result.artifact.digest:
-        revision = active + 1
     browser = browser_check(
         page_dir,
         result.document,
-        revision,
+        result.revision.candidate,
         result.artifact,
         page_code=runs_code,
         render=render,

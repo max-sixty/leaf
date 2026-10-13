@@ -1,5 +1,6 @@
 # Added with typed Thread actions for packages (#1288). Base at a47182f22 made no
 # typed action calls (0 of 3); the change 3 of 3.
+# Expanded for publication-scoped widgets: Leaf registers the default constructor.
 description: thread-widget-actions
 metadata:
   purpose: A package gives its own Thread controls the same typed actions as Leaf's controls.
@@ -16,6 +17,13 @@ vars:
 
     The page directory is not reachable from here. Reply with the JavaScript module.
 assert:
+- type: llm-rubric
+  metric: module-registration
+  value: |
+    The module must export its custom element constructor as the default export,
+    either directly or through an equivalent named declaration and export. Leaf's
+    loader registers it. Fail if the module calls customElements.define or registers
+    the element itself.
 - type: llm-rubric
   metric: judgment
   value: |

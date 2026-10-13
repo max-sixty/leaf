@@ -934,14 +934,14 @@ export function createMarginProjection({
     const primary = host.present(projection);
     const options = host.options;
     const lostOptionFocus = focus.focusedOption && !standingIn(options);
+    const lostPrimaryFocus = focus.focusedPrimary && !standingIn(host);
     if (!projection.hasOptions && (focused() === more || lostOptionFocus)) {
       const destination = primary ?? (primaryReading(entry) ? marker : null);
       if (destination === marker && marker.hidden) marker.lfTakeFocus = true;
       else if (destination) focusDestination(destination, "return");
-    } else if (lostOptionFocus) {
-      // A secondary projection can become the primary when its press settles. Keep
-      // focus on that same semantic control instead of jumping to the first status
-      // reading merely because the cluster stayed engaged and replaced its peers.
+    } else if (lostOptionFocus || lostPrimaryFocus) {
+      // A changed contribution can replace either the focused primary or an option.
+      // Return to the corresponding control in the new projection.
       focus.restore?.(
         primary,
         clusterMarginEntries(options)[0],
@@ -960,17 +960,11 @@ export function createMarginProjection({
   }
 
   function renderNow(inventory) {
+    if (!nav.isConnected) return;
     const selected = card.selection();
     const forcedKey = selected?.forced ? selected.entry.key : null;
     const threadOwnerHeld = transferThreadFocus || focused() === selected?.control;
     transferThreadFocus = false;
-    // Before the card, which anchors to its rows (`mount`).
-    if (!nav.isConnected)
-      move(
-        chromeRoot,
-        nav,
-        preview.parentNode === chromeRoot ? preview : chromeForeground,
-      );
     pageInventory = inventory;
     const liveHosts = new Set(
       pageInventory.filter(entryHasMarginHost).map((entry) => entry.key),
@@ -1068,6 +1062,7 @@ export function createMarginProjection({
       host.lfTarget = targetFor(entry);
       marker.lfEntry = entry;
       const focus = {
+        focusedPrimary: Boolean(host.primary && standingIn(host.primary)),
         focusedOption: Boolean(host.options && standingIn(host.options)),
         // The entry the user stands on, by its contribution's key, across the projection
         // that may replace its control (focus.js, keyed `holdFocus`).
@@ -1743,6 +1738,9 @@ export function createMarginProjection({
   // the version picker, then its own parts in the root.
 
   function mount() {
+    // The card anchors to rows laid out before it. Mount the margin first; an
+    // application reading can also arrive without mounting this optional chrome.
+    move(chromeRoot, nav, chromeForeground);
     mountMarginLayer(toolbar);
     card.mount(() => closePreview(landOnEntry));
     document.addEventListener("lf-margin-layout", ({ detail: { column, height } }) => {
@@ -1789,9 +1787,6 @@ export function createMarginProjection({
     watchRoom(() => scheduleRoving());
     window.addEventListener("resize", () => scheduleWidthRender());
     renderAnnotations();
-    // The card anchors to its row (floating.js), which an anchor may do only to a box
-    // laid out before it: the margin comes first.
-    move(chromeRoot, nav, chromeForeground);
   }
   return {
     pageMapActive: () => availableRows().includes(focused()),

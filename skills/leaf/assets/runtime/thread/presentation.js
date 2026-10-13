@@ -46,7 +46,6 @@ function renderHolds(threads) {
 }
 
 export function createThreadPresentation({
-  available = true,
   inlineView,
   surfaceView,
   anchorPlacement,
@@ -85,16 +84,16 @@ export function createThreadPresentation({
     region: "thread",
     order: PRESENTATION_ORDER.thread,
     reading: (root) =>
-      !available
-        ? null
-        : root.phase === "waiting" && !root.effective.thread.all.length
-          ? "waiting"
-          : {
-              phase: root.phase,
-              thread: root.effective.thread,
-              document: root.document,
-            },
-    current: () => (available ? readApplication().effective.thread : null),
+      root.phase === "waiting" && !root.effective.thread.all.length
+        ? "waiting"
+        : {
+            phase: root.phase,
+            thread: root.effective.thread,
+            document: root.document,
+          },
+    // Local threads are a complete reading of known gestures even while the saved
+    // inventory loads. Every phase owes the same cohort's current presentation.
+    current: () => readApplication().effective.thread,
     paint: async (value, current) => {
       const phase = readApplication().phase;
       // A pass reads the latest root. Clock changes claim another pass through the
@@ -128,7 +127,7 @@ export function createThreadPresentation({
     // (thread/focus.js, `holdReply`).
     const restoreReply = holdReply(openThread);
     let prepared = null;
-    const livePanels = [...panels];
+    const livePanels = [...panels].filter((panel) => panel.threadsBox.isConnected);
     let surfaces = null;
     try {
       const { all: threads } = threadState();

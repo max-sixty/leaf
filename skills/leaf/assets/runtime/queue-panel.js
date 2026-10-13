@@ -55,7 +55,7 @@ import { elementById, inChrome } from "./passages.js";
 import { PRESENTATION } from "./presentation.js";
 import { standsAt } from "./queue-list.js";
 import { itemNoun } from "./queues.js";
-import { registry } from "./registry.js";
+import { widgetDeclaration } from "./registry.js";
 import { repaint } from "./repaint.js";
 import { keeps, keepsHidden, keepsText } from "./keeps.js";
 import {
@@ -97,7 +97,7 @@ function askWord(item) {
   if (ask.source.kind === "reply") return "Thread";
   if (ask.source.kind === "approval") return "Approval";
   const word =
-    registry[ask.source.tag]?.["x-word"] && addressableWord(askPlace(ask).source);
+    widgetDeclaration(ask.source.id, "x-word") && addressableWord(askPlace(ask).source);
   return word ? word.charAt(0).toUpperCase() + word.slice(1) : "Ask";
 }
 
@@ -279,7 +279,7 @@ export function createQueuePanel({ actions, next, announce }) {
     nameDoor();
     const waiting = reading().questions.length > 0;
     keepsHidden(queueNextBtn, !waiting);
-    // On a phone the door waits in More, which says a question is there as it says an
+    // On a phone the door waits in More, which says an ask is there as it says an
     // approval is open.
     markBannerControl(queueBtn, waiting ? "questions waiting" : null);
     repaint();

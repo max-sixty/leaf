@@ -28,6 +28,7 @@
    Blanket actions come from x-awaits.all and invoke each source's declared decision
    method. They preserve one admitted action per widget rather than recording a second
    page-wide answer. */
+import { registryFor, decisionFor } from "../registry.js";
 
 import { landingRoom, scrollIntoView } from "../landing-scroll.js";
 import { landingBand, shownBox, shownParts } from "../geometry.js";
@@ -39,7 +40,7 @@ import { scrollerFor } from "../reading-regions.js";
 import { reserve } from "../widget-elements.js";
 import { keeps } from "../keeps.js";
 import { queueList } from "../drawers.js";
-import { decisionFor, registry, tagsDeclaring } from "../registry.js";
+
 import { askEntry, readAsks } from "./model.js";
 import { walkPositionLabel } from "../walk-position.js";
 import { focused } from "../focus.js";
@@ -128,7 +129,7 @@ export function createAskView({
         if (askEntry(ask)?.all !== outcome) continue;
         const nodes = reachAsk(ask);
         const { source } = unbuilt(ask, nodes) ? await materializeAsk(ask) : nodes;
-        await source?.[decisionFor(ask.source.tag)?.verb]?.(outcome);
+        await source?.[decisionFor(source)?.verb]?.(outcome);
       }
     } finally {
       answeringAll.delete(outcome);
@@ -160,8 +161,9 @@ export function createAskView({
   // past, and one that only ever appears at upgrade spends the spacer's slack, not the
   // room of anything to its right.
   function buildBulkAnswers() {
-    for (const tag of tagsDeclaring((entry) => entry["x-awaits"]?.all)) {
-      const outcome = registry[tag]["x-awaits"].all;
+    for (const ask of readAsks().all) {
+      const outcome = askEntry(ask)?.all;
+      if (!outcome) continue;
       if (bulkAnswers.has(outcome)) continue;
       const label = outcome[0].toUpperCase() + outcome.slice(1);
       const btn = bannerControls.registerBulk(outcome, label);
@@ -191,6 +193,7 @@ export function createAskView({
   // and a publication is where the server's ask reading changes, so a send moves
   // these counts once the state its POST returns has been adopted.
   async function paintAsks(current) {
+    buildBulkAnswers();
     const bannerModel = Object.freeze({
       bulk: Object.freeze(blanketAnswers(readAsks().user)),
     });
@@ -431,8 +434,8 @@ export function createAskView({
   //
   // The kind that most needs a region is the kind that cannot declare one. A suggestion is
   // an edit to a phrase, and what explains it is the sentence it stands in and the heading
-  // over that — so it can never satisfy "a question must name itself without context outside
-  // the question", and no x-ask-context can be written round it. Landing on the change alone put
+  // over that — so it can never satisfy "an ask must name itself without context outside
+  // the ask", and no x-ask-context can be written round it. Landing on the change alone put
   // its own top edge under the banner and took that sentence with it: the user arrived
   // at ✓ Accept with nothing on screen saying what they were accepting. So where the
   // author has not declared a region, the document supplies one in the shape a declared
@@ -450,7 +453,8 @@ export function createAskView({
     // the reader arrives at its opening and reads down to the answering controls.
     // Shared context must fit above this source; otherwise use its nearby words.
     // With only the default source target, infer the words preceding it instead.
-    const declared = context && registry[context.localName]?.["x-ask-context"];
+    const declared =
+      context && registryFor(context)[context.localName]?.["x-ask-context"];
     if (declared && context === standing) return context;
     // A region has to be somewhere the user can be taken. An element generating no box
     // measures (0,0) at the document's origin, which is not a degenerate answer but a
@@ -504,7 +508,7 @@ export function createAskView({
     // arbitrary-but-consistent rather than positional: Chrome answers PRECEDING for every
     // block in the document, whichever side of the host it stands. Asked straight, the
     // filter therefore kept the blocks after such an ask too, and the last heading in
-    // the container won — the wrong-question arrival this bound exists to remove, in the
+    // the container won — the wrong-ask arrival this bound exists to remove, in the
     // one shape the crossing above was written to serve.
     const seenBy = (block) => hostIn(ask, block.getRootNode());
     const before = [...document.querySelectorAll(TEXT_BLOCK)].filter((block) => {
@@ -579,7 +583,7 @@ export function createAskView({
     // Capture the outgoing place before reveal can reshape it; only a successful
     // arrival commits the departure. A thread ask is
     // in the panel's own list, whose arrival stays centred in that region and is no
-    // trip. Which box either travel moves is the travel's own question (scrollerFor)
+    // trip. Which box either travel moves is the travel's own ask (scrollerFor)
     // rather than a second one asked here.
     const destination = () => {
       const { node: target, source, context } = askPlace(next);

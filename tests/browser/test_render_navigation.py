@@ -2287,14 +2287,14 @@ def test_the_thread_walk_starts_at_a_fresh_fragment_reading(browser, serve, shad
         layer_widgets = {
             "lf-shadow-reading.js": """
 import { once } from "/runtime/widget-api.js";
-customElements.define("lf-shadow-reading", class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     const paragraph = document.createElement("p");
     paragraph.textContent = this.textContent.trim();
     this.attachShadow({mode: "open"}).append(paragraph);
   }
-});
+};
 """
         }
     url = serve(

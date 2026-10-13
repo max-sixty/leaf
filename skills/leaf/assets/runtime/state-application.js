@@ -11,6 +11,7 @@
    install returns only its immutable document capture and a mechanical landing. After
    adoption, optional interface installation and the canonical document proof both
    finish before that landing; declining stale focus never retracts accepted truth. */
+import { requireVocabulary } from "./widget-vocabularies.js";
 import {
   applicationState,
   whenDocumentPresented,
@@ -88,7 +89,11 @@ export function createStateApplication({
     for (const thread of threads)
       for (const message of thread.msgs) {
         if (!message.markup) continue;
-        const authored = prepareAuthoredMessage(message, thread.id);
+        const context = await requireVocabulary(
+          message.revision,
+          state.vocabularies[String(message.revision)],
+        );
+        const authored = prepareAuthoredMessage(message, thread.id, context);
         frozenDocuments.push(authored);
         if (markupRead.has(message.id)) continue;
         preparations.push(

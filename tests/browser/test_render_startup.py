@@ -1410,7 +1410,7 @@ button.chosen { background-color: rgb(40, 50, 60); }
         )
         modules[f"{tag}.js"] = f"""
 import {{ once, shadowStage }} from '/runtime/widget-api.js';
-customElements.define('{tag}', class extends HTMLElement {{
+export default class extends HTMLElement {{
   connectedCallback() {{
     if (!once(this)) return;
     const pulse = document.createElement('span'); pulse.className = 'pulse';
@@ -1423,7 +1423,7 @@ customElements.define('{tag}', class extends HTMLElement {{
     const nodes = [pulse, button];
     {stage};
   }}
-}});
+}};
 """
     url = serve(
         leaf_page(
@@ -1517,7 +1517,7 @@ def test_settled_and_shadow_links_get_the_pages_link_treatment(browser, serve):
             layer_widgets={
                 "lf-settled-link.js": """
 import {once, widgetController} from '/runtime/widget-api.js';
-customElements.define('lf-settled-link', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     widgetController(this).present(new Promise(resolve => setTimeout(() => {
@@ -1529,11 +1529,11 @@ customElements.define('lf-settled-link', class extends HTMLElement {
       resolve();
     }, 25)));
   }
-});
+};
 """,
                 "lf-shadow-link.js": """
 import {once, shadowStage} from '/runtime/widget-api.js';
-customElements.define('lf-shadow-link', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     const button = document.createElement('button');
@@ -1547,7 +1547,7 @@ customElements.define('lf-shadow-link', class extends HTMLElement {
     };
     shadowStage(this, [button]);
   }
-});
+};
 """,
             },
         )
@@ -4502,7 +4502,7 @@ def test_a_comment_on_an_identified_datum_follows_the_subject_across_replacement
     }
     module = """
 import {projectData, watchData, setChildren} from '/runtime/widget-api.js';
-customElements.define('lf-feed', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     this.stopWatching ??= watchData(this, 'rows', snapshot => {
       const datums = (snapshot?.value?.rows ?? []).map(row => {
@@ -4515,7 +4515,7 @@ customElements.define('lf-feed', class extends HTMLElement {
     });
   }
   disconnectedCallback() { this.stopWatching?.(); this.stopWatching = null; }
-});
+};
 """
     url = serve(
         authored,
@@ -4686,7 +4686,7 @@ def _exercise_failed_thread_surface(browser, serve, failure, *, activation):
     }
     module = """
 import {projectData, setChildren, threadSurface} from '/runtime/widget-api.js';
-customElements.define('lf-test-surface', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     const datums = ['first', 'second'].map(key => {
       const row = document.createElement('section');
@@ -4731,7 +4731,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     }
     else threadSurface(this).update();
   }
-});
+};
 """
     roots = [f"{index:032x}" for index in range(1, 4)]
     page = open_page(
@@ -4974,7 +4974,7 @@ def test_a_comment_follows_an_unversioned_derived_datum_by_its_stable_key(
     }
     module = """
 import {offer, projectData, setChildren} from '/runtime/widget-api.js';
-customElements.define('lf-derived', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     window.lfDerived = this;
     this.show([{key: 'api', value: 'Ready'}, {key: 'worker', value: 'Ready'}]);
@@ -4988,7 +4988,7 @@ customElements.define('lf-derived', class extends HTMLElement {
     setChildren(this, datums.map(({node}) => node));
     projectData(this, datums);
   }
-});
+};
 """
     page = open_page(
         browser,
@@ -5435,9 +5435,9 @@ def test_data_consumers_clear_and_recover_across_contract_only_rebindings(
             "x-example": f'<{tag} id="example-{contract}" source="shared"></{tag}>',
         }
 
-    def module(tag):
+    def module():
         return """import {watchData} from '/runtime/widget-api.js';
-customElements.define(TAG, class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     if (this.started) return;
     this.started = true;
@@ -5449,7 +5449,7 @@ customElements.define(TAG, class extends HTMLElement {
     });
   }
   disconnectedCallback() { this.stop?.(); }
-});""".replace("TAG", json.dumps(tag))
+};"""
 
     authored = leaf_page(
         "Different contracts",
@@ -5472,8 +5472,8 @@ customElements.define(TAG, class extends HTMLElement {
             },
         },
         layer_widgets={
-            "lf-array-feed.js": module("lf-array-feed"),
-            "lf-object-feed.js": module("lf-object-feed"),
+            "lf-array-feed.js": module(),
+            "lf-object-feed.js": module(),
         },
     )
     append_carried_log_record(
@@ -6566,7 +6566,7 @@ def test_widgets_claim_before_page_and_only_required_page_failures_fail_proof(
     }
     module = """
 import {projectData, setChildren, threadSurface} from '/runtime/widget-api.js';
-customElements.define('lf-test-seat', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     const datums = ['row'].map(key => {
       const row = document.createElement('section');
@@ -6585,7 +6585,7 @@ customElements.define('lf-test-seat', class extends HTMLElement {
     this.started = true;
     threadSurface(this).update();
   }
-});
+};
 """
     events = [
         {
@@ -6712,7 +6712,7 @@ def test_required_page_failure_retains_composer_seat_focus_and_caret(browser, se
     }
     module = """
 import {projectData,setChildren} from '/runtime/widget-api.js';
-customElements.define('lf-test-seat',class extends HTMLElement{
+export default class extends HTMLElement {
   connectedCallback(){
     this.style.cssText='display:block;height:360px;overflow:auto';
     const datums=['row'].map(key=>{
@@ -6727,7 +6727,7 @@ customElements.define('lf-test-seat',class extends HTMLElement{
   threadOutlets(targets){
     return targets.map(target=>this.side?target.placement.datumElement[this.side]:null);
   }
-});
+};
 """
     events = [
         {

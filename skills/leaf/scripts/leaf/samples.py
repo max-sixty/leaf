@@ -19,13 +19,13 @@ from threading import Lock
 
 from .data import source_file
 from .page_memory import PageMemory, memory_of
-from .revision_artifact import Disposable, RevisionArtifact
+from .revision_artifact import Disposable, write_artifact
 from .revisioning import activate_source
-from .sample_content import initial_sample_events
+from .sample_content import initial_sample_history, page_sample_history
 from .schema import DATA_DIR, DATA_FILE
+from .served_state.service import SampleInputs
 from .state import now_iso, write_json
-from .structure import SourceDocument
-from .thread_context import thread_structure
+from .thread_context import thread_structure, widget_messages
 
 
 @dataclass
@@ -64,14 +64,15 @@ class Samples:
     def create(
         self,
         parent: Path,
-        artifact: RevisionArtifact,
-        document: SourceDocument,
-        events: list,
-        data: dict,
+        inputs: SampleInputs,
         template_id: str,
         message: str | None,
         asset_root: str | None,
     ) -> str:
+        artifact = inputs.artifact
+        document = inputs.readings[inputs.revision].document
+        events = inputs.events
+        data = inputs.data
         """Allocate a child from `template_id` as declared in `document`, or in the
         frozen markup of `message`, a message in `events`."""
         holder = (
@@ -94,15 +95,18 @@ class Samples:
                 f"unknown sample template {template_id!r}"
                 + (f" in message {message!r}" if message is not None else "")
             )
-        seeded = initial_sample_events(
+        parent_history = page_sample_history(
+            document, events, inputs.available_revisions
+        )
+        seeded = initial_sample_history(
             parent,
             document,
-            events,
+            parent_history,
             holder,
             template,
             artifact.registry,
             {name: reading["contract"] for name, reading in data["sources"].items()},
-        )
+        ).events
         source = template["document"].data
         temporary = TemporaryDirectory(prefix="leaf-sample-")
         child = Path(temporary.name)
@@ -135,6 +139,39 @@ class Samples:
                         source_file(child, name),
                         {key: reading[key] for key in ("run", "updated", "value")},
                     )
+            frozen = widget_messages(thread_structure(seeded))
+            revisions = (
+                []
+                if "data-sample-events" in template["attrs"]
+                else sorted(
+                    {
+                        event["revision"]
+                        for event in seeded
+                        if event.get("markup")
+                        and event["revision"] in inputs.available_revisions
+                    }
+                )
+            )
+            revision_map = {
+                revision: index for index, revision in enumerate(revisions, 1)
+            }
+            for revision, copied in revision_map.items():
+                write_artifact(
+                    child,
+                    copied,
+                    inputs.artifacts[revision],
+                    inputs.readings[revision],
+                )
+            current_revision = len(revisions) + 1
+            for event in seeded:
+                if "revision" not in event:
+                    continue
+                event["revision"] = (
+                    revision_map[event["revision"]]
+                    if revisions
+                    and (event.get("markup") or event.get("widget") in frozen)
+                    else current_revision
+                )
             (child / "index.html").write_bytes(source)
             (child / "events.jsonl").write_text(
                 "".join(json.dumps(event) + "\n" for event in seeded),

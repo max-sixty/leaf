@@ -40,7 +40,7 @@ import { commandScope } from "./keyboard/scopes.js";
 import { elementById, inChrome, pageQueryAll, pageReadingVersion } from "./passages.js";
 import { pageUpgraded } from "./page-paint.js";
 import { documentChanged, readApplication } from "./semantic-state.js";
-import { registry } from "./registry.js";
+import { reactionVocabulary } from "./registry.js";
 import { shadowHost, upFrom } from "./shadow.js";
 import { targetElement, targetParts, targetSegments } from "./resolved-target.js";
 import { offer, reveal } from "./widget-elements.js";
@@ -289,7 +289,7 @@ export function createAnchorControls({
             entries: record.roots.flatMap((root) => [
               {
                 key: `reaction:${root.id}:open`,
-                glyph: registry.$reactions.tokens[root.token]?.glyph ?? root.token,
+                glyph: reactionVocabulary()[root.token]?.glyph ?? root.token,
                 label: `${root.token} reaction actions`,
                 behavior: "disclosure",
                 rank: "secondary",

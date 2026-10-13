@@ -959,7 +959,7 @@ main {
    * to the column and scrolls inside it. */
   :where([data-lf-space="column"]) {
     box-sizing: border-box;
-    --lf-reach: min(var(--lf-measure, var(--lf-room, 0px)), var(--lf-room, 0px));
+    --lf-reach: min(var(--lf-measure), var(--lf-room, 0px));
   }
   /* A box allocated the column widens to the widest allocation among its own blocks, so
    * an Ask or a callout around a chart or table that declares `wide` or `available`
@@ -969,7 +969,7 @@ main {
    * a table in an option or a folded disclosure, is held to that child's width, so an
    * option list keeps the measure whatever one option holds. */
   :where([data-lf-space="column"]:has(> [data-lf-space="wide"])) {
-    max-inline-size: max(var(--lf-measure), var(--lf-wide-measure));
+    max-inline-size: max(var(--lf-measure), var(--wide));
   }
   :where([data-lf-space="column"]:has(> [data-lf-space="available"])) {
     max-inline-size: none;
